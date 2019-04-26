@@ -12,11 +12,7 @@ pub use pgp::composed::Message;
 pub type message = Message;
 
 /// Parse an armored message.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_from_armor(
-    msg_ptr: *const u8,
-    msg_len: libc::size_t,
-) -> *mut message {
+pub unsafe fn rpgp_msg_from_armor(msg_ptr: *const u8, msg_len: libc::size_t) -> *mut message {
     assert!(!msg_ptr.is_null());
     assert!(msg_len > 0);
 
@@ -31,7 +27,6 @@ pub unsafe extern "C" fn rpgp_msg_from_armor(
 }
 
 /// Parse a message in bytes format.
-#[no_mangle]
 pub unsafe extern "C" fn rpgp_msg_from_bytes(
     msg_ptr: *const u8,
     msg_len: libc::size_t,
@@ -47,8 +42,7 @@ pub unsafe extern "C" fn rpgp_msg_from_bytes(
 }
 
 /// Decrypt the passed in message, using a password.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_decrypt_with_password(
+pub unsafe fn rpgp_msg_decrypt_with_password(
     msg_ptr: *const message,
     password_ptr: *const c_char,
 ) -> *mut message {
@@ -74,8 +68,7 @@ pub unsafe extern "C" fn rpgp_msg_decrypt_with_password(
 }
 
 /// Decrypt the passed in message, without attempting to use a password.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_decrypt_no_pw(
+pub unsafe fn rpgp_msg_decrypt_no_pw(
     msg_ptr: *const message,
     skeys_ptr: *const *const signed_secret_key,
     skeys_len: libc::size_t,
@@ -155,8 +148,7 @@ pub struct message_decrypt_result {
 }
 
 /// Free a [message_decrypt_result].
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_message_decrypt_result_drop(res_ptr: *mut message_decrypt_result) {
+pub unsafe fn rpgp_message_decrypt_result_drop(res_ptr: *mut message_decrypt_result) {
     assert!(!res_ptr.is_null());
 
     let res = &*res_ptr;
@@ -167,8 +159,7 @@ pub unsafe extern "C" fn rpgp_message_decrypt_result_drop(res_ptr: *mut message_
 
 /// Returns the underlying data of the given message.
 /// Fails when the message is encrypted. Decompresses compressed messages.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_to_bytes(msg_ptr: *const message) -> *mut cvec {
+pub unsafe fn rpgp_msg_to_bytes(msg_ptr: *const message) -> *mut cvec {
     assert!(!msg_ptr.is_null());
 
     let msg = &*msg_ptr;
@@ -184,8 +175,7 @@ pub unsafe extern "C" fn rpgp_msg_to_bytes(msg_ptr: *const message) -> *mut cvec
 }
 
 /// Encodes the message into its ascii armored representation.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_to_armored(msg_ptr: *const message) -> *mut cvec {
+pub unsafe fn rpgp_msg_to_armored(msg_ptr: *const message) -> *mut cvec {
     assert!(!msg_ptr.is_null());
 
     let msg = &*msg_ptr;
@@ -199,8 +189,7 @@ pub unsafe extern "C" fn rpgp_msg_to_armored(msg_ptr: *const message) -> *mut cv
 }
 
 /// Encodes the message into its ascii armored representation, returning a string.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_to_armored_str(msg_ptr: *const message) -> *mut c_char {
+pub unsafe fn rpgp_msg_to_armored_str(msg_ptr: *const message) -> *mut c_char {
     assert!(!msg_ptr.is_null());
 
     let msg = &*msg_ptr;
@@ -214,8 +203,7 @@ pub unsafe extern "C" fn rpgp_msg_to_armored_str(msg_ptr: *const message) -> *mu
 }
 
 /// Free a [message], that was created by rpgp.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_drop(msg_ptr: *mut message) {
+pub unsafe fn rpgp_msg_drop(msg_ptr: *mut message) {
     assert!(!msg_ptr.is_null());
 
     let _ = &*msg_ptr;
@@ -223,8 +211,7 @@ pub unsafe extern "C" fn rpgp_msg_drop(msg_ptr: *mut message) {
 }
 
 /// Get the number of fingerprints of a given encrypted message.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_recipients_len(msg_ptr: *mut message) -> u32 {
+pub unsafe fn rpgp_msg_recipients_len(msg_ptr: *mut message) -> u32 {
     assert!(!msg_ptr.is_null());
 
     let msg = &*msg_ptr;
@@ -235,8 +222,7 @@ pub unsafe extern "C" fn rpgp_msg_recipients_len(msg_ptr: *mut message) -> u32 {
 }
 
 /// Get the fingerprint of a given encrypted message, by index, in hexformat.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_msg_recipients_get(msg_ptr: *mut message, i: u32) -> *mut c_char {
+pub unsafe fn rpgp_msg_recipients_get(msg_ptr: *mut message, i: u32) -> *mut c_char {
     assert!(!msg_ptr.is_null());
 
     let msg = &*msg_ptr;
@@ -251,8 +237,7 @@ pub unsafe extern "C" fn rpgp_msg_recipients_get(msg_ptr: *mut message, i: u32) 
     }
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_encrypt_bytes_to_keys(
+pub unsafe fn rpgp_encrypt_bytes_to_keys(
     bytes_ptr: *const u8,
     bytes_len: libc::size_t,
     pkeys_ptr: *const *const signed_public_key,
@@ -285,8 +270,7 @@ pub unsafe extern "C" fn rpgp_encrypt_bytes_to_keys(
     Box::into_raw(Box::new(msg))
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_sign_encrypt_bytes_to_keys(
+pub unsafe fn rpgp_sign_encrypt_bytes_to_keys(
     bytes_ptr: *const u8,
     bytes_len: libc::size_t,
     pkeys_ptr: *const *const signed_public_key,
@@ -333,8 +317,7 @@ pub unsafe extern "C" fn rpgp_sign_encrypt_bytes_to_keys(
     Box::into_raw(Box::new(encrypted_msg))
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_encrypt_bytes_with_password(
+pub unsafe fn rpgp_encrypt_bytes_with_password(
     bytes_ptr: *const u8,
     bytes_len: libc::size_t,
     password_ptr: *const c_char,

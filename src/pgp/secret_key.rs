@@ -18,11 +18,7 @@ use crate::pgp::signed_public_key;
 pub type signed_secret_key = SignedSecretKey;
 
 /// Generates a new RSA key.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_create_rsa_skey(
-    bits: u32,
-    user_id: *const c_char,
-) -> *mut signed_secret_key {
+pub unsafe fn rpgp_create_rsa_skey(bits: u32, user_id: *const c_char) -> *mut signed_secret_key {
     assert!(!user_id.is_null());
 
     let user_id = CStr::from_ptr(user_id);
@@ -37,7 +33,6 @@ pub unsafe extern "C" fn rpgp_create_rsa_skey(
 }
 
 /// Generates a new x25519 key.
-#[no_mangle]
 pub unsafe extern "C" fn rpgp_create_x25519_skey(user_id: *const c_char) -> *mut signed_secret_key {
     assert!(!user_id.is_null());
 
@@ -52,8 +47,7 @@ pub unsafe extern "C" fn rpgp_create_x25519_skey(user_id: *const c_char) -> *mut
 }
 
 /// Serialize a secret key into its byte representation.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_skey_to_bytes(skey_ptr: *mut signed_secret_key) -> *mut cvec {
+pub unsafe fn rpgp_skey_to_bytes(skey_ptr: *mut signed_secret_key) -> *mut cvec {
     assert!(!skey_ptr.is_null());
 
     let skey = &*skey_ptr;
@@ -65,10 +59,7 @@ pub unsafe extern "C" fn rpgp_skey_to_bytes(skey_ptr: *mut signed_secret_key) ->
 }
 
 /// Get the signed public key matching the given private key. Only works for non password protected keys.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_skey_public_key(
-    skey_ptr: *mut signed_secret_key,
-) -> *mut signed_public_key {
+pub unsafe fn rpgp_skey_public_key(skey_ptr: *mut signed_secret_key) -> *mut signed_public_key {
     assert!(!skey_ptr.is_null());
 
     let skey = &*skey_ptr;
@@ -80,8 +71,7 @@ pub unsafe extern "C" fn rpgp_skey_public_key(
 }
 
 /// Returns the KeyID for the passed in key.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_skey_key_id(skey_ptr: *mut signed_secret_key) -> *mut c_char {
+pub unsafe fn rpgp_skey_key_id(skey_ptr: *mut signed_secret_key) -> *mut c_char {
     assert!(!skey_ptr.is_null());
 
     let key = &*skey_ptr;
@@ -94,8 +84,7 @@ pub unsafe extern "C" fn rpgp_skey_key_id(skey_ptr: *mut signed_secret_key) -> *
 }
 
 /// Free the memory of a secret key.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_skey_drop(skey_ptr: *mut signed_secret_key) {
+pub unsafe fn rpgp_skey_drop(skey_ptr: *mut signed_secret_key) {
     assert!(!skey_ptr.is_null());
 
     let _skey = &*skey_ptr;
@@ -103,11 +92,7 @@ pub unsafe extern "C" fn rpgp_skey_drop(skey_ptr: *mut signed_secret_key) {
 }
 
 /// Creates an in-memory representation of a Secret PGP key, based on the serialized bytes given.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_skey_from_bytes(
-    raw: *const u8,
-    len: libc::size_t,
-) -> *mut signed_secret_key {
+pub unsafe fn rpgp_skey_from_bytes(raw: *const u8, len: libc::size_t) -> *mut signed_secret_key {
     assert!(!raw.is_null());
     assert!(len > 0);
 

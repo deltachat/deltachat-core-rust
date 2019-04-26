@@ -26,8 +26,7 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_securejoin_qr(
+pub unsafe fn dc_get_securejoin_qr(
     mut context: *mut dc_context_t,
     mut group_chat_id: uint32_t,
 ) -> *mut libc::c_char {
@@ -148,7 +147,7 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
         dc_strdup(0 as *const libc::c_char)
     };
 }
-unsafe extern "C" fn get_self_fingerprint(mut context: *mut dc_context_t) -> *mut libc::c_char {
+unsafe fn get_self_fingerprint(mut context: *mut dc_context_t) -> *mut libc::c_char {
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut self_key: *mut dc_key_t = dc_key_new();
     let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -165,8 +164,7 @@ unsafe extern "C" fn get_self_fingerprint(mut context: *mut dc_context_t) -> *mu
     dc_key_unref(self_key);
     return fingerprint;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_join_securejoin(
+pub unsafe fn dc_join_securejoin(
     mut context: *mut dc_context_t,
     mut qr: *const libc::c_char,
 ) -> uint32_t {
@@ -293,7 +291,7 @@ pub unsafe extern "C" fn dc_join_securejoin(
     }
     return ret_chat_id as uint32_t;
 }
-unsafe extern "C" fn send_handshake_msg(
+unsafe fn send_handshake_msg(
     mut context: *mut dc_context_t,
     mut contact_chat_id: uint32_t,
     mut step: *const libc::c_char,
@@ -329,7 +327,7 @@ unsafe extern "C" fn send_handshake_msg(
     dc_send_msg(context, contact_chat_id, msg);
     dc_msg_unref(msg);
 }
-unsafe extern "C" fn chat_id_2_contact_id(
+unsafe fn chat_id_2_contact_id(
     mut context: *mut dc_context_t,
     mut contact_chat_id: uint32_t,
 ) -> uint32_t {
@@ -341,7 +339,7 @@ unsafe extern "C" fn chat_id_2_contact_id(
     dc_array_unref(contacts);
     return contact_id;
 }
-unsafe extern "C" fn fingerprint_equals_sender(
+unsafe fn fingerprint_equals_sender(
     mut context: *mut dc_context_t,
     mut fingerprint: *const libc::c_char,
     mut contact_chat_id: uint32_t,
@@ -372,8 +370,7 @@ unsafe extern "C" fn fingerprint_equals_sender(
     return fingerprint_equal;
 }
 /* library private: secure-join */
-#[no_mangle]
-pub unsafe extern "C" fn dc_handle_securejoin_handshake(
+pub unsafe fn dc_handle_securejoin_handshake(
     mut context: *mut dc_context_t,
     mut mimeparser: *mut dc_mimeparser_t,
     mut contact_id: uint32_t,
@@ -904,11 +901,11 @@ pub unsafe extern "C" fn dc_handle_securejoin_handshake(
     free(grpid as *mut libc::c_void);
     return ret;
 }
-unsafe extern "C" fn end_bobs_joining(mut context: *mut dc_context_t, mut status: libc::c_int) {
+unsafe fn end_bobs_joining(mut context: *mut dc_context_t, mut status: libc::c_int) {
     (*context).bobs_status = status;
     dc_stop_ongoing_process(context);
 }
-unsafe extern "C" fn secure_connection_established(
+unsafe fn secure_connection_established(
     mut context: *mut dc_context_t,
     mut contact_chat_id: uint32_t,
 ) {
@@ -933,7 +930,7 @@ unsafe extern "C" fn secure_connection_established(
     free(msg as *mut libc::c_void);
     dc_contact_unref(contact);
 }
-unsafe extern "C" fn lookup_field(
+unsafe fn lookup_field(
     mut mimeparser: *mut dc_mimeparser_t,
     mut key: *const libc::c_char,
 ) -> *const libc::c_char {
@@ -951,7 +948,7 @@ unsafe extern "C" fn lookup_field(
     }
     return value;
 }
-unsafe extern "C" fn could_not_establish_secure_connection(
+unsafe fn could_not_establish_secure_connection(
     mut context: *mut dc_context_t,
     mut contact_chat_id: uint32_t,
     mut details: *const libc::c_char,
@@ -978,7 +975,7 @@ unsafe extern "C" fn could_not_establish_secure_connection(
     free(msg as *mut libc::c_void);
     dc_contact_unref(contact);
 }
-unsafe extern "C" fn mark_peer_as_verified(
+unsafe fn mark_peer_as_verified(
     mut context: *mut dc_context_t,
     mut fingerprint: *const libc::c_char,
 ) -> libc::c_int {
@@ -998,7 +995,7 @@ unsafe extern "C" fn mark_peer_as_verified(
 /* ******************************************************************************
  * Tools: Misc.
  ******************************************************************************/
-unsafe extern "C" fn encrypted_and_signed(
+unsafe fn encrypted_and_signed(
     mut mimeparser: *mut dc_mimeparser_t,
     mut expected_fingerprint: *const libc::c_char,
 ) -> libc::c_int {
@@ -1044,8 +1041,7 @@ unsafe extern "C" fn encrypted_and_signed(
     }
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_handle_degrade_event(
+pub unsafe fn dc_handle_degrade_event(
     mut context: *mut dc_context_t,
     mut peerstate: *mut dc_apeerstate_t,
 ) {

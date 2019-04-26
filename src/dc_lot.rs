@@ -40,8 +40,7 @@ pub struct dc_lot_t {
  *
  * NB: _Lot_ is used in the meaning _heap_ here.
  */
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_new() -> *mut dc_lot_t {
+pub unsafe fn dc_lot_new() -> *mut dc_lot_t {
     let mut lot: *mut dc_lot_t = 0 as *mut dc_lot_t;
     lot = calloc(
         1i32 as libc::c_ulong,
@@ -54,8 +53,7 @@ pub unsafe extern "C" fn dc_lot_new() -> *mut dc_lot_t {
     (*lot).text1_meaning = 0i32;
     return lot;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_empty(mut lot: *mut dc_lot_t) {
+pub unsafe fn dc_lot_empty(mut lot: *mut dc_lot_t) {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return;
     }
@@ -74,8 +72,7 @@ pub unsafe extern "C" fn dc_lot_empty(mut lot: *mut dc_lot_t) {
     (*lot).state = 0i32;
     (*lot).id = 0i32 as uint32_t;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_unref(mut set: *mut dc_lot_t) {
+pub unsafe fn dc_lot_unref(mut set: *mut dc_lot_t) {
     if set.is_null() || (*set).magic != 0x107107i32 as libc::c_uint {
         return;
     }
@@ -83,43 +80,37 @@ pub unsafe extern "C" fn dc_lot_unref(mut set: *mut dc_lot_t) {
     (*set).magic = 0i32 as uint32_t;
     free(set as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_text1(mut lot: *const dc_lot_t) -> *mut libc::c_char {
+pub unsafe fn dc_lot_get_text1(mut lot: *const dc_lot_t) -> *mut libc::c_char {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0 as *mut libc::c_char;
     }
     return dc_strdup_keep_null((*lot).text1);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_text2(mut lot: *const dc_lot_t) -> *mut libc::c_char {
+pub unsafe fn dc_lot_get_text2(mut lot: *const dc_lot_t) -> *mut libc::c_char {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0 as *mut libc::c_char;
     }
     return dc_strdup_keep_null((*lot).text2);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_text1_meaning(mut lot: *const dc_lot_t) -> libc::c_int {
+pub unsafe fn dc_lot_get_text1_meaning(mut lot: *const dc_lot_t) -> libc::c_int {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0i32;
     }
     return (*lot).text1_meaning;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_state(mut lot: *const dc_lot_t) -> libc::c_int {
+pub unsafe fn dc_lot_get_state(mut lot: *const dc_lot_t) -> libc::c_int {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0i32;
     }
     return (*lot).state;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_id(mut lot: *const dc_lot_t) -> uint32_t {
+pub unsafe fn dc_lot_get_id(mut lot: *const dc_lot_t) -> uint32_t {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
     return (*lot).id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_timestamp(mut lot: *const dc_lot_t) -> time_t {
+pub unsafe fn dc_lot_get_timestamp(mut lot: *const dc_lot_t) -> time_t {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0i32 as time_t;
     }
@@ -127,8 +118,7 @@ pub unsafe extern "C" fn dc_lot_get_timestamp(mut lot: *const dc_lot_t) -> time_
 }
 /* library-internal */
 /* in practice, the user additionally cuts the string himself pixel-accurate */
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_fill(
+pub unsafe fn dc_lot_fill(
     mut lot: *mut dc_lot_t,
     mut msg: *const dc_msg_t,
     mut chat: *const dc_chat_t,

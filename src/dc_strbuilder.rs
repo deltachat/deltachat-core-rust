@@ -12,8 +12,7 @@ pub struct dc_strbuilder_t {
     pub eos: *mut libc::c_char,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_strbuilder_init(
+pub unsafe fn dc_strbuilder_init(
     mut strbuilder: *mut dc_strbuilder_t,
     mut init_bytes: libc::c_int,
 ) {
@@ -33,7 +32,7 @@ pub unsafe extern "C" fn dc_strbuilder_init(
     (*strbuilder).free = (*strbuilder).allocated - 1i32;
     (*strbuilder).eos = (*strbuilder).buf;
 }
-pub unsafe extern "C" fn dc_strbuilder_cat(
+pub unsafe fn dc_strbuilder_cat(
     mut strbuilder: *mut dc_strbuilder_t,
     mut text: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -66,8 +65,7 @@ pub unsafe extern "C" fn dc_strbuilder_cat(
     (*strbuilder).free -= len;
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_strbuilder_empty(mut strbuilder: *mut dc_strbuilder_t) {
+pub unsafe fn dc_strbuilder_empty(mut strbuilder: *mut dc_strbuilder_t) {
     *(*strbuilder).buf.offset(0isize) = 0i32 as libc::c_char;
     (*strbuilder).free = (*strbuilder).allocated - 1i32;
     (*strbuilder).eos = (*strbuilder).buf;

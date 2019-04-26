@@ -9,8 +9,7 @@ use crate::x::*;
 
 /* yes: uppercase */
 /* library private: key-history */
-#[no_mangle]
-pub unsafe extern "C" fn dc_add_to_keyhistory(
+pub unsafe fn dc_add_to_keyhistory(
     mut context: *mut dc_context_t,
     mut rfc724_mid: *const libc::c_char,
     mut sending_time: time_t,

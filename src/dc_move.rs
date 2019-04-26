@@ -12,8 +12,7 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_do_heuristics_moves(
+pub unsafe fn dc_do_heuristics_moves(
     mut context: *mut dc_context_t,
     mut folder: *const libc::c_char,
     mut msg_id: uint32_t,

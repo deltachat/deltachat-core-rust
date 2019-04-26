@@ -32,7 +32,6 @@ pub fn take_last_error() -> Option<Box<Error>> {
 
 /// Calculate the number of bytes in the last error's error message **not**
 /// including any trailing `null` characters.
-#[no_mangle]
 pub extern "C" fn rpgp_last_error_length() -> c_int {
     LAST_ERROR.with(|prev| match *prev.borrow() {
         Some(ref err) => err.to_string().len() as c_int + 1,
@@ -51,8 +50,7 @@ pub extern "C" fn rpgp_last_error_length() -> c_int {
 /// If there are no recent errors then this returns `0` (because we wrote 0
 /// bytes). `-1` is returned if there are any errors, for example when passed a
 /// null pointer or a buffer of insufficient size.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_last_error_message() -> *mut c_char {
+pub unsafe fn rpgp_last_error_message() -> *mut c_char {
     let last_error = match take_last_error() {
         Some(err) => err,
         None => return ptr::null_mut(),

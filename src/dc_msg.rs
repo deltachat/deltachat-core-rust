@@ -47,8 +47,7 @@ pub struct dc_msg_t {
 }
 
 // handle messages
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_msg_info(
+pub unsafe fn dc_get_msg_info(
     mut context: *mut dc_context_t,
     mut msg_id: uint32_t,
 ) -> *mut libc::c_char {
@@ -293,8 +292,7 @@ pub unsafe extern "C" fn dc_get_msg_info(
     free(rawtxt as *mut libc::c_void);
     return ret.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_new_untyped(mut context: *mut dc_context_t) -> *mut dc_msg_t {
+pub unsafe fn dc_msg_new_untyped(mut context: *mut dc_context_t) -> *mut dc_msg_t {
     return dc_msg_new(context, 0i32);
 }
 /* *
@@ -307,8 +305,7 @@ pub unsafe extern "C" fn dc_msg_new_untyped(mut context: *mut dc_context_t) -> *
 // to check if a mail was sent, use dc_msg_is_sent()
 // approx. max. lenght returned by dc_msg_get_text()
 // approx. max. lenght returned by dc_get_msg_info()
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_new(
+pub unsafe fn dc_msg_new(
     mut context: *mut dc_context_t,
     mut viewtype: libc::c_int,
 ) -> *mut dc_msg_t {
@@ -327,8 +324,7 @@ pub unsafe extern "C" fn dc_msg_new(
     (*msg).param = dc_param_new();
     return msg;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_unref(mut msg: *mut dc_msg_t) {
+pub unsafe fn dc_msg_unref(mut msg: *mut dc_msg_t) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
@@ -337,8 +333,7 @@ pub unsafe extern "C" fn dc_msg_unref(mut msg: *mut dc_msg_t) {
     (*msg).magic = 0i32 as uint32_t;
     free(msg as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_empty(mut msg: *mut dc_msg_t) {
+pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
@@ -353,8 +348,7 @@ pub unsafe extern "C" fn dc_msg_empty(mut msg: *mut dc_msg_t) {
     dc_param_set_packed((*msg).param, 0 as *const libc::c_char);
     (*msg).hidden = 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_filemime(mut msg: *const dc_msg_t) -> *mut libc::c_char {
+pub unsafe fn dc_msg_get_filemime(mut msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut file: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
@@ -378,8 +372,7 @@ pub unsafe extern "C" fn dc_msg_get_filemime(mut msg: *const dc_msg_t) -> *mut l
         dc_strdup(0 as *const libc::c_char)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_guess_msgtype_from_suffix(
+pub unsafe fn dc_msg_guess_msgtype_from_suffix(
     mut pathNfilename: *const libc::c_char,
     mut ret_msgtype: *mut libc::c_int,
     mut ret_mime: *mut *mut libc::c_char,
@@ -432,8 +425,7 @@ pub unsafe extern "C" fn dc_msg_guess_msgtype_from_suffix(
     free(suffix as *mut libc::c_void);
     free(dummy_buf as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_file(mut msg: *const dc_msg_t) -> *mut libc::c_char {
+pub unsafe fn dc_msg_get_file(mut msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut file_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut file_abs: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
@@ -449,15 +441,13 @@ pub unsafe extern "C" fn dc_msg_get_file(mut msg: *const dc_msg_t) -> *mut libc:
         dc_strdup(0 as *const libc::c_char)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_has_location(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_has_location(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return ((*msg).location_id != 0i32 as libc::c_uint) as libc::c_int;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_timestamp(mut msg: *const dc_msg_t) -> time_t {
+pub unsafe fn dc_msg_get_timestamp(mut msg: *const dc_msg_t) -> time_t {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32 as time_t;
     }
@@ -467,8 +457,7 @@ pub unsafe extern "C" fn dc_msg_get_timestamp(mut msg: *const dc_msg_t) -> time_
         (*msg).timestamp_sort
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_load_from_db(
+pub unsafe fn dc_msg_load_from_db(
     mut msg: *mut dc_msg_t,
     mut context: *mut dc_context_t,
     mut id: uint32_t,
@@ -496,7 +485,7 @@ pub unsafe extern "C" fn dc_msg_load_from_db(
     sqlite3_finalize(stmt);
     return success;
 }
-unsafe extern "C" fn dc_msg_set_from_stmt(
+unsafe fn dc_msg_set_from_stmt(
     mut msg: *mut dc_msg_t,
     mut row: *mut sqlite3_stmt,
     mut row_offset: libc::c_int,
@@ -573,8 +562,7 @@ unsafe extern "C" fn dc_msg_set_from_stmt(
     }
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_mime_headers(
+pub unsafe fn dc_get_mime_headers(
     mut context: *mut dc_context_t,
     mut msg_id: uint32_t,
 ) -> *mut libc::c_char {
@@ -593,8 +581,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
     sqlite3_finalize(stmt);
     return eml;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_delete_msgs(
+pub unsafe fn dc_delete_msgs(
     mut context: *mut dc_context_t,
     mut msg_ids: *const uint32_t,
     mut msg_cnt: libc::c_int,
@@ -631,8 +618,7 @@ pub unsafe extern "C" fn dc_delete_msgs(
         dc_job_add(context, 105i32, 0i32, 0 as *const libc::c_char, 10i32);
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_update_msg_chat_id(
+pub unsafe fn dc_update_msg_chat_id(
     mut context: *mut dc_context_t,
     mut msg_id: uint32_t,
     mut chat_id: uint32_t,
@@ -646,8 +632,7 @@ pub unsafe extern "C" fn dc_update_msg_chat_id(
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_markseen_msgs(
+pub unsafe fn dc_markseen_msgs(
     mut context: *mut dc_context_t,
     mut msg_ids: *const uint32_t,
     mut msg_cnt: libc::c_int,
@@ -717,8 +702,7 @@ pub unsafe extern "C" fn dc_markseen_msgs(
     }
     sqlite3_finalize(stmt);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_update_msg_state(
+pub unsafe fn dc_update_msg_state(
     mut context: *mut dc_context_t,
     mut msg_id: uint32_t,
     mut state: libc::c_int,
@@ -732,8 +716,7 @@ pub unsafe extern "C" fn dc_update_msg_state(
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_star_msgs(
+pub unsafe fn dc_star_msgs(
     mut context: *mut dc_context_t,
     mut msg_ids: *const uint32_t,
     mut msg_cnt: libc::c_int,
@@ -763,11 +746,7 @@ pub unsafe extern "C" fn dc_star_msgs(
     sqlite3_finalize(stmt);
     dc_sqlite3_commit((*context).sql);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_msg(
-    mut context: *mut dc_context_t,
-    mut msg_id: uint32_t,
-) -> *mut dc_msg_t {
+pub unsafe fn dc_get_msg(mut context: *mut dc_context_t, mut msg_id: uint32_t) -> *mut dc_msg_t {
     let mut success: libc::c_int = 0i32;
     let mut obj: *mut dc_msg_t = dc_msg_new_untyped(context);
     if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
@@ -782,22 +761,19 @@ pub unsafe extern "C" fn dc_get_msg(
         return 0 as *mut dc_msg_t;
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_id(mut msg: *const dc_msg_t) -> uint32_t {
+pub unsafe fn dc_msg_get_id(mut msg: *const dc_msg_t) -> uint32_t {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
     return (*msg).id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_from_id(mut msg: *const dc_msg_t) -> uint32_t {
+pub unsafe fn dc_msg_get_from_id(mut msg: *const dc_msg_t) -> uint32_t {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
     return (*msg).from_id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_chat_id(mut msg: *const dc_msg_t) -> uint32_t {
+pub unsafe fn dc_msg_get_chat_id(mut msg: *const dc_msg_t) -> uint32_t {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
@@ -807,36 +783,31 @@ pub unsafe extern "C" fn dc_msg_get_chat_id(mut msg: *const dc_msg_t) -> uint32_
         (*msg).chat_id
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_viewtype(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_viewtype(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return (*msg).type_0;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_state(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_state(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return (*msg).state;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_received_timestamp(mut msg: *const dc_msg_t) -> time_t {
+pub unsafe fn dc_msg_get_received_timestamp(mut msg: *const dc_msg_t) -> time_t {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32 as time_t;
     }
     return (*msg).timestamp_rcvd;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_sort_timestamp(mut msg: *const dc_msg_t) -> time_t {
+pub unsafe fn dc_msg_get_sort_timestamp(mut msg: *const dc_msg_t) -> time_t {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32 as time_t;
     }
     return (*msg).timestamp_sort;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_text(mut msg: *const dc_msg_t) -> *mut libc::c_char {
+pub unsafe fn dc_msg_get_text(mut msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
@@ -845,8 +816,7 @@ pub unsafe extern "C" fn dc_msg_get_text(mut msg: *const dc_msg_t) -> *mut libc:
     dc_truncate_str(ret, 30000i32);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_filename(mut msg: *const dc_msg_t) -> *mut libc::c_char {
+pub unsafe fn dc_msg_get_filename(mut msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
@@ -862,8 +832,7 @@ pub unsafe extern "C" fn dc_msg_get_filename(mut msg: *const dc_msg_t) -> *mut l
         dc_strdup(0 as *const libc::c_char)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_filebytes(mut msg: *const dc_msg_t) -> uint64_t {
+pub unsafe fn dc_msg_get_filebytes(mut msg: *const dc_msg_t) -> uint64_t {
     let mut ret: uint64_t = 0i32 as uint64_t;
     let mut file: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
@@ -875,29 +844,25 @@ pub unsafe extern "C" fn dc_msg_get_filebytes(mut msg: *const dc_msg_t) -> uint6
     free(file as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_width(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_width(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return dc_param_get_int((*msg).param, 'w' as i32, 0i32);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_height(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_height(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return dc_param_get_int((*msg).param, 'h' as i32, 0i32);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_duration(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_duration(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return dc_param_get_int((*msg).param, 'd' as i32, 0i32);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_showpadlock(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_showpadlock(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint || (*msg).context.is_null() {
         return 0i32;
     }
@@ -906,8 +871,7 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(mut msg: *const dc_msg_t) -> lib
     }
     return 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_summary(
+pub unsafe fn dc_msg_get_summary(
     mut msg: *const dc_msg_t,
     mut chat: *const dc_chat_t,
 ) -> *mut dc_lot_t {
@@ -943,8 +907,7 @@ pub unsafe extern "C" fn dc_msg_get_summary(
     dc_chat_unref(chat_to_delete);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_summarytext(
+pub unsafe fn dc_msg_get_summarytext(
     mut msg: *const dc_msg_t,
     mut approx_characters: libc::c_int,
 ) -> *mut libc::c_char {
@@ -960,8 +923,7 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
     );
 }
 /* the returned value must be free()'d */
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_summarytext_by_raw(
+pub unsafe fn dc_msg_get_summarytext_by_raw(
     mut type_0: libc::c_int,
     mut text: *const libc::c_char,
     mut param: *mut dc_param_t,
@@ -1033,30 +995,26 @@ pub unsafe extern "C" fn dc_msg_get_summarytext_by_raw(
     }
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_has_deviating_timestamp(mut msg: *const dc_msg_t) -> libc::c_int {
     let mut cnv_to_local: libc::c_long = dc_gm2local_offset();
     let mut sort_timestamp: time_t = dc_msg_get_sort_timestamp(msg) + cnv_to_local;
     let mut send_timestamp: time_t = dc_msg_get_timestamp(msg) + cnv_to_local;
     return (sort_timestamp / 86400i32 as libc::c_long != send_timestamp / 86400i32 as libc::c_long)
         as libc::c_int;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_sent(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_is_sent(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return if (*msg).state >= 26i32 { 1i32 } else { 0i32 };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_starred(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_is_starred(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return if 0 != (*msg).starred { 1i32 } else { 0i32 };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_forwarded(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_is_forwarded(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
@@ -1066,8 +1024,7 @@ pub unsafe extern "C" fn dc_msg_is_forwarded(mut msg: *const dc_msg_t) -> libc::
         0i32
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_info(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_is_info(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
@@ -1080,8 +1037,7 @@ pub unsafe extern "C" fn dc_msg_is_info(mut msg: *const dc_msg_t) -> libc::c_int
     }
     return 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_increation(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_is_increation(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint || (*msg).context.is_null() {
         return 0i32;
     }
@@ -1093,8 +1049,7 @@ pub unsafe extern "C" fn dc_msg_is_increation(mut msg: *const dc_msg_t) -> libc:
         || (*msg).type_0 == 60i32)
         && (*msg).state == 18i32) as libc::c_int;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_setupmessage(mut msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_is_setupmessage(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint || (*msg).type_0 != 60i32 {
         return 0i32;
     }
@@ -1104,8 +1059,7 @@ pub unsafe extern "C" fn dc_msg_is_setupmessage(mut msg: *const dc_msg_t) -> lib
         0i32
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_setupcodebegin(mut msg: *const dc_msg_t) -> *mut libc::c_char {
+pub unsafe fn dc_msg_get_setupcodebegin(mut msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf_bytes: size_t = 0i32 as size_t;
@@ -1154,16 +1108,14 @@ pub unsafe extern "C" fn dc_msg_get_setupcodebegin(mut msg: *const dc_msg_t) -> 
         dc_strdup(0 as *const libc::c_char)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_text(mut msg: *mut dc_msg_t, mut text: *const libc::c_char) {
+pub unsafe fn dc_msg_set_text(mut msg: *mut dc_msg_t, mut text: *const libc::c_char) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
     free((*msg).text as *mut libc::c_void);
     (*msg).text = dc_strdup(text);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_file(
+pub unsafe fn dc_msg_set_file(
     mut msg: *mut dc_msg_t,
     mut file: *const libc::c_char,
     mut filemime: *const libc::c_char,
@@ -1174,8 +1126,7 @@ pub unsafe extern "C" fn dc_msg_set_file(
     dc_param_set((*msg).param, 'f' as i32, file);
     dc_param_set((*msg).param, 'm' as i32, filemime);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_dimension(
+pub unsafe fn dc_msg_set_dimension(
     mut msg: *mut dc_msg_t,
     mut width: libc::c_int,
     mut height: libc::c_int,
@@ -1186,15 +1137,13 @@ pub unsafe extern "C" fn dc_msg_set_dimension(
     dc_param_set_int((*msg).param, 'w' as i32, width);
     dc_param_set_int((*msg).param, 'h' as i32, height);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_duration(mut msg: *mut dc_msg_t, mut duration: libc::c_int) {
+pub unsafe fn dc_msg_set_duration(mut msg: *mut dc_msg_t, mut duration: libc::c_int) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
     dc_param_set_int((*msg).param, 'd' as i32, duration);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
+pub unsafe fn dc_msg_latefiling_mediasize(
     mut msg: *mut dc_msg_t,
     mut width: libc::c_int,
     mut height: libc::c_int,
@@ -1211,8 +1160,7 @@ pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
         dc_msg_save_param_to_disk(msg);
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_save_param_to_disk(mut msg: *mut dc_msg_t) {
+pub unsafe fn dc_msg_save_param_to_disk(mut msg: *mut dc_msg_t) {
     if msg.is_null()
         || (*msg).magic != 0x11561156i32 as libc::c_uint
         || (*msg).context.is_null()
@@ -1229,8 +1177,7 @@ pub unsafe extern "C" fn dc_msg_save_param_to_disk(mut msg: *mut dc_msg_t) {
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_new_load(
+pub unsafe fn dc_msg_new_load(
     mut context: *mut dc_context_t,
     mut msg_id: uint32_t,
 ) -> *mut dc_msg_t {
@@ -1238,11 +1185,7 @@ pub unsafe extern "C" fn dc_msg_new_load(
     dc_msg_load_from_db(msg, context, msg_id);
     return msg;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_delete_msg_from_db(
-    mut context: *mut dc_context_t,
-    mut msg_id: uint32_t,
-) {
+pub unsafe fn dc_delete_msg_from_db(mut context: *mut dc_context_t, mut msg_id: uint32_t) {
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(0 == dc_msg_load_from_db(msg, context, msg_id)) {
@@ -1271,11 +1214,7 @@ Do not use too long subjects - we add a tag after the subject which gets truncat
 It should also be very clear, the subject is _not_ the whole message.
 The value is also used for CC:-summaries */
 // Context functions to work with messages
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_exists(
-    mut context: *mut dc_context_t,
-    mut msg_id: uint32_t,
-) -> libc::c_int {
+pub unsafe fn dc_msg_exists(mut context: *mut dc_context_t, mut msg_id: uint32_t) -> libc::c_int {
     let mut msg_exists: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(context.is_null()
@@ -1297,8 +1236,7 @@ pub unsafe extern "C" fn dc_msg_exists(
     sqlite3_finalize(stmt);
     return msg_exists;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_update_msg_move_state(
+pub unsafe fn dc_update_msg_move_state(
     mut context: *mut dc_context_t,
     mut rfc724_mid: *const libc::c_char,
     mut state: dc_move_state_t,
@@ -1314,8 +1252,7 @@ pub unsafe extern "C" fn dc_update_msg_move_state(
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_set_msg_failed(
+pub unsafe fn dc_set_msg_failed(
     mut context: *mut dc_context_t,
     mut msg_id: uint32_t,
     mut error: *const libc::c_char,
@@ -1354,8 +1291,7 @@ pub unsafe extern "C" fn dc_set_msg_failed(
     dc_msg_unref(msg);
 }
 /* returns 1 if an event should be send */
-#[no_mangle]
-pub unsafe extern "C" fn dc_mdn_from_ext(
+pub unsafe fn dc_mdn_from_ext(
     mut context: *mut dc_context_t,
     mut from_id: uint32_t,
     mut rfc724_mid: *const libc::c_char,
@@ -1465,8 +1401,7 @@ pub unsafe extern "C" fn dc_mdn_from_ext(
     return read_by_all;
 }
 /* the number of messages assigned to real chat (!=deaddrop, !=trash) */
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_real_msg_cnt(mut context: *mut dc_context_t) -> size_t {
+pub unsafe fn dc_get_real_msg_cnt(mut context: *mut dc_context_t) -> size_t {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut ret: size_t = 0i32 as size_t;
     if !(*(*context).sql).cobj.is_null() {
@@ -1486,8 +1421,7 @@ pub unsafe extern "C" fn dc_get_real_msg_cnt(mut context: *mut dc_context_t) -> 
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_deaddrop_msg_cnt(mut context: *mut dc_context_t) -> size_t {
+pub unsafe fn dc_get_deaddrop_msg_cnt(mut context: *mut dc_context_t) -> size_t {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut ret: size_t = 0i32 as size_t;
     if !(context.is_null()
@@ -1505,8 +1439,7 @@ pub unsafe extern "C" fn dc_get_deaddrop_msg_cnt(mut context: *mut dc_context_t)
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_rfc724_mid_cnt(
+pub unsafe fn dc_rfc724_mid_cnt(
     mut context: *mut dc_context_t,
     mut rfc724_mid: *const libc::c_char,
 ) -> libc::c_int {
@@ -1530,8 +1463,7 @@ pub unsafe extern "C" fn dc_rfc724_mid_cnt(
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_rfc724_mid_exists(
+pub unsafe fn dc_rfc724_mid_exists(
     mut context: *mut dc_context_t,
     mut rfc724_mid: *const libc::c_char,
     mut ret_server_folder: *mut *mut libc::c_char,
@@ -1569,8 +1501,7 @@ pub unsafe extern "C" fn dc_rfc724_mid_exists(
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_update_server_uid(
+pub unsafe fn dc_update_server_uid(
     mut context: *mut dc_context_t,
     mut rfc724_mid: *const libc::c_char,
     mut server_folder: *const libc::c_char,

@@ -62,8 +62,7 @@ pub struct outlk_autodiscover_t {
     pub redirect: *mut libc::c_char,
 }
 // connect
-#[no_mangle]
-pub unsafe extern "C" fn dc_configure(mut context: *mut dc_context_t) {
+pub unsafe fn dc_configure(mut context: *mut dc_context_t) {
     if 0 != dc_has_ongoing(context) {
         dc_log_warning(
             context,
@@ -76,8 +75,7 @@ pub unsafe extern "C" fn dc_configure(mut context: *mut dc_context_t) {
     dc_job_kill_action(context, 900i32);
     dc_job_add(context, 900i32, 0i32, 0 as *const libc::c_char, 0i32);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_has_ongoing(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_has_ongoing(mut context: *mut dc_context_t) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0i32;
     }
@@ -87,8 +85,7 @@ pub unsafe extern "C" fn dc_has_ongoing(mut context: *mut dc_context_t) -> libc:
         0i32
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_is_configured(mut context: *const dc_context_t) -> libc::c_int {
+pub unsafe fn dc_is_configured(mut context: *const dc_context_t) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0i32;
     }
@@ -103,8 +100,7 @@ pub unsafe extern "C" fn dc_is_configured(mut context: *const dc_context_t) -> l
         0i32
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_stop_ongoing_process(mut context: *mut dc_context_t) {
+pub unsafe fn dc_stop_ongoing_process(mut context: *mut dc_context_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
     }
@@ -124,8 +120,7 @@ pub unsafe extern "C" fn dc_stop_ongoing_process(mut context: *mut dc_context_t)
     };
 }
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
-#[no_mangle]
-pub unsafe extern "C" fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
+pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
     mut context: *mut dc_context_t,
     mut job: *mut dc_job_t,
 ) {
@@ -1349,16 +1344,14 @@ pub unsafe extern "C" fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
         0i32 as uintptr_t,
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_free_ongoing(mut context: *mut dc_context_t) {
+pub unsafe fn dc_free_ongoing(mut context: *mut dc_context_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
     }
     (*context).ongoing_running = 0i32;
     (*context).shall_stop_ongoing = 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_configure_folders(
+pub unsafe fn dc_configure_folders(
     mut context: *mut dc_context_t,
     mut imap: *mut dc_imap_t,
     mut flags: libc::c_int,
@@ -1472,7 +1465,7 @@ pub unsafe extern "C" fn dc_configure_folders(
     free(mvbox_folder as *mut libc::c_void);
     free(fallback_folder as *mut libc::c_void);
 }
-unsafe extern "C" fn free_folders(mut folders: *mut clist) {
+unsafe fn free_folders(mut folders: *mut clist) {
     if !folders.is_null() {
         let mut iter1: *mut clistiter = 0 as *mut clistiter;
         iter1 = (*folders).first;
@@ -1494,7 +1487,7 @@ unsafe extern "C" fn free_folders(mut folders: *mut clist) {
         clist_free(folders);
     };
 }
-unsafe extern "C" fn list_folders(mut imap: *mut dc_imap_t) -> *mut clist {
+unsafe fn list_folders(mut imap: *mut dc_imap_t) -> *mut clist {
     let mut imap_list: *mut clist = 0 as *mut clist;
     let mut iter1: *mut clistiter = 0 as *mut clistiter;
     let mut ret_list: *mut clist = clist_new();
@@ -1593,9 +1586,7 @@ unsafe extern "C" fn list_folders(mut imap: *mut dc_imap_t) -> *mut clist {
     }
     return ret_list;
 }
-unsafe extern "C" fn get_folder_meaning_by_name(
-    mut folder_name: *const libc::c_char,
-) -> libc::c_int {
+unsafe fn get_folder_meaning_by_name(mut folder_name: *const libc::c_char) -> libc::c_int {
     // try to get the folder meaning by the name of the folder.
     // only used if the server does not support XLIST.
     let mut ret_meaning: libc::c_int = 0i32;
@@ -1615,7 +1606,7 @@ unsafe extern "C" fn get_folder_meaning_by_name(
     free(lower as *mut libc::c_void);
     return ret_meaning;
 }
-unsafe extern "C" fn get_folder_meaning(mut flags: *mut mailimap_mbx_list_flags) -> libc::c_int {
+unsafe fn get_folder_meaning(mut flags: *mut mailimap_mbx_list_flags) -> libc::c_int {
     let mut ret_meaning: libc::c_int = 0i32;
     if !flags.is_null() {
         let mut iter2: *mut clistiter = 0 as *mut clistiter;
@@ -1666,7 +1657,7 @@ unsafe extern "C" fn get_folder_meaning(mut flags: *mut mailimap_mbx_list_flags)
     }
     return ret_meaning;
 }
-unsafe extern "C" fn moz_autoconfigure(
+unsafe fn moz_autoconfigure(
     mut context: *mut dc_context_t,
     mut url: *const libc::c_char,
     mut param_in: *const dc_loginparam_t,
@@ -1743,7 +1734,7 @@ unsafe extern "C" fn moz_autoconfigure(
     free(moz_ac.in_emaillocalpart as *mut libc::c_void);
     return moz_ac.out;
 }
-unsafe extern "C" fn moz_autoconfigure_text_cb(
+unsafe fn moz_autoconfigure_text_cb(
     mut userdata: *mut libc::c_void,
     mut text: *const libc::c_char,
     mut len: libc::c_int,
@@ -1821,7 +1812,7 @@ unsafe extern "C" fn moz_autoconfigure_text_cb(
     }
     free(val as *mut libc::c_void);
 }
-unsafe extern "C" fn moz_autoconfigure_endtag_cb(
+unsafe fn moz_autoconfigure_endtag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
 ) {
@@ -1846,7 +1837,7 @@ unsafe extern "C" fn moz_autoconfigure_endtag_cb(
         (*moz_ac).tag_config = 0i32
     };
 }
-unsafe extern "C" fn moz_autoconfigure_starttag_cb(
+unsafe fn moz_autoconfigure_starttag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
     mut attr: *mut *mut libc::c_char,
@@ -1891,7 +1882,7 @@ unsafe extern "C" fn moz_autoconfigure_starttag_cb(
         (*moz_ac).tag_config = 12i32
     };
 }
-unsafe extern "C" fn read_autoconf_file(
+unsafe fn read_autoconf_file(
     mut context: *mut dc_context_t,
     mut url: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -1919,7 +1910,7 @@ unsafe extern "C" fn read_autoconf_file(
     }
     return filecontent;
 }
-unsafe extern "C" fn outlk_autodiscover(
+unsafe fn outlk_autodiscover(
     mut context: *mut dc_context_t,
     mut url__: *const libc::c_char,
     mut param_in: *const dc_loginparam_t,
@@ -2012,7 +2003,7 @@ unsafe extern "C" fn outlk_autodiscover(
     outlk_clean_config(&mut outlk_ad);
     return outlk_ad.out;
 }
-unsafe extern "C" fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
+unsafe fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
     let mut i: libc::c_int = 0;
     i = 0i32;
     while i < 6i32 {
@@ -2021,7 +2012,7 @@ unsafe extern "C" fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t)
         i += 1
     }
 }
-unsafe extern "C" fn outlk_autodiscover_text_cb(
+unsafe fn outlk_autodiscover_text_cb(
     mut userdata: *mut libc::c_void,
     mut text: *const libc::c_char,
     mut len: libc::c_int,
@@ -2032,7 +2023,7 @@ unsafe extern "C" fn outlk_autodiscover_text_cb(
     free((*outlk_ad).config[(*outlk_ad).tag_config as usize] as *mut libc::c_void);
     (*outlk_ad).config[(*outlk_ad).tag_config as usize] = val;
 }
-unsafe extern "C" fn outlk_autodiscover_endtag_cb(
+unsafe fn outlk_autodiscover_endtag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
 ) {
@@ -2084,7 +2075,7 @@ unsafe extern "C" fn outlk_autodiscover_endtag_cb(
     }
     (*outlk_ad).tag_config = 0i32;
 }
-unsafe extern "C" fn outlk_autodiscover_starttag_cb(
+unsafe fn outlk_autodiscover_starttag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
     mut attr: *mut *mut libc::c_char,
@@ -2104,8 +2095,7 @@ unsafe extern "C" fn outlk_autodiscover_starttag_cb(
         (*outlk_ad).tag_config = 5i32
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_alloc_ongoing(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_alloc_ongoing(mut context: *mut dc_context_t) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0i32;
     }
@@ -2122,8 +2112,7 @@ pub unsafe extern "C" fn dc_alloc_ongoing(mut context: *mut dc_context_t) -> lib
     (*context).shall_stop_ongoing = 0i32;
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_connect_to_configured_imap(
+pub unsafe fn dc_connect_to_configured_imap(
     mut context: *mut dc_context_t,
     mut imap: *mut dc_imap_t,
 ) -> libc::c_int {

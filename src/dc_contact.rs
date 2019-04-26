@@ -31,11 +31,7 @@ pub struct dc_contact_t {
     pub origin: libc::c_int,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_marknoticed_contact(
-    mut context: *mut dc_context_t,
-    mut contact_id: uint32_t,
-) {
+pub unsafe fn dc_marknoticed_contact(mut context: *mut dc_context_t, mut contact_id: uint32_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
     }
@@ -55,7 +51,6 @@ pub unsafe extern "C" fn dc_marknoticed_contact(
     );
 }
 // handle contacts
-#[no_mangle]
 pub unsafe extern "C" fn dc_may_be_valid_addr(mut addr: *const libc::c_char) -> libc::c_int {
     if addr.is_null() {
         return 0i32;
@@ -74,8 +69,7 @@ pub unsafe extern "C" fn dc_may_be_valid_addr(mut addr: *const libc::c_char) -> 
     }
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
+pub unsafe fn dc_lookup_contact_id_by_addr(
     mut context: *mut dc_context_t,
     mut addr: *const libc::c_char,
 ) -> uint32_t {
@@ -120,8 +114,7 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     free(addr_self as *mut libc::c_void);
     return contact_id as uint32_t;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_addr_normalize(mut addr: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_addr_normalize(mut addr: *const libc::c_char) -> *mut libc::c_char {
     let mut addr_normalized: *mut libc::c_char = dc_strdup(addr);
     dc_trim(addr_normalized);
     if strncmp(
@@ -137,8 +130,7 @@ pub unsafe extern "C" fn dc_addr_normalize(mut addr: *const libc::c_char) -> *mu
     }
     return addr_normalized;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_create_contact(
+pub unsafe fn dc_create_contact(
     mut context: *mut dc_context_t,
     mut name: *const libc::c_char,
     mut addr: *const libc::c_char,
@@ -169,8 +161,7 @@ pub unsafe extern "C" fn dc_create_contact(
     }
     return contact_id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_block_contact(
+pub unsafe fn dc_block_contact(
     mut context: *mut dc_context_t,
     mut contact_id: uint32_t,
     mut new_blocking: libc::c_int,
@@ -253,8 +244,7 @@ pub unsafe extern "C" fn dc_block_contact(
  * dc_create_contact() or dc_add_address_book())
  * only affect the given-name.
  */
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_new(mut context: *mut dc_context_t) -> *mut dc_contact_t {
+pub unsafe fn dc_contact_new(mut context: *mut dc_context_t) -> *mut dc_contact_t {
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     contact = calloc(
         1i32 as libc::c_ulong,
@@ -267,8 +257,7 @@ pub unsafe extern "C" fn dc_contact_new(mut context: *mut dc_context_t) -> *mut 
     (*contact).context = context;
     return contact;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_unref(mut contact: *mut dc_contact_t) {
+pub unsafe fn dc_contact_unref(mut contact: *mut dc_contact_t) {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return;
     }
@@ -276,8 +265,7 @@ pub unsafe extern "C" fn dc_contact_unref(mut contact: *mut dc_contact_t) {
     (*contact).magic = 0i32 as uint32_t;
     free(contact as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_empty(mut contact: *mut dc_contact_t) {
+pub unsafe fn dc_contact_empty(mut contact: *mut dc_contact_t) {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return;
     }
@@ -310,8 +298,7 @@ pub unsafe extern "C" fn dc_contact_empty(mut contact: *mut dc_contact_t) {
 /* contacts with at least this origin value are shown in the contact list */
 /* contacts with at least this origin value are verified and known not to be spam */
 /* contacts with at least this origin value start a new "normal" chat, defaults to off */
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_load_from_db(
+pub unsafe fn dc_contact_load_from_db(
     mut contact: *mut dc_contact_t,
     mut sql: *mut dc_sqlite3_t,
     mut contact_id: uint32_t,
@@ -357,8 +344,7 @@ pub unsafe extern "C" fn dc_contact_load_from_db(
     sqlite3_finalize(stmt);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_is_contact_blocked(
+pub unsafe fn dc_is_contact_blocked(
     mut context: *mut dc_context_t,
     mut contact_id: uint32_t,
 ) -> libc::c_int {
@@ -373,8 +359,7 @@ pub unsafe extern "C" fn dc_is_contact_blocked(
     return is_blocked;
 }
 /*can be NULL*/
-#[no_mangle]
-pub unsafe extern "C" fn dc_add_or_lookup_contact(
+pub unsafe fn dc_add_or_lookup_contact(
     mut context: *mut dc_context_t,
     mut name: *const libc::c_char,
     mut addr__: *const libc::c_char,
@@ -559,8 +544,7 @@ pub unsafe extern "C" fn dc_add_or_lookup_contact(
     sqlite3_finalize(stmt);
     return row_id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_add_address_book(
+pub unsafe fn dc_add_address_book(
     mut context: *mut dc_context_t,
     mut adr_book: *const libc::c_char,
 ) -> libc::c_int {
@@ -606,8 +590,7 @@ pub unsafe extern "C" fn dc_add_address_book(
     return modify_cnt;
 }
 // Working with names
-#[no_mangle]
-pub unsafe extern "C" fn dc_normalize_name(mut full_name: *mut libc::c_char) {
+pub unsafe fn dc_normalize_name(mut full_name: *mut libc::c_char) {
     if full_name.is_null() {
         return;
     }
@@ -640,8 +623,7 @@ pub unsafe extern "C" fn dc_normalize_name(mut full_name: *mut libc::c_char) {
         dc_trim(full_name);
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_contacts(
+pub unsafe fn dc_get_contacts(
     mut context: *mut dc_context_t,
     mut listflags: uint32_t,
     mut query: *const libc::c_char,
@@ -736,8 +718,7 @@ pub unsafe extern "C" fn dc_get_contacts(
     free(self_name2 as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_blocked_cnt(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_get_blocked_cnt(mut context: *mut dc_context_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
@@ -754,10 +735,7 @@ pub unsafe extern "C" fn dc_get_blocked_cnt(mut context: *mut dc_context_t) -> l
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_blocked_contacts(
-    mut context: *mut dc_context_t,
-) -> *mut dc_array_t {
+pub unsafe fn dc_get_blocked_contacts(mut context: *mut dc_context_t) -> *mut dc_array_t {
     let mut ret: *mut dc_array_t = dc_array_new(context, 100i32 as size_t);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
@@ -774,8 +752,7 @@ pub unsafe extern "C" fn dc_get_blocked_contacts(
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_contact_encrinfo(
+pub unsafe fn dc_get_contact_encrinfo(
     mut context: *mut dc_context_t,
     mut contact_id: uint32_t,
 ) -> *mut libc::c_char {
@@ -888,7 +865,7 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
     free(fingerprint_other_unverified as *mut libc::c_void);
     return ret.buf;
 }
-unsafe extern "C" fn cat_fingerprint(
+unsafe fn cat_fingerprint(
     mut ret: *mut dc_strbuilder_t,
     mut addr: *const libc::c_char,
     mut fingerprint_verified: *const libc::c_char,
@@ -922,8 +899,7 @@ unsafe extern "C" fn cat_fingerprint(
         dc_strbuilder_cat(ret, fingerprint_unverified);
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_delete_contact(
+pub unsafe fn dc_delete_contact(
     mut context: *mut dc_context_t,
     mut contact_id: uint32_t,
 ) -> libc::c_int {
@@ -972,8 +948,7 @@ pub unsafe extern "C" fn dc_delete_contact(
     sqlite3_finalize(stmt);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_contact(
+pub unsafe fn dc_get_contact(
     mut context: *mut dc_context_t,
     mut contact_id: uint32_t,
 ) -> *mut dc_contact_t {
@@ -984,35 +959,25 @@ pub unsafe extern "C" fn dc_get_contact(
     }
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_id(mut contact: *const dc_contact_t) -> uint32_t {
+pub unsafe fn dc_contact_get_id(mut contact: *const dc_contact_t) -> uint32_t {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
     return (*contact).id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_addr(
-    mut contact: *const dc_contact_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_contact_get_addr(mut contact: *const dc_contact_t) -> *mut libc::c_char {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
     return dc_strdup((*contact).addr);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_name(
-    mut contact: *const dc_contact_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_contact_get_name(mut contact: *const dc_contact_t) -> *mut libc::c_char {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
     return dc_strdup((*contact).name);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_display_name(
-    mut contact: *const dc_contact_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_contact_get_display_name(mut contact: *const dc_contact_t) -> *mut libc::c_char {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
@@ -1021,10 +986,7 @@ pub unsafe extern "C" fn dc_contact_get_display_name(
     }
     return dc_strdup((*contact).addr);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_name_n_addr(
-    mut contact: *const dc_contact_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_contact_get_name_n_addr(mut contact: *const dc_contact_t) -> *mut libc::c_char {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
@@ -1037,10 +999,7 @@ pub unsafe extern "C" fn dc_contact_get_name_n_addr(
     }
     return dc_strdup((*contact).addr);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_first_name(
-    mut contact: *const dc_contact_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_contact_get_first_name(mut contact: *const dc_contact_t) -> *mut libc::c_char {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
@@ -1049,10 +1008,7 @@ pub unsafe extern "C" fn dc_contact_get_first_name(
     }
     return dc_strdup((*contact).addr);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_first_name(
-    mut full_name: *const libc::c_char,
-) -> *mut libc::c_char {
+pub unsafe fn dc_get_first_name(mut full_name: *const libc::c_char) -> *mut libc::c_char {
     let mut first_name: *mut libc::c_char = dc_strdup(full_name);
     let mut p1: *mut libc::c_char = strchr(first_name, ' ' as i32);
     if !p1.is_null() {
@@ -1065,10 +1021,7 @@ pub unsafe extern "C" fn dc_get_first_name(
     }
     return first_name;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_profile_image(
-    mut contact: *const dc_contact_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_contact_get_profile_image(mut contact: *const dc_contact_t) -> *mut libc::c_char {
     let mut selfavatar: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut image_abs: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint) {
@@ -1086,26 +1039,22 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
     free(selfavatar as *mut libc::c_void);
     return image_abs;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_color(mut contact: *const dc_contact_t) -> uint32_t {
+pub unsafe fn dc_contact_get_color(mut contact: *const dc_contact_t) -> uint32_t {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
     return dc_str_to_color((*contact).addr) as uint32_t;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_is_blocked(mut contact: *const dc_contact_t) -> libc::c_int {
+pub unsafe fn dc_contact_is_blocked(mut contact: *const dc_contact_t) -> libc::c_int {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return 0i32;
     }
     return (*contact).blocked;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_is_verified(mut contact: *mut dc_contact_t) -> libc::c_int {
+pub unsafe fn dc_contact_is_verified(mut contact: *mut dc_contact_t) -> libc::c_int {
     return dc_contact_is_verified_ex(contact, 0 as *const dc_apeerstate_t);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_contact_is_verified_ex(
+pub unsafe fn dc_contact_is_verified_ex(
     mut contact: *mut dc_contact_t,
     mut peerstate: *const dc_apeerstate_t,
 ) -> libc::c_int {
@@ -1148,8 +1097,7 @@ pub unsafe extern "C" fn dc_contact_is_verified_ex(
     return contact_verified;
 }
 // Working with e-mail-addresses
-#[no_mangle]
-pub unsafe extern "C" fn dc_addr_cmp(
+pub unsafe fn dc_addr_cmp(
     mut addr1: *const libc::c_char,
     mut addr2: *const libc::c_char,
 ) -> libc::c_int {
@@ -1160,8 +1108,7 @@ pub unsafe extern "C" fn dc_addr_cmp(
     free(norm2 as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_addr_equals_self(
+pub unsafe fn dc_addr_equals_self(
     mut context: *mut dc_context_t,
     mut addr: *const libc::c_char,
 ) -> libc::c_int {
@@ -1187,8 +1134,7 @@ pub unsafe extern "C" fn dc_addr_equals_self(
     free(normalized_addr as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_addr_equals_contact(
+pub unsafe fn dc_addr_equals_contact(
     mut context: *mut dc_context_t,
     mut addr: *const libc::c_char,
     mut contact_id: uint32_t,
@@ -1210,8 +1156,7 @@ pub unsafe extern "C" fn dc_addr_equals_contact(
     return addr_are_equal;
 }
 // Context functions to work with contacts
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_real_contact_cnt(mut context: *mut dc_context_t) -> size_t {
+pub unsafe fn dc_get_real_contact_cnt(mut context: *mut dc_context_t) -> size_t {
     let mut ret: size_t = 0i32 as size_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(context.is_null()
@@ -1230,8 +1175,7 @@ pub unsafe extern "C" fn dc_get_real_contact_cnt(mut context: *mut dc_context_t)
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_contact_origin(
+pub unsafe fn dc_get_contact_origin(
     mut context: *mut dc_context_t,
     mut contact_id: uint32_t,
     mut ret_blocked: *mut libc::c_int,
@@ -1254,8 +1198,7 @@ pub unsafe extern "C" fn dc_get_contact_origin(
     dc_contact_unref(contact);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_real_contact_exists(
+pub unsafe fn dc_real_contact_exists(
     mut context: *mut dc_context_t,
     mut contact_id: uint32_t,
 ) -> libc::c_int {
@@ -1278,8 +1221,7 @@ pub unsafe extern "C" fn dc_real_contact_exists(
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_scaleup_contact_origin(
+pub unsafe fn dc_scaleup_contact_origin(
     mut context: *mut dc_context_t,
     mut contact_id: uint32_t,
     mut origin: libc::c_int,

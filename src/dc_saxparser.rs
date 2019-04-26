@@ -14,25 +14,19 @@ pub struct dc_saxparser_t {
 }
 
 /* len is only informational, text is already null-terminated */
-pub type dc_saxparser_text_cb_t = Option<
-    unsafe extern "C" fn(_: *mut libc::c_void, _: *const libc::c_char, _: libc::c_int) -> (),
->;
+pub type dc_saxparser_text_cb_t =
+    Option<unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: libc::c_int) -> ()>;
 pub type dc_saxparser_endtag_cb_t =
-    Option<unsafe extern "C" fn(_: *mut libc::c_void, _: *const libc::c_char) -> ()>;
+    Option<unsafe fn(_: *mut libc::c_void, _: *const libc::c_char) -> ()>;
 pub type dc_saxparser_starttag_cb_t = Option<
-    unsafe extern "C" fn(
-        _: *mut libc::c_void,
-        _: *const libc::c_char,
-        _: *mut *mut libc::c_char,
-    ) -> (),
+    unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: *mut *mut libc::c_char) -> (),
 >;
 
 #[inline]
-unsafe extern "C" fn isascii(mut _c: libc::c_int) -> libc::c_int {
+unsafe fn isascii(mut _c: libc::c_int) -> libc::c_int {
     return (_c & !0x7fi32 == 0i32) as libc::c_int;
 }
 
-#[no_mangle]
 pub unsafe extern "C" fn dc_saxparser_init(
     mut saxparser: *mut dc_saxparser_t,
     mut userdata: *mut libc::c_void,
@@ -42,24 +36,23 @@ pub unsafe extern "C" fn dc_saxparser_init(
     (*saxparser).endtag_cb = Some(def_endtag_cb);
     (*saxparser).text_cb = Some(def_text_cb);
 }
-unsafe extern "C" fn def_text_cb(
+unsafe fn def_text_cb(
     mut userdata: *mut libc::c_void,
     mut text: *const libc::c_char,
     mut len: libc::c_int,
 ) {
 }
-unsafe extern "C" fn def_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c_char) {}
+unsafe fn def_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c_char) {}
 /* ******************************************************************************
  * Tools
  ******************************************************************************/
-unsafe extern "C" fn def_starttag_cb(
+unsafe fn def_starttag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
     mut attr: *mut *mut libc::c_char,
 ) {
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_saxparser_set_tag_handler(
+pub unsafe fn dc_saxparser_set_tag_handler(
     mut saxparser: *mut dc_saxparser_t,
     mut starttag_cb: dc_saxparser_starttag_cb_t,
     mut endtag_cb: dc_saxparser_endtag_cb_t,
@@ -78,8 +71,7 @@ pub unsafe extern "C" fn dc_saxparser_set_tag_handler(
         Some(def_endtag_cb)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_saxparser_set_text_handler(
+pub unsafe fn dc_saxparser_set_text_handler(
     mut saxparser: *mut dc_saxparser_t,
     mut text_cb: dc_saxparser_text_cb_t,
 ) {
@@ -92,8 +84,7 @@ pub unsafe extern "C" fn dc_saxparser_set_text_handler(
         Some(def_text_cb)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_saxparser_parse(
+pub unsafe fn dc_saxparser_parse(
     mut saxparser: *mut dc_saxparser_t,
     mut buf_start__: *const libc::c_char,
 ) {
@@ -386,10 +377,7 @@ pub unsafe extern "C" fn dc_saxparser_parse(
     do_free_attr(attr.as_mut_ptr(), free_attr.as_mut_ptr());
     free(buf_start as *mut libc::c_void);
 }
-unsafe extern "C" fn do_free_attr(
-    mut attr: *mut *mut libc::c_char,
-    mut free_attr: *mut libc::c_int,
-) {
+unsafe fn do_free_attr(mut attr: *mut *mut libc::c_char, mut free_attr: *mut libc::c_int) {
     /* "attr" are key/value pairs; the function frees the data if the corresponding bit in "free_attr" is set.
     (we need this as we try to use the strings from the "main" document instead of allocating small strings) */
     let mut i: libc::c_int = 0i32;
@@ -409,7 +397,7 @@ unsafe extern "C" fn do_free_attr(
     let ref mut fresh0 = *attr.offset(0isize);
     *fresh0 = 0 as *mut libc::c_char;
 }
-unsafe extern "C" fn call_text_cb(
+unsafe fn call_text_cb(
     mut saxparser: *mut dc_saxparser_t,
     mut text: *mut libc::c_char,
     mut len: size_t,
@@ -450,10 +438,7 @@ Returns s, or if the decoded string is longer than s, returns a malloced string
 that must be freed.
 Function based upon ezxml_decode() from the "ezxml" parser which is
 Copyright 2004-2006 Aaron Voisine <aaron@voisine.org> */
-unsafe extern "C" fn xml_decode(
-    mut s: *mut libc::c_char,
-    mut type_0: libc::c_char,
-) -> *mut libc::c_char {
+unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut libc::c_char {
     let mut e: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut r: *mut libc::c_char = s;
     let mut original_buf: *const libc::c_char = s;
@@ -1123,8 +1108,7 @@ static mut s_ent: [*const libc::c_char; 508] = [
     0 as *const libc::c_char,
     0 as *const libc::c_char,
 ];
-#[no_mangle]
-pub unsafe extern "C" fn dc_attr_find(
+pub unsafe fn dc_attr_find(
     mut attr: *mut *mut libc::c_char,
     mut key: *const libc::c_char,
 ) -> *const libc::c_char {

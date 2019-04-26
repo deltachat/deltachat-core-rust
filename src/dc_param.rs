@@ -23,11 +23,7 @@ pub struct dc_param_t {
 
 // values for DC_PARAM_FORCE_PLAINTEXT
 /* user functions */
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_exists(
-    mut param: *mut dc_param_t,
-    mut key: libc::c_int,
-) -> libc::c_int {
+pub unsafe fn dc_param_exists(mut param: *mut dc_param_t, mut key: libc::c_int) -> libc::c_int {
     let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
     if param.is_null() || key == 0i32 {
         return 0i32;
@@ -67,8 +63,7 @@ unsafe extern "C" fn find_param(
     return p1;
 }
 /* the value may be an empty string, "def" is returned only if the value unset.  The result must be free()'d in any case. */
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_get(
+pub unsafe fn dc_param_get(
     mut param: *const dc_param_t,
     mut key: libc::c_int,
     mut def: *const libc::c_char,
@@ -100,8 +95,7 @@ pub unsafe extern "C" fn dc_param_get(
     *p2 = bak;
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_get_int(
+pub unsafe fn dc_param_get_int(
     mut param: *const dc_param_t,
     mut key: libc::c_int,
     mut def: int32_t,
@@ -117,8 +111,7 @@ pub unsafe extern "C" fn dc_param_get_int(
     free(str as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_set(
+pub unsafe fn dc_param_set(
     mut param: *mut dc_param_t,
     mut key: libc::c_int,
     mut value: *const libc::c_char,
@@ -199,8 +192,7 @@ pub unsafe extern "C" fn dc_param_set(
     free((*param).packed as *mut libc::c_void);
     (*param).packed = new1;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_set_int(
+pub unsafe fn dc_param_set_int(
     mut param: *mut dc_param_t,
     mut key: libc::c_int,
     mut value: int32_t,
@@ -219,8 +211,7 @@ pub unsafe extern "C" fn dc_param_set_int(
     free(value_str as *mut libc::c_void);
 }
 /* library-private */
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_new() -> *mut dc_param_t {
+pub unsafe fn dc_param_new() -> *mut dc_param_t {
     let mut param: *mut dc_param_t = 0 as *mut dc_param_t;
     param = calloc(
         1i32 as libc::c_ulong,
@@ -232,15 +223,13 @@ pub unsafe extern "C" fn dc_param_new() -> *mut dc_param_t {
     (*param).packed = calloc(1i32 as libc::c_ulong, 1i32 as libc::c_ulong) as *mut libc::c_char;
     return param;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_empty(mut param: *mut dc_param_t) {
+pub unsafe fn dc_param_empty(mut param: *mut dc_param_t) {
     if param.is_null() {
         return;
     }
     *(*param).packed.offset(0isize) = 0i32 as libc::c_char;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_unref(mut param: *mut dc_param_t) {
+pub unsafe fn dc_param_unref(mut param: *mut dc_param_t) {
     if param.is_null() {
         return;
     }
@@ -248,11 +237,7 @@ pub unsafe extern "C" fn dc_param_unref(mut param: *mut dc_param_t) {
     free((*param).packed as *mut libc::c_void);
     free(param as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_set_packed(
-    mut param: *mut dc_param_t,
-    mut packed: *const libc::c_char,
-) {
+pub unsafe fn dc_param_set_packed(mut param: *mut dc_param_t, mut packed: *const libc::c_char) {
     if param.is_null() {
         return;
     }
@@ -262,8 +247,7 @@ pub unsafe extern "C" fn dc_param_set_packed(
         (*param).packed = dc_strdup(packed)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_param_set_urlencoded(
+pub unsafe fn dc_param_set_urlencoded(
     mut param: *mut dc_param_t,
     mut urlencoded: *const libc::c_char,
 ) {

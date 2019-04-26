@@ -42,8 +42,7 @@ pub struct dc_kml_t {
 }
 
 // location streaming
-#[no_mangle]
-pub unsafe extern "C" fn dc_send_locations_to_chat(
+pub unsafe fn dc_send_locations_to_chat(
     mut context: *mut dc_context_t,
     mut chat_id: uint32_t,
     mut seconds: libc::c_int,
@@ -128,15 +127,11 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
 /* ******************************************************************************
  * job to send locations out to all chats that want them
  ******************************************************************************/
-unsafe extern "C" fn schedule_MAYBE_SEND_LOCATIONS(
-    mut context: *mut dc_context_t,
-    mut flags: libc::c_int,
-) {
+unsafe fn schedule_MAYBE_SEND_LOCATIONS(mut context: *mut dc_context_t, mut flags: libc::c_int) {
     if 0 != flags & 0x1i32 || 0 == dc_job_action_exists(context, 5005i32) {
         dc_job_add(context, 5005i32, 0i32, 0 as *const libc::c_char, 60i32);
     };
 }
-#[no_mangle]
 pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
     mut context: *mut dc_context_t,
     mut chat_id: uint32_t,
@@ -167,8 +162,7 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
     sqlite3_finalize(stmt);
     return is_sending_locations;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_set_location(
+pub unsafe fn dc_set_location(
     mut context: *mut dc_context_t,
     mut latitude: libc::c_double,
     mut longitude: libc::c_double,
@@ -218,8 +212,7 @@ pub unsafe extern "C" fn dc_set_location(
     sqlite3_finalize(stmt_insert);
     return continue_streaming;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_locations(
+pub unsafe fn dc_get_locations(
     mut context: *mut dc_context_t,
     mut chat_id: uint32_t,
     mut contact_id: uint32_t,
@@ -287,7 +280,7 @@ pub unsafe extern "C" fn dc_get_locations(
     sqlite3_finalize(stmt);
     return ret;
 }
-unsafe extern "C" fn is_marker(mut txt: *const libc::c_char) -> libc::c_int {
+unsafe fn is_marker(mut txt: *const libc::c_char) -> libc::c_int {
     if !txt.is_null() {
         let mut len: libc::c_int = dc_utf8_strlen(txt) as libc::c_int;
         if len == 1i32 && *txt.offset(0isize) as libc::c_int != ' ' as i32 {
@@ -296,8 +289,7 @@ unsafe extern "C" fn is_marker(mut txt: *const libc::c_char) -> libc::c_int {
     }
     return 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_delete_all_locations(mut context: *mut dc_context_t) {
+pub unsafe fn dc_delete_all_locations(mut context: *mut dc_context_t) {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
         stmt = dc_sqlite3_prepare(
@@ -314,8 +306,7 @@ pub unsafe extern "C" fn dc_delete_all_locations(mut context: *mut dc_context_t)
     }
     sqlite3_finalize(stmt);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_location_kml(
+pub unsafe fn dc_get_location_kml(
     mut context: *mut dc_context_t,
     mut chat_id: uint32_t,
     mut last_added_location_id: *mut uint32_t,
@@ -414,7 +405,7 @@ pub unsafe extern "C" fn dc_get_location_kml(
 /* ******************************************************************************
  * create kml-files
  ******************************************************************************/
-unsafe extern "C" fn get_kml_timestamp(mut utc: time_t) -> *mut libc::c_char {
+unsafe fn get_kml_timestamp(mut utc: time_t) -> *mut libc::c_char {
     // Returns a string formatted as YYYY-MM-DDTHH:MM:SSZ. The trailing `Z` indicates UTC.
     let mut wanted_struct: tm = tm {
         tm_sec: 0,
@@ -444,8 +435,7 @@ unsafe extern "C" fn get_kml_timestamp(mut utc: time_t) -> *mut libc::c_char {
         wanted_struct.tm_sec as libc::c_int,
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_set_kml_sent_timestamp(
+pub unsafe fn dc_set_kml_sent_timestamp(
     mut context: *mut dc_context_t,
     mut chat_id: uint32_t,
     mut timestamp: time_t,
@@ -461,8 +451,7 @@ pub unsafe extern "C" fn dc_set_kml_sent_timestamp(
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_set_msg_location_id(
+pub unsafe fn dc_set_msg_location_id(
     mut context: *mut dc_context_t,
     mut msg_id: uint32_t,
     mut location_id: uint32_t,
@@ -477,8 +466,7 @@ pub unsafe extern "C" fn dc_set_msg_location_id(
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_save_locations(
+pub unsafe fn dc_save_locations(
     mut context: *mut dc_context_t,
     mut chat_id: uint32_t,
     mut contact_id: uint32_t,
@@ -537,8 +525,7 @@ pub unsafe extern "C" fn dc_save_locations(
     sqlite3_finalize(stmt_insert);
     return newest_location_id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_kml_parse(
+pub unsafe fn dc_kml_parse(
     mut context: *mut dc_context_t,
     mut content: *const libc::c_char,
     mut content_bytes: size_t,
@@ -581,7 +568,7 @@ pub unsafe extern "C" fn dc_kml_parse(
     free(content_nullterminated as *mut libc::c_void);
     return kml;
 }
-unsafe extern "C" fn kml_text_cb(
+unsafe fn kml_text_cb(
     mut userdata: *mut libc::c_void,
     mut text: *const libc::c_char,
     mut len: libc::c_int,
@@ -661,7 +648,7 @@ unsafe extern "C" fn kml_text_cb(
         free(val as *mut libc::c_void);
     };
 }
-unsafe extern "C" fn kml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c_char) {
+unsafe fn kml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c_char) {
     let mut kml: *mut dc_kml_t = userdata as *mut dc_kml_t;
     if strcmp(tag, b"placemark\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if 0 != (*kml).tag & 0x1i32
@@ -682,7 +669,7 @@ unsafe extern "C" fn kml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *co
 /* ******************************************************************************
  * parse kml-files
  ******************************************************************************/
-unsafe extern "C" fn kml_starttag_cb(
+unsafe fn kml_starttag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
     mut attr: *mut *mut libc::c_char,
@@ -723,8 +710,7 @@ unsafe extern "C" fn kml_starttag_cb(
         }
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_kml_unref(mut kml: *mut dc_kml_t) {
+pub unsafe fn dc_kml_unref(mut kml: *mut dc_kml_t) {
     if kml.is_null() {
         return;
     }
@@ -732,8 +718,7 @@ pub unsafe extern "C" fn dc_kml_unref(mut kml: *mut dc_kml_t) {
     free((*kml).addr as *mut libc::c_void);
     free(kml as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(
+pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(
     mut context: *mut dc_context_t,
     mut job: *mut dc_job_t,
 ) {
@@ -798,8 +783,7 @@ pub unsafe extern "C" fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(
     sqlite3_finalize(stmt_chats);
     sqlite3_finalize(stmt_locations);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
+pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
     mut context: *mut dc_context_t,
     mut job: *mut dc_job_t,
 ) {

@@ -57,14 +57,12 @@ pub struct dc_mimeparser_t {
 }
 
 // deprecated
-#[no_mangle]
-pub unsafe extern "C" fn dc_no_compound_msgs() {
+pub unsafe fn dc_no_compound_msgs() {
     s_generate_compound_msgs = 0i32;
 }
 // deprecated: flag to switch generation of compound messages on and off.
 static mut s_generate_compound_msgs: libc::c_int = 1i32;
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_new(
+pub unsafe fn dc_mimeparser_new(
     mut blobdir: *const libc::c_char,
     mut context: *mut dc_context_t,
 ) -> *mut dc_mimeparser_t {
@@ -87,8 +85,7 @@ pub unsafe extern "C" fn dc_mimeparser_new(
     dc_hash_init(&mut (*mimeparser).header, 3i32, 0i32);
     return mimeparser;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_unref(mut mimeparser: *mut dc_mimeparser_t) {
+pub unsafe fn dc_mimeparser_unref(mut mimeparser: *mut dc_mimeparser_t) {
     if mimeparser.is_null() {
         return;
     }
@@ -102,8 +99,7 @@ pub unsafe extern "C" fn dc_mimeparser_unref(mut mimeparser: *mut dc_mimeparser_
     free((*mimeparser).e2ee_helper as *mut libc::c_void);
     free(mimeparser as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_empty(mut mimeparser: *mut dc_mimeparser_t) {
+pub unsafe fn dc_mimeparser_empty(mut mimeparser: *mut dc_mimeparser_t) {
     if mimeparser.is_null() {
         return;
     }
@@ -144,7 +140,7 @@ pub unsafe extern "C" fn dc_mimeparser_empty(mut mimeparser: *mut dc_mimeparser_
     dc_kml_unref((*mimeparser).kml);
     (*mimeparser).kml = 0 as *mut dc_kml_t;
 }
-unsafe extern "C" fn dc_mimepart_unref(mut mimepart: *mut dc_mimepart_t) {
+unsafe fn dc_mimepart_unref(mut mimepart: *mut dc_mimepart_t) {
     if mimepart.is_null() {
         return;
     }
@@ -155,8 +151,7 @@ unsafe extern "C" fn dc_mimepart_unref(mut mimepart: *mut dc_mimepart_t) {
     dc_param_unref((*mimepart).param);
     free(mimepart as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_parse(
+pub unsafe fn dc_mimeparser_parse(
     mut mimeparser: *mut dc_mimeparser_t,
     mut body_not_terminated: *const libc::c_char,
     mut body_bytes: size_t,
@@ -439,7 +434,7 @@ pub unsafe extern "C" fn dc_mimeparser_parse(
 /* ******************************************************************************
  * a MIME part
  ******************************************************************************/
-unsafe extern "C" fn dc_mimepart_new() -> *mut dc_mimepart_t {
+unsafe fn dc_mimepart_new() -> *mut dc_mimepart_t {
     let mut mimepart: *mut dc_mimepart_t = 0 as *mut dc_mimepart_t;
     mimepart = calloc(
         1i32 as libc::c_ulong,
@@ -452,8 +447,7 @@ unsafe extern "C" fn dc_mimepart_new() -> *mut dc_mimepart_t {
     (*mimepart).param = dc_param_new();
     return mimepart;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_get_last_nonmeta(
+pub unsafe fn dc_mimeparser_get_last_nonmeta(
     mut mimeparser: *mut dc_mimeparser_t,
 ) -> *mut dc_mimepart_t {
     if !mimeparser.is_null() && !(*mimeparser).parts.is_null() {
@@ -472,8 +466,7 @@ pub unsafe extern "C" fn dc_mimeparser_get_last_nonmeta(
     return 0 as *mut dc_mimepart_t;
 }
 /*the result must be freed*/
-#[no_mangle]
-pub unsafe extern "C" fn mailimf_find_first_addr(
+pub unsafe fn mailimf_find_first_addr(
     mut mb_list: *const mailimf_mailbox_list,
 ) -> *mut libc::c_char {
     if mb_list.is_null() {
@@ -498,8 +491,7 @@ pub unsafe extern "C" fn mailimf_find_first_addr(
     return 0 as *mut libc::c_char;
 }
 /* the following functions can be used only after a call to dc_mimeparser_parse() */
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_lookup_field(
+pub unsafe fn dc_mimeparser_lookup_field(
     mut mimeparser: *mut dc_mimeparser_t,
     mut field_name: *const libc::c_char,
 ) -> *mut mailimf_field {
@@ -509,8 +501,7 @@ pub unsafe extern "C" fn dc_mimeparser_lookup_field(
         strlen(field_name) as libc::c_int,
     ) as *mut mailimf_field;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_lookup_optional_field(
+pub unsafe fn dc_mimeparser_lookup_optional_field(
     mut mimeparser: *mut dc_mimeparser_t,
     mut field_name: *const libc::c_char,
 ) -> *mut mailimf_optional_field {
@@ -524,7 +515,7 @@ pub unsafe extern "C" fn dc_mimeparser_lookup_optional_field(
     }
     return 0 as *mut mailimf_optional_field;
 }
-unsafe extern "C" fn dc_mimeparser_parse_mime_recursive(
+unsafe fn dc_mimeparser_parse_mime_recursive(
     mut mimeparser: *mut dc_mimeparser_t,
     mut mime: *mut mailmime,
 ) -> libc::c_int {
@@ -827,7 +818,7 @@ unsafe extern "C" fn dc_mimeparser_parse_mime_recursive(
     }
     return any_part_added;
 }
-unsafe extern "C" fn hash_header(
+unsafe fn hash_header(
     mut out: *mut dc_hash_t,
     mut in_0: *const mailimf_fields,
     mut context: *mut dc_context_t,
@@ -899,7 +890,7 @@ unsafe extern "C" fn hash_header(
         }
     }
 }
-unsafe extern "C" fn mailmime_get_mime_type(
+unsafe fn mailmime_get_mime_type(
     mut mime: *mut mailmime,
     mut msg_type: *mut libc::c_int,
     mut raw_mime: *mut *mut libc::c_char,
@@ -1069,7 +1060,7 @@ unsafe extern "C" fn mailmime_get_mime_type(
     }
     return 0i32;
 }
-unsafe extern "C" fn reconcat_mime(
+unsafe fn reconcat_mime(
     mut raw_mime: *mut *mut libc::c_char,
     mut type_0: *const libc::c_char,
     mut subtype: *const libc::c_char,
@@ -1090,7 +1081,7 @@ unsafe extern "C" fn reconcat_mime(
         )
     };
 }
-unsafe extern "C" fn mailmime_is_attachment_disposition(mut mime: *mut mailmime) -> libc::c_int {
+unsafe fn mailmime_is_attachment_disposition(mut mime: *mut mailmime) -> libc::c_int {
     if !(*mime).mm_mime_fields.is_null() {
         let mut cur: *mut clistiter = (*(*(*mime).mm_mime_fields).fld_list).first;
         while !cur.is_null() {
@@ -1120,8 +1111,7 @@ unsafe extern "C" fn mailmime_is_attachment_disposition(mut mime: *mut mailmime)
     return 0i32;
 }
 /* low-level-tools for working with mailmime structures directly */
-#[no_mangle]
-pub unsafe extern "C" fn mailmime_find_ct_parameter(
+pub unsafe fn mailmime_find_ct_parameter(
     mut mime: *mut mailmime,
     mut name: *const libc::c_char,
 ) -> *mut mailmime_parameter {
@@ -1153,7 +1143,7 @@ pub unsafe extern "C" fn mailmime_find_ct_parameter(
     }
     return 0 as *mut mailmime_parameter;
 }
-unsafe extern "C" fn dc_mimeparser_add_single_part_if_known(
+unsafe fn dc_mimeparser_add_single_part_if_known(
     mut mimeparser: *mut dc_mimeparser_t,
     mut mime: *mut mailmime,
 ) -> libc::c_int {
@@ -1476,7 +1466,7 @@ unsafe extern "C" fn dc_mimeparser_add_single_part_if_known(
         0i32
     };
 }
-unsafe extern "C" fn do_add_single_file_part(
+unsafe fn do_add_single_file_part(
     mut parser: *mut dc_mimeparser_t,
     mut msg_type: libc::c_int,
     mut mime_type: libc::c_int,
@@ -1528,10 +1518,7 @@ unsafe extern "C" fn do_add_single_file_part(
     free(pathNfilename as *mut libc::c_void);
     dc_mimepart_unref(part);
 }
-unsafe extern "C" fn do_add_single_part(
-    mut parser: *mut dc_mimeparser_t,
-    mut part: *mut dc_mimepart_t,
-) {
+unsafe fn do_add_single_part(mut parser: *mut dc_mimeparser_t, mut part: *mut dc_mimepart_t) {
     if 0 != (*(*parser).e2ee_helper).encrypted
         && (*(*(*parser).e2ee_helper).signatures).count > 0i32
     {
@@ -1545,8 +1532,7 @@ unsafe extern "C" fn do_add_single_part(
         0 as *mut libc::c_uint,
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn mailmime_transfer_decode(
+pub unsafe fn mailmime_transfer_decode(
     mut mime: *mut mailmime,
     mut ret_decoded_data: *mut *const libc::c_char,
     mut ret_decoded_data_bytes: *mut size_t,
@@ -1627,8 +1613,7 @@ pub unsafe extern "C" fn mailmime_transfer_decode(
     *ret_to_mmap_string_unref = transfer_decoding_buffer;
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_is_mailinglist_message(
+pub unsafe fn dc_mimeparser_is_mailinglist_message(
     mut mimeparser: *mut dc_mimeparser_t,
 ) -> libc::c_int {
     if mimeparser.is_null() {
@@ -1661,8 +1646,7 @@ pub unsafe extern "C" fn dc_mimeparser_is_mailinglist_message(
     }
     return 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_sender_equals_recipient(
+pub unsafe fn dc_mimeparser_sender_equals_recipient(
     mut mimeparser: *mut dc_mimeparser_t,
 ) -> libc::c_int {
     let mut sender_equals_recipient: libc::c_int = 0i32;
@@ -1710,10 +1694,7 @@ pub unsafe extern "C" fn dc_mimeparser_sender_equals_recipient(
     free(from_addr_norm as *mut libc::c_void);
     return sender_equals_recipient;
 }
-#[no_mangle]
-pub unsafe extern "C" fn mailimf_get_recipients(
-    mut imffields: *mut mailimf_fields,
-) -> *mut dc_hash_t {
+pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut dc_hash_t {
     /* the returned value must be dc_hash_clear()'d and free()'d. returned addresses are normalized. */
     let mut recipients: *mut dc_hash_t =
         malloc(::std::mem::size_of::<dc_hash_t>() as libc::c_ulong) as *mut dc_hash_t;
@@ -1801,7 +1782,7 @@ pub unsafe extern "C" fn mailimf_get_recipients(
 /* ******************************************************************************
  * low-level-tools for getting a list of all recipients
  ******************************************************************************/
-unsafe extern "C" fn mailimf_get_recipients__add_addr(
+unsafe fn mailimf_get_recipients__add_addr(
     mut recipients: *mut dc_hash_t,
     mut mb: *mut mailimf_mailbox,
 ) {
@@ -1817,8 +1798,7 @@ unsafe extern "C" fn mailimf_get_recipients__add_addr(
     };
 }
 /*the result is a pointer to mime, must not be freed*/
-#[no_mangle]
-pub unsafe extern "C" fn mailimf_find_field(
+pub unsafe fn mailimf_find_field(
     mut header: *mut mailimf_fields,
     mut wanted_fld_type: libc::c_int,
 ) -> *mut mailimf_field {
@@ -1845,8 +1825,7 @@ pub unsafe extern "C" fn mailimf_find_field(
     }
     return 0 as *mut mailimf_field;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimeparser_repl_msg_by_error(
+pub unsafe fn dc_mimeparser_repl_msg_by_error(
     mut mimeparser: *mut dc_mimeparser_t,
     mut error_msg: *const libc::c_char,
 ) {
@@ -1873,10 +1852,7 @@ pub unsafe extern "C" fn dc_mimeparser_repl_msg_by_error(
     carray_set_size((*mimeparser).parts, 1i32 as libc::c_uint);
 }
 /*the result is a pointer to mime, must not be freed*/
-#[no_mangle]
-pub unsafe extern "C" fn mailmime_find_mailimf_fields(
-    mut mime: *mut mailmime,
-) -> *mut mailimf_fields {
+pub unsafe fn mailmime_find_mailimf_fields(mut mime: *mut mailmime) -> *mut mailimf_fields {
     if mime.is_null() {
         return 0 as *mut mailimf_fields;
     }
@@ -1906,8 +1882,7 @@ pub unsafe extern "C" fn mailmime_find_mailimf_fields(
     }
     return 0 as *mut mailimf_fields;
 }
-#[no_mangle]
-pub unsafe extern "C" fn mailimf_find_optional_field(
+pub unsafe fn mailimf_find_optional_field(
     mut header: *mut mailimf_fields,
     mut wanted_fld_name: *const libc::c_char,
 ) -> *mut mailimf_optional_field {

@@ -22,8 +22,7 @@ pub struct dc_smtp_t {
     pub error_etpan: libc::c_int,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_smtp_new(mut context: *mut dc_context_t) -> *mut dc_smtp_t {
+pub unsafe fn dc_smtp_new(mut context: *mut dc_context_t) -> *mut dc_smtp_t {
     let mut smtp: *mut dc_smtp_t = 0 as *mut dc_smtp_t;
     smtp = calloc(
         1i32 as libc::c_ulong,
@@ -36,8 +35,7 @@ pub unsafe extern "C" fn dc_smtp_new(mut context: *mut dc_context_t) -> *mut dc_
     (*smtp).context = context;
     return smtp;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_smtp_unref(mut smtp: *mut dc_smtp_t) {
+pub unsafe fn dc_smtp_unref(mut smtp: *mut dc_smtp_t) {
     if smtp.is_null() {
         return;
     }
@@ -46,8 +44,7 @@ pub unsafe extern "C" fn dc_smtp_unref(mut smtp: *mut dc_smtp_t) {
     free((*smtp).error as *mut libc::c_void);
     free(smtp as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_smtp_disconnect(mut smtp: *mut dc_smtp_t) {
+pub unsafe fn dc_smtp_disconnect(mut smtp: *mut dc_smtp_t) {
     if smtp.is_null() {
         return;
     }
@@ -56,16 +53,14 @@ pub unsafe extern "C" fn dc_smtp_disconnect(mut smtp: *mut dc_smtp_t) {
         (*smtp).etpan = 0 as *mut mailsmtp
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_smtp_is_connected(mut smtp: *const dc_smtp_t) -> libc::c_int {
+pub unsafe fn dc_smtp_is_connected(mut smtp: *const dc_smtp_t) -> libc::c_int {
     return if !smtp.is_null() && !(*smtp).etpan.is_null() {
         1i32
     } else {
         0i32
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_smtp_connect(
+pub unsafe fn dc_smtp_connect(
     mut smtp: *mut dc_smtp_t,
     mut lp: *const dc_loginparam_t,
 ) -> libc::c_int {
@@ -397,8 +392,7 @@ unsafe extern "C" fn body_progress(
     mut user_data: *mut libc::c_void,
 ) {
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_smtp_send_msg(
+pub unsafe fn dc_smtp_send_msg(
     mut smtp: *mut dc_smtp_t,
     mut recipients: *const clist,
     mut data_not_terminated: *const libc::c_char,
@@ -513,7 +507,7 @@ pub unsafe extern "C" fn dc_smtp_send_msg(
     }
     return success;
 }
-unsafe extern "C" fn log_error(
+unsafe fn log_error(
     mut smtp: *mut dc_smtp_t,
     mut what_failed: *const libc::c_char,
     mut r: libc::c_int,

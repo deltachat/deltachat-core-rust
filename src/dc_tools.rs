@@ -14,13 +14,12 @@ no references to dc_context_t and other "larger" classes here. */
 // for carray etc.
 /* ** library-private **********************************************************/
 /* math tools */
-#[no_mangle]
-pub unsafe extern "C" fn dc_exactly_one_bit_set(mut v: libc::c_int) -> libc::c_int {
+pub unsafe fn dc_exactly_one_bit_set(mut v: libc::c_int) -> libc::c_int {
     return (0 != v && 0 == v & v - 1i32) as libc::c_int;
 }
 /* string tools */
 /* dc_strdup() returns empty string if NULL is given, never returns NULL (exits on errors) */
-pub unsafe extern "C" fn dc_strdup(mut s: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_strdup(mut s: *const libc::c_char) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     if !s.is_null() {
         ret = strdup(s);
@@ -36,20 +35,17 @@ pub unsafe extern "C" fn dc_strdup(mut s: *const libc::c_char) -> *mut libc::c_c
     return ret;
 }
 /* strdup(NULL) is undefined, safe_strdup_keep_null(NULL) returns NULL in this case */
-#[no_mangle]
-pub unsafe extern "C" fn dc_strdup_keep_null(mut s: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_strdup_keep_null(mut s: *const libc::c_char) -> *mut libc::c_char {
     return if !s.is_null() {
         dc_strdup(s)
     } else {
         0 as *mut libc::c_char
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_atoi_null_is_0(mut s: *const libc::c_char) -> libc::c_int {
+pub unsafe fn dc_atoi_null_is_0(mut s: *const libc::c_char) -> libc::c_int {
     return if !s.is_null() { atoi(s) } else { 0i32 };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_atof(mut str: *const libc::c_char) -> libc::c_double {
+pub unsafe fn dc_atof(mut str: *const libc::c_char) -> libc::c_double {
     // hack around atof() that may accept only `,` as decimal point on mac
     let mut test: *mut libc::c_char =
         dc_mprintf(b"%f\x00" as *const u8 as *const libc::c_char, 1.2f64);
@@ -65,8 +61,7 @@ pub unsafe extern "C" fn dc_atof(mut str: *const libc::c_char) -> libc::c_double
     free(str_locale as *mut libc::c_void);
     return f;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_str_replace(
+pub unsafe fn dc_str_replace(
     mut haystack: *mut *mut libc::c_char,
     mut needle: *const libc::c_char,
     mut replacement: *const libc::c_char,
@@ -114,8 +109,7 @@ pub unsafe extern "C" fn dc_str_replace(
     }
     return replacements;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
+pub unsafe fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
     // hack around printf(%f) that may return `,` as decimal point on mac
     let mut test: *mut libc::c_char =
         dc_mprintf(b"%f\x00" as *const u8 as *const libc::c_char, 1.2f64);
@@ -129,8 +123,7 @@ pub unsafe extern "C" fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
     free(test as *mut libc::c_void);
     return str;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_ltrim(mut buf: *mut libc::c_char) {
+pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
     let mut len: size_t = 0i32 as size_t;
     let mut cur: *const libc::c_uchar = 0 as *const libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
@@ -149,8 +142,7 @@ pub unsafe extern "C" fn dc_ltrim(mut buf: *mut libc::c_char) {
         }
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_rtrim(mut buf: *mut libc::c_char) {
+pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
     let mut len: size_t = 0i32 as size_t;
     let mut cur: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
@@ -171,14 +163,12 @@ pub unsafe extern "C" fn dc_rtrim(mut buf: *mut libc::c_char) {
         ) = '\u{0}' as i32 as libc::c_uchar
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_trim(mut buf: *mut libc::c_char) {
+pub unsafe fn dc_trim(mut buf: *mut libc::c_char) {
     dc_ltrim(buf);
     dc_rtrim(buf);
 }
 /* the result must be free()'d */
-#[no_mangle]
-pub unsafe extern "C" fn dc_strlower(mut in_0: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_strlower(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     let mut out: *mut libc::c_char = dc_strdup(in_0);
     let mut p: *mut libc::c_char = out;
     while 0 != *p {
@@ -187,16 +177,14 @@ pub unsafe extern "C" fn dc_strlower(mut in_0: *const libc::c_char) -> *mut libc
     }
     return out;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_strlower_in_place(mut in_0: *mut libc::c_char) {
+pub unsafe fn dc_strlower_in_place(mut in_0: *mut libc::c_char) {
     let mut p: *mut libc::c_char = in_0;
     while 0 != *p {
         *p = tolower(*p as libc::c_int) as libc::c_char;
         p = p.offset(1isize)
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_str_contains(
+pub unsafe fn dc_str_contains(
     mut haystack: *const libc::c_char,
     mut needle: *const libc::c_char,
 ) -> libc::c_int {
@@ -218,8 +206,7 @@ pub unsafe extern "C" fn dc_str_contains(
     return ret;
 }
 /* the result must be free()'d */
-#[no_mangle]
-pub unsafe extern "C" fn dc_null_terminate(
+pub unsafe fn dc_null_terminate(
     mut in_0: *const libc::c_char,
     mut bytes: libc::c_int,
 ) -> *mut libc::c_char {
@@ -233,11 +220,7 @@ pub unsafe extern "C" fn dc_null_terminate(
     *out.offset(bytes as isize) = 0i32 as libc::c_char;
     return out;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_binary_to_uc_hex(
-    mut buf: *const uint8_t,
-    mut bytes: size_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_binary_to_uc_hex(mut buf: *const uint8_t, mut bytes: size_t) -> *mut libc::c_char {
     let mut hex: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut i: libc::c_int = 0i32;
     if !(buf.is_null() || bytes <= 0i32 as libc::c_ulong) {
@@ -263,7 +246,6 @@ pub unsafe extern "C" fn dc_binary_to_uc_hex(
     return hex;
 }
 /* remove all \r characters from string */
-#[no_mangle]
 pub unsafe extern "C" fn dc_remove_cr_chars(mut buf: *mut libc::c_char) {
     /* search for first `\r` */
     let mut p1: *const libc::c_char = buf;
@@ -284,13 +266,11 @@ pub unsafe extern "C" fn dc_remove_cr_chars(mut buf: *mut libc::c_char) {
     }
     *p2 = 0i32 as libc::c_char;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_unify_lineends(mut buf: *mut libc::c_char) {
+pub unsafe fn dc_unify_lineends(mut buf: *mut libc::c_char) {
     dc_remove_cr_chars(buf);
 }
 /* replace bad UTF-8 characters by sequences of `_` (to avoid problems in filenames, we do not use eg. `?`) the function is useful if strings are unexpectingly encoded eg. as ISO-8859-1 */
-#[no_mangle]
-pub unsafe extern "C" fn dc_replace_bad_utf8_chars(mut buf: *mut libc::c_char) {
+pub unsafe fn dc_replace_bad_utf8_chars(mut buf: *mut libc::c_char) {
     let mut current_block: u64;
     if buf.is_null() {
         return;
@@ -357,8 +337,7 @@ pub unsafe extern "C" fn dc_replace_bad_utf8_chars(mut buf: *mut libc::c_char) {
         }
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_utf8_strlen(mut s: *const libc::c_char) -> size_t {
+pub unsafe fn dc_utf8_strlen(mut s: *const libc::c_char) -> size_t {
     if s.is_null() {
         return 0i32 as size_t;
     }
@@ -372,11 +351,7 @@ pub unsafe extern "C" fn dc_utf8_strlen(mut s: *const libc::c_char) -> size_t {
     }
     return j;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_truncate_str(
-    mut buf: *mut libc::c_char,
-    mut approx_chars: libc::c_int,
-) {
+pub unsafe fn dc_truncate_str(mut buf: *mut libc::c_char, mut approx_chars: libc::c_int) {
     if approx_chars > 0i32
         && strlen(buf)
             > (approx_chars as libc::c_ulong)
@@ -395,8 +370,7 @@ pub unsafe extern "C" fn dc_truncate_str(
         strcat(p, b"[...]\x00" as *const u8 as *const libc::c_char);
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_truncate_n_unwrap_str(
+pub unsafe fn dc_truncate_n_unwrap_str(
     mut buf: *mut libc::c_char,
     mut approx_characters: libc::c_int,
     mut do_unwrap: libc::c_int,
@@ -439,7 +413,7 @@ pub unsafe extern "C" fn dc_truncate_n_unwrap_str(
         dc_remove_cr_chars(buf);
     };
 }
-unsafe extern "C" fn dc_utf8_strnlen(mut s: *const libc::c_char, mut n: size_t) -> size_t {
+unsafe fn dc_utf8_strnlen(mut s: *const libc::c_char, mut n: size_t) -> size_t {
     if s.is_null() {
         return 0i32 as size_t;
     }
@@ -454,10 +428,7 @@ unsafe extern "C" fn dc_utf8_strnlen(mut s: *const libc::c_char, mut n: size_t) 
     return j;
 }
 /* split string into lines*/
-#[no_mangle]
-pub unsafe extern "C" fn dc_split_into_lines(
-    mut buf_terminated: *const libc::c_char,
-) -> *mut carray {
+pub unsafe fn dc_split_into_lines(mut buf_terminated: *const libc::c_char) -> *mut carray {
     let mut lines: *mut carray = carray_new(1024i32 as libc::c_uint);
     let mut line_chars: size_t = 0i32 as size_t;
     let mut p1: *const libc::c_char = buf_terminated;
@@ -485,8 +456,7 @@ pub unsafe extern "C" fn dc_split_into_lines(
     );
     return lines;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_free_splitted_lines(mut lines: *mut carray) {
+pub unsafe fn dc_free_splitted_lines(mut lines: *mut carray) {
     if !lines.is_null() {
         let mut i: libc::c_int = 0;
         let mut cnt: libc::c_int = carray_count(lines) as libc::c_int;
@@ -499,8 +469,7 @@ pub unsafe extern "C" fn dc_free_splitted_lines(mut lines: *mut carray) {
     };
 }
 /* insert a break every n characters, the return must be free()'d */
-#[no_mangle]
-pub unsafe extern "C" fn dc_insert_breaks(
+pub unsafe fn dc_insert_breaks(
     mut in_0: *const libc::c_char,
     mut break_every: libc::c_int,
     mut break_chars: *const libc::c_char,
@@ -534,8 +503,7 @@ pub unsafe extern "C" fn dc_insert_breaks(
     *o = 0i32 as libc::c_char;
     return out;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_str_from_clist(
+pub unsafe fn dc_str_from_clist(
     mut list: *const clist,
     mut delimiter: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -569,8 +537,7 @@ pub unsafe extern "C" fn dc_str_from_clist(
     }
     return str.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_str_to_clist(
+pub unsafe fn dc_str_to_clist(
     mut str: *const libc::c_char,
     mut delimiter: *const libc::c_char,
 ) -> *mut clist {
@@ -600,8 +567,7 @@ pub unsafe extern "C" fn dc_str_to_clist(
     }
     return list;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_str_to_color(mut str: *const libc::c_char) -> libc::c_int {
+pub unsafe fn dc_str_to_color(mut str: *const libc::c_char) -> libc::c_int {
     let mut str_lower: *mut libc::c_char = dc_strlower(str);
     /* the colors must fulfill some criterions as:
     - contrast to black and to white
@@ -644,8 +610,7 @@ pub unsafe extern "C" fn dc_str_to_color(mut str: *const libc::c_char) -> libc::
 }
 /* clist tools */
 /* calls free() for each item content */
-#[no_mangle]
-pub unsafe extern "C" fn clist_free_content(mut haystack: *const clist) {
+pub unsafe fn clist_free_content(mut haystack: *const clist) {
     let mut iter: *mut clistiter = (*haystack).first;
     while !iter.is_null() {
         free((*iter).data);
@@ -657,8 +622,7 @@ pub unsafe extern "C" fn clist_free_content(mut haystack: *const clist) {
         }
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn clist_search_string_nocase(
+pub unsafe fn clist_search_string_nocase(
     mut haystack: *const clist,
     mut needle: *const libc::c_char,
 ) -> libc::c_int {
@@ -677,8 +641,7 @@ pub unsafe extern "C" fn clist_search_string_nocase(
 }
 /* date/time tools */
 /* the result is UTC or DC_INVALID_TIMESTAMP */
-#[no_mangle]
-pub unsafe extern "C" fn dc_timestamp_from_date(mut date_time: *mut mailimf_date_time) -> time_t {
+pub unsafe fn dc_timestamp_from_date(mut date_time: *mut mailimf_date_time) -> time_t {
     let mut tmval: tm = tm {
         tm_sec: 0,
         tm_min: 0,
@@ -721,8 +684,7 @@ pub unsafe extern "C" fn dc_timestamp_from_date(mut date_time: *mut mailimf_date
     timeval -= (zone_hour * 3600i32 + zone_min * 60i32) as libc::c_long;
     return timeval;
 }
-#[no_mangle]
-pub unsafe extern "C" fn mkgmtime(mut tmp: *mut tm) -> time_t {
+pub unsafe fn mkgmtime(mut tmp: *mut tm) -> time_t {
     let mut dir: libc::c_int = 0i32;
     let mut bits: libc::c_int = 0i32;
     let mut saved_seconds: libc::c_int = 0i32;
@@ -795,7 +757,7 @@ pub unsafe extern "C" fn mkgmtime(mut tmp: *mut tm) -> time_t {
 /* ******************************************************************************
  * date/time tools
  ******************************************************************************/
-unsafe extern "C" fn tmcomp(mut atmp: *mut tm, mut btmp: *mut tm) -> libc::c_int {
+unsafe fn tmcomp(mut atmp: *mut tm, mut btmp: *mut tm) -> libc::c_int {
     let mut result: libc::c_int = 0i32;
     result = (*atmp).tm_year - (*btmp).tm_year;
     if result == 0i32
@@ -821,8 +783,7 @@ unsafe extern "C" fn tmcomp(mut atmp: *mut tm, mut btmp: *mut tm) -> libc::c_int
     return result;
 }
 /* the return value must be free()'d */
-#[no_mangle]
-pub unsafe extern "C" fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c_char {
+pub unsafe fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c_char {
     let mut wanted_struct: tm = tm {
         tm_sec: 0,
         tm_min: 0,
@@ -851,10 +812,7 @@ pub unsafe extern "C" fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c
         wanted_struct.tm_sec as libc::c_int,
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_timestamp_to_mailimap_date_time(
-    mut timeval: time_t,
-) -> *mut mailimap_date_time {
+pub unsafe fn dc_timestamp_to_mailimap_date_time(mut timeval: time_t) -> *mut mailimap_date_time {
     let mut gmt: tm = tm {
         tm_sec: 0,
         tm_min: 0,
@@ -910,8 +868,7 @@ pub unsafe extern "C" fn dc_timestamp_to_mailimap_date_time(
     );
     return date_time;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_gm2local_offset() -> libc::c_long {
+pub unsafe fn dc_gm2local_offset() -> libc::c_long {
     /* returns the offset that must be _added_ to an UTC/GMT-time to create the localtime.
     the function may return nagative values. */
     let mut gmtime: time_t = time(0 as *mut time_t);
@@ -932,8 +889,7 @@ pub unsafe extern "C" fn dc_gm2local_offset() -> libc::c_long {
     return timeinfo.tm_gmtoff;
 }
 /* timesmearing */
-#[no_mangle]
-pub unsafe extern "C" fn dc_smeared_time(mut context: *mut dc_context_t) -> time_t {
+pub unsafe fn dc_smeared_time(mut context: *mut dc_context_t) -> time_t {
     /* function returns a corrected time(NULL) */
     let mut now: time_t = time(0 as *mut time_t);
     pthread_mutex_lock(&mut (*context).smear_critical);
@@ -943,8 +899,7 @@ pub unsafe extern "C" fn dc_smeared_time(mut context: *mut dc_context_t) -> time
     pthread_mutex_unlock(&mut (*context).smear_critical);
     return now;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_create_smeared_timestamp(mut context: *mut dc_context_t) -> time_t {
+pub unsafe fn dc_create_smeared_timestamp(mut context: *mut dc_context_t) -> time_t {
     let mut now: time_t = time(0 as *mut time_t);
     let mut ret: time_t = now;
     pthread_mutex_lock(&mut (*context).smear_critical);
@@ -958,8 +913,7 @@ pub unsafe extern "C" fn dc_create_smeared_timestamp(mut context: *mut dc_contex
     pthread_mutex_unlock(&mut (*context).smear_critical);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_create_smeared_timestamps(
+pub unsafe fn dc_create_smeared_timestamps(
     mut context: *mut dc_context_t,
     mut count: libc::c_int,
 ) -> time_t {
@@ -978,8 +932,7 @@ pub unsafe extern "C" fn dc_create_smeared_timestamps(
     return start;
 }
 /* Message-ID tools */
-#[no_mangle]
-pub unsafe extern "C" fn dc_create_id() -> *mut libc::c_char {
+pub unsafe fn dc_create_id() -> *mut libc::c_char {
     /* generate an id. the generated ID should be as short and as unique as possible:
     - short, because it may also used as part of Message-ID headers or in QR codes
     - unique as two IDs generated on two devices should not be the same. However, collisions are not world-wide but only by the few contacts.
@@ -998,7 +951,7 @@ pub unsafe extern "C" fn dc_create_id() -> *mut libc::c_char {
 /* ******************************************************************************
  * generate Message-IDs
  ******************************************************************************/
-unsafe extern "C" fn encode_66bits_as_base64(
+unsafe fn encode_66bits_as_base64(
     mut v1: uint32_t,
     mut v2: uint32_t,
     mut fill: uint32_t,
@@ -1033,8 +986,7 @@ unsafe extern "C" fn encode_66bits_as_base64(
     *ret.offset(11isize) = 0i32 as libc::c_char;
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_create_incoming_rfc724_mid(
+pub unsafe fn dc_create_incoming_rfc724_mid(
     mut message_timestamp: time_t,
     mut contact_id_from: uint32_t,
     mut contact_ids_to: *mut dc_array_t,
@@ -1061,8 +1013,7 @@ pub unsafe extern "C" fn dc_create_incoming_rfc724_mid(
         largest_id_to as libc::c_ulong,
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_create_outgoing_rfc724_mid(
+pub unsafe fn dc_create_outgoing_rfc724_mid(
     mut grpid: *const libc::c_char,
     mut from_addr: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -1097,10 +1048,7 @@ pub unsafe extern "C" fn dc_create_outgoing_rfc724_mid(
     free(rand2 as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_extract_grpid_from_rfc724_mid(
-    mut mid: *const libc::c_char,
-) -> *mut libc::c_char {
+pub unsafe fn dc_extract_grpid_from_rfc724_mid(mut mid: *const libc::c_char) -> *mut libc::c_char {
     /* extract our group ID from Message-IDs as `Gr.12345678901.morerandom@domain.de`; "12345678901" is the wanted ID in this example. */
     let mut success: libc::c_int = 0i32;
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1133,10 +1081,7 @@ pub unsafe extern "C" fn dc_extract_grpid_from_rfc724_mid(
         0 as *mut libc::c_char
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_extract_grpid_from_rfc724_mid_list(
-    mut list: *const clist,
-) -> *mut libc::c_char {
+pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(mut list: *const clist) -> *mut libc::c_char {
     if !list.is_null() {
         let mut cur: *mut clistiter = (*list).first;
         while !cur.is_null() {
@@ -1159,8 +1104,7 @@ pub unsafe extern "C" fn dc_extract_grpid_from_rfc724_mid_list(
     return 0 as *mut libc::c_char;
 }
 /* file tools */
-#[no_mangle]
-pub unsafe extern "C" fn dc_ensure_no_slash(mut pathNfilename: *mut libc::c_char) {
+pub unsafe fn dc_ensure_no_slash(mut pathNfilename: *mut libc::c_char) {
     let mut path_len: libc::c_int = strlen(pathNfilename) as libc::c_int;
     if path_len > 0i32 {
         if *pathNfilename.offset((path_len - 1i32) as isize) as libc::c_int == '/' as i32
@@ -1170,8 +1114,7 @@ pub unsafe extern "C" fn dc_ensure_no_slash(mut pathNfilename: *mut libc::c_char
         }
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_validate_filename(mut filename: *mut libc::c_char) {
+pub unsafe fn dc_validate_filename(mut filename: *mut libc::c_char) {
     /* function modifies the given buffer and replaces all characters not valid in filenames by a "-" */
     let mut p1: *mut libc::c_char = filename;
     while 0 != *p1 {
@@ -1184,10 +1127,7 @@ pub unsafe extern "C" fn dc_validate_filename(mut filename: *mut libc::c_char) {
         p1 = p1.offset(1isize)
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_filename(
-    mut pathNfilename: *const libc::c_char,
-) -> *mut libc::c_char {
+pub unsafe fn dc_get_filename(mut pathNfilename: *const libc::c_char) -> *mut libc::c_char {
     let mut p: *const libc::c_char = strrchr(pathNfilename, '/' as i32);
     if p.is_null() {
         p = strrchr(pathNfilename, '\\' as i32)
@@ -1200,8 +1140,7 @@ pub unsafe extern "C" fn dc_get_filename(
     };
 }
 // the case of the suffix is preserved
-#[no_mangle]
-pub unsafe extern "C" fn dc_split_filename(
+pub unsafe fn dc_split_filename(
     mut pathNfilename: *const libc::c_char,
     mut ret_basename: *mut *mut libc::c_char,
     mut ret_all_suffixes_incl_dot: *mut *mut libc::c_char,
@@ -1232,10 +1171,7 @@ pub unsafe extern "C" fn dc_split_filename(
     };
 }
 // the returned suffix is lower-case
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_filesuffix_lc(
-    mut pathNfilename: *const libc::c_char,
-) -> *mut libc::c_char {
+pub unsafe fn dc_get_filesuffix_lc(mut pathNfilename: *const libc::c_char) -> *mut libc::c_char {
     if !pathNfilename.is_null() {
         let mut p: *const libc::c_char = strrchr(pathNfilename, '.' as i32);
         if !p.is_null() {
@@ -1245,8 +1181,7 @@ pub unsafe extern "C" fn dc_get_filesuffix_lc(
     }
     return 0 as *mut libc::c_char;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_filemeta(
+pub unsafe fn dc_get_filemeta(
     mut buf_start: *const libc::c_void,
     mut buf_bytes: size_t,
     mut ret_width: *mut uint32_t,
@@ -1330,8 +1265,7 @@ pub unsafe extern "C" fn dc_get_filemeta(
     }
     return 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_abs_path(
+pub unsafe fn dc_get_abs_path(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -1370,8 +1304,7 @@ pub unsafe extern "C" fn dc_get_abs_path(
     }
     return pathNfilename_abs;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_file_exist(
+pub unsafe fn dc_file_exist(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
@@ -1450,8 +1383,7 @@ pub unsafe extern "C" fn dc_file_exist(
     free(pathNfilename_abs as *mut libc::c_void);
     return exist;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_filebytes(
+pub unsafe fn dc_get_filebytes(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> uint64_t {
@@ -1530,8 +1462,7 @@ pub unsafe extern "C" fn dc_get_filebytes(
     free(pathNfilename_abs as *mut libc::c_void);
     return filebytes;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_delete_file(
+pub unsafe fn dc_delete_file(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
@@ -1553,8 +1484,7 @@ pub unsafe extern "C" fn dc_delete_file(
     free(pathNfilename_abs as *mut libc::c_void);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_copy_file(
+pub unsafe fn dc_copy_file(
     mut context: *mut dc_context_t,
     mut src: *const libc::c_char,
     mut dest: *const libc::c_char,
@@ -1651,8 +1581,7 @@ pub unsafe extern "C" fn dc_copy_file(
     free(dest_abs as *mut libc::c_void);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_create_folder(
+pub unsafe fn dc_create_folder(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
@@ -1748,8 +1677,7 @@ pub unsafe extern "C" fn dc_create_folder(
     free(pathNfilename_abs as *mut libc::c_void);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_write_file(
+pub unsafe fn dc_write_file(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
     mut buf: *const libc::c_void,
@@ -1789,8 +1717,7 @@ pub unsafe extern "C" fn dc_write_file(
     free(pathNfilename_abs as *mut libc::c_void);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_read_file(
+pub unsafe fn dc_read_file(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
     mut buf: *mut *mut libc::c_void,
@@ -1842,8 +1769,7 @@ pub unsafe extern "C" fn dc_read_file(
     free(pathNfilename_abs as *mut libc::c_void);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_fine_pathNfilename(
+pub unsafe fn dc_get_fine_pathNfilename(
     mut context: *mut dc_context_t,
     mut pathNfolder: *const libc::c_char,
     mut desired_filenameNsuffix__: *const libc::c_char,
@@ -1899,8 +1825,7 @@ pub unsafe extern "C" fn dc_get_fine_pathNfilename(
     free(pathNfolder_wo_slash as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_is_blobdir_path(
+pub unsafe fn dc_is_blobdir_path(
     mut context: *mut dc_context_t,
     mut path: *const libc::c_char,
 ) -> libc::c_int {
@@ -1915,11 +1840,7 @@ pub unsafe extern "C" fn dc_is_blobdir_path(
     }
     return 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_make_rel_path(
-    mut context: *mut dc_context_t,
-    mut path: *mut *mut libc::c_char,
-) {
+pub unsafe fn dc_make_rel_path(mut context: *mut dc_context_t, mut path: *mut *mut libc::c_char) {
     if context.is_null() || path.is_null() || (*path).is_null() {
         return;
     }
@@ -1931,8 +1852,7 @@ pub unsafe extern "C" fn dc_make_rel_path(
         );
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_make_rel_and_copy(
+pub unsafe fn dc_make_rel_and_copy(
     mut context: *mut dc_context_t,
     mut path: *mut *mut libc::c_char,
 ) -> libc::c_int {

@@ -575,7 +575,7 @@ pub union unnamed_6 {
 pub struct mailimap_section_part {
     pub sec_id: *mut clist,
 }
-pub type mailimap_msg_body_handler = unsafe extern "C" fn(
+pub type mailimap_msg_body_handler = unsafe fn(
     _: libc::c_int,
     _: *mut mailimap_msg_att_body_section,
     _: *const libc::c_char,
@@ -1189,14 +1189,14 @@ pub struct _RuneLocale {
     pub __magic: [libc::c_char; 8],
     pub __encoding: [libc::c_char; 32],
     pub __sgetrune: Option<
-        unsafe extern "C" fn(
+        unsafe fn(
             _: *const libc::c_char,
             _: __darwin_size_t,
             _: *mut *const libc::c_char,
         ) -> __darwin_rune_t,
     >,
     pub __sputrune: Option<
-        unsafe extern "C" fn(
+        unsafe fn(
             _: __darwin_rune_t,
             _: *mut libc::c_char,
             _: __darwin_size_t,
@@ -1264,7 +1264,7 @@ pub struct tm {
 }
 
 pub type dc_receive_imf_t = Option<
-    unsafe extern "C" fn(
+    unsafe fn(
         _: *mut dc_imap_t,
         _: *const libc::c_char,
         _: size_t,
@@ -1278,18 +1278,17 @@ dc_context_t is only used for logging and to get information about
 the online state. */
 
 pub type dc_precheck_imf_t = Option<
-    unsafe extern "C" fn(
+    unsafe fn(
         _: *mut dc_imap_t,
         _: *const libc::c_char,
         _: *const libc::c_char,
         _: uint32_t,
     ) -> libc::c_int,
 >;
-pub type dc_set_config_t = Option<
-    unsafe extern "C" fn(_: *mut dc_imap_t, _: *const libc::c_char, _: *const libc::c_char) -> (),
->;
+pub type dc_set_config_t =
+    Option<unsafe fn(_: *mut dc_imap_t, _: *const libc::c_char, _: *const libc::c_char) -> ()>;
 pub type dc_get_config_t = Option<
-    unsafe extern "C" fn(
+    unsafe fn(
         _: *mut dc_imap_t,
         _: *const libc::c_char,
         _: *const libc::c_char,
@@ -1308,13 +1307,12 @@ pub struct _dc_sqlite3 {
 }
 
 #[inline]
-pub unsafe extern "C" fn isascii(mut _c: libc::c_int) -> libc::c_int {
+pub unsafe fn isascii(mut _c: libc::c_int) -> libc::c_int {
     return (_c & !0x7fi32 == 0i32) as libc::c_int;
 }
 
-#[no_mangle]
 #[inline]
-pub unsafe extern "C" fn isspace(mut _c: libc::c_int) -> libc::c_int {
+pub unsafe fn isspace(mut _c: libc::c_int) -> libc::c_int {
     if _c < std::u8::MAX as libc::c_int {
         ((_c as u8 as char) == ' ') as libc::c_int
     } else {
@@ -1322,30 +1320,25 @@ pub unsafe extern "C" fn isspace(mut _c: libc::c_int) -> libc::c_int {
     }
 }
 
-#[no_mangle]
 #[inline]
 #[cfg(target_os = "macos")]
-pub unsafe extern "C" fn tolower(mut _c: libc::c_int) -> libc::c_int {
+pub unsafe fn tolower(mut _c: libc::c_int) -> libc::c_int {
     return __tolower(_c);
 }
 
-#[no_mangle]
 #[inline]
 #[cfg(not(target_os = "macos"))]
-pub unsafe extern "C" fn tolower(mut _c: libc::c_int) -> libc::c_int {
+pub unsafe fn tolower(mut _c: libc::c_int) -> libc::c_int {
     return _tolower(_c);
 }
 
 #[inline]
-pub unsafe extern "C" fn carray_count(mut array: *mut carray) -> libc::c_uint {
+pub unsafe fn carray_count(mut array: *mut carray) -> libc::c_uint {
     return (*array).len;
 }
 
 #[inline]
-pub unsafe extern "C" fn carray_get(
-    mut array: *mut carray,
-    mut indx: libc::c_uint,
-) -> *mut libc::c_void {
+pub unsafe fn carray_get(mut array: *mut carray, mut indx: libc::c_uint) -> *mut libc::c_void {
     return *(*array).array.offset(indx as isize);
 }
 
@@ -1360,12 +1353,7 @@ pub unsafe extern "C" fn carray_get(
  * @return return 0 unless stated otherwise in the event parameter documentation
  */
 pub type dc_callback_t = Option<
-    unsafe extern "C" fn(
-        _: *mut dc_context_t,
-        _: libc::c_int,
-        _: uintptr_t,
-        _: uintptr_t,
-    ) -> uintptr_t,
+    unsafe fn(_: *mut dc_context_t, _: libc::c_int, _: uintptr_t, _: uintptr_t) -> uintptr_t,
 >;
 
 #[derive(Copy, Clone)]

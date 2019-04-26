@@ -30,8 +30,7 @@ pub struct dc_jobthread_t {
     pub using_handle: libc::c_int,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_jobthread_init(
+pub unsafe fn dc_jobthread_init(
     mut jobthread: *mut dc_jobthread_t,
     mut context: *mut dc_context_t,
     mut name: *const libc::c_char,
@@ -51,8 +50,7 @@ pub unsafe extern "C" fn dc_jobthread_init(
     (*jobthread).suspended = 0i32;
     (*jobthread).using_handle = 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_jobthread_exit(mut jobthread: *mut dc_jobthread_t) {
+pub unsafe fn dc_jobthread_exit(mut jobthread: *mut dc_jobthread_t) {
     if jobthread.is_null() {
         return;
     }
@@ -63,11 +61,7 @@ pub unsafe extern "C" fn dc_jobthread_exit(mut jobthread: *mut dc_jobthread_t) {
     free((*jobthread).folder_config_name as *mut libc::c_void);
     (*jobthread).folder_config_name = 0 as *mut libc::c_char;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_jobthread_suspend(
-    mut jobthread: *mut dc_jobthread_t,
-    mut suspend: libc::c_int,
-) {
+pub unsafe fn dc_jobthread_suspend(mut jobthread: *mut dc_jobthread_t, mut suspend: libc::c_int) {
     if jobthread.is_null() {
         return;
     }
@@ -105,7 +99,6 @@ pub unsafe extern "C" fn dc_jobthread_suspend(
         pthread_mutex_unlock(&mut (*jobthread).mutex);
     };
 }
-#[no_mangle]
 pub unsafe extern "C" fn dc_jobthread_interrupt_idle(mut jobthread: *mut dc_jobthread_t) {
     if jobthread.is_null() {
         return;
@@ -127,11 +120,7 @@ pub unsafe extern "C" fn dc_jobthread_interrupt_idle(mut jobthread: *mut dc_jobt
     pthread_cond_signal(&mut (*jobthread).idle_cond);
     pthread_mutex_unlock(&mut (*jobthread).mutex);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_jobthread_fetch(
-    mut jobthread: *mut dc_jobthread_t,
-    mut use_network: libc::c_int,
-) {
+pub unsafe fn dc_jobthread_fetch(mut jobthread: *mut dc_jobthread_t, mut use_network: libc::c_int) {
     let mut start: libc::clock_t = 0;
     if jobthread.is_null() {
         return;
@@ -179,7 +168,7 @@ pub unsafe extern "C" fn dc_jobthread_fetch(
 /* ******************************************************************************
  * the typical fetch, idle, interrupt-idle
  ******************************************************************************/
-unsafe extern "C" fn connect_to_imap(mut jobthread: *mut dc_jobthread_t) -> libc::c_int {
+unsafe fn connect_to_imap(mut jobthread: *mut dc_jobthread_t) -> libc::c_int {
     let mut ret_connected: libc::c_int = 0i32;
     let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
     if 0 != dc_imap_is_connected((*jobthread).imap) {
@@ -211,11 +200,7 @@ unsafe extern "C" fn connect_to_imap(mut jobthread: *mut dc_jobthread_t) -> libc
     free(mvbox_name as *mut libc::c_void);
     return ret_connected;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_jobthread_idle(
-    mut jobthread: *mut dc_jobthread_t,
-    mut use_network: libc::c_int,
-) {
+pub unsafe fn dc_jobthread_idle(mut jobthread: *mut dc_jobthread_t, mut use_network: libc::c_int) {
     if jobthread.is_null() {
         return;
     }

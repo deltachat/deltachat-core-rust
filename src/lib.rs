@@ -23,7 +23,6 @@
 extern crate failure;
 
 mod pgp;
-mod types;
 mod x;
 
 pub mod dc_aheader;
@@ -68,6 +67,7 @@ pub mod dc_strbuilder;
 pub mod dc_strencode;
 pub mod dc_token;
 pub mod dc_tools;
+pub mod types;
 
 pub mod constants;
 pub use self::constants::*;
@@ -90,7 +90,7 @@ mod tests {
     };
     use crate::dc_lot::*;
 
-    extern "C" fn cb(ctx: *mut dc_context_t, event: c_int, data1: u64, data2: u64) -> u64 {
+    fn cb(ctx: *mut dc_context_t, event: c_int, data1: u64, data2: u64) -> u64 {
         println!("event: {} ({}, {})", event, data1, data2);
         if data2 > 10000 {
             println!(

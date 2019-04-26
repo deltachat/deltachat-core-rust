@@ -24,8 +24,7 @@ pub struct dc_loginparam_t {
     pub server_flags: libc::c_int,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_loginparam_new() -> *mut dc_loginparam_t {
+pub unsafe fn dc_loginparam_new() -> *mut dc_loginparam_t {
     let mut loginparam: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
     loginparam = calloc(
         1i32 as libc::c_ulong,
@@ -36,8 +35,7 @@ pub unsafe extern "C" fn dc_loginparam_new() -> *mut dc_loginparam_t {
     }
     return loginparam;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_loginparam_unref(mut loginparam: *mut dc_loginparam_t) {
+pub unsafe fn dc_loginparam_unref(mut loginparam: *mut dc_loginparam_t) {
     if loginparam.is_null() {
         return;
     }
@@ -45,8 +43,7 @@ pub unsafe extern "C" fn dc_loginparam_unref(mut loginparam: *mut dc_loginparam_
     free(loginparam as *mut libc::c_void);
 }
 /* clears all data and frees its memory. All pointers are NULL after this function is called. */
-#[no_mangle]
-pub unsafe extern "C" fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
+pub unsafe fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
     if loginparam.is_null() {
         return;
     }
@@ -68,8 +65,7 @@ pub unsafe extern "C" fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_
     (*loginparam).send_pw = 0 as *mut libc::c_char;
     (*loginparam).server_flags = 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_loginparam_read(
+pub unsafe fn dc_loginparam_read(
     mut loginparam: *mut dc_loginparam_t,
     mut sql: *mut dc_sqlite3_t,
     mut prefix: *const libc::c_char,
@@ -148,8 +144,7 @@ pub unsafe extern "C" fn dc_loginparam_read(
     (*loginparam).server_flags = dc_sqlite3_get_config_int(sql, key, 0i32);
     sqlite3_free(key as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_loginparam_write(
+pub unsafe fn dc_loginparam_write(
     mut loginparam: *const dc_loginparam_t,
     mut sql: *mut dc_sqlite3_t,
     mut prefix: *const libc::c_char,
@@ -227,8 +222,7 @@ pub unsafe extern "C" fn dc_loginparam_write(
     dc_sqlite3_set_config_int(sql, key, (*loginparam).server_flags);
     sqlite3_free(key as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_loginparam_get_readable(
+pub unsafe fn dc_loginparam_get_readable(
     mut loginparam: *const dc_loginparam_t,
 ) -> *mut libc::c_char {
     let mut unset: *const libc::c_char = b"0\x00" as *const u8 as *const libc::c_char;
@@ -281,7 +275,7 @@ pub unsafe extern "C" fn dc_loginparam_get_readable(
     free(flags_readable as *mut libc::c_void);
     return ret;
 }
-unsafe extern "C" fn get_readable_flags(mut flags: libc::c_int) -> *mut libc::c_char {
+unsafe fn get_readable_flags(mut flags: libc::c_int) -> *mut libc::c_char {
     let mut strbuilder: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,

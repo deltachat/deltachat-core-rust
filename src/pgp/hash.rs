@@ -4,11 +4,7 @@ use std::slice;
 use crate::pgp::cvec;
 
 /// Calculate the SHA256 hash of the given bytes.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_hash_sha256(
-    bytes_ptr: *const u8,
-    bytes_len: libc::size_t,
-) -> *mut cvec {
+pub unsafe fn rpgp_hash_sha256(bytes_ptr: *const u8, bytes_len: libc::size_t) -> *mut cvec {
     assert!(!bytes_ptr.is_null());
     assert!(bytes_len > 0);
 

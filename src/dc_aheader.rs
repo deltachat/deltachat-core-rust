@@ -20,8 +20,7 @@ pub struct dc_aheader_t {
 }
 
 /* the returned pointer is ref'd and must be unref'd after usage */
-#[no_mangle]
-pub unsafe extern "C" fn dc_aheader_new() -> *mut dc_aheader_t {
+pub unsafe fn dc_aheader_new() -> *mut dc_aheader_t {
     let mut aheader: *mut dc_aheader_t = 0 as *mut dc_aheader_t;
     aheader = calloc(
         1i32 as libc::c_ulong,
@@ -33,8 +32,7 @@ pub unsafe extern "C" fn dc_aheader_new() -> *mut dc_aheader_t {
     (*aheader).public_key = dc_key_new();
     return aheader;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_aheader_new_from_imffields(
+pub unsafe fn dc_aheader_new_from_imffields(
     mut wanted_from: *const libc::c_char,
     mut header: *const mailimf_fields,
 ) -> *mut dc_aheader_t {
@@ -84,8 +82,7 @@ pub unsafe extern "C" fn dc_aheader_new_from_imffields(
     }
     return fine_header;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_aheader_unref(mut aheader: *mut dc_aheader_t) {
+pub unsafe fn dc_aheader_unref(mut aheader: *mut dc_aheader_t) {
     if aheader.is_null() {
         return;
     }
@@ -93,8 +90,7 @@ pub unsafe extern "C" fn dc_aheader_unref(mut aheader: *mut dc_aheader_t) {
     dc_key_unref((*aheader).public_key);
     free(aheader as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_aheader_set_from_string(
+pub unsafe fn dc_aheader_set_from_string(
     mut aheader: *mut dc_aheader_t,
     mut header_str__: *const libc::c_char,
 ) -> libc::c_int {
@@ -167,8 +163,7 @@ pub unsafe extern "C" fn dc_aheader_set_from_string(
     }
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_aheader_empty(mut aheader: *mut dc_aheader_t) {
+pub unsafe fn dc_aheader_empty(mut aheader: *mut dc_aheader_t) {
     if aheader.is_null() {
         return;
     }
@@ -183,7 +178,7 @@ pub unsafe extern "C" fn dc_aheader_empty(mut aheader: *mut dc_aheader_t) {
 /* ******************************************************************************
  * Parse Autocrypt Header
  ******************************************************************************/
-unsafe extern "C" fn add_attribute(
+unsafe fn add_attribute(
     mut aheader: *mut dc_aheader_t,
     mut name: *const libc::c_char,
     mut value: *const libc::c_char,
@@ -225,8 +220,7 @@ unsafe extern "C" fn add_attribute(
     }
     return 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::c_char {
+pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::c_char {
     let mut success: libc::c_int = 0i32;
     let mut keybase64_wrapped: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {

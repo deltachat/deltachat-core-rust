@@ -10,14 +10,13 @@ use crate::x::*;
 
 /* Return the string with the given ID by calling DC_EVENT_GET_STRING.
 The result must be free()'d! */
-#[no_mangle]
-pub unsafe extern "C" fn dc_stock_str(
+pub unsafe fn dc_stock_str(
     mut context: *mut dc_context_t,
     mut id: libc::c_int,
 ) -> *mut libc::c_char {
     return get_string(context, id, 0i32);
 }
-unsafe extern "C" fn get_string(
+unsafe fn get_string(
     mut context: *mut dc_context_t,
     mut id: libc::c_int,
     mut qty: libc::c_int,
@@ -39,7 +38,7 @@ unsafe extern "C" fn get_string(
 /* Add translated strings that are used by the messager backend.
 As the logging functions may use these strings, do not log any
 errors from here. */
-unsafe extern "C" fn default_string(mut id: libc::c_int) -> *mut libc::c_char {
+unsafe fn default_string(mut id: libc::c_int) -> *mut libc::c_char {
     match id {
         1 => {
             return dc_strdup(b"No messages.\x00" as *const u8 as
@@ -216,8 +215,7 @@ unsafe extern "C" fn default_string(mut id: libc::c_int) -> *mut libc::c_char {
 }
 /* Replaces the first `%1$s` in the given String-ID by the given value.
 The result must be free()'d! */
-#[no_mangle]
-pub unsafe extern "C" fn dc_stock_str_repl_string(
+pub unsafe fn dc_stock_str_repl_string(
     mut context: *mut dc_context_t,
     mut id: libc::c_int,
     mut to_insert: *const libc::c_char,
@@ -235,8 +233,7 @@ pub unsafe extern "C" fn dc_stock_str_repl_string(
     );
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_stock_str_repl_int(
+pub unsafe fn dc_stock_str_repl_int(
     mut context: *mut dc_context_t,
     mut id: libc::c_int,
     mut to_insert_int: libc::c_int,
@@ -261,8 +258,7 @@ pub unsafe extern "C" fn dc_stock_str_repl_int(
 }
 /* Replaces the first `%1$s` and `%2$s` in the given String-ID by the two given strings.
 The result must be free()'d! */
-#[no_mangle]
-pub unsafe extern "C" fn dc_stock_str_repl_string2(
+pub unsafe fn dc_stock_str_repl_string2(
     mut context: *mut dc_context_t,
     mut id: libc::c_int,
     mut to_insert: *const libc::c_char,
@@ -292,8 +288,7 @@ pub unsafe extern "C" fn dc_stock_str_repl_string2(
     return ret;
 }
 /* Misc. */
-#[no_mangle]
-pub unsafe extern "C" fn dc_stock_system_msg(
+pub unsafe fn dc_stock_system_msg(
     mut context: *mut dc_context_t,
     mut str_id: libc::c_int,
     mut param1: *const libc::c_char,

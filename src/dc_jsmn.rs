@@ -69,8 +69,7 @@ pub struct jsmn_parser {
 /* *
  * Create JSON parser over an array of tokens
  */
-#[no_mangle]
-pub unsafe extern "C" fn jsmn_init(mut parser: *mut jsmn_parser) {
+pub unsafe fn jsmn_init(mut parser: *mut jsmn_parser) {
     (*parser).pos = 0i32 as libc::c_uint;
     (*parser).toknext = 0i32 as libc::c_uint;
     (*parser).toksuper = -1i32;
@@ -79,8 +78,7 @@ pub unsafe extern "C" fn jsmn_init(mut parser: *mut jsmn_parser) {
  * Run JSON parser. It parses a JSON data string into and array of tokens, each describing
  * a single JSON object.
  */
-#[no_mangle]
-pub unsafe extern "C" fn jsmn_parse(
+pub unsafe fn jsmn_parse(
     mut parser: *mut jsmn_parser,
     mut js: *const libc::c_char,
     mut len: size_t,
@@ -227,7 +225,7 @@ pub unsafe extern "C" fn jsmn_parse(
 /* *
  * Fills next available token with JSON primitive.
  */
-unsafe extern "C" fn jsmn_parse_primitive(
+unsafe fn jsmn_parse_primitive(
     mut parser: *mut jsmn_parser,
     mut js: *const libc::c_char,
     mut len: size_t,
@@ -270,7 +268,7 @@ unsafe extern "C" fn jsmn_parse_primitive(
 /* *
  * Fills token type and boundaries.
  */
-unsafe extern "C" fn jsmn_fill_token(
+unsafe fn jsmn_fill_token(
     mut token: *mut jsmntok_t,
     mut type_0: jsmntype_t,
     mut start: libc::c_int,
@@ -305,7 +303,7 @@ THE SOFTWARE.
 /* *
  * Allocates a fresh unused token from the token pool.
  */
-unsafe extern "C" fn jsmn_alloc_token(
+unsafe fn jsmn_alloc_token(
     mut parser: *mut jsmn_parser,
     mut tokens: *mut jsmntok_t,
     mut num_tokens: size_t,
@@ -325,7 +323,7 @@ unsafe extern "C" fn jsmn_alloc_token(
 /* *
  * Fills next token with JSON string.
  */
-unsafe extern "C" fn jsmn_parse_string(
+unsafe fn jsmn_parse_string(
     mut parser: *mut jsmn_parser,
     mut js: *const libc::c_char,
     mut len: size_t,

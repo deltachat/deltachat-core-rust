@@ -23,8 +23,7 @@ pub struct dc_sqlite3_t {
     pub context: *mut dc_context_t,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_new(mut context: *mut dc_context_t) -> *mut dc_sqlite3_t {
+pub unsafe fn dc_sqlite3_new(mut context: *mut dc_context_t) -> *mut dc_sqlite3_t {
     let mut sql: *mut dc_sqlite3_t = 0 as *mut dc_sqlite3_t;
     sql = calloc(
         1i32 as libc::c_ulong,
@@ -36,8 +35,7 @@ pub unsafe extern "C" fn dc_sqlite3_new(mut context: *mut dc_context_t) -> *mut 
     (*sql).context = context;
     return sql;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_unref(mut sql: *mut dc_sqlite3_t) {
+pub unsafe fn dc_sqlite3_unref(mut sql: *mut dc_sqlite3_t) {
     if sql.is_null() {
         return;
     }
@@ -46,8 +44,7 @@ pub unsafe extern "C" fn dc_sqlite3_unref(mut sql: *mut dc_sqlite3_t) {
     }
     free(sql as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_close(mut sql: *mut dc_sqlite3_t) {
+pub unsafe fn dc_sqlite3_close(mut sql: *mut dc_sqlite3_t) {
     if sql.is_null() {
         return;
     }
@@ -61,8 +58,7 @@ pub unsafe extern "C" fn dc_sqlite3_close(mut sql: *mut dc_sqlite3_t) {
         b"Database closed.\x00" as *const u8 as *const libc::c_char,
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_open(
+pub unsafe fn dc_sqlite3_open(
     mut sql: *mut dc_sqlite3_t,
     mut dbfile: *const libc::c_char,
     mut flags: libc::c_int,
@@ -842,8 +838,7 @@ pub unsafe extern "C" fn dc_sqlite3_open(
     return 0i32;
 }
 /* handle configurations, private */
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_set_config(
+pub unsafe fn dc_sqlite3_set_config(
     mut sql: *mut dc_sqlite3_t,
     mut key: *const libc::c_char,
     mut value: *const libc::c_char,
@@ -925,8 +920,7 @@ pub unsafe extern "C" fn dc_sqlite3_set_config(
 }
 /* tools, these functions are compatible to the corresponding sqlite3_* functions */
 /* the result mus be freed using sqlite3_finalize() */
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_prepare(
+pub unsafe fn dc_sqlite3_prepare(
     mut sql: *mut dc_sqlite3_t,
     mut querystr: *const libc::c_char,
 ) -> *mut sqlite3_stmt {
@@ -951,7 +945,6 @@ pub unsafe extern "C" fn dc_sqlite3_prepare(
     }
     return stmt;
 }
-#[no_mangle]
 pub unsafe extern "C" fn dc_sqlite3_log_error(
     mut sql: *mut dc_sqlite3_t,
     mut msg_format: *const libc::c_char,
@@ -980,16 +973,14 @@ pub unsafe extern "C" fn dc_sqlite3_log_error(
     );
     sqlite3_free(msg as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_is_open(mut sql: *const dc_sqlite3_t) -> libc::c_int {
+pub unsafe fn dc_sqlite3_is_open(mut sql: *const dc_sqlite3_t) -> libc::c_int {
     if sql.is_null() || (*sql).cobj.is_null() {
         return 0i32;
     }
     return 1i32;
 }
 /* the returned string must be free()'d, returns NULL on errors */
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_get_config(
+pub unsafe fn dc_sqlite3_get_config(
     mut sql: *mut dc_sqlite3_t,
     mut key: *const libc::c_char,
     mut def: *const libc::c_char,
@@ -1014,8 +1005,7 @@ pub unsafe extern "C" fn dc_sqlite3_get_config(
     sqlite3_finalize(stmt);
     return dc_strdup_keep_null(def);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_execute(
+pub unsafe fn dc_sqlite3_execute(
     mut sql: *mut dc_sqlite3_t,
     mut querystr: *const libc::c_char,
 ) -> libc::c_int {
@@ -1038,8 +1028,7 @@ pub unsafe extern "C" fn dc_sqlite3_execute(
     sqlite3_finalize(stmt);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_set_config_int(
+pub unsafe fn dc_sqlite3_set_config_int(
     mut sql: *mut dc_sqlite3_t,
     mut key: *const libc::c_char,
     mut value: int32_t,
@@ -1055,8 +1044,7 @@ pub unsafe extern "C" fn dc_sqlite3_set_config_int(
     free(value_str as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_get_config_int(
+pub unsafe fn dc_sqlite3_get_config_int(
     mut sql: *mut dc_sqlite3_t,
     mut key: *const libc::c_char,
     mut def: int32_t,
@@ -1069,8 +1057,7 @@ pub unsafe extern "C" fn dc_sqlite3_get_config_int(
     free(str as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_table_exists(
+pub unsafe fn dc_sqlite3_table_exists(
     mut sql: *mut dc_sqlite3_t,
     mut name: *const libc::c_char,
 ) -> libc::c_int {
@@ -1107,8 +1094,7 @@ pub unsafe extern "C" fn dc_sqlite3_table_exists(
     }
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_set_config_int64(
+pub unsafe fn dc_sqlite3_set_config_int64(
     mut sql: *mut dc_sqlite3_t,
     mut key: *const libc::c_char,
     mut value: int64_t,
@@ -1124,8 +1110,7 @@ pub unsafe extern "C" fn dc_sqlite3_set_config_int64(
     free(value_str as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_get_config_int64(
+pub unsafe fn dc_sqlite3_get_config_int64(
     mut sql: *mut dc_sqlite3_t,
     mut key: *const libc::c_char,
     mut def: int64_t,
@@ -1143,8 +1128,7 @@ pub unsafe extern "C" fn dc_sqlite3_get_config_int64(
     free(str as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_try_execute(
+pub unsafe fn dc_sqlite3_try_execute(
     mut sql: *mut dc_sqlite3_t,
     mut querystr: *const libc::c_char,
 ) -> libc::c_int {
@@ -1170,8 +1154,7 @@ pub unsafe extern "C" fn dc_sqlite3_try_execute(
     sqlite3_finalize(stmt);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_get_rowid(
+pub unsafe fn dc_sqlite3_get_rowid(
     mut sql: *mut dc_sqlite3_t,
     mut table: *const libc::c_char,
     mut field: *const libc::c_char,
@@ -1195,8 +1178,7 @@ pub unsafe extern "C" fn dc_sqlite3_get_rowid(
     sqlite3_free(q3 as *mut libc::c_void);
     return id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_get_rowid2(
+pub unsafe fn dc_sqlite3_get_rowid2(
     mut sql: *mut dc_sqlite3_t,
     mut table: *const libc::c_char,
     mut field: *const libc::c_char,
@@ -1224,15 +1206,11 @@ pub unsafe extern "C" fn dc_sqlite3_get_rowid2(
     sqlite3_free(q3 as *mut libc::c_void);
     return id;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_begin_transaction(mut sql: *mut dc_sqlite3_t) {}
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_commit(mut sql: *mut dc_sqlite3_t) {}
-#[no_mangle]
-pub unsafe extern "C" fn dc_sqlite3_rollback(mut sql: *mut dc_sqlite3_t) {}
+pub unsafe fn dc_sqlite3_begin_transaction(mut sql: *mut dc_sqlite3_t) {}
+pub unsafe fn dc_sqlite3_commit(mut sql: *mut dc_sqlite3_t) {}
+pub unsafe fn dc_sqlite3_rollback(mut sql: *mut dc_sqlite3_t) {}
 /* housekeeping */
-#[no_mangle]
-pub unsafe extern "C" fn dc_housekeeping(mut context: *mut dc_context_t) {
+pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
     let mut keep_files_newer_than: time_t = 0;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut dir_handle: *mut DIR = 0 as *mut DIR;
@@ -1418,7 +1396,7 @@ pub unsafe extern "C" fn dc_housekeeping(mut context: *mut dc_context_t) {
         b"Housekeeping done.\x00" as *const u8 as *const libc::c_char,
     );
 }
-unsafe extern "C" fn is_file_in_use(
+unsafe fn is_file_in_use(
     mut files_in_use: *mut dc_hash_t,
     mut namespc: *const libc::c_char,
     mut name: *const libc::c_char,
@@ -1445,10 +1423,7 @@ unsafe extern "C" fn is_file_in_use(
 /* ******************************************************************************
  * Housekeeping
  ******************************************************************************/
-unsafe extern "C" fn maybe_add_file(
-    mut files_in_use: *mut dc_hash_t,
-    mut file: *const libc::c_char,
-) {
+unsafe fn maybe_add_file(mut files_in_use: *mut dc_hash_t, mut file: *const libc::c_char) {
     if strncmp(
         file,
         b"$BLOBDIR/\x00" as *const u8 as *const libc::c_char,
@@ -1465,7 +1440,7 @@ unsafe extern "C" fn maybe_add_file(
         1i32 as *mut libc::c_void,
     );
 }
-unsafe extern "C" fn maybe_add_from_param(
+unsafe fn maybe_add_from_param(
     mut context: *mut dc_context_t,
     mut files_in_use: *mut dc_hash_t,
     mut query: *const libc::c_char,

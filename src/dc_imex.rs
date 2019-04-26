@@ -26,8 +26,7 @@ use crate::x::*;
 // param1 is a directory where the keys are searched in and read from
 // param1 is a directory where the backup is written to
 // param1 is the file with the backup to import
-#[no_mangle]
-pub unsafe extern "C" fn dc_imex(
+pub unsafe fn dc_imex(
     mut context: *mut dc_context_t,
     mut what: libc::c_int,
     mut param1: *const libc::c_char,
@@ -41,8 +40,7 @@ pub unsafe extern "C" fn dc_imex(
     dc_job_add(context, 910i32, 0i32, (*param).packed, 0i32);
     dc_param_unref(param);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imex_has_backup(
+pub unsafe fn dc_imex_has_backup(
     mut context: *mut dc_context_t,
     mut dir_name: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -121,8 +119,7 @@ pub unsafe extern "C" fn dc_imex_has_backup(
     dc_sqlite3_unref(test_sql);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_check_password(
+pub unsafe fn dc_check_password(
     mut context: *mut dc_context_t,
     mut test_pw: *const libc::c_char,
 ) -> libc::c_int {
@@ -151,10 +148,7 @@ pub unsafe extern "C" fn dc_check_password(
     dc_loginparam_unref(loginparam);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_initiate_key_transfer(
-    mut context: *mut dc_context_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_initiate_key_transfer(mut context: *mut dc_context_t) -> *mut libc::c_char {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut setup_code: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -255,7 +249,6 @@ pub unsafe extern "C" fn dc_initiate_key_transfer(
     dc_free_ongoing(context);
     return setup_code;
 }
-#[no_mangle]
 pub unsafe extern "C" fn dc_render_setup_file(
     mut context: *mut dc_context_t,
     mut passphrase: *const libc::c_char,
@@ -349,8 +342,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
     free(self_addr as *mut libc::c_void);
     return ret_setupfilecontent;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_create_setup_code(mut context: *mut dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_create_setup_code(mut context: *mut dc_context_t) -> *mut libc::c_char {
     let mut random_val: uint16_t = 0i32 as uint16_t;
     let mut i: libc::c_int = 0i32;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
@@ -384,8 +376,7 @@ pub unsafe extern "C" fn dc_create_setup_code(mut context: *mut dc_context_t) ->
     }
     return ret.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_continue_key_transfer(
+pub unsafe fn dc_continue_key_transfer(
     mut context: *mut dc_context_t,
     mut msg_id: uint32_t,
     mut setup_code: *const libc::c_char,
@@ -464,7 +455,7 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
     free(norm_sc as *mut libc::c_void);
     return success;
 }
-unsafe extern "C" fn set_self_key(
+unsafe fn set_self_key(
     mut context: *mut dc_context_t,
     mut armored: *const libc::c_char,
     mut set_default: libc::c_int,
@@ -582,8 +573,7 @@ unsafe extern "C" fn set_self_key(
     dc_key_unref(public_key);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_decrypt_setup_file(
+pub unsafe fn dc_decrypt_setup_file(
     mut context: *mut dc_context_t,
     mut passphrase: *const libc::c_char,
     mut filecontent: *const libc::c_char,
@@ -647,8 +637,7 @@ pub unsafe extern "C" fn dc_decrypt_setup_file(
     }
     return payload;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_normalize_setup_code(
+pub unsafe fn dc_normalize_setup_code(
     mut context: *mut dc_context_t,
     mut in_0: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -688,11 +677,7 @@ pub unsafe extern "C" fn dc_normalize_setup_code(
     }
     return out.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_job_do_DC_JOB_IMEX_IMAP(
-    mut context: *mut dc_context_t,
-    mut job: *mut dc_job_t,
-) {
+pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: *mut dc_context_t, mut job: *mut dc_job_t) {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut ongoing_allocated_here: libc::c_int = 0i32;
@@ -954,7 +939,7 @@ pub unsafe extern "C" fn dc_job_do_DC_JOB_IMEX_IMAP(
 /* ******************************************************************************
  * Import backup
  ******************************************************************************/
-unsafe extern "C" fn import_backup(
+unsafe fn import_backup(
     mut context: *mut dc_context_t,
     mut backup_to_import: *const libc::c_char,
 ) -> libc::c_int {
@@ -1096,7 +1081,7 @@ unsafe extern "C" fn import_backup(
  ******************************************************************************/
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
-unsafe extern "C" fn export_backup(
+unsafe fn export_backup(
     mut context: *mut dc_context_t,
     mut dir: *const libc::c_char,
 ) -> libc::c_int {
@@ -1374,7 +1359,7 @@ unsafe extern "C" fn export_backup(
 /* ******************************************************************************
  * Classic key import
  ******************************************************************************/
-unsafe extern "C" fn import_self_keys(
+unsafe fn import_self_keys(
     mut context: *mut dc_context_t,
     mut dir_name: *const libc::c_char,
 ) -> libc::c_int {
@@ -1508,7 +1493,7 @@ unsafe extern "C" fn import_self_keys(
     free(buf2 as *mut libc::c_void);
     return imported_cnt;
 }
-unsafe extern "C" fn export_self_keys(
+unsafe fn export_self_keys(
     mut context: *mut dc_context_t,
     mut dir: *const libc::c_char,
 ) -> libc::c_int {
@@ -1549,7 +1534,7 @@ unsafe extern "C" fn export_self_keys(
 /* ******************************************************************************
  * Classic key export
  ******************************************************************************/
-unsafe extern "C" fn export_key_to_asc_file(
+unsafe fn export_key_to_asc_file(
     mut context: *mut dc_context_t,
     mut dir: *const libc::c_char,
     mut id: libc::c_int,

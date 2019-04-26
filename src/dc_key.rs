@@ -22,21 +22,18 @@ pub struct dc_key_t {
     pub _m_heap_refcnt: libc::c_int,
 }
 
-#[no_mangle]
 #[inline]
 #[cfg(target_os = "macos")]
-pub unsafe extern "C" fn toupper(mut _c: libc::c_int) -> libc::c_int {
+pub unsafe fn toupper(mut _c: libc::c_int) -> libc::c_int {
     return __toupper(_c);
 }
 
-#[no_mangle]
 #[inline]
 #[cfg(not(target_os = "macos"))]
-pub unsafe extern "C" fn toupper(mut _c: libc::c_int) -> libc::c_int {
+pub unsafe fn toupper(mut _c: libc::c_int) -> libc::c_int {
     return _toupper(_c);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_new() -> *mut dc_key_t {
+pub unsafe fn dc_key_new() -> *mut dc_key_t {
     let mut key: *mut dc_key_t = 0 as *mut dc_key_t;
     key = calloc(
         1i32 as libc::c_ulong,
@@ -48,16 +45,14 @@ pub unsafe extern "C" fn dc_key_new() -> *mut dc_key_t {
     (*key)._m_heap_refcnt = 1i32;
     return key;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_ref(mut key: *mut dc_key_t) -> *mut dc_key_t {
+pub unsafe fn dc_key_ref(mut key: *mut dc_key_t) -> *mut dc_key_t {
     if key.is_null() {
         return 0 as *mut dc_key_t;
     }
     (*key)._m_heap_refcnt += 1;
     return key;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_unref(mut key: *mut dc_key_t) {
+pub unsafe fn dc_key_unref(mut key: *mut dc_key_t) {
     if key.is_null() {
         return;
     }
@@ -68,7 +63,7 @@ pub unsafe extern "C" fn dc_key_unref(mut key: *mut dc_key_t) {
     dc_key_empty(key);
     free(key as *mut libc::c_void);
 }
-unsafe extern "C" fn dc_key_empty(mut key: *mut dc_key_t) {
+unsafe fn dc_key_empty(mut key: *mut dc_key_t) {
     if key.is_null() {
         return;
     }
@@ -80,15 +75,13 @@ unsafe extern "C" fn dc_key_empty(mut key: *mut dc_key_t) {
     (*key).bytes = 0i32;
     (*key).type_0 = 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_wipe_secret_mem(mut buf: *mut libc::c_void, mut buf_bytes: size_t) {
+pub unsafe fn dc_wipe_secret_mem(mut buf: *mut libc::c_void, mut buf_bytes: size_t) {
     if buf.is_null() || buf_bytes <= 0i32 as libc::c_ulong {
         return;
     }
     memset(buf, 0i32, buf_bytes);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_set_from_binary(
+pub unsafe fn dc_key_set_from_binary(
     mut key: *mut dc_key_t,
     mut data: *const libc::c_void,
     mut bytes: libc::c_int,
@@ -107,18 +100,13 @@ pub unsafe extern "C" fn dc_key_set_from_binary(
     (*key).type_0 = type_0;
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_set_from_key(
-    mut key: *mut dc_key_t,
-    mut o: *const dc_key_t,
-) -> libc::c_int {
+pub unsafe fn dc_key_set_from_key(mut key: *mut dc_key_t, mut o: *const dc_key_t) -> libc::c_int {
     dc_key_empty(key);
     if key.is_null() || o.is_null() {
         return 0i32;
     }
     return dc_key_set_from_binary(key, (*o).binary, (*o).bytes, (*o).type_0);
 }
-#[no_mangle]
 pub unsafe extern "C" fn dc_key_set_from_stmt(
     mut key: *mut dc_key_t,
     mut stmt: *mut sqlite3_stmt,
@@ -136,8 +124,7 @@ pub unsafe extern "C" fn dc_key_set_from_stmt(
         type_0,
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_set_from_base64(
+pub unsafe fn dc_key_set_from_base64(
     mut key: *mut dc_key_t,
     mut base64: *const libc::c_char,
     mut type_0: libc::c_int,
@@ -170,8 +157,7 @@ pub unsafe extern "C" fn dc_key_set_from_base64(
     mmap_string_unref(result);
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_set_from_file(
+pub unsafe fn dc_key_set_from_file(
     mut key: *mut dc_key_t,
     mut pathNfilename: *const libc::c_char,
     mut context: *mut dc_context_t,
@@ -253,11 +239,7 @@ pub unsafe extern "C" fn dc_key_set_from_file(
     free(buf as *mut libc::c_void);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_equals(
-    mut key: *const dc_key_t,
-    mut o: *const dc_key_t,
-) -> libc::c_int {
+pub unsafe fn dc_key_equals(mut key: *const dc_key_t, mut o: *const dc_key_t) -> libc::c_int {
     if key.is_null()
         || o.is_null()
         || (*key).binary.is_null()
@@ -279,8 +261,7 @@ pub unsafe extern "C" fn dc_key_equals(
         0i32
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_save_self_keypair(
+pub unsafe fn dc_key_save_self_keypair(
     mut public_key: *const dc_key_t,
     mut private_key: *const dc_key_t,
     mut addr: *const libc::c_char,
@@ -318,8 +299,7 @@ pub unsafe extern "C" fn dc_key_save_self_keypair(
     sqlite3_finalize(stmt);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_load_self_public(
+pub unsafe fn dc_key_load_self_public(
     mut key: *mut dc_key_t,
     mut self_addr: *const libc::c_char,
     mut sql: *mut dc_sqlite3_t,
@@ -342,8 +322,7 @@ pub unsafe extern "C" fn dc_key_load_self_public(
     sqlite3_finalize(stmt);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_load_self_private(
+pub unsafe fn dc_key_load_self_private(
     mut key: *mut dc_key_t,
     mut self_addr: *const libc::c_char,
     mut sql: *mut dc_sqlite3_t,
@@ -367,8 +346,7 @@ pub unsafe extern "C" fn dc_key_load_self_private(
     return success;
 }
 /* the result must be freed */
-#[no_mangle]
-pub unsafe extern "C" fn dc_render_base64(
+pub unsafe fn dc_render_base64(
     mut buf: *const libc::c_void,
     mut buf_bytes: size_t,
     mut break_every: libc::c_int,
@@ -409,7 +387,7 @@ pub unsafe extern "C" fn dc_render_base64(
 /* ******************************************************************************
  * Render keys
  ******************************************************************************/
-unsafe extern "C" fn crc_octets(mut octets: *const libc::c_uchar, mut len: size_t) -> libc::c_long {
+unsafe fn crc_octets(mut octets: *const libc::c_uchar, mut len: size_t) -> libc::c_long {
     let mut crc: libc::c_long = 0xb704cei64;
     loop {
         let fresh0 = len;
@@ -432,8 +410,7 @@ unsafe extern "C" fn crc_octets(mut octets: *const libc::c_uchar, mut len: size_
     return crc & 0xffffffi64;
 }
 /* the result must be freed */
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_render_base64(
+pub unsafe fn dc_key_render_base64(
     mut key: *const dc_key_t,
     mut break_every: libc::c_int,
     mut break_chars: *const libc::c_char,
@@ -451,8 +428,7 @@ pub unsafe extern "C" fn dc_key_render_base64(
     );
 }
 /* each header line must be terminated by \r\n, the result must be freed */
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_render_asc(
+pub unsafe fn dc_key_render_asc(
     mut key: *const dc_key_t,
     mut add_header_lines: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -496,8 +472,7 @@ pub unsafe extern "C" fn dc_key_render_asc(
     free(base64 as *mut libc::c_void);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_render_asc_to_file(
+pub unsafe fn dc_key_render_asc_to_file(
     mut key: *const dc_key_t,
     mut file: *const libc::c_char,
     mut context: *mut dc_context_t,
@@ -527,10 +502,7 @@ pub unsafe extern "C" fn dc_key_render_asc_to_file(
     free(file_content as *mut libc::c_void);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_format_fingerprint(
-    mut fingerprint: *const libc::c_char,
-) -> *mut libc::c_char {
+pub unsafe fn dc_format_fingerprint(mut fingerprint: *const libc::c_char) -> *mut libc::c_char {
     let mut i: libc::c_int = 0i32;
     let mut fingerprint_len: libc::c_int = strlen(fingerprint) as libc::c_int;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
@@ -557,10 +529,7 @@ pub unsafe extern "C" fn dc_format_fingerprint(
     }
     return ret.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_normalize_fingerprint(
-    mut in_0: *const libc::c_char,
-) -> *mut libc::c_char {
+pub unsafe fn dc_normalize_fingerprint(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
         return 0 as *mut libc::c_char;
     }
@@ -587,8 +556,7 @@ pub unsafe extern "C" fn dc_normalize_fingerprint(
     }
     return out.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_get_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_char {
+pub unsafe fn dc_key_get_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_char {
     let mut fingerprint_buf: *mut uint8_t = 0 as *mut uint8_t;
     let mut fingerprint_bytes: size_t = 0i32 as size_t;
     let mut fingerprint_hex: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -604,10 +572,7 @@ pub unsafe extern "C" fn dc_key_get_fingerprint(mut key: *const dc_key_t) -> *mu
         dc_strdup(0 as *const libc::c_char)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_key_get_formatted_fingerprint(
-    mut key: *const dc_key_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_key_get_formatted_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_char {
     let mut rawhex: *mut libc::c_char = dc_key_get_fingerprint(key);
     let mut formatted: *mut libc::c_char = dc_format_fingerprint(rawhex);
     free(rawhex as *mut libc::c_void);

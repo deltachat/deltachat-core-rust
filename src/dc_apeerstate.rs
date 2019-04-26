@@ -37,8 +37,7 @@ pub struct dc_apeerstate_t {
 }
 
 /* the returned pointer is ref'd and must be unref'd after usage */
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_new(mut context: *mut dc_context_t) -> *mut dc_apeerstate_t {
+pub unsafe fn dc_apeerstate_new(mut context: *mut dc_context_t) -> *mut dc_apeerstate_t {
     let mut peerstate: *mut dc_apeerstate_t = 0 as *mut dc_apeerstate_t;
     peerstate = calloc(
         1i32 as libc::c_ulong,
@@ -50,15 +49,14 @@ pub unsafe extern "C" fn dc_apeerstate_new(mut context: *mut dc_context_t) -> *m
     (*peerstate).context = context;
     return peerstate;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_unref(mut peerstate: *mut dc_apeerstate_t) {
+pub unsafe fn dc_apeerstate_unref(mut peerstate: *mut dc_apeerstate_t) {
     dc_apeerstate_empty(peerstate);
     free(peerstate as *mut libc::c_void);
 }
 /* ******************************************************************************
  * dc_apeerstate_t represents the state of an Autocrypt peer - Load/save
  ******************************************************************************/
-unsafe extern "C" fn dc_apeerstate_empty(mut peerstate: *mut dc_apeerstate_t) {
+unsafe fn dc_apeerstate_empty(mut peerstate: *mut dc_apeerstate_t) {
     if peerstate.is_null() {
         return;
     }
@@ -83,8 +81,7 @@ unsafe extern "C" fn dc_apeerstate_empty(mut peerstate: *mut dc_apeerstate_t) {
     (*peerstate).verified_key = 0 as *mut dc_key_t;
     (*peerstate).degrade_event = 0i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_init_from_header(
+pub unsafe fn dc_apeerstate_init_from_header(
     mut peerstate: *mut dc_apeerstate_t,
     mut header: *const dc_aheader_t,
     mut message_time: time_t,
@@ -103,10 +100,7 @@ pub unsafe extern "C" fn dc_apeerstate_init_from_header(
     dc_apeerstate_recalc_fingerprint(peerstate);
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_recalc_fingerprint(
-    mut peerstate: *mut dc_apeerstate_t,
-) -> libc::c_int {
+pub unsafe fn dc_apeerstate_recalc_fingerprint(mut peerstate: *mut dc_apeerstate_t) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut old_public_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut old_gossip_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -151,7 +145,6 @@ pub unsafe extern "C" fn dc_apeerstate_recalc_fingerprint(
     free(old_gossip_fingerprint as *mut libc::c_void);
     return success;
 }
-#[no_mangle]
 pub unsafe extern "C" fn dc_apeerstate_init_from_gossip(
     mut peerstate: *mut dc_apeerstate_t,
     mut gossip_header: *const dc_aheader_t,
@@ -169,8 +162,7 @@ pub unsafe extern "C" fn dc_apeerstate_init_from_gossip(
     dc_apeerstate_recalc_fingerprint(peerstate);
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_degrade_encryption(
+pub unsafe fn dc_apeerstate_degrade_encryption(
     mut peerstate: *mut dc_apeerstate_t,
     mut message_time: time_t,
 ) -> libc::c_int {
@@ -185,8 +177,7 @@ pub unsafe extern "C" fn dc_apeerstate_degrade_encryption(
     (*peerstate).to_save |= 0x2i32;
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_apply_header(
+pub unsafe fn dc_apeerstate_apply_header(
     mut peerstate: *mut dc_apeerstate_t,
     mut header: *const dc_aheader_t,
     mut message_time: time_t,
@@ -223,8 +214,7 @@ pub unsafe extern "C" fn dc_apeerstate_apply_header(
         }
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_apply_gossip(
+pub unsafe fn dc_apeerstate_apply_gossip(
     mut peerstate: *mut dc_apeerstate_t,
     mut gossip_header: *const dc_aheader_t,
     mut message_time: time_t,
@@ -251,8 +241,7 @@ pub unsafe extern "C" fn dc_apeerstate_apply_gossip(
         }
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_render_gossip_header(
+pub unsafe fn dc_apeerstate_render_gossip_header(
     mut peerstate: *const dc_apeerstate_t,
     mut min_verified: libc::c_int,
 ) -> *mut libc::c_char {
@@ -267,8 +256,7 @@ pub unsafe extern "C" fn dc_apeerstate_render_gossip_header(
     dc_aheader_unref(autocryptheader);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_peek_key(
+pub unsafe fn dc_apeerstate_peek_key(
     mut peerstate: *const dc_apeerstate_t,
     mut min_verified: libc::c_int,
 ) -> *mut dc_key_t {
@@ -293,8 +281,7 @@ pub unsafe extern "C" fn dc_apeerstate_peek_key(
     }
     return (*peerstate).gossip_key;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_set_verified(
+pub unsafe fn dc_apeerstate_set_verified(
     mut peerstate: *mut dc_apeerstate_t,
     mut which_key: libc::c_int,
     mut fingerprint: *const libc::c_char,
@@ -327,8 +314,7 @@ pub unsafe extern "C" fn dc_apeerstate_set_verified(
     }
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_load_by_addr(
+pub unsafe fn dc_apeerstate_load_by_addr(
     mut peerstate: *mut dc_apeerstate_t,
     mut sql: *mut dc_sqlite3_t,
     mut addr: *const libc::c_char,
@@ -350,7 +336,7 @@ pub unsafe extern "C" fn dc_apeerstate_load_by_addr(
     sqlite3_finalize(stmt);
     return success;
 }
-unsafe extern "C" fn dc_apeerstate_set_from_stmt(
+unsafe fn dc_apeerstate_set_from_stmt(
     mut peerstate: *mut dc_apeerstate_t,
     mut stmt: *mut sqlite3_stmt,
 ) {
@@ -378,8 +364,7 @@ unsafe extern "C" fn dc_apeerstate_set_from_stmt(
         dc_key_set_from_stmt((*peerstate).verified_key, stmt, 9i32, 0i32);
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_load_by_fingerprint(
+pub unsafe fn dc_apeerstate_load_by_fingerprint(
     mut peerstate: *mut dc_apeerstate_t,
     mut sql: *mut dc_sqlite3_t,
     mut fingerprint: *const libc::c_char,
@@ -403,8 +388,7 @@ pub unsafe extern "C" fn dc_apeerstate_load_by_fingerprint(
     sqlite3_finalize(stmt);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_save_to_db(
+pub unsafe fn dc_apeerstate_save_to_db(
     mut peerstate: *const dc_apeerstate_t,
     mut sql: *mut dc_sqlite3_t,
     mut create: libc::c_int,
@@ -535,8 +519,7 @@ pub unsafe extern "C" fn dc_apeerstate_save_to_db(
     sqlite3_finalize(stmt);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_apeerstate_has_verified_key(
+pub unsafe fn dc_apeerstate_has_verified_key(
     mut peerstate: *const dc_apeerstate_t,
     mut fingerprints: *const dc_hash_t,
 ) -> libc::c_int {

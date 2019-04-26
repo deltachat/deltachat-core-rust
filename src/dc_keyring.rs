@@ -16,8 +16,7 @@ pub struct dc_keyring_t {
     pub allocated: libc::c_int,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_keyring_new() -> *mut dc_keyring_t {
+pub unsafe fn dc_keyring_new() -> *mut dc_keyring_t {
     let mut keyring: *mut dc_keyring_t = 0 as *mut dc_keyring_t;
     keyring = calloc(
         1i32 as libc::c_ulong,
@@ -28,8 +27,7 @@ pub unsafe extern "C" fn dc_keyring_new() -> *mut dc_keyring_t {
     }
     return keyring;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_keyring_unref(mut keyring: *mut dc_keyring_t) {
+pub unsafe fn dc_keyring_unref(mut keyring: *mut dc_keyring_t) {
     if keyring.is_null() {
         return;
     }
@@ -42,8 +40,7 @@ pub unsafe extern "C" fn dc_keyring_unref(mut keyring: *mut dc_keyring_t) {
     free(keyring as *mut libc::c_void);
 }
 /* the reference counter of the key is increased by one */
-#[no_mangle]
-pub unsafe extern "C" fn dc_keyring_add(mut keyring: *mut dc_keyring_t, mut to_add: *mut dc_key_t) {
+pub unsafe fn dc_keyring_add(mut keyring: *mut dc_keyring_t, mut to_add: *mut dc_key_t) {
     if keyring.is_null() || to_add.is_null() {
         return;
     }
@@ -63,8 +60,7 @@ pub unsafe extern "C" fn dc_keyring_add(mut keyring: *mut dc_keyring_t, mut to_a
     *fresh0 = dc_key_ref(to_add);
     (*keyring).count += 1;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_keyring_load_self_private_for_decrypting(
+pub unsafe fn dc_keyring_load_self_private_for_decrypting(
     mut keyring: *mut dc_keyring_t,
     mut self_addr: *const libc::c_char,
     mut sql: *mut dc_sqlite3_t,

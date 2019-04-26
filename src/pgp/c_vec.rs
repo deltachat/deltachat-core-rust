@@ -47,8 +47,7 @@ impl Into<Vec<u8>> for cvec {
 }
 
 /// Get the length of the data of the given [cvec].
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_cvec_len(cvec_ptr: *mut cvec) -> libc::size_t {
+pub unsafe fn rpgp_cvec_len(cvec_ptr: *mut cvec) -> libc::size_t {
     assert!(!cvec_ptr.is_null());
 
     let cvec = &*cvec_ptr;
@@ -56,8 +55,7 @@ pub unsafe extern "C" fn rpgp_cvec_len(cvec_ptr: *mut cvec) -> libc::size_t {
 }
 
 /// Get a pointer to the data of the given [cvec].
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_cvec_data(cvec_ptr: *mut cvec) -> *const u8 {
+pub unsafe fn rpgp_cvec_data(cvec_ptr: *mut cvec) -> *const u8 {
     assert!(!cvec_ptr.is_null());
 
     let cvec = &*cvec_ptr;
@@ -65,8 +63,7 @@ pub unsafe extern "C" fn rpgp_cvec_data(cvec_ptr: *mut cvec) -> *const u8 {
 }
 
 /// Free the given [cvec].
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_cvec_drop(cvec_ptr: *mut cvec) {
+pub unsafe fn rpgp_cvec_drop(cvec_ptr: *mut cvec) {
     assert!(!cvec_ptr.is_null());
 
     let v = &*cvec_ptr;

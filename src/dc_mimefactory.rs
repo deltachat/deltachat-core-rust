@@ -50,8 +50,7 @@ pub const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
 pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;
 pub const DC_MF_NOTHING_LOADED: dc_mimefactory_loaded_t = 0;
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimefactory_init(
+pub unsafe fn dc_mimefactory_init(
     mut factory: *mut dc_mimefactory_t,
     mut context: *mut dc_context_t,
 ) {
@@ -65,8 +64,7 @@ pub unsafe extern "C" fn dc_mimefactory_init(
     );
     (*factory).context = context;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
+pub unsafe fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
     if factory.is_null() {
         return;
     }
@@ -106,8 +104,7 @@ pub unsafe extern "C" fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t
     (*factory).error = 0 as *mut libc::c_char;
     (*factory).timestamp = 0i32 as time_t;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimefactory_load_msg(
+pub unsafe fn dc_mimefactory_load_msg(
     mut factory: *mut dc_mimefactory_t,
     mut msg_id: uint32_t,
 ) -> libc::c_int {
@@ -242,7 +239,7 @@ pub unsafe extern "C" fn dc_mimefactory_load_msg(
     sqlite3_finalize(stmt);
     return success;
 }
-unsafe extern "C" fn load_from(mut factory: *mut dc_mimefactory_t) {
+unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     (*factory).from_addr = dc_sqlite3_get_config(
         (*(*factory).context).sql,
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
@@ -262,8 +259,7 @@ unsafe extern "C" fn load_from(mut factory: *mut dc_mimefactory_t) {
         (*factory).selfstatus = dc_stock_str((*factory).context, 13i32)
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimefactory_load_mdn(
+pub unsafe fn dc_mimefactory_load_mdn(
     mut factory: *mut dc_mimefactory_t,
     mut msg_id: uint32_t,
 ) -> libc::c_int {
@@ -324,8 +320,7 @@ pub unsafe extern "C" fn dc_mimefactory_load_mdn(
     dc_contact_unref(contact);
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc::c_int {
+pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc::c_int {
     let mut subject: *mut mailimf_subject = 0 as *mut mailimf_subject;
     let mut current_block: u64;
     let mut imf_fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
@@ -1016,7 +1011,7 @@ pub unsafe extern "C" fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_
     free(grpimage as *mut libc::c_void);
     return success;
 }
-unsafe extern "C" fn get_subject(
+unsafe fn get_subject(
     mut chat: *const dc_chat_t,
     mut msg: *const dc_msg_t,
     mut afwd_email: libc::c_int,
@@ -1053,14 +1048,14 @@ unsafe extern "C" fn get_subject(
     free(raw_subject as *mut libc::c_void);
     return ret;
 }
-unsafe extern "C" fn set_error(mut factory: *mut dc_mimefactory_t, mut text: *const libc::c_char) {
+unsafe fn set_error(mut factory: *mut dc_mimefactory_t, mut text: *const libc::c_char) {
     if factory.is_null() {
         return;
     }
     free((*factory).error as *mut libc::c_void);
     (*factory).error = dc_strdup_keep_null(text);
 }
-unsafe extern "C" fn build_body_text(mut text: *mut libc::c_char) -> *mut mailmime {
+unsafe fn build_body_text(mut text: *mut libc::c_char) -> *mut mailmime {
     let mut mime_fields: *mut mailmime_fields = 0 as *mut mailmime_fields;
     let mut message_part: *mut mailmime = 0 as *mut mailmime;
     let mut content: *mut mailmime_content = 0 as *mut mailmime_content;
@@ -1078,7 +1073,7 @@ unsafe extern "C" fn build_body_text(mut text: *mut libc::c_char) -> *mut mailmi
     mailmime_set_body_text(message_part, text, strlen(text));
     return message_part;
 }
-unsafe extern "C" fn build_body_file(
+unsafe fn build_body_file(
     mut msg: *const dc_msg_t,
     mut base_name: *const libc::c_char,
     mut ret_file_name_as_sent: *mut *mut libc::c_char,
@@ -1264,7 +1259,7 @@ unsafe extern "C" fn build_body_file(
 /* ******************************************************************************
  * Render
  ******************************************************************************/
-unsafe extern "C" fn is_file_size_okay(mut msg: *const dc_msg_t) -> libc::c_int {
+unsafe fn is_file_size_okay(mut msg: *const dc_msg_t) -> libc::c_int {
     let mut file_size_okay: libc::c_int = 1i32;
     let mut pathNfilename: *mut libc::c_char =
         dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);

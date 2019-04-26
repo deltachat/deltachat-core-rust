@@ -12,11 +12,7 @@ use crate::pgp::cvec;
 pub type signed_public_key = SignedPublicKey;
 
 /// Parse a serialized public key, into the native rPGP memory representation.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_pkey_from_bytes(
-    raw: *const u8,
-    len: libc::size_t,
-) -> *mut signed_public_key {
+pub unsafe fn rpgp_pkey_from_bytes(raw: *const u8, len: libc::size_t) -> *mut signed_public_key {
     assert!(!raw.is_null());
     assert!(len > 0);
 
@@ -32,7 +28,6 @@ pub unsafe extern "C" fn rpgp_pkey_from_bytes(
 }
 
 /// Serialize the [signed_public_key] to bytes.
-#[no_mangle]
 pub unsafe extern "C" fn rpgp_pkey_to_bytes(pkey_ptr: *mut signed_public_key) -> *mut cvec {
     assert!(!pkey_ptr.is_null());
 
@@ -45,8 +40,7 @@ pub unsafe extern "C" fn rpgp_pkey_to_bytes(pkey_ptr: *mut signed_public_key) ->
 }
 
 /// Get the key id of the given [signed_public_key].
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_pkey_key_id(pkey_ptr: *mut signed_public_key) -> *mut c_char {
+pub unsafe fn rpgp_pkey_key_id(pkey_ptr: *mut signed_public_key) -> *mut c_char {
     assert!(!pkey_ptr.is_null());
 
     let pkey = &*pkey_ptr;
@@ -59,8 +53,7 @@ pub unsafe extern "C" fn rpgp_pkey_key_id(pkey_ptr: *mut signed_public_key) -> *
 }
 
 /// Free the given [signed_public_key].
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_pkey_drop(pkey_ptr: *mut signed_public_key) {
+pub unsafe fn rpgp_pkey_drop(pkey_ptr: *mut signed_public_key) {
     assert!(!pkey_ptr.is_null());
 
     let _pkey = &*pkey_ptr;

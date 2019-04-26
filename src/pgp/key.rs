@@ -13,11 +13,7 @@ pub type public_or_secret_key = PublicOrSecret;
 /// Creates an in-memory representation of a PGP key, based on the armor file given.
 /// The returned pointer should be stored, and reused when calling methods "on" this key.
 /// When done with it [rpgp_key_drop] should be called, to free the memory.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_key_from_armor(
-    raw: *const u8,
-    len: libc::size_t,
-) -> *mut public_or_secret_key {
+pub unsafe fn rpgp_key_from_armor(raw: *const u8, len: libc::size_t) -> *mut public_or_secret_key {
     assert!(!raw.is_null());
     assert!(len > 0);
 
@@ -38,7 +34,6 @@ pub unsafe extern "C" fn rpgp_key_from_armor(
 }
 
 /// Creates an in-memory representation of a PGP key, based on the serialized bytes given.
-#[no_mangle]
 pub unsafe extern "C" fn rpgp_key_from_bytes(
     raw: *const u8,
     len: libc::size_t,
@@ -63,8 +58,7 @@ pub unsafe extern "C" fn rpgp_key_from_bytes(
 }
 
 /// Returns the KeyID for the passed in key. The caller is responsible to call [rpgp_string_drop] with the returned memory, to free it.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_key_id(key_ptr: *mut public_or_secret_key) -> *mut c_char {
+pub unsafe fn rpgp_key_id(key_ptr: *mut public_or_secret_key) -> *mut c_char {
     assert!(!key_ptr.is_null());
 
     let key = &*key_ptr;
@@ -77,8 +71,7 @@ pub unsafe extern "C" fn rpgp_key_id(key_ptr: *mut public_or_secret_key) -> *mut
 }
 
 /// Returns the Fingerprint for the passed in key. The caller is responsible to call [rpgp_cvec_drop] with the returned memory, to free it.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_key_fingerprint(key_ptr: *mut public_or_secret_key) -> *mut cvec {
+pub unsafe fn rpgp_key_fingerprint(key_ptr: *mut public_or_secret_key) -> *mut cvec {
     assert!(!key_ptr.is_null());
 
     let key = &*key_ptr;
@@ -88,24 +81,21 @@ pub unsafe extern "C" fn rpgp_key_fingerprint(key_ptr: *mut public_or_secret_key
 }
 
 /// Returns `true` if this key is a public key, false otherwise.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_key_is_public(key_ptr: *mut public_or_secret_key) -> bool {
+pub unsafe fn rpgp_key_is_public(key_ptr: *mut public_or_secret_key) -> bool {
     assert!(!key_ptr.is_null());
 
     (&*key_ptr).is_public()
 }
 
 /// Returns `true` if this key is a secret key, false otherwise.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_key_is_secret(key_ptr: *mut public_or_secret_key) -> bool {
+pub unsafe fn rpgp_key_is_secret(key_ptr: *mut public_or_secret_key) -> bool {
     assert!(!key_ptr.is_null());
 
     (&*key_ptr).is_secret()
 }
 
 /// Frees the memory of the passed in key, making the pointer invalid after this method was called.
-#[no_mangle]
-pub unsafe extern "C" fn rpgp_key_drop(key_ptr: *mut public_or_secret_key) {
+pub unsafe fn rpgp_key_drop(key_ptr: *mut public_or_secret_key) {
     assert!(!key_ptr.is_null());
 
     let _key = &*key_ptr;

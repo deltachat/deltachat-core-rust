@@ -48,8 +48,7 @@ pub struct dc_imap_t {
     pub skip_log_capabilities: libc::c_int,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_new(
+pub unsafe fn dc_imap_new(
     mut get_config: dc_get_config_t,
     mut set_config: dc_set_config_t,
     mut precheck_imf: dc_precheck_imf_t,
@@ -108,8 +107,7 @@ pub unsafe extern "C" fn dc_imap_new(
     );
     return imap;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_unref(mut imap: *mut dc_imap_t) {
+pub unsafe fn dc_imap_unref(mut imap: *mut dc_imap_t) {
     if imap.is_null() {
         return;
     }
@@ -129,8 +127,7 @@ pub unsafe extern "C" fn dc_imap_unref(mut imap: *mut dc_imap_t) {
     }
     free(imap as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_disconnect(mut imap: *mut dc_imap_t) {
+pub unsafe fn dc_imap_disconnect(mut imap: *mut dc_imap_t) {
     if imap.is_null() {
         return;
     }
@@ -144,7 +141,7 @@ pub unsafe extern "C" fn dc_imap_disconnect(mut imap: *mut dc_imap_t) {
 /* ******************************************************************************
  * Connect/Disconnect
  ******************************************************************************/
-unsafe extern "C" fn free_connect_param(mut imap: *mut dc_imap_t) {
+unsafe fn free_connect_param(mut imap: *mut dc_imap_t) {
     free((*imap).addr as *mut libc::c_void);
     (*imap).addr = 0 as *mut libc::c_char;
     free((*imap).imap_server as *mut libc::c_void);
@@ -159,7 +156,7 @@ unsafe extern "C" fn free_connect_param(mut imap: *mut dc_imap_t) {
     (*imap).can_idle = 0i32;
     (*imap).has_xlist = 0i32;
 }
-unsafe extern "C" fn unsetup_handle(mut imap: *mut dc_imap_t) {
+unsafe fn unsetup_handle(mut imap: *mut dc_imap_t) {
     if imap.is_null() {
         return;
     }
@@ -182,8 +179,7 @@ unsafe extern "C" fn unsetup_handle(mut imap: *mut dc_imap_t) {
     }
     *(*imap).selected_folder.offset(0isize) = 0i32 as libc::c_char;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_connect(
+pub unsafe fn dc_imap_connect(
     mut imap: *mut dc_imap_t,
     mut lp: *const dc_loginparam_t,
 ) -> libc::c_int {
@@ -269,7 +265,7 @@ pub unsafe extern "C" fn dc_imap_connect(
     }
     return success;
 }
-unsafe extern "C" fn setup_handle_if_needed(mut imap: *mut dc_imap_t) -> libc::c_int {
+unsafe fn setup_handle_if_needed(mut imap: *mut dc_imap_t) -> libc::c_int {
     let mut current_block: u64;
     let mut r: libc::c_int = 0i32;
     let mut success: libc::c_int = 0i32;
@@ -435,7 +431,7 @@ unsafe extern "C" fn setup_handle_if_needed(mut imap: *mut dc_imap_t) -> libc::c
     (*imap).should_reconnect = 0i32;
     return success;
 }
-unsafe extern "C" fn get_error_msg(
+unsafe fn get_error_msg(
     mut imap: *mut dc_imap_t,
     mut what_failed: *const libc::c_char,
     mut code: libc::c_int,
@@ -478,11 +474,7 @@ unsafe extern "C" fn get_error_msg(
     stock = 0 as *mut libc::c_char;
     return msg.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_is_error(
-    mut imap: *mut dc_imap_t,
-    mut code: libc::c_int,
-) -> libc::c_int {
+pub unsafe fn dc_imap_is_error(mut imap: *mut dc_imap_t, mut code: libc::c_int) -> libc::c_int {
     if code == MAILIMAP_NO_ERROR as libc::c_int
         || code == MAILIMAP_NO_ERROR_AUTHENTICATED as libc::c_int
         || code == MAILIMAP_NO_ERROR_NON_AUTHENTICATED as libc::c_int
@@ -499,7 +491,6 @@ pub unsafe extern "C" fn dc_imap_is_error(
     }
     return 1i32;
 }
-#[no_mangle]
 pub unsafe extern "C" fn dc_imap_set_watch_folder(
     mut imap: *mut dc_imap_t,
     mut watch_folder: *const libc::c_char,
@@ -510,12 +501,10 @@ pub unsafe extern "C" fn dc_imap_set_watch_folder(
     free((*imap).watch_folder as *mut libc::c_void);
     (*imap).watch_folder = dc_strdup(watch_folder);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_is_connected(mut imap: *const dc_imap_t) -> libc::c_int {
+pub unsafe fn dc_imap_is_connected(mut imap: *const dc_imap_t) -> libc::c_int {
     return (!imap.is_null() && 0 != (*imap).connected) as libc::c_int;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_fetch(mut imap: *mut dc_imap_t) -> libc::c_int {
+pub unsafe fn dc_imap_fetch(mut imap: *mut dc_imap_t) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     if !(imap.is_null() || 0 == (*imap).connected) {
         setup_handle_if_needed(imap);
@@ -524,7 +513,7 @@ pub unsafe extern "C" fn dc_imap_fetch(mut imap: *mut dc_imap_t) -> libc::c_int 
     }
     return success;
 }
-unsafe extern "C" fn fetch_from_single_folder(
+unsafe fn fetch_from_single_folder(
     mut imap: *mut dc_imap_t,
     mut folder: *const libc::c_char,
 ) -> libc::c_int {
@@ -817,7 +806,7 @@ unsafe extern "C" fn fetch_from_single_folder(
     }
     return read_cnt as libc::c_int;
 }
-unsafe extern "C" fn set_config_lastseenuid(
+unsafe fn set_config_lastseenuid(
     mut imap: *mut dc_imap_t,
     mut folder: *const libc::c_char,
     mut uidvalidity: uint32_t,
@@ -836,7 +825,7 @@ unsafe extern "C" fn set_config_lastseenuid(
     free(val as *mut libc::c_void);
     free(key as *mut libc::c_void);
 }
-unsafe extern "C" fn peek_rfc724_mid(mut msg_att: *mut mailimap_msg_att) -> *const libc::c_char {
+unsafe fn peek_rfc724_mid(mut msg_att: *mut mailimap_msg_att) -> *const libc::c_char {
     if msg_att.is_null() {
         return 0 as *const libc::c_char;
     }
@@ -870,7 +859,7 @@ unsafe extern "C" fn peek_rfc724_mid(mut msg_att: *mut mailimap_msg_att) -> *con
     }
     return 0 as *const libc::c_char;
 }
-unsafe extern "C" fn unquote_rfc724_mid(mut in_0: *const libc::c_char) -> *mut libc::c_char {
+unsafe fn unquote_rfc724_mid(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     /* remove < and > from the given message id */
     let mut out: *mut libc::c_char = dc_strdup(in_0);
     let mut out_len: libc::c_int = strlen(out) as libc::c_int;
@@ -888,7 +877,7 @@ unsafe extern "C" fn unquote_rfc724_mid(mut in_0: *const libc::c_char) -> *mut l
 /* ******************************************************************************
  * Fetch Messages
  ******************************************************************************/
-unsafe extern "C" fn peek_uid(mut msg_att: *mut mailimap_msg_att) -> uint32_t {
+unsafe fn peek_uid(mut msg_att: *mut mailimap_msg_att) -> uint32_t {
     /* search the UID in a list of attributes returned by a FETCH command */
     let mut iter1: *mut clistiter = 0 as *mut clistiter;
     iter1 = (*(*msg_att).att_list).first;
@@ -913,7 +902,7 @@ unsafe extern "C" fn peek_uid(mut msg_att: *mut mailimap_msg_att) -> uint32_t {
     }
     return 0i32 as uint32_t;
 }
-unsafe extern "C" fn fetch_single_msg(
+unsafe fn fetch_single_msg(
     mut imap: *mut dc_imap_t,
     mut folder: *const libc::c_char,
     mut server_uid: uint32_t,
@@ -1008,7 +997,7 @@ unsafe extern "C" fn fetch_single_msg(
     }
     return if 0 != retry_later { 0i32 } else { 1i32 };
 }
-unsafe extern "C" fn peek_body(
+unsafe fn peek_body(
     mut msg_att: *mut mailimap_msg_att,
     mut p_msg: *mut *mut libc::c_char,
     mut p_msg_bytes: *mut size_t,
@@ -1076,7 +1065,7 @@ unsafe extern "C" fn peek_body(
         }
     }
 }
-unsafe extern "C" fn get_config_lastseenuid(
+unsafe fn get_config_lastseenuid(
     mut imap: *mut dc_imap_t,
     mut folder: *const libc::c_char,
     mut uidvalidity: *mut uint32_t,
@@ -1111,10 +1100,7 @@ unsafe extern "C" fn get_config_lastseenuid(
 /* ******************************************************************************
  * Handle folders
  ******************************************************************************/
-unsafe extern "C" fn select_folder(
-    mut imap: *mut dc_imap_t,
-    mut folder: *const libc::c_char,
-) -> libc::c_int {
+unsafe fn select_folder(mut imap: *mut dc_imap_t, mut folder: *const libc::c_char) -> libc::c_int {
     if imap.is_null() {
         return 0i32;
     }
@@ -1164,8 +1150,7 @@ unsafe extern "C" fn select_folder(
     (*imap).selected_folder = dc_strdup(folder);
     return 1i32;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_idle(mut imap: *mut dc_imap_t) {
+pub unsafe fn dc_imap_idle(mut imap: *mut dc_imap_t) {
     let mut current_block: u64;
     let mut r: libc::c_int = 0i32;
     let mut r2: libc::c_int = 0i32;
@@ -1260,7 +1245,7 @@ pub unsafe extern "C" fn dc_imap_idle(mut imap: *mut dc_imap_t) {
         }
     };
 }
-unsafe extern "C" fn fake_idle(mut imap: *mut dc_imap_t) {
+unsafe fn fake_idle(mut imap: *mut dc_imap_t) {
     /* Idle using timeouts. This is also needed if we're not yet configured -
     in this case, we're waiting for a configure job */
     let mut fake_idle_start_time: time_t = time(0 as *mut time_t);
@@ -1314,8 +1299,7 @@ unsafe extern "C" fn fake_idle(mut imap: *mut dc_imap_t) {
         }
     }
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_interrupt_idle(mut imap: *mut dc_imap_t) {
+pub unsafe fn dc_imap_interrupt_idle(mut imap: *mut dc_imap_t) {
     if imap.is_null() {
         return;
     }
@@ -1329,8 +1313,7 @@ pub unsafe extern "C" fn dc_imap_interrupt_idle(mut imap: *mut dc_imap_t) {
     pthread_cond_signal(&mut (*imap).watch_cond);
     pthread_mutex_unlock(&mut (*imap).watch_condmutex);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_move(
+pub unsafe fn dc_imap_move(
     mut imap: *mut dc_imap_t,
     mut folder: *const libc::c_char,
     mut uid: uint32_t,
@@ -1479,7 +1462,7 @@ pub unsafe extern "C" fn dc_imap_move(
         res as libc::c_uint
     }) as dc_imap_res;
 }
-unsafe extern "C" fn add_flag(
+unsafe fn add_flag(
     mut imap: *mut dc_imap_t,
     mut server_uid: uint32_t,
     mut flag: *mut mailimap_flag,
@@ -1508,8 +1491,7 @@ unsafe extern "C" fn add_flag(
         1i32
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_set_seen(
+pub unsafe fn dc_imap_set_seen(
     mut imap: *mut dc_imap_t,
     mut folder: *const libc::c_char,
     mut uid: uint32_t,
@@ -1553,8 +1535,7 @@ pub unsafe extern "C" fn dc_imap_set_seen(
         res as libc::c_uint
     }) as dc_imap_res;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_set_mdnsent(
+pub unsafe fn dc_imap_set_mdnsent(
     mut imap: *mut dc_imap_t,
     mut folder: *const libc::c_char,
     mut uid: uint32_t,
@@ -1713,7 +1694,7 @@ pub unsafe extern "C" fn dc_imap_set_mdnsent(
         res as libc::c_uint
     }) as dc_imap_res;
 }
-unsafe extern "C" fn peek_flag_keyword(
+unsafe fn peek_flag_keyword(
     mut msg_att: *mut mailimap_msg_att,
     mut flag_keyword: *const libc::c_char,
 ) -> libc::c_int {
@@ -1771,8 +1752,7 @@ unsafe extern "C" fn peek_flag_keyword(
     return 0i32;
 }
 /* only returns 0 on connection problems; we should try later again in this case */
-#[no_mangle]
-pub unsafe extern "C" fn dc_imap_delete_msg(
+pub unsafe fn dc_imap_delete_msg(
     mut imap: *mut dc_imap_t,
     mut rfc724_mid: *const libc::c_char,
     mut folder: *const libc::c_char,

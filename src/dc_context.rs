@@ -64,8 +64,7 @@ unsafe impl Send for dc_context_t {}
 unsafe impl Sync for dc_context_t {}
 
 // create/open/config/information
-#[no_mangle]
-pub unsafe extern "C" fn dc_context_new(
+pub unsafe fn dc_context_new(
     mut cb: dc_callback_t,
     mut userdata: *mut libc::c_void,
     mut os_name: *const libc::c_char,
@@ -164,7 +163,7 @@ pub unsafe extern "C" fn dc_context_new(
     );
     return context;
 }
-unsafe extern "C" fn cb_receive_imf(
+unsafe fn cb_receive_imf(
     mut imap: *mut dc_imap_t,
     mut imf_raw_not_terminated: *const libc::c_char,
     mut imf_raw_bytes: size_t,
@@ -182,7 +181,7 @@ unsafe extern "C" fn cb_receive_imf(
         flags,
     );
 }
-unsafe extern "C" fn cb_precheck_imf(
+unsafe fn cb_precheck_imf(
     mut imap: *mut dc_imap_t,
     mut rfc724_mid: *const libc::c_char,
     mut server_folder: *const libc::c_char,
@@ -237,7 +236,7 @@ unsafe extern "C" fn cb_precheck_imf(
     free(old_server_folder as *mut libc::c_void);
     return rfc724_mid_exists;
 }
-unsafe extern "C" fn cb_set_config(
+unsafe fn cb_set_config(
     mut imap: *mut dc_imap_t,
     mut key: *const libc::c_char,
     mut value: *const libc::c_char,
@@ -252,7 +251,7 @@ unsafe extern "C" fn cb_set_config(
  *
  * @private @memberof dc_context_t
  */
-unsafe extern "C" fn cb_get_config(
+unsafe fn cb_get_config(
     mut imap: *mut dc_imap_t,
     mut key: *const libc::c_char,
     mut def: *const libc::c_char,
@@ -266,7 +265,7 @@ unsafe extern "C" fn cb_get_config(
  *
  * @private @memberof dc_context_t
  */
-unsafe extern "C" fn cb_dummy(
+unsafe fn cb_dummy(
     mut context: *mut dc_context_t,
     mut event: libc::c_int,
     mut data1: uintptr_t,
@@ -274,8 +273,7 @@ unsafe extern "C" fn cb_dummy(
 ) -> uintptr_t {
     return 0i32 as uintptr_t;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_context_unref(mut context: *mut dc_context_t) {
+pub unsafe fn dc_context_unref(mut context: *mut dc_context_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
     }
@@ -301,8 +299,7 @@ pub unsafe extern "C" fn dc_context_unref(mut context: *mut dc_context_t) {
     (*context).magic = 0i32 as uint32_t;
     free(context as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_close(mut context: *mut dc_context_t) {
+pub unsafe fn dc_close(mut context: *mut dc_context_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
     }
@@ -318,22 +315,19 @@ pub unsafe extern "C" fn dc_close(mut context: *mut dc_context_t) {
     free((*context).blobdir as *mut libc::c_void);
     (*context).blobdir = 0 as *mut libc::c_char;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_is_open(mut context: *const dc_context_t) -> libc::c_int {
+pub unsafe fn dc_is_open(mut context: *const dc_context_t) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0i32;
     }
     return dc_sqlite3_is_open((*context).sql);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_userdata(mut context: *mut dc_context_t) -> *mut libc::c_void {
+pub unsafe fn dc_get_userdata(mut context: *mut dc_context_t) -> *mut libc::c_void {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0 as *mut libc::c_void;
     }
     return (*context).userdata;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_open(
+pub unsafe fn dc_open(
     mut context: *mut dc_context_t,
     mut dbfile: *const libc::c_char,
     mut blobdir: *const libc::c_char,
@@ -363,15 +357,13 @@ pub unsafe extern "C" fn dc_open(
     }
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_blobdir(mut context: *const dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_get_blobdir(mut context: *const dc_context_t) -> *mut libc::c_char {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
     return dc_strdup((*context).blobdir);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_set_config(
+pub unsafe fn dc_set_config(
     mut context: *mut dc_context_t,
     mut key: *const libc::c_char,
     mut value: *const libc::c_char,
@@ -426,7 +418,7 @@ pub unsafe extern "C" fn dc_set_config(
 /* ******************************************************************************
  * INI-handling, Information
  ******************************************************************************/
-unsafe extern "C" fn is_settable_config_key(mut key: *const libc::c_char) -> libc::c_int {
+unsafe fn is_settable_config_key(mut key: *const libc::c_char) -> libc::c_int {
     let mut i: libc::c_int = 0i32;
     while (i as libc::c_ulong)
         < (::std::mem::size_of::<[*const libc::c_char; 33]>() as libc::c_ulong)
@@ -474,8 +466,7 @@ static mut config_keys: [*const libc::c_char; 33] = [
     b"configured_server_flags\x00" as *const u8 as *const libc::c_char,
     b"configured\x00" as *const u8 as *const libc::c_char,
 ];
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_config(
+pub unsafe fn dc_get_config(
     mut context: *mut dc_context_t,
     mut key: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -534,7 +525,7 @@ pub unsafe extern "C" fn dc_get_config(
     }
     return value;
 }
-unsafe extern "C" fn is_gettable_config_key(mut key: *const libc::c_char) -> libc::c_int {
+unsafe fn is_gettable_config_key(mut key: *const libc::c_char) -> libc::c_int {
     let mut i: libc::c_int = 0i32;
     while (i as libc::c_ulong)
         < (::std::mem::size_of::<[*const libc::c_char; 3]>() as libc::c_ulong)
@@ -553,7 +544,7 @@ static mut sys_config_keys: [*const libc::c_char; 3] = [
     b"sys.msgsize_max_recommended\x00" as *const u8 as *const libc::c_char,
     b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
 ];
-unsafe extern "C" fn get_sys_config_str(mut key: *const libc::c_char) -> *mut libc::c_char {
+unsafe fn get_sys_config_str(mut key: *const libc::c_char) -> *mut libc::c_char {
     if strcmp(key, b"sys.version\x00" as *const u8 as *const libc::c_char) == 0i32 {
         return dc_strdup(b"0.42.0\x00" as *const u8 as *const libc::c_char);
     } else if strcmp(
@@ -575,7 +566,7 @@ unsafe extern "C" fn get_sys_config_str(mut key: *const libc::c_char) -> *mut li
         return dc_strdup(0 as *const libc::c_char);
     };
 }
-unsafe extern "C" fn get_config_keys_str() -> *mut libc::c_char {
+unsafe fn get_config_keys_str() -> *mut libc::c_char {
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,
@@ -607,8 +598,7 @@ unsafe extern "C" fn get_config_keys_str() -> *mut libc::c_char {
     }
     return ret.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_info(mut context: *mut dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_get_info(mut context: *mut dc_context_t) -> *mut libc::c_char {
     let mut unset: *const libc::c_char = b"0\x00" as *const u8 as *const libc::c_char;
     let mut displayname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut temp: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -785,12 +775,10 @@ pub unsafe extern "C" fn dc_get_info(mut context: *mut dc_context_t) -> *mut lib
     dc_key_unref(self_public);
     return ret.buf;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_version_str() -> *mut libc::c_char {
+pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
     return dc_strdup(b"0.42.0\x00" as *const u8 as *const libc::c_char);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_fresh_msgs(mut context: *mut dc_context_t) -> *mut dc_array_t {
+pub unsafe fn dc_get_fresh_msgs(mut context: *mut dc_context_t) -> *mut dc_array_t {
     let mut show_deaddrop: libc::c_int = 0i32;
     let mut ret: *mut dc_array_t = dc_array_new(context, 128i32 as size_t);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -809,8 +797,7 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(mut context: *mut dc_context_t) -> *m
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_search_msgs(
+pub unsafe fn dc_search_msgs(
     mut context: *mut dc_context_t,
     mut chat_id: uint32_t,
     mut query: *const libc::c_char,
@@ -876,8 +863,7 @@ pub unsafe extern "C" fn dc_search_msgs(
         return 0 as *mut dc_array_t;
     };
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_is_inbox(
+pub unsafe fn dc_is_inbox(
     mut context: *mut dc_context_t,
     mut folder_name: *const libc::c_char,
 ) -> libc::c_int {
@@ -895,8 +881,7 @@ pub unsafe extern "C" fn dc_is_inbox(
     }
     return is_inbox;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_is_sentbox(
+pub unsafe fn dc_is_sentbox(
     mut context: *mut dc_context_t,
     mut folder_name: *const libc::c_char,
 ) -> libc::c_int {
@@ -916,8 +901,7 @@ pub unsafe extern "C" fn dc_is_sentbox(
     free(sentbox_name as *mut libc::c_void);
     return is_sentbox;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_is_mvbox(
+pub unsafe fn dc_is_mvbox(
     mut context: *mut dc_context_t,
     mut folder_name: *const libc::c_char,
 ) -> libc::c_int {

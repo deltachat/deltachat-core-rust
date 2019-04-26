@@ -24,8 +24,7 @@ pub struct dc_chatlist_t {
 }
 
 // handle chatlists
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_chatlist(
+pub unsafe fn dc_get_chatlist(
     mut context: *mut dc_context_t,
     mut listflags: libc::c_int,
     mut query_str: *const libc::c_char,
@@ -83,8 +82,7 @@ pub unsafe extern "C" fn dc_get_chatlist(
  * Rendering the deaddrop in the described way
  * would not add extra work in the UI then.
  */
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_new(mut context: *mut dc_context_t) -> *mut dc_chatlist_t {
+pub unsafe fn dc_chatlist_new(mut context: *mut dc_context_t) -> *mut dc_chatlist_t {
     let mut chatlist: *mut dc_chatlist_t = 0 as *mut dc_chatlist_t;
     chatlist = calloc(
         1i32 as libc::c_ulong,
@@ -101,8 +99,7 @@ pub unsafe extern "C" fn dc_chatlist_new(mut context: *mut dc_context_t) -> *mut
     }
     return chatlist;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_unref(mut chatlist: *mut dc_chatlist_t) {
+pub unsafe fn dc_chatlist_unref(mut chatlist: *mut dc_chatlist_t) {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return;
     }
@@ -111,8 +108,7 @@ pub unsafe extern "C" fn dc_chatlist_unref(mut chatlist: *mut dc_chatlist_t) {
     (*chatlist).magic = 0i32 as uint32_t;
     free(chatlist as *mut libc::c_void);
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_empty(mut chatlist: *mut dc_chatlist_t) {
+pub unsafe fn dc_chatlist_empty(mut chatlist: *mut dc_chatlist_t) {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return;
     }
@@ -124,7 +120,7 @@ pub unsafe extern "C" fn dc_chatlist_empty(mut chatlist: *mut dc_chatlist_t) {
  *
  * @private @memberof dc_chatlist_t
  */
-unsafe extern "C" fn dc_chatlist_load_from_db(
+unsafe fn dc_chatlist_load_from_db(
     mut chatlist: *mut dc_chatlist_t,
     mut listflags: libc::c_int,
     mut query__: *const libc::c_char,
@@ -230,8 +226,7 @@ unsafe extern "C" fn dc_chatlist_load_from_db(
     return success;
 }
 // Context functions to work with chatlist
-#[no_mangle]
-pub unsafe extern "C" fn dc_get_archived_cnt(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_get_archived_cnt(mut context: *mut dc_context_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         (*context).sql,
@@ -244,7 +239,7 @@ pub unsafe extern "C" fn dc_get_archived_cnt(mut context: *mut dc_context_t) -> 
     sqlite3_finalize(stmt);
     return ret;
 }
-unsafe extern "C" fn get_last_deaddrop_fresh_msg(mut context: *mut dc_context_t) -> uint32_t {
+unsafe fn get_last_deaddrop_fresh_msg(mut context: *mut dc_context_t) -> uint32_t {
     let mut ret: uint32_t = 0i32 as uint32_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     stmt =
@@ -258,15 +253,13 @@ unsafe extern "C" fn get_last_deaddrop_fresh_msg(mut context: *mut dc_context_t)
     sqlite3_finalize(stmt);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_get_cnt(mut chatlist: *const dc_chatlist_t) -> size_t {
+pub unsafe fn dc_chatlist_get_cnt(mut chatlist: *const dc_chatlist_t) -> size_t {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return 0i32 as size_t;
     }
     return (*chatlist).cnt;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_get_chat_id(
+pub unsafe fn dc_chatlist_get_chat_id(
     mut chatlist: *const dc_chatlist_t,
     mut index: size_t,
 ) -> uint32_t {
@@ -282,8 +275,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
         index.wrapping_mul(2i32 as libc::c_ulong),
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_get_msg_id(
+pub unsafe fn dc_chatlist_get_msg_id(
     mut chatlist: *const dc_chatlist_t,
     mut index: size_t,
 ) -> uint32_t {
@@ -301,8 +293,7 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
             .wrapping_add(1i32 as libc::c_ulong),
     );
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_get_summary(
+pub unsafe fn dc_chatlist_get_summary(
     mut chatlist: *const dc_chatlist_t,
     mut index: size_t,
     mut chat: *mut dc_chat_t,
@@ -379,10 +370,7 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
     dc_chat_unref(chat_to_delete);
     return ret;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_get_context(
-    mut chatlist: *mut dc_chatlist_t,
-) -> *mut dc_context_t {
+pub unsafe fn dc_chatlist_get_context(mut chatlist: *mut dc_chatlist_t) -> *mut dc_context_t {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return 0 as *mut dc_context_t;
     }

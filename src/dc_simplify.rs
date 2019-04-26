@@ -14,8 +14,7 @@ pub struct dc_simplify_t {
     pub is_cut_at_end: libc::c_int,
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn dc_simplify_new() -> *mut dc_simplify_t {
+pub unsafe fn dc_simplify_new() -> *mut dc_simplify_t {
     let mut simplify: *mut dc_simplify_t = 0 as *mut dc_simplify_t;
     simplify = calloc(
         1i32 as libc::c_ulong,
@@ -26,8 +25,7 @@ pub unsafe extern "C" fn dc_simplify_new() -> *mut dc_simplify_t {
     }
     return simplify;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_simplify_unref(mut simplify: *mut dc_simplify_t) {
+pub unsafe fn dc_simplify_unref(mut simplify: *mut dc_simplify_t) {
     if simplify.is_null() {
         return;
     }
@@ -36,8 +34,7 @@ pub unsafe extern "C" fn dc_simplify_unref(mut simplify: *mut dc_simplify_t) {
 /* Simplify and normalise text: Remove quotes, signatures, unnecessary
 lineends etc.
 The data returned from Simplify() must be free()'d when no longer used, private */
-#[no_mangle]
-pub unsafe extern "C" fn dc_simplify_simplify(
+pub unsafe fn dc_simplify_simplify(
     mut simplify: *mut dc_simplify_t,
     mut in_unterminated: *const libc::c_char,
     mut in_bytes: libc::c_int,
@@ -79,7 +76,7 @@ pub unsafe extern "C" fn dc_simplify_simplify(
 /* ******************************************************************************
  * Simplify Plain Text
  ******************************************************************************/
-unsafe extern "C" fn dc_simplify_simplify_plain_text(
+unsafe fn dc_simplify_simplify_plain_text(
     mut simplify: *mut dc_simplify_t,
     mut buf_terminated: *const libc::c_char,
     mut is_msgrmsg: libc::c_int,
@@ -281,7 +278,7 @@ unsafe extern "C" fn dc_simplify_simplify_plain_text(
 /* ******************************************************************************
  * Tools
  ******************************************************************************/
-unsafe extern "C" fn is_empty_line(mut buf: *const libc::c_char) -> libc::c_int {
+unsafe fn is_empty_line(mut buf: *const libc::c_char) -> libc::c_int {
     /* force unsigned - otherwise the `> ' '` comparison will fail */
     let mut p1: *const libc::c_uchar = buf as *const libc::c_uchar;
     while 0 != *p1 {
@@ -292,7 +289,7 @@ unsafe extern "C" fn is_empty_line(mut buf: *const libc::c_char) -> libc::c_int 
     }
     return 1i32;
 }
-unsafe extern "C" fn is_quoted_headline(mut buf: *const libc::c_char) -> libc::c_int {
+unsafe fn is_quoted_headline(mut buf: *const libc::c_char) -> libc::c_int {
     /* This function may be called for the line _directly_ before a quote.
     The function checks if the line contains sth. like "On 01.02.2016, xy@z wrote:" in various languages.
     - Currently, we simply check if the last character is a ':'.
@@ -306,7 +303,7 @@ unsafe extern "C" fn is_quoted_headline(mut buf: *const libc::c_char) -> libc::c
     }
     return 0i32;
 }
-unsafe extern "C" fn is_plain_quote(mut buf: *const libc::c_char) -> libc::c_int {
+unsafe fn is_plain_quote(mut buf: *const libc::c_char) -> libc::c_int {
     if *buf.offset(0isize) as libc::c_int == '>' as i32 {
         return 1i32;
     }

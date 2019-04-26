@@ -16,8 +16,7 @@ pub struct dehtml_t {
 
 /* ** library-internal *********************************************************/
 /* dc_dehtml() returns way too many lineends; however, an optimisation on this issue is not needed as the lineends are typically remove in further processing by the caller */
-#[no_mangle]
-pub unsafe extern "C" fn dc_dehtml(mut buf_terminated: *mut libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_dehtml(mut buf_terminated: *mut libc::c_char) -> *mut libc::c_char {
     dc_trim(buf_terminated);
     if *buf_terminated.offset(0isize) as libc::c_int == 0i32 {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
@@ -63,7 +62,7 @@ pub unsafe extern "C" fn dc_dehtml(mut buf_terminated: *mut libc::c_char) -> *mu
         return dehtml.strbuilder.buf;
     };
 }
-unsafe extern "C" fn dehtml_text_cb(
+unsafe fn dehtml_text_cb(
     mut userdata: *mut libc::c_void,
     mut text: *const libc::c_char,
     mut len: libc::c_int,
@@ -99,10 +98,7 @@ unsafe extern "C" fn dehtml_text_cb(
         }
     };
 }
-unsafe extern "C" fn dehtml_endtag_cb(
-    mut userdata: *mut libc::c_void,
-    mut tag: *const libc::c_char,
-) {
+unsafe fn dehtml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c_char) {
     let mut dehtml: *mut dehtml_t = userdata as *mut dehtml_t;
     if strcmp(tag, b"p\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(tag, b"div\x00" as *const u8 as *const libc::c_char) == 0i32
@@ -148,7 +144,7 @@ unsafe extern "C" fn dehtml_endtag_cb(
         );
     };
 }
-unsafe extern "C" fn dehtml_starttag_cb(
+unsafe fn dehtml_starttag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
     mut attr: *mut *mut libc::c_char,

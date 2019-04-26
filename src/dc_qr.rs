@@ -25,8 +25,7 @@ use crate::x::*;
 // text1=text
 // text1=URL
 // text1=error string
-#[no_mangle]
-pub unsafe extern "C" fn dc_check_qr(
+pub unsafe fn dc_check_qr(
     mut context: *mut dc_context_t,
     mut qr: *const libc::c_char,
 ) -> *mut dc_lot_t {

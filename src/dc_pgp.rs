@@ -16,19 +16,15 @@ use crate::x::*;
 /* ** library-private **********************************************************/
 /* validation errors */
 /* misc. */
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_init() {}
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_exit() {}
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_rand_seed(
+pub unsafe fn dc_pgp_init() {}
+pub unsafe fn dc_pgp_exit() {}
+pub unsafe fn dc_pgp_rand_seed(
     mut context: *mut dc_context_t,
     mut buf: *const libc::c_void,
     mut bytes: size_t,
 ) {
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_split_armored_data(
+pub unsafe fn dc_split_armored_data(
     mut buf: *mut libc::c_char,
     mut ret_headerline: *mut *const libc::c_char,
     mut ret_setupcodebegin: *mut *const libc::c_char,
@@ -146,8 +142,7 @@ pub unsafe extern "C" fn dc_split_armored_data(
     return success;
 }
 /* public key encryption */
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_create_keypair(
+pub unsafe fn dc_pgp_create_keypair(
     mut context: *mut dc_context_t,
     mut addr: *const libc::c_char,
     mut ret_public_key: *mut dc_key_t,
@@ -208,8 +203,7 @@ pub unsafe extern "C" fn dc_pgp_create_keypair(
     return success;
 }
 /* returns 0 if there is no error, otherwise logs the error if a context is provided and returns 1*/
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_handle_rpgp_error(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_pgp_handle_rpgp_error(mut context: *mut dc_context_t) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut len: libc::c_int = 0i32;
     let mut msg: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -231,8 +225,7 @@ pub unsafe extern "C" fn dc_pgp_handle_rpgp_error(mut context: *mut dc_context_t
     }
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_is_valid_key(
+pub unsafe fn dc_pgp_is_valid_key(
     mut context: *mut dc_context_t,
     mut raw_key: *const dc_key_t,
 ) -> libc::c_int {
@@ -261,8 +254,7 @@ pub unsafe extern "C" fn dc_pgp_is_valid_key(
     }
     return key_is_valid;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_calc_fingerprint(
+pub unsafe fn dc_pgp_calc_fingerprint(
     mut raw_key: *const dc_key_t,
     mut ret_fingerprint: *mut *mut uint8_t,
     mut ret_fingerprint_bytes: *mut size_t,
@@ -304,8 +296,7 @@ pub unsafe extern "C" fn dc_pgp_calc_fingerprint(
     }
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_split_key(
+pub unsafe fn dc_pgp_split_key(
     mut context: *mut dc_context_t,
     mut private_in: *const dc_key_t,
     mut ret_public_key: *mut dc_key_t,
@@ -354,8 +345,7 @@ pub unsafe extern "C" fn dc_pgp_split_key(
     }
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_pk_encrypt(
+pub unsafe fn dc_pgp_pk_encrypt(
     mut context: *mut dc_context_t,
     mut plain_text: *const libc::c_void,
     mut plain_bytes: size_t,
@@ -524,8 +514,7 @@ pub unsafe extern "C" fn dc_pgp_pk_encrypt(
     }
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_pk_decrypt(
+pub unsafe fn dc_pgp_pk_decrypt(
     mut context: *mut dc_context_t,
     mut ctext: *const libc::c_void,
     mut ctext_bytes: size_t,
@@ -688,8 +677,7 @@ pub unsafe extern "C" fn dc_pgp_pk_decrypt(
     return success;
 }
 /* symm. encryption */
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_symm_encrypt(
+pub unsafe fn dc_pgp_symm_encrypt(
     mut context: *mut dc_context_t,
     mut passphrase: *const libc::c_char,
     mut plain: *const libc::c_void,
@@ -721,8 +709,7 @@ pub unsafe extern "C" fn dc_pgp_symm_encrypt(
     }
     return success;
 }
-#[no_mangle]
-pub unsafe extern "C" fn dc_pgp_symm_decrypt(
+pub unsafe fn dc_pgp_symm_decrypt(
     mut context: *mut dc_context_t,
     mut passphrase: *const libc::c_char,
     mut ctext: *const libc::c_void,
