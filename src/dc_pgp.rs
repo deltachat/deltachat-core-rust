@@ -7,7 +7,7 @@ use crate::dc_key::*;
 use crate::dc_keyring::*;
 use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
-use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;

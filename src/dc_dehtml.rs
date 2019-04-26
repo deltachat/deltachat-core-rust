@@ -2,6 +2,7 @@ use libc;
 
 use crate::dc_saxparser::*;
 use crate::dc_strbuilder::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 

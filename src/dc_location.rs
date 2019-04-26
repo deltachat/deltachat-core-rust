@@ -38,7 +38,7 @@ pub struct dc_kml_t {
     pub addr: *mut libc::c_char,
     pub locations: *mut dc_array_t,
     pub tag: libc::c_int,
-    pub curr: dc_locationn_t,
+    pub curr: dc_location_t,
 }
 
 // location streaming

@@ -6,7 +6,7 @@ use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
 use crate::dc_key::dc_key_t;
 use crate::dc_lot::dc_lot_t;
-use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::dc_sqlite3::*;
 use crate::types::*;
 use crate::x::*;
 

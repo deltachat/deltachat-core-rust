@@ -1,9 +1,14 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
-use crate::dc_context::dc_context_t;
+use crate::dc_contact::*;
+use crate::dc_context::*;
+use crate::dc_job::*;
 use crate::dc_lot::dc_lot_t;
-use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::dc_msg::*;
+use crate::dc_msg::*;
+use crate::dc_sqlite3::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 

@@ -429,6 +429,7 @@ extern "C" {
         data: *mut libc::c_void,
         indx: *mut libc::c_uint,
     ) -> libc::c_int;
+    pub fn carray_set_size(array: *mut carray, new_size: libc::c_uint);
     pub fn carray_free(array: *mut carray);
     pub fn fclose(_: *mut FILE) -> libc::c_int;
     pub fn fopen(_: *const libc::c_char, _: *const libc::c_char) -> *mut FILE;

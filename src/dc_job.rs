@@ -2,17 +2,20 @@ use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::dc_chat::*;
+use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_imap::dc_imap_t;
-use crate::dc_jobthread::dc_jobthread_t;
+use crate::dc_imap::*;
+use crate::dc_imex::*;
+use crate::dc_jobthread::*;
 use crate::dc_keyhistory::*;
 use crate::dc_location::*;
 use crate::dc_log::*;
+use crate::dc_loginparam::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_smtp::dc_smtp_t;
+use crate::dc_smtp::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
@@ -67,7 +70,7 @@ unsafe extern "C" fn dc_job_perform(
     mut probe_network: libc::c_int,
 ) {
     let mut select_stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut job: dc_job_t = _dc_job {
+    let mut job: dc_job_t = dc_job_t {
         job_id: 0,
         action: 0,
         foreign_id: 0,
@@ -743,7 +746,7 @@ unsafe extern "C" fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
     dc_msg_unref(msg);
 }
 unsafe extern "C" fn dc_send_mdn(mut context: *mut dc_context_t, mut msg_id: uint32_t) {
-    let mut mimefactory: dc_mimefactory_t = _dc_mimefactory {
+    let mut mimefactory: dc_mimefactory_t = dc_mimefactory_t {
         from_addr: 0 as *mut libc::c_char,
         from_displayname: 0 as *mut libc::c_char,
         selfstatus: 0 as *mut libc::c_char,
@@ -1306,7 +1309,7 @@ pub unsafe extern "C" fn dc_job_send_msg(
     mut msg_id: uint32_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut mimefactory: dc_mimefactory_t = _dc_mimefactory {
+    let mut mimefactory: dc_mimefactory_t = dc_mimefactory_t {
         from_addr: 0 as *mut libc::c_char,
         from_displayname: 0 as *mut libc::c_char,
         selfstatus: 0 as *mut libc::c_char,

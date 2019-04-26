@@ -1,9 +1,18 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::dc_aheader::*;
+use crate::dc_apeerstate::*;
 use crate::dc_context::dc_context_t;
+use crate::dc_hash::*;
+use crate::dc_key::*;
+use crate::dc_keyring::*;
+use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
-use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::dc_pgp::*;
+use crate::dc_securejoin::*;
+use crate::dc_sqlite3::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -554,7 +563,7 @@ unsafe extern "C" fn load_or_generate_self_public_key(
                     10496152961502316708 => {}
                     _ => {
                         let mut private_key: *mut dc_key_t = dc_key_new();
-                        let mut start: clock_t = clock();
+                        let mut start: libc::clock_t = clock();
                         dc_log_info(
                             context,
                             0i32,

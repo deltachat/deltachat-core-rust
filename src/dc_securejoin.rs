@@ -1,11 +1,26 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::dc_apeerstate::*;
+use crate::dc_array::*;
+use crate::dc_chat::*;
+use crate::dc_configure::*;
+use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
+use crate::dc_hash::*;
 use crate::dc_imap::dc_imap_t;
-use crate::dc_lot::dc_lot_t;
+use crate::dc_key::*;
+use crate::dc_log::*;
+use crate::dc_lot::*;
 use crate::dc_mimeparser::*;
-use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::dc_msg::*;
+use crate::dc_param::*;
+use crate::dc_sqlite3::*;
+use crate::dc_stock::*;
+use crate::dc_stock::*;
+use crate::dc_strencode::*;
+use crate::dc_token::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 

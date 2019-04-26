@@ -1,11 +1,19 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_e2ee::dc_e2ee_helper_t;
-use crate::dc_location::dc_location_t;
+use crate::dc_e2ee::*;
+use crate::dc_hash::*;
+use crate::dc_location::*;
+use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
-use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::dc_param::*;
+use crate::dc_simplify::*;
+use crate::dc_sqlite3::*;
+use crate::dc_strbuilder::*;
+use crate::dc_strencode::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -74,7 +82,7 @@ pub unsafe extern "C" fn dc_mimeparser_new(
     (*mimeparser).e2ee_helper = calloc(
         1i32 as libc::c_ulong,
         ::std::mem::size_of::<dc_e2ee_helper_t>() as libc::c_ulong,
-    ) as *mut _dc_e2ee_helper;
+    ) as *mut dc_e2ee_helper_t;
     dc_hash_init(&mut (*mimeparser).header, 3i32, 0i32);
     return mimeparser;
 }
@@ -133,7 +141,7 @@ pub unsafe extern "C" fn dc_mimeparser_empty(mut mimeparser: *mut dc_mimeparser_
     (*mimeparser).decrypting_failed = 0i32;
     dc_e2ee_thanks((*mimeparser).e2ee_helper);
     dc_kml_unref((*mimeparser).kml);
-    (*mimeparser).kml = 0 as *mut _dc_kml;
+    (*mimeparser).kml = 0 as *mut dc_kml_t;
 }
 unsafe extern "C" fn dc_mimepart_unref(mut mimepart: *mut dc_mimepart_t) {
     if mimepart.is_null() {

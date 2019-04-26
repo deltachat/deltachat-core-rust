@@ -1,45 +1,19 @@
 use libc;
 
+use crate::dc_dehtml::*;
+use crate::dc_strbuilder::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct carray_s {
-    pub array: *mut *mut libc::c_void,
-    pub len: libc::c_uint,
-    pub max: libc::c_uint,
-}
-pub type carray = carray_s;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct dc_strbuilder_t {
-    pub buf: *mut libc::c_char,
-    pub allocated: libc::c_int,
-    pub free: libc::c_int,
-    pub eos: *mut libc::c_char,
-}
-pub type dc_strbuilder_t = dc_strbuilder_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_simplify {
+pub struct dc_simplify_t {
     pub is_forwarded: libc::c_int,
     pub is_cut_at_begin: libc::c_int,
     pub is_cut_at_end: libc::c_int,
 }
-/* ** library-private **********************************************************/
-pub type dc_simplify_t = _dc_simplify;
-#[inline]
-unsafe extern "C" fn carray_count(mut array: *mut carray) -> libc::c_uint {
-    return (*array).len;
-}
-#[inline]
-unsafe extern "C" fn carray_get(
-    mut array: *mut carray,
-    mut indx: libc::c_uint,
-) -> *mut libc::c_void {
-    return *(*array).array.offset(indx as isize);
-}
+
 #[no_mangle]
 pub unsafe extern "C" fn dc_simplify_new() -> *mut dc_simplify_t {
     let mut simplify: *mut dc_simplify_t = 0 as *mut dc_simplify_t;
