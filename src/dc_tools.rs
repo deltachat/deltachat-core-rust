@@ -19,7 +19,6 @@ pub unsafe extern "C" fn dc_exactly_one_bit_set(mut v: libc::c_int) -> libc::c_i
 }
 /* string tools */
 /* dc_strdup() returns empty string if NULL is given, never returns NULL (exits on errors) */
-#[no_mangle]
 pub unsafe extern "C" fn dc_strdup(mut s: *const libc::c_char) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     if !s.is_null() {

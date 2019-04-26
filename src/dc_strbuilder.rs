@@ -33,7 +33,6 @@ pub unsafe extern "C" fn dc_strbuilder_init(
     (*strbuilder).free = (*strbuilder).allocated - 1i32;
     (*strbuilder).eos = (*strbuilder).buf;
 }
-#[no_mangle]
 pub unsafe extern "C" fn dc_strbuilder_cat(
     mut strbuilder: *mut dc_strbuilder_t,
     mut text: *const libc::c_char,
