@@ -7,6 +7,10 @@ fn main() {
     config.file("misc.c");
     config.compile("libtools.a");
 
+    println!("rerun-if-changed=build.rs");
+    println!("rerun-if-changed=misc.h");
+    println!("rerun-if-changed=misc.c");
+
     println!("cargo:rustc-link-search=/usr/local/opt/openssl/lib");
     println!("cargo:rustc-link-search=/usr/local/lib");
 

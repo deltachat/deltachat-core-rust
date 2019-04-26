@@ -1,36 +1,8 @@
 use libc;
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn free(_: *mut libc::c_void);
-    #[no_mangle]
-    fn exit(_: libc::c_int) -> !;
-    #[no_mangle]
-    fn strcmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    #[no_mangle]
-    fn strncmp(_: *const libc::c_char, _: *const libc::c_char, _: libc::c_ulong) -> libc::c_int;
-    #[no_mangle]
-    fn strndup(_: *const libc::c_char, _: libc::c_ulong) -> *mut libc::c_char;
-    /* string tools */
-    #[no_mangle]
-    fn dc_strdup(_: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn dc_remove_cr_chars(_: *mut libc::c_char);
-    #[no_mangle]
-    fn dc_split_into_lines(buf_terminated: *const libc::c_char) -> *mut carray;
-    #[no_mangle]
-    fn dc_free_splitted_lines(lines: *mut carray);
-    #[no_mangle]
-    fn dc_strbuilder_init(_: *mut dc_strbuilder_t, init_bytes: libc::c_int);
-    #[no_mangle]
-    fn dc_strbuilder_cat(_: *mut dc_strbuilder_t, text: *const libc::c_char) -> *mut libc::c_char;
-    /* ** library-internal *********************************************************/
-    #[no_mangle]
-    fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char;
-}
+
+use crate::types::*;
+use crate::x::*;
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct carray_s {
@@ -41,13 +13,13 @@ pub struct carray_s {
 pub type carray = carray_s;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct _dc_strbuilder {
+pub struct dc_strbuilder_t {
     pub buf: *mut libc::c_char,
     pub allocated: libc::c_int,
     pub free: libc::c_int,
     pub eos: *mut libc::c_char,
 }
-pub type dc_strbuilder_t = _dc_strbuilder;
+pub type dc_strbuilder_t = dc_strbuilder_t;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _dc_simplify {
@@ -290,7 +262,7 @@ unsafe extern "C" fn dc_simplify_simplify_plain_text(
         }
     }
     /* re-create buffer from the remaining lines */
-    let mut ret: dc_strbuilder_t = _dc_strbuilder {
+    let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,
         free: 0,

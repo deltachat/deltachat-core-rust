@@ -1,271 +1,22 @@
 use libc;
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn free(_: *mut libc::c_void);
-    #[no_mangle]
-    fn exit(_: libc::c_int) -> !;
-    #[no_mangle]
-    fn strcspn(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_ulong;
-    #[no_mangle]
-    fn strspn(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_ulong;
-    #[no_mangle]
-    fn strcasecmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
-    // handle contacts
-    #[no_mangle]
-    fn dc_may_be_valid_addr(addr: *const libc::c_char) -> libc::c_int;
-    /* string tools */
-    #[no_mangle]
-    fn dc_strdup(_: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn dc_trim(_: *mut libc::c_char);
-    #[no_mangle]
-    fn dc_strbuilder_init(_: *mut dc_strbuilder_t, init_bytes: libc::c_int);
-    #[no_mangle]
-    fn dc_strbuilder_cat(_: *mut dc_strbuilder_t, text: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn dc_key_new() -> *mut dc_key_t;
-    #[no_mangle]
-    fn dc_key_unref(_: *mut dc_key_t);
-    #[no_mangle]
-    fn dc_key_set_from_base64(
-        _: *mut dc_key_t,
-        base64: *const libc::c_char,
-        type_0: libc::c_int,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn dc_key_render_base64(
-        _: *const dc_key_t,
-        break_every: libc::c_int,
-        break_chars: *const libc::c_char,
-        add_checksum: libc::c_int,
-    ) -> *mut libc::c_char;
-    // Working with e-mail-addresses
-    #[no_mangle]
-    fn dc_addr_cmp(addr1: *const libc::c_char, addr2: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn dc_addr_normalize(addr: *const libc::c_char) -> *mut libc::c_char;
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct clistcell_s {
-    pub data: *mut libc::c_void,
-    pub previous: *mut clistcell_s,
-    pub next: *mut clistcell_s,
-}
-pub type clistcell = clistcell_s;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct clist_s {
-    pub first: *mut clistcell,
-    pub last: *mut clistcell,
-    pub count: libc::c_int,
-}
-pub type clist = clist_s;
-pub type clistiter = clistcell;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_date_time {
-    pub dt_day: libc::c_int,
-    pub dt_month: libc::c_int,
-    pub dt_year: libc::c_int,
-    pub dt_hour: libc::c_int,
-    pub dt_min: libc::c_int,
-    pub dt_sec: libc::c_int,
-    pub dt_zone: libc::c_int,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_mailbox_list {
-    pub mb_list: *mut clist,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_mailbox {
-    pub mb_display_name: *mut libc::c_char,
-    pub mb_addr_spec: *mut libc::c_char,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_address_list {
-    pub ad_list: *mut clist,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_fields {
-    pub fld_list: *mut clist,
-}
-pub type unnamed = libc::c_uint;
-pub const MAILIMF_FIELD_OPTIONAL_FIELD: unnamed = 22;
-pub const MAILIMF_FIELD_KEYWORDS: unnamed = 21;
-pub const MAILIMF_FIELD_COMMENTS: unnamed = 20;
-pub const MAILIMF_FIELD_SUBJECT: unnamed = 19;
-pub const MAILIMF_FIELD_REFERENCES: unnamed = 18;
-pub const MAILIMF_FIELD_IN_REPLY_TO: unnamed = 17;
-pub const MAILIMF_FIELD_MESSAGE_ID: unnamed = 16;
-pub const MAILIMF_FIELD_BCC: unnamed = 15;
-pub const MAILIMF_FIELD_CC: unnamed = 14;
-pub const MAILIMF_FIELD_TO: unnamed = 13;
-pub const MAILIMF_FIELD_REPLY_TO: unnamed = 12;
-pub const MAILIMF_FIELD_SENDER: unnamed = 11;
-pub const MAILIMF_FIELD_FROM: unnamed = 10;
-pub const MAILIMF_FIELD_ORIG_DATE: unnamed = 9;
-pub const MAILIMF_FIELD_RESENT_MSG_ID: unnamed = 8;
-pub const MAILIMF_FIELD_RESENT_BCC: unnamed = 7;
-pub const MAILIMF_FIELD_RESENT_CC: unnamed = 6;
-pub const MAILIMF_FIELD_RESENT_TO: unnamed = 5;
-pub const MAILIMF_FIELD_RESENT_SENDER: unnamed = 4;
-pub const MAILIMF_FIELD_RESENT_FROM: unnamed = 3;
-pub const MAILIMF_FIELD_RESENT_DATE: unnamed = 2;
-pub const MAILIMF_FIELD_RETURN_PATH: unnamed = 1;
-pub const MAILIMF_FIELD_NONE: unnamed = 0;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_field {
-    pub fld_type: libc::c_int,
-    pub fld_data: unnamed_0,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union unnamed_0 {
-    pub fld_return_path: *mut mailimf_return,
-    pub fld_resent_date: *mut mailimf_orig_date,
-    pub fld_resent_from: *mut mailimf_from,
-    pub fld_resent_sender: *mut mailimf_sender,
-    pub fld_resent_to: *mut mailimf_to,
-    pub fld_resent_cc: *mut mailimf_cc,
-    pub fld_resent_bcc: *mut mailimf_bcc,
-    pub fld_resent_msg_id: *mut mailimf_message_id,
-    pub fld_orig_date: *mut mailimf_orig_date,
-    pub fld_from: *mut mailimf_from,
-    pub fld_sender: *mut mailimf_sender,
-    pub fld_reply_to: *mut mailimf_reply_to,
-    pub fld_to: *mut mailimf_to,
-    pub fld_cc: *mut mailimf_cc,
-    pub fld_bcc: *mut mailimf_bcc,
-    pub fld_message_id: *mut mailimf_message_id,
-    pub fld_in_reply_to: *mut mailimf_in_reply_to,
-    pub fld_references: *mut mailimf_references,
-    pub fld_subject: *mut mailimf_subject,
-    pub fld_comments: *mut mailimf_comments,
-    pub fld_keywords: *mut mailimf_keywords,
-    pub fld_optional_field: *mut mailimf_optional_field,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_optional_field {
-    pub fld_name: *mut libc::c_char,
-    pub fld_value: *mut libc::c_char,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_keywords {
-    pub kw_list: *mut clist,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_comments {
-    pub cm_value: *mut libc::c_char,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_subject {
-    pub sbj_value: *mut libc::c_char,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_references {
-    pub mid_list: *mut clist,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_in_reply_to {
-    pub mid_list: *mut clist,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_message_id {
-    pub mid_value: *mut libc::c_char,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_bcc {
-    pub bcc_addr_list: *mut mailimf_address_list,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_cc {
-    pub cc_addr_list: *mut mailimf_address_list,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_to {
-    pub to_addr_list: *mut mailimf_address_list,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_reply_to {
-    pub rt_addr_list: *mut mailimf_address_list,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_sender {
-    pub snd_mb: *mut mailimf_mailbox,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_from {
-    pub frm_mb_list: *mut mailimf_mailbox_list,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_orig_date {
-    pub dt_date_time: *mut mailimf_date_time,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_return {
-    pub ret_path: *mut mailimf_path,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimf_path {
-    pub pt_addr_spec: *mut libc::c_char,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_strbuilder {
-    pub buf: *mut libc::c_char,
-    pub allocated: libc::c_int,
-    pub free: libc::c_int,
-    pub eos: *mut libc::c_char,
-}
-pub type dc_strbuilder_t = _dc_strbuilder;
-/* *
- * Library-internal.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_key {
-    pub binary: *mut libc::c_void,
-    pub bytes: libc::c_int,
-    pub type_0: libc::c_int,
-    pub _m_heap_refcnt: libc::c_int,
-}
-pub type dc_key_t = _dc_key;
+
+use crate::dc_key::dc_key_t;
+use crate::dc_strbuilder::dc_strbuilder_t;
+use crate::types::*;
+use crate::x::*;
+
 /* *
  * @class dc_aheader_t
  * Library-internal. Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
  */
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct _dc_aheader {
+pub struct dc_aheader_t {
     pub addr: *mut libc::c_char,
     pub public_key: *mut dc_key_t,
     pub prefer_encrypt: libc::c_int,
 }
-pub type dc_aheader_t = _dc_aheader;
+
 /* the returned pointer is ref'd and must be unref'd after usage */
 #[no_mangle]
 pub unsafe extern "C" fn dc_aheader_new() -> *mut dc_aheader_t {
@@ -476,7 +227,7 @@ unsafe extern "C" fn add_attribute(
 pub unsafe extern "C" fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::c_char {
     let mut success: libc::c_int = 0i32;
     let mut keybase64_wrapped: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut ret: dc_strbuilder_t = _dc_strbuilder {
+    let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,
         free: 0,

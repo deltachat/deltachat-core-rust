@@ -1,26 +1,8 @@
 use libc;
-extern "C" {
-    #[no_mangle]
-    fn __assert_rtn(
-        _: *const libc::c_char,
-        _: *const libc::c_char,
-        _: libc::c_int,
-        _: *const libc::c_char,
-    ) -> !;
-    #[no_mangle]
-    fn malloc(_: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn free(_: *mut libc::c_void);
-    #[no_mangle]
-    fn memcmp(_: *const libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> libc::c_int;
-    #[no_mangle]
-    fn memcpy(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn memset(_: *mut libc::c_void, _: libc::c_int, _: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-}
-pub type uintptr_t = libc::c_ulong;
+
+use crate::types::*;
+use crate::x::*;
+
 /* A complete hash table is an instance of the following structure.
  * The internals of this structure are intended to be opaque -- client
  * code should not attempt to access or modify the fields of this structure
@@ -31,7 +13,7 @@ pub type uintptr_t = libc::c_ulong;
  */
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct _dc_hash {
+pub struct dc_hash_t {
     pub keyClass: libc::c_char,
     pub copyKey: libc::c_char,
     pub count: libc::c_int,
@@ -61,9 +43,6 @@ pub struct _dc_hashelem {
     pub pKey: *mut libc::c_void,
     pub nKey: libc::c_int,
 }
-/* Forward declarations of structures.
- */
-pub type dc_hash_t = _dc_hash;
 /*
  * There are 4 different modes of operation for a hash table:
  *

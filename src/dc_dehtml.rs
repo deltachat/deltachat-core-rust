@@ -1,48 +1,10 @@
 use libc;
-extern "C" {
-    #[no_mangle]
-    fn free(_: *mut libc::c_void);
-    #[no_mangle]
-    fn memset(_: *mut libc::c_void, _: libc::c_int, _: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn strcmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    /* string tools */
-    #[no_mangle]
-    fn dc_strdup(_: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn dc_strdup_keep_null(_: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn dc_trim(_: *mut libc::c_char);
-    #[no_mangle]
-    fn dc_strbuilder_init(_: *mut dc_strbuilder_t, init_bytes: libc::c_int);
-    #[no_mangle]
-    fn dc_strbuilder_cat(_: *mut dc_strbuilder_t, text: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn dc_saxparser_parse(_: *mut dc_saxparser_t, text: *const libc::c_char);
-    #[no_mangle]
-    fn dc_saxparser_set_text_handler(_: *mut dc_saxparser_t, _: dc_saxparser_text_cb_t);
-    #[no_mangle]
-    fn dc_attr_find(attr: *mut *mut libc::c_char, key: *const libc::c_char) -> *const libc::c_char;
-    #[no_mangle]
-    fn dc_saxparser_set_tag_handler(
-        _: *mut dc_saxparser_t,
-        _: dc_saxparser_starttag_cb_t,
-        _: dc_saxparser_endtag_cb_t,
-    );
-    #[no_mangle]
-    fn dc_saxparser_init(_: *mut dc_saxparser_t, userData: *mut libc::c_void);
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_strbuilder {
-    pub buf: *mut libc::c_char,
-    pub allocated: libc::c_int,
-    pub free: libc::c_int,
-    pub eos: *mut libc::c_char,
-}
-pub type dc_strbuilder_t = _dc_strbuilder;
+
+use crate::dc_saxparser::*;
+use crate::dc_strbuilder::*;
+use crate::types::*;
+use crate::x::*;
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dehtml_t {
@@ -50,28 +12,7 @@ pub struct dehtml_t {
     pub add_text: libc::c_int,
     pub last_href: *mut libc::c_char,
 }
-pub type dc_saxparser_t = _dc_saxparser;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_saxparser {
-    pub starttag_cb: dc_saxparser_starttag_cb_t,
-    pub endtag_cb: dc_saxparser_endtag_cb_t,
-    pub text_cb: dc_saxparser_text_cb_t,
-    pub userdata: *mut libc::c_void,
-}
-/* len is only informational, text is already null-terminated */
-pub type dc_saxparser_text_cb_t = Option<
-    unsafe extern "C" fn(_: *mut libc::c_void, _: *const libc::c_char, _: libc::c_int) -> (),
->;
-pub type dc_saxparser_endtag_cb_t =
-    Option<unsafe extern "C" fn(_: *mut libc::c_void, _: *const libc::c_char) -> ()>;
-pub type dc_saxparser_starttag_cb_t = Option<
-    unsafe extern "C" fn(
-        _: *mut libc::c_void,
-        _: *const libc::c_char,
-        _: *mut *mut libc::c_char,
-    ) -> (),
->;
+
 /* ** library-internal *********************************************************/
 /* dc_dehtml() returns way too many lineends; however, an optimisation on this issue is not needed as the lineends are typically remove in further processing by the caller */
 #[no_mangle]
@@ -81,7 +22,7 @@ pub unsafe extern "C" fn dc_dehtml(mut buf_terminated: *mut libc::c_char) -> *mu
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     } else {
         let mut dehtml: dehtml_t = dehtml_t {
-            strbuilder: _dc_strbuilder {
+            strbuilder: dc_strbuilder_t {
                 buf: 0 as *mut libc::c_char,
                 allocated: 0,
                 free: 0,

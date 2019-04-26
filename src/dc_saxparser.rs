@@ -1,114 +1,18 @@
 use libc;
 
 use crate::dc_tools::*;
+use crate::types::*;
+use crate::x::*;
 
-extern "C" {
-    #[no_mangle]
-    fn malloc(_: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn free(_: *mut libc::c_void);
-    #[no_mangle]
-    fn realloc(_: *mut libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn strtol(_: *const libc::c_char, _: *mut *mut libc::c_char, _: libc::c_int) -> libc::c_long;
-    #[no_mangle]
-    fn memmove(_: *mut libc::c_void, _: *const libc::c_void, _: libc::c_ulong)
-        -> *mut libc::c_void;
-    #[no_mangle]
-    fn strchr(_: *const libc::c_char, _: libc::c_int) -> *mut libc::c_char;
-    #[no_mangle]
-    fn strcmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    fn strcpy(_: *mut libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn strcspn(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_ulong;
-    #[no_mangle]
-    fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    #[no_mangle]
-    fn strncmp(_: *const libc::c_char, _: *const libc::c_char, _: libc::c_ulong) -> libc::c_int;
-    #[no_mangle]
-    fn strncpy(_: *mut libc::c_char, _: *const libc::c_char, _: libc::c_ulong)
-        -> *mut libc::c_char;
-    #[no_mangle]
-    fn strspn(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_ulong;
-    #[no_mangle]
-    fn strstr(_: *const libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    static mut _DefaultRuneLocale: _RuneLocale;
-    #[no_mangle]
-    fn __maskrune(_: __darwin_ct_rune_t, _: libc::c_ulong) -> libc::c_int;
-    /* string tools */
-    #[no_mangle]
-    fn dc_strdup(_: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn dc_strlower_in_place(_: *mut libc::c_char);
-}
-pub type __uint32_t = libc::c_uint;
-pub type __darwin_ct_rune_t = libc::c_int;
-pub type __darwin_size_t = libc::c_ulong;
-pub type __darwin_wchar_t = libc::c_int;
-pub type __darwin_rune_t = __darwin_wchar_t;
-pub type size_t = __darwin_size_t;
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct _RuneEntry {
-    pub __min: __darwin_rune_t,
-    pub __max: __darwin_rune_t,
-    pub __map: __darwin_rune_t,
-    pub __types: *mut __uint32_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _RuneRange {
-    pub __nranges: libc::c_int,
-    pub __ranges: *mut _RuneEntry,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _RuneCharClass {
-    pub __name: [libc::c_char; 14],
-    pub __mask: __uint32_t,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _RuneLocale {
-    pub __magic: [libc::c_char; 8],
-    pub __encoding: [libc::c_char; 32],
-    pub __sgetrune: Option<
-        unsafe extern "C" fn(
-            _: *const libc::c_char,
-            _: __darwin_size_t,
-            _: *mut *const libc::c_char,
-        ) -> __darwin_rune_t,
-    >,
-    pub __sputrune: Option<
-        unsafe extern "C" fn(
-            _: __darwin_rune_t,
-            _: *mut libc::c_char,
-            _: __darwin_size_t,
-            _: *mut *mut libc::c_char,
-        ) -> libc::c_int,
-    >,
-    pub __invalid_rune: __darwin_rune_t,
-    pub __runetype: [__uint32_t; 256],
-    pub __maplower: [__darwin_rune_t; 256],
-    pub __mapupper: [__darwin_rune_t; 256],
-    pub __runetype_ext: _RuneRange,
-    pub __maplower_ext: _RuneRange,
-    pub __mapupper_ext: _RuneRange,
-    pub __variable: *mut libc::c_void,
-    pub __variable_len: libc::c_int,
-    pub __ncharclasses: libc::c_int,
-    pub __charclasses: *mut _RuneCharClass,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_saxparser {
+pub struct dc_saxparser_t {
     pub starttag_cb: dc_saxparser_starttag_cb_t,
     pub endtag_cb: dc_saxparser_endtag_cb_t,
     pub text_cb: dc_saxparser_text_cb_t,
     pub userdata: *mut libc::c_void,
 }
+
 /* len is only informational, text is already null-terminated */
 pub type dc_saxparser_text_cb_t = Option<
     unsafe extern "C" fn(_: *mut libc::c_void, _: *const libc::c_char, _: libc::c_int) -> (),
@@ -122,7 +26,7 @@ pub type dc_saxparser_starttag_cb_t = Option<
         _: *mut *mut libc::c_char,
     ) -> (),
 >;
-pub type dc_saxparser_t = _dc_saxparser;
+
 #[inline]
 unsafe extern "C" fn isascii(mut _c: libc::c_int) -> libc::c_int {
     return (_c & !0x7fi32 == 0i32) as libc::c_int;

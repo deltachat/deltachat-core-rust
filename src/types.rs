@@ -2,10 +2,22 @@ use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 extern "C" {
+    pub type __sFILEX;
+
+    pub type rpgp_Message;
+    pub type rpgp_PublicOrSecret;
+    pub type rpgp_SignedPublicKey;
+    pub type rpgp_SignedSecretKey;
+
+    pub type _telldir;
     pub type mailstream_cancel;
     pub type sqlite3;
     pub type sqlite3_stmt;
 }
+
+pub type sqlite_int64 = libc::c_longlong;
+pub type sqlite3_int64 = sqlite_int64;
+pub type sqlite3_destructor_type = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>;
 
 pub type useconds_t = __darwin_useconds_t;
 pub type int32_t = libc::c_int;
@@ -1108,3 +1120,317 @@ pub struct mailimf_date_time {
     pub dt_sec: libc::c_int,
     pub dt_zone: libc::c_int,
 }
+
+pub type __builtin_va_list = [__va_list_tag; 1];
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct __va_list_tag {
+    pub gp_offset: libc::c_uint,
+    pub fp_offset: libc::c_uint,
+    pub overflow_arg_area: *mut libc::c_void,
+    pub reg_save_area: *mut libc::c_void,
+}
+pub type va_list = __builtin_va_list;
+pub type __int64_t = libc::c_longlong;
+pub type __darwin_ct_rune_t = libc::c_int;
+pub type __darwin_wchar_t = libc::c_int;
+pub type __darwin_rune_t = __darwin_wchar_t;
+pub type __darwin_blkcnt_t = __int64_t;
+pub type __darwin_blksize_t = __int32_t;
+pub type __darwin_dev_t = __int32_t;
+pub type __darwin_gid_t = __uint32_t;
+pub type __darwin_ino64_t = __uint64_t;
+pub type __darwin_mode_t = __uint16_t;
+pub type __darwin_off_t = __int64_t;
+pub type __darwin_uid_t = __uint32_t;
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _RuneEntry {
+    pub __min: __darwin_rune_t,
+    pub __max: __darwin_rune_t,
+    pub __map: __darwin_rune_t,
+    pub __types: *mut __uint32_t,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _RuneRange {
+    pub __nranges: libc::c_int,
+    pub __ranges: *mut _RuneEntry,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _RuneCharClass {
+    pub __name: [libc::c_char; 14],
+    pub __mask: __uint32_t,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _RuneLocale {
+    pub __magic: [libc::c_char; 8],
+    pub __encoding: [libc::c_char; 32],
+    pub __sgetrune: Option<
+        unsafe extern "C" fn(
+            _: *const libc::c_char,
+            _: __darwin_size_t,
+            _: *mut *const libc::c_char,
+        ) -> __darwin_rune_t,
+    >,
+    pub __sputrune: Option<
+        unsafe extern "C" fn(
+            _: __darwin_rune_t,
+            _: *mut libc::c_char,
+            _: __darwin_size_t,
+            _: *mut *mut libc::c_char,
+        ) -> libc::c_int,
+    >,
+    pub __invalid_rune: __darwin_rune_t,
+    pub __runetype: [__uint32_t; 256],
+    pub __maplower: [__darwin_rune_t; 256],
+    pub __mapupper: [__darwin_rune_t; 256],
+    pub __runetype_ext: _RuneRange,
+    pub __maplower_ext: _RuneRange,
+    pub __mapupper_ext: _RuneRange,
+    pub __variable: *mut libc::c_void,
+    pub __variable_len: libc::c_int,
+    pub __ncharclasses: libc::c_int,
+    pub __charclasses: *mut _RuneCharClass,
+}
+pub type mode_t = __darwin_mode_t;
+pub type off_t = __darwin_off_t;
+
+pub type uint64_t = libc::c_ulonglong;
+pub type uid_t = __darwin_uid_t;
+pub type gid_t = __darwin_gid_t;
+pub type dev_t = __darwin_dev_t;
+pub type blkcnt_t = __darwin_blkcnt_t;
+pub type blksize_t = __darwin_blksize_t;
+pub type nlink_t = __uint16_t;
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct stat {
+    pub st_dev: dev_t,
+    pub st_mode: mode_t,
+    pub st_nlink: nlink_t,
+    pub st_ino: __darwin_ino64_t,
+    pub st_uid: uid_t,
+    pub st_gid: gid_t,
+    pub st_rdev: dev_t,
+    pub st_atimespec: timespec,
+    pub st_mtimespec: timespec,
+    pub st_ctimespec: timespec,
+    pub st_birthtimespec: timespec,
+    pub st_size: off_t,
+    pub st_blocks: blkcnt_t,
+    pub st_blksize: blksize_t,
+    pub st_flags: __uint32_t,
+    pub st_gen: __uint32_t,
+    pub st_lspare: __int32_t,
+    pub st_qspare: [__int64_t; 2],
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct tm {
+    pub tm_sec: libc::c_int,
+    pub tm_min: libc::c_int,
+    pub tm_hour: libc::c_int,
+    pub tm_mday: libc::c_int,
+    pub tm_mon: libc::c_int,
+    pub tm_year: libc::c_int,
+    pub tm_wday: libc::c_int,
+    pub tm_yday: libc::c_int,
+    pub tm_isdst: libc::c_int,
+    pub tm_gmtoff: libc::c_long,
+    pub tm_zone: *mut libc::c_char,
+}
+
+pub type dc_receive_imf_t = Option<
+    unsafe extern "C" fn(
+        _: *mut dc_imap_t,
+        _: *const libc::c_char,
+        _: size_t,
+        _: *const libc::c_char,
+        _: uint32_t,
+        _: uint32_t,
+    ) -> (),
+>;
+/* Purpose: Reading from IMAP servers with no dependencies to the database.
+dc_context_t is only used for logging and to get information about
+the online state. */
+
+pub type dc_precheck_imf_t = Option<
+    unsafe extern "C" fn(
+        _: *mut dc_imap_t,
+        _: *const libc::c_char,
+        _: *const libc::c_char,
+        _: uint32_t,
+    ) -> libc::c_int,
+>;
+pub type dc_set_config_t = Option<
+    unsafe extern "C" fn(_: *mut dc_imap_t, _: *const libc::c_char, _: *const libc::c_char) -> (),
+>;
+pub type dc_get_config_t = Option<
+    unsafe extern "C" fn(
+        _: *mut dc_imap_t,
+        _: *const libc::c_char,
+        _: *const libc::c_char,
+    ) -> *mut libc::c_char,
+>;
+/* ** library-private **********************************************************/
+use crate::dc_sqlite3::dc_sqlite3_t;
+/* *
+ * Library-internal.
+ */
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _dc_sqlite3 {
+    pub cobj: *mut sqlite3,
+    pub context: *mut dc_context_t,
+}
+
+#[inline]
+pub unsafe extern "C" fn isascii(mut _c: libc::c_int) -> libc::c_int {
+    return (_c & !0x7fi32 == 0i32) as libc::c_int;
+}
+#[inline]
+pub unsafe extern "C" fn __istype(
+    mut _c: __darwin_ct_rune_t,
+    mut _f: libc::c_ulong,
+) -> libc::c_int {
+    return if 0 != isascii(_c) {
+        (0 != _DefaultRuneLocale.__runetype[_c as usize] as libc::c_ulong & _f) as libc::c_int
+    } else {
+        (0 != __maskrune(_c, _f)) as libc::c_int
+    };
+}
+#[no_mangle]
+#[inline]
+pub unsafe extern "C" fn isspace(mut _c: libc::c_int) -> libc::c_int {
+    return __istype(_c, 0x4000i64 as libc::c_ulong);
+}
+
+#[no_mangle]
+#[inline]
+pub unsafe extern "C" fn tolower(mut _c: libc::c_int) -> libc::c_int {
+    return __tolower(_c);
+}
+
+#[inline]
+pub unsafe extern "C" fn carray_count(mut array: *mut carray) -> libc::c_uint {
+    return (*array).len;
+}
+
+#[inline]
+pub unsafe extern "C" fn carray_get(
+    mut array: *mut carray,
+    mut indx: libc::c_uint,
+) -> *mut libc::c_void {
+    return *(*array).array.offset(indx as isize);
+}
+
+/* *
+ * Callback function that should be given to dc_context_new().
+ *
+ * @memberof dc_context_t
+ * @param context The context object as returned by dc_context_new().
+ * @param event one of the @ref DC_EVENT constants
+ * @param data1 depends on the event parameter
+ * @param data2 depends on the event parameter
+ * @return return 0 unless stated otherwise in the event parameter documentation
+ */
+pub type dc_callback_t = Option<
+    unsafe extern "C" fn(
+        _: *mut dc_context_t,
+        _: libc::c_int,
+        _: uintptr_t,
+        _: uintptr_t,
+    ) -> uintptr_t,
+>;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct dirent {
+    pub d_ino: __uint64_t,
+    pub d_seekoff: __uint64_t,
+    pub d_reclen: __uint16_t,
+    pub d_namlen: __uint16_t,
+    pub d_type: __uint8_t,
+    pub d_name: [libc::c_char; 1024],
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct DIR {
+    pub __dd_fd: libc::c_int,
+    pub __dd_loc: libc::c_long,
+    pub __dd_size: libc::c_long,
+    pub __dd_buf: *mut libc::c_char,
+    pub __dd_len: libc::c_int,
+    pub __dd_seek: libc::c_long,
+    pub __padding: libc::c_long,
+    pub __dd_flags: libc::c_int,
+    pub __dd_lock: __darwin_pthread_mutex_t,
+    pub __dd_td: *mut _telldir,
+}
+
+pub const DC_MOVE_STATE_MOVING: libc::c_uint = 3;
+pub const DC_MOVE_STATE_STAY: libc::c_uint = 2;
+pub const DC_MOVE_STATE_PENDING: libc::c_uint = 1;
+pub const DC_MOVE_STATE_UNDEFINED: libc::c_uint = 0;
+
+pub const MAILIMF_ERROR_FILE: libc::c_uint = 4;
+pub const MAILIMF_ERROR_INVAL: libc::c_uint = 3;
+pub const MAILIMF_ERROR_MEMORY: libc::c_uint = 2;
+pub const MAILIMF_ERROR_PARSE: libc::c_uint = 1;
+pub const MAILIMF_NO_ERROR: libc::c_uint = 0;
+
+pub const MAIL_CHARCONV_ERROR_CONV: libc::c_uint_0 = 3;
+pub const MAIL_CHARCONV_ERROR_MEMORY: libc::c_uint_0 = 2;
+pub const MAIL_CHARCONV_ERROR_UNKNOWN_CHARSET: libc::c_uint_0 = 1;
+pub const MAIL_CHARCONV_NO_ERROR: libc::c_uint_0 = 0;
+
+pub const MAILSMTP_ERROR_CLIENTID_NOT_SUPPORTED: libc::c_uint = 28;
+pub const MAILSMTP_ERROR_SSL: libc::c_uint = 27;
+pub const MAILSMTP_ERROR_AUTH_AUTHENTICATION_FAILED: libc::c_uint = 26;
+pub const MAILSMTP_ERROR_CONNECTION_REFUSED: libc::c_uint = 25;
+pub const MAILSMTP_ERROR_STARTTLS_NOT_SUPPORTED: libc::c_uint = 24;
+pub const MAILSMTP_ERROR_STARTTLS_TEMPORARY_FAILURE: libc::c_uint = 23;
+pub const MAILSMTP_ERROR_AUTH_ENCRYPTION_REQUIRED: libc::c_uint = 22;
+pub const MAILSMTP_ERROR_AUTH_TEMPORARY_FAILTURE: libc::c_uint = 21;
+pub const MAILSMTP_ERROR_AUTH_TRANSITION_NEEDED: libc::c_uint = 20;
+pub const MAILSMTP_ERROR_AUTH_TOO_WEAK: libc::c_uint = 19;
+pub const MAILSMTP_ERROR_AUTH_REQUIRED: libc::c_uint = 18;
+pub const MAILSMTP_ERROR_AUTH_LOGIN: libc::c_uint = 17;
+pub const MAILSMTP_ERROR_AUTH_NOT_SUPPORTED: libc::c_uint = 16;
+pub const MAILSMTP_ERROR_MEMORY: libc::c_uint = 15;
+pub const MAILSMTP_ERROR_TRANSACTION_FAILED: libc::c_uint = 14;
+pub const MAILSMTP_ERROR_USER_NOT_LOCAL: libc::c_uint = 13;
+pub const MAILSMTP_ERROR_BAD_SEQUENCE_OF_COMMAND: libc::c_uint = 12;
+pub const MAILSMTP_ERROR_MAILBOX_NAME_NOT_ALLOWED: libc::c_uint = 11;
+pub const MAILSMTP_ERROR_MAILBOX_UNAVAILABLE: libc::c_uint = 10;
+pub const MAILSMTP_ERROR_INSUFFICIENT_SYSTEM_STORAGE: libc::c_uint = 9;
+pub const MAILSMTP_ERROR_IN_PROCESSING: libc::c_uint = 8;
+pub const MAILSMTP_ERROR_EXCEED_STORAGE_ALLOCATION: libc::c_uint = 7;
+pub const MAILSMTP_ERROR_ACTION_NOT_TAKEN: libc::c_uint = 6;
+pub const MAILSMTP_ERROR_NOT_IMPLEMENTED: libc::c_uint = 5;
+pub const MAILSMTP_ERROR_HOSTNAME: libc::c_uint = 4;
+pub const MAILSMTP_ERROR_STREAM: libc::c_uint = 3;
+pub const MAILSMTP_ERROR_SERVICE_NOT_AVAILABLE: libc::c_uint = 2;
+pub const MAILSMTP_ERROR_UNEXPECTED_CODE: libc::c_uint = 1;
+pub const MAILSMTP_NO_ERROR: libc::c_uint = 0;
+pub const MAILSMTP_AUTH_KERBEROS_V4: libc::c_uint = 256;
+pub const MAILSMTP_AUTH_NTLM: libc::c_uint = 128;
+pub const MAILSMTP_AUTH_SRP: libc::c_uint = 64;
+pub const MAILSMTP_AUTH_GSSAPI: libc::c_uint = 32;
+pub const MAILSMTP_AUTH_DIGEST_MD5: libc::c_uint = 16;
+pub const MAILSMTP_AUTH_LOGIN: libc::c_uint = 8;
+pub const MAILSMTP_AUTH_PLAIN: libc::c_uint = 4;
+pub const MAILSMTP_AUTH_CRAM_MD5: libc::c_uint = 2;
+pub const MAILSMTP_AUTH_CHECKED: libc::c_uint = 1;
+pub const MAILSMTP_AUTH_NOT_CHECKED: libc::c_uint = 0;
+
+pub type dc_imap_res = libc::c_uint;
+pub const DC_SUCCESS: dc_imap_res = 3;
+pub const DC_ALREADY_DONE: dc_imap_res = 2;
+pub const DC_RETRY_LATER: dc_imap_res = 1;
+pub const DC_FAILED: dc_imap_res = 0;
+
+pub type dc_move_state_t = libc::c_uint;

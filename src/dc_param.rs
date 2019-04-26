@@ -1,35 +1,9 @@
 use libc;
-extern "C" {
-    #[no_mangle]
-    fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
-    #[no_mangle]
-    fn free(_: *mut libc::c_void);
-    #[no_mangle]
-    fn atol(_: *const libc::c_char) -> libc::c_long;
-    #[no_mangle]
-    fn exit(_: libc::c_int) -> !;
-    #[no_mangle]
-    fn strchr(_: *const libc::c_char, _: libc::c_int) -> *mut libc::c_char;
-    #[no_mangle]
-    fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    /* string tools */
-    #[no_mangle]
-    fn dc_strdup(_: *const libc::c_char) -> *mut libc::c_char;
-    #[no_mangle]
-    fn dc_ltrim(_: *mut libc::c_char);
-    #[no_mangle]
-    fn dc_rtrim(_: *mut libc::c_char);
-    #[no_mangle]
-    fn dc_str_replace(
-        haystack: *mut *mut libc::c_char,
-        needle: *const libc::c_char,
-        replacement: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
-}
-pub type int32_t = libc::c_int;
-pub type dc_param_t = _dc_param;
+
+use crate::dc_tools::*;
+use crate::types::*;
+use crate::x::*;
+
 /* *
  * @class dc_param_t
  *
@@ -43,33 +17,10 @@ pub type dc_param_t = _dc_param;
  */
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct _dc_param {
+pub struct dc_param_t {
     pub packed: *mut libc::c_char,
 }
-/* for msgs and jobs */
-/* for msgs */
-/* for msgs */
-/* for msgs */
-/* for msgs */
-/* for msgs: incoming: message is encryoted, outgoing: guarantee E2EE or the message is not send */
-/* for msgs: decrypted with validation errors or without mutual set, if neither 'c' nor 'e' are preset, the messages is only transport encrypted */
-/* for msgs: force unencrypted message, either DC_FP_ADD_AUTOCRYPT_HEADER (1), DC_FP_NO_AUTOCRYPT_HEADER (2) or 0 */
-/* for msgs: an incoming message which requestes a MDN (aka read receipt) */
-/* for msgs */
-/* for msgs */
-/* for msgs */
-/* for msgs */
-/* for msgs */
-/* for msgs */
-/* for msgs */
-/* for msgs in PREPARING: space-separated list of message IDs of forwarded copies */
-/* for jobs */
-/* for jobs */
-/* for jobs */
-/* for jobs: space-separated list of message recipients */
-/* for groups */
-/* for groups and contacts */
-/* for chats */
+
 // values for DC_PARAM_FORCE_PLAINTEXT
 /* user functions */
 #[no_mangle]
