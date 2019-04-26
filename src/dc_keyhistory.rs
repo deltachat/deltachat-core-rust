@@ -17,5 +17,5 @@ pub unsafe extern "C" fn dc_add_to_keyhistory(
     mut addr: *const libc::c_char,
     mut fingerprint: *const libc::c_char,
 ) {
-    unimplemented!()
+
 }

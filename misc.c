@@ -49,24 +49,6 @@ char* dc_mprintf(const char* format, ...)
 	vsnprintf(buf, char_cnt_without_zero+1, format, argp_copy);
 	va_end(argp_copy);
 	return buf;
-
-	#if 0 /* old implementation based upon sqlite3 */
-	char *sqlite_str, *c_string;
-
-	va_list argp;
-	va_start(argp, format); /* expects the last non-variable argument as the second parameter */
-		sqlite_str = sqlite3_vmprintf(format, argp);
-	va_end(argp);
-
-	if (sqlite_str==NULL) {
-		return dc_strdup("ErrFmt"); /* error - the result must be free()'d */
-	}
-
-	/* as sqlite-strings must be freed using sqlite3_free() instead of a simple free(), convert it to a normal c-string */
-	c_string = dc_strdup(sqlite_str); /* exists on errors */
-	sqlite3_free(sqlite_str);
-	return c_string; /* success - the result must be free()'d */
-	#endif /* /old implementation based upon sqlite3 */
 }
 
 

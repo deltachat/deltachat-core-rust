@@ -23,8 +23,6 @@ pub struct dc_sqlite3_t {
     pub context: *mut dc_context_t,
 }
 
-pub type sqlite3_destructor_type = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>;
-
 #[no_mangle]
 pub unsafe extern "C" fn dc_sqlite3_new(mut context: *mut dc_context_t) -> *mut dc_sqlite3_t {
     let mut sql: *mut dc_sqlite3_t = 0 as *mut dc_sqlite3_t;
@@ -963,7 +961,8 @@ pub unsafe extern "C" fn dc_sqlite3_log_error(
     if sql.is_null() || msg_format.is_null() {
         return;
     }
-    msg = sqlite3_vmprintf(msg_format, va);
+    // FIXME: evil transmute
+    msg = sqlite3_vmprintf(msg_format, std::mem::transmute(va));
     dc_log_error(
         (*sql).context,
         0i32,

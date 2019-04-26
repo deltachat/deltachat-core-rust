@@ -6,18 +6,17 @@ use crate::dc_imap::dc_imap_t;
 use crate::dc_sqlite3::dc_sqlite3_t;
 use crate::x::*;
 
+pub use libsqlite3_sys::*;
+
 extern "C" {
     pub type __sFILEX;
 
     pub type _telldir;
     pub type mailstream_cancel;
-    pub type sqlite3;
-    pub type sqlite3_stmt;
 }
 
 pub type sqlite_int64 = libc::c_longlong;
 pub type sqlite3_int64 = sqlite_int64;
-pub type sqlite3_destructor_type = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>;
 
 pub type useconds_t = __darwin_useconds_t;
 pub type int32_t = libc::c_int;
