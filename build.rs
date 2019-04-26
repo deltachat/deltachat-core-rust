@@ -15,9 +15,7 @@ fn main() {
 
     println!("cargo:rustc-link-lib=dylib=sasl2");
     println!("cargo:rustc-link-lib=dylib=z");
-
     println!("cargo:rustc-link-lib=dylib=pthread");
-    println!("cargo:rustc-link-lib=dylib=crypto");
     println!("cargo:rustc-link-lib=dylib=tools");
 
     if std::env::var("TARGET").unwrap().contains("-apple") {

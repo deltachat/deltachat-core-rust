@@ -1,5 +1,6 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
+use rand::{thread_rng, Rng};
 
 use crate::dc_array::*;
 use crate::dc_context::dc_context_t;
@@ -989,18 +990,9 @@ pub unsafe extern "C" fn dc_create_id() -> *mut libc::c_char {
     - for OUTGOING messages this ID is written to the header as `Chat-Group-ID:` and is added to the message ID as Gr.<grpid>.<random>@<random>
     - for INCOMING messages, the ID is taken from the Chat-Group-ID-header or from the Message-ID in the In-Reply-To: or References:-Header
     - the group-id should be a string with the characters [a-zA-Z0-9\-_] */
-    let mut buf: [uint32_t; 3] = [0; 3];
-    if 0 == RAND_bytes(
-        &mut buf as *mut [uint32_t; 3] as *mut libc::c_uchar,
-        (::std::mem::size_of::<uint32_t>() as libc::c_ulong).wrapping_mul(3i32 as libc::c_ulong)
-            as libc::c_int,
-    ) {
-        RAND_pseudo_bytes(
-            &mut buf as *mut [uint32_t; 3] as *mut libc::c_uchar,
-            (::std::mem::size_of::<uint32_t>() as libc::c_ulong).wrapping_mul(3i32 as libc::c_ulong)
-                as libc::c_int,
-        );
-    }
+
+    let mut rng = thread_rng();
+    let mut buf: [uint32_t; 3] = [rng.gen(), rng.gen(), rng.gen()];
     return encode_66bits_as_base64(buf[0usize], buf[1usize], buf[2usize]);
 }
 /* ******************************************************************************

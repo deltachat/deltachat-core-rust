@@ -54,7 +54,6 @@ pub mod dc_mimeparser;
 pub mod dc_move;
 pub mod dc_msg;
 pub mod dc_oauth2;
-pub mod dc_openssl;
 pub mod dc_param;
 pub mod dc_pgp;
 pub mod dc_qr;

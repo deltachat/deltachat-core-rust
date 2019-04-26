@@ -66,8 +66,6 @@ extern "C" {
     pub fn opendir(_: *const libc::c_char) -> *mut DIR;
     pub fn readdir(_: *mut DIR) -> *mut dirent;
     pub fn sleep(_: libc::c_uint) -> libc::c_uint;
-    pub fn RAND_bytes(buf: *mut libc::c_uchar, num: libc::c_int) -> libc::c_int;
-    pub fn RAND_pseudo_bytes(buf: *mut libc::c_uchar, num: libc::c_int) -> libc::c_int;
     pub fn mmap_string_unref(str: *mut libc::c_char) -> libc::c_int;
     pub fn strncmp(_: *const libc::c_char, _: *const libc::c_char, _: libc::c_ulong)
         -> libc::c_int;
@@ -603,52 +601,6 @@ extern "C" {
         progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t, _: *mut libc::c_void) -> ()>,
         context: *mut libc::c_void,
     );
-    pub fn mailstream_openssl_init_not_required();
-
-    // -- OpenSSL
-
-    /* return CRYPTO_NUM_LOCKS (shared libs!) */
-    pub fn CRYPTO_num_locks() -> libc::c_int;
-    pub fn CRYPTO_set_locking_callback(
-        func: Option<
-            unsafe extern "C" fn(
-                _: libc::c_int,
-                _: libc::c_int,
-                _: *const libc::c_char,
-                _: libc::c_int,
-            ) -> (),
-        >,
-    );
-    pub fn CRYPTO_set_id_callback(func: Option<unsafe extern "C" fn() -> libc::c_ulong>);
-    pub fn CRYPTO_set_dynlock_create_callback(
-        dyn_create_function_0: Option<
-            unsafe extern "C" fn(
-                _: *const libc::c_char,
-                _: libc::c_int,
-            ) -> *mut CRYPTO_dynlock_value,
-        >,
-    );
-    pub fn CRYPTO_set_dynlock_lock_callback(
-        dyn_lock_function_0: Option<
-            unsafe extern "C" fn(
-                _: libc::c_int,
-                _: *mut CRYPTO_dynlock_value,
-                _: *const libc::c_char,
-                _: libc::c_int,
-            ) -> (),
-        >,
-    );
-    pub fn CRYPTO_set_dynlock_destroy_callback(
-        dyn_destroy_function_0: Option<
-            unsafe extern "C" fn(
-                _: *mut CRYPTO_dynlock_value,
-                _: *const libc::c_char,
-                _: libc::c_int,
-            ) -> (),
-        >,
-    );
-    pub fn OPENSSL_init();
-    pub fn OPENSSL_add_all_algorithms_noconf();
 
     // -- DC Methods
 

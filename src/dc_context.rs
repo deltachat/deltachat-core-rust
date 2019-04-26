@@ -13,7 +13,7 @@ use crate::dc_loginparam::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_move::*;
 use crate::dc_msg::*;
-use crate::dc_openssl::*;
+// use crate::dc_openssl::*;
 use crate::dc_pgp::*;
 use crate::dc_receive_imf::*;
 use crate::dc_smtp::*;
@@ -119,7 +119,7 @@ pub unsafe extern "C" fn dc_context_new(
     (*context).cb = if cb.is_some() { cb } else { Some(cb_dummy) };
     (*context).os_name = dc_strdup_keep_null(os_name);
     (*context).shall_stop_ongoing = 1i32;
-    dc_openssl_init();
+    // dc_openssl_init();
     dc_pgp_init();
     (*context).sql = dc_sqlite3_new(context);
     (*context).inbox = dc_imap_new(
@@ -288,7 +288,7 @@ pub unsafe extern "C" fn dc_context_unref(mut context: *mut dc_context_t) {
     dc_imap_unref((*context).mvbox_thread.imap);
     dc_smtp_unref((*context).smtp);
     dc_sqlite3_unref((*context).sql);
-    dc_openssl_exit();
+
     pthread_mutex_destroy(&mut (*context).smear_critical);
     pthread_mutex_destroy(&mut (*context).bobs_qr_critical);
     pthread_mutex_destroy(&mut (*context).inboxidle_condmutex);

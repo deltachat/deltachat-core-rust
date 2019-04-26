@@ -1,5 +1,6 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
+use rand::{thread_rng, Rng};
 
 use crate::dc_chat::*;
 use crate::dc_configure::*;
@@ -360,23 +361,10 @@ pub unsafe extern "C" fn dc_create_setup_code(mut context: *mut dc_context_t) ->
     };
     dc_strbuilder_init(&mut ret, 0i32);
     i = 0i32;
+    let mut rng = thread_rng();
     while i < 9i32 {
         loop {
-            if 0 == RAND_bytes(
-                &mut random_val as *mut uint16_t as *mut libc::c_uchar,
-                ::std::mem::size_of::<uint16_t>() as libc::c_ulong as libc::c_int,
-            ) {
-                dc_log_warning(
-                    context,
-                    0i32,
-                    b"Falling back to pseudo-number generation for the setup code.\x00" as *const u8
-                        as *const libc::c_char,
-                );
-                RAND_pseudo_bytes(
-                    &mut random_val as *mut uint16_t as *mut libc::c_uchar,
-                    ::std::mem::size_of::<uint16_t>() as libc::c_ulong as libc::c_int,
-                );
-            }
+            random_val = rng.gen();
             if !(random_val as libc::c_int > 60000i32) {
                 break;
             }
