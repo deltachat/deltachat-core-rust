@@ -486,7 +486,15 @@ extern "C" {
         _: *mut *mut libc::c_char,
         _: libc::c_int,
     ) -> libc::c_long;
+    #[cfg(target_os = "macos")]
     pub fn __assert_rtn(
+        _: *const libc::c_char,
+        _: *const libc::c_char,
+        _: libc::c_int,
+        _: *const libc::c_char,
+    ) -> !;
+    #[cfg(not(target_os = "macos"))]
+    fn __assert(
         _: *const libc::c_char,
         _: *const libc::c_char,
         _: libc::c_int,
@@ -641,4 +649,14 @@ extern "C" {
 
     pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
+}
+
+#[cfg(not(target_os = "macos"))]
+pub unsafe extern "C" fn __assert_rtn(
+    a: *const libc::c_char,
+    b: *const libc::c_char,
+    c: libc::c_int,
+    d: *const libc::c_char,
+) -> ! {
+    __assert(a, b, c, d)
 }
