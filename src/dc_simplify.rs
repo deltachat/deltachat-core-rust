@@ -1,0 +1,368 @@
+use libc;
+extern "C" {
+    #[no_mangle]
+    fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
+    #[no_mangle]
+    fn free(_: *mut libc::c_void);
+    #[no_mangle]
+    fn exit(_: libc::c_int) -> !;
+    #[no_mangle]
+    fn strcmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
+    #[no_mangle]
+    fn strlen(_: *const libc::c_char) -> libc::c_ulong;
+    #[no_mangle]
+    fn strncmp(_: *const libc::c_char, _: *const libc::c_char, _: libc::c_ulong) -> libc::c_int;
+    #[no_mangle]
+    fn strndup(_: *const libc::c_char, _: libc::c_ulong) -> *mut libc::c_char;
+    /* string tools */
+    #[no_mangle]
+    fn dc_strdup(_: *const libc::c_char) -> *mut libc::c_char;
+    #[no_mangle]
+    fn dc_remove_cr_chars(_: *mut libc::c_char);
+    #[no_mangle]
+    fn dc_split_into_lines(buf_terminated: *const libc::c_char) -> *mut carray;
+    #[no_mangle]
+    fn dc_free_splitted_lines(lines: *mut carray);
+    #[no_mangle]
+    fn dc_strbuilder_init(_: *mut dc_strbuilder_t, init_bytes: libc::c_int);
+    #[no_mangle]
+    fn dc_strbuilder_cat(_: *mut dc_strbuilder_t, text: *const libc::c_char) -> *mut libc::c_char;
+    /* ** library-internal *********************************************************/
+    #[no_mangle]
+    fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char;
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct carray_s {
+    pub array: *mut *mut libc::c_void,
+    pub len: libc::c_uint,
+    pub max: libc::c_uint,
+}
+pub type carray = carray_s;
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _dc_strbuilder {
+    pub buf: *mut libc::c_char,
+    pub allocated: libc::c_int,
+    pub free: libc::c_int,
+    pub eos: *mut libc::c_char,
+}
+pub type dc_strbuilder_t = _dc_strbuilder;
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _dc_simplify {
+    pub is_forwarded: libc::c_int,
+    pub is_cut_at_begin: libc::c_int,
+    pub is_cut_at_end: libc::c_int,
+}
+/* ** library-private **********************************************************/
+pub type dc_simplify_t = _dc_simplify;
+#[inline]
+unsafe extern "C" fn carray_count(mut array: *mut carray) -> libc::c_uint {
+    return (*array).len;
+}
+#[inline]
+unsafe extern "C" fn carray_get(
+    mut array: *mut carray,
+    mut indx: libc::c_uint,
+) -> *mut libc::c_void {
+    return *(*array).array.offset(indx as isize);
+}
+#[no_mangle]
+pub unsafe extern "C" fn dc_simplify_new() -> *mut dc_simplify_t {
+    let mut simplify: *mut dc_simplify_t = 0 as *mut dc_simplify_t;
+    simplify = calloc(
+        1i32 as libc::c_ulong,
+        ::std::mem::size_of::<dc_simplify_t>() as libc::c_ulong,
+    ) as *mut dc_simplify_t;
+    if simplify.is_null() {
+        exit(31i32);
+    }
+    return simplify;
+}
+#[no_mangle]
+pub unsafe extern "C" fn dc_simplify_unref(mut simplify: *mut dc_simplify_t) {
+    if simplify.is_null() {
+        return;
+    }
+    free(simplify as *mut libc::c_void);
+}
+/* Simplify and normalise text: Remove quotes, signatures, unnecessary
+lineends etc.
+The data returned from Simplify() must be free()'d when no longer used, private */
+#[no_mangle]
+pub unsafe extern "C" fn dc_simplify_simplify(
+    mut simplify: *mut dc_simplify_t,
+    mut in_unterminated: *const libc::c_char,
+    mut in_bytes: libc::c_int,
+    mut is_html: libc::c_int,
+    mut is_msgrmsg: libc::c_int,
+) -> *mut libc::c_char {
+    /* create a copy of the given buffer */
+    let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut temp: *mut libc::c_char = 0 as *mut libc::c_char;
+    if simplify.is_null() || in_unterminated.is_null() || in_bytes <= 0i32 {
+        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
+    }
+    (*simplify).is_forwarded = 0i32;
+    (*simplify).is_cut_at_begin = 0i32;
+    (*simplify).is_cut_at_end = 0i32;
+    out = strndup(
+        in_unterminated as *mut libc::c_char,
+        in_bytes as libc::c_ulong,
+    );
+    if out.is_null() {
+        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
+    }
+    if 0 != is_html {
+        temp = dc_dehtml(out);
+        if !temp.is_null() {
+            free(out as *mut libc::c_void);
+            out = temp
+        }
+    }
+    dc_remove_cr_chars(out);
+    temp = dc_simplify_simplify_plain_text(simplify, out, is_msgrmsg);
+    if !temp.is_null() {
+        free(out as *mut libc::c_void);
+        out = temp
+    }
+    dc_remove_cr_chars(out);
+    return out;
+}
+/* ******************************************************************************
+ * Simplify Plain Text
+ ******************************************************************************/
+unsafe extern "C" fn dc_simplify_simplify_plain_text(
+    mut simplify: *mut dc_simplify_t,
+    mut buf_terminated: *const libc::c_char,
+    mut is_msgrmsg: libc::c_int,
+) -> *mut libc::c_char {
+    /* This function ...
+    ... removes all text after the line `-- ` (footer mark)
+    ... removes full quotes at the beginning and at the end of the text -
+        these are all lines starting with the character `>`
+    ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
+    /* split the given buffer into lines */
+    let mut lines: *mut carray = dc_split_into_lines(buf_terminated);
+    let mut l: libc::c_int = 0i32;
+    let mut l_first: libc::c_int = 0i32;
+    /* if l_last is -1, there are no lines */
+    let mut l_last: libc::c_int =
+        carray_count(lines).wrapping_sub(1i32 as libc::c_uint) as libc::c_int;
+    let mut line: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut footer_mark: libc::c_int = 0i32;
+    l = l_first;
+    while l <= l_last {
+        line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+        if strcmp(line, b"-- \x00" as *const u8 as *const libc::c_char) == 0i32
+            || strcmp(line, b"--  \x00" as *const u8 as *const libc::c_char) == 0i32
+        {
+            footer_mark = 1i32
+        }
+        if strcmp(line, b"--\x00" as *const u8 as *const libc::c_char) == 0i32
+            || strcmp(line, b"---\x00" as *const u8 as *const libc::c_char) == 0i32
+            || strcmp(line, b"----\x00" as *const u8 as *const libc::c_char) == 0i32
+        {
+            footer_mark = 1i32;
+            (*simplify).is_cut_at_end = 1i32
+        }
+        if 0 != footer_mark {
+            l_last = l - 1i32;
+            /* done */
+            break;
+        } else {
+            l += 1
+        }
+    }
+    if l_last - l_first + 1i32 >= 3i32 {
+        let mut line0: *mut libc::c_char =
+            carray_get(lines, l_first as libc::c_uint) as *mut libc::c_char;
+        let mut line1: *mut libc::c_char =
+            carray_get(lines, (l_first + 1i32) as libc::c_uint) as *mut libc::c_char;
+        let mut line2: *mut libc::c_char =
+            carray_get(lines, (l_first + 2i32) as libc::c_uint) as *mut libc::c_char;
+        if strcmp(
+            line0,
+            b"---------- Forwarded message ----------\x00" as *const u8 as *const libc::c_char,
+        ) == 0i32
+            && strncmp(
+                line1,
+                b"From: \x00" as *const u8 as *const libc::c_char,
+                6i32 as libc::c_ulong,
+            ) == 0i32
+            && *line2.offset(0isize) as libc::c_int == 0i32
+        {
+            (*simplify).is_forwarded = 1i32;
+            l_first += 3i32
+        }
+    }
+    l = l_first;
+    while l <= l_last {
+        line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+        if strncmp(
+            line,
+            b"-----\x00" as *const u8 as *const libc::c_char,
+            5i32 as libc::c_ulong,
+        ) == 0i32
+            || strncmp(
+                line,
+                b"_____\x00" as *const u8 as *const libc::c_char,
+                5i32 as libc::c_ulong,
+            ) == 0i32
+            || strncmp(
+                line,
+                b"=====\x00" as *const u8 as *const libc::c_char,
+                5i32 as libc::c_ulong,
+            ) == 0i32
+            || strncmp(
+                line,
+                b"*****\x00" as *const u8 as *const libc::c_char,
+                5i32 as libc::c_ulong,
+            ) == 0i32
+            || strncmp(
+                line,
+                b"~~~~~\x00" as *const u8 as *const libc::c_char,
+                5i32 as libc::c_ulong,
+            ) == 0i32
+        {
+            l_last = l - 1i32;
+            (*simplify).is_cut_at_end = 1i32;
+            /* done */
+            break;
+        } else {
+            l += 1
+        }
+    }
+    if 0 == is_msgrmsg {
+        let mut l_lastQuotedLine: libc::c_int = -1i32;
+        l = l_last;
+        while l >= l_first {
+            line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+            if 0 != is_plain_quote(line) {
+                l_lastQuotedLine = l
+            } else if 0 == is_empty_line(line) {
+                break;
+            }
+            l -= 1
+        }
+        if l_lastQuotedLine != -1i32 {
+            l_last = l_lastQuotedLine - 1i32;
+            (*simplify).is_cut_at_end = 1i32;
+            if l_last > 0i32 {
+                if 0 != is_empty_line(carray_get(lines, l_last as libc::c_uint) as *mut libc::c_char)
+                {
+                    l_last -= 1
+                }
+            }
+            if l_last > 0i32 {
+                line = carray_get(lines, l_last as libc::c_uint) as *mut libc::c_char;
+                if 0 != is_quoted_headline(line) {
+                    l_last -= 1
+                }
+            }
+        }
+    }
+    if 0 == is_msgrmsg {
+        let mut l_lastQuotedLine_0: libc::c_int = -1i32;
+        let mut hasQuotedHeadline: libc::c_int = 0i32;
+        l = l_first;
+        while l <= l_last {
+            line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+            if 0 != is_plain_quote(line) {
+                l_lastQuotedLine_0 = l
+            } else if 0 == is_empty_line(line) {
+                if 0 != is_quoted_headline(line)
+                    && 0 == hasQuotedHeadline
+                    && l_lastQuotedLine_0 == -1i32
+                {
+                    hasQuotedHeadline = 1i32
+                } else {
+                    /* non-quoting line found */
+                    break;
+                }
+            }
+            l += 1
+        }
+        if l_lastQuotedLine_0 != -1i32 {
+            l_first = l_lastQuotedLine_0 + 1i32;
+            (*simplify).is_cut_at_begin = 1i32
+        }
+    }
+    /* re-create buffer from the remaining lines */
+    let mut ret: dc_strbuilder_t = _dc_strbuilder {
+        buf: 0 as *mut libc::c_char,
+        allocated: 0,
+        free: 0,
+        eos: 0 as *mut libc::c_char,
+    };
+    dc_strbuilder_init(&mut ret, strlen(buf_terminated) as libc::c_int);
+    if 0 != (*simplify).is_cut_at_begin {
+        dc_strbuilder_cat(&mut ret, b"[...] \x00" as *const u8 as *const libc::c_char);
+    }
+    /* we write empty lines only in case and non-empty line follows */
+    let mut pending_linebreaks: libc::c_int = 0i32;
+    let mut content_lines_added: libc::c_int = 0i32;
+    l = l_first;
+    while l <= l_last {
+        line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+        if 0 != is_empty_line(line) {
+            pending_linebreaks += 1
+        } else {
+            if 0 != content_lines_added {
+                if pending_linebreaks > 2i32 {
+                    pending_linebreaks = 2i32
+                }
+                while 0 != pending_linebreaks {
+                    dc_strbuilder_cat(&mut ret, b"\n\x00" as *const u8 as *const libc::c_char);
+                    pending_linebreaks -= 1
+                }
+            }
+            dc_strbuilder_cat(&mut ret, line);
+            content_lines_added += 1;
+            pending_linebreaks = 1i32
+        }
+        l += 1
+    }
+    if 0 != (*simplify).is_cut_at_end
+        && (0 == (*simplify).is_cut_at_begin || 0 != content_lines_added)
+    {
+        dc_strbuilder_cat(&mut ret, b" [...]\x00" as *const u8 as *const libc::c_char);
+    }
+    dc_free_splitted_lines(lines);
+    return ret.buf;
+}
+/* ******************************************************************************
+ * Tools
+ ******************************************************************************/
+unsafe extern "C" fn is_empty_line(mut buf: *const libc::c_char) -> libc::c_int {
+    /* force unsigned - otherwise the `> ' '` comparison will fail */
+    let mut p1: *const libc::c_uchar = buf as *const libc::c_uchar;
+    while 0 != *p1 {
+        if *p1 as libc::c_int > ' ' as i32 {
+            return 0i32;
+        }
+        p1 = p1.offset(1isize)
+    }
+    return 1i32;
+}
+unsafe extern "C" fn is_quoted_headline(mut buf: *const libc::c_char) -> libc::c_int {
+    /* This function may be called for the line _directly_ before a quote.
+    The function checks if the line contains sth. like "On 01.02.2016, xy@z wrote:" in various languages.
+    - Currently, we simply check if the last character is a ':'.
+    - Checking for the existance of an email address may fail (headlines may show the user's name instead of the address) */
+    let mut buf_len: libc::c_int = strlen(buf) as libc::c_int;
+    if buf_len > 80i32 {
+        return 0i32;
+    }
+    if buf_len > 0i32 && *buf.offset((buf_len - 1i32) as isize) as libc::c_int == ':' as i32 {
+        return 1i32;
+    }
+    return 0i32;
+}
+unsafe extern "C" fn is_plain_quote(mut buf: *const libc::c_char) -> libc::c_int {
+    if *buf.offset(0isize) as libc::c_int == '>' as i32 {
+        return 1i32;
+    }
+    return 0i32;
+}
