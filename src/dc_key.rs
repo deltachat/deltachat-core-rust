@@ -24,8 +24,16 @@ pub struct dc_key_t {
 
 #[no_mangle]
 #[inline]
+#[cfg(target_os = "macos")]
 pub unsafe extern "C" fn toupper(mut _c: libc::c_int) -> libc::c_int {
     return __toupper(_c);
+}
+
+#[no_mangle]
+#[inline]
+#[cfg(not(target_os = "macos"))]
+pub unsafe extern "C" fn toupper(mut _c: libc::c_int) -> libc::c_int {
+    return _toupper(_c);
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_key_new() -> *mut dc_key_t {

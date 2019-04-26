@@ -91,7 +91,10 @@ extern "C" {
         result: *mut *mut libc::c_char,
         result_len: *mut size_t,
     ) -> libc::c_int;
+    #[cfg(target_os = "macos")]
     pub fn __toupper(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
+    #[cfg(not(target_os = "macos"))]
+    pub fn _toupper(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
     pub fn memcmp(_: *const libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> libc::c_int;
     pub fn encode_base64(in_0: *const libc::c_char, len: libc::c_int) -> *mut libc::c_char;
     pub fn mmap_string_new(init: *const libc::c_char) -> *mut MMAPString;
@@ -279,8 +282,10 @@ extern "C" {
     pub fn mailmime_substitute(old_mime: *mut mailmime, new_mime: *mut mailmime) -> libc::c_int;
     pub fn mailprivacy_prepare_mime(mime: *mut mailmime);
     pub fn atol(_: *const libc::c_char) -> libc::c_long;
-    pub fn __maskrune(_: __darwin_ct_rune_t, _: libc::c_ulong) -> libc::c_int;
+    #[cfg(target_os = "macos")]
     pub fn __tolower(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
+    #[cfg(not(target_os = "macos"))]
+    pub fn _tolower(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
     pub fn mmap_string_append(string: *mut MMAPString, val: *const libc::c_char)
         -> *mut MMAPString;
     pub fn mmap_string_append_len(

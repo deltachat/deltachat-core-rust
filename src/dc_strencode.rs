@@ -8,14 +8,7 @@ use crate::x::*;
 unsafe extern "C" fn isascii(mut _c: libc::c_int) -> libc::c_int {
     return (_c & !0x7fi32 == 0i32) as libc::c_int;
 }
-#[inline]
-unsafe extern "C" fn __istype(mut _c: __darwin_ct_rune_t, mut _f: libc::c_ulong) -> libc::c_int {
-    return if 0 != isascii(_c) {
-        (0 != _DefaultRuneLocale.__runetype[_c as usize] as libc::c_ulong & _f) as libc::c_int
-    } else {
-        (0 != __maskrune(_c, _f)) as libc::c_int
-    };
-}
+
 #[inline]
 unsafe extern "C" fn __isctype(
     mut _c: __darwin_ct_rune_t,
@@ -27,15 +20,33 @@ unsafe extern "C" fn __isctype(
         (0 != _DefaultRuneLocale.__runetype[_c as usize] as libc::c_ulong & _f) as libc::c_int
     };
 }
+
 #[no_mangle]
 #[inline]
-pub unsafe extern "C" fn isalnum(mut _c: libc::c_int) -> libc::c_int {
-    return __istype(_c, (0x100i64 | 0x400i64) as libc::c_ulong);
+pub fn isalnum(mut _c: libc::c_int) -> libc::c_int {
+    if _c < std::u8::MAX as libc::c_int {
+        (_c as u8 as char).is_ascii_alphanumeric() as libc::c_int
+    } else {
+        0
+    }
 }
+
+#[cfg(test)]
+#[test]
+fn test_isalnum() {
+    assert_eq!(isalnum(0), 0);
+    assert_eq!(isalnum('5' as libc::c_int), 1);
+    assert_eq!(isalnum('Q' as libc::c_int), 1);
+}
+
 #[no_mangle]
 #[inline]
-pub unsafe extern "C" fn isdigit(mut _c: libc::c_int) -> libc::c_int {
-    return __isctype(_c, 0x400i64 as libc::c_ulong);
+pub fn isdigit(mut _c: libc::c_int) -> libc::c_int {
+    if _c < std::u8::MAX as libc::c_int {
+        (_c as u8 as char).is_ascii_digit() as libc::c_int
+    } else {
+        0
+    }
 }
 
 #[no_mangle]

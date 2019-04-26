@@ -1311,27 +1311,29 @@ pub struct _dc_sqlite3 {
 pub unsafe extern "C" fn isascii(mut _c: libc::c_int) -> libc::c_int {
     return (_c & !0x7fi32 == 0i32) as libc::c_int;
 }
-#[inline]
-pub unsafe extern "C" fn __istype(
-    mut _c: __darwin_ct_rune_t,
-    mut _f: libc::c_ulong,
-) -> libc::c_int {
-    return if 0 != isascii(_c) {
-        (0 != _DefaultRuneLocale.__runetype[_c as usize] as libc::c_ulong & _f) as libc::c_int
-    } else {
-        (0 != __maskrune(_c, _f)) as libc::c_int
-    };
-}
+
 #[no_mangle]
 #[inline]
 pub unsafe extern "C" fn isspace(mut _c: libc::c_int) -> libc::c_int {
-    return __istype(_c, 0x4000i64 as libc::c_ulong);
+    if _c < std::u8::MAX as libc::c_int {
+        ((_c as u8 as char) == ' ') as libc::c_int
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
 #[inline]
+#[cfg(target_os = "macos")]
 pub unsafe extern "C" fn tolower(mut _c: libc::c_int) -> libc::c_int {
     return __tolower(_c);
+}
+
+#[no_mangle]
+#[inline]
+#[cfg(not(target_os = "macos"))]
+pub unsafe extern "C" fn tolower(mut _c: libc::c_int) -> libc::c_int {
+    return _tolower(_c);
 }
 
 #[inline]
