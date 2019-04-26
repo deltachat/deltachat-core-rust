@@ -941,9 +941,30 @@ pub struct mailmime {
     pub mm_mime_fields: *mut mailmime_fields,
     pub mm_content_type: *mut mailmime_content,
     pub mm_body: *mut mailmime_data,
-    pub mm_data: unnamed_12,
+    pub mm_data: unnamed_12n,
 }
 
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub union unnamed_12n {
+    pub mm_single: *mut mailmime_data,
+    pub mm_multipart: unnamed_14n,
+    pub mm_message: unnamed_13n,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct unnamed_13n {
+    pub mm_fields: *mut mailimf_fields,
+    pub mm_msg_mime: *mut mailmime,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct unnamed_14n {
+    pub mm_preamble: *mut mailmime_data,
+    pub mm_epilogue: *mut mailmime_data,
+    pub mm_mp_list: *mut clist,
+}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct mailmime_fields {
@@ -1434,3 +1455,101 @@ pub const DC_RETRY_LATER: dc_imap_res = 1;
 pub const DC_FAILED: dc_imap_res = 0;
 
 pub type dc_move_state_t = libc::c_uint;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailmime_disposition_parm {
+    pub pa_type: libc::c_int,
+    pub pa_data: unnamed_20n,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub union unnamed_20n {
+    pub pa_filename: *mut libc::c_char,
+    pub pa_creation_date: *mut libc::c_char,
+    pub pa_modification_date: *mut libc::c_char,
+    pub pa_read_date: *mut libc::c_char,
+    pub pa_size: size_t,
+    pub pa_parameter: *mut mailmime_parameter,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailmime_field {
+    pub fld_type: libc::c_int,
+    pub fld_data: unnamed_5n,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub union unnamed_5n {
+    pub fld_content: *mut mailmime_content,
+    pub fld_encoding: *mut mailmime_mechanism,
+    pub fld_id: *mut libc::c_char,
+    pub fld_description: *mut libc::c_char,
+    pub fld_version: uint32_t,
+    pub fld_disposition: *mut mailmime_disposition,
+    pub fld_language: *mut mailmime_language,
+    pub fld_location: *mut libc::c_char,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailmime_language {
+    pub lg_list: *mut clist,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailmime_disposition {
+    pub dsp_type: *mut mailmime_disposition_type,
+    pub dsp_parms: *mut clist,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailmime_disposition_type {
+    pub dsp_type: libc::c_int,
+    pub dsp_extension: *mut libc::c_char,
+}
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailmime_mechanism {
+    pub enc_type: libc::c_int,
+    pub enc_token: *mut libc::c_char,
+}
+
+pub const MAILIMF_ADDRESS_GROUP: libc::c_uint = 2;
+pub const MAILIMF_ADDRESS_MAILBOX: libc::c_uint = 1;
+pub const MAILIMF_ADDRESS_ERROR: libc::c_uint = 0;
+pub const MAILMIME_MECHANISM_TOKEN: libc::c_uint = 6;
+pub const MAILMIME_MECHANISM_BASE64: libc::c_uint = 5;
+pub const MAILMIME_MECHANISM_QUOTED_PRINTABLE: libc::c_uint = 4;
+pub const MAILMIME_MECHANISM_BINARY: libc::c_uint = 3;
+pub const MAILMIME_MECHANISM_8BIT: libc::c_uint = 2;
+pub const MAILMIME_MECHANISM_7BIT: libc::c_uint = 1;
+pub const MAILMIME_MECHANISM_ERROR: libc::c_uint = 0;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailimf_group {
+    pub grp_display_name: *mut libc::c_char,
+    pub grp_mb_list: *mut mailimf_mailbox_list,
+}
+
+pub const MAILMIME_DISPOSITION_TYPE_EXTENSION: libc::c_uint = 3;
+pub const MAILMIME_DISPOSITION_TYPE_ATTACHMENT: libc::c_uint = 2;
+pub const MAILMIME_DISPOSITION_TYPE_INLINE: libc::c_uint = 1;
+pub const MAILMIME_DISPOSITION_TYPE_ERROR: libc::c_uint = 0;
+pub const MAILMIME_DISPOSITION_PARM_PARAMETER: libc::c_uint = 5;
+pub const MAILMIME_DISPOSITION_PARM_SIZE: libc::c_uint = 4;
+pub const MAILMIME_DISPOSITION_PARM_READ_DATE: libc::c_uint = 3;
+pub const MAILMIME_DISPOSITION_PARM_MODIFICATION_DATE: libc::c_uint = 2;
+pub const MAILMIME_DISPOSITION_PARM_CREATION_DATE: libc::c_uint = 1;
+pub const MAILMIME_DISPOSITION_PARM_FILENAME: libc::c_uint = 0;
+
+pub const MAILMIME_FIELD_LOCATION: libc::c_uint = 8;
+pub const MAILMIME_FIELD_LANGUAGE: libc::c_uint = 7;
+pub const MAILMIME_FIELD_DISPOSITION: libc::c_uint = 6;
+pub const MAILMIME_FIELD_VERSION: libc::c_uint = 5;
+pub const MAILMIME_FIELD_DESCRIPTION: libc::c_uint = 4;
+pub const MAILMIME_FIELD_ID: libc::c_uint = 3;
+pub const MAILMIME_FIELD_TRANSFER_ENCODING: libc::c_uint = 2;
+pub const MAILMIME_FIELD_TYPE: libc::c_uint = 1;
+pub const MAILMIME_FIELD_NONE: libc::c_uint = 0;

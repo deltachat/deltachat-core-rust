@@ -87,8 +87,6 @@ extern "C" {
         _: *mut clistiter,
         _: *mut libc::c_void,
     ) -> libc::c_int;
-    pub fn clist_free_content(_: *const clist);
-    pub fn clist_search_string_nocase(_: *const clist, str: *const libc::c_char) -> libc::c_int;
     pub fn closedir(_: *mut DIR) -> libc::c_int;
     pub fn opendir(_: *const libc::c_char) -> *mut DIR;
     pub fn readdir(_: *mut DIR) -> *mut dirent;
@@ -261,7 +259,6 @@ extern "C" {
         _: libc::c_double,
     ) -> libc::c_int;
     pub fn sqlite3_column_double(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_double;
-    pub fn mkgmtime(_: *mut tm) -> time_t;
     pub fn pthread_self() -> pthread_t;
     pub fn clist_delete(_: *mut clist, _: *mut clistiter) -> *mut clistiter;
     pub fn mailimf_fields_free(fields: *mut mailimf_fields);

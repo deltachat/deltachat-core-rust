@@ -1,9 +1,20 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::dc_chat::*;
+use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
+use crate::dc_e2ee::*;
+use crate::dc_hash::*;
+use crate::dc_location::*;
+use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
-use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::dc_msg::*;
+use crate::dc_param::*;
+use crate::dc_sqlite3::*;
+use crate::dc_stock::*;
+use crate::dc_strencode::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 /* *
@@ -332,7 +343,7 @@ pub unsafe extern "C" fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_
     let mut force_plaintext: libc::c_int = 0i32;
     let mut do_gossip: libc::c_int = 0i32;
     let mut grpimage: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut e2ee_helper: dc_e2ee_helper_t = _dc_e2ee_helper {
+    let mut e2ee_helper: dc_e2ee_helper_t = dc_e2ee_helper_t {
         encryption_successfull: 0,
         cdata_to_free: 0 as *mut libc::c_void,
         encrypted: 0,

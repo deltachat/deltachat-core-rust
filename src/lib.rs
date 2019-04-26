@@ -31,7 +31,7 @@ pub mod dc_configure;
 pub mod dc_contact;
 pub mod dc_context;
 // pub mod dc_dehtml;
-// pub mod dc_e2ee;
+pub mod dc_e2ee;
 pub mod dc_hash;
 pub mod dc_imap;
 // pub mod dc_imex;

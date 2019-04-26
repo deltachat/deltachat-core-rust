@@ -1,9 +1,19 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::dc_array::*;
+use crate::dc_chat::*;
 use crate::dc_context::dc_context_t;
+use crate::dc_job::*;
+use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
-use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::dc_msg::*;
+use crate::dc_param::*;
+use crate::dc_saxparser::*;
+use crate::dc_sqlite3::*;
+use crate::dc_stock::*;
+use crate::dc_strbuilder::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -538,7 +548,7 @@ pub unsafe extern "C" fn dc_kml_parse(
         ::std::mem::size_of::<dc_kml_t>() as libc::c_ulong,
     ) as *mut dc_kml_t;
     let mut content_nullterminated: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut saxparser: dc_saxparser_t = _dc_saxparser {
+    let mut saxparser: dc_saxparser_t = dc_saxparser_t {
         starttag_cb: None,
         endtag_cb: None,
         text_cb: None,
