@@ -62,27 +62,36 @@ pub mod dc_strencode;
 pub mod dc_token;
 pub mod dc_tools;
 
+pub mod types;
+
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use std::ffi::{CStr, CString};
     use std::os::raw::c_int;
     use std::ptr::NonNull;
 
+    use crate::dc_chat::*;
+    use crate::dc_chatlist::*;
     use crate::dc_configure::dc_configure;
+    use crate::dc_contact::*;
     use crate::dc_context::*;
-    use crate::dc_job::{dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs};
+    use crate::dc_imap::*;
+    use crate::dc_job::{
+        dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs, dc_perform_smtp_idle,
+        dc_perform_smtp_jobs,
+    };
+    use crate::dc_lot::*;
 
     extern "C" fn cb(ctx: *mut dc_context_t, event: c_int, data1: u64, data2: u64) -> u64 {
-        let info = if data2 > 0 {
-            Some(unsafe { CStr::from_ptr(data2 as *const _) })
-        } else {
-            None
-        };
-
-        println!("event: {} - {} - {:?}", event, data1, info);
-
+        println!("event: {} ({}, {})", event, data1, data2);
+        if data2 > 10000 {
+            println!(
+                "  {}",
+                unsafe { CStr::from_ptr(data2 as *const _) }
+                    .to_str()
+                    .unwrap()
+            );
+        }
         0
     }
 
@@ -97,32 +106,71 @@ mod tests {
             let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
             let info = dc_get_info(ctx);
             let info_s = CStr::from_ptr(info);
-            println!("info: {:?}", info_s);
-
-            let dbfile = CString::new("hello.db").unwrap();
-            let blobdir = CString::new("hello").unwrap();
-            dc_open(ctx, dbfile.as_ptr(), blobdir.as_ptr());
+            println!("info: {}", info_s.to_str().unwrap());
 
             let sendable_ctx = Wrapper(NonNull::new(ctx).unwrap());
-
-            dc_set_config(
-                ctx,
-                CString::new("addr").unwrap().as_ptr(),
-                CString::new("d@testrun.org").unwrap().as_ptr(),
-            );
-            dc_set_config(
-                ctx,
-                CString::new("mail_pw").unwrap().as_ptr(),
-                CString::new("__").unwrap().as_ptr(),
-            );
-            dc_configure(ctx);
-
-            std::thread::spawn(move || loop {
+            let t1 = std::thread::spawn(move || loop {
                 dc_perform_imap_jobs(sendable_ctx.0.as_ptr());
                 dc_perform_imap_fetch(sendable_ctx.0.as_ptr());
                 dc_perform_imap_idle(sendable_ctx.0.as_ptr());
-            })
-            .join();
+            });
+
+            let sendable_ctx = Wrapper(NonNull::new(ctx).unwrap());
+            let t2 = std::thread::spawn(move || loop {
+                dc_perform_smtp_jobs(sendable_ctx.0.as_ptr());
+                dc_perform_smtp_idle(sendable_ctx.0.as_ptr());
+            });
+
+            let dbfile = CString::new("../deltachat-core/build/hello.db").unwrap();
+            println!("opening dir");
+            dc_open(ctx, dbfile.as_ptr(), std::ptr::null());
+
+            dc_configure(ctx);
+
+            std::thread::sleep_ms(4000);
+
+            let email = CString::new("dignifiedquire@gmail.com").unwrap();
+            println!("sending a message");
+            let contact_id = dc_create_contact(ctx, std::ptr::null(), email.as_ptr());
+            let chat_id = dc_create_chat_by_contact_id(ctx, contact_id);
+            let msg_text = CString::new("Hi, here is my first message!").unwrap();
+            dc_send_text_msg(ctx, chat_id, msg_text.as_ptr());
+
+            println!("fetching chats..");
+            let chats = dc_get_chatlist(ctx, 0, std::ptr::null(), 0);
+
+            for i in 0..dc_chatlist_get_cnt(chats) {
+                let summary = dc_chatlist_get_summary(chats, 0, std::ptr::null_mut());
+                let text1 = dc_lot_get_text1(summary);
+                let text2 = dc_lot_get_text2(summary);
+
+                let text1_s = if !text1.is_null() {
+                    Some(CStr::from_ptr(text1))
+                } else {
+                    None
+                };
+                let text2_s = if !text2.is_null() {
+                    Some(CStr::from_ptr(text2))
+                } else {
+                    None
+                };
+                println!("chat: {} - {:?} - {:?}", i, text1_s, text2_s,);
+                dc_lot_unref(summary);
+            }
+            dc_chatlist_unref(chats);
+
+            // let msglist = dc_get_chat_msgs(ctx, chat_id, 0, 0);
+            // for i in 0..dc_array_get_cnt(msglist) {
+            //     let msg_id = dc_array_get_id(msglist, i);
+            //     let msg = dc_get_msg(context, msg_id);
+            //     let text = CStr::from_ptr(dc_msg_get_text(msg)).unwrap();
+            //     println!("Message {}: {}\n", i + 1, text.to_str().unwrap());
+            //     dc_msg_unref(msg);
+            // }
+            // dc_array_unref(msglist);
+
+            t1.join().unwrap();
+            t2.join().unwrap();
         }
     }
 }

@@ -779,7 +779,7 @@ pub struct _dc_context {
     pub ongoing_running: libc::c_int,
     pub shall_stop_ongoing: libc::c_int,
 }
-pub type dc_lot_t = _dc_lot;
+use crate::dc_lot::dc_lot_t;
 /* * Structure behind dc_lot_t */
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -989,7 +989,7 @@ pub type dc_callback_t = Option<
  * SQLite database for offline functionality and for account-related
  * settings.
  */
-pub type dc_context_t = _dc_context;
+use crate::dc_context::dc_context_t;
 /* ** library-private **********************************************************/
 pub type dc_smtp_t = _dc_smtp;
 #[derive(Copy, Clone)]
@@ -1088,16 +1088,7 @@ pub type dc_get_config_t = Option<
     ) -> *mut libc::c_char,
 >;
 /* ** library-private **********************************************************/
-pub type dc_sqlite3_t = _dc_sqlite3;
-/* *
- * Library-internal.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_sqlite3 {
-    pub cobj: *mut sqlite3,
-    pub context: *mut dc_context_t,
-}
+use crate::dc_sqlite3::dc_sqlite3_t;
 pub type dc_param_t = _dc_param;
 /* *
  * @class dc_param_t

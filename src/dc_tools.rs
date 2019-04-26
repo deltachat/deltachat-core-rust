@@ -1,10 +1,11 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::types::*;
+
 extern "C" {
-    pub type mailstream_cancel;
     pub type __sFILEX;
-    pub type sqlite3;
+
     #[no_mangle]
     static mut _DefaultRuneLocale: _RuneLocale;
     #[no_mangle]
@@ -188,20 +189,6 @@ pub type __darwin_ino64_t = __uint64_t;
 pub type __darwin_mode_t = __uint16_t;
 pub type __darwin_off_t = __int64_t;
 pub type __darwin_uid_t = __uint32_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_cond_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 40],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_mutex_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 56],
-}
-pub type __darwin_pthread_cond_t = _opaque_pthread_cond_t;
-pub type __darwin_pthread_mutex_t = _opaque_pthread_mutex_t;
 pub type size_t = __darwin_size_t;
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -765,7 +752,7 @@ pub struct _dc_context {
     pub ongoing_running: libc::c_int,
     pub shall_stop_ongoing: libc::c_int,
 }
-pub type dc_lot_t = _dc_lot;
+use crate::dc_lot::dc_lot_t;
 /* * Structure behind dc_lot_t */
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -975,7 +962,7 @@ pub type dc_callback_t = Option<
  * SQLite database for offline functionality and for account-related
  * settings.
  */
-pub type dc_context_t = _dc_context;
+use crate::dc_context::dc_context_t;
 /* ** library-private **********************************************************/
 pub type dc_smtp_t = _dc_smtp;
 #[derive(Copy, Clone)]
@@ -1074,7 +1061,7 @@ pub type dc_get_config_t = Option<
     ) -> *mut libc::c_char,
 >;
 /* ** library-private **********************************************************/
-pub type dc_sqlite3_t = _dc_sqlite3;
+use crate::dc_sqlite3::dc_sqlite3_t;
 /* *
  * Library-internal.
  */

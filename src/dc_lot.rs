@@ -1,8 +1,14 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
+
+use crate::dc_context::dc_context_t;
+use crate::dc_imap::dc_imap_t;
+use crate::dc_jobthread::dc_jobthread_t;
+use crate::dc_smtp::dc_smtp_t;
+use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::types::*;
+
 extern "C" {
-    pub type mailstream_cancel;
-    pub type sqlite3;
     #[no_mangle]
     fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
@@ -652,72 +658,6 @@ pub type dc_callback_t = Option<
  * SQLite database for offline functionality and for account-related
  * settings.
  */
-pub type dc_context_t = _dc_context;
-/* ** library-private **********************************************************/
-pub type dc_smtp_t = _dc_smtp;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_smtp {
-    pub etpan: *mut mailsmtp,
-    pub from: *mut libc::c_char,
-    pub esmtp: libc::c_int,
-    pub log_connect_errors: libc::c_int,
-    pub context: *mut dc_context_t,
-    pub error: *mut libc::c_char,
-    pub error_etpan: libc::c_int,
-}
-pub type dc_jobthread_t = _dc_jobthread;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_jobthread {
-    pub context: *mut dc_context_t,
-    pub name: *mut libc::c_char,
-    pub folder_config_name: *mut libc::c_char,
-    pub imap: *mut _dc_imap,
-    pub mutex: pthread_mutex_t,
-    pub idle_cond: pthread_cond_t,
-    pub idle_condflag: libc::c_int,
-    pub jobs_needed: libc::c_int,
-    pub suspended: libc::c_int,
-    pub using_handle: libc::c_int,
-}
-/* *
- * Library-internal.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_imap {
-    pub addr: *mut libc::c_char,
-    pub imap_server: *mut libc::c_char,
-    pub imap_port: libc::c_int,
-    pub imap_user: *mut libc::c_char,
-    pub imap_pw: *mut libc::c_char,
-    pub server_flags: libc::c_int,
-    pub connected: libc::c_int,
-    pub etpan: *mut mailimap,
-    pub idle_set_up: libc::c_int,
-    pub selected_folder: *mut libc::c_char,
-    pub selected_folder_needs_expunge: libc::c_int,
-    pub should_reconnect: libc::c_int,
-    pub can_idle: libc::c_int,
-    pub has_xlist: libc::c_int,
-    pub imap_delimiter: libc::c_char,
-    pub watch_folder: *mut libc::c_char,
-    pub watch_cond: pthread_cond_t,
-    pub watch_condmutex: pthread_mutex_t,
-    pub watch_condflag: libc::c_int,
-    pub fetch_type_prefetch: *mut mailimap_fetch_type,
-    pub fetch_type_body: *mut mailimap_fetch_type,
-    pub fetch_type_flags: *mut mailimap_fetch_type,
-    pub get_config: dc_get_config_t,
-    pub set_config: dc_set_config_t,
-    pub precheck_imf: dc_precheck_imf_t,
-    pub receive_imf: dc_receive_imf_t,
-    pub userData: *mut libc::c_void,
-    pub context: *mut dc_context_t,
-    pub log_connect_errors: libc::c_int,
-    pub skip_log_capabilities: libc::c_int,
-}
 pub type dc_receive_imf_t = Option<
     unsafe extern "C" fn(
         _: *mut dc_imap_t,
@@ -728,10 +668,6 @@ pub type dc_receive_imf_t = Option<
         _: uint32_t,
     ) -> (),
 >;
-/* Purpose: Reading from IMAP servers with no dependencies to the database.
-dc_context_t is only used for logging and to get information about
-the online state. */
-pub type dc_imap_t = _dc_imap;
 pub type dc_precheck_imf_t = Option<
     unsafe extern "C" fn(
         _: *mut dc_imap_t,
@@ -751,16 +687,10 @@ pub type dc_get_config_t = Option<
     ) -> *mut libc::c_char,
 >;
 /* ** library-private **********************************************************/
-pub type dc_sqlite3_t = _dc_sqlite3;
+
 /* *
  * Library-internal.
  */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_sqlite3 {
-    pub cobj: *mut sqlite3,
-    pub context: *mut dc_context_t,
-}
 /* values for the chats.blocked database field */
 /* * the structure behind dc_chat_t */
 #[derive(Copy, Clone)]

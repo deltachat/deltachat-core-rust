@@ -1,5 +1,8 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
+
+use crate::types::*;
+
 extern "C" {
     pub type mailstream_cancel;
     pub type sqlite3;
@@ -304,58 +307,6 @@ pub union unnamed_1 {
     pub ft_fetch_att: *mut mailimap_fetch_att,
     pub ft_fetch_att_list: *mut clist,
 }
-pub type mailimap_msg_att_handler =
-    unsafe extern "C" fn(_: *mut mailimap_msg_att, _: *mut libc::c_void) -> ();
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct mailimap {
-    pub imap_response: *mut libc::c_char,
-    pub imap_stream: *mut mailstream,
-    pub imap_progr_rate: size_t,
-    pub imap_progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t) -> ()>,
-    pub imap_stream_buffer: *mut MMAPString,
-    pub imap_response_buffer: *mut MMAPString,
-    pub imap_state: libc::c_int,
-    pub imap_tag: libc::c_int,
-    pub imap_connection_info: *mut mailimap_connection_info,
-    pub imap_selection_info: *mut mailimap_selection_info,
-    pub imap_response_info: *mut mailimap_response_info,
-    pub imap_sasl: unnamed_2,
-    pub imap_idle_timestamp: time_t,
-    pub imap_idle_maxdelay: time_t,
-    pub imap_body_progress_fun:
-        Option<unsafe extern "C" fn(_: size_t, _: size_t, _: *mut libc::c_void) -> ()>,
-    pub imap_items_progress_fun:
-        Option<unsafe extern "C" fn(_: size_t, _: size_t, _: *mut libc::c_void) -> ()>,
-    pub imap_progress_context: *mut libc::c_void,
-    pub imap_msg_att_handler:
-        Option<unsafe extern "C" fn(_: *mut mailimap_msg_att, _: *mut libc::c_void) -> ()>,
-    pub imap_msg_att_handler_context: *mut libc::c_void,
-    pub imap_msg_body_handler: Option<
-        unsafe extern "C" fn(
-            _: libc::c_int,
-            _: *mut mailimap_msg_att_body_section,
-            _: *const libc::c_char,
-            _: size_t,
-            _: *mut libc::c_void,
-        ) -> bool,
-    >,
-    pub imap_msg_body_handler_context: *mut libc::c_void,
-    pub imap_timeout: time_t,
-    pub imap_logger: Option<
-        unsafe extern "C" fn(
-            _: *mut mailimap,
-            _: libc::c_int,
-            _: *const libc::c_char,
-            _: size_t,
-            _: *mut libc::c_void,
-        ) -> (),
-    >,
-    pub imap_logger_context: *mut libc::c_void,
-    pub is_163_workaround_enabled: libc::c_int,
-    pub is_rambler_workaround_enabled: libc::c_int,
-    pub is_qip_workaround_enabled: libc::c_int,
-}
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct unnamed_2 {
@@ -446,7 +397,7 @@ pub struct _dc_context {
     pub ongoing_running: libc::c_int,
     pub shall_stop_ongoing: libc::c_int,
 }
-pub type dc_lot_t = _dc_lot;
+use crate::dc_lot::dc_lot_t;
 /* * Structure behind dc_lot_t */
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -656,7 +607,7 @@ pub type dc_callback_t = Option<
  * SQLite database for offline functionality and for account-related
  * settings.
  */
-pub type dc_context_t = _dc_context;
+use crate::dc_context::dc_context_t;
 /* ** library-private **********************************************************/
 pub type dc_smtp_t = _dc_smtp;
 #[derive(Copy, Clone)]
@@ -755,7 +706,7 @@ pub type dc_get_config_t = Option<
     ) -> *mut libc::c_char,
 >;
 /* ** library-private **********************************************************/
-pub type dc_sqlite3_t = _dc_sqlite3;
+use crate::dc_sqlite3::dc_sqlite3_t;
 /* *
  * Library-internal.
  */

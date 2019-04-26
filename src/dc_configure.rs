@@ -1,5 +1,12 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
+
+use crate::dc_context::dc_context_t;
+use crate::dc_imap::dc_imap_t;
+use crate::dc_jobthread::dc_jobthread_t;
+use crate::dc_smtp::dc_smtp_t;
+use crate::types::*;
+
 extern "C" {
     pub type mailstream_cancel;
     pub type sqlite3;
@@ -607,7 +614,7 @@ pub struct _dc_context {
     pub ongoing_running: libc::c_int,
     pub shall_stop_ongoing: libc::c_int,
 }
-pub type dc_lot_t = _dc_lot;
+use crate::dc_lot::dc_lot_t;
 /* * Structure behind dc_lot_t */
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -817,8 +824,7 @@ pub type dc_callback_t = Option<
  * SQLite database for offline functionality and for account-related
  * settings.
  */
-//pub type dc_context_t = _dc_context;
-use crate::dc_context::*;
+
 /* ** library-private **********************************************************/
 // pub type dc_smtp_t = _dc_smtp;
 #[derive(Copy, Clone)]
@@ -917,7 +923,7 @@ pub type dc_get_config_t = Option<
     ) -> *mut libc::c_char,
 >;
 /* ** library-private **********************************************************/
-// pub type dc_sqlite3_t = _dc_sqlite3;
+use crate::dc_sqlite3::dc_sqlite3_t;
 /* *
  * Library-internal.
  */

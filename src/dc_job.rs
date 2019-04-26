@@ -1,11 +1,15 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
+
+use crate::dc_context::dc_context_t;
+use crate::dc_imap::dc_imap_t;
+use crate::dc_jobthread::dc_jobthread_t;
+use crate::dc_smtp::dc_smtp_t;
+use crate::types::*;
+
 extern "C" {
-    pub type mailstream_cancel;
-    pub type sqlite3;
-    pub type sqlite3_stmt;
     #[no_mangle]
-    fn usleep(_: useconds_t) -> libc::c_int;
+    fn usleep(_: libc::useconds_t) -> libc::c_int;
     #[no_mangle]
     fn pow(_: libc::c_double, _: libc::c_double) -> libc::c_double;
     #[no_mangle]
@@ -15,7 +19,7 @@ extern "C" {
     #[no_mangle]
     fn memset(_: *mut libc::c_void, _: libc::c_int, _: libc::c_ulong) -> *mut libc::c_void;
     #[no_mangle]
-    fn clock() -> clock_t;
+    fn clock() -> libc::clock_t;
     #[no_mangle]
     fn time(_: *mut time_t) -> time_t;
     #[no_mangle]
@@ -312,53 +316,6 @@ extern "C" {
     #[no_mangle]
     fn dc_mimefactory_load_msg(_: *mut dc_mimefactory_t, msg_id: uint32_t) -> libc::c_int;
 }
-pub type __uint32_t = libc::c_uint;
-pub type __darwin_size_t = libc::c_ulong;
-pub type __darwin_clock_t = libc::c_ulong;
-pub type __darwin_ssize_t = libc::c_long;
-pub type __darwin_time_t = libc::c_long;
-pub type __darwin_useconds_t = __uint32_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_cond_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 40],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_mutex_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 56],
-}
-pub type __darwin_pthread_cond_t = _opaque_pthread_cond_t;
-pub type __darwin_pthread_mutex_t = _opaque_pthread_mutex_t;
-pub type size_t = __darwin_size_t;
-pub type uint32_t = libc::c_uint;
-pub type int32_t = libc::c_int;
-pub type uintptr_t = libc::c_ulong;
-pub type ssize_t = __darwin_ssize_t;
-pub type useconds_t = __darwin_useconds_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct timespec {
-    pub tv_sec: __darwin_time_t,
-    pub tv_nsec: libc::c_long,
-}
-pub type time_t = __darwin_time_t;
-pub type uint8_t = libc::c_uchar;
-pub type uint16_t = libc::c_ushort;
-pub type clock_t = __darwin_clock_t;
-
-// pub type pthread_cond_t = __darwin_pthread_cond_t;
-// pub type pthread_mutex_t = __darwin_pthread_mutex_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct carray_s {
-    pub array: *mut *mut libc::c_void,
-    pub len: libc::c_uint,
-    pub max: libc::c_uint,
-}
-pub type carray = carray_s;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _mailstream {
@@ -765,7 +722,7 @@ pub struct _dc_context {
     pub ongoing_running: libc::c_int,
     pub shall_stop_ongoing: libc::c_int,
 }
-pub type dc_lot_t = _dc_lot;
+use crate::dc_lot::dc_lot_t;
 /* * Structure behind dc_lot_t */
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -975,8 +932,6 @@ pub type dc_callback_t = Option<
  * SQLite database for offline functionality and for account-related
  * settings.
  */
-// pub type dc_context_t = _dc_context;
-use crate::dc_context::*;
 /* ** library-private **********************************************************/
 //pub type dc_smtp_t = _dc_smtp;
 #[derive(Copy, Clone)]
@@ -1075,7 +1030,7 @@ pub type dc_get_config_t = Option<
     ) -> *mut libc::c_char,
 >;
 /* ** library-private **********************************************************/
-//pub type dc_sqlite3_t = _dc_sqlite3;
+use crate::dc_sqlite3::dc_sqlite3_t;
 /* *
  * Library-internal.
  */
@@ -1487,7 +1442,7 @@ unsafe extern "C" fn dc_suspend_smtp_thread(
                 return;
             }
             pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
-            usleep((300i32 * 1000i32) as useconds_t);
+            usleep((300i32 * 1000i32) as libc::useconds_t);
         }
     };
 }
@@ -2223,7 +2178,7 @@ pub unsafe extern "C" fn dc_job_kill_action(
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_perform_imap_fetch(mut context: *mut dc_context_t) {
-    let mut start: clock_t = clock();
+    let mut start: libc::clock_t = clock();
     if 0 == connect_to_inbox(context) {
         return;
     }
