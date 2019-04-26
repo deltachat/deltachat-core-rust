@@ -1,10 +1,15 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
-use crate::dc_array::dc_array_t;
-use crate::dc_context::dc_context_t;
-use crate::dc_lot::dc_lot_t;
+use crate::dc_array::*;
+use crate::dc_chat::*;
+use crate::dc_contact::*;
+use crate::dc_context::*;
+use crate::dc_lot::*;
+use crate::dc_msg::*;
 use crate::dc_sqlite3::*;
+use crate::dc_stock::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -18,27 +23,6 @@ pub struct dc_chatlist_t {
     pub chatNlastmsg_ids: *mut dc_array_t,
 }
 
-pub type dc_move_state_t = libc::c_uint;
-pub const DC_MOVE_STATE_MOVING: dc_move_state_t = 3;
-pub const DC_MOVE_STATE_STAY: dc_move_state_t = 2;
-pub const DC_MOVE_STATE_PENDING: dc_move_state_t = 1;
-pub const DC_MOVE_STATE_UNDEFINED: dc_move_state_t = 0;
-pub type dc_msg_t = _dc_msg;
-/* * the structure behind dc_contact_t */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_contact {
-    pub magic: uint32_t,
-    pub context: *mut dc_context_t,
-    pub id: uint32_t,
-    pub name: *mut libc::c_char,
-    pub authname: *mut libc::c_char,
-    pub addr: *mut libc::c_char,
-    pub blocked: libc::c_int,
-    pub origin: libc::c_int,
-}
-pub type dc_contact_t = _dc_contact;
-pub type sqlite3_destructor_type = Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>;
 // handle chatlists
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_chatlist(

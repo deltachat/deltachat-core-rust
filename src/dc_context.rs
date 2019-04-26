@@ -2,7 +2,10 @@ use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::dc_array::*;
+use crate::dc_chat::*;
+use crate::dc_contact::*;
 use crate::dc_imap::*;
+use crate::dc_job::*;
 use crate::dc_jobthread::*;
 use crate::dc_key::*;
 use crate::dc_log::*;
@@ -10,9 +13,12 @@ use crate::dc_loginparam::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_move::*;
 use crate::dc_msg::*;
+use crate::dc_openssl::*;
 use crate::dc_pgp::*;
+use crate::dc_receive_imf::*;
 use crate::dc_smtp::*;
 use crate::dc_sqlite3::*;
+use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::types::*;
@@ -150,7 +156,7 @@ pub unsafe extern "C" fn dc_context_new(
     seed[1usize] = seed.as_mut_ptr() as uintptr_t;
     seed[2usize] = context as uintptr_t;
     seed[3usize] = pthread_self() as uintptr_t;
-    seed[4usize] = getpid() as uintptr_t;
+    seed[4usize] = libc::getpid() as uintptr_t;
     dc_pgp_rand_seed(
         context,
         seed.as_mut_ptr() as *const libc::c_void,

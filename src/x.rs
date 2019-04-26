@@ -1,7 +1,8 @@
-use libc;
+use libc::{self, FILE};
 
 use crate::dc_context::dc_context_t;
 use crate::dc_key::dc_key_t;
+use crate::dc_pgp::*;
 use crate::dc_sqlite3::dc_sqlite3_t;
 use crate::dc_strbuilder::dc_strbuilder_t;
 use crate::types::*;
@@ -16,31 +17,6 @@ extern "C" {
     pub fn strspn(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_ulong;
     pub fn strcasecmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
     pub fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    pub fn sqlite3_bind_blob(
-        _: *mut sqlite3_stmt,
-        _: libc::c_int,
-        _: *const libc::c_void,
-        n: libc::c_int,
-        _: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>,
-    ) -> libc::c_int;
-    pub fn sqlite3_bind_int64(
-        _: *mut sqlite3_stmt,
-        _: libc::c_int,
-        _: sqlite3_int64,
-    ) -> libc::c_int;
-    pub fn sqlite3_bind_text(
-        _: *mut sqlite3_stmt,
-        _: libc::c_int,
-        _: *const libc::c_char,
-        _: libc::c_int,
-        _: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>,
-    ) -> libc::c_int;
-    pub fn sqlite3_step(_: *mut sqlite3_stmt) -> libc::c_int;
-    pub fn sqlite3_column_int(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_int;
-    pub fn sqlite3_column_int64(_: *mut sqlite3_stmt, iCol: libc::c_int) -> sqlite3_int64;
-    pub fn sqlite3_column_text(_: *mut sqlite3_stmt, iCol: libc::c_int) -> *const libc::c_uchar;
-    pub fn sqlite3_column_type(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_int;
-    pub fn sqlite3_finalize(pStmt: *mut sqlite3_stmt) -> libc::c_int;
     pub fn malloc(_: libc::c_ulong) -> *mut libc::c_void;
     pub fn realloc(_: *mut libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
     pub fn qsort(
@@ -60,7 +36,6 @@ extern "C" {
     pub fn strcmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
     pub fn sprintf(_: *mut libc::c_char, _: *const libc::c_char, _: ...) -> libc::c_int;
     pub fn time(_: *mut time_t) -> time_t;
-    pub fn sqlite3_bind_int(_: *mut sqlite3_stmt, _: libc::c_int, _: libc::c_int) -> libc::c_int;
     pub fn strchr(_: *const libc::c_char, _: libc::c_int) -> *mut libc::c_char;
     pub fn strstr(_: *const libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
     pub fn strncasecmp(
@@ -116,11 +91,6 @@ extern "C" {
         result: *mut *mut libc::c_char,
         result_len: *mut size_t,
     ) -> libc::c_int;
-    pub fn sqlite3_column_blob(_: *mut sqlite3_stmt, iCol: libc::c_int) -> *const libc::c_void;
-    pub fn sqlite3_column_bytes(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_int;
-    pub fn sqlite3_reset(pStmt: *mut sqlite3_stmt) -> libc::c_int;
-    pub fn sqlite3_mprintf(_: *const libc::c_char, _: ...) -> *mut libc::c_char;
-    pub fn sqlite3_free(_: *mut libc::c_void);
     pub fn __toupper(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
     pub fn memcmp(_: *const libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> libc::c_int;
     pub fn encode_base64(in_0: *const libc::c_char, len: libc::c_int) -> *mut libc::c_char;
@@ -253,12 +223,6 @@ extern "C" {
     pub fn atoi(_: *const libc::c_char) -> libc::c_int;
     pub fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
     pub fn gmtime(_: *const time_t) -> *mut tm;
-    pub fn sqlite3_bind_double(
-        _: *mut sqlite3_stmt,
-        _: libc::c_int,
-        _: libc::c_double,
-    ) -> libc::c_int;
-    pub fn sqlite3_column_double(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_double;
     pub fn pthread_self() -> pthread_t;
     pub fn clist_delete(_: *mut clist, _: *mut clistiter) -> *mut clistiter;
     pub fn mailimf_fields_free(fields: *mut mailimf_fields);
@@ -314,74 +278,7 @@ extern "C" {
     ) -> libc::c_int;
     pub fn mailmime_substitute(old_mime: *mut mailmime, new_mime: *mut mailmime) -> libc::c_int;
     pub fn mailprivacy_prepare_mime(mime: *mut mailmime);
-    pub fn mailmime_find_mailimf_fields(_: *mut mailmime) -> *mut mailimf_fields;
-    pub fn mailimf_find_first_addr(_: *const mailimf_mailbox_list) -> *mut libc::c_char;
-    pub fn mailimf_find_field(
-        _: *mut mailimf_fields,
-        wanted_fld_type: libc::c_int,
-    ) -> *mut mailimf_field;
-    pub fn mailimf_get_recipients(_: *mut mailimf_fields) -> *mut dc_hash_t;
     pub fn atol(_: *const libc::c_char) -> libc::c_long;
-    pub fn rpgp_create_rsa_skey(
-        bits: uint32_t,
-        user_id: *const libc::c_char,
-    ) -> *mut rpgp_signed_secret_key;
-    pub fn rpgp_cvec_data(cvec_ptr: *mut rpgp_cvec) -> *const uint8_t;
-    pub fn rpgp_cvec_drop(cvec_ptr: *mut rpgp_cvec);
-    pub fn rpgp_cvec_len(cvec_ptr: *mut rpgp_cvec) -> size_t;
-    pub fn rpgp_encrypt_bytes_to_keys(
-        bytes_ptr: *const uint8_t,
-        bytes_len: size_t,
-        pkeys_ptr: *const *const rpgp_signed_public_key,
-        pkeys_len: size_t,
-    ) -> *mut rpgp_message;
-    pub fn rpgp_encrypt_bytes_with_password(
-        bytes_ptr: *const uint8_t,
-        bytes_len: size_t,
-        password_ptr: *const libc::c_char,
-    ) -> *mut rpgp_message;
-    pub fn rpgp_key_drop(key_ptr: *mut rpgp_public_or_secret_key);
-    pub fn rpgp_key_fingerprint(key_ptr: *mut rpgp_public_or_secret_key) -> *mut rpgp_cvec;
-    pub fn rpgp_key_from_bytes(raw: *const uint8_t, len: size_t) -> *mut rpgp_public_or_secret_key;
-    pub fn rpgp_key_is_public(key_ptr: *mut rpgp_public_or_secret_key) -> bool;
-    pub fn rpgp_key_is_secret(key_ptr: *mut rpgp_public_or_secret_key) -> bool;
-    pub fn rpgp_last_error_length() -> libc::c_int;
-    pub fn rpgp_last_error_message() -> *mut libc::c_char;
-    pub fn rpgp_message_decrypt_result_drop(res_ptr: *mut rpgp_message_decrypt_result);
-    pub fn rpgp_msg_decrypt_no_pw(
-        msg_ptr: *const rpgp_message,
-        skeys_ptr: *const *const rpgp_signed_secret_key,
-        skeys_len: size_t,
-        pkeys_ptr: *const *const rpgp_signed_public_key,
-        pkeys_len: size_t,
-    ) -> *mut rpgp_message_decrypt_result;
-    pub fn rpgp_msg_decrypt_with_password(
-        msg_ptr: *const rpgp_message,
-        password_ptr: *const libc::c_char,
-    ) -> *mut rpgp_message;
-    pub fn rpgp_msg_drop(msg_ptr: *mut rpgp_message);
-    pub fn rpgp_msg_from_armor(msg_ptr: *const uint8_t, msg_len: size_t) -> *mut rpgp_message;
-    pub fn rpgp_msg_from_bytes(msg_ptr: *const uint8_t, msg_len: size_t) -> *mut rpgp_message;
-    pub fn rpgp_msg_to_armored(msg_ptr: *const rpgp_message) -> *mut rpgp_cvec;
-    pub fn rpgp_msg_to_armored_str(msg_ptr: *const rpgp_message) -> *mut libc::c_char;
-    pub fn rpgp_msg_to_bytes(msg_ptr: *const rpgp_message) -> *mut rpgp_cvec;
-    pub fn rpgp_pkey_drop(pkey_ptr: *mut rpgp_signed_public_key);
-    pub fn rpgp_pkey_from_bytes(raw: *const uint8_t, len: size_t) -> *mut rpgp_signed_public_key;
-    pub fn rpgp_pkey_to_bytes(pkey_ptr: *mut rpgp_signed_public_key) -> *mut rpgp_cvec;
-    pub fn rpgp_sign_encrypt_bytes_to_keys(
-        bytes_ptr: *const uint8_t,
-        bytes_len: size_t,
-        pkeys_ptr: *const *const rpgp_signed_public_key,
-        pkeys_len: size_t,
-        skey_ptr: *const rpgp_signed_secret_key,
-    ) -> *mut rpgp_message;
-    pub fn rpgp_skey_drop(skey_ptr: *mut rpgp_signed_secret_key);
-    pub fn rpgp_skey_from_bytes(raw: *const uint8_t, len: size_t) -> *mut rpgp_signed_secret_key;
-    pub fn rpgp_skey_public_key(
-        skey_ptr: *mut rpgp_signed_secret_key,
-    ) -> *mut rpgp_signed_public_key;
-    pub fn rpgp_skey_to_bytes(skey_ptr: *mut rpgp_signed_secret_key) -> *mut rpgp_cvec;
-    pub fn rpgp_string_drop(p: *mut libc::c_char);
     pub fn __maskrune(_: __darwin_ct_rune_t, _: libc::c_ulong) -> libc::c_int;
     pub fn __tolower(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
     pub fn mmap_string_append(string: *mut MMAPString, val: *const libc::c_char)
@@ -584,8 +481,6 @@ extern "C" {
     ) -> *mut mailimap;
     pub fn mailimap_free(session: *mut mailimap);
     pub fn mailimap_set_timeout(session: *mut mailimap, timeout: time_t);
-    pub fn libetpan_get_version_minor() -> libc::c_int;
-    pub fn sqlite3_threadsafe() -> libc::c_int;
     pub fn strtol(
         _: *const libc::c_char,
         _: *mut *mut libc::c_char,
@@ -597,22 +492,14 @@ extern "C" {
         _: libc::c_int,
         _: *const libc::c_char,
     ) -> !;
-    pub fn mailmime_find_ct_parameter(
-        _: *mut mailmime,
-        name: *const libc::c_char,
-    ) -> *mut mailmime_parameter;
-    pub fn mailmime_transfer_decode(
-        _: *mut mailmime,
-        ret_decoded_data: *mut *const libc::c_char,
-        ret_decoded_data_bytes: *mut size_t,
-        ret_to_mmap_string_unref: *mut *mut libc::c_char,
-    ) -> libc::c_int;
-    pub fn mailimf_find_optional_field(
-        _: *mut mailimf_fields,
-        wanted_fld_name: *const libc::c_char,
-    ) -> *mut mailimf_optional_field;
-    pub fn rpgp_hash_sha256(bytes_ptr: *const uint8_t, bytes_len: size_t) -> *mut rpgp_cvec;
+
     pub fn carray_delete_slow(array: *mut carray, indx: libc::c_uint) -> libc::c_int;
+    pub fn mailimf_msg_id_parse(
+        message: *const libc::c_char,
+        length: size_t,
+        indx: *mut size_t,
+        result: *mut *mut libc::c_char,
+    ) -> libc::c_int;
     pub fn mailimf_mailbox_list_free(mb_list: *mut mailimf_mailbox_list);
     pub fn mailimf_mailbox_list_parse(
         message: *const libc::c_char,
@@ -631,6 +518,234 @@ extern "C" {
     ) -> libc::c_int;
     pub fn charconv_buffer_free(str: *mut libc::c_char);
     pub fn sscanf(_: *const libc::c_char, _: *const libc::c_char, _: ...) -> libc::c_int;
+
+    // -- libetpan Methods
+
+    pub fn libetpan_get_version_major() -> libc::c_int;
+    pub fn libetpan_get_version_minor() -> libc::c_int;
+    pub fn gethostname(_: *mut libc::c_char, _: size_t) -> libc::c_int;
+    pub fn mailsmtp_socket_connect(
+        session: *mut mailsmtp,
+        server: *const libc::c_char,
+        port: uint16_t,
+    ) -> libc::c_int;
+    pub fn mailsmtp_socket_starttls(session: *mut mailsmtp) -> libc::c_int;
+    pub fn mailsmtp_ssl_connect(
+        session: *mut mailsmtp,
+        server: *const libc::c_char,
+        port: uint16_t,
+    ) -> libc::c_int;
+    pub fn mailsmtp_oauth2_authenticate(
+        session: *mut mailsmtp,
+        auth_user: *const libc::c_char,
+        access_token: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailsmtp_new(
+        progr_rate: size_t,
+        progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t) -> ()>,
+    ) -> *mut mailsmtp;
+    pub fn mailsmtp_free(session: *mut mailsmtp);
+    pub fn mailsmtp_set_timeout(session: *mut mailsmtp, timeout: time_t);
+    pub fn mailsmtp_auth(
+        session: *mut mailsmtp,
+        user: *const libc::c_char,
+        pass: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailsmtp_helo(session: *mut mailsmtp) -> libc::c_int;
+    pub fn mailsmtp_mail(session: *mut mailsmtp, from: *const libc::c_char) -> libc::c_int;
+    pub fn mailsmtp_rcpt(session: *mut mailsmtp, to: *const libc::c_char) -> libc::c_int;
+    pub fn mailsmtp_data(session: *mut mailsmtp) -> libc::c_int;
+    pub fn mailsmtp_data_message(
+        session: *mut mailsmtp,
+        message: *const libc::c_char,
+        size: size_t,
+    ) -> libc::c_int;
+    pub fn mailesmtp_ehlo(session: *mut mailsmtp) -> libc::c_int;
+    pub fn mailesmtp_mail(
+        session: *mut mailsmtp,
+        from: *const libc::c_char,
+        return_full: libc::c_int,
+        envid: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailesmtp_rcpt(
+        session: *mut mailsmtp,
+        to: *const libc::c_char,
+        notify: libc::c_int,
+        orcpt: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailsmtp_strerror(errnum: libc::c_int) -> *const libc::c_char;
+    pub fn mailesmtp_auth_sasl(
+        session: *mut mailsmtp,
+        auth_type: *const libc::c_char,
+        server_fqdn: *const libc::c_char,
+        local_ip_port: *const libc::c_char,
+        remote_ip_port: *const libc::c_char,
+        login: *const libc::c_char,
+        auth_name: *const libc::c_char,
+        password: *const libc::c_char,
+        realm: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailsmtp_set_progress_callback(
+        session: *mut mailsmtp,
+        progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t, _: *mut libc::c_void) -> ()>,
+        context: *mut libc::c_void,
+    );
+    pub fn mailstream_openssl_init_not_required();
+
+    // -- OpenSSL
+
+    /* return CRYPTO_NUM_LOCKS (shared libs!) */
+    pub fn CRYPTO_num_locks() -> libc::c_int;
+    pub fn CRYPTO_set_locking_callback(
+        func: Option<
+            unsafe extern "C" fn(
+                _: libc::c_int,
+                _: libc::c_int,
+                _: *const libc::c_char,
+                _: libc::c_int,
+            ) -> (),
+        >,
+    );
+    pub fn CRYPTO_set_id_callback(func: Option<unsafe extern "C" fn() -> libc::c_ulong>);
+    pub fn CRYPTO_set_dynlock_create_callback(
+        dyn_create_function_0: Option<
+            unsafe extern "C" fn(
+                _: *const libc::c_char,
+                _: libc::c_int,
+            ) -> *mut CRYPTO_dynlock_value,
+        >,
+    );
+    pub fn CRYPTO_set_dynlock_lock_callback(
+        dyn_lock_function_0: Option<
+            unsafe extern "C" fn(
+                _: libc::c_int,
+                _: *mut CRYPTO_dynlock_value,
+                _: *const libc::c_char,
+                _: libc::c_int,
+            ) -> (),
+        >,
+    );
+    pub fn CRYPTO_set_dynlock_destroy_callback(
+        dyn_destroy_function_0: Option<
+            unsafe extern "C" fn(
+                _: *mut CRYPTO_dynlock_value,
+                _: *const libc::c_char,
+                _: libc::c_int,
+            ) -> (),
+        >,
+    );
+    pub fn OPENSSL_init();
+    pub fn OPENSSL_add_all_algorithms_noconf();
+
+    // -- DC Methods
+
+    pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
+    pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
+
+    // -- rpgp
+
+    pub fn rpgp_create_rsa_skey(
+        bits: uint32_t,
+        user_id: *const libc::c_char,
+    ) -> *mut rpgp_signed_secret_key;
+    pub fn rpgp_cvec_data(cvec_ptr: *mut rpgp_cvec) -> *const uint8_t;
+    pub fn rpgp_cvec_drop(cvec_ptr: *mut rpgp_cvec);
+    pub fn rpgp_cvec_len(cvec_ptr: *mut rpgp_cvec) -> size_t;
+    pub fn rpgp_encrypt_bytes_to_keys(
+        bytes_ptr: *const uint8_t,
+        bytes_len: size_t,
+        pkeys_ptr: *const *const rpgp_signed_public_key,
+        pkeys_len: size_t,
+    ) -> *mut rpgp_message;
+    pub fn rpgp_encrypt_bytes_with_password(
+        bytes_ptr: *const uint8_t,
+        bytes_len: size_t,
+        password_ptr: *const libc::c_char,
+    ) -> *mut rpgp_message;
+    pub fn rpgp_key_drop(key_ptr: *mut rpgp_public_or_secret_key);
+    pub fn rpgp_key_fingerprint(key_ptr: *mut rpgp_public_or_secret_key) -> *mut rpgp_cvec;
+    pub fn rpgp_key_from_bytes(raw: *const uint8_t, len: size_t) -> *mut rpgp_public_or_secret_key;
+    pub fn rpgp_key_is_public(key_ptr: *mut rpgp_public_or_secret_key) -> bool;
+    pub fn rpgp_key_is_secret(key_ptr: *mut rpgp_public_or_secret_key) -> bool;
+    pub fn rpgp_last_error_length() -> libc::c_int;
+    pub fn rpgp_last_error_message() -> *mut libc::c_char;
+    pub fn rpgp_message_decrypt_result_drop(res_ptr: *mut rpgp_message_decrypt_result);
+    pub fn rpgp_msg_decrypt_no_pw(
+        msg_ptr: *const rpgp_message,
+        skeys_ptr: *const *const rpgp_signed_secret_key,
+        skeys_len: size_t,
+        pkeys_ptr: *const *const rpgp_signed_public_key,
+        pkeys_len: size_t,
+    ) -> *mut rpgp_message_decrypt_result;
+    pub fn rpgp_msg_decrypt_with_password(
+        msg_ptr: *const rpgp_message,
+        password_ptr: *const libc::c_char,
+    ) -> *mut rpgp_message;
+    pub fn rpgp_msg_drop(msg_ptr: *mut rpgp_message);
+    pub fn rpgp_msg_from_armor(msg_ptr: *const uint8_t, msg_len: size_t) -> *mut rpgp_message;
+    pub fn rpgp_msg_from_bytes(msg_ptr: *const uint8_t, msg_len: size_t) -> *mut rpgp_message;
+    pub fn rpgp_msg_to_armored(msg_ptr: *const rpgp_message) -> *mut rpgp_cvec;
+    pub fn rpgp_msg_to_armored_str(msg_ptr: *const rpgp_message) -> *mut libc::c_char;
+    pub fn rpgp_msg_to_bytes(msg_ptr: *const rpgp_message) -> *mut rpgp_cvec;
+    pub fn rpgp_pkey_drop(pkey_ptr: *mut rpgp_signed_public_key);
+    pub fn rpgp_pkey_from_bytes(raw: *const uint8_t, len: size_t) -> *mut rpgp_signed_public_key;
+    pub fn rpgp_pkey_to_bytes(pkey_ptr: *mut rpgp_signed_public_key) -> *mut rpgp_cvec;
+    pub fn rpgp_sign_encrypt_bytes_to_keys(
+        bytes_ptr: *const uint8_t,
+        bytes_len: size_t,
+        pkeys_ptr: *const *const rpgp_signed_public_key,
+        pkeys_len: size_t,
+        skey_ptr: *const rpgp_signed_secret_key,
+    ) -> *mut rpgp_message;
+    pub fn rpgp_skey_drop(skey_ptr: *mut rpgp_signed_secret_key);
+    pub fn rpgp_skey_from_bytes(raw: *const uint8_t, len: size_t) -> *mut rpgp_signed_secret_key;
+    pub fn rpgp_skey_public_key(
+        skey_ptr: *mut rpgp_signed_secret_key,
+    ) -> *mut rpgp_signed_public_key;
+    pub fn rpgp_skey_to_bytes(skey_ptr: *mut rpgp_signed_secret_key) -> *mut rpgp_cvec;
+    pub fn rpgp_string_drop(p: *mut libc::c_char);
+    pub fn rpgp_hash_sha256(bytes_ptr: *const uint8_t, bytes_len: size_t) -> *mut rpgp_cvec;
+
+    // -- Sqlite3
+
+    pub fn sqlite3_bind_blob(
+        _: *mut sqlite3_stmt,
+        _: libc::c_int,
+        _: *const libc::c_void,
+        n: libc::c_int,
+        _: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>,
+    ) -> libc::c_int;
+    pub fn sqlite3_bind_int64(
+        _: *mut sqlite3_stmt,
+        _: libc::c_int,
+        _: sqlite3_int64,
+    ) -> libc::c_int;
+    pub fn sqlite3_bind_text(
+        _: *mut sqlite3_stmt,
+        _: libc::c_int,
+        _: *const libc::c_char,
+        _: libc::c_int,
+        _: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>,
+    ) -> libc::c_int;
+    pub fn sqlite3_step(_: *mut sqlite3_stmt) -> libc::c_int;
+    pub fn sqlite3_column_int(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_int;
+    pub fn sqlite3_column_int64(_: *mut sqlite3_stmt, iCol: libc::c_int) -> sqlite3_int64;
+    pub fn sqlite3_column_text(_: *mut sqlite3_stmt, iCol: libc::c_int) -> *const libc::c_uchar;
+    pub fn sqlite3_column_type(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_int;
+    pub fn sqlite3_finalize(pStmt: *mut sqlite3_stmt) -> libc::c_int;
+    pub fn sqlite3_bind_int(_: *mut sqlite3_stmt, _: libc::c_int, _: libc::c_int) -> libc::c_int;
+    pub fn sqlite3_column_blob(_: *mut sqlite3_stmt, iCol: libc::c_int) -> *const libc::c_void;
+    pub fn sqlite3_column_bytes(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_int;
+    pub fn sqlite3_reset(pStmt: *mut sqlite3_stmt) -> libc::c_int;
+    pub fn sqlite3_mprintf(_: *const libc::c_char, _: ...) -> *mut libc::c_char;
+    pub fn sqlite3_free(_: *mut libc::c_void);
+    pub fn sqlite3_bind_double(
+        _: *mut sqlite3_stmt,
+        _: libc::c_int,
+        _: libc::c_double,
+    ) -> libc::c_int;
+    pub fn sqlite3_column_double(_: *mut sqlite3_stmt, iCol: libc::c_int) -> libc::c_double;
+    pub fn sqlite3_threadsafe() -> libc::c_int;
     pub fn sqlite3_close(_: *mut sqlite3) -> libc::c_int;
     pub fn sqlite3_busy_timeout(_: *mut sqlite3, ms: libc::c_int) -> libc::c_int;
     pub fn sqlite3_vmprintf(_: *const libc::c_char, _: ::std::ffi::VaList) -> *mut libc::c_char;
@@ -648,99 +763,4 @@ extern "C" {
         ppStmt: *mut *mut sqlite3_stmt,
         pzTail: *mut *const libc::c_char,
     ) -> libc::c_int;
-
-    // -- libetpan Methods
-
-    #[no_mangle]
-    pub fn gethostname(_: *mut libc::c_char, _: size_t) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_socket_connect(
-        session: *mut mailsmtp,
-        server: *const libc::c_char,
-        port: uint16_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_socket_starttls(session: *mut mailsmtp) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_ssl_connect(
-        session: *mut mailsmtp,
-        server: *const libc::c_char,
-        port: uint16_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_oauth2_authenticate(
-        session: *mut mailsmtp,
-        auth_user: *const libc::c_char,
-        access_token: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_new(
-        progr_rate: size_t,
-        progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t) -> ()>,
-    ) -> *mut mailsmtp;
-    #[no_mangle]
-    pub fn mailsmtp_free(session: *mut mailsmtp);
-    #[no_mangle]
-    pub fn mailsmtp_set_timeout(session: *mut mailsmtp, timeout: time_t);
-    #[no_mangle]
-    pub fn mailsmtp_auth(
-        session: *mut mailsmtp,
-        user: *const libc::c_char,
-        pass: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_helo(session: *mut mailsmtp) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_mail(session: *mut mailsmtp, from: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_rcpt(session: *mut mailsmtp, to: *const libc::c_char) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_data(session: *mut mailsmtp) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_data_message(
-        session: *mut mailsmtp,
-        message: *const libc::c_char,
-        size: size_t,
-    ) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailesmtp_ehlo(session: *mut mailsmtp) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailesmtp_mail(
-        session: *mut mailsmtp,
-        from: *const libc::c_char,
-        return_full: libc::c_int,
-        envid: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailesmtp_rcpt(
-        session: *mut mailsmtp,
-        to: *const libc::c_char,
-        notify: libc::c_int,
-        orcpt: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_strerror(errnum: libc::c_int) -> *const libc::c_char;
-    #[no_mangle]
-    pub fn mailesmtp_auth_sasl(
-        session: *mut mailsmtp,
-        auth_type: *const libc::c_char,
-        server_fqdn: *const libc::c_char,
-        local_ip_port: *const libc::c_char,
-        remote_ip_port: *const libc::c_char,
-        login: *const libc::c_char,
-        auth_name: *const libc::c_char,
-        password: *const libc::c_char,
-        realm: *const libc::c_char,
-    ) -> libc::c_int;
-    #[no_mangle]
-    pub fn mailsmtp_set_progress_callback(
-        session: *mut mailsmtp,
-        progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t, _: *mut libc::c_void) -> ()>,
-        context: *mut libc::c_void,
-    );
-
-    // -- DC Methods
-
-    pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
-    pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
 }

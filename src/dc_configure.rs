@@ -3,14 +3,19 @@ use libc;
 
 use crate::dc_array::*;
 use crate::dc_context::dc_context_t;
+use crate::dc_e2ee::*;
 use crate::dc_imap::*;
+use crate::dc_job::*;
 use crate::dc_jobthread::dc_jobthread_t;
+use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_lot::dc_lot_t;
+use crate::dc_oauth2::*;
 use crate::dc_saxparser::*;
-use crate::dc_smtp::dc_smtp_t;
+use crate::dc_smtp::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
+use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
@@ -1667,7 +1672,7 @@ unsafe extern "C" fn moz_autoconfigure(
     mut param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
     let mut p: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut saxparser: dc_saxparser_t = _dc_saxparser {
+    let mut saxparser: dc_saxparser_t = dc_saxparser_t {
         starttag_cb: None,
         endtag_cb: None,
         text_cb: None,
@@ -1698,7 +1703,7 @@ unsafe extern "C" fn moz_autoconfigure(
             *p = 0i32 as libc::c_char;
             moz_ac.in_emaildomain = dc_strdup(p.offset(1isize));
             moz_ac.out = dc_loginparam_new();
-            saxparser = _dc_saxparser {
+            saxparser = dc_saxparser_t {
                 starttag_cb: None,
                 endtag_cb: None,
                 text_cb: None,
@@ -1950,7 +1955,7 @@ unsafe extern "C" fn outlk_autodiscover(
         }
         outlk_ad.in_0 = param_in;
         outlk_ad.out = dc_loginparam_new();
-        let mut saxparser: dc_saxparser_t = _dc_saxparser {
+        let mut saxparser: dc_saxparser_t = dc_saxparser_t {
             starttag_cb: None,
             endtag_cb: None,
             text_cb: None,

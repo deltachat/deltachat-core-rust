@@ -11,6 +11,7 @@ use crate::dc_lot::dc_lot_t;
 use crate::dc_param::*;
 use crate::dc_simplify::*;
 use crate::dc_sqlite3::*;
+use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;

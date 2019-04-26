@@ -1,7 +1,9 @@
 use libc;
 
-use crate::dc_key::dc_key_t;
-use crate::dc_strbuilder::dc_strbuilder_t;
+use crate::dc_contact::*;
+use crate::dc_key::*;
+use crate::dc_strbuilder::*;
+use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 

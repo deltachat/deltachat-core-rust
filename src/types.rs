@@ -1,7 +1,10 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::dc_context::dc_context_t;
+use crate::dc_imap::dc_imap_t;
 use crate::dc_sqlite3::dc_sqlite3_t;
+use crate::x::*;
 
 extern "C" {
     pub type __sFILEX;
@@ -1405,10 +1408,10 @@ pub const MAILIMF_ERROR_MEMORY: libc::c_uint = 2;
 pub const MAILIMF_ERROR_PARSE: libc::c_uint = 1;
 pub const MAILIMF_NO_ERROR: libc::c_uint = 0;
 
-pub const MAIL_CHARCONV_ERROR_CONV: libc::c_uint_0 = 3;
-pub const MAIL_CHARCONV_ERROR_MEMORY: libc::c_uint_0 = 2;
-pub const MAIL_CHARCONV_ERROR_UNKNOWN_CHARSET: libc::c_uint_0 = 1;
-pub const MAIL_CHARCONV_NO_ERROR: libc::c_uint_0 = 0;
+pub const MAIL_CHARCONV_ERROR_CONV: libc::c_uint = 3;
+pub const MAIL_CHARCONV_ERROR_MEMORY: libc::c_uint = 2;
+pub const MAIL_CHARCONV_ERROR_UNKNOWN_CHARSET: libc::c_uint = 1;
+pub const MAIL_CHARCONV_NO_ERROR: libc::c_uint = 0;
 
 pub const MAILSMTP_ERROR_CLIENTID_NOT_SUPPORTED: libc::c_uint = 28;
 pub const MAILSMTP_ERROR_SSL: libc::c_uint = 27;
@@ -1634,4 +1637,51 @@ pub struct mailimf_address {
 pub union unnamed_0n {
     pub ad_mailbox: *mut mailimf_mailbox,
     pub ad_group: *mut mailimf_group,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailmime_parameter {
+    pub pa_name: *mut libc::c_char,
+    pub pa_value: *mut libc::c_char,
+}
+
+pub const MAILMIME_DISCRETE_TYPE_EXTENSION: libc::c_uint = 6;
+pub const MAILMIME_DISCRETE_TYPE_APPLICATION: libc::c_uint = 5;
+pub const MAILMIME_DISCRETE_TYPE_VIDEO: libc::c_uint = 4;
+pub const MAILMIME_DISCRETE_TYPE_AUDIO: libc::c_uint = 3;
+pub const MAILMIME_DISCRETE_TYPE_IMAGE: libc::c_uint = 2;
+pub const MAILMIME_DISCRETE_TYPE_TEXT: libc::c_uint = 1;
+pub const MAILMIME_DISCRETE_TYPE_ERROR: libc::c_uint = 0;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct CRYPTO_dynlock_value {
+    pub mutex: pthread_mutex_t,
+}
+
+pub const MAILIMAP_MBX_LIST_OFLAG_FLAG_EXT: libc::c_uint = 2;
+pub const MAILIMAP_MBX_LIST_OFLAG_NOINFERIORS: libc::c_uint = 1;
+pub const MAILIMAP_MBX_LIST_OFLAG_ERROR: libc::c_uint = 0;
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailimap_mbx_list_oflag {
+    pub of_type: libc::c_int,
+    pub of_flag_ext: *mut libc::c_char,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailimap_mailbox_list {
+    pub mb_flag: *mut mailimap_mbx_list_flags,
+    pub mb_delimiter: libc::c_char,
+    pub mb_name: *mut libc::c_char,
+}
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct mailimap_mbx_list_flags {
+    pub mbf_type: libc::c_int,
+    pub mbf_oflags: *mut clist,
+    pub mbf_sflag: libc::c_int,
 }

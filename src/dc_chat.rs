@@ -1,9 +1,11 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
-use crate::dc_array::dc_array_t;
+use crate::dc_array::*;
+use crate::dc_chatlist::*;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
+use crate::dc_job::*;
 use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_msg::*;

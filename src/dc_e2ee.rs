@@ -3,12 +3,14 @@ use libc;
 
 use crate::dc_aheader::*;
 use crate::dc_apeerstate::*;
+use crate::dc_array::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
 use crate::dc_key::*;
 use crate::dc_keyring::*;
 use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
+use crate::dc_mimeparser::*;
 use crate::dc_pgp::*;
 use crate::dc_securejoin::*;
 use crate::dc_sqlite3::*;

@@ -32,7 +32,7 @@ pub unsafe extern "C" fn dc_dehtml(mut buf_terminated: *mut libc::c_char) -> *mu
             add_text: 0,
             last_href: 0 as *mut libc::c_char,
         };
-        let mut saxparser: dc_saxparser_t = _dc_saxparser {
+        let mut saxparser: dc_saxparser_t = dc_saxparser_t {
             starttag_cb: None,
             endtag_cb: None,
             text_cb: None,
