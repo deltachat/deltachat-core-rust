@@ -8,8 +8,7 @@ fn main() {
     config.compile("libtools.a");
 
     println!("cargo:rustc-link-search=/usr/local/opt/openssl/lib");
-    // println!("cargo:rustc-link-search=/usr/local/lib");
-    println!("cargo:rustc-link-search=/Users/dignifiedquire/opensource/libetpan/build-mac/debug");
+    println!("cargo:rustc-link-search=/usr/local/lib");
 
     println!("cargo:rustc-link-lib=static=etpan");
     println!("cargo:rustc-link-lib=dylib=iconv");
