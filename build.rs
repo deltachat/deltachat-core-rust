@@ -21,7 +21,6 @@ fn main() {
 
     println!("cargo:rustc-link-lib=dylib=sqlite3");
     println!("cargo:rustc-link-lib=dylib=pthread");
-    println!("cargo:rustc-link-lib=dylib=rpgp");
     println!("cargo:rustc-link-lib=dylib=crypto");
     println!("cargo:rustc-link-lib=dylib=tools");
 

@@ -9,26 +9,9 @@ use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
+use crate::pgp as rpgp;
 use crate::types::*;
 use crate::x::*;
-
-pub type rpgp_signed_secret_key = rpgp_SignedSecretKey;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct rpgp_cvec {
-    pub data: *mut uint8_t,
-    pub len: size_t,
-}
-pub type rpgp_message = rpgp_Message;
-pub type rpgp_signed_public_key = rpgp_SignedPublicKey;
-pub type rpgp_public_or_secret_key = rpgp_PublicOrSecret;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct rpgp_message_decrypt_result {
-    pub message_ptr: *mut rpgp_message,
-    pub valid_ids_ptr: *mut *mut libc::c_char,
-    pub valid_ids_len: size_t,
-}
 
 /* ** library-private **********************************************************/
 /* validation errors */
@@ -171,31 +154,31 @@ pub unsafe extern "C" fn dc_pgp_create_keypair(
     mut ret_private_key: *mut dc_key_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut skey: *mut rpgp_signed_secret_key = 0 as *mut rpgp_signed_secret_key;
-    let mut pkey: *mut rpgp_signed_public_key = 0 as *mut rpgp_signed_public_key;
-    let mut skey_bytes: *mut rpgp_cvec = 0 as *mut rpgp_cvec;
-    let mut pkey_bytes: *mut rpgp_cvec = 0 as *mut rpgp_cvec;
+    let mut skey: *mut rpgp::signed_secret_key = 0 as *mut rpgp::signed_secret_key;
+    let mut pkey: *mut rpgp::signed_public_key = 0 as *mut rpgp::signed_public_key;
+    let mut skey_bytes: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
+    let mut pkey_bytes: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
     let mut user_id: *mut libc::c_char = 0 as *mut libc::c_char;
     user_id = dc_mprintf(b"<%s>\x00" as *const u8 as *const libc::c_char, addr);
-    skey = rpgp_create_rsa_skey(2048i32 as uint32_t, user_id);
+    skey = rpgp::rpgp_create_rsa_skey(2048i32 as uint32_t, user_id);
     if !(0 != dc_pgp_handle_rpgp_error(context)) {
-        skey_bytes = rpgp_skey_to_bytes(skey);
+        skey_bytes = rpgp::rpgp_skey_to_bytes(skey);
         if !(0 != dc_pgp_handle_rpgp_error(context)) {
-            pkey = rpgp_skey_public_key(skey);
+            pkey = rpgp::rpgp_skey_public_key(skey);
             if !(0 != dc_pgp_handle_rpgp_error(context)) {
-                pkey_bytes = rpgp_pkey_to_bytes(pkey);
+                pkey_bytes = rpgp::rpgp_pkey_to_bytes(pkey);
                 if !(0 != dc_pgp_handle_rpgp_error(context)) {
                     dc_key_set_from_binary(
                         ret_private_key,
-                        rpgp_cvec_data(skey_bytes) as *const libc::c_void,
-                        rpgp_cvec_len(skey_bytes) as libc::c_int,
+                        rpgp::rpgp_cvec_data(skey_bytes) as *const libc::c_void,
+                        rpgp::rpgp_cvec_len(skey_bytes) as libc::c_int,
                         1i32,
                     );
                     if !(0 != dc_pgp_handle_rpgp_error(context)) {
                         dc_key_set_from_binary(
                             ret_public_key,
-                            rpgp_cvec_data(pkey_bytes) as *const libc::c_void,
-                            rpgp_cvec_len(pkey_bytes) as libc::c_int,
+                            rpgp::rpgp_cvec_data(pkey_bytes) as *const libc::c_void,
+                            rpgp::rpgp_cvec_len(pkey_bytes) as libc::c_int,
                             0i32,
                         );
                         if !(0 != dc_pgp_handle_rpgp_error(context)) {
@@ -208,16 +191,16 @@ pub unsafe extern "C" fn dc_pgp_create_keypair(
     }
     /* cleanup */
     if !skey.is_null() {
-        rpgp_skey_drop(skey);
+        rpgp::rpgp_skey_drop(skey);
     }
     if !skey_bytes.is_null() {
-        rpgp_cvec_drop(skey_bytes);
+        rpgp::rpgp_cvec_drop(skey_bytes);
     }
     if !pkey.is_null() {
-        rpgp_pkey_drop(pkey);
+        rpgp::rpgp_pkey_drop(pkey);
     }
     if !pkey_bytes.is_null() {
-        rpgp_cvec_drop(pkey_bytes);
+        rpgp::rpgp_cvec_drop(pkey_bytes);
     }
     if !user_id.is_null() {
         free(user_id as *mut libc::c_void);
@@ -230,9 +213,9 @@ pub unsafe extern "C" fn dc_pgp_handle_rpgp_error(mut context: *mut dc_context_t
     let mut success: libc::c_int = 0i32;
     let mut len: libc::c_int = 0i32;
     let mut msg: *mut libc::c_char = 0 as *mut libc::c_char;
-    len = rpgp_last_error_length();
+    len = rpgp::rpgp_last_error_length();
     if !(len == 0i32) {
-        msg = rpgp_last_error_message();
+        msg = rpgp::rpgp_last_error_message();
         if !context.is_null() {
             dc_log_info(
                 context,
@@ -244,7 +227,7 @@ pub unsafe extern "C" fn dc_pgp_handle_rpgp_error(mut context: *mut dc_context_t
         success = 1i32
     }
     if !msg.is_null() {
-        rpgp_string_drop(msg);
+        rpgp::rpgp_string_drop(msg);
     }
     return success;
 }
@@ -254,26 +237,27 @@ pub unsafe extern "C" fn dc_pgp_is_valid_key(
     mut raw_key: *const dc_key_t,
 ) -> libc::c_int {
     let mut key_is_valid: libc::c_int = 0i32;
-    let mut key: *mut rpgp_public_or_secret_key = 0 as *mut rpgp_public_or_secret_key;
+    let mut key: *mut rpgp::public_or_secret_key = 0 as *mut rpgp::public_or_secret_key;
     if !(context.is_null()
         || raw_key.is_null()
         || (*raw_key).binary.is_null()
         || (*raw_key).bytes <= 0i32)
     {
-        key = rpgp_key_from_bytes(
+        key = rpgp::rpgp_key_from_bytes(
             (*raw_key).binary as *const uint8_t,
-            (*raw_key).bytes as size_t,
+            (*raw_key).bytes as usize,
         );
         if !(0 != dc_pgp_handle_rpgp_error(context)) {
-            if (*raw_key).type_0 == 0i32 && 0 != rpgp_key_is_public(key) as libc::c_int {
+            if (*raw_key).type_0 == 0i32 && 0 != rpgp::rpgp_key_is_public(key) as libc::c_int {
                 key_is_valid = 1i32
-            } else if (*raw_key).type_0 == 1i32 && 0 != rpgp_key_is_secret(key) as libc::c_int {
+            } else if (*raw_key).type_0 == 1i32 && 0 != rpgp::rpgp_key_is_secret(key) as libc::c_int
+            {
                 key_is_valid = 1i32
             }
         }
     }
     if !key.is_null() {
-        rpgp_key_drop(key);
+        rpgp::rpgp_key_drop(key);
     }
     return key_is_valid;
 }
@@ -284,8 +268,8 @@ pub unsafe extern "C" fn dc_pgp_calc_fingerprint(
     mut ret_fingerprint_bytes: *mut size_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut key: *mut rpgp_public_or_secret_key = 0 as *mut rpgp_public_or_secret_key;
-    let mut fingerprint: *mut rpgp_cvec = 0 as *mut rpgp_cvec;
+    let mut key: *mut rpgp::public_or_secret_key = 0 as *mut rpgp::public_or_secret_key;
+    let mut fingerprint: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
     if !(raw_key.is_null()
         || ret_fingerprint.is_null()
         || !(*ret_fingerprint).is_null()
@@ -294,18 +278,18 @@ pub unsafe extern "C" fn dc_pgp_calc_fingerprint(
         || (*raw_key).binary.is_null()
         || (*raw_key).bytes <= 0i32)
     {
-        key = rpgp_key_from_bytes(
+        key = rpgp::rpgp_key_from_bytes(
             (*raw_key).binary as *const uint8_t,
-            (*raw_key).bytes as size_t,
+            (*raw_key).bytes as usize,
         );
         if !(0 != dc_pgp_handle_rpgp_error(0 as *mut dc_context_t)) {
-            fingerprint = rpgp_key_fingerprint(key);
+            fingerprint = rpgp::rpgp_key_fingerprint(key);
             if !(0 != dc_pgp_handle_rpgp_error(0 as *mut dc_context_t)) {
-                *ret_fingerprint_bytes = rpgp_cvec_len(fingerprint);
+                *ret_fingerprint_bytes = rpgp::rpgp_cvec_len(fingerprint) as size_t;
                 *ret_fingerprint = malloc(*ret_fingerprint_bytes) as *mut uint8_t;
                 memcpy(
                     *ret_fingerprint as *mut libc::c_void,
-                    rpgp_cvec_data(fingerprint) as *const libc::c_void,
+                    rpgp::rpgp_cvec_data(fingerprint) as *const libc::c_void,
                     *ret_fingerprint_bytes,
                 );
                 success = 1i32
@@ -313,10 +297,10 @@ pub unsafe extern "C" fn dc_pgp_calc_fingerprint(
         }
     }
     if !key.is_null() {
-        rpgp_key_drop(key);
+        rpgp::rpgp_key_drop(key);
     }
     if !fingerprint.is_null() {
-        rpgp_cvec_drop(fingerprint);
+        rpgp::rpgp_cvec_drop(fingerprint);
     }
     return success;
 }
@@ -327,9 +311,9 @@ pub unsafe extern "C" fn dc_pgp_split_key(
     mut ret_public_key: *mut dc_key_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut key: *mut rpgp_signed_secret_key = 0 as *mut rpgp_signed_secret_key;
-    let mut pub_key: *mut rpgp_signed_public_key = 0 as *mut rpgp_signed_public_key;
-    let mut buf: *mut rpgp_cvec = 0 as *mut rpgp_cvec;
+    let mut key: *mut rpgp::signed_secret_key = 0 as *mut rpgp::signed_secret_key;
+    let mut pub_key: *mut rpgp::signed_public_key = 0 as *mut rpgp::signed_public_key;
+    let mut buf: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
     if !(context.is_null() || private_in.is_null() || ret_public_key.is_null()) {
         if (*private_in).type_0 != 1i32 {
             dc_log_warning(
@@ -338,19 +322,19 @@ pub unsafe extern "C" fn dc_pgp_split_key(
                 b"Split key: Given key is no private key.\x00" as *const u8 as *const libc::c_char,
             );
         } else {
-            key = rpgp_skey_from_bytes(
+            key = rpgp::rpgp_skey_from_bytes(
                 (*private_in).binary as *const uint8_t,
-                (*private_in).bytes as size_t,
+                (*private_in).bytes as usize,
             );
             if !(0 != dc_pgp_handle_rpgp_error(context)) {
-                pub_key = rpgp_skey_public_key(key);
+                pub_key = rpgp::rpgp_skey_public_key(key);
                 if !(0 != dc_pgp_handle_rpgp_error(context)) {
-                    buf = rpgp_pkey_to_bytes(pub_key);
+                    buf = rpgp::rpgp_pkey_to_bytes(pub_key);
                     if !(0 != dc_pgp_handle_rpgp_error(context)) {
                         dc_key_set_from_binary(
                             ret_public_key,
-                            rpgp_cvec_data(buf) as *const libc::c_void,
-                            rpgp_cvec_len(buf) as libc::c_int,
+                            rpgp::rpgp_cvec_data(buf) as *const libc::c_void,
+                            rpgp::rpgp_cvec_len(buf) as libc::c_int,
                             0i32,
                         );
                         success = 1i32
@@ -360,13 +344,13 @@ pub unsafe extern "C" fn dc_pgp_split_key(
         }
     }
     if !key.is_null() {
-        rpgp_skey_drop(key);
+        rpgp::rpgp_skey_drop(key);
     }
     if !pub_key.is_null() {
-        rpgp_pkey_drop(pub_key);
+        rpgp::rpgp_pkey_drop(pub_key);
     }
     if !buf.is_null() {
-        rpgp_cvec_drop(buf);
+        rpgp::rpgp_cvec_drop(buf);
     }
     return success;
 }
@@ -385,9 +369,9 @@ pub unsafe extern "C" fn dc_pgp_pk_encrypt(
     let mut i: libc::c_int = 0i32;
     let mut success: libc::c_int = 0i32;
     let mut public_keys_len: libc::c_int = 0i32;
-    let mut public_keys: *mut *mut rpgp_signed_public_key = 0 as *mut *mut rpgp_signed_public_key;
-    let mut private_key: *mut rpgp_signed_secret_key = 0 as *mut rpgp_signed_secret_key;
-    let mut encrypted: *mut rpgp_message = 0 as *mut rpgp_message;
+    let mut public_keys: *mut *mut rpgp::signed_public_key = 0 as *mut *mut rpgp::signed_public_key;
+    let mut private_key: *mut rpgp::signed_secret_key = 0 as *mut rpgp::signed_secret_key;
+    let mut encrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
     if !(context.is_null()
         || plain_text == 0 as *mut libc::c_void
         || plain_bytes == 0i32 as libc::c_ulong
@@ -402,14 +386,14 @@ pub unsafe extern "C" fn dc_pgp_pk_encrypt(
         *ret_ctext_bytes = 0i32 as size_t;
         public_keys_len = (*raw_public_keys_for_encryption).count;
         public_keys = malloc(
-            (::std::mem::size_of::<*mut rpgp_signed_public_key>() as libc::c_ulong)
+            (::std::mem::size_of::<*mut rpgp::signed_public_key>() as libc::c_ulong)
                 .wrapping_mul(public_keys_len as libc::c_ulong),
-        ) as *mut *mut rpgp_signed_public_key;
+        ) as *mut *mut rpgp::signed_public_key;
         /* setup secret key for signing */
         if !raw_private_key_for_signing.is_null() {
-            private_key = rpgp_skey_from_bytes(
+            private_key = rpgp::rpgp_skey_from_bytes(
                 (*raw_private_key_for_signing).binary as *const uint8_t,
-                (*raw_private_key_for_signing).bytes as size_t,
+                (*raw_private_key_for_signing).bytes as usize,
             );
             if private_key.is_null() || 0 != dc_pgp_handle_rpgp_error(context) {
                 dc_log_warning(
@@ -435,11 +419,11 @@ pub unsafe extern "C" fn dc_pgp_pk_encrypt(
                         break;
                     }
                     let ref mut fresh0 = *public_keys.offset(i as isize);
-                    *fresh0 = rpgp_pkey_from_bytes(
+                    *fresh0 = rpgp::rpgp_pkey_from_bytes(
                         (**(*raw_public_keys_for_encryption).keys.offset(i as isize)).binary
                             as *const uint8_t,
                         (**(*raw_public_keys_for_encryption).keys.offset(i as isize)).bytes
-                            as size_t,
+                            as usize,
                     );
                     if 0 != dc_pgp_handle_rpgp_error(context) {
                         current_block = 2132137392766895896;
@@ -454,11 +438,11 @@ pub unsafe extern "C" fn dc_pgp_pk_encrypt(
                         let mut op_clocks: libc::clock_t = 0i32 as libc::clock_t;
                         let mut start: libc::clock_t = clock();
                         if private_key.is_null() {
-                            encrypted = rpgp_encrypt_bytes_to_keys(
+                            encrypted = rpgp::rpgp_encrypt_bytes_to_keys(
                                 plain_text as *const uint8_t,
-                                plain_bytes,
-                                public_keys as *const *const rpgp_signed_public_key,
-                                public_keys_len as size_t,
+                                plain_bytes as usize,
+                                public_keys as *const *const rpgp::signed_public_key,
+                                public_keys_len as usize,
                             );
                             if 0 != dc_pgp_handle_rpgp_error(context) {
                                 dc_log_warning(
@@ -480,11 +464,11 @@ pub unsafe extern "C" fn dc_pgp_pk_encrypt(
                                 current_block = 1538046216550696469;
                             }
                         } else {
-                            encrypted = rpgp_sign_encrypt_bytes_to_keys(
+                            encrypted = rpgp::rpgp_sign_encrypt_bytes_to_keys(
                                 plain_text as *const uint8_t,
-                                plain_bytes,
-                                public_keys as *const *const rpgp_signed_public_key,
-                                public_keys_len as size_t,
+                                plain_bytes as usize,
+                                public_keys as *const *const rpgp::signed_public_key,
+                                public_keys_len as usize,
                                 private_key,
                             );
                             if 0 != dc_pgp_handle_rpgp_error(context) {
@@ -512,10 +496,11 @@ pub unsafe extern "C" fn dc_pgp_pk_encrypt(
                             2132137392766895896 => {}
                             _ => {
                                 /* convert message to armored bytes and return values */
-                                let mut armored: *mut rpgp_cvec = rpgp_msg_to_armored(encrypted);
+                                let mut armored: *mut rpgp::cvec =
+                                    rpgp::rpgp_msg_to_armored(encrypted);
                                 if !(0 != dc_pgp_handle_rpgp_error(context)) {
-                                    *ret_ctext = rpgp_cvec_data(armored) as *mut libc::c_void;
-                                    *ret_ctext_bytes = rpgp_cvec_len(armored);
+                                    *ret_ctext = rpgp::rpgp_cvec_data(armored) as *mut libc::c_void;
+                                    *ret_ctext_bytes = rpgp::rpgp_cvec_len(armored) as size_t;
                                     free(armored as *mut libc::c_void);
                                     success = 1i32
                                 }
@@ -527,15 +512,15 @@ pub unsafe extern "C" fn dc_pgp_pk_encrypt(
         }
     }
     if !private_key.is_null() {
-        rpgp_skey_drop(private_key);
+        rpgp::rpgp_skey_drop(private_key);
     }
     i = 0i32;
     while i < public_keys_len {
-        rpgp_pkey_drop(*public_keys.offset(i as isize));
+        rpgp::rpgp_pkey_drop(*public_keys.offset(i as isize));
         i += 1
     }
     if !encrypted.is_null() {
-        rpgp_msg_drop(encrypted);
+        rpgp::rpgp_msg_drop(encrypted);
     }
     return success;
 }
@@ -554,12 +539,13 @@ pub unsafe extern "C" fn dc_pgp_pk_decrypt(
     let mut current_block: u64;
     let mut i: libc::c_int = 0i32;
     let mut success: libc::c_int = 0i32;
-    let mut encrypted: *mut rpgp_message = 0 as *mut rpgp_message;
-    let mut decrypted: *mut rpgp_message_decrypt_result = 0 as *mut rpgp_message_decrypt_result;
+    let mut encrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
+    let mut decrypted: *mut rpgp::message_decrypt_result = 0 as *mut rpgp::message_decrypt_result;
     let mut private_keys_len: libc::c_int = 0i32;
     let mut public_keys_len: libc::c_int = 0i32;
-    let mut private_keys: *mut *mut rpgp_signed_secret_key = 0 as *mut *mut rpgp_signed_secret_key;
-    let mut public_keys: *mut *mut rpgp_signed_public_key = 0 as *mut *mut rpgp_signed_public_key;
+    let mut private_keys: *mut *mut rpgp::signed_secret_key =
+        0 as *mut *mut rpgp::signed_secret_key;
+    let mut public_keys: *mut *mut rpgp::signed_public_key = 0 as *mut *mut rpgp::signed_public_key;
     if !(context.is_null()
         || ctext == 0 as *mut libc::c_void
         || ctext_bytes == 0i32 as libc::c_ulong
@@ -574,15 +560,15 @@ pub unsafe extern "C" fn dc_pgp_pk_decrypt(
         *ret_plain_bytes = 0i32 as size_t;
         private_keys_len = (*raw_private_keys_for_decryption).count;
         private_keys = malloc(
-            (::std::mem::size_of::<*mut rpgp_signed_secret_key>() as libc::c_ulong)
+            (::std::mem::size_of::<*mut rpgp::signed_secret_key>() as libc::c_ulong)
                 .wrapping_mul(private_keys_len as libc::c_ulong),
-        ) as *mut *mut rpgp_signed_secret_key;
+        ) as *mut *mut rpgp::signed_secret_key;
         if !raw_public_keys_for_validation.is_null() {
             public_keys_len = (*raw_public_keys_for_validation).count;
             public_keys = malloc(
-                (::std::mem::size_of::<*mut rpgp_signed_public_key>() as libc::c_ulong)
+                (::std::mem::size_of::<*mut rpgp::signed_public_key>() as libc::c_ulong)
                     .wrapping_mul(public_keys_len as libc::c_ulong),
-            ) as *mut *mut rpgp_signed_public_key
+            ) as *mut *mut rpgp::signed_public_key
         }
         /* setup secret keys for decryption */
         i = 0i32;
@@ -592,10 +578,10 @@ pub unsafe extern "C" fn dc_pgp_pk_decrypt(
                 break;
             }
             let ref mut fresh1 = *private_keys.offset(i as isize);
-            *fresh1 = rpgp_skey_from_bytes(
+            *fresh1 = rpgp::rpgp_skey_from_bytes(
                 (**(*raw_private_keys_for_decryption).keys.offset(i as isize)).binary
                     as *const uint8_t,
-                (**(*raw_private_keys_for_decryption).keys.offset(i as isize)).bytes as size_t,
+                (**(*raw_private_keys_for_decryption).keys.offset(i as isize)).bytes as usize,
             );
             if 0 != dc_pgp_handle_rpgp_error(context) {
                 current_block = 11904635156640512504;
@@ -615,11 +601,11 @@ pub unsafe extern "C" fn dc_pgp_pk_decrypt(
                             break;
                         }
                         let ref mut fresh2 = *public_keys.offset(i as isize);
-                        *fresh2 = rpgp_pkey_from_bytes(
+                        *fresh2 = rpgp::rpgp_pkey_from_bytes(
                             (**(*raw_public_keys_for_validation).keys.offset(i as isize)).binary
                                 as *const uint8_t,
                             (**(*raw_public_keys_for_validation).keys.offset(i as isize)).bytes
-                                as size_t,
+                                as usize,
                         );
                         if 0 != dc_pgp_handle_rpgp_error(context) {
                             current_block = 11904635156640512504;
@@ -634,22 +620,26 @@ pub unsafe extern "C" fn dc_pgp_pk_decrypt(
                     11904635156640512504 => {}
                     _ => {
                         /* decrypt */
-                        encrypted = rpgp_msg_from_armor(ctext as *const uint8_t, ctext_bytes);
+                        encrypted = rpgp::rpgp_msg_from_armor(
+                            ctext as *const uint8_t,
+                            ctext_bytes as usize,
+                        );
                         if !(0 != dc_pgp_handle_rpgp_error(context)) {
-                            decrypted = rpgp_msg_decrypt_no_pw(
+                            decrypted = rpgp::rpgp_msg_decrypt_no_pw(
                                 encrypted,
-                                private_keys as *const *const rpgp_signed_secret_key,
-                                private_keys_len as size_t,
-                                public_keys as *const *const rpgp_signed_public_key,
-                                public_keys_len as size_t,
+                                private_keys as *const *const rpgp::signed_secret_key,
+                                private_keys_len as usize,
+                                public_keys as *const *const rpgp::signed_public_key,
+                                public_keys_len as usize,
                             );
                             if !(0 != dc_pgp_handle_rpgp_error(context)) {
-                                let mut decrypted_bytes: *mut rpgp_cvec =
-                                    rpgp_msg_to_bytes((*decrypted).message_ptr);
+                                let mut decrypted_bytes: *mut rpgp::cvec =
+                                    rpgp::rpgp_msg_to_bytes((*decrypted).message_ptr);
                                 if !(0 != dc_pgp_handle_rpgp_error(context)) {
-                                    *ret_plain_bytes = rpgp_cvec_len(decrypted_bytes);
+                                    *ret_plain_bytes =
+                                        rpgp::rpgp_cvec_len(decrypted_bytes) as size_t;
                                     *ret_plain =
-                                        rpgp_cvec_data(decrypted_bytes) as *mut libc::c_void;
+                                        rpgp::rpgp_cvec_data(decrypted_bytes) as *mut libc::c_void;
                                     free(decrypted_bytes as *mut libc::c_void);
                                     if !ret_signature_fingerprints.is_null() {
                                         let mut j: uint32_t = 0i32 as uint32_t;
@@ -681,19 +671,19 @@ pub unsafe extern "C" fn dc_pgp_pk_decrypt(
     }
     i = 0i32;
     while i < private_keys_len {
-        rpgp_skey_drop(*private_keys.offset(i as isize));
+        rpgp::rpgp_skey_drop(*private_keys.offset(i as isize));
         i += 1
     }
     i = 0i32;
     while i < public_keys_len {
-        rpgp_pkey_drop(*public_keys.offset(i as isize));
+        rpgp::rpgp_pkey_drop(*public_keys.offset(i as isize));
         i += 1
     }
     if !encrypted.is_null() {
-        rpgp_msg_drop(encrypted);
+        rpgp::rpgp_msg_drop(encrypted);
     }
     if !decrypted.is_null() {
-        rpgp_message_decrypt_result_drop(decrypted);
+        rpgp::rpgp_message_decrypt_result_drop(decrypted);
     }
     return success;
 }
@@ -707,24 +697,27 @@ pub unsafe extern "C" fn dc_pgp_symm_encrypt(
     mut ret_ctext_armored: *mut *mut libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut decrypted: *mut rpgp_message = 0 as *mut rpgp_message;
+    let mut decrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
     if !(context.is_null()
         || passphrase.is_null()
         || plain == 0 as *mut libc::c_void
         || plain_bytes == 0i32 as libc::c_ulong
         || ret_ctext_armored.is_null())
     {
-        decrypted =
-            rpgp_encrypt_bytes_with_password(plain as *const uint8_t, plain_bytes, passphrase);
+        decrypted = rpgp::rpgp_encrypt_bytes_with_password(
+            plain as *const uint8_t,
+            plain_bytes as usize,
+            passphrase,
+        );
         if !(0 != dc_pgp_handle_rpgp_error(context)) {
-            *ret_ctext_armored = rpgp_msg_to_armored_str(decrypted);
+            *ret_ctext_armored = rpgp::rpgp_msg_to_armored_str(decrypted);
             if !(0 != dc_pgp_handle_rpgp_error(context)) {
                 success = 1i32
             }
         }
     }
     if !decrypted.is_null() {
-        rpgp_msg_drop(decrypted);
+        rpgp::rpgp_msg_drop(decrypted);
     }
     return success;
 }
@@ -737,28 +730,28 @@ pub unsafe extern "C" fn dc_pgp_symm_decrypt(
     mut ret_plain_text: *mut *mut libc::c_void,
     mut ret_plain_bytes: *mut size_t,
 ) -> libc::c_int {
-    let mut decrypted_bytes: *mut rpgp_cvec = 0 as *mut rpgp_cvec;
+    let mut decrypted_bytes: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
     let mut success: libc::c_int = 0i32;
-    let mut encrypted: *mut rpgp_message = 0 as *mut rpgp_message;
-    let mut decrypted: *mut rpgp_message = 0 as *mut rpgp_message;
-    encrypted = rpgp_msg_from_bytes(ctext as *const uint8_t, ctext_bytes);
+    let mut encrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
+    let mut decrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
+    encrypted = rpgp::rpgp_msg_from_bytes(ctext as *const uint8_t, ctext_bytes as usize);
     if !(0 != dc_pgp_handle_rpgp_error(context)) {
-        decrypted = rpgp_msg_decrypt_with_password(encrypted, passphrase);
+        decrypted = rpgp::rpgp_msg_decrypt_with_password(encrypted, passphrase);
         if !(0 != dc_pgp_handle_rpgp_error(context)) {
-            decrypted_bytes = rpgp_msg_to_bytes(decrypted);
+            decrypted_bytes = rpgp::rpgp_msg_to_bytes(decrypted);
             if !(0 != dc_pgp_handle_rpgp_error(context)) {
-                *ret_plain_text = rpgp_cvec_data(decrypted_bytes) as *mut libc::c_void;
-                *ret_plain_bytes = rpgp_cvec_len(decrypted_bytes);
+                *ret_plain_text = rpgp::rpgp_cvec_data(decrypted_bytes) as *mut libc::c_void;
+                *ret_plain_bytes = rpgp::rpgp_cvec_len(decrypted_bytes) as size_t;
                 free(decrypted_bytes as *mut libc::c_void);
                 success = 1i32
             }
         }
     }
     if !encrypted.is_null() {
-        rpgp_msg_drop(encrypted);
+        rpgp::rpgp_msg_drop(encrypted);
     }
     if !decrypted.is_null() {
-        rpgp_msg_drop(decrypted);
+        rpgp::rpgp_msg_drop(decrypted);
     }
     return success;
 }

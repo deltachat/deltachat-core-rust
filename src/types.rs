@@ -9,11 +9,6 @@ use crate::x::*;
 extern "C" {
     pub type __sFILEX;
 
-    pub type rpgp_Message;
-    pub type rpgp_PublicOrSecret;
-    pub type rpgp_SignedPublicKey;
-    pub type rpgp_SignedSecretKey;
-
     pub type _telldir;
     pub type mailstream_cancel;
     pub type sqlite3;

@@ -19,8 +19,12 @@
     ptr_wrapping_offset_from
 )]
 
-pub mod types;
-pub mod x;
+#[macro_use]
+extern crate failure;
+
+mod pgp;
+mod types;
+mod x;
 
 pub mod dc_aheader;
 pub mod dc_apeerstate;

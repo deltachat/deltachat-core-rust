@@ -22,6 +22,7 @@ use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::pgp;
 use crate::types::*;
 use crate::x::*;
 
@@ -1740,8 +1741,10 @@ unsafe extern "C" fn create_adhoc_grp_id(
         i += 1
     }
     /* make sha-256 from the string */
-    let mut binary_hash: *mut rpgp_cvec =
-        rpgp_hash_sha256(member_cs.buf as *const uint8_t, strlen(member_cs.buf));
+    let mut binary_hash: *mut crate::pgp::cvec = pgp::rpgp_hash_sha256(
+        member_cs.buf as *const uint8_t,
+        strlen(member_cs.buf) as usize,
+    );
     if !binary_hash.is_null() {
         ret = calloc(1i32 as libc::c_ulong, 256i32 as libc::c_ulong) as *mut libc::c_char;
         if !ret.is_null() {
@@ -1750,11 +1753,11 @@ unsafe extern "C" fn create_adhoc_grp_id(
                 sprintf(
                     &mut *ret.offset((i * 2i32) as isize) as *mut libc::c_char,
                     b"%02x\x00" as *const u8 as *const libc::c_char,
-                    *rpgp_cvec_data(binary_hash).offset(i as isize) as libc::c_int,
+                    *pgp::rpgp_cvec_data(binary_hash).offset(i as isize) as libc::c_int,
                 );
                 i += 1
             }
-            rpgp_cvec_drop(binary_hash);
+            pgp::rpgp_cvec_drop(binary_hash);
         }
     }
     dc_array_free_ptr(member_addrs);
