@@ -11,10 +11,8 @@ fn main() {
     println!("rerun-if-changed=misc.h");
     println!("rerun-if-changed=misc.c");
 
-    println!("cargo:rustc-link-search=/usr/local/opt/openssl/lib");
     println!("cargo:rustc-link-search=/usr/local/lib");
 
-    println!("cargo:rustc-link-lib=static=etpan");
     println!("cargo:rustc-link-lib=dylib=sasl2");
     println!("cargo:rustc-link-lib=dylib=z");
 
@@ -23,9 +21,13 @@ fn main() {
     println!("cargo:rustc-link-lib=dylib=tools");
 
     if std::env::var("TARGET").unwrap().contains("-apple") {
+        println!("cargo:rustc-link-search=/usr/local/opt/openssl/lib");
+        println!("cargo:rustc-link-lib=static=etpan");
         println!("cargo:rustc-link-lib=dylib=iconv");
         println!("cargo:rustc-link-lib=framework=CoreFoundation");
         println!("cargo:rustc-link-lib=framework=CoreServices");
         println!("cargo:rustc-link-lib=framework=Security");
+    } else if std::env::var("TARGET").unwrap().contains("linux") {
+        println!("cargo:rustc-link-lib=dylib=etpan");
     }
 }
