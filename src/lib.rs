@@ -69,6 +69,9 @@ pub mod dc_strencode;
 pub mod dc_token;
 pub mod dc_tools;
 
+pub mod constants;
+pub use self::constants::*;
+
 #[cfg(test)]
 mod tests {
     use std::ffi::{CStr, CString};

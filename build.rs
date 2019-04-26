@@ -1,5 +1,6 @@
-extern crate bindgen;
 extern crate cc;
+
+use std::env;
 
 fn main() {
     let mut config = cc::Build::new();
@@ -28,4 +29,12 @@ fn main() {
     } else if std::env::var("TARGET").unwrap().contains("linux") {
         println!("cargo:rustc-link-lib=dylib=etpan");
     }
+
+    let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
+
+    cbindgen::Builder::new()
+        .with_crate(crate_dir)
+        .generate()
+        .expect("Unable to generate bindings")
+        .write_to_file("deltachat.h");
 }
