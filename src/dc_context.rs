@@ -63,6 +63,22 @@ pub struct dc_context_t {
 unsafe impl Send for dc_context_t {}
 unsafe impl Sync for dc_context_t {}
 
+// location handling
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _dc_location {
+    pub location_id: uint32_t,
+    pub latitude: libc::c_double,
+    pub longitude: libc::c_double,
+    pub accuracy: libc::c_double,
+    pub timestamp: time_t,
+    pub contact_id: uint32_t,
+    pub msg_id: uint32_t,
+    pub chat_id: uint32_t,
+    pub marker: *mut libc::c_char,
+    pub independent: uint32_t,
+}
+
 // create/open/config/information
 pub unsafe fn dc_context_new(
     mut cb: dc_callback_t,

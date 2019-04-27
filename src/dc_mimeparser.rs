@@ -53,7 +53,8 @@ pub struct dc_mimeparser_t {
     pub context: *mut dc_context_t,
     pub reports: *mut carray,
     pub is_system_message: libc::c_int,
-    pub kml: *mut dc_kml_t,
+    pub location_kml: *mut dc_kml_t,
+    pub message_kml: *mut dc_kml_t,
 }
 
 // deprecated
@@ -99,6 +100,7 @@ pub unsafe fn dc_mimeparser_unref(mut mimeparser: *mut dc_mimeparser_t) {
     free((*mimeparser).e2ee_helper as *mut libc::c_void);
     free(mimeparser as *mut libc::c_void);
 }
+
 pub unsafe fn dc_mimeparser_empty(mut mimeparser: *mut dc_mimeparser_t) {
     if mimeparser.is_null() {
         return;
@@ -137,9 +139,14 @@ pub unsafe fn dc_mimeparser_empty(mut mimeparser: *mut dc_mimeparser_t) {
     }
     (*mimeparser).decrypting_failed = 0i32;
     dc_e2ee_thanks((*mimeparser).e2ee_helper);
-    dc_kml_unref((*mimeparser).kml);
-    (*mimeparser).kml = 0 as *mut dc_kml_t;
+
+    dc_kml_unref((*mimeparser).location_kml);
+    (*mimeparser).location_kml = 0 as *mut dc_kml_t;
+
+    dc_kml_unref((*mimeparser).message_kml);
+    (*mimeparser).message_kml = 0 as *mut dc_kml_t;
 }
+
 unsafe fn dc_mimepart_unref(mut mimepart: *mut dc_mimepart_t) {
     if mimepart.is_null() {
         return;
@@ -1415,7 +1422,26 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         4i32 as libc::c_ulong,
                                     ) == 0i32
                                 {
-                                    (*mimeparser).kml = dc_kml_parse(
+                                    (*mimeparser).location_kml = dc_kml_parse(
+                                        (*mimeparser).context,
+                                        decoded_data,
+                                        decoded_data_bytes,
+                                    );
+                                    current_block = 8795901732489102124;
+                                } else if strncmp(
+                                    desired_filename,
+                                    b"message\x00" as *const u8 as *const libc::c_char,
+                                    7i32 as libc::c_ulong,
+                                ) == 0i32
+                                    && strncmp(
+                                        desired_filename
+                                            .offset(strlen(desired_filename) as isize)
+                                            .offset(-4isize),
+                                        b".kml\x00" as *const u8 as *const libc::c_char,
+                                        4i32 as libc::c_ulong,
+                                    ) == 0i32
+                                {
+                                    (*mimeparser).message_kml = dc_kml_parse(
                                         (*mimeparser).context,
                                         decoded_data,
                                         decoded_data_bytes,

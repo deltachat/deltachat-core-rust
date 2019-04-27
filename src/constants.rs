@@ -1,6 +1,6 @@
 //! Constants
 
-pub const VERSION: &'static [u8; 7] = b"0.42.0\x00";
+pub const VERSION: &'static [u8; 7] = b"0.43.0\x00";
 
 pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;

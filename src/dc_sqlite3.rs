@@ -740,6 +740,20 @@ pub unsafe fn dc_sqlite3_open(
                                 54i32,
                             );
                         }
+                        if dbversion < 55 {
+                            dc_sqlite3_execute(
+                                sql,
+                                b"ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;\x00" as *const u8 as *const libc::c_char
+                            );
+
+                            dbversion = 55;
+                            dc_sqlite3_set_config_int(
+                                sql,
+                                b"dbversion\x00" as *const u8 as *const libc::c_char,
+                                55,
+                            );
+                        }
+
                         if 0 != recalc_fingerprints {
                             let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
                                 sql,

@@ -850,6 +850,44 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             mailmime_smart_add_part(message, meta_part);
                             parts += 1
                         }
+                        if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int)
+                        {
+                            let latitude = dc_param_get_float(
+                                (*msg).param,
+                                DC_PARAM_SET_LATITUDE as libc::c_int,
+                                0.0,
+                            );
+                            let longitude = dc_param_get_float(
+                                (*msg).param,
+                                DC_PARAM_SET_LONGITUDE as libc::c_int,
+                                0.0,
+                            );
+                            let kml_file = dc_get_message_kml(
+                                (*msg).context,
+                                (*msg).timestamp_sort,
+                                latitude,
+                                longitude,
+                            );
+                            if !kml_file.is_null() {
+                                let content_type = mailmime_content_new_with_str(
+                                    b"application/vnd.google-earth.kml+xml\x00" as *const u8
+                                        as *const libc::c_char,
+                                );
+                                let mime_fields = mailmime_fields_new_filename(
+                                    MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
+                                    dc_strdup(
+                                        b"message.kml\x00" as *const u8 as *const libc::c_char,
+                                    ),
+                                    MAILMIME_MECHANISM_8BIT as libc::c_int,
+                                );
+                                let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
+                                mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
+
+                                mailmime_smart_add_part(message, kml_mime_part);
+                                parts += 1;
+                            }
+                        }
+
                         if 0 != dc_is_sending_locations_to_chat((*msg).context, (*msg).chat_id) {
                             let mut last_added_location_id: uint32_t = 0i32 as uint32_t;
                             let mut kml_file: *mut libc::c_char = dc_get_location_kml(
@@ -876,7 +914,13 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
                                 mailmime_smart_add_part(message, kml_mime_part);
                                 parts += 1;
-                                (*factory).out_last_added_location_id = last_added_location_id
+                                if 0 == dc_param_exists(
+                                    (*msg).param,
+                                    DC_PARAM_SET_LATITUDE as libc::c_int,
+                                ) {
+                                    // otherwise, the independent location is already filed
+                                    (*factory).out_last_added_location_id = last_added_location_id;
+                                }
                             }
                         }
                         current_block = 9952640327414195044;

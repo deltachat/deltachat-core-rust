@@ -442,12 +442,60 @@ pub unsafe fn dc_msg_get_file(mut msg: *const dc_msg_t) -> *mut libc::c_char {
         dc_strdup(0 as *const libc::c_char)
     };
 }
+
+/**
+ * Check if a message has a location bound to it.
+ * These messages are also returned by dc_get_locations()
+ * and the UI may decide to display a special icon beside such messages,
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=Message has location bound to it, 0=No location bound to message.
+ */
 pub unsafe fn dc_msg_has_location(mut msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
     return ((*msg).location_id != 0i32 as libc::c_uint) as libc::c_int;
 }
+
+/**
+ * Set any location that should be bound to the message object.
+ * The function is useful to add a marker to the map
+ * at a position different from the self-location.
+ * You should not call this function
+ * if you want to bind the current self-location to a message;
+ * this is done by dc_set_location() and dc_send_locations_to_chat().
+ *
+ * Typically results in the event #DC_EVENT_LOCATION_CHANGED with
+ * contact_id set to DC_CONTACT_ID_SELF.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param latitude North-south position of the location.
+ * @param longitude East-west position of the location.
+ * @return None.
+ */
+pub unsafe fn dc_msg_set_location(
+    mut msg: *const dc_msg_t,
+    latitude: libc::c_double,
+    longitude: libc::c_double,
+) {
+    if msg.is_null()
+        || (*msg).magic != 0x11561156i32 as libc::c_uint
+        || (latitude == 0.0 && longitude == 0.0)
+    {
+        return;
+    }
+
+    dc_param_set_float((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int, latitude);
+    dc_param_set_float(
+        (*msg).param,
+        DC_PARAM_SET_LONGITUDE as libc::c_int,
+        longitude,
+    );
+}
+
 pub unsafe fn dc_msg_get_timestamp(mut msg: *const dc_msg_t) -> time_t {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32 as time_t;

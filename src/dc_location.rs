@@ -4,7 +4,7 @@ use libc;
 use crate::constants::Event;
 use crate::dc_array::*;
 use crate::dc_chat::*;
-use crate::dc_context::dc_context_t;
+use crate::dc_context::*;
 use crate::dc_job::*;
 use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
@@ -226,10 +226,16 @@ pub unsafe fn dc_get_locations(
         if timestamp_to == 0i32 as libc::c_long {
             timestamp_to = time(0 as *mut time_t) + 10i32 as libc::c_long
         }
-        stmt =
-            dc_sqlite3_prepare((*context).sql,
-                               b"SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp,        m.id, l.from_id, l.chat_id, m.txt  FROM locations l  LEFT JOIN msgs m ON l.id=m.location_id  WHERE (? OR l.chat_id=?)    AND (? OR l.from_id=?)    AND l.timestamp>=? AND l.timestamp<=?  ORDER BY l.timestamp DESC, l.id DESC, m.id DESC;\x00"
-                                   as *const u8 as *const libc::c_char);
+        stmt = dc_sqlite3_prepare(
+            (*context).sql,
+            b"SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp, l.independent \
+              m.id, l.from_id, l.chat_id, m.txt \
+              FROM locations l  LEFT JOIN msgs m ON l.id=m.location_id  WHERE (? OR l.chat_id=?) \
+              AND (? OR l.from_id=?) \
+              AND (l.independent=1 OR (l.timestamp>=? AND l.timestamp<=?)) \
+              ORDER BY l.timestamp DESC, l.id DESC, m.id DESC;\x00" as *const u8
+                as *const libc::c_char,
+        );
         sqlite3_bind_int(
             stmt,
             1i32,
@@ -265,12 +271,14 @@ pub unsafe fn dc_get_locations(
             (*loc).longitude = sqlite3_column_double(stmt, 2i32);
             (*loc).accuracy = sqlite3_column_double(stmt, 3i32);
             (*loc).timestamp = sqlite3_column_int64(stmt, 4i32) as time_t;
-            (*loc).msg_id = sqlite3_column_int(stmt, 5i32) as uint32_t;
-            (*loc).contact_id = sqlite3_column_int(stmt, 6i32) as uint32_t;
-            (*loc).chat_id = sqlite3_column_int(stmt, 7i32) as uint32_t;
+            (*loc).independent = sqlite3_column_int(stmt, 5i32) as uint32_t;
+            (*loc).msg_id = sqlite3_column_int(stmt, 6i32) as uint32_t;
+            (*loc).contact_id = sqlite3_column_int(stmt, 7i32) as uint32_t;
+            (*loc).chat_id = sqlite3_column_int(stmt, 8i32) as uint32_t;
+
             if 0 != (*loc).msg_id {
                 let mut txt: *const libc::c_char =
-                    sqlite3_column_text(stmt, 8i32) as *const libc::c_char;
+                    sqlite3_column_text(stmt, 9i32) as *const libc::c_char;
                 if 0 != is_marker(txt) {
                     (*loc).marker = strdup(txt)
                 }
@@ -349,11 +357,18 @@ pub unsafe fn dc_get_location_kml(
                                    b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"%s\">\n\x00"
                                        as *const u8 as *const libc::c_char,
                                    self_addr);
-                stmt =
-                    dc_sqlite3_prepare((*context).sql,
-                                       b"SELECT id, latitude, longitude, accuracy, timestamp  FROM locations  WHERE from_id=?    AND timestamp>=?    AND (timestamp>=? OR timestamp=(SELECT MAX(timestamp) FROM locations WHERE from_id=?))    GROUP BY timestamp    ORDER BY timestamp;\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
+                stmt = dc_sqlite3_prepare(
+                    (*context).sql,
+                    b"SELECT id, latitude, longitude, accuracy, timestamp\
+                          FROM locations  WHERE from_id=? \
+                          AND timestamp>=? \
+                          AND (timestamp>=? OR timestamp=(SELECT MAX(timestamp) FROM locations WHERE from_id=?)) \
+                          AND independent=0 \
+                          GROUP BY timestamp \
+                          ORDER BY timestamp;\x00" as *const u8
+                        as *const libc::c_char,
+                );
+
                 sqlite3_bind_int(stmt, 1i32, 1i32);
                 sqlite3_bind_int64(stmt, 2i32, locations_send_begin as sqlite3_int64);
                 sqlite3_bind_int64(stmt, 3i32, locations_last_sent as sqlite3_int64);
@@ -436,6 +451,43 @@ unsafe fn get_kml_timestamp(mut utc: time_t) -> *mut libc::c_char {
         wanted_struct.tm_sec as libc::c_int,
     );
 }
+
+pub unsafe fn dc_get_message_kml(
+    context: *const dc_context_t,
+    timestamp: time_t,
+    latitude: libc::c_double,
+    longitude: libc::c_double,
+) -> *mut libc::c_char {
+    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
+        return std::ptr::null_mut();
+    }
+
+    let timestamp_str = get_kml_timestamp(timestamp);
+    let latitude_str = dc_ftoa(latitude);
+    let longitude_str = dc_ftoa(longitude);
+
+    let ret = dc_mprintf(
+        b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <kml xmlns=\"http://www.opengis.net/kml/2.2\">\n\
+         <Document>\n\
+         <Placemark>\
+         <Timestamp><when>%s</when></Timestamp>\
+         <Point><coordinates>%s,%s</coordinates></Point>\
+         </Placemark>\n\
+         </Document>\n\
+         </kml>\x00" as *const u8 as *const libc::c_char,
+        timestamp_str,
+        longitude_str, // reverse order!
+        latitude_str,
+    );
+
+    free(latitude_str as *mut libc::c_void);
+    free(longitude_str as *mut libc::c_void);
+    free(timestamp_str as *mut libc::c_void);
+
+    ret
+}
+
 pub unsafe fn dc_set_kml_sent_timestamp(
     mut context: *mut dc_context_t,
     mut chat_id: uint32_t,
@@ -472,6 +524,7 @@ pub unsafe fn dc_save_locations(
     mut chat_id: uint32_t,
     mut contact_id: uint32_t,
     mut locations: *const dc_array_t,
+    independent: libc::c_int,
 ) -> uint32_t {
     let mut stmt_test: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut stmt_insert: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -487,10 +540,12 @@ pub unsafe fn dc_save_locations(
             b"SELECT id FROM locations WHERE timestamp=? AND from_id=?\x00" as *const u8
                 as *const libc::c_char,
         );
-        stmt_insert =
-            dc_sqlite3_prepare((*context).sql,
-                               b"INSERT INTO locations  (timestamp, from_id, chat_id, latitude, longitude, accuracy) VALUES (?,?,?,?,?,?);\x00"
-                                   as *const u8 as *const libc::c_char);
+        stmt_insert = dc_sqlite3_prepare(
+            (*context).sql,
+            b"INSERT INTO locations\
+                  (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
+                  VALUES (?,?,?,?,?,?,?);\x00" as *const u8 as *const libc::c_char,
+        );
         let mut i: libc::c_int = 0i32;
         while (i as libc::c_ulong) < dc_array_get_cnt(locations) {
             let mut location: *mut dc_location_t =
@@ -498,7 +553,7 @@ pub unsafe fn dc_save_locations(
             sqlite3_reset(stmt_test);
             sqlite3_bind_int64(stmt_test, 1i32, (*location).timestamp as sqlite3_int64);
             sqlite3_bind_int(stmt_test, 2i32, contact_id as libc::c_int);
-            if sqlite3_step(stmt_test) != 100i32 {
+            if independent | sqlite3_step(stmt_test) != 100i32 {
                 sqlite3_reset(stmt_insert);
                 sqlite3_bind_int64(stmt_insert, 1i32, (*location).timestamp as sqlite3_int64);
                 sqlite3_bind_int(stmt_insert, 2i32, contact_id as libc::c_int);
@@ -506,6 +561,7 @@ pub unsafe fn dc_save_locations(
                 sqlite3_bind_double(stmt_insert, 4i32, (*location).latitude);
                 sqlite3_bind_double(stmt_insert, 5i32, (*location).longitude);
                 sqlite3_bind_double(stmt_insert, 6i32, (*location).accuracy);
+                sqlite3_bind_double(stmt_insert, 7i32, independent as libc::c_double);
                 sqlite3_step(stmt_insert);
             }
             if (*location).timestamp > newest_timestamp {
@@ -733,10 +789,12 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(
         b" ----------------- MAYBE_SEND_LOCATIONS -------------- \x00" as *const u8
             as *const libc::c_char,
     );
-    stmt_chats =
-        dc_sqlite3_prepare((*context).sql,
-                           b"SELECT id, locations_send_begin, locations_last_sent   FROM chats   WHERE locations_send_until>?;\x00"
-                               as *const u8 as *const libc::c_char);
+    stmt_chats = dc_sqlite3_prepare(
+        (*context).sql,
+        b"SELECT id, locations_send_begin, locations_last_sent\
+              FROM chats\
+              WHERE locations_send_until>?;\x00" as *const u8 as *const libc::c_char,
+    );
     sqlite3_bind_int64(stmt_chats, 1i32, now as sqlite3_int64);
     while sqlite3_step(stmt_chats) == 100i32 {
         let mut chat_id: uint32_t = sqlite3_column_int(stmt_chats, 0i32) as uint32_t;
@@ -748,10 +806,16 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(
             continue;
         }
         if stmt_locations.is_null() {
-            stmt_locations =
-                dc_sqlite3_prepare((*context).sql,
-                                   b"SELECT id  FROM locations  WHERE from_id=?    AND timestamp>=?    AND timestamp>?    ORDER BY timestamp;\x00"
-                                       as *const u8 as *const libc::c_char)
+            stmt_locations = dc_sqlite3_prepare(
+                (*context).sql,
+                b"SELECT id \
+                  FROM locations \
+                  WHERE from_id=? \
+                  AND timestamp>=? \
+                  AND timestamp>? \
+                  AND independent=0 \
+                  ORDER BY timestamp;\x00" as *const u8 as *const libc::c_char,
+            );
         } else {
             sqlite3_reset(stmt_locations);
         }

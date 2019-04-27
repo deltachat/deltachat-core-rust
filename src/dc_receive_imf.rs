@@ -1,7 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
-use crate::constants::Event;
+use crate::constants::*;
 use crate::dc_apeerstate::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
@@ -552,7 +552,7 @@ pub unsafe fn dc_receive_imf(
                                     carray_get((*mime_parser).parts, i as libc::c_uint)
                                         as *mut dc_mimepart_t;
                                 if !(0 != (*part).is_meta) {
-                                    if !(*mime_parser).kml.is_null()
+                                    if !(*mime_parser).location_kml.is_null()
                                         && icnt == 1i32 as libc::c_ulong
                                         && !(*part).msg.is_null()
                                         && (strcmp(
@@ -922,22 +922,56 @@ pub unsafe fn dc_receive_imf(
                             i = i.wrapping_add(1)
                         }
                     }
-                    if !(*mime_parser).kml.is_null() && chat_id > 9i32 as libc::c_uint {
-                        let mut contact: *mut dc_contact_t = dc_get_contact(context, from_id);
-                        if !(*(*mime_parser).kml).addr.is_null()
-                            && !contact.is_null()
-                            && !(*contact).addr.is_null()
-                            && strcasecmp((*contact).addr, (*(*mime_parser).kml).addr) == 0i32
+                    if !(*mime_parser).message_kml.is_null() && chat_id > 9i32 as libc::c_uint {
+                        let mut location_id_written = false;
+                        let mut send_event = false;
+
+                        if !(*mime_parser).message_kml.is_null()
+                            && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
                         {
                             let mut newest_location_id: uint32_t = dc_save_locations(
                                 context,
                                 chat_id,
                                 from_id,
-                                (*(*mime_parser).kml).locations,
+                                (*(*mime_parser).message_kml).locations,
+                                1,
                             );
                             if 0 != newest_location_id && 0 == hidden {
                                 dc_set_msg_location_id(context, insert_msg_id, newest_location_id);
+                                location_id_written = true;
+                                send_event = true;
                             }
+                        }
+
+                        if !(*mime_parser).location_kml.is_null()
+                            && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
+                        {
+                            let contact = dc_get_contact(context, from_id);
+                            if !(*(*mime_parser).location_kml).addr.is_null()
+                                && !contact.is_null()
+                                && !(*contact).addr.is_null()
+                                && strcasecmp((*contact).addr, (*(*mime_parser).location_kml).addr)
+                                    == 0i32
+                            {
+                                let newest_location_id = dc_save_locations(
+                                    context,
+                                    chat_id,
+                                    from_id,
+                                    (*(*mime_parser).location_kml).locations,
+                                    0,
+                                );
+                                if newest_location_id != 0 && hidden == 0 && !location_id_written {
+                                    dc_set_msg_location_id(
+                                        context,
+                                        insert_msg_id,
+                                        newest_location_id,
+                                    );
+                                }
+                                send_event = true;
+                            }
+                            dc_contact_unref(contact);
+                        }
+                        if send_event {
                             (*context).cb.expect("non-null function pointer")(
                                 context,
                                 Event::LOCATION_CHANGED,
@@ -945,8 +979,8 @@ pub unsafe fn dc_receive_imf(
                                 0i32 as uintptr_t,
                             );
                         }
-                        dc_contact_unref(contact);
                     }
+
                     if 0 != add_delete_job
                         && carray_count(created_db_entries) >= 2i32 as libc::c_uint
                     {

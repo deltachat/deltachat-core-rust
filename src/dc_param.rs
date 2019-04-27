@@ -4,17 +4,71 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-/* *
- * @class dc_param_t
- *
- * An object for handling key=value parameter lists; for the key, curently only
- * a single character is allowed.
- *
- * The object is used eg. by dc_chat_t or dc_msg_t, for readable paramter names,
- * these classes define some DC_PARAM_* constantats.
- *
- * Only for library-internal use.
- */
+/// for msgs and jobs
+pub const DC_PARAM_FILE: char = 'f';
+/// for msgs
+pub const DC_PARAM_WIDTH: char = 'w';
+/// for msgs
+pub const DC_PARAM_HEIGHT: char = 'h';
+/// for msgs
+pub const DC_PARAM_DURATION: char = 'd';
+/// for msgs
+pub const DC_PARAM_MIMETYPE: char = 'm';
+/// for msgs: incoming: message is encryoted, outgoing: guarantee E2EE or the message is not send
+pub const DC_PARAM_GUARANTEE_E2EE: char = 'c';
+/// for msgs: decrypted with validation errors or without mutual set, if neither 'c' nor 'e' are preset, the messages is only transport encrypted
+pub const DC_PARAM_ERRONEOUS_E2EE: char = 'e';
+/// for msgs: force unencrypted message, either DC_FP_ADD_AUTOCRYPT_HEADER (1), DC_FP_NO_AUTOCRYPT_HEADER (2) or 0
+pub const DC_PARAM_FORCE_PLAINTEXT: char = 'u';
+/// for msgs: an incoming message which requestes a MDN (aka read receipt)
+pub const DC_PARAM_WANTS_MDN: char = 'r';
+/// for msgs
+pub const DC_PARAM_FORWARDED: char = 'a';
+/// for msgs
+pub const DC_PARAM_CMD: char = 'S';
+/// for msgs
+pub const DC_PARAM_CMD_ARG: char = 'E';
+/// for msgs
+pub const DC_PARAM_CMD_ARG2: char = 'F';
+/// for msgs
+pub const DC_PARAM_CMD_ARG3: char = 'G';
+/// for msgs
+pub const DC_PARAM_CMD_ARG4: char = 'H';
+/// for msgs
+pub const DC_PARAM_ERROR: char = 'L';
+/// for msgs in PREPARING: space-separated list of message IDs of forwarded copies
+pub const DC_PARAM_PREP_FORWARDS: char = 'P';
+/// for msgs
+pub const DC_PARAM_SET_LATITUDE: char = 'l';
+/// for msgs
+pub const DC_PARAM_SET_LONGITUDE: char = 'n';
+
+/// for jobs
+pub const DC_PARAM_SERVER_FOLDER: char = 'Z';
+/// for jobs
+pub const DC_PARAM_SERVER_UID: char = 'z';
+/// for jobs
+pub const DC_PARAM_ALSO_MOVE: char = 'M';
+/// for jobs: space-separated list of message recipients
+pub const DC_PARAM_RECIPIENTS: char = 'R';
+/// for groups
+pub const DC_PARAM_UNPROMOTED: char = 'U';
+/// for groups and contacts
+pub const DC_PARAM_PROFILE_IMAGE: char = 'i';
+/// for chats
+pub const DC_PARAM_SELFTALK: char = 'K';
+
+// values for DC_PARAM_FORCE_PLAINTEXT
+pub const DC_FP_ADD_AUTOCRYPT_HEADER: u8 = 1;
+pub const DC_FP_NO_AUTOCRYPT_HEADER: u8 = 2;
+
+/// An object for handling key=value parameter lists; for the key, curently only
+/// a single character is allowed.
+///
+/// The object is used eg. by dc_chat_t or dc_msg_t, for readable paramter names,
+/// these classes define some DC_PARAM_* constantats.
+///
+/// Only for library-internal use.
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_param_t {
@@ -34,6 +88,7 @@ pub unsafe fn dc_param_exists(mut param: *mut dc_param_t, mut key: libc::c_int) 
         0i32
     };
 }
+
 unsafe extern "C" fn find_param(
     mut haystack: *mut libc::c_char,
     mut key: libc::c_int,
@@ -111,6 +166,36 @@ pub unsafe fn dc_param_get_int(
     free(str as *mut libc::c_void);
     return ret;
 }
+
+/**
+ * Get value of a parameter.
+ *
+ * @memberof dc_param_t
+ * @param param Parameter object to query.
+ * @param key Key of the parameter to get, one of the DC_PARAM_* constants.
+ * @param def Value to return if the parameter is not set.
+ * @return The stored value or the default value.
+ */
+pub unsafe fn dc_param_get_float(
+    param: *const dc_param_t,
+    key: libc::c_int,
+    def: libc::c_double,
+) -> libc::c_double {
+    if param.is_null() || key == 0 {
+        return def;
+    }
+
+    let mut str = dc_param_get(param, key, std::ptr::null());
+    if str.is_null() {
+        return def;
+    }
+
+    let ret = dc_atof(str) as libc::c_double;
+    free(str as *mut libc::c_void);
+
+    ret
+}
+
 pub unsafe fn dc_param_set(
     mut param: *mut dc_param_t,
     mut key: libc::c_int,
@@ -264,4 +349,26 @@ pub unsafe fn dc_param_set_urlencoded(
             b"\n\x00" as *const u8 as *const libc::c_char,
         );
     };
+}
+
+/**
+ * Set parameter to a float.
+ *
+ * @memberof dc_param_t
+ * @param param Parameter object to modify.
+ * @param key Key of the parameter to modify, one of the DC_PARAM_* constants.
+ * @param value Value to store for key.
+ * @return None.
+ */
+pub unsafe fn dc_param_set_float(param: *mut dc_param_t, key: libc::c_int, value: libc::c_double) {
+    if param.is_null() || key == 0 {
+        return;
+    }
+
+    let value_str = dc_ftoa(value);
+    if value_str.is_null() {
+        return;
+    }
+    dc_param_set(param, key, value_str);
+    free(value_str as *mut libc::c_void);
 }

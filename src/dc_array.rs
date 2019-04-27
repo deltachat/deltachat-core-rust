@@ -1,7 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
-use crate::dc_context::dc_context_t;
+use crate::dc_context::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
@@ -18,21 +18,6 @@ pub struct dc_array_t {
     pub count: size_t,
     pub type_0: libc::c_int,
     pub array: *mut uintptr_t,
-}
-
-// location handling
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_location {
-    pub location_id: uint32_t,
-    pub latitude: libc::c_double,
-    pub longitude: libc::c_double,
-    pub accuracy: libc::c_double,
-    pub timestamp: time_t,
-    pub contact_id: uint32_t,
-    pub msg_id: uint32_t,
-    pub chat_id: uint32_t,
-    pub marker: *mut libc::c_char,
 }
 
 /* *
@@ -232,6 +217,30 @@ pub unsafe fn dc_array_get_marker(
         (*(*(*array).array.offset(index as isize) as *mut _dc_location)).marker,
     );
 }
+
+/**
+ * Return the independent-state of the location at the given index.
+ * Independent locations do not belong to the track of the user.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return 0=Location belongs to the track of the user,
+ *     1=Location was reported independently.
+ */
+pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -> libc::c_int {
+    if array.is_null()
+        || (*array).magic != 0xa11aai32 as libc::c_uint
+        || index >= (*array).count
+        || (*array).type_0 != 1i32
+        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+    {
+        return 0;
+    }
+
+    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).independent as libc::c_int
+}
+
 pub unsafe fn dc_array_search_id(
     mut array: *const dc_array_t,
     mut needle: uint32_t,

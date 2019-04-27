@@ -1,7 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
-use crate::constants::Event;
+use crate::constants::*;
 use crate::dc_array::*;
 use crate::dc_chatlist::*;
 use crate::dc_contact::*;
@@ -572,6 +572,8 @@ unsafe fn prepare_msg_raw(
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut msg_id: uint32_t = 0i32 as uint32_t;
     let mut to_id: uint32_t = 0i32 as uint32_t;
+    let mut location_id: uint32_t = 0i32 as uint32_t;
+
     if !((*chat).type_0 == 100i32 || (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32) {
         dc_log_error(
             context,
@@ -759,9 +761,57 @@ unsafe fn prepare_msg_raw(
                             new_references = dc_strdup(parent_in_reply_to)
                         }
                     }
+
+                    // add independent location to database
+
+                    if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
+                        stmt = dc_sqlite3_prepare(
+                            (*context).sql,
+                            b"INSERT INTO locations \
+			      (timestamp,from_id,chat_id, latitude,longitude,independent)\
+                              VALUES (?,?,?, ?,?,1);\x00" as *const u8
+                                as *const libc::c_char,
+                        );
+                        sqlite3_bind_int64(stmt, 1, timestamp);
+                        sqlite3_bind_int(stmt, 2, DC_CONTACT_ID_SELF as libc::c_int);
+                        sqlite3_bind_int(stmt, 3, (*chat).id as libc::c_int);
+                        sqlite3_bind_double(
+                            stmt,
+                            4,
+                            dc_param_get_float(
+                                (*msg).param,
+                                DC_PARAM_SET_LATITUDE as libc::c_int,
+                                0.0,
+                            ),
+                        );
+                        sqlite3_bind_double(
+                            stmt,
+                            5,
+                            dc_param_get_float(
+                                (*msg).param,
+                                DC_PARAM_SET_LONGITUDE as libc::c_int,
+                                0.0,
+                            ),
+                        );
+                        sqlite3_step(stmt);
+                        sqlite3_finalize(stmt);
+                        stmt = 0 as *mut sqlite3_stmt;
+
+                        location_id = dc_sqlite3_get_rowid2(
+                            (*context).sql,
+                            b"locations\x00" as *const u8 as *const libc::c_char,
+                            b"timestamp\x00" as *const u8 as *const libc::c_char,
+                            timestamp as u64,
+                            b"from_id\x00" as *const u8 as *const libc::c_char,
+                            DC_CONTACT_ID_SELF as u32,
+                        );
+                    }
+
+                    // add message to the database
+
                     stmt =
                         dc_sqlite3_prepare((*context).sql,
-                                           b"INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?);\x00"
+                                           b"INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);\x00"
                                                as *const u8 as
                                                *const libc::c_char);
                     sqlite3_bind_text(stmt, 1i32, new_rfc724_mid, -1i32, None);
@@ -786,6 +836,7 @@ unsafe fn prepare_msg_raw(
                     sqlite3_bind_int(stmt, 10i32, (*msg).hidden);
                     sqlite3_bind_text(stmt, 11i32, new_in_reply_to, -1i32, None);
                     sqlite3_bind_text(stmt, 12i32, new_references, -1i32, None);
+                    sqlite3_bind_int(stmt, 13i32, location_id as libc::c_int);
                     if sqlite3_step(stmt) != 101i32 {
                         dc_log_error(
                             context,
@@ -974,6 +1025,16 @@ pub unsafe fn dc_send_msg(
         (*msg).chat_id as uintptr_t,
         (*msg).id as uintptr_t,
     );
+
+    if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
+        (*context).cb.expect("non-null function pointer")(
+            context,
+            Event::LOCATION_CHANGED,
+            DC_CONTACT_ID_SELF as u64,
+            0,
+        );
+    }
+
     if 0 == chat_id {
         let mut forwards: *mut libc::c_char =
             dc_param_get((*msg).param, 'P' as i32, 0 as *const libc::c_char);
