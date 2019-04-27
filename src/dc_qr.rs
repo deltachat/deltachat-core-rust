@@ -1,4 +1,3 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::dc_apeerstate::*;
@@ -9,7 +8,6 @@ use crate::dc_key::*;
 use crate::dc_log::*;
 use crate::dc_lot::*;
 use crate::dc_param::*;
-use crate::dc_sqlite3::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::types::*;

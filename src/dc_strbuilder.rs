@@ -1,6 +1,5 @@
 use libc;
 
-use crate::types::*;
 use crate::x::*;
 
 #[derive(Copy, Clone)]

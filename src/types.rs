@@ -4,7 +4,6 @@ use libc;
 use crate::constants::Event;
 use crate::dc_context::dc_context_t;
 use crate::dc_imap::dc_imap_t;
-use crate::dc_sqlite3::dc_sqlite3_t;
 use crate::x::*;
 
 pub use libsqlite3_sys::*;

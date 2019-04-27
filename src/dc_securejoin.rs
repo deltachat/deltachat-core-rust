@@ -1,4 +1,3 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::constants::Event;
@@ -10,7 +9,6 @@ use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
 use crate::dc_hash::*;
-use crate::dc_imap::dc_imap_t;
 use crate::dc_key::*;
 use crate::dc_log::*;
 use crate::dc_lot::*;
@@ -19,7 +17,6 @@ use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_qr::*;
 use crate::dc_sqlite3::*;
-use crate::dc_stock::*;
 use crate::dc_stock::*;
 use crate::dc_strencode::*;
 use crate::dc_token::*;

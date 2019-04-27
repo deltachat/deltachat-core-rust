@@ -1,9 +1,5 @@
 use libc::{self, FILE};
 
-use crate::dc_context::dc_context_t;
-use crate::dc_key::dc_key_t;
-use crate::dc_pgp::*;
-use crate::dc_sqlite3::dc_sqlite3_t;
 use crate::dc_strbuilder::dc_strbuilder_t;
 use crate::types::*;
 

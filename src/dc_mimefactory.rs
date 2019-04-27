@@ -1,4 +1,3 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::constants::VERSION;
@@ -9,7 +8,6 @@ use crate::dc_e2ee::*;
 use crate::dc_hash::*;
 use crate::dc_location::*;
 use crate::dc_log::*;
-use crate::dc_lot::dc_lot_t;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
@@ -18,9 +16,7 @@ use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
-/* *
- * Library-internal.
- */
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_mimefactory_t {

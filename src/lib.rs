@@ -1,5 +1,4 @@
 #![allow(
-    unused_imports,
     dead_code,
     mutable_transmutes,
     non_camel_case_types,

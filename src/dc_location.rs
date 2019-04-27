@@ -1,4 +1,3 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::constants::Event;
@@ -7,7 +6,6 @@ use crate::dc_chat::*;
 use crate::dc_context::*;
 use crate::dc_job::*;
 use crate::dc_log::*;
-use crate::dc_lot::dc_lot_t;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_saxparser::*;

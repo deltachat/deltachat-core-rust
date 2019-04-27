@@ -1,14 +1,10 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::dc_apeerstate::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
-use crate::dc_imap::dc_imap_t;
 use crate::dc_log::*;
-use crate::dc_lot::dc_lot_t;
 use crate::dc_param::*;
-use crate::dc_smtp::dc_smtp_t;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;

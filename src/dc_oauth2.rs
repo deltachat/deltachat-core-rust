@@ -1,14 +1,10 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::constants::Event;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_imap::dc_imap_t;
 use crate::dc_jsmn::*;
 use crate::dc_log::*;
-use crate::dc_lot::dc_lot_t;
-use crate::dc_smtp::dc_smtp_t;
 use crate::dc_sqlite3::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;

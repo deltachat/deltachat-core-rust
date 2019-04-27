@@ -1,13 +1,10 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::constants::Event;
-use crate::dc_array::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_oauth2::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;

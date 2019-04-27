@@ -1,4 +1,3 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 
 use crate::constants::Event;
@@ -12,7 +11,6 @@ use crate::dc_keyhistory::*;
 use crate::dc_location::*;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
-use crate::dc_lot::dc_lot_t;
 use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;

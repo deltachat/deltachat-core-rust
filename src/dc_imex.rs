@@ -1,4 +1,3 @@
-use c2rust_bitfields::BitfieldStruct;
 use libc;
 use rand::{thread_rng, Rng};
 
@@ -11,7 +10,6 @@ use crate::dc_job::*;
 use crate::dc_key::*;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
-use crate::dc_lot::dc_lot_t;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_pgp::*;
