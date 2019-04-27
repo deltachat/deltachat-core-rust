@@ -1,0 +1,21 @@
+[package]
+name = "deltachat_ffi"
+version = "0.1.0"
+description = "Deltachat FFI"
+authors = ["dignifiedquire <dignifiedquire@gmail.com>"]
+edition = "2018"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+
+keywords = ["deltachat", "chat", "openpgp", "email", "encryption"]
+categories = ["cryptography", "std", "email"]
+
+[lib]
+crate-type = ["cdylib", "staticlib"]
+
+[dependencies]
+deltachat = { path = "../" }
+libc = "0.2"
+
+[build-dependencies]
+cbindgen = "0.8"

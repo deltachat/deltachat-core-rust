@@ -1,18 +1,12 @@
 [package]
-name = "deltachat-core-rust"
+name = "deltachat"
 version = "0.1.0"
 authors = ["dignifiedquire <dignifiedquire@gmail.com>"]
 edition = "2018"
 
-[lib]
-name = "deltachat"
-crate-type = ["cdylib", "staticlib"]
-
 [build-dependencies]
 cc = "1.0.35"
 pkg-config = "0.3"
-cbindgen = "0.8.3"
-
 
 [dependencies]
 c2rust-bitfields = "0.1.0"
@@ -25,3 +19,8 @@ rand = "0.6.5"
 smallvec = "0.6.9"
 libsqlite3-sys = "0.14.0"
 reqwest = "0.9.15"
+
+[workspace]
+members = [
+  "deltachat-ffi"
+]
