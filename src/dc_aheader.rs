@@ -7,10 +7,7 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-/* *
- * @class dc_aheader_t
- * Library-internal. Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
- */
+/// Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_aheader_t {
@@ -19,38 +16,43 @@ pub struct dc_aheader_t {
     pub prefer_encrypt: libc::c_int,
 }
 
-/* the returned pointer is ref'd and must be unref'd after usage */
+/// the returned pointer is ref'd and must be unref'd after usage
 pub unsafe fn dc_aheader_new() -> *mut dc_aheader_t {
-    let mut aheader: *mut dc_aheader_t = 0 as *mut dc_aheader_t;
-    aheader = calloc(
+    let mut aheader = calloc(
         1i32 as libc::c_ulong,
         ::std::mem::size_of::<dc_aheader_t>() as libc::c_ulong,
     ) as *mut dc_aheader_t;
+
     if aheader.is_null() {
         exit(37i32);
     }
+
     (*aheader).public_key = dc_key_new();
-    return aheader;
+
+    aheader
 }
+
 pub unsafe fn dc_aheader_new_from_imffields(
     mut wanted_from: *const libc::c_char,
     mut header: *const mailimf_fields,
 ) -> *mut dc_aheader_t {
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
-    let mut fine_header: *mut dc_aheader_t = 0 as *mut dc_aheader_t;
+    let mut cur = 0 as *mut clistiter;
+    let mut fine_header = 0 as *mut dc_aheader_t;
+
     if wanted_from.is_null() || header.is_null() {
         return 0 as *mut dc_aheader_t;
     }
+
     cur = (*(*header).fld_list).first;
     while !cur.is_null() {
-        let mut field: *mut mailimf_field = (if !cur.is_null() {
+        let mut field = (if !cur.is_null() {
             (*cur).data
         } else {
             0 as *mut libc::c_void
         }) as *mut mailimf_field;
+
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            let mut optional_field: *mut mailimf_optional_field =
-                (*field).fld_data.fld_optional_field;
+            let mut optional_field = (*field).fld_data.fld_optional_field;
             if !optional_field.is_null()
                 && !(*optional_field).fld_name.is_null()
                 && strcasecmp(
@@ -58,7 +60,7 @@ pub unsafe fn dc_aheader_new_from_imffields(
                     b"Autocrypt\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
             {
-                let mut test: *mut dc_aheader_t = dc_aheader_new();
+                let mut test = dc_aheader_new();
                 if 0 == dc_aheader_set_from_string(test, (*optional_field).fld_value)
                     || dc_addr_cmp((*test).addr, wanted_from) != 0i32
                 {
@@ -74,6 +76,7 @@ pub unsafe fn dc_aheader_new_from_imffields(
                 }
             }
         }
+
         cur = if !cur.is_null() {
             (*cur).next
         } else {
@@ -82,6 +85,7 @@ pub unsafe fn dc_aheader_new_from_imffields(
     }
     return fine_header;
 }
+
 pub unsafe fn dc_aheader_unref(mut aheader: *mut dc_aheader_t) {
     if aheader.is_null() {
         return;
@@ -90,6 +94,7 @@ pub unsafe fn dc_aheader_unref(mut aheader: *mut dc_aheader_t) {
     dc_key_unref((*aheader).public_key);
     free(aheader as *mut libc::c_void);
 }
+
 pub unsafe fn dc_aheader_set_from_string(
     mut aheader: *mut dc_aheader_t,
     mut header_str__: *const libc::c_char,
@@ -100,12 +105,13 @@ pub unsafe fn dc_aheader_set_from_string(
     (a) no key or value is expected to contain spaces,
     (b) for the key, non-base64-characters are ignored and
     (c) for parsing, we ignore `\r\n` as well as tabs for spaces */
-    let mut header_str: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut p: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut beg_attr_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut after_attr_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut beg_attr_value: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut header_str = 0 as *mut libc::c_char;
+    let mut p = 0 as *mut libc::c_char;
+    let mut beg_attr_name = 0 as *mut libc::c_char;
+    let mut after_attr_name = 0 as *mut libc::c_char;
+    let mut beg_attr_value = 0 as *mut libc::c_char;
     let mut success: libc::c_int = 0i32;
+
     dc_aheader_empty(aheader);
     if !(aheader.is_null() || header_str__.is_null()) {
         (*aheader).prefer_encrypt = 0i32;
@@ -161,8 +167,10 @@ pub unsafe fn dc_aheader_set_from_string(
     if 0 == success {
         dc_aheader_empty(aheader);
     }
-    return success;
+
+    success
 }
+
 pub unsafe fn dc_aheader_empty(mut aheader: *mut dc_aheader_t) {
     if aheader.is_null() {
         return;
@@ -170,14 +178,17 @@ pub unsafe fn dc_aheader_empty(mut aheader: *mut dc_aheader_t) {
     (*aheader).prefer_encrypt = 0i32;
     free((*aheader).addr as *mut libc::c_void);
     (*aheader).addr = 0 as *mut libc::c_char;
+
     if !(*(*aheader).public_key).binary.is_null() {
         dc_key_unref((*aheader).public_key);
         (*aheader).public_key = dc_key_new()
     };
 }
+
 /* ******************************************************************************
  * Parse Autocrypt Header
  ******************************************************************************/
+
 unsafe fn add_attribute(
     mut aheader: *mut dc_aheader_t,
     mut name: *const libc::c_char,
@@ -220,6 +231,7 @@ unsafe fn add_attribute(
     }
     return 0i32;
 }
+
 pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::c_char {
     let mut success: libc::c_int = 0i32;
     let mut keybase64_wrapped: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -262,10 +274,13 @@ pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::
             success = 1i32
         }
     }
+
     if 0 == success {
         free(ret.buf as *mut libc::c_void);
         ret.buf = 0 as *mut libc::c_char
     }
+
     free(keybase64_wrapped as *mut libc::c_void);
-    return ret.buf;
+
+    ret.buf
 }
