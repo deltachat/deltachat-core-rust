@@ -4,7 +4,23 @@ use std::env;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-fn main() {
+fn link_dylib(lib: &str) {
+    println!("cargo:rustc-link-lib=dylib={}", lib);
+}
+
+fn link_static(lib: &str) {
+    println!("cargo:rustc-link-lib=static={}", lib);
+}
+
+fn link_framework(fw: &str) {
+    println!("cargo:rustc-link-lib=framework={}", fw);
+}
+
+fn add_search_path(p: &str) {
+    println!("cargo:rustc-link-search={}", p);
+}
+
+fn build_tools() {
     let mut config = cc::Build::new();
     config.file("misc.h");
     config.file("misc.c");
@@ -13,25 +29,9 @@ fn main() {
     println!("rerun-if-changed=build.rs");
     println!("rerun-if-changed=misc.h");
     println!("rerun-if-changed=misc.c");
+}
 
-    println!("cargo:rustc-link-search=/usr/local/lib");
-
-    println!("cargo:rustc-link-lib=dylib=sasl2");
-    println!("cargo:rustc-link-lib=dylib=z");
-    println!("cargo:rustc-link-lib=dylib=pthread");
-    println!("cargo:rustc-link-lib=dylib=tools");
-
-    if std::env::var("TARGET").unwrap().contains("-apple") {
-        println!("cargo:rustc-link-search=/usr/local/opt/openssl/lib");
-        println!("cargo:rustc-link-lib=static=etpan");
-        println!("cargo:rustc-link-lib=dylib=iconv");
-        println!("cargo:rustc-link-lib=framework=CoreFoundation");
-        println!("cargo:rustc-link-lib=framework=CoreServices");
-        println!("cargo:rustc-link-lib=framework=Security");
-    } else if std::env::var("TARGET").unwrap().contains("linux") {
-        println!("cargo:rustc-link-lib=dylib=etpan");
-    }
-
+fn generate_bindings() {
     let crate_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
     let cfg = cbindgen::Config::from_root_or_default(std::path::Path::new(&crate_dir));
     let c = cbindgen::Builder::new()
@@ -52,4 +52,28 @@ fn main() {
             std::process::exit(1);
         }
     }
+}
+
+fn main() {
+    build_tools();
+
+    add_search_path("/usr/local/lib");
+
+    link_dylib("sasl2");
+    link_dylib("z");
+    link_dylib("pthread");
+    link_dylib("tools");
+
+    if std::env::var("TARGET").unwrap().contains("-apple") {
+        link_static("etpan");
+        link_dylib("iconv");
+
+        link_framework("CoreFoundation");
+        link_framework("CoreServices");
+        link_framework("Security");
+    } else if std::env::var("TARGET").unwrap().contains("linux") {
+        link_dylib("etpan");
+    }
+
+    generate_bindings();
 }
