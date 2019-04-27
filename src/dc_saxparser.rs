@@ -22,11 +22,6 @@ pub type dc_saxparser_starttag_cb_t = Option<
     unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: *mut *mut libc::c_char) -> (),
 >;
 
-#[inline]
-unsafe fn isascii(mut _c: libc::c_int) -> libc::c_int {
-    return (_c & !0x7fi32 == 0i32) as libc::c_int;
-}
-
 pub unsafe extern "C" fn dc_saxparser_init(
     mut saxparser: *mut dc_saxparser_t,
     mut userdata: *mut libc::c_void,

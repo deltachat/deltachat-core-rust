@@ -211,6 +211,7 @@ pub unsafe fn rpgp_msg_drop(msg_ptr: *mut message) {
 }
 
 /// Get the number of fingerprints of a given encrypted message.
+#[allow(dead_code)]
 pub unsafe fn rpgp_msg_recipients_len(msg_ptr: *mut message) -> u32 {
     assert!(!msg_ptr.is_null());
 
@@ -222,6 +223,7 @@ pub unsafe fn rpgp_msg_recipients_len(msg_ptr: *mut message) -> u32 {
 }
 
 /// Get the fingerprint of a given encrypted message, by index, in hexformat.
+#[allow(dead_code)]
 pub unsafe fn rpgp_msg_recipients_get(msg_ptr: *mut message, i: u32) -> *mut c_char {
     assert!(!msg_ptr.is_null());
 

@@ -40,6 +40,7 @@ pub unsafe extern "C" fn rpgp_pkey_to_bytes(pkey_ptr: *mut signed_public_key) ->
 }
 
 /// Get the key id of the given [signed_public_key].
+#[allow(dead_code)]
 pub unsafe fn rpgp_pkey_key_id(pkey_ptr: *mut signed_public_key) -> *mut c_char {
     assert!(!pkey_ptr.is_null());
 

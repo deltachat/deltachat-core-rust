@@ -33,7 +33,8 @@ pub unsafe fn rpgp_create_rsa_skey(bits: u32, user_id: *const c_char) -> *mut si
 }
 
 /// Generates a new x25519 key.
-pub unsafe extern "C" fn rpgp_create_x25519_skey(user_id: *const c_char) -> *mut signed_secret_key {
+#[allow(dead_code)]
+pub unsafe fn rpgp_create_x25519_skey(user_id: *const c_char) -> *mut signed_secret_key {
     assert!(!user_id.is_null());
 
     let user_id = CStr::from_ptr(user_id);
@@ -71,6 +72,7 @@ pub unsafe fn rpgp_skey_public_key(skey_ptr: *mut signed_secret_key) -> *mut sig
 }
 
 /// Returns the KeyID for the passed in key.
+#[allow(dead_code)]
 pub unsafe fn rpgp_skey_key_id(skey_ptr: *mut signed_secret_key) -> *mut c_char {
     assert!(!skey_ptr.is_null());
 

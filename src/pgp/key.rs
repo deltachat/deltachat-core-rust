@@ -13,6 +13,7 @@ pub type public_or_secret_key = PublicOrSecret;
 /// Creates an in-memory representation of a PGP key, based on the armor file given.
 /// The returned pointer should be stored, and reused when calling methods "on" this key.
 /// When done with it [rpgp_key_drop] should be called, to free the memory.
+#[allow(dead_code)]
 pub unsafe fn rpgp_key_from_armor(raw: *const u8, len: libc::size_t) -> *mut public_or_secret_key {
     assert!(!raw.is_null());
     assert!(len > 0);
@@ -58,6 +59,7 @@ pub unsafe extern "C" fn rpgp_key_from_bytes(
 }
 
 /// Returns the KeyID for the passed in key. The caller is responsible to call [rpgp_string_drop] with the returned memory, to free it.
+#[allow(dead_code)]
 pub unsafe fn rpgp_key_id(key_ptr: *mut public_or_secret_key) -> *mut c_char {
     assert!(!key_ptr.is_null());
 

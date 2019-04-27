@@ -5,11 +5,6 @@ use crate::types::*;
 use crate::x::*;
 
 #[inline]
-unsafe fn isascii(mut _c: libc::c_int) -> libc::c_int {
-    return (_c & !0x7fi32 == 0i32) as libc::c_int;
-}
-
-#[inline]
 unsafe fn __isctype(mut _c: __darwin_ct_rune_t, mut _f: libc::c_ulong) -> __darwin_ct_rune_t {
     return if _c < 0i32 || _c >= 1i32 << 8i32 {
         0i32
