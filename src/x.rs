@@ -6,6 +6,17 @@ use crate::types::*;
 extern "C" {
     pub static mut _DefaultRuneLocale: _RuneLocale;
 
+    pub fn fgets(_: *mut libc::c_char, _: libc::c_int, _: *mut FILE);
+    pub fn pthread_create(
+        _: *mut pthread_t,
+        _: *const pthread_attr_t,
+        _: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> *mut libc::c_void>,
+        _: *mut libc::c_void,
+    ) -> libc::c_int;
+    pub fn pthread_join(_: pthread_t, _: *mut *mut libc::c_void) -> libc::c_int;
+
+    pub fn system(_: *const libc::c_char) -> libc::c_int;
+    pub fn printf(_: *const libc::c_char, _: ...) -> libc::c_int;
     pub fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
     pub fn free(_: *mut libc::c_void);
     pub fn exit(_: libc::c_int) -> !;

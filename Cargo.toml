@@ -19,8 +19,18 @@ rand = "0.6.5"
 smallvec = "0.6.9"
 libsqlite3-sys = "0.14.0"
 reqwest = "0.9.15"
+num-derive = "0.2.5"
+num-traits = "0.2.6"
 
 [workspace]
 members = [
   "deltachat-ffi"
 ]
+
+
+[[example]]
+name = "simple"
+
+[[example]]
+name = "repl"
+path = "examples/repl/main.rs"

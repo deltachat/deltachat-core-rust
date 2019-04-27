@@ -180,7 +180,7 @@ pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
 // If you do not want to handle an event, it is always safe to return 0,
 // so there is no need to add a "case" for every event.
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u32)]
 pub enum Event {
     /// The library-user may write an informational string to the log.

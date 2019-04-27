@@ -13,8 +13,10 @@ extern "C" {
 
     pub type _telldir;
     pub type mailstream_cancel;
+    pub static mut __stdinp: *mut FILE;
 }
 
+pub type FILE = libc::FILE;
 pub type sqlite_int64 = libc::c_longlong;
 pub type sqlite3_int64 = sqlite_int64;
 
@@ -30,6 +32,16 @@ pub type __darwin_size_t = libc::c_ulong;
 pub type __darwin_ssize_t = libc::c_long;
 pub type __darwin_time_t = libc::c_long;
 pub type __darwin_pid_t = __int32_t;
+
+pub type pthread_attr_t = __darwin_pthread_attr_t;
+pub type __darwin_pthread_attr_t = _opaque_pthread_attr_t;
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct _opaque_pthread_attr_t {
+    pub __sig: libc::c_long,
+    pub __opaque: [libc::c_char; 56],
+}
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct __darwin_pthread_handler_rec {

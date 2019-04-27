@@ -1,5 +1,7 @@
 use libc;
-pub type size_t = libc::c_ulong;
+
+use crate::types::*;
+
 /*
 Copyright (c) 2010 Serge A. Zaitsev
 
