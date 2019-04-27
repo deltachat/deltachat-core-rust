@@ -11,6 +11,15 @@ use libc;
 
 pub const DC_VERSION_STR: &'static str = "0.43.0\x00";
 
+
+// dc_context_t
+
+#[no_mangle]
+pub type dc_context_t = dc_context::dc_context_t;
+
+
+// dc_array_t
+
 #[no_mangle]
 pub type dc_array_t = dc_array::dc_array_t;
 
@@ -126,3 +135,52 @@ pub unsafe extern "C" fn dc_array_search_id(
 pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const libc::c_ulong {
     dc_array::dc_array_get_raw(array)
 }
+
+
+// dc_chatlist_t
+
+#[no_mangle]
+pub type dc_chatlist_t = dc_chatlist::dc_chatlist_t;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist::dc_chatlist_t) {
+    dc_chatlist::dc_chatlist_unref(chatlist)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chatlist_get_cnt(chatlist: *mut dc_chatlist::dc_chatlist_t) -> libc::c_ulong {
+    dc_chatlist::dc_chatlist_get_cnt(chatlist)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chatlist_get_chat_id(chatlist: *mut dc_chatlist::dc_chatlist_t, index: libc::c_ulong) -> libc::uint32_t {
+    dc_chatlist::dc_chatlist_get_chat_id(chatlist, index)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chatlist_get_msg_id(chatlist: *mut dc_chatlist::dc_chatlist_t, index: libc::c_ulong) -> libc::uint32_t {
+    dc_chatlist::dc_chatlist_get_msg_id(chatlist, index)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chatlist_get_summary(chatlist: *mut dc_chatlist::dc_chatlist_t, index: libc::c_ulong, chat: *mut dc_chat::dc_chat_t) -> *mut dc_lot::dc_lot_t {
+    dc_chatlist::dc_chatlist_get_summary(chatlist, index, chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chatlist_get_context(chatlist: *mut dc_chatlist::dc_chatlist_t) -> *mut dc_context::dc_context_t {
+    dc_chatlist::dc_chatlist_get_context(chatlist)
+}
+
+
+// dc_chat_t
+
+#[no_mangle]
+pub type dc_chat_t = dc_chat::dc_chat_t;
+
+
+// dc_lot_t
+
+#[no_mangle]
+pub type dc_lot_t = dc_lot::dc_lot_t;
+
