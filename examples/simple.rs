@@ -2,6 +2,7 @@ extern crate deltachat;
 
 use std::ffi::{CStr, CString};
 use std::ptr::NonNull;
+use tempfile::tempdir;
 
 use deltachat::constants::Event;
 use deltachat::dc_chat::*;
@@ -73,24 +74,24 @@ fn main() {
             dc_perform_smtp_idle(sendable_ctx.0.as_ptr());
         });
 
-        let dbfile = CString::new("../deltachat-core/build/hello2.db").unwrap();
-        println!("opening dir");
+        let dir = tempdir().unwrap();
+        let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+
+        println!("opening database {:?}", dbfile);
         dc_open(ctx, dbfile.as_ptr(), std::ptr::null());
 
-        if dc_is_configured(ctx) == 0 {
-            println!("configuring");
-            dc_set_config(
-                ctx,
-                CString::new("addr").unwrap().as_ptr(),
-                CString::new("d@testrun.org").unwrap().as_ptr(),
-            );
-            dc_set_config(
-                ctx,
-                CString::new("mail_pw").unwrap().as_ptr(),
-                CString::new("***").unwrap().as_ptr(),
-            );
-            dc_configure(ctx);
-        }
+        println!("configuring");
+        dc_set_config(
+            ctx,
+            CString::new("addr").unwrap().as_ptr(),
+            CString::new("d@testrun.org").unwrap().as_ptr(),
+        );
+        dc_set_config(
+            ctx,
+            CString::new("mail_pw").unwrap().as_ptr(),
+            CString::new("***").unwrap().as_ptr(),
+        );
+        dc_configure(ctx);
 
         std::thread::sleep_ms(4000);
 
