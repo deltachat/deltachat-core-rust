@@ -1,0 +1,10 @@
+# normal text files should contain a simple LF lineend, the following settings 
+# ensures this even if the user has not set core.autocrlf.
+*  text=auto
+
+# binary files should be detected by git, however, to be sure, you can add them here explictly
+*.png  binary
+*.jpg  binary
+*.gif  binary
+*.ico  binary
+
