@@ -2,3 +2,8 @@
 **/*.rs.bk
 Cargo.lock
 *.db
+
+# ignore vi temporaries
+*~
+*.swp
+*.swo
