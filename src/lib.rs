@@ -73,7 +73,6 @@ pub use self::constants::*;
 #[cfg(test)]
 mod tests {
     use std::ffi::{CStr, CString};
-    use std::os::raw::c_int;
     use std::ptr::NonNull;
 
     use crate::constants::Event;
@@ -82,7 +81,6 @@ mod tests {
     use crate::dc_configure::*;
     use crate::dc_contact::*;
     use crate::dc_context::*;
-    use crate::dc_imap::*;
     use crate::dc_job::{
         dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs, dc_perform_smtp_idle,
         dc_perform_smtp_jobs,
