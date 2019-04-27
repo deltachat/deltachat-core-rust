@@ -238,6 +238,198 @@ pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat::dc_cha
     dc_chat::dc_chat_is_sending_locations(chat)
 }
 
+
+// dc_msg_t
+
+#[no_mangle]
+pub type dc_msg_t = dc_msg::dc_msg_t;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_new(context: *mut dc_context::dc_context_t, viewtype: libc::c_int) -> *mut dc_msg::dc_msg_t {
+    dc_msg::dc_msg_new(context, viewtype)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_unref (msg: *mut dc_msg::dc_msg_t) {
+    dc_msg::dc_msg_unref(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_empty (msg: *mut dc_msg::dc_msg_t) {
+    dc_msg::dc_msg_empty(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_id (msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+    dc_msg::dc_msg_get_id(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_from_id (msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+    dc_msg::dc_msg_get_from_id(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_chat_id (msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+    dc_msg::dc_msg_get_chat_id(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_viewtype (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_viewtype(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_state (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_state(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_timestamp (msg: *mut dc_msg::dc_msg_t) -> libc::int64_t {
+    dc_msg::dc_msg_get_timestamp(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_received_timestamp (msg: *mut dc_msg::dc_msg_t) -> libc::int64_t {
+    dc_msg::dc_msg_get_received_timestamp(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_sort_timestamp (msg: *mut dc_msg::dc_msg_t) -> libc::int64_t {
+    dc_msg::dc_msg_get_sort_timestamp(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_text (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_text(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_file (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_file(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_filename (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_filename(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_filemime (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_filemime(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_filebytes (msg: *mut dc_msg::dc_msg_t) -> libc::uint64_t {
+    dc_msg::dc_msg_get_filebytes(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_width (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_width(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_height (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_height(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_duration (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_duration(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_showpadlock (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_showpadlock(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_summary (msg: *mut dc_msg::dc_msg_t, chat: *mut dc_chat::dc_chat_t) -> *mut dc_lot::dc_lot_t {
+    dc_msg::dc_msg_get_summary(msg, chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_summarytext (msg: *mut dc_msg::dc_msg_t, approx_characters: libc::c_int) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_summarytext(msg, approx_characters)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_has_deviating_timestamp(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_has_location (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_has_location(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_sent (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_sent(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_starred (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_starred(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_forwarded (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_forwarded(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_info (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_info(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_increation (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_increation(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_setupmessage (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_setupmessage(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_setupcodebegin (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_setupcodebegin(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_text (msg: *mut dc_msg::dc_msg_t, text: *mut libc::c_char) {
+    dc_msg::dc_msg_set_text(msg, text)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_file (msg: *mut dc_msg::dc_msg_t, file: *mut libc::c_char, filemime: *mut libc::c_char) {
+    dc_msg::dc_msg_set_file(msg, file, filemime)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_dimension(msg: *mut dc_msg::dc_msg_t, width: libc::c_int, height: libc::c_int) {
+    dc_msg::dc_msg_set_dimension(msg, width, height)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_duration (msg: *mut dc_msg::dc_msg_t, duration: libc::c_int) {
+    dc_msg::dc_msg_set_duration(msg, duration)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_location (msg: *mut dc_msg::dc_msg_t, latitude: libc::c_double, longitude: libc::c_double) {
+    dc_msg::dc_msg_set_location(msg, latitude, longitude)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_latefiling_mediasize (msg: *mut dc_msg::dc_msg_t, width: libc::c_int, height: libc::c_int, duration: libc::c_int) {
+    dc_msg::dc_msg_latefiling_mediasize(msg, width, height, duration)
+}
+
+
 // dc_lot_t
 
 #[no_mangle]
