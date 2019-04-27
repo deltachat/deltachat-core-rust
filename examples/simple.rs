@@ -36,7 +36,7 @@ fn cb(_ctx: *mut dc_context_t, event: Event, data1: u64, data2: u64) -> u64 {
                 }
             }
         }
-        Event::INFO | Event::WARNING | Event::ERROR => {
+        Event::INFO | Event::WARNING | Event::ERROR | Event::ERROR_NETWORK => {
             println!(
                 "  {}",
                 unsafe { CStr::from_ptr(data2 as *const _) }
