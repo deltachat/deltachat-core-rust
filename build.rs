@@ -75,5 +75,5 @@ fn main() {
         link_dylib("etpan");
     }
 
-    generate_bindings();
+    // generate_bindings();
 }

@@ -1,7 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
-use crate::constants::Event;
+use crate::constants::{Event, VERSION};
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -546,7 +546,7 @@ static mut sys_config_keys: [*const libc::c_char; 3] = [
 ];
 unsafe fn get_sys_config_str(mut key: *const libc::c_char) -> *mut libc::c_char {
     if strcmp(key, b"sys.version\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        return dc_strdup(b"0.42.0\x00" as *const u8 as *const libc::c_char);
+        return dc_strdup(VERSION as *const u8 as *const libc::c_char);
     } else if strcmp(
         key,
         b"sys.msgsize_max_recommended\x00" as *const u8 as *const libc::c_char,
@@ -734,34 +734,90 @@ pub unsafe fn dc_get_info(mut context: *mut dc_context_t) -> *mut libc::c_char {
         b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
         b"<unset>\x00" as *const u8 as *const libc::c_char,
     );
-    temp =
-        dc_mprintf(b"deltachat_core_version=v%s\nsqlite_version=%s\nsqlite_thread_safe=%i\nlibetpan_version=%i.%i\nopenssl_version=%i.%i.%i%c\nrpgp_enabled=%i\ncompile_date=Apr 26 2019, 00:51:50\narch=%i\nnumber_of_chats=%i\nnumber_of_chat_messages=%i\nmessages_in_contact_requests=%i\nnumber_of_contacts=%i\ndatabase_dir=%s\ndatabase_version=%i\nblobdir=%s\ndisplay_name=%s\nis_configured=%i\nentered_account_settings=%s\nused_account_settings=%s\ninbox_watch=%i\nsentbox_watch=%i\nmvbox_watch=%i\nmvbox_move=%i\nfolders_configured=%i\nconfigured_sentbox_folder=%s\nconfigured_mvbox_folder=%s\nmdns_enabled=%i\ne2ee_enabled=%i\nprivate_key_count=%i\npublic_key_count=%i\nfingerprint=%s\n\x00"
-                       as *const u8 as *const libc::c_char,
-                   b"0.42.0\x00" as *const u8 as *const libc::c_char,
-                   b"3.24.0\x00" as *const u8 as *const libc::c_char,
-                   sqlite3_threadsafe(), libetpan_get_version_major(),
-                   libetpan_get_version_minor(),
-                   (0x1000212fi64 >> 28i32) as libc::c_int,
-                   (0x1000212fi64 >> 20i32) as libc::c_int & 0xffi32,
-                   (0x1000212fi64 >> 12i32) as libc::c_int & 0xffi32,
-                   (('a' as i32 - 1i32) as libc::c_long +
-                        (0x1000212fi64 >> 4i32 & 0xffi32 as libc::c_long)) as
-                       libc::c_char as libc::c_int, rpgp_enabled,
-                   (::std::mem::size_of::<*mut libc::c_void>() as
-                        libc::c_ulong).wrapping_mul(8i32 as libc::c_ulong),
-                   chats, real_msgs, deaddrop_msgs, contacts,
-                   if !(*context).dbfile.is_null() {
-                       (*context).dbfile
-                   } else { unset }, dbversion,
-                   if !(*context).blobdir.is_null() {
-                       (*context).blobdir
-                   } else { unset },
-                   if !displayname.is_null() { displayname } else { unset },
-                   is_configured, l_readable_str, l2_readable_str,
-                   inbox_watch, sentbox_watch, mvbox_watch, mvbox_move,
-                   folders_configured, configured_sentbox_folder,
-                   configured_mvbox_folder, mdns_enabled, e2ee_enabled,
-                   prv_key_cnt, pub_key_cnt, fingerprint_str);
+
+    temp = dc_mprintf(
+        b"deltachat_core_version=v%s\n\
+          sqlite_version=%s\n\
+          sqlite_thread_safe=%i\n\
+          libetpan_version=%i.%i\n\
+          openssl_version=%i.%i.%i%c\n\
+          rpgp_enabled=%i\n\
+          compile_date=Apr 26 2019, 00:51:50\n\
+          arch=%i\n\
+          number_of_chats=%i\n\
+          number_of_chat_messages=%i\n\
+          messages_in_contact_requests=%i\n\
+          number_of_contacts=%i\n\
+          database_dir=%s\n\
+          database_version=%i\n\
+          blobdir=%s\n\
+          display_name=%s\n\
+          is_configured=%i\n\
+          entered_account_settings=%s\n\
+          used_account_settings=%s\n\
+          inbox_watch=%i\n\
+          sentbox_watch=%i\n\
+          mvbox_watch=%i\n\
+          mvbox_move=%i\n\
+          folders_configured=%i\n\
+          configured_sentbox_folder=%s\n\
+          configured_mvbox_folder=%s\n\
+          mdns_enabled=%i\n\
+          e2ee_enabled=%i\n\
+          private_key_count=%i\n\
+          public_key_count=%i\n\
+          fingerprint=%s\n\x00" as *const u8 as *const libc::c_char,
+        VERSION as *const u8 as *const libc::c_char,
+        libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char,
+        sqlite3_threadsafe(),
+        libetpan_get_version_major(),
+        libetpan_get_version_minor(),
+        // openssl (none used, so setting to 0)
+        0 as libc::c_int,
+        0 as libc::c_int,
+        0 as libc::c_int,
+        'a' as libc::c_char as libc::c_int,
+        rpgp_enabled,
+        // arch
+        (::std::mem::size_of::<*mut libc::c_void>() as libc::c_ulong)
+            .wrapping_mul(8i32 as libc::c_ulong),
+        chats,
+        real_msgs,
+        deaddrop_msgs,
+        contacts,
+        if !(*context).dbfile.is_null() {
+            (*context).dbfile
+        } else {
+            unset
+        },
+        dbversion,
+        if !(*context).blobdir.is_null() {
+            (*context).blobdir
+        } else {
+            unset
+        },
+        if !displayname.is_null() {
+            displayname
+        } else {
+            unset
+        },
+        is_configured,
+        l_readable_str,
+        l2_readable_str,
+        inbox_watch,
+        sentbox_watch,
+        mvbox_watch,
+        mvbox_move,
+        folders_configured,
+        configured_sentbox_folder,
+        configured_mvbox_folder,
+        mdns_enabled,
+        e2ee_enabled,
+        prv_key_cnt,
+        pub_key_cnt,
+        fingerprint_str,
+    );
+
     dc_strbuilder_cat(&mut ret, temp);
     free(temp as *mut libc::c_void);
     dc_loginparam_unref(l);
@@ -776,7 +832,7 @@ pub unsafe fn dc_get_info(mut context: *mut dc_context_t) -> *mut libc::c_char {
     return ret.buf;
 }
 pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
-    return dc_strdup(b"0.42.0\x00" as *const u8 as *const libc::c_char);
+    return dc_strdup(VERSION as *const u8 as *const libc::c_char);
 }
 pub unsafe fn dc_get_fresh_msgs(mut context: *mut dc_context_t) -> *mut dc_array_t {
     let mut show_deaddrop: libc::c_int = 0i32;
