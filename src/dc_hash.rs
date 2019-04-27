@@ -617,13 +617,13 @@ static mut sjhashUpperToLower: [libc::c_uchar; 256] = [
 ];
 /* Hash and comparison functions when the mode is SJHASH_POINTER
  */
-unsafe fn ptrHash(mut pKey: *const libc::c_void, mut nKey: libc::c_int) -> libc::c_int {
+unsafe fn ptrHash(pKey: *const libc::c_void, _nKey: libc::c_int) -> libc::c_int {
     let mut x: uintptr_t = pKey as uintptr_t;
     return (x ^ x << 8i32 ^ x >> 8i32) as libc::c_int;
 }
 /* Hash and comparison functions when the mode is SJHASH_INT
  */
-unsafe fn intHash(mut pKey: *const libc::c_void, mut nKey: libc::c_int) -> libc::c_int {
+unsafe fn intHash(_pKey: *const libc::c_void, mut nKey: libc::c_int) -> libc::c_int {
     return nKey ^ nKey << 8i32 ^ nKey >> 8i32;
 }
 /*
@@ -796,10 +796,10 @@ unsafe fn sjhashStrNICmp(
     };
 }
 unsafe fn ptrCompare(
-    mut pKey1: *const libc::c_void,
-    mut n1: libc::c_int,
-    mut pKey2: *const libc::c_void,
-    mut n2: libc::c_int,
+    pKey1: *const libc::c_void,
+    _n1: libc::c_int,
+    pKey2: *const libc::c_void,
+    _n2: libc::c_int,
 ) -> libc::c_int {
     if pKey1 == pKey2 {
         return 0i32;
@@ -809,14 +809,16 @@ unsafe fn ptrCompare(
     }
     return 1i32;
 }
+
 unsafe fn intCompare(
-    mut pKey1: *const libc::c_void,
-    mut n1: libc::c_int,
-    mut pKey2: *const libc::c_void,
-    mut n2: libc::c_int,
+    _pKey1: *const libc::c_void,
+    n1: libc::c_int,
+    _pKey2: *const libc::c_void,
+    n2: libc::c_int,
 ) -> libc::c_int {
     return n2 - n1;
 }
+
 pub unsafe fn dc_hash_find(
     mut pH: *const dc_hash_t,
     mut pKey: *const libc::c_void,

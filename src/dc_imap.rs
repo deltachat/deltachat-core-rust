@@ -1468,7 +1468,6 @@ unsafe fn add_flag(
     mut server_uid: uint32_t,
     mut flag: *mut mailimap_flag,
 ) -> libc::c_int {
-    let mut r: libc::c_int = 0i32;
     let mut flag_list: *mut mailimap_flag_list = 0 as *mut mailimap_flag_list;
     let mut store_att_flags: *mut mailimap_store_att_flags = 0 as *mut mailimap_store_att_flags;
     let mut set: *mut mailimap_set = mailimap_set_new_single(server_uid);
@@ -1476,8 +1475,7 @@ unsafe fn add_flag(
         flag_list = mailimap_flag_list_new_empty();
         mailimap_flag_list_add(flag_list, flag);
         store_att_flags = mailimap_store_att_flags_new_add_flags(flag_list);
-        r = mailimap_uid_store((*imap).etpan, set, store_att_flags);
-        0 != dc_imap_is_error(imap, r);
+        mailimap_uid_store((*imap).etpan, set, store_att_flags);
     }
     if !store_att_flags.is_null() {
         mailimap_store_att_flags_free(store_att_flags);
@@ -1486,11 +1484,11 @@ unsafe fn add_flag(
         mailimap_set_free(set);
         set = 0 as *mut mailimap_set
     }
-    return if 0 != (*imap).should_reconnect {
+    if 0 != (*imap).should_reconnect {
         0i32
     } else {
         1i32
-    };
+    }
 }
 pub unsafe fn dc_imap_set_seen(
     mut imap: *mut dc_imap_t,

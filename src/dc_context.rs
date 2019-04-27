@@ -282,13 +282,14 @@ unsafe fn cb_get_config(
  * @private @memberof dc_context_t
  */
 unsafe fn cb_dummy(
-    mut context: *mut dc_context_t,
-    mut event: Event,
-    mut data1: uintptr_t,
-    mut data2: uintptr_t,
+    _context: *mut dc_context_t,
+    _event: Event,
+    _data1: uintptr_t,
+    _data2: uintptr_t,
 ) -> uintptr_t {
-    return 0i32 as uintptr_t;
+    0i32 as uintptr_t
 }
+
 pub unsafe fn dc_context_unref(mut context: *mut dc_context_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
@@ -935,9 +936,10 @@ pub unsafe fn dc_search_msgs(
         return 0 as *mut dc_array_t;
     };
 }
+
 pub unsafe fn dc_is_inbox(
-    mut context: *mut dc_context_t,
-    mut folder_name: *const libc::c_char,
+    _context: *mut dc_context_t,
+    folder_name: *const libc::c_char,
 ) -> libc::c_int {
     let mut is_inbox: libc::c_int = 0i32;
     if !folder_name.is_null() {

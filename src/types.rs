@@ -1190,14 +1190,14 @@ pub struct _RuneLocale {
     pub __magic: [libc::c_char; 8],
     pub __encoding: [libc::c_char; 32],
     pub __sgetrune: Option<
-        unsafe fn(
+        unsafe extern "C" fn(
             _: *const libc::c_char,
             _: __darwin_size_t,
             _: *mut *const libc::c_char,
         ) -> __darwin_rune_t,
     >,
     pub __sputrune: Option<
-        unsafe fn(
+        unsafe extern "C" fn(
             _: __darwin_rune_t,
             _: *mut libc::c_char,
             _: __darwin_size_t,

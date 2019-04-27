@@ -826,9 +826,9 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
     return any_part_added;
 }
 unsafe fn hash_header(
-    mut out: *mut dc_hash_t,
-    mut in_0: *const mailimf_fields,
-    mut context: *mut dc_context_t,
+    out: *mut dc_hash_t,
+    in_0: *const mailimf_fields,
+    _context: *mut dc_context_t,
 ) {
     if in_0.is_null() {
         return;

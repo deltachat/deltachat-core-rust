@@ -121,10 +121,7 @@ pub unsafe fn dc_stop_ongoing_process(mut context: *mut dc_context_t) {
     };
 }
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
-pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
-    mut context: *mut dc_context_t,
-    mut job: *mut dc_job_t,
-) {
+pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: *mut dc_job_t) {
     let mut flags: libc::c_int = 0;
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
@@ -1739,9 +1736,9 @@ unsafe fn moz_autoconfigure(
     return moz_ac.out;
 }
 unsafe fn moz_autoconfigure_text_cb(
-    mut userdata: *mut libc::c_void,
-    mut text: *const libc::c_char,
-    mut len: libc::c_int,
+    userdata: *mut libc::c_void,
+    text: *const libc::c_char,
+    _len: libc::c_int,
 ) {
     let mut moz_ac: *mut moz_autoconfigure_t = userdata as *mut moz_autoconfigure_t;
     let mut val: *mut libc::c_char = dc_strdup(text);
@@ -2017,9 +2014,9 @@ unsafe fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
     }
 }
 unsafe fn outlk_autodiscover_text_cb(
-    mut userdata: *mut libc::c_void,
-    mut text: *const libc::c_char,
-    mut len: libc::c_int,
+    userdata: *mut libc::c_void,
+    text: *const libc::c_char,
+    _len: libc::c_int,
 ) {
     let mut outlk_ad: *mut outlk_autodiscover_t = userdata as *mut outlk_autodiscover_t;
     let mut val: *mut libc::c_char = dc_strdup(text);
@@ -2080,9 +2077,9 @@ unsafe fn outlk_autodiscover_endtag_cb(
     (*outlk_ad).tag_config = 0i32;
 }
 unsafe fn outlk_autodiscover_starttag_cb(
-    mut userdata: *mut libc::c_void,
-    mut tag: *const libc::c_char,
-    mut attr: *mut *mut libc::c_char,
+    userdata: *mut libc::c_void,
+    tag: *const libc::c_char,
+    _attr: *mut *mut libc::c_char,
 ) {
     let mut outlk_ad: *mut outlk_autodiscover_t = userdata as *mut outlk_autodiscover_t;
     if strcmp(tag, b"protocol\x00" as *const u8 as *const libc::c_char) == 0i32 {

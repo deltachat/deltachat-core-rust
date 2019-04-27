@@ -10,11 +10,11 @@ use crate::x::*;
 /* yes: uppercase */
 /* library private: key-history */
 pub unsafe fn dc_add_to_keyhistory(
-    mut context: *mut dc_context_t,
-    mut rfc724_mid: *const libc::c_char,
-    mut sending_time: time_t,
-    mut addr: *const libc::c_char,
-    mut fingerprint: *const libc::c_char,
+    _context: *mut dc_context_t,
+    _rfc724_mid: *const libc::c_char,
+    _sending_time: time_t,
+    _addr: *const libc::c_char,
+    _fingerprint: *const libc::c_char,
 ) {
 
 }

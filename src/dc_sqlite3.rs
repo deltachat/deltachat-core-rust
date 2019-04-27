@@ -1220,9 +1220,13 @@ pub unsafe fn dc_sqlite3_get_rowid2(
     sqlite3_free(q3 as *mut libc::c_void);
     return id;
 }
-pub unsafe fn dc_sqlite3_begin_transaction(mut sql: *mut dc_sqlite3_t) {}
-pub unsafe fn dc_sqlite3_commit(mut sql: *mut dc_sqlite3_t) {}
-pub unsafe fn dc_sqlite3_rollback(mut sql: *mut dc_sqlite3_t) {}
+
+// NOTE: This assumes no transaction usage, port code if this is desired.
+
+pub unsafe fn dc_sqlite3_begin_transaction(_sql: *mut dc_sqlite3_t) {}
+pub unsafe fn dc_sqlite3_commit(_sql: *mut dc_sqlite3_t) {}
+pub unsafe fn dc_sqlite3_rollback(_sql: *mut dc_sqlite3_t) {}
+
 /* housekeeping */
 pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
     let mut keep_files_newer_than: time_t = 0;

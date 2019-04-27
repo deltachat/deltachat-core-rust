@@ -36,22 +36,21 @@ pub unsafe extern "C" fn dc_saxparser_init(
     (*saxparser).endtag_cb = Some(def_endtag_cb);
     (*saxparser).text_cb = Some(def_text_cb);
 }
-unsafe fn def_text_cb(
-    mut userdata: *mut libc::c_void,
-    mut text: *const libc::c_char,
-    mut len: libc::c_int,
-) {
+unsafe fn def_text_cb(_userdata: *mut libc::c_void, _text: *const libc::c_char, _len: libc::c_int) {
 }
-unsafe fn def_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c_char) {}
+
+unsafe fn def_endtag_cb(_userdata: *mut libc::c_void, _tag: *const libc::c_char) {}
+
 /* ******************************************************************************
  * Tools
  ******************************************************************************/
 unsafe fn def_starttag_cb(
-    mut userdata: *mut libc::c_void,
-    mut tag: *const libc::c_char,
-    mut attr: *mut *mut libc::c_char,
+    _userdata: *mut libc::c_void,
+    _tag: *const libc::c_char,
+    _attr: *mut *mut libc::c_char,
 ) {
 }
+
 pub unsafe fn dc_saxparser_set_tag_handler(
     mut saxparser: *mut dc_saxparser_t,
     mut starttag_cb: dc_saxparser_starttag_cb_t,

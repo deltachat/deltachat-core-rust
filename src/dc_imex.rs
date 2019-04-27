@@ -343,7 +343,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
     free(self_addr as *mut libc::c_void);
     return ret_setupfilecontent;
 }
-pub unsafe fn dc_create_setup_code(mut context: *mut dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_create_setup_code(_context: *mut dc_context_t) -> *mut libc::c_char {
     let mut random_val: uint16_t = 0i32 as uint16_t;
     let mut i: libc::c_int = 0i32;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
@@ -639,8 +639,8 @@ pub unsafe fn dc_decrypt_setup_file(
     return payload;
 }
 pub unsafe fn dc_normalize_setup_code(
-    mut context: *mut dc_context_t,
-    mut in_0: *const libc::c_char,
+    _context: *mut dc_context_t,
+    in_0: *const libc::c_char,
 ) -> *mut libc::c_char {
     if in_0.is_null() {
         return 0 as *mut libc::c_char;

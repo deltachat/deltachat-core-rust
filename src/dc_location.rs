@@ -625,11 +625,7 @@ pub unsafe fn dc_kml_parse(
     free(content_nullterminated as *mut libc::c_void);
     return kml;
 }
-unsafe fn kml_text_cb(
-    mut userdata: *mut libc::c_void,
-    mut text: *const libc::c_char,
-    mut len: libc::c_int,
-) {
+unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _len: libc::c_int) {
     let mut kml: *mut dc_kml_t = userdata as *mut dc_kml_t;
     if 0 != (*kml).tag & (0x4i32 | 0x10i32) {
         let mut val: *mut libc::c_char = dc_strdup(text);
@@ -776,8 +772,8 @@ pub unsafe fn dc_kml_unref(mut kml: *mut dc_kml_t) {
     free(kml as *mut libc::c_void);
 }
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(
-    mut context: *mut dc_context_t,
-    mut job: *mut dc_job_t,
+    context: *mut dc_context_t,
+    _job: *mut dc_job_t,
 ) {
     let mut stmt_chats: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut stmt_locations: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;

@@ -388,11 +388,12 @@ pub unsafe fn dc_smtp_connect(
     return success;
 }
 unsafe extern "C" fn body_progress(
-    mut current: size_t,
-    mut maximum: size_t,
-    mut user_data: *mut libc::c_void,
+    _current: size_t,
+    _maximum: size_t,
+    _user_data: *mut libc::c_void,
 ) {
 }
+
 pub unsafe fn dc_smtp_send_msg(
     mut smtp: *mut dc_smtp_t,
     mut recipients: *const clist,

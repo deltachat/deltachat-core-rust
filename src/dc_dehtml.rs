@@ -63,9 +63,9 @@ pub unsafe fn dc_dehtml(mut buf_terminated: *mut libc::c_char) -> *mut libc::c_c
     };
 }
 unsafe fn dehtml_text_cb(
-    mut userdata: *mut libc::c_void,
-    mut text: *const libc::c_char,
-    mut len: libc::c_int,
+    userdata: *mut libc::c_void,
+    text: *const libc::c_char,
+    _len: libc::c_int,
 ) {
     let mut dehtml: *mut dehtml_t = userdata as *mut dehtml_t;
     if (*dehtml).add_text != 0i32 {

@@ -246,7 +246,7 @@ unsafe fn quote_word(
     let mut cur: *const libc::c_char = 0 as *const libc::c_char;
     let mut i: size_t = 0i32 as size_t;
     let mut hex: [libc::c_char; 4] = [0; 4];
-    let mut col: libc::c_int = 0i32;
+    // let mut col: libc::c_int = 0i32;
     if mmap_string_append(mmapstr, b"=?\x00" as *const u8 as *const libc::c_char).is_null() {
         return 0i32;
     }
@@ -256,7 +256,7 @@ unsafe fn quote_word(
     if mmap_string_append(mmapstr, b"?Q?\x00" as *const u8 as *const libc::c_char).is_null() {
         return 0i32;
     }
-    col = (*mmapstr).len as libc::c_int;
+    // col = (*mmapstr).len as libc::c_int;
     cur = word;
     i = 0i32 as size_t;
     while i < size {
@@ -281,7 +281,7 @@ unsafe fn quote_word(
             if mmap_string_append(mmapstr, hex.as_mut_ptr()).is_null() {
                 return 0i32;
             }
-            col += 3i32
+        // col += 3i32
         } else {
             if *cur as libc::c_int == ' ' as i32 {
                 if mmap_string_append_c(mmapstr, '_' as i32 as libc::c_char).is_null() {
@@ -290,7 +290,7 @@ unsafe fn quote_word(
             } else if mmap_string_append_c(mmapstr, *cur).is_null() {
                 return 0i32;
             }
-            col += 3i32
+            // col += 3i32
         }
         cur = cur.offset(1isize);
         i = i.wrapping_add(1)
