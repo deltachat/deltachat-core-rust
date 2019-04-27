@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
@@ -407,7 +408,7 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: *mut dc_context_t, mut j
                                     };
                                     (*context).cb.expect("non-null function pointer")(
                                         context,
-                                        2010i32,
+                                        Event::MSG_DELIVERED,
                                         chat_id as uintptr_t,
                                         (*job).foreign_id as uintptr_t,
                                     );

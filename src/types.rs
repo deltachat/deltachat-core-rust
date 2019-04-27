@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_context::dc_context_t;
 use crate::dc_imap::dc_imap_t;
 use crate::dc_sqlite3::dc_sqlite3_t;
@@ -1352,9 +1353,8 @@ pub unsafe fn carray_get(mut array: *mut carray, mut indx: libc::c_uint) -> *mut
  * @param data2 depends on the event parameter
  * @return return 0 unless stated otherwise in the event parameter documentation
  */
-pub type dc_callback_t = Option<
-    unsafe fn(_: *mut dc_context_t, _: libc::c_int, _: uintptr_t, _: uintptr_t) -> uintptr_t,
->;
+pub type dc_callback_t =
+    Option<unsafe fn(_: *mut dc_context_t, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t>;
 
 #[derive(Copy, Clone)]
 #[repr(C)]

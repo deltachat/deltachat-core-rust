@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_apeerstate::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
@@ -64,7 +65,7 @@ pub unsafe fn dc_receive_imf(
     let mut mime_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut mime_references: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut created_db_entries: *mut carray = carray_new(16i32 as libc::c_uint);
-    let mut create_event_to_send: libc::c_int = 2000i32;
+    let mut create_event_to_send = Some(Event::MSGS_CHANGED);
     let mut rr_event_to_send: *mut carray = carray_new(16i32 as libc::c_uint);
     let mut txt_raw: *mut libc::c_char = 0 as *mut libc::c_char;
     dc_log_info(
@@ -686,14 +687,14 @@ pub unsafe fn dc_receive_imf(
                                         chat_id,
                                     );
                                     if chat_id == 3i32 as libc::c_uint {
-                                        create_event_to_send = 0i32
+                                        create_event_to_send = None;
                                     } else if 0 != incoming && state == 10i32 {
                                         if 0 != from_id_blocked {
-                                            create_event_to_send = 0i32
+                                            create_event_to_send = None;
                                         } else if 0 != chat_id_blocked {
-                                            create_event_to_send = 2000i32
+                                            create_event_to_send = Some(Event::MSGS_CHANGED);
                                         } else {
-                                            create_event_to_send = 2005i32
+                                            create_event_to_send = Some(Event::INCOMING_MSG);
                                         }
                                     }
                                     dc_do_heuristics_moves(context, server_folder, insert_msg_id);
@@ -939,7 +940,7 @@ pub unsafe fn dc_receive_imf(
                             }
                             (*context).cb.expect("non-null function pointer")(
                                 context,
-                                2035i32,
+                                Event::LOCATION_CHANGED,
                                 from_id as uintptr_t,
                                 0i32 as uintptr_t,
                             );
@@ -973,7 +974,7 @@ pub unsafe fn dc_receive_imf(
     free(mime_references as *mut libc::c_void);
     dc_array_unref(to_ids);
     if !created_db_entries.is_null() {
-        if 0 != create_event_to_send {
+        if let Some(create_event_to_send) = create_event_to_send {
             let mut i_0: size_t = 0;
             let mut icnt_0: size_t = carray_count(created_db_entries) as size_t;
             i_0 = 0i32 as size_t;
@@ -999,7 +1000,7 @@ pub unsafe fn dc_receive_imf(
         while i_1 < icnt_1 {
             (*context).cb.expect("non-null function pointer")(
                 context,
-                2015i32,
+                Event::MSG_READ,
                 carray_get(rr_event_to_send, i_1 as libc::c_uint) as uintptr_t,
                 carray_get(
                     rr_event_to_send,
@@ -1384,7 +1385,7 @@ unsafe fn create_or_lookup_group(
                             sqlite3_finalize(stmt);
                             (*context).cb.expect("non-null function pointer")(
                                 context,
-                                2020i32,
+                                Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
                                 0i32 as uintptr_t,
                             );
@@ -1487,7 +1488,7 @@ unsafe fn create_or_lookup_group(
                         if 0 != send_EVENT_CHAT_MODIFIED {
                             (*context).cb.expect("non-null function pointer")(
                                 context,
-                                2020i32,
+                                Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
                                 0i32 as uintptr_t,
                             );
@@ -1625,7 +1626,7 @@ unsafe fn create_or_lookup_adhoc_group(
                             }
                             (*context).cb.expect("non-null function pointer")(
                                 context,
-                                2020i32,
+                                Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
                                 0i32 as uintptr_t,
                             );

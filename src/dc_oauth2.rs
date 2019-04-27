@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_imap::dc_imap_t;
@@ -264,7 +265,7 @@ pub unsafe fn dc_get_oauth2_access_token(
                     );
                     json = (*context).cb.expect("non-null function pointer")(
                         context,
-                        2110i32,
+                        Event::HTTP_POST,
                         token_url as uintptr_t,
                         0i32 as uintptr_t,
                     ) as *mut libc::c_char;
@@ -565,7 +566,7 @@ unsafe fn get_oauth2_addr(
         );
         json = (*context).cb.expect("non-null function pointer")(
             context,
-            2100i32,
+            Event::HTTP_GET,
             userinfo_url as uintptr_t,
             0i32 as uintptr_t,
         ) as *mut libc::c_char;

@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -13,7 +14,6 @@ use crate::dc_loginparam::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_move::*;
 use crate::dc_msg::*;
-// use crate::dc_openssl::*;
 use crate::dc_pgp::*;
 use crate::dc_receive_imf::*;
 use crate::dc_smtp::*;
@@ -267,7 +267,7 @@ unsafe fn cb_get_config(
  */
 unsafe fn cb_dummy(
     mut context: *mut dc_context_t,
-    mut event: libc::c_int,
+    mut event: Event,
     mut data1: uintptr_t,
     mut data2: uintptr_t,
 ) -> uintptr_t {

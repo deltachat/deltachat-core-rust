@@ -9,47 +9,47 @@ pub const DC_GCM_ADDDAYMARKER: usize = 0x01;
 pub const DC_GCL_VERIFIED_ONLY: usize = 0x01;
 pub const DC_GCL_ADD_SELF: usize = 0x02;
 
-// param1 is a directory where the keys are written to
+/// param1 is a directory where the keys are written to
 pub const DC_IMEX_EXPORT_SELF_KEYS: usize = 1;
-// param1 is a directory where the keys are searched in and read from
+/// param1 is a directory where the keys are searched in and read from
 pub const DC_IMEX_IMPORT_SELF_KEYS: usize = 2;
-// param1 is a directory where the backup is written to
+/// param1 is a directory where the backup is written to
 pub const DC_IMEX_EXPORT_BACKUP: usize = 11;
-// param1 is the file with the backup to import
+/// param1 is the file with the backup to import
 pub const DC_IMEX_IMPORT_BACKUP: usize = 12;
 
-// id=contact
+/// id=contact
 pub const DC_QR_ASK_VERIFYCONTACT: usize = 200;
-// text1=groupname
+/// text1=groupname
 pub const DC_QR_ASK_VERIFYGROUP: usize = 202;
-// id=contact
+/// id=contact
 pub const DC_QR_FPR_OK: usize = 210;
-// id=contact
+/// id=contact
 pub const DC_QR_FPR_MISMATCH: usize = 220;
-// test1=formatted fingerprint
+/// test1=formatted fingerprint
 pub const DC_QR_FPR_WITHOUT_ADDR: usize = 230;
-// id=contact
+/// id=contact
 pub const DC_QR_ADDR: usize = 320;
-// text1=text
+/// text1=text
 pub const DC_QR_TEXT: usize = 330;
-// text1=URL
+/// text1=URL
 pub const DC_QR_URL: usize = 332;
-// text1=error string
+/// text1=error string
 pub const DC_QR_ERROR: usize = 400;
 
-// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
+/// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
 pub const DC_CHAT_ID_DEADDROP: usize = 1;
-// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
+/// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
 pub const DC_CHAT_ID_TRASH: usize = 3;
-// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
+/// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
 pub const DC_CHAT_ID_MSGS_IN_CREATION: usize = 4;
-// virtual chat showing all messages flagged with msgs.starred=2
+/// virtual chat showing all messages flagged with msgs.starred=2
 pub const DC_CHAT_ID_STARRED: usize = 5;
-// only an indicator in a chatlist
+/// only an indicator in a chatlist
 pub const DC_CHAT_ID_ARCHIVED_LINK: usize = 6;
-// only an indicator in a chatlist
+/// only an indicator in a chatlist
 pub const DC_CHAT_ID_ALLDONE_HINT: usize = 7;
-// larger chat IDs are "real" chats, their messages are "real" messages.
+/// larger chat IDs are "real" chats, their messages are "real" messages.
 pub const DC_CHAT_ID_LAST_SPECIAL: usize = 9;
 
 pub const DC_CHAT_TYPE_UNDEFINED: usize = 0;
@@ -69,13 +69,13 @@ pub const DC_STATE_OUT_PREPARING: usize = 18;
 pub const DC_STATE_OUT_DRAFT: usize = 19;
 pub const DC_STATE_OUT_PENDING: usize = 20;
 pub const DC_STATE_OUT_FAILED: usize = 24;
-// to check if a mail was sent, use dc_msg_is_sent()
+/// to check if a mail was sent, use dc_msg_is_sent()
 pub const DC_STATE_OUT_DELIVERED: usize = 26;
 pub const DC_STATE_OUT_MDN_RCVD: usize = 28;
 
-// approx. max. lenght returned by dc_msg_get_text()
+/// approx. max. lenght returned by dc_msg_get_text()
 pub const DC_MAX_GET_TEXT_LEN: usize = 30000;
-// approx. max. lenght returned by dc_get_msg_info()
+/// approx. max. lenght returned by dc_get_msg_info()
 pub const DC_MAX_GET_INFO_LEN: usize = 100000;
 
 pub const DC_CONTACT_ID_SELF: usize = 1;
@@ -86,460 +86,360 @@ pub const DC_TEXT1_DRAFT: usize = 1;
 pub const DC_TEXT1_USERNAME: usize = 2;
 pub const DC_TEXT1_SELF: usize = 3;
 
-/**
- * Text message.
- * The text of the message is set using dc_msg_set_text()
- * and retrieved with dc_msg_get_text().
- */
+/// Text message.
+/// The text of the message is set using dc_msg_set_text()
+/// and retrieved with dc_msg_get_text().
 pub const DC_MSG_TEXT: usize = 10;
 
-/**
- * Image message.
- * If the image is an animated GIF, the type DC_MSG_GIF should be used.
- * File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
- * and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
- */
+/// Image message.
+/// If the image is an animated GIF, the type DC_MSG_GIF should be used.
+/// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
+/// and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
 pub const DC_MSG_IMAGE: usize = 20;
 
-/**
- * Animated GIF message.
- * File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
- * and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
- */
+/// Animated GIF message.
+/// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+/// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
 pub const DC_MSG_GIF: usize = 21;
 
-/**
- * Message containing an Audio file.
- * File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
- * and retrieved via dc_msg_get_file(), dc_msg_get_duration().
- */
+/// Message containing an Audio file.
+/// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+/// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
 pub const DC_MSG_AUDIO: usize = 40;
 
-/**
- * A voice message that was directly recorded by the user.
- * For all other audio messages, the type #DC_MSG_AUDIO should be used.
- * File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
- * and retieved via dc_msg_get_file(), dc_msg_get_duration()
- */
+/// A voice message that was directly recorded by the user.
+/// For all other audio messages, the type #DC_MSG_AUDIO should be used.
+/// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+/// and retieved via dc_msg_get_file(), dc_msg_get_duration()
 pub const DC_MSG_VOICE: usize = 41;
 
-/**
- * Video messages.
- * File, width, height and durarion
- * are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
- * and retrieved via
- * dc_msg_get_file(), dc_msg_get_width(),
- * dc_msg_get_height(), dc_msg_get_duration().
- */
+/// Video messages.
+/// File, width, height and durarion
+/// are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
+/// and retrieved via
+/// dc_msg_get_file(), dc_msg_get_width(),
+/// dc_msg_get_height(), dc_msg_get_duration().
 pub const DC_MSG_VIDEO: usize = 50;
 
-/**
- * Message containing any file, eg. a PDF.
- * The file is set via dc_msg_set_file()
- * and retrieved via dc_msg_get_file().
- */
+/// Message containing any file, eg. a PDF.
+/// The file is set via dc_msg_set_file()
+/// and retrieved via dc_msg_get_file().
 pub const DC_MSG_FILE: usize = 60;
 
-/**
- * @defgroup DC_LP DC_LP
- *
- * Flags for configuring IMAP and SMTP servers.
- * These flags are optional
- * and may be set together with the username, password etc.
- * via dc_set_config() using the key "server_flags".
- *
- * @addtogroup DC_LP
- * @{
- */
+// Flags for configuring IMAP and SMTP servers.
+// These flags are optional
+// and may be set together with the username, password etc.
+// via dc_set_config() using the key "server_flags".
 
-/**
- * Force OAuth2 authorization. This flag does not skip automatic configuration.
- * Before calling dc_configure() with DC_LP_AUTH_OAUTH2 set,
- * the user has to confirm access at the URL returned by dc_get_oauth2_url().
- */
+/// Force OAuth2 authorization. This flag does not skip automatic configuration.
+/// Before calling dc_configure() with DC_LP_AUTH_OAUTH2 set,
+/// the user has to confirm access at the URL returned by dc_get_oauth2_url().
 pub const DC_LP_AUTH_OAUTH2: usize = 0x2;
 
-/**
- * Force NORMAL authorization, this is the default.
- * If this flag is set, automatic configuration is skipped.
- */
+/// Force NORMAL authorization, this is the default.
+/// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_AUTH_NORMAL: usize = 0x4;
 
-/**
- * Connect to IMAP via STARTTLS.
- * If this flag is set, automatic configuration is skipped.
- */
+/// Connect to IMAP via STARTTLS.
+/// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_IMAP_SOCKET_STARTTLS: usize = 0x100;
 
-/**
- * Connect to IMAP via SSL.
- * If this flag is set, automatic configuration is skipped.
- */
+/// Connect to IMAP via SSL.
+/// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_IMAP_SOCKET_SSL: usize = 0x200;
 
-/**
- * Connect to IMAP unencrypted, this should not be used.
- * If this flag is set, automatic configuration is skipped.
- */
+/// Connect to IMAP unencrypted, this should not be used.
+/// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_IMAP_SOCKET_PLAIN: usize = 0x400;
 
-/**
- * Connect to SMTP via STARTTLS.
- * If this flag is set, automatic configuration is skipped.
- */
+/// Connect to SMTP via STARTTLS.
+/// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_SMTP_SOCKET_STARTTLS: usize = 0x10000;
 
-/**
- * Connect to SMTP via SSL.
- * If this flag is set, automatic configuration is skipped.
- */
+/// Connect to SMTP via SSL.
+/// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_SMTP_SOCKET_SSL: usize = 0x20000;
 
-/**
- * Connect to SMTP unencrypted, this should not be used.
- * If this flag is set, automatic configuration is skipped.
- */
+/// Connect to SMTP unencrypted, this should not be used.
+/// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_SMTP_SOCKET_PLAIN: usize = 0x40000;
 
-// if none of these flags are set, the default is choosen
+/// if none of these flags are set, the default is choosen
 pub const DC_LP_AUTH_FLAGS: usize = (DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL);
-// if none of these flags are set, the default is choosen
+/// if none of these flags are set, the default is choosen
 pub const DC_LP_IMAP_SOCKET_FLAGS: usize =
     (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_SSL | DC_LP_IMAP_SOCKET_PLAIN);
-// if none of these flags are set, the default is choosen
+/// if none of these flags are set, the default is choosen
 pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
     (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
 
-/**
- * @defgroup DC_EVENT DC_EVENT
- *
- * These constants are used as events
- * reported to the callback given to dc_context_new().
- * If you do not want to handle an event, it is always safe to return 0,
- * so there is no need to add a "case" for every event.
- *
- * @addtogroup DC_EVENT
- * @{
- */
+// These constants are used as events
+// reported to the callback given to dc_context_new().
+// If you do not want to handle an event, it is always safe to return 0,
+// so there is no need to add a "case" for every event.
 
-/**
- * The library-user may write an informational string to the log.
- * Passed to the callback given to dc_context_new().
- *
- * This event should not be reported to the end-user using a popup or something like that.
- *
- * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @return 0
- */
-pub const DC_EVENT_INFO: usize = 100;
+#[derive(Debug, Clone, Copy)]
+#[repr(u32)]
+pub enum Event {
+    /// The library-user may write an informational string to the log.
+    /// Passed to the callback given to dc_context_new().
+    /// This event should not be reported to the end-user using a popup or something like that.
+    /// @param data1 0
+    /// @param data2 (const char*) Info string in english language.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @return 0
+    INFO = 100,
 
-/**
- * Emitted when SMTP connection is established and login was successful.
- *
- * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @return 0
- */
-pub const DC_EVENT_SMTP_CONNECTED: usize = 101;
+    /// Emitted when SMTP connection is established and login was successful.
+    ///
+    /// @param data1 0
+    /// @param data2 (const char*) Info string in english language.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @return 0
+    SMTP_CONNECTED = 101,
 
-/**
- * Emitted when IMAP connection is established and login was successful.
- *
- * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @return 0
- */
-pub const DC_EVENT_IMAP_CONNECTED: usize = 102;
+    /// Emitted when IMAP connection is established and login was successful.
+    ///
+    /// @param data1 0
+    /// @param data2 (const char*) Info string in english language.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @return 0
+    IMAP_CONNECTED = 102,
 
-/**
- * Emitted when a message was successfully sent to the SMTP server.
- *
- * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @return 0
- */
-pub const DC_EVENT_SMTP_MESSAGE_SENT: usize = 103;
+    /// Emitted when a message was successfully sent to the SMTP server.
+    ///
+    /// @param data1 0
+    /// @param data2 (const char*) Info string in english language.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @return 0
+    SMTP_MESSAGE_SENT = 103,
 
-/**
- * The library-user should write a warning string to the log.
- * Passed to the callback given to dc_context_new().
- *
- * This event should not be reported to the end-user using a popup or something like that.
- *
- * @param data1 0
- * @param data2 (const char*) Warning string in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @return 0
- */
-pub const DC_EVENT_WARNING: usize = 300;
+    /// The library-user should write a warning string to the log.
+    /// Passed to the callback given to dc_context_new().
+    ///
+    /// This event should not be reported to the end-user using a popup or something like that.
+    ///
+    /// @param data1 0
+    /// @param data2 (const char*) Warning string in english language.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @return 0
+    WARNING = 300,
 
-/**
- * The library-user should report an error to the end-user.
- * Passed to the callback given to dc_context_new().
- *
- * As most things are asynchrounous, things may go wrong at any time and the user
- * should not be disturbed by a dialog or so.  Instead, use a bubble or so.
- *
- * However, for ongoing processes (eg. dc_configure())
- * or for functions that are expected to fail (eg. dc_continue_key_transfer())
- * it might be better to delay showing these events until the function has really
- * failed (returned false). It should be sufficient to report only the _last_ error
- * in a messasge box then.
- *
- * @param data1 0
- * @param data2 (const char*) Error string, always set, never NULL. Frequent error strings are
- *     localized using #DC_EVENT_GET_STRING, however, most error strings will be in english language.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @return 0
- */
-pub const DC_EVENT_ERROR: usize = 400;
+    /// The library-user should report an error to the end-user.
+    /// Passed to the callback given to dc_context_new().
+    ///
+    /// As most things are asynchrounous, things may go wrong at any time and the user
+    /// should not be disturbed by a dialog or so.  Instead, use a bubble or so.
+    ///
+    /// However, for ongoing processes (eg. dc_configure())
+    /// or for functions that are expected to fail (eg. dc_continue_key_transfer())
+    /// it might be better to delay showing these events until the function has really
+    /// failed (returned false). It should be sufficient to report only the _last_ error
+    /// in a messasge box then.
+    ///
+    /// @param data1 0
+    /// @param data2 (const char*) Error string, always set, never NULL. Frequent error strings are
+    ///     localized using #DC_EVENT_GET_STRING, however, most error strings will be in english language.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @return 0
+    ERROR = 400,
 
-/**
- * An action cannot be performed because there is no network available.
- *
- * The library will typically try over after a some time
- * and when dc_maybe_network() is called.
- *
- * Network errors should be reported to users in a non-disturbing way,
- * however, as network errors may come in a sequence,
- * it is not useful to raise each an every error to the user.
- * For this purpose, data1 is set to 1 if the error is probably worth reporting.
- *
- * Moreover, if the UI detects that the device is offline,
- * it is probably more useful to report this to the user
- * instread of the string from data2.
- *
- * @param data1 (int) 1=first/new network error, should be reported the user;
- *     0=subsequent network error, should be logged only
- * @param data2 (const char*) Error string, always set, never NULL.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @return 0
- */
-pub const DC_EVENT_ERROR_NETWORK: usize = 401;
+    /// An action cannot be performed because there is no network available.
+    ///
+    /// The library will typically try over after a some time
+    /// and when dc_maybe_network() is called.
+    ///
+    /// Network errors should be reported to users in a non-disturbing way,
+    /// however, as network errors may come in a sequence,
+    /// it is not useful to raise each an every error to the user.
+    /// For this purpose, data1 is set to 1 if the error is probably worth reporting.
+    ///
+    /// Moreover, if the UI detects that the device is offline,
+    /// it is probably more useful to report this to the user
+    /// instread of the string from data2.
+    ///
+    /// @param data1 (int) 1=first/new network error, should be reported the user;
+    ///     0=subsequent network error, should be logged only
+    /// @param data2 (const char*) Error string, always set, never NULL.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @return 0
+    ERROR_NETWORK = 401,
 
-/**
- * An action cannot be performed because the user is not in the group.
- * Reported eg. after a call to
- * dc_set_chat_name(), dc_set_chat_profile_image(),
- * dc_add_contact_to_chat(), dc_remove_contact_from_chat(),
- * dc_send_text_msg() or another sending function.
- *
- * @param data1 0
- * @param data2 (const char*) Info string in english language.
- *     Must not be free()'d or modified
- *     and is valid only until the callback returns.
- * @return 0
- */
-pub const DC_EVENT_ERROR_SELF_NOT_IN_GROUP: usize = 410;
+    /// An action cannot be performed because the user is not in the group.
+    /// Reported eg. after a call to
+    /// dc_set_chat_name(), dc_set_chat_profile_image(),
+    /// dc_add_contact_to_chat(), dc_remove_contact_from_chat(),
+    /// dc_send_text_msg() or another sending function.
+    ///
+    /// @param data1 0
+    /// @param data2 (const char*) Info string in english language.
+    ///     Must not be free()'d or modified
+    ///     and is valid only until the callback returns.
+    /// @return 0
+    ERROR_SELF_NOT_IN_GROUP = 410,
 
-/**
- * Messages or chats changed.  One or more messages or chats changed for various
- * reasons in the database:
- * - Messages sent, received or removed
- * - Chats created, deleted or archived
- * - A draft has been set
- *
- * @param data1 (int) chat_id for single added messages
- * @param data2 (int) msg_id for single added messages
- * @return 0
- */
-pub const DC_EVENT_MSGS_CHANGED: usize = 2000;
+    /// Messages or chats changed.  One or more messages or chats changed for various
+    /// reasons in the database:
+    /// - Messages sent, received or removed
+    /// - Chats created, deleted or archived
+    /// - A draft has been set
+    ///
+    /// @param data1 (int) chat_id for single added messages
+    /// @param data2 (int) msg_id for single added messages
+    /// @return 0
+    MSGS_CHANGED = 2000,
 
-/**
- * There is a fresh message. Typically, the user will show an notification
- * when receiving this message.
- *
- * There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
- *
- * @param data1 (int) chat_id
- * @param data2 (int) msg_id
- * @return 0
- */
-pub const DC_EVENT_INCOMING_MSG: usize = 2005;
+    /// There is a fresh message. Typically, the user will show an notification
+    /// when receiving this message.
+    ///
+    /// There is no extra #DC_EVENT_MSGS_CHANGED event send together with this event.
+    ///
+    /// @param data1 (int) chat_id
+    /// @param data2 (int) msg_id
+    /// @return 0
+    INCOMING_MSG = 2005,
 
-/**
- * A single message is sent successfully. State changed from  DC_STATE_OUT_PENDING to
- * DC_STATE_OUT_DELIVERED, see dc_msg_get_state().
- *
- * @param data1 (int) chat_id
- * @param data2 (int) msg_id
- * @return 0
- */
-pub const DC_EVENT_MSG_DELIVERED: usize = 2010;
+    /// A single message is sent successfully. State changed from  DC_STATE_OUT_PENDING to
+    /// DC_STATE_OUT_DELIVERED, see dc_msg_get_state().
+    ///
+    /// @param data1 (int) chat_id
+    /// @param data2 (int) msg_id
+    /// @return 0
+    MSG_DELIVERED = 2010,
 
-/**
- * A single message could not be sent. State changed from DC_STATE_OUT_PENDING or DC_STATE_OUT_DELIVERED to
- * DC_STATE_OUT_FAILED, see dc_msg_get_state().
- *
- * @param data1 (int) chat_id
- * @param data2 (int) msg_id
- * @return 0
- */
-pub const DC_EVENT_MSG_FAILED: usize = 2012;
+    /// A single message could not be sent. State changed from DC_STATE_OUT_PENDING or DC_STATE_OUT_DELIVERED to
+    /// DC_STATE_OUT_FAILED, see dc_msg_get_state().
+    ///
+    /// @param data1 (int) chat_id
+    /// @param data2 (int) msg_id
+    /// @return 0
+    MSG_FAILED = 2012,
 
-/**
- * A single message is read by the receiver. State changed from DC_STATE_OUT_DELIVERED to
- * DC_STATE_OUT_MDN_RCVD, see dc_msg_get_state().
- *
- * @param data1 (int) chat_id
- * @param data2 (int) msg_id
- * @return 0
- */
-pub const DC_EVENT_MSG_READ: usize = 2015;
+    /// A single message is read by the receiver. State changed from DC_STATE_OUT_DELIVERED to
+    /// DC_STATE_OUT_MDN_RCVD, see dc_msg_get_state().
+    ///
+    /// @param data1 (int) chat_id
+    /// @param data2 (int) msg_id
+    /// @return 0
+    MSG_READ = 2015,
 
-/**
- * Chat changed.  The name or the image of a chat group was changed or members were added or removed.
- * Or the verify state of a chat has changed.
- * See dc_set_chat_name(), dc_set_chat_profile_image(), dc_add_contact_to_chat()
- * and dc_remove_contact_from_chat().
- *
- * @param data1 (int) chat_id
- * @param data2 0
- * @return 0
- */
-pub const DC_EVENT_CHAT_MODIFIED: usize = 2020;
+    /// Chat changed.  The name or the image of a chat group was changed or members were added or removed.
+    /// Or the verify state of a chat has changed.
+    /// See dc_set_chat_name(), dc_set_chat_profile_image(), dc_add_contact_to_chat()
+    /// and dc_remove_contact_from_chat().
+    ///
+    /// @param data1 (int) chat_id
+    /// @param data2 0
+    /// @return 0
+    CHAT_MODIFIED = 2020,
 
-/**
- * Contact(s) created, renamed, blocked or deleted.
- *
- * @param data1 (int) If not 0, this is the contact_id of an added contact that should be selected.
- * @param data2 0
- * @return 0
- */
-pub const DC_EVENT_CONTACTS_CHANGED: usize = 2030;
+    /// Contact(s) created, renamed, blocked or deleted.
+    ///
+    /// @param data1 (int) If not 0, this is the contact_id of an added contact that should be selected.
+    /// @param data2 0
+    /// @return 0
+    CONTACTS_CHANGED = 2030,
 
-/**
- * Location of one or more contact has changed.
- *
- * @param data1 (int) contact_id of the contact for which the location has changed.
- *     If the locations of several contacts have been changed,
- *     eg. after calling dc_delete_all_locations(), this parameter is set to 0.
- * @param data2 0
- * @return 0
- */
-pub const DC_EVENT_LOCATION_CHANGED: usize = 2035;
+    /// Location of one or more contact has changed.
+    ///
+    /// @param data1 (int) contact_id of the contact for which the location has changed.
+    ///     If the locations of several contacts have been changed,
+    ///     eg. after calling dc_delete_all_locations(), this parameter is set to 0.
+    /// @param data2 0
+    /// @return 0
+    LOCATION_CHANGED = 2035,
 
-/**
- * Inform about the configuration progress started by dc_configure().
- *
- * @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
- * @param data2 0
- * @return 0
- */
-pub const DC_EVENT_CONFIGURE_PROGRESS: usize = 2041;
+    /// Inform about the configuration progress started by dc_configure().
+    ///
+    /// @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
+    /// @param data2 0
+    /// @return 0
+    CONFIGURE_PROGRESS = 2041,
 
-/**
- * Inform about the import/export progress started by dc_imex().
- *
- * @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
- * @param data2 0
- * @return 0
- */
-pub const DC_EVENT_IMEX_PROGRESS: usize = 2051;
+    /// Inform about the import/export progress started by dc_imex().
+    ///
+    /// @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
+    /// @param data2 0
+    /// @return 0
+    IMEX_PROGRESS = 2051,
 
-/**
- * A file has been exported. A file has been written by dc_imex().
- * This event may be sent multiple times by a single call to dc_imex().
- *
- * A typical purpose for a handler of this event may be to make the file public to some system
- * services.
- *
- * @param data1 (const char*) Path and file name.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @param data2 0
- * @return 0
- */
-pub const DC_EVENT_IMEX_FILE_WRITTEN: usize = 2052;
+    /// A file has been exported. A file has been written by dc_imex().
+    /// This event may be sent multiple times by a single call to dc_imex().
+    ///
+    /// A typical purpose for a handler of this event may be to make the file public to some system
+    /// services.
+    ///
+    /// @param data1 (const char*) Path and file name.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @param data2 0
+    /// @return 0
+    IMEX_FILE_WRITTEN = 2052,
 
-/**
- * Progress information of a secure-join handshake from the view of the inviter
- * (Alice, the person who shows the QR code).
- *
- * These events are typically sent after a joiner has scanned the QR code
- * generated by dc_get_securejoin_qr().
- *
- * @param data1 (int) ID of the contact that wants to join.
- * @param data2 (int) Progress as:
- *     300=vg-/vc-request received, typically shown as "bob@addr joins".
- *     600=vg-/vc-request-with-auth received, vg-member-added/vc-contact-confirm sent, typically shown as "bob@addr verified".
- *     800=vg-member-added-received received, shown as "bob@addr securely joined GROUP", only sent for the verified-group-protocol.
- *     1000=Protocol finished for this contact.
- * @return 0
- */
-pub const DC_EVENT_SECUREJOIN_INVITER_PROGRESS: usize = 2060;
+    /// Progress information of a secure-join handshake from the view of the inviter
+    /// (Alice, the person who shows the QR code).
+    ///
+    /// These events are typically sent after a joiner has scanned the QR code
+    /// generated by dc_get_securejoin_qr().
+    ///
+    /// @param data1 (int) ID of the contact that wants to join.
+    /// @param data2 (int) Progress as:
+    ///     300=vg-/vc-request received, typically shown as "bob@addr joins".
+    ///     600=vg-/vc-request-with-auth received, vg-member-added/vc-contact-confirm sent, typically shown as "bob@addr verified".
+    ///     800=vg-member-added-received received, shown as "bob@addr securely joined GROUP", only sent for the verified-group-protocol.
+    ///     1000=Protocol finished for this contact.
+    /// @return 0
+    SECUREJOIN_INVITER_PROGRESS = 2060,
 
-/**
- * Progress information of a secure-join handshake from the view of the joiner
- * (Bob, the person who scans the QR code).
- *
- * The events are typically sent while dc_join_securejoin(), which
- * may take some time, is executed.
- *
- * @param data1 (int) ID of the inviting contact.
- * @param data2 (int) Progress as:
- *     400=vg-/vc-request-with-auth sent, typically shown as "alice@addr verified, introducing myself."
- *     (Bob has verified alice and waits until Alice does the same for him)
- * @return 0
- */
-pub const DC_EVENT_SECUREJOIN_JOINER_PROGRESS: usize = 2061;
+    /// Progress information of a secure-join handshake from the view of the joiner
+    /// (Bob, the person who scans the QR code).
+    /// The events are typically sent while dc_join_securejoin(), which
+    /// may take some time, is executed.
+    /// @param data1 (int) ID of the inviting contact.
+    /// @param data2 (int) Progress as:
+    ///     400=vg-/vc-request-with-auth sent, typically shown as "alice@addr verified, introducing myself."
+    ///     (Bob has verified alice and waits until Alice does the same for him)
+    /// @return 0
+    SECUREJOIN_JOINER_PROGRESS = 2061,
 
-// the following events are functions that should be provided by the frontends
+    // the following events are functions that should be provided by the frontends
+    /// Requeste a localized string from the frontend.
+    /// @param data1 (int) ID of the string to request, one of the DC_STR_/// constants.
+    /// @param data2 (int) The count. If the requested string contains a placeholder for a numeric value,
+    ///     the ui may use this value to return different strings on different plural forms.
+    /// @return (const char*) Null-terminated UTF-8 string.
+    ///     The string will be free()'d by the core,
+    ///     so it must be allocated using malloc() or a compatible function.
+    ///     Return 0 if the ui cannot provide the requested string
+    ///     the core will use a default string in english language then.
+    GET_STRING = 2091,
 
-/**
- * Requeste a localized string from the frontend.
- *
- * @param data1 (int) ID of the string to request, one of the DC_STR_* constants.
- * @param data2 (int) The count. If the requested string contains a placeholder for a numeric value,
- *     the ui may use this value to return different strings on different plural forms.
- * @return (const char*) Null-terminated UTF-8 string.
- *     The string will be free()'d by the core,
- *     so it must be allocated using malloc() or a compatible function.
- *     Return 0 if the ui cannot provide the requested string
- *     the core will use a default string in english language then.
- */
-pub const DC_EVENT_GET_STRING: usize = 2091;
+    /// Request a HTTP-file or HTTPS-file from the frontend using HTTP-GET.
+    /// @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
+    ///     The string starts with https:// or http://.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    /// @param data2 0
+    /// @return (const char*) The content of the requested file as a null-terminated UTF-8 string;
+    ///     Response headers, encodings etc. must be stripped.
+    ///     Only the raw file should be returned.
+    ///     CAVE: The string will be free()'d by the core,
+    ///     so make sure it is allocated using malloc() or a compatible function.
+    ///     If you cannot provide the content, just return 0 or an empty string.
+    HTTP_GET = 2100,
 
-/**
- * Request a HTTP-file or HTTPS-file from the frontend using HTTP-GET.
- *
- * @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
- *     The string starts with https:// or http://.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @param data2 0
- * @return (const char*) The content of the requested file as a null-terminated UTF-8 string;
- *     Response headers, encodings etc. must be stripped.
- *     Only the raw file should be returned.
- *     CAVE: The string will be free()'d by the core,
- *     so make sure it is allocated using malloc() or a compatible function.
- *     If you cannot provide the content, just return 0 or an empty string.
- */
-pub const DC_EVENT_HTTP_GET: usize = 2100;
-
-/**
- * Request a HTTP-file or HTTPS-file from the frontend using HTTP-POST.
- *
- * @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
- *     The string starts with https:// or http://.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- *     Parameter to POST are added to the url after `?`.
- * @param data2 0
- * @return (const char*) The content of the requested file as a null-terminated UTF-8 string;
- *     Response headers, encodings etc. must be stripped.
- *     Only the raw file should be returned.
- *     CAVE: The string will be free()'d by the core,
- *     so make sure it is allocated using malloc() or a compatible function.
- *     If you cannot provide the content, just return 0 or an empty string.
- */
-pub const DC_EVENT_HTTP_POST: usize = 2110;
-
-/**
- * @}
- */
+    /// Request a HTTP-file or HTTPS-file from the frontend using HTTP-POST.
+    /// @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
+    ///     The string starts with https:// or http://.
+    ///     Must not be free()'d or modified and is valid only until the callback returns.
+    ///     Parameter to POST are added to the url after `?`.
+    /// @param data2 0
+    /// @return (const char*) The content of the requested file as a null-terminated UTF-8 string;
+    ///     Response headers, encodings etc. must be stripped.
+    ///     Only the raw file should be returned.
+    ///     CAVE: The string will be free()'d by the core,
+    ///     so make sure it is allocated using malloc() or a compatible function.
+    ///     If you cannot provide the content, just return 0 or an empty string.
+    HTTP_POST = 2110,
+}
 
 pub const DC_EVENT_FILE_COPIED: usize = 2055; // deprecated;
 pub const DC_EVENT_IS_OFFLINE: usize = 2081; // deprecated;
@@ -547,23 +447,14 @@ pub const DC_ERROR_SEE_STRING: usize = 0; // deprecated;
 pub const DC_ERROR_SELF_NOT_IN_GROUP: usize = 1; // deprecated;
 pub const DC_STR_SELFNOTINGRP: usize = 21; // deprecated;
 
-/*
- * Values for dc_get|set_config("show_emails")
- */
+/// Values for dc_get|set_config("show_emails")
 pub const DC_SHOW_EMAILS_OFF: usize = 0;
 pub const DC_SHOW_EMAILS_ACCEPTED_CONTACTS: usize = 1;
 pub const DC_SHOW_EMAILS_ALL: usize = 2;
 
-/*
- * TODO: Strings need some doumentation about used placeholders.
- *
- * @defgroup DC_STR DC_STR
- *
- * These constants are used to request strings using #DC_EVENT_GET_STRING.
- *
- * @addtogroup DC_STR
- * @{
- */
+// TODO: Strings need some doumentation about used placeholders.
+// These constants are used to request strings using #DC_EVENT_GET_STRING.
+
 pub const DC_STR_NOMESSAGES: usize = 1;
 pub const DC_STR_SELF: usize = 2;
 pub const DC_STR_DRAFT: usize = 3;

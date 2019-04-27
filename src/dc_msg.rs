@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_context::*;
@@ -610,7 +611,7 @@ pub unsafe fn dc_delete_msgs(
     if 0 != msg_cnt {
         (*context).cb.expect("non-null function pointer")(
             context,
-            2000i32,
+            Event::MSGS_CHANGED,
             0i32 as uintptr_t,
             0i32 as uintptr_t,
         );
@@ -691,7 +692,7 @@ pub unsafe fn dc_markseen_msgs(
         if 0 != send_event {
             (*context).cb.expect("non-null function pointer")(
                 context,
-                2000i32,
+                Event::MSGS_CHANGED,
                 0i32 as uintptr_t,
                 0i32 as uintptr_t,
             );
@@ -1282,7 +1283,7 @@ pub unsafe fn dc_set_msg_failed(
         sqlite3_step(stmt);
         (*context).cb.expect("non-null function pointer")(
             context,
-            2012i32,
+            Event::MSG_FAILED,
             (*msg).chat_id as uintptr_t,
             msg_id as uintptr_t,
         );

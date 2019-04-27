@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_array::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
@@ -163,7 +164,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                 if !(0 != (*context).shall_stop_ongoing) {
                     (*context).cb.expect("non-null function pointer")(
                         context,
-                        2041i32,
+                        Event::CONFIGURE_PROGRESS,
                         (if 0i32 < 1i32 {
                             1i32
                         } else if 0i32 > 999i32 {
@@ -197,7 +198,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                             } else {
                                 (*context).cb.expect("non-null function pointer")(
                                     context,
-                                    2041i32,
+                                    Event::CONFIGURE_PROGRESS,
                                     (if 10i32 < 1i32 {
                                         1i32
                                     } else if 10i32 > 999i32 {
@@ -223,7 +224,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                 } else {
                                     (*context).cb.expect("non-null function pointer")(
                                         context,
-                                        2041i32,
+                                        Event::CONFIGURE_PROGRESS,
                                         (if 20i32 < 1i32 {
                                             1i32
                                         } else if 20i32 > 999i32 {
@@ -261,7 +262,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                     if !(0 != (*context).shall_stop_ongoing) {
                                         (*context).cb.expect("non-null function pointer")(
                                             context,
-                                            2041i32,
+                                            Event::CONFIGURE_PROGRESS,
                                             (if 200i32 < 1i32 {
                                                 1i32
                                             } else if 200i32 > 999i32 {
@@ -289,12 +290,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                             /* A.  Search configurations from the domain used in the email-address, prefer encrypted */
                                             if param_autoconfig.is_null() {
                                                 let mut url:
-                                                        *mut libc::c_char =
+                                                *mut libc::c_char =
                                                     dc_mprintf(b"https://autoconfig.%s/mail/config-v1.1.xml?emailaddress=%s\x00"
-                                                                   as
-                                                                   *const u8
-                                                                   as
-                                                                   *const libc::c_char,
+                                                               as
+                                                               *const u8
+                                                               as
+                                                               *const libc::c_char,
                                                                param_domain,
                                                                param_addr_urlencoded);
                                                 param_autoconfig =
@@ -307,7 +308,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                         .cb
                                                         .expect("non-null function pointer")(
                                                         context,
-                                                        2041i32,
+                                                        Event::CONFIGURE_PROGRESS,
                                                         (if 300i32 < 1i32 {
                                                             1i32
                                                         } else if 300i32 > 999i32 {
@@ -329,12 +330,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                     if param_autoconfig.is_null() {
                                                         // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
                                                         let mut url_0:
-                                                                *mut libc::c_char =
+                                                        *mut libc::c_char =
                                                             dc_mprintf(b"https://%s/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress=%s\x00"
-                                                                           as
-                                                                           *const u8
-                                                                           as
-                                                                           *const libc::c_char,
+                                                                       as
+                                                                       *const u8
+                                                                       as
+                                                                       *const libc::c_char,
                                                                        param_domain,
                                                                        param_addr_urlencoded);
                                                         param_autoconfig = moz_autoconfigure(
@@ -348,7 +349,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                 "non-null function pointer",
                                                             )(
                                                                 context,
-                                                                2041i32,
+                                                                Event::CONFIGURE_PROGRESS,
                                                                 (if 310i32 < 1i32 {
                                                                     1i32
                                                                 } else if 310i32 > 999i32 {
@@ -377,16 +378,16 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                 if param_autoconfig.is_null() {
                                                                     /* Outlook uses always SSL but different domains */
                                                                     let mut url_1:
-                                                                            *mut libc::c_char =
+                                                                    *mut libc::c_char =
                                                                         dc_mprintf(b"https://%s%s/autodiscover/autodiscover.xml\x00"
-                                                                                       as
-                                                                                       *const u8
-                                                                                       as
-                                                                                       *const libc::c_char,
+                                                                                   as
+                                                                                   *const u8
+                                                                                   as
+                                                                                   *const libc::c_char,
                                                                                    if i
-                                                                                          ==
-                                                                                          0i32
-                                                                                      {
+                                                                                   ==
+                                                                                   0i32
+                                                                                   {
                                                                                        b"\x00"
                                                                                            as
                                                                                            *const u8
@@ -418,7 +419,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                         "non-null function pointer",
                                                                     )(
                                                                         context,
-                                                                        2041i32,
+                                                                        Event::CONFIGURE_PROGRESS,
                                                                         (if 320i32 + i * 10i32
                                                                             < 1i32
                                                                         {
@@ -441,12 +442,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                 _ => {
                                                                     if param_autoconfig.is_null() {
                                                                         let mut url_2:
-                                                                                *mut libc::c_char =
+                                                                        *mut libc::c_char =
                                                                             dc_mprintf(b"http://autoconfig.%s/mail/config-v1.1.xml?emailaddress=%s\x00"
-                                                                                           as
-                                                                                           *const u8
-                                                                                           as
-                                                                                           *const libc::c_char,
+                                                                                       as
+                                                                                       *const u8
+                                                                                       as
+                                                                                       *const libc::c_char,
                                                                                        param_domain,
                                                                                        param_addr_urlencoded);
                                                                         param_autoconfig =
@@ -455,34 +456,36 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                 param,
                                                                             );
                                                                         free(url_2
-                                                                                 as
-                                                                                 *mut libc::c_void);
+                                                                             as
+                                                                             *mut libc::c_void);
                                                                         if 0 != (*context)
                                                                             .shall_stop_ongoing
                                                                         {
                                                                             current_block =
                                                                                 2927484062889439186;
                                                                         } else {
-                                                                            (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                              2041i32,
-                                                                                                                              (if 340i32
-                                                                                                                                      <
-                                                                                                                                      1i32
-                                                                                                                                  {
-                                                                                                                                   1i32
-                                                                                                                               } else if 340i32
-                                                                                                                                             >
-                                                                                                                                             999i32
-                                                                                                                                {
-                                                                                                                                   999i32
-                                                                                                                               } else {
-                                                                                                                                   340i32
-                                                                                                                               })
-                                                                                                                                  as
-                                                                                                                                  uintptr_t,
-                                                                                                                              0i32
-                                                                                                                                  as
-                                                                                                                                  uintptr_t);
+                                                                            (*context).cb.expect("non-null function pointer")(
+                                                                                context,
+                                                                                Event::CONFIGURE_PROGRESS,
+                                                                                (if 340i32
+                                                                                 <
+                                                                                 1i32
+                                                                                 {
+                                                                                     1i32
+                                                                                 } else if 340i32
+                                                                                 >
+                                                                                 999i32
+                                                                                 {
+                                                                                     999i32
+                                                                                 } else {
+                                                                                     340i32
+                                                                                 })
+                                                                                    as
+                                                                                    uintptr_t,
+                                                                                0i32
+                                                                                    as
+                                                                                    uintptr_t
+                                                                            );
                                                                             current_block
                                                                                 =
                                                                                 10778260831612459202;
@@ -499,12 +502,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                             {
                                                                                 // do not transfer the email-address unencrypted
                                                                                 let mut url_3:
-                                                                                        *mut libc::c_char =
+                                                                                *mut libc::c_char =
                                                                                     dc_mprintf(b"http://%s/.well-known/autoconfig/mail/config-v1.1.xml\x00"
-                                                                                                   as
-                                                                                                   *const u8
-                                                                                                   as
-                                                                                                   *const libc::c_char,
+                                                                                               as
+                                                                                               *const u8
+                                                                                               as
+                                                                                               *const libc::c_char,
                                                                                                param_domain);
                                                                                 param_autoconfig
                                                                                     =
@@ -512,36 +515,36 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                                       url_3,
                                                                                                       param);
                                                                                 free(url_3
-                                                                                         as
-                                                                                         *mut libc::c_void);
+                                                                                     as
+                                                                                     *mut libc::c_void);
                                                                                 if 0
-                                                                                       !=
-                                                                                       (*context).shall_stop_ongoing
-                                                                                   {
+                                                                                    !=
+                                                                                    (*context).shall_stop_ongoing
+                                                                                {
                                                                                     current_block
                                                                                         =
                                                                                         2927484062889439186;
                                                                                 } else {
                                                                                     (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                                      2041i32,
+                                                                                                                                      Event::CONFIGURE_PROGRESS,
                                                                                                                                       (if 350i32
-                                                                                                                                              <
-                                                                                                                                              1i32
-                                                                                                                                          {
+                                                                                                                                       <
+                                                                                                                                       1i32
+                                                                                                                                       {
                                                                                                                                            1i32
                                                                                                                                        } else if 350i32
-                                                                                                                                                     >
-                                                                                                                                                     999i32
-                                                                                                                                        {
+                                                                                                                                       >
+                                                                                                                                       999i32
+                                                                                                                                       {
                                                                                                                                            999i32
                                                                                                                                        } else {
                                                                                                                                            350i32
                                                                                                                                        })
-                                                                                                                                          as
-                                                                                                                                          uintptr_t,
+                                                                                                                                      as
+                                                                                                                                      uintptr_t,
                                                                                                                                       0i32
-                                                                                                                                          as
-                                                                                                                                          uintptr_t);
+                                                                                                                                      as
+                                                                                                                                      uintptr_t);
                                                                                     current_block
                                                                                         =
                                                                                         5207889489643863322;
@@ -552,25 +555,25 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                     5207889489643863322;
                                                                             }
                                                                             match current_block
-                                                                                {
+                                                                            {
                                                                                 2927484062889439186
-                                                                                =>
+                                                                                    =>
                                                                                 {
                                                                                 }
                                                                                 _
-                                                                                =>
+                                                                                    =>
                                                                                 {
                                                                                     /* B.  If we have no configuration yet, search configuration in Thunderbird's centeral database */
                                                                                     if param_autoconfig.is_null()
-                                                                                       {
+                                                                                    {
                                                                                         /* always SSL for Thunderbird's database */
                                                                                         let mut url_4:
-                                                                                                *mut libc::c_char =
+                                                                                        *mut libc::c_char =
                                                                                             dc_mprintf(b"https://autoconfig.thunderbird.net/v1.1/%s\x00"
-                                                                                                           as
-                                                                                                           *const u8
-                                                                                                           as
-                                                                                                           *const libc::c_char,
+                                                                                                       as
+                                                                                                       *const u8
+                                                                                                       as
+                                                                                                       *const libc::c_char,
                                                                                                        param_domain);
                                                                                         param_autoconfig
                                                                                             =
@@ -578,36 +581,36 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                                               url_4,
                                                                                                               param);
                                                                                         free(url_4
-                                                                                                 as
-                                                                                                 *mut libc::c_void);
+                                                                                             as
+                                                                                             *mut libc::c_void);
                                                                                         if 0
-                                                                                               !=
-                                                                                               (*context).shall_stop_ongoing
-                                                                                           {
+                                                                                            !=
+                                                                                            (*context).shall_stop_ongoing
+                                                                                        {
                                                                                             current_block
                                                                                                 =
                                                                                                 2927484062889439186;
                                                                                         } else {
                                                                                             (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                                              2041i32,
+                                                                                                                                              Event::CONFIGURE_PROGRESS,
                                                                                                                                               (if 500i32
-                                                                                                                                                      <
-                                                                                                                                                      1i32
-                                                                                                                                                  {
+                                                                                                                                               <
+                                                                                                                                               1i32
+                                                                                                                                               {
                                                                                                                                                    1i32
                                                                                                                                                } else if 500i32
-                                                                                                                                                             >
-                                                                                                                                                             999i32
-                                                                                                                                                {
+                                                                                                                                               >
+                                                                                                                                               999i32
+                                                                                                                                               {
                                                                                                                                                    999i32
                                                                                                                                                } else {
                                                                                                                                                    500i32
                                                                                                                                                })
-                                                                                                                                                  as
-                                                                                                                                                  uintptr_t,
+                                                                                                                                              as
+                                                                                                                                              uintptr_t,
                                                                                                                                               0i32
-                                                                                                                                                  as
-                                                                                                                                                  uintptr_t);
+                                                                                                                                              as
+                                                                                                                                              uintptr_t);
                                                                                             current_block
                                                                                                 =
                                                                                                 2798392256336243897;
@@ -618,35 +621,35 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                             2798392256336243897;
                                                                                     }
                                                                                     match current_block
-                                                                                        {
+                                                                                    {
                                                                                         2927484062889439186
-                                                                                        =>
+                                                                                            =>
                                                                                         {
                                                                                         }
                                                                                         _
-                                                                                        =>
+                                                                                            =>
                                                                                         {
                                                                                             if !param_autoconfig.is_null()
-                                                                                               {
+                                                                                            {
                                                                                                 let mut r:
-                                                                                                        *mut libc::c_char =
+                                                                                                *mut libc::c_char =
                                                                                                     dc_loginparam_get_readable(param_autoconfig);
                                                                                                 dc_log_info(context,
                                                                                                             0i32,
                                                                                                             b"Got autoconfig: %s\x00"
-                                                                                                                as
-                                                                                                                *const u8
-                                                                                                                as
-                                                                                                                *const libc::c_char,
+                                                                                                            as
+                                                                                                            *const u8
+                                                                                                            as
+                                                                                                            *const libc::c_char,
                                                                                                             r);
                                                                                                 free(r
+                                                                                                     as
+                                                                                                     *mut libc::c_void);
+                                                                                                if !(*param_autoconfig).mail_user.is_null()
+                                                                                                {
+                                                                                                    free((*param).mail_user
                                                                                                          as
                                                                                                          *mut libc::c_void);
-                                                                                                if !(*param_autoconfig).mail_user.is_null()
-                                                                                                   {
-                                                                                                    free((*param).mail_user
-                                                                                                             as
-                                                                                                             *mut libc::c_void);
                                                                                                     (*param).mail_user
                                                                                                         =
                                                                                                         dc_strdup_keep_null((*param_autoconfig).mail_user)
@@ -818,7 +821,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                         .cb
                                                         .expect("non-null function pointer")(
                                                         context,
-                                                        2041i32,
+                                                        Event::CONFIGURE_PROGRESS,
                                                         (if 600i32 < 1i32 {
                                                             1i32
                                                         } else if 600i32 > 999i32 {
@@ -867,7 +870,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                             .cb
                                                             .expect("non-null function pointer")(
                                                             context,
-                                                            2041i32,
+                                                            Event::CONFIGURE_PROGRESS,
                                                             (if 650i32 + username_variation * 30i32
                                                                 < 1i32
                                                             {
@@ -912,7 +915,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                             .cb
                                                             .expect("non-null function pointer")(
                                                             context,
-                                                            2041i32,
+                                                            Event::CONFIGURE_PROGRESS,
                                                             (if 660i32 + username_variation * 30i32
                                                                 < 1i32
                                                             {
@@ -959,7 +962,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                             .cb
                                                             .expect("non-null function pointer")(
                                                             context,
-                                                            2041i32,
+                                                            Event::CONFIGURE_PROGRESS,
                                                             (if 670i32 + username_variation * 30i32
                                                                 < 1i32
                                                             {
@@ -1000,7 +1003,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                     "non-null function pointer",
                                                                 )(
                                                                     context,
-                                                                    2041i32,
+                                                                    Event::CONFIGURE_PROGRESS,
                                                                     (if 800i32 < 1i32 {
                                                                         1i32
                                                                     } else if 800i32 > 999i32 {
@@ -1027,25 +1030,25 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                             2927484062889439186;
                                                                     } else {
                                                                         (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                          2041i32,
+                                                                                                                          Event::CONFIGURE_PROGRESS,
                                                                                                                           (if 850i32
-                                                                                                                                  <
-                                                                                                                                  1i32
-                                                                                                                              {
+                                                                                                                           <
+                                                                                                                           1i32
+                                                                                                                           {
                                                                                                                                1i32
                                                                                                                            } else if 850i32
-                                                                                                                                         >
-                                                                                                                                         999i32
-                                                                                                                            {
+                                                                                                                           >
+                                                                                                                           999i32
+                                                                                                                           {
                                                                                                                                999i32
                                                                                                                            } else {
                                                                                                                                850i32
                                                                                                                            })
-                                                                                                                              as
-                                                                                                                              uintptr_t,
+                                                                                                                          as
+                                                                                                                          uintptr_t,
                                                                                                                           0i32
-                                                                                                                              as
-                                                                                                                              uintptr_t);
+                                                                                                                          as
+                                                                                                                          uintptr_t);
                                                                         (*param).server_flags &=
                                                                             !(0x10000i32
                                                                                 | 0x20000i32
@@ -1054,19 +1057,19 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                             0x10000i32;
                                                                         (*param).send_port = 587i32;
                                                                         let mut r_3:
-                                                                                *mut libc::c_char =
+                                                                        *mut libc::c_char =
                                                                             dc_loginparam_get_readable(param);
                                                                         dc_log_info(context,
                                                                                     0i32,
                                                                                     b"Trying: %s\x00"
-                                                                                        as
-                                                                                        *const u8
-                                                                                        as
-                                                                                        *const libc::c_char,
+                                                                                    as
+                                                                                    *const u8
+                                                                                    as
+                                                                                    *const libc::c_char,
                                                                                     r_3);
                                                                         free(r_3
-                                                                                 as
-                                                                                 *mut libc::c_void);
+                                                                             as
+                                                                             *mut libc::c_void);
                                                                         if 0 == dc_smtp_connect(
                                                                             (*context).smtp,
                                                                             param,
@@ -1079,32 +1082,32 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                     2927484062889439186;
                                                                             } else {
                                                                                 (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                                  2041i32,
+                                                                                                                                  Event::CONFIGURE_PROGRESS,
                                                                                                                                   (if 860i32
-                                                                                                                                          <
-                                                                                                                                          1i32
-                                                                                                                                      {
+                                                                                                                                   <
+                                                                                                                                   1i32
+                                                                                                                                   {
                                                                                                                                        1i32
                                                                                                                                    } else if 860i32
-                                                                                                                                                 >
-                                                                                                                                                 999i32
-                                                                                                                                    {
+                                                                                                                                   >
+                                                                                                                                   999i32
+                                                                                                                                   {
                                                                                                                                        999i32
                                                                                                                                    } else {
                                                                                                                                        860i32
                                                                                                                                    })
-                                                                                                                                      as
-                                                                                                                                      uintptr_t,
+                                                                                                                                  as
+                                                                                                                                  uintptr_t,
                                                                                                                                   0i32
-                                                                                                                                      as
-                                                                                                                                      uintptr_t);
+                                                                                                                                  as
+                                                                                                                                  uintptr_t);
                                                                                 (*param).server_flags
                                                                                     &=
                                                                                     !(0x10000i32
-                                                                                          |
-                                                                                          0x20000i32
-                                                                                          |
-                                                                                          0x40000i32);
+                                                                                      |
+                                                                                      0x20000i32
+                                                                                      |
+                                                                                      0x40000i32);
                                                                                 (*param).server_flags
                                                                                     |=
                                                                                     0x10000i32;
@@ -1112,24 +1115,24 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                     .send_port =
                                                                                     25i32;
                                                                                 let mut r_4:
-                                                                                        *mut libc::c_char =
+                                                                                *mut libc::c_char =
                                                                                     dc_loginparam_get_readable(param);
                                                                                 dc_log_info(context,
                                                                                             0i32,
                                                                                             b"Trying: %s\x00"
-                                                                                                as
-                                                                                                *const u8
-                                                                                                as
-                                                                                                *const libc::c_char,
+                                                                                            as
+                                                                                            *const u8
+                                                                                            as
+                                                                                            *const libc::c_char,
                                                                                             r_4);
                                                                                 free(r_4
-                                                                                         as
-                                                                                         *mut libc::c_void);
+                                                                                     as
+                                                                                     *mut libc::c_void);
                                                                                 if 0
-                                                                                       ==
-                                                                                       dc_smtp_connect((*context).smtp,
-                                                                                                       param)
-                                                                                   {
+                                                                                    ==
+                                                                                    dc_smtp_connect((*context).smtp,
+                                                                                                    param)
+                                                                                {
                                                                                     current_block
                                                                                         =
                                                                                         2927484062889439186;
@@ -1157,51 +1160,51 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                 .shall_stop_ongoing)
                                                                         {
                                                                             (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                              2041i32,
+                                                                                                                              Event::CONFIGURE_PROGRESS,
                                                                                                                               (if 900i32
-                                                                                                                                      <
-                                                                                                                                      1i32
-                                                                                                                                  {
+                                                                                                                               <
+                                                                                                                               1i32
+                                                                                                                               {
                                                                                                                                    1i32
                                                                                                                                } else if 900i32
-                                                                                                                                             >
-                                                                                                                                             999i32
-                                                                                                                                {
+                                                                                                                               >
+                                                                                                                               999i32
+                                                                                                                               {
                                                                                                                                    999i32
                                                                                                                                } else {
                                                                                                                                    900i32
                                                                                                                                })
-                                                                                                                                  as
-                                                                                                                                  uintptr_t,
+                                                                                                                              as
+                                                                                                                              uintptr_t,
                                                                                                                               0i32
-                                                                                                                                  as
-                                                                                                                                  uintptr_t);
+                                                                                                                              as
+                                                                                                                              uintptr_t);
                                                                             flags
                                                                                 =
                                                                                 if 0
-                                                                                       !=
-                                                                                       dc_sqlite3_get_config_int((*context).sql,
-                                                                                                                 b"mvbox_watch\x00"
-                                                                                                                     as
-                                                                                                                     *const u8
-                                                                                                                     as
-                                                                                                                     *const libc::c_char,
-                                                                                                                 1i32)
-                                                                                       ||
-                                                                                       0
-                                                                                           !=
-                                                                                           dc_sqlite3_get_config_int((*context).sql,
-                                                                                                                     b"mvbox_move\x00"
-                                                                                                                         as
-                                                                                                                         *const u8
-                                                                                                                         as
-                                                                                                                         *const libc::c_char,
-                                                                                                                     1i32)
-                                                                                   {
-                                                                                    0x1i32
-                                                                                } else {
-                                                                                    0i32
-                                                                                };
+                                                                                !=
+                                                                                dc_sqlite3_get_config_int((*context).sql,
+                                                                                                          b"mvbox_watch\x00"
+                                                                                                          as
+                                                                                                          *const u8
+                                                                                                          as
+                                                                                                          *const libc::c_char,
+                                                                                                          1i32)
+                                                                                ||
+                                                                                0
+                                                                                !=
+                                                                                dc_sqlite3_get_config_int((*context).sql,
+                                                                                                          b"mvbox_move\x00"
+                                                                                                          as
+                                                                                                          *const u8
+                                                                                                          as
+                                                                                                          *const libc::c_char,
+                                                                                                          1i32)
+                                                                            {
+                                                                                0x1i32
+                                                                            } else {
+                                                                                0i32
+                                                                            };
                                                                             dc_configure_folders(
                                                                                 context,
                                                                                 (*context).inbox,
@@ -1211,63 +1214,63 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                 .shall_stop_ongoing)
                                                                             {
                                                                                 (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                                  2041i32,
+                                                                                                                                  Event::CONFIGURE_PROGRESS,
                                                                                                                                   (if 910i32
-                                                                                                                                          <
-                                                                                                                                          1i32
-                                                                                                                                      {
+                                                                                                                                   <
+                                                                                                                                   1i32
+                                                                                                                                   {
                                                                                                                                        1i32
                                                                                                                                    } else if 910i32
-                                                                                                                                                 >
-                                                                                                                                                 999i32
-                                                                                                                                    {
+                                                                                                                                   >
+                                                                                                                                   999i32
+                                                                                                                                   {
                                                                                                                                        999i32
                                                                                                                                    } else {
                                                                                                                                        910i32
                                                                                                                                    })
-                                                                                                                                      as
-                                                                                                                                      uintptr_t,
+                                                                                                                                  as
+                                                                                                                                  uintptr_t,
                                                                                                                                   0i32
-                                                                                                                                      as
-                                                                                                                                      uintptr_t);
+                                                                                                                                  as
+                                                                                                                                  uintptr_t);
                                                                                 dc_loginparam_write(param,
                                                                                                     (*context).sql,
                                                                                                     b"configured_\x00"
-                                                                                                        as
-                                                                                                        *const u8
-                                                                                                        as
-                                                                                                        *const libc::c_char);
+                                                                                                    as
+                                                                                                    *const u8
+                                                                                                    as
+                                                                                                    *const libc::c_char);
                                                                                 dc_sqlite3_set_config_int((*context).sql,
                                                                                                           b"configured\x00"
-                                                                                                              as
-                                                                                                              *const u8
-                                                                                                              as
-                                                                                                              *const libc::c_char,
+                                                                                                          as
+                                                                                                          *const u8
+                                                                                                          as
+                                                                                                          *const libc::c_char,
                                                                                                           1i32);
                                                                                 if !(0
-                                                                                         !=
-                                                                                         (*context).shall_stop_ongoing)
-                                                                                   {
+                                                                                     !=
+                                                                                     (*context).shall_stop_ongoing)
+                                                                                {
                                                                                     (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                                      2041i32,
+                                                                                                                                      Event::CONFIGURE_PROGRESS,
                                                                                                                                       (if 920i32
-                                                                                                                                              <
-                                                                                                                                              1i32
-                                                                                                                                          {
+                                                                                                                                       <
+                                                                                                                                       1i32
+                                                                                                                                       {
                                                                                                                                            1i32
                                                                                                                                        } else if 920i32
-                                                                                                                                                     >
-                                                                                                                                                     999i32
-                                                                                                                                        {
+                                                                                                                                       >
+                                                                                                                                       999i32
+                                                                                                                                       {
                                                                                                                                            999i32
                                                                                                                                        } else {
                                                                                                                                            920i32
                                                                                                                                        })
-                                                                                                                                          as
-                                                                                                                                          uintptr_t,
+                                                                                                                                      as
+                                                                                                                                      uintptr_t,
                                                                                                                                       0i32
-                                                                                                                                          as
-                                                                                                                                          uintptr_t);
+                                                                                                                                      as
+                                                                                                                                      uintptr_t);
                                                                                     dc_ensure_secret_key_exists(context);
                                                                                     success
                                                                                         =
@@ -1275,34 +1278,34 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
                                                                                     dc_log_info(context,
                                                                                                 0i32,
                                                                                                 b"Configure completed.\x00"
-                                                                                                    as
-                                                                                                    *const u8
-                                                                                                    as
-                                                                                                    *const libc::c_char);
+                                                                                                as
+                                                                                                *const u8
+                                                                                                as
+                                                                                                *const libc::c_char);
                                                                                     if !(0
-                                                                                             !=
-                                                                                             (*context).shall_stop_ongoing)
-                                                                                       {
+                                                                                         !=
+                                                                                         (*context).shall_stop_ongoing)
+                                                                                    {
                                                                                         (*context).cb.expect("non-null function pointer")(context,
-                                                                                                                                          2041i32,
+                                                                                                                                          Event::CONFIGURE_PROGRESS,
                                                                                                                                           (if 940i32
-                                                                                                                                                  <
-                                                                                                                                                  1i32
-                                                                                                                                              {
+                                                                                                                                           <
+                                                                                                                                           1i32
+                                                                                                                                           {
                                                                                                                                                1i32
                                                                                                                                            } else if 940i32
-                                                                                                                                                         >
-                                                                                                                                                         999i32
-                                                                                                                                            {
+                                                                                                                                           >
+                                                                                                                                           999i32
+                                                                                                                                           {
                                                                                                                                                999i32
                                                                                                                                            } else {
                                                                                                                                                940i32
                                                                                                                                            })
-                                                                                                                                              as
-                                                                                                                                              uintptr_t,
+                                                                                                                                          as
+                                                                                                                                          uintptr_t,
                                                                                                                                           0i32
-                                                                                                                                              as
-                                                                                                                                              uintptr_t);
+                                                                                                                                          as
+                                                                                                                                          uintptr_t);
                                                                                     }
                                                                                 }
                                                                             }
@@ -1339,11 +1342,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(
     free(mvbox_folder as *mut libc::c_void);
     (*context).cb.expect("non-null function pointer")(
         context,
-        2041i32,
+        Event::CONFIGURE_PROGRESS,
         (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
         0i32 as uintptr_t,
     );
 }
+
 pub unsafe fn dc_free_ongoing(mut context: *mut dc_context_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
@@ -1895,7 +1899,7 @@ unsafe fn read_autoconf_file(
     );
     filecontent = (*context).cb.expect("non-null function pointer")(
         context,
-        2100i32,
+        Event::HTTP_GET,
         url as uintptr_t,
         0i32 as uintptr_t,
     ) as *mut libc::c_char;

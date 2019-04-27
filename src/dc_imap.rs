@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_array::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
@@ -287,7 +288,7 @@ unsafe fn setup_handle_if_needed(mut imap: *mut dc_imap_t) -> libc::c_int {
                 if 0 != dc_imap_is_error(imap, r) {
                     dc_log_event_seq(
                         (*imap).context,
-                        401i32,
+                        Event::ERROR_NETWORK,
                         &mut (*imap).log_connect_errors as *mut libc::c_int,
                         b"Could not connect to IMAP-server %s:%i. (Error #%i)\x00" as *const u8
                             as *const libc::c_char,
@@ -299,7 +300,7 @@ unsafe fn setup_handle_if_needed(mut imap: *mut dc_imap_t) -> libc::c_int {
                 } else if 0 != (*imap).server_flags & 0x100i32 {
                     r = mailimap_socket_starttls((*imap).etpan);
                     if 0 != dc_imap_is_error(imap, r) {
-                        dc_log_event_seq((*imap).context, 401i32,
+                        dc_log_event_seq((*imap).context, Event::ERROR_NETWORK,
                                          &mut (*imap).log_connect_errors as
                                              *mut libc::c_int,
                                          b"Could not connect to IMAP-server %s:%i using STARTTLS. (Error #%i)\x00"
@@ -339,7 +340,7 @@ unsafe fn setup_handle_if_needed(mut imap: *mut dc_imap_t) -> libc::c_int {
                 if 0 != dc_imap_is_error(imap, r) {
                     dc_log_event_seq(
                         (*imap).context,
-                        401i32,
+                        Event::ERROR_NETWORK,
                         &mut (*imap).log_connect_errors as *mut libc::c_int,
                         b"Could not connect to IMAP-server %s:%i using SSL. (Error #%i)\x00"
                             as *const u8 as *const libc::c_char,
@@ -405,7 +406,7 @@ unsafe fn setup_handle_if_needed(mut imap: *mut dc_imap_t) -> libc::c_int {
                         );
                         dc_log_event_seq(
                             (*imap).context,
-                            401i32,
+                            Event::ERROR_NETWORK,
                             &mut (*imap).log_connect_errors as *mut libc::c_int,
                             b"%s\x00" as *const u8 as *const libc::c_char,
                             msg,
@@ -414,7 +415,7 @@ unsafe fn setup_handle_if_needed(mut imap: *mut dc_imap_t) -> libc::c_int {
                     } else {
                         dc_log_event(
                             (*imap).context,
-                            102i32,
+                            Event::IMAP_CONNECTED,
                             0i32,
                             b"IMAP-login as %s ok.\x00" as *const u8 as *const libc::c_char,
                             (*imap).imap_user,

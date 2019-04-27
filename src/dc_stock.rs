@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_lot::dc_lot_t;
@@ -25,7 +26,7 @@ unsafe fn get_string(
     if !context.is_null() {
         ret = (*context).cb.expect("non-null function pointer")(
             context,
-            2091i32,
+            Event::GET_STRING,
             id as uintptr_t,
             qty as uintptr_t,
         ) as *mut libc::c_char;

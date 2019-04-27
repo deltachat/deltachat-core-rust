@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_context::dc_context_t;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_tools::*;
@@ -9,7 +10,7 @@ use crate::x::*;
 
 pub unsafe extern "C" fn dc_log_event(
     mut context: *mut dc_context_t,
-    mut event_code: libc::c_int,
+    mut event_code: Event,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
     mut va: ...
@@ -25,7 +26,7 @@ decide, what should be reported or done.  However, these "Normal" errors
 are usually logged by dc_log_warning(). */
 unsafe fn log_vprintf(
     mut context: *mut dc_context_t,
-    mut event: libc::c_int,
+    mut event: Event,
     mut data1: libc::c_int,
     mut msg_format: *const libc::c_char,
     mut va_0: ::std::ffi::VaList,
@@ -59,7 +60,7 @@ unsafe fn log_vprintf(
 }
 pub unsafe extern "C" fn dc_log_event_seq(
     mut context: *mut dc_context_t,
-    mut event_code: libc::c_int,
+    mut event_code: Event,
     mut sequence_start: *mut libc::c_int,
     mut msg: *const libc::c_char,
     mut va_0: ...
@@ -79,7 +80,7 @@ pub unsafe extern "C" fn dc_log_error(
     mut msg: *const libc::c_char,
     mut va_1: ...
 ) {
-    log_vprintf(context, 400i32, data1, msg, va_1);
+    log_vprintf(context, Event::ERROR, data1, msg, va_1);
 }
 pub unsafe extern "C" fn dc_log_warning(
     mut context: *mut dc_context_t,
@@ -87,7 +88,7 @@ pub unsafe extern "C" fn dc_log_warning(
     mut msg: *const libc::c_char,
     mut va_2: ...
 ) {
-    log_vprintf(context, 300i32, data1, msg, va_2);
+    log_vprintf(context, Event::WARNING, data1, msg, va_2);
 }
 pub unsafe extern "C" fn dc_log_info(
     mut context: *mut dc_context_t,
@@ -95,5 +96,5 @@ pub unsafe extern "C" fn dc_log_info(
     mut msg: *const libc::c_char,
     mut va_3: ...
 ) {
-    log_vprintf(context, 100i32, data1, msg, va_3);
+    log_vprintf(context, Event::INFO, data1, msg, va_3);
 }

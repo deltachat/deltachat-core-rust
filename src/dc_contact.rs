@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_apeerstate::*;
 use crate::dc_array::*;
 use crate::dc_context::dc_context_t;
@@ -45,7 +46,7 @@ pub unsafe fn dc_marknoticed_contact(mut context: *mut dc_context_t, mut contact
     sqlite3_finalize(stmt);
     (*context).cb.expect("non-null function pointer")(
         context,
-        2000i32,
+        Event::MSGS_CHANGED,
         0i32 as uintptr_t,
         0i32 as uintptr_t,
     );
@@ -147,7 +148,7 @@ pub unsafe fn dc_create_contact(
         blocked = dc_is_contact_blocked(context, contact_id);
         (*context).cb.expect("non-null function pointer")(
             context,
-            2030i32,
+            Event::CONTACTS_CHANGED,
             (if sth_modified == 2i32 {
                 contact_id
             } else {
@@ -214,7 +215,7 @@ pub unsafe fn dc_block_contact(
                 if 0 != send_event {
                     (*context).cb.expect("non-null function pointer")(
                         context,
-                        2030i32,
+                        Event::CONTACTS_CHANGED,
                         0i32 as uintptr_t,
                         0i32 as uintptr_t,
                     );
@@ -579,7 +580,7 @@ pub unsafe fn dc_add_address_book(
             if 0 != modify_cnt {
                 (*context).cb.expect("non-null function pointer")(
                     context,
-                    2030i32,
+                    Event::CONTACTS_CHANGED,
                     0i32 as uintptr_t,
                     0i32 as uintptr_t,
                 );
@@ -936,7 +937,7 @@ pub unsafe fn dc_delete_contact(
                 if !(sqlite3_step(stmt) != 101i32) {
                     (*context).cb.expect("non-null function pointer")(
                         context,
-                        2030i32,
+                        Event::CONTACTS_CHANGED,
                         0i32 as uintptr_t,
                         0i32 as uintptr_t,
                     );

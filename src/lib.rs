@@ -78,9 +78,10 @@ mod tests {
     use std::os::raw::c_int;
     use std::ptr::NonNull;
 
+    use crate::constants::Event;
     use crate::dc_chat::*;
     use crate::dc_chatlist::*;
-    use crate::dc_configure::dc_configure;
+    use crate::dc_configure::*;
     use crate::dc_contact::*;
     use crate::dc_context::*;
     use crate::dc_imap::*;
@@ -90,17 +91,37 @@ mod tests {
     };
     use crate::dc_lot::*;
 
-    fn cb(ctx: *mut dc_context_t, event: c_int, data1: u64, data2: u64) -> u64 {
-        println!("event: {} ({}, {})", event, data1, data2);
-        if data2 > 10000 {
-            println!(
-                "  {}",
-                unsafe { CStr::from_ptr(data2 as *const _) }
-                    .to_str()
-                    .unwrap()
-            );
+    fn cb(_ctx: *mut dc_context_t, event: Event, data1: u64, data2: u64) -> u64 {
+        println!("[{:?}]", event);
+
+        match event {
+            Event::HTTP_GET => {
+                let url = unsafe { CStr::from_ptr(data1 as *const _).to_str().unwrap() };
+
+                match reqwest::get(url) {
+                    Ok(ref mut res) => {
+                        let c_res = CString::new(res.text().unwrap()).unwrap();
+                        // need to use strdup to allocate the result with malloc
+                        // so it can be `free`d later.
+                        unsafe { libc::strdup(c_res.as_ptr()) as u64 }
+                    }
+                    Err(err) => {
+                        println!("failed to download: {}: {:?}", url, err);
+                        0
+                    }
+                }
+            }
+            Event::INFO | Event::WARNING | Event::ERROR => {
+                println!(
+                    "  {}",
+                    unsafe { CStr::from_ptr(data2 as *const _) }
+                        .to_str()
+                        .unwrap()
+                );
+                0
+            }
+            _ => 0,
         }
-        0
     }
 
     struct Wrapper(NonNull<dc_context_t>);
@@ -129,11 +150,24 @@ mod tests {
                 dc_perform_smtp_idle(sendable_ctx.0.as_ptr());
             });
 
-            let dbfile = CString::new("../deltachat-core/build/hello.db").unwrap();
+            let dbfile = CString::new("../deltachat-core/build/hello2.db").unwrap();
             println!("opening dir");
             dc_open(ctx, dbfile.as_ptr(), std::ptr::null());
 
-            dc_configure(ctx);
+            if dc_is_configured(ctx) == 0 {
+                println!("configuring");
+                dc_set_config(
+                    ctx,
+                    CString::new("addr").unwrap().as_ptr(),
+                    CString::new("d@testrun.org").unwrap().as_ptr(),
+                );
+                dc_set_config(
+                    ctx,
+                    CString::new("mail_pw").unwrap().as_ptr(),
+                    CString::new("***").unwrap().as_ptr(),
+                );
+                dc_configure(ctx);
+            }
 
             std::thread::sleep_ms(4000);
 

@@ -1,6 +1,7 @@
 use c2rust_bitfields::BitfieldStruct;
 use libc;
 
+use crate::constants::Event;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_context::dc_context_t;
@@ -105,7 +106,7 @@ pub unsafe fn dc_send_locations_to_chat(
         }
         (*context).cb.expect("non-null function pointer")(
             context,
-            2020i32,
+            Event::CHAT_MODIFIED,
             chat_id as uintptr_t,
             0i32 as uintptr_t,
         );
@@ -201,7 +202,7 @@ pub unsafe fn dc_set_location(
         if 0 != continue_streaming {
             (*context).cb.expect("non-null function pointer")(
                 context,
-                2035i32,
+                Event::LOCATION_CHANGED,
                 1i32 as uintptr_t,
                 0i32 as uintptr_t,
             );
@@ -299,7 +300,7 @@ pub unsafe fn dc_delete_all_locations(mut context: *mut dc_context_t) {
         sqlite3_step(stmt);
         (*context).cb.expect("non-null function pointer")(
             context,
-            2035i32,
+            Event::LOCATION_CHANGED,
             0i32 as uintptr_t,
             0i32 as uintptr_t,
         );
@@ -833,7 +834,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
                 dc_add_device_msg(context, chat_id, stock_str);
                 (*context).cb.expect("non-null function pointer")(
                     context,
-                    2020i32,
+                    Event::CHAT_MODIFIED,
                     chat_id as uintptr_t,
                     0i32 as uintptr_t,
                 );

@@ -2,6 +2,7 @@ use c2rust_bitfields::BitfieldStruct;
 use libc;
 use rand::{thread_rng, Rng};
 
+use crate::constants::Event;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
@@ -707,7 +708,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: *mut dc_context_t, mut job
                 );
                 (*context).cb.expect("non-null function pointer")(
                     context,
-                    2051i32,
+                    Event::IMEX_PROGRESS,
                     10i32 as uintptr_t,
                     0i32 as uintptr_t,
                 );
@@ -931,7 +932,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: *mut dc_context_t, mut job
     }
     (*context).cb.expect("non-null function pointer")(
         context,
-        2051i32,
+        Event::IMEX_PROGRESS,
         (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
         0i32 as uintptr_t,
     );
@@ -1012,7 +1013,7 @@ unsafe fn import_backup(
                     }
                     (*context).cb.expect("non-null function pointer")(
                         context,
-                        2051i32,
+                        Event::IMEX_PROGRESS,
                         permille as uintptr_t,
                         0i32 as uintptr_t,
                     );
@@ -1226,7 +1227,7 @@ unsafe fn export_backup(
                                             }
                                             (*context).cb.expect("non-null function pointer")(
                                                 context,
-                                                2051i32,
+                                                Event::IMEX_PROGRESS,
                                                 permille as uintptr_t,
                                                 0i32 as uintptr_t,
                                             );
@@ -1326,7 +1327,7 @@ unsafe fn export_backup(
                                     );
                                     (*context).cb.expect("non-null function pointer")(
                                         context,
-                                        2052i32,
+                                        Event::IMEX_FILE_WRITTEN,
                                         dest_pathNfilename as uintptr_t,
                                         0i32 as uintptr_t,
                                     );
@@ -1582,7 +1583,7 @@ unsafe fn export_key_to_asc_file(
     } else {
         (*context).cb.expect("non-null function pointer")(
             context,
-            2052i32,
+            Event::IMEX_FILE_WRITTEN,
             file_name as uintptr_t,
             0i32 as uintptr_t,
         );
