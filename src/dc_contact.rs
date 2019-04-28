@@ -119,7 +119,7 @@ pub unsafe fn dc_addr_normalize(mut addr: *const libc::c_char) -> *mut libc::c_c
     if strncmp(
         addr_normalized,
         b"mailto:\x00" as *const u8 as *const libc::c_char,
-        7i32 as libc::c_ulong,
+        7,
     ) == 0i32
     {
         let mut old: *mut libc::c_char = addr_normalized;
@@ -245,10 +245,7 @@ pub unsafe fn dc_block_contact(
  */
 pub unsafe fn dc_contact_new(mut context: *mut dc_context_t) -> *mut dc_contact_t {
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
-    contact = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_contact_t>() as libc::c_ulong,
-    ) as *mut dc_contact_t;
+    contact = calloc(1, ::std::mem::size_of::<dc_contact_t>()) as *mut dc_contact_t;
     if contact.is_null() {
         exit(19i32);
     }
@@ -561,12 +558,11 @@ pub unsafe fn dc_add_address_book(
             dc_sqlite3_begin_transaction((*context).sql);
             iCnt = carray_count(lines) as size_t;
             i = 0i32 as size_t;
-            while i.wrapping_add(1i32 as libc::c_ulong) < iCnt {
+            while i.wrapping_add(1) < iCnt {
                 let mut name: *mut libc::c_char =
                     carray_get(lines, i as libc::c_uint) as *mut libc::c_char;
                 let mut addr: *mut libc::c_char =
-                    carray_get(lines, i.wrapping_add(1i32 as libc::c_ulong) as libc::c_uint)
-                        as *mut libc::c_char;
+                    carray_get(lines, i.wrapping_add(1) as libc::c_uint) as *mut libc::c_char;
                 dc_normalize_name(name);
                 dc_add_or_lookup_contact(context, name, addr, 0x80000i32, &mut sth_modified);
                 if 0 != sth_modified {

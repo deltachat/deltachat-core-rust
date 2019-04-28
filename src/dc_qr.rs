@@ -227,7 +227,7 @@ pub unsafe fn dc_check_qr(
                     16562876845594826114 => {}
                     _ => {
                         if !fingerprint.is_null() {
-                            if strlen(fingerprint) != 40i32 as libc::c_ulong {
+                            if strlen(fingerprint) != 40 {
                                 (*qr_parsed).state = 400i32;
                                 (*qr_parsed).text1 = dc_strdup(
                                     b"Bad fingerprint length in QR code.\x00" as *const u8

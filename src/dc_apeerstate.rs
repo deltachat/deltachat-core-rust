@@ -37,10 +37,7 @@ pub struct dc_apeerstate_t {
 /* the returned pointer is ref'd and must be unref'd after usage */
 pub unsafe fn dc_apeerstate_new(mut context: *mut dc_context_t) -> *mut dc_apeerstate_t {
     let mut peerstate: *mut dc_apeerstate_t = 0 as *mut dc_apeerstate_t;
-    peerstate = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_apeerstate_t>() as libc::c_ulong,
-    ) as *mut dc_apeerstate_t;
+    peerstate = calloc(1, ::std::mem::size_of::<dc_apeerstate_t>()) as *mut dc_apeerstate_t;
     if peerstate.is_null() {
         exit(43i32);
     }

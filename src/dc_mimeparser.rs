@@ -65,10 +65,7 @@ pub unsafe fn dc_mimeparser_new(
     mut context: *mut dc_context_t,
 ) -> *mut dc_mimeparser_t {
     let mut mimeparser: *mut dc_mimeparser_t = 0 as *mut dc_mimeparser_t;
-    mimeparser = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_mimeparser_t>() as libc::c_ulong,
-    ) as *mut dc_mimeparser_t;
+    mimeparser = calloc(1, ::std::mem::size_of::<dc_mimeparser_t>()) as *mut dc_mimeparser_t;
     if mimeparser.is_null() {
         exit(30i32);
     }
@@ -76,10 +73,8 @@ pub unsafe fn dc_mimeparser_new(
     (*mimeparser).parts = carray_new(16i32 as libc::c_uint);
     (*mimeparser).blobdir = blobdir;
     (*mimeparser).reports = carray_new(16i32 as libc::c_uint);
-    (*mimeparser).e2ee_helper = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_e2ee_helper_t>() as libc::c_ulong,
-    ) as *mut dc_e2ee_helper_t;
+    (*mimeparser).e2ee_helper =
+        calloc(1, ::std::mem::size_of::<dc_e2ee_helper_t>()) as *mut dc_e2ee_helper_t;
     dc_hash_init(&mut (*mimeparser).header, 3i32, 0i32);
     return mimeparser;
 }
@@ -440,10 +435,7 @@ pub unsafe fn dc_mimeparser_parse(
  ******************************************************************************/
 unsafe fn dc_mimepart_new() -> *mut dc_mimepart_t {
     let mut mimepart: *mut dc_mimepart_t = 0 as *mut dc_mimepart_t;
-    mimepart = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_mimepart_t>() as libc::c_ulong,
-    ) as *mut dc_mimepart_t;
+    mimepart = calloc(1, ::std::mem::size_of::<dc_mimepart_t>()) as *mut dc_mimepart_t;
     if mimepart.is_null() {
         exit(33i32);
     }
@@ -865,11 +857,8 @@ unsafe fn hash_header(
             if !dc_hash_find(out, key as *const libc::c_void, key_len).is_null() {
                 if (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
                     || key_len > 5i32
-                        && strncasecmp(
-                            key,
-                            b"Chat-\x00" as *const u8 as *const libc::c_char,
-                            5i32 as libc::c_ulong,
-                        ) == 0i32
+                        && strncasecmp(key, b"Chat-\x00" as *const u8 as *const libc::c_char, 5)
+                            == 0i32
                 {
                     dc_hash_insert(
                         out,
@@ -1166,7 +1155,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     let mut charset_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
     /* must not be free()'d */
     let mut decoded_data: *const libc::c_char = 0 as *const libc::c_char;
-    let mut decoded_data_bytes: size_t = 0i32 as size_t;
+    let mut decoded_data_bytes = 0;
     let mut simplifier: *mut dc_simplify_t = 0 as *mut dc_simplify_t;
     if !(mime.is_null() || (*mime).mm_data.mm_single.is_null()) {
         mime_type = mailmime_get_mime_type(mime, &mut msg_type, &mut raw_mime);
@@ -1174,7 +1163,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
         /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
         if !((*mime_data).dt_type != MAILMIME_DATA_TEXT as libc::c_int
             || (*mime_data).dt_data.dt_text.dt_data.is_null()
-            || (*mime_data).dt_data.dt_text.dt_length <= 0i32 as libc::c_ulong)
+            || (*mime_data).dt_data.dt_text.dt_length <= 0)
         {
             /* regard `Content-Transfer-Encoding:` */
             if !(0
@@ -1214,7 +1203,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         b"UTF-8\x00" as *const u8 as *const libc::c_char,
                                     ) != 0i32
                                 {
-                                    let mut ret_bytes: size_t = 0i32 as size_t;
+                                    let mut ret_bytes = 0;
                                     let mut r: libc::c_int = charconv_buffer(
                                         b"utf-8\x00" as *const u8 as *const libc::c_char,
                                         charset,
@@ -1234,9 +1223,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                                        charset,
                                                        r as libc::c_int);
                                         current_block = 17788412896529399552;
-                                    } else if charset_buffer.is_null()
-                                        || ret_bytes <= 0i32 as libc::c_ulong
-                                    {
+                                    } else if charset_buffer.is_null() || ret_bytes <= 0 {
                                         /* no error - but nothing to add */
                                         current_block = 8795901732489102124;
                                     } else {
@@ -1275,7 +1262,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                             (*part).int_mimetype = mime_type;
                                             (*part).msg = simplified_txt;
                                             (*part).msg_raw =
-                                                strndup(decoded_data, decoded_data_bytes);
+                                                strndup(decoded_data, decoded_data_bytes as u64);
                                             do_add_single_part(mimeparser, part);
                                             part = 0 as *mut dc_mimepart_t
                                         } else {
@@ -1339,7 +1326,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                                     (*(*dsp_param).pa_data.pa_parameter).pa_name,
                                                     b"filename*\x00" as *const u8
                                                         as *const libc::c_char,
-                                                    9i32 as libc::c_ulong,
+                                                    9,
                                                 ) == 0i32
                                             {
                                                 dc_strbuilder_cat(
@@ -1409,14 +1396,14 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 if strncmp(
                                     desired_filename,
                                     b"location\x00" as *const u8 as *const libc::c_char,
-                                    8i32 as libc::c_ulong,
+                                    8,
                                 ) == 0i32
                                     && strncmp(
                                         desired_filename
                                             .offset(strlen(desired_filename) as isize)
                                             .offset(-4isize),
                                         b".kml\x00" as *const u8 as *const libc::c_char,
-                                        4i32 as libc::c_ulong,
+                                        4,
                                     ) == 0i32
                                 {
                                     (*mimeparser).location_kml = dc_kml_parse(
@@ -1428,14 +1415,14 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 } else if strncmp(
                                     desired_filename,
                                     b"message\x00" as *const u8 as *const libc::c_char,
-                                    7i32 as libc::c_ulong,
+                                    7,
                                 ) == 0i32
                                     && strncmp(
                                         desired_filename
                                             .offset(strlen(desired_filename) as isize)
                                             .offset(-4isize),
                                         b".kml\x00" as *const u8 as *const libc::c_char,
-                                        4i32 as libc::c_ulong,
+                                        4,
                                     ) == 0i32
                                 {
                                     (*mimeparser).message_kml = dc_kml_parse(
@@ -1573,7 +1560,7 @@ pub unsafe fn mailmime_transfer_decode(
         || ret_decoded_data_bytes.is_null()
         || ret_to_mmap_string_unref.is_null()
         || !(*ret_decoded_data).is_null()
-        || *ret_decoded_data_bytes != 0i32 as libc::c_ulong
+        || *ret_decoded_data_bytes != 0
         || !(*ret_to_mmap_string_unref).is_null()
     {
         return 0i32;
@@ -1609,7 +1596,7 @@ pub unsafe fn mailmime_transfer_decode(
     {
         decoded_data = (*mime_data).dt_data.dt_text.dt_data;
         decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
-        if decoded_data.is_null() || decoded_data_bytes <= 0i32 as libc::c_ulong {
+        if decoded_data.is_null() || decoded_data_bytes <= 0 {
             return 0i32;
         }
     } else {
@@ -1625,7 +1612,7 @@ pub unsafe fn mailmime_transfer_decode(
         );
         if r != MAILIMF_NO_ERROR as libc::c_int
             || transfer_decoding_buffer.is_null()
-            || decoded_data_bytes <= 0i32 as libc::c_ulong
+            || decoded_data_bytes <= 0
         {
             return 0i32;
         }
@@ -1720,7 +1707,7 @@ pub unsafe fn dc_mimeparser_sender_equals_recipient(
 pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut dc_hash_t {
     /* the returned value must be dc_hash_clear()'d and free()'d. returned addresses are normalized. */
     let mut recipients: *mut dc_hash_t =
-        malloc(::std::mem::size_of::<dc_hash_t>() as libc::c_ulong) as *mut dc_hash_t;
+        malloc(::std::mem::size_of::<dc_hash_t>()) as *mut dc_hash_t;
     dc_hash_init(recipients, 3i32, 1i32);
     let mut cur1: *mut clistiter = 0 as *mut clistiter;
     cur1 = (*(*imffields).fld_list).first;

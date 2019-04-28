@@ -21,10 +21,7 @@ pub struct dc_sqlite3_t {
 
 pub unsafe fn dc_sqlite3_new(mut context: *mut dc_context_t) -> *mut dc_sqlite3_t {
     let mut sql: *mut dc_sqlite3_t = 0 as *mut dc_sqlite3_t;
-    sql = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_sqlite3_t>() as libc::c_ulong,
-    ) as *mut dc_sqlite3_t;
+    sql = calloc(1, ::std::mem::size_of::<dc_sqlite3_t>()) as *mut dc_sqlite3_t;
     if sql.is_null() {
         exit(24i32);
     }
@@ -1063,7 +1060,7 @@ pub unsafe fn dc_sqlite3_get_config_int(
     if str.is_null() {
         return def;
     }
-    let mut ret: int32_t = atol(str) as int32_t;
+    let mut ret: int32_t = atoi(str) as int32_t;
     free(str as *mut libc::c_void);
     return ret;
 }
@@ -1347,22 +1344,14 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
                 st_uid: 0,
                 st_gid: 0,
                 st_rdev: 0,
-                st_atimespec: timespec {
-                    tv_sec: 0,
-                    tv_nsec: 0,
-                },
-                st_mtimespec: timespec {
-                    tv_sec: 0,
-                    tv_nsec: 0,
-                },
-                st_ctimespec: timespec {
-                    tv_sec: 0,
-                    tv_nsec: 0,
-                },
-                st_birthtimespec: timespec {
-                    tv_sec: 0,
-                    tv_nsec: 0,
-                },
+                st_atime: 0,
+                st_atime_nsec: 0,
+                st_mtime: 0,
+                st_mtime_nsec: 0,
+                st_ctime: 0,
+                st_ctime_nsec: 0,
+                st_birthtime: 0,
+                st_birthtime_nsec: 0,
                 st_size: 0,
                 st_blocks: 0,
                 st_blksize: 0,
@@ -1372,9 +1361,9 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
                 st_qspare: [0; 2],
             };
             if stat(path, &mut st) == 0i32 {
-                if st.st_mtimespec.tv_sec > keep_files_newer_than
-                    || st.st_atimespec.tv_sec > keep_files_newer_than
-                    || st.st_ctimespec.tv_sec > keep_files_newer_than
+                if st.st_mtime > keep_files_newer_than
+                    || st.st_atime > keep_files_newer_than
+                    || st.st_ctime > keep_files_newer_than
                 {
                     dc_log_info(
                         context,
@@ -1441,7 +1430,7 @@ unsafe fn maybe_add_file(mut files_in_use: *mut dc_hash_t, mut file: *const libc
     if strncmp(
         file,
         b"$BLOBDIR/\x00" as *const u8 as *const libc::c_char,
-        9i32 as libc::c_ulong,
+        9,
     ) != 0i32
     {
         return;

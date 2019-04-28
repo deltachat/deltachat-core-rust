@@ -1,31 +1,21 @@
-use libc::{self, FILE};
+use libc;
 
 use crate::dc_strbuilder::dc_strbuilder_t;
 use crate::types::*;
 
+pub use libc::{
+    atof, atoi, calloc, close, closedir, exit, fclose, fgets, fopen, fread, free, fseek, ftell,
+    fwrite, gmtime, gmtime_r, localtime, localtime_r, malloc, memcmp, memcpy, memmove, memset,
+    mkdir, open, opendir, printf, rand, read, readdir, realloc, remove, sleep, snprintf, sprintf,
+    sscanf, stat, strcasecmp, strcat, strchr, strcmp, strcpy, strcspn, strdup, strlen, strncasecmp,
+    strncmp, strncpy, strrchr, strspn, strstr, strtol, system, time, tolower as __tolower,
+    toupper as __toupper, usleep, write,
+};
+
 extern "C" {
     pub static mut _DefaultRuneLocale: _RuneLocale;
 
-    pub fn fgets(_: *mut libc::c_char, _: libc::c_int, _: *mut FILE);
-    pub fn pthread_create(
-        _: *mut pthread_t,
-        _: *const pthread_attr_t,
-        _: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> *mut libc::c_void>,
-        _: *mut libc::c_void,
-    ) -> libc::c_int;
-    pub fn pthread_join(_: pthread_t, _: *mut *mut libc::c_void) -> libc::c_int;
-
-    pub fn system(_: *const libc::c_char) -> libc::c_int;
-    pub fn printf(_: *const libc::c_char, _: ...) -> libc::c_int;
-    pub fn calloc(_: libc::c_ulong, _: libc::c_ulong) -> *mut libc::c_void;
-    pub fn free(_: *mut libc::c_void);
-    pub fn exit(_: libc::c_int) -> !;
-    pub fn strcspn(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_ulong;
-    pub fn strspn(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_ulong;
-    pub fn strcasecmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
-    pub fn strlen(_: *const libc::c_char) -> libc::c_ulong;
-    pub fn malloc(_: libc::c_ulong) -> *mut libc::c_void;
-    pub fn realloc(_: *mut libc::c_void, _: libc::c_ulong) -> *mut libc::c_void;
+    pub fn clock() -> libc::clock_t;
     pub fn qsort(
         __base: *mut libc::c_void,
         __nel: size_t,
@@ -34,61 +24,128 @@ extern "C" {
             unsafe extern "C" fn(_: *const libc::c_void, _: *const libc::c_void) -> libc::c_int,
         >,
     );
-    pub fn memcpy(
-        _: *mut libc::c_void,
-        _: *const libc::c_void,
-        _: libc::c_ulong,
-    ) -> *mut libc::c_void;
-    pub fn strcat(_: *mut libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
-    pub fn strcmp(_: *const libc::c_char, _: *const libc::c_char) -> libc::c_int;
-    pub fn sprintf(_: *mut libc::c_char, _: *const libc::c_char, _: ...) -> libc::c_int;
-    pub fn time(_: *mut time_t) -> time_t;
-    pub fn strchr(_: *const libc::c_char, _: libc::c_int) -> *mut libc::c_char;
-    pub fn strstr(_: *const libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
-    pub fn strncasecmp(
-        _: *const libc::c_char,
-        _: *const libc::c_char,
-        _: libc::c_ulong,
-    ) -> libc::c_int;
-    pub fn usleep(_: libc::useconds_t) -> libc::c_int;
     pub fn pow(_: libc::c_double, _: libc::c_double) -> libc::c_double;
-    pub fn rand() -> libc::c_int;
-    pub fn memset(_: *mut libc::c_void, _: libc::c_int, _: libc::c_ulong) -> *mut libc::c_void;
-    pub fn clock() -> libc::clock_t;
-    pub fn pthread_cond_signal(_: *mut pthread_cond_t) -> libc::c_int;
-    pub fn pthread_cond_timedwait(
-        _: *mut pthread_cond_t,
-        _: *mut pthread_mutex_t,
-        _: *const timespec,
-    ) -> libc::c_int;
-    pub fn pthread_mutex_lock(_: *mut pthread_mutex_t) -> libc::c_int;
-    pub fn pthread_mutex_unlock(_: *mut pthread_mutex_t) -> libc::c_int;
-    pub fn clist_free(_: *mut clist);
-    pub fn clist_insert_after(
-        _: *mut clist,
-        _: *mut clistiter,
-        _: *mut libc::c_void,
-    ) -> libc::c_int;
-    pub fn closedir(_: *mut DIR) -> libc::c_int;
-    pub fn opendir(_: *const libc::c_char) -> *mut DIR;
-    pub fn readdir(_: *mut DIR) -> *mut dirent;
-    pub fn sleep(_: libc::c_uint) -> libc::c_uint;
-    pub fn mmap_string_unref(str: *mut libc::c_char) -> libc::c_int;
-    pub fn strncmp(_: *const libc::c_char, _: *const libc::c_char, _: libc::c_ulong)
-        -> libc::c_int;
-    pub fn strncpy(
-        _: *mut libc::c_char,
-        _: *const libc::c_char,
-        _: libc::c_ulong,
-    ) -> *mut libc::c_char;
     pub fn strndup(_: *const libc::c_char, _: libc::c_ulong) -> *mut libc::c_char;
-    pub fn localtime(_: *const time_t) -> *mut tm;
     pub fn strftime(
         _: *mut libc::c_char,
         _: size_t,
         _: *const libc::c_char,
         _: *const tm,
     ) -> size_t;
+    pub fn atol(_: *const libc::c_char) -> libc::c_long;
+    pub fn vsnprintf(
+        _: *mut libc::c_char,
+        _: libc::c_ulong,
+        _: *const libc::c_char,
+        _: ::std::ffi::VaList,
+    ) -> libc::c_int;
+
+    #[cfg(target_os = "macos")]
+    pub fn __assert_rtn(
+        _: *const libc::c_char,
+        _: *const libc::c_char,
+        _: libc::c_int,
+        _: *const libc::c_char,
+    ) -> !;
+    #[cfg(not(target_os = "macos"))]
+    fn __assert(
+        _: *const libc::c_char,
+        _: *const libc::c_char,
+        _: libc::c_int,
+        _: *const libc::c_char,
+    ) -> !;
+
+    // --charconv
+
+    pub fn charconv(
+        tocode: *const libc::c_char,
+        fromcode: *const libc::c_char,
+        str: *const libc::c_char,
+        length: size_t,
+        result: *mut *mut libc::c_char,
+    ) -> libc::c_int;
+    pub fn charconv_buffer(
+        tocode: *const libc::c_char,
+        fromcode: *const libc::c_char,
+        str: *const libc::c_char,
+        length: size_t,
+        result: *mut *mut libc::c_char,
+        result_len: *mut size_t,
+    ) -> libc::c_int;
+    pub fn charconv_buffer_free(str: *mut libc::c_char);
+
+    // -- libetpan Methods
+
+    pub fn libetpan_get_version_major() -> libc::c_int;
+    pub fn libetpan_get_version_minor() -> libc::c_int;
+    pub fn gethostname(_: *mut libc::c_char, _: size_t) -> libc::c_int;
+    pub fn mailsmtp_socket_connect(
+        session: *mut mailsmtp,
+        server: *const libc::c_char,
+        port: uint16_t,
+    ) -> libc::c_int;
+    pub fn mailsmtp_socket_starttls(session: *mut mailsmtp) -> libc::c_int;
+    pub fn mailsmtp_ssl_connect(
+        session: *mut mailsmtp,
+        server: *const libc::c_char,
+        port: uint16_t,
+    ) -> libc::c_int;
+    pub fn mailsmtp_oauth2_authenticate(
+        session: *mut mailsmtp,
+        auth_user: *const libc::c_char,
+        access_token: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailsmtp_new(
+        progr_rate: size_t,
+        progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t) -> ()>,
+    ) -> *mut mailsmtp;
+    pub fn mailsmtp_free(session: *mut mailsmtp);
+    pub fn mailsmtp_set_timeout(session: *mut mailsmtp, timeout: time_t);
+    pub fn mailsmtp_auth(
+        session: *mut mailsmtp,
+        user: *const libc::c_char,
+        pass: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailsmtp_helo(session: *mut mailsmtp) -> libc::c_int;
+    pub fn mailsmtp_mail(session: *mut mailsmtp, from: *const libc::c_char) -> libc::c_int;
+    pub fn mailsmtp_rcpt(session: *mut mailsmtp, to: *const libc::c_char) -> libc::c_int;
+    pub fn mailsmtp_data(session: *mut mailsmtp) -> libc::c_int;
+    pub fn mailsmtp_data_message(
+        session: *mut mailsmtp,
+        message: *const libc::c_char,
+        size: size_t,
+    ) -> libc::c_int;
+    pub fn mailesmtp_ehlo(session: *mut mailsmtp) -> libc::c_int;
+    pub fn mailesmtp_mail(
+        session: *mut mailsmtp,
+        from: *const libc::c_char,
+        return_full: libc::c_int,
+        envid: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailesmtp_rcpt(
+        session: *mut mailsmtp,
+        to: *const libc::c_char,
+        notify: libc::c_int,
+        orcpt: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailsmtp_strerror(errnum: libc::c_int) -> *const libc::c_char;
+    pub fn mailesmtp_auth_sasl(
+        session: *mut mailsmtp,
+        auth_type: *const libc::c_char,
+        server_fqdn: *const libc::c_char,
+        local_ip_port: *const libc::c_char,
+        remote_ip_port: *const libc::c_char,
+        login: *const libc::c_char,
+        auth_name: *const libc::c_char,
+        password: *const libc::c_char,
+        realm: *const libc::c_char,
+    ) -> libc::c_int;
+    pub fn mailsmtp_set_progress_callback(
+        session: *mut mailsmtp,
+        progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t, _: *mut libc::c_void) -> ()>,
+        context: *mut libc::c_void,
+    );
+
     pub fn mailmime_base64_body_parse(
         message: *const libc::c_char,
         length: size_t,
@@ -96,15 +153,6 @@ extern "C" {
         result: *mut *mut libc::c_char,
         result_len: *mut size_t,
     ) -> libc::c_int;
-    #[cfg(target_os = "macos")]
-    pub fn __toupper(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
-    #[cfg(not(target_os = "macos"))]
-    pub fn _toupper(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
-    pub fn memcmp(_: *const libc::c_void, _: *const libc::c_void, _: libc::c_ulong) -> libc::c_int;
-    pub fn encode_base64(in_0: *const libc::c_char, len: libc::c_int) -> *mut libc::c_char;
-    pub fn mmap_string_new(init: *const libc::c_char) -> *mut MMAPString;
-    pub fn mmap_string_free(string: *mut MMAPString);
-    pub fn clist_new() -> *mut clist;
     pub fn mailimf_address_new(
         ad_type: libc::c_int,
         ad_mailbox: *mut mailimf_mailbox,
@@ -220,19 +268,6 @@ extern "C" {
         col: *mut libc::c_int,
         build_info: *mut mailmime,
     ) -> libc::c_int;
-    pub fn pthread_cond_destroy(_: *mut pthread_cond_t) -> libc::c_int;
-    pub fn pthread_cond_init(_: *mut pthread_cond_t, _: *const pthread_condattr_t) -> libc::c_int;
-    pub fn pthread_cond_wait(_: *mut pthread_cond_t, _: *mut pthread_mutex_t) -> libc::c_int;
-    pub fn pthread_mutex_destroy(_: *mut pthread_mutex_t) -> libc::c_int;
-    pub fn pthread_mutex_init(
-        _: *mut pthread_mutex_t,
-        _: *const pthread_mutexattr_t,
-    ) -> libc::c_int;
-    pub fn atoi(_: *const libc::c_char) -> libc::c_int;
-    pub fn strdup(_: *const libc::c_char) -> *mut libc::c_char;
-    pub fn gmtime(_: *const time_t) -> *mut tm;
-    pub fn pthread_self() -> pthread_t;
-    pub fn clist_delete(_: *mut clist, _: *mut clistiter) -> *mut clistiter;
     pub fn mailimf_fields_free(fields: *mut mailimf_fields);
     pub fn mailimf_fields_new_empty() -> *mut mailimf_fields;
     pub fn mailimf_envelope_and_optional_fields_parse(
@@ -286,25 +321,6 @@ extern "C" {
     ) -> libc::c_int;
     pub fn mailmime_substitute(old_mime: *mut mailmime, new_mime: *mut mailmime) -> libc::c_int;
     pub fn mailprivacy_prepare_mime(mime: *mut mailmime);
-    pub fn atol(_: *const libc::c_char) -> libc::c_long;
-    #[cfg(target_os = "macos")]
-    pub fn __tolower(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
-    #[cfg(not(target_os = "macos"))]
-    pub fn _tolower(_: __darwin_ct_rune_t) -> __darwin_ct_rune_t;
-    pub fn mmap_string_append(string: *mut MMAPString, val: *const libc::c_char)
-        -> *mut MMAPString;
-    pub fn mmap_string_append_len(
-        string: *mut MMAPString,
-        val: *const libc::c_char,
-        len: size_t,
-    ) -> *mut MMAPString;
-    pub fn mmap_string_append_c(string: *mut MMAPString, c: libc::c_char) -> *mut MMAPString;
-    pub fn snprintf(
-        _: *mut libc::c_char,
-        _: libc::c_ulong,
-        _: *const libc::c_char,
-        _: ...
-    ) -> libc::c_int;
     pub fn mailmime_encoded_phrase_parse(
         default_fromcode: *const libc::c_char,
         message: *const libc::c_char,
@@ -312,54 +328,6 @@ extern "C" {
         indx: *mut size_t,
         tocode: *const libc::c_char,
         result: *mut *mut libc::c_char,
-    ) -> libc::c_int;
-    pub fn charconv(
-        tocode: *const libc::c_char,
-        fromcode: *const libc::c_char,
-        str: *const libc::c_char,
-        length: size_t,
-        result: *mut *mut libc::c_char,
-    ) -> libc::c_int;
-    pub fn strcpy(_: *mut libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
-    pub fn open(_: *const libc::c_char, _: libc::c_int, _: ...) -> libc::c_int;
-    pub fn close(_: libc::c_int) -> libc::c_int;
-    pub fn read(_: libc::c_int, _: *mut libc::c_void, _: size_t) -> ssize_t;
-    pub fn write(__fd: libc::c_int, __buf: *const libc::c_void, __nbyte: size_t) -> ssize_t;
-    pub fn mkdir(_: *const libc::c_char, _: mode_t) -> libc::c_int;
-    pub fn stat(_: *const libc::c_char, _: *mut stat) -> libc::c_int;
-    pub fn atof(_: *const libc::c_char) -> libc::c_double;
-    pub fn gmtime_r(_: *const time_t, _: *mut tm) -> *mut tm;
-    pub fn localtime_r(_: *const time_t, _: *mut tm) -> *mut tm;
-    pub fn carray_new(initsize: libc::c_uint) -> *mut carray;
-    pub fn carray_add(
-        array: *mut carray,
-        data: *mut libc::c_void,
-        indx: *mut libc::c_uint,
-    ) -> libc::c_int;
-    pub fn carray_set_size(array: *mut carray, new_size: libc::c_uint);
-    pub fn carray_free(array: *mut carray);
-    pub fn fclose(_: *mut FILE) -> libc::c_int;
-    pub fn fopen(_: *const libc::c_char, _: *const libc::c_char) -> *mut FILE;
-    pub fn fread(
-        _: *mut libc::c_void,
-        _: libc::c_ulong,
-        _: libc::c_ulong,
-        _: *mut FILE,
-    ) -> libc::c_ulong;
-    pub fn fseek(_: *mut FILE, _: libc::c_long, _: libc::c_int) -> libc::c_int;
-    pub fn ftell(_: *mut FILE) -> libc::c_long;
-    pub fn fwrite(
-        _: *const libc::c_void,
-        _: libc::c_ulong,
-        _: libc::c_ulong,
-        _: *mut FILE,
-    ) -> libc::c_ulong;
-    pub fn remove(_: *const libc::c_char) -> libc::c_int;
-    pub fn vsnprintf(
-        _: *mut libc::c_char,
-        _: libc::c_ulong,
-        _: *const libc::c_char,
-        _: ::std::ffi::VaList,
     ) -> libc::c_int;
     pub fn mailimap_date_time_new(
         dt_day: libc::c_int,
@@ -370,12 +338,6 @@ extern "C" {
         dt_sec: libc::c_int,
         dt_zone: libc::c_int,
     ) -> *mut mailimap_date_time;
-    pub fn memmove(
-        _: *mut libc::c_void,
-        _: *const libc::c_void,
-        _: libc::c_ulong,
-    ) -> *mut libc::c_void;
-    pub fn strrchr(_: *const libc::c_char, _: libc::c_int) -> *mut libc::c_char;
     pub fn mailimap_xlist(
         session: *mut mailimap,
         mb: *const libc::c_char,
@@ -491,27 +453,6 @@ extern "C" {
     ) -> *mut mailimap;
     pub fn mailimap_free(session: *mut mailimap);
     pub fn mailimap_set_timeout(session: *mut mailimap, timeout: time_t);
-    pub fn strtol(
-        _: *const libc::c_char,
-        _: *mut *mut libc::c_char,
-        _: libc::c_int,
-    ) -> libc::c_long;
-    #[cfg(target_os = "macos")]
-    pub fn __assert_rtn(
-        _: *const libc::c_char,
-        _: *const libc::c_char,
-        _: libc::c_int,
-        _: *const libc::c_char,
-    ) -> !;
-    #[cfg(not(target_os = "macos"))]
-    fn __assert(
-        _: *const libc::c_char,
-        _: *const libc::c_char,
-        _: libc::c_int,
-        _: *const libc::c_char,
-    ) -> !;
-
-    pub fn carray_delete_slow(array: *mut carray, indx: libc::c_uint) -> libc::c_int;
     pub fn mailimf_msg_id_parse(
         message: *const libc::c_char,
         length: size_t,
@@ -526,93 +467,71 @@ extern "C" {
         result: *mut *mut mailimf_mailbox_list,
     ) -> libc::c_int;
     pub fn mailmime_content_charset_get(content: *mut mailmime_content) -> *mut libc::c_char;
-    pub fn charconv_buffer(
-        tocode: *const libc::c_char,
-        fromcode: *const libc::c_char,
-        str: *const libc::c_char,
-        length: size_t,
-        result: *mut *mut libc::c_char,
-        result_len: *mut size_t,
-    ) -> libc::c_int;
-    pub fn charconv_buffer_free(str: *mut libc::c_char);
-    pub fn sscanf(_: *const libc::c_char, _: *const libc::c_char, _: ...) -> libc::c_int;
 
-    // -- libetpan Methods
+    pub fn carray_new(initsize: libc::c_uint) -> *mut carray;
+    pub fn carray_add(
+        array: *mut carray,
+        data: *mut libc::c_void,
+        indx: *mut libc::c_uint,
+    ) -> libc::c_int;
+    pub fn carray_set_size(array: *mut carray, new_size: libc::c_uint);
+    pub fn carray_free(array: *mut carray);
+    pub fn carray_delete_slow(array: *mut carray, indx: libc::c_uint) -> libc::c_int;
 
-    pub fn libetpan_get_version_major() -> libc::c_int;
-    pub fn libetpan_get_version_minor() -> libc::c_int;
-    pub fn gethostname(_: *mut libc::c_char, _: size_t) -> libc::c_int;
-    pub fn mailsmtp_socket_connect(
-        session: *mut mailsmtp,
-        server: *const libc::c_char,
-        port: uint16_t,
+    pub fn mmap_string_unref(str: *mut libc::c_char) -> libc::c_int;
+    pub fn mmap_string_new(init: *const libc::c_char) -> *mut MMAPString;
+    pub fn mmap_string_free(string: *mut MMAPString);
+    pub fn mmap_string_append(string: *mut MMAPString, val: *const libc::c_char)
+        -> *mut MMAPString;
+    pub fn mmap_string_append_len(
+        string: *mut MMAPString,
+        val: *const libc::c_char,
+        len: size_t,
+    ) -> *mut MMAPString;
+    pub fn mmap_string_append_c(string: *mut MMAPString, c: libc::c_char) -> *mut MMAPString;
+
+    pub fn clist_free(_: *mut clist);
+    pub fn clist_insert_after(
+        _: *mut clist,
+        _: *mut clistiter,
+        _: *mut libc::c_void,
     ) -> libc::c_int;
-    pub fn mailsmtp_socket_starttls(session: *mut mailsmtp) -> libc::c_int;
-    pub fn mailsmtp_ssl_connect(
-        session: *mut mailsmtp,
-        server: *const libc::c_char,
-        port: uint16_t,
-    ) -> libc::c_int;
-    pub fn mailsmtp_oauth2_authenticate(
-        session: *mut mailsmtp,
-        auth_user: *const libc::c_char,
-        access_token: *const libc::c_char,
-    ) -> libc::c_int;
-    pub fn mailsmtp_new(
-        progr_rate: size_t,
-        progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t) -> ()>,
-    ) -> *mut mailsmtp;
-    pub fn mailsmtp_free(session: *mut mailsmtp);
-    pub fn mailsmtp_set_timeout(session: *mut mailsmtp, timeout: time_t);
-    pub fn mailsmtp_auth(
-        session: *mut mailsmtp,
-        user: *const libc::c_char,
-        pass: *const libc::c_char,
-    ) -> libc::c_int;
-    pub fn mailsmtp_helo(session: *mut mailsmtp) -> libc::c_int;
-    pub fn mailsmtp_mail(session: *mut mailsmtp, from: *const libc::c_char) -> libc::c_int;
-    pub fn mailsmtp_rcpt(session: *mut mailsmtp, to: *const libc::c_char) -> libc::c_int;
-    pub fn mailsmtp_data(session: *mut mailsmtp) -> libc::c_int;
-    pub fn mailsmtp_data_message(
-        session: *mut mailsmtp,
-        message: *const libc::c_char,
-        size: size_t,
-    ) -> libc::c_int;
-    pub fn mailesmtp_ehlo(session: *mut mailsmtp) -> libc::c_int;
-    pub fn mailesmtp_mail(
-        session: *mut mailsmtp,
-        from: *const libc::c_char,
-        return_full: libc::c_int,
-        envid: *const libc::c_char,
-    ) -> libc::c_int;
-    pub fn mailesmtp_rcpt(
-        session: *mut mailsmtp,
-        to: *const libc::c_char,
-        notify: libc::c_int,
-        orcpt: *const libc::c_char,
-    ) -> libc::c_int;
-    pub fn mailsmtp_strerror(errnum: libc::c_int) -> *const libc::c_char;
-    pub fn mailesmtp_auth_sasl(
-        session: *mut mailsmtp,
-        auth_type: *const libc::c_char,
-        server_fqdn: *const libc::c_char,
-        local_ip_port: *const libc::c_char,
-        remote_ip_port: *const libc::c_char,
-        login: *const libc::c_char,
-        auth_name: *const libc::c_char,
-        password: *const libc::c_char,
-        realm: *const libc::c_char,
-    ) -> libc::c_int;
-    pub fn mailsmtp_set_progress_callback(
-        session: *mut mailsmtp,
-        progr_fun: Option<unsafe extern "C" fn(_: size_t, _: size_t, _: *mut libc::c_void) -> ()>,
-        context: *mut libc::c_void,
-    );
+    pub fn clist_new() -> *mut clist;
+    pub fn clist_delete(_: *mut clist, _: *mut clistiter) -> *mut clistiter;
+
+    pub fn encode_base64(in_0: *const libc::c_char, len: libc::c_int) -> *mut libc::c_char;
 
     // -- DC Methods
 
     pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
+
+    // -- Pthread
+
+    pub fn pthread_create(
+        _: *mut pthread_t,
+        _: *const pthread_attr_t,
+        _: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> *mut libc::c_void>,
+        _: *mut libc::c_void,
+    ) -> libc::c_int;
+    pub fn pthread_join(_: pthread_t, _: *mut *mut libc::c_void) -> libc::c_int;
+    pub fn pthread_cond_signal(_: *mut pthread_cond_t) -> libc::c_int;
+    pub fn pthread_cond_timedwait(
+        _: *mut pthread_cond_t,
+        _: *mut pthread_mutex_t,
+        _: *const timespec,
+    ) -> libc::c_int;
+    pub fn pthread_mutex_lock(_: *mut pthread_mutex_t) -> libc::c_int;
+    pub fn pthread_mutex_unlock(_: *mut pthread_mutex_t) -> libc::c_int;
+    pub fn pthread_cond_destroy(_: *mut pthread_cond_t) -> libc::c_int;
+    pub fn pthread_cond_init(_: *mut pthread_cond_t, _: *const pthread_condattr_t) -> libc::c_int;
+    pub fn pthread_cond_wait(_: *mut pthread_cond_t, _: *mut pthread_mutex_t) -> libc::c_int;
+    pub fn pthread_mutex_destroy(_: *mut pthread_mutex_t) -> libc::c_int;
+    pub fn pthread_mutex_init(
+        _: *mut pthread_mutex_t,
+        _: *const pthread_mutexattr_t,
+    ) -> libc::c_int;
+    pub fn pthread_self() -> pthread_t;
 }
 
 #[cfg(not(target_os = "macos"))]

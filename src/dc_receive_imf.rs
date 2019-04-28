@@ -130,7 +130,7 @@ pub unsafe fn dc_receive_imf(
                         if 0 != dc_mimeparser_sender_equals_recipient(mime_parser) {
                             from_id = 1i32 as uint32_t
                         }
-                    } else if dc_array_get_cnt(from_list) >= 1i32 as libc::c_ulong {
+                    } else if dc_array_get_cnt(from_list) >= 1 {
                         from_id = dc_array_get_id(from_list, 0i32 as size_t);
                         incoming_origin =
                             dc_get_contact_origin(context, from_id, &mut from_id_blocked)
@@ -390,7 +390,7 @@ pub unsafe fn dc_receive_imf(
                             } else {
                                 state = 26i32;
                                 from_id = 1i32 as uint32_t;
-                                if dc_array_get_cnt(to_ids) >= 1i32 as libc::c_ulong {
+                                if dc_array_get_cnt(to_ids) >= 1 {
                                     to_id = dc_array_get_id(to_ids, 0i32 as size_t);
                                     if chat_id == 0i32 as libc::c_uint {
                                         create_or_lookup_group(
@@ -433,9 +433,7 @@ pub unsafe fn dc_receive_imf(
                                     }
                                 }
                                 if chat_id == 0i32 as libc::c_uint {
-                                    if dc_array_get_cnt(to_ids) == 0i32 as libc::c_ulong
-                                        && 0 != to_self
-                                    {
+                                    if dc_array_get_cnt(to_ids) == 0 && 0 != to_self {
                                         dc_create_or_lookup_nchat_by_contact_id(
                                             context,
                                             1i32 as uint32_t,
@@ -550,7 +548,7 @@ pub unsafe fn dc_receive_imf(
                                         as *mut dc_mimepart_t;
                                 if !(0 != (*part).is_meta) {
                                     if !(*mime_parser).location_kml.is_null()
-                                        && icnt == 1i32 as libc::c_ulong
+                                        && icnt == 1
                                         && !(*part).msg.is_null()
                                         && (strcmp(
                                             (*part).msg,
@@ -1014,10 +1012,8 @@ pub unsafe fn dc_receive_imf(
                     context,
                     create_event_to_send,
                     carray_get(created_db_entries, i_0 as libc::c_uint) as uintptr_t,
-                    carray_get(
-                        created_db_entries,
-                        i_0.wrapping_add(1i32 as libc::c_ulong) as libc::c_uint,
-                    ) as uintptr_t,
+                    carray_get(created_db_entries, i_0.wrapping_add(1) as libc::c_uint)
+                        as uintptr_t,
                 );
                 i_0 = (i_0 as libc::c_ulong).wrapping_add(2i32 as libc::c_ulong) as size_t as size_t
             }
@@ -1033,10 +1029,7 @@ pub unsafe fn dc_receive_imf(
                 context,
                 Event::MSG_READ,
                 carray_get(rr_event_to_send, i_1 as libc::c_uint) as uintptr_t,
-                carray_get(
-                    rr_event_to_send,
-                    i_1.wrapping_add(1i32 as libc::c_ulong) as libc::c_uint,
-                ) as uintptr_t,
+                carray_get(rr_event_to_send, i_1.wrapping_add(1) as libc::c_uint) as uintptr_t,
             );
             i_1 = (i_1 as libc::c_ulong).wrapping_add(2i32 as libc::c_ulong) as size_t as size_t
         }
@@ -1403,7 +1396,7 @@ unsafe fn create_or_lookup_group(
                             recreate_member_list = 1i32
                         } else if 0 != X_MrGrpNameChanged
                             && !grpname.is_null()
-                            && strlen(grpname) < 200i32 as libc::c_ulong
+                            && strlen(grpname) < 200
                         {
                             stmt = dc_sqlite3_prepare(
                                 (*context).sql,
@@ -1580,8 +1573,8 @@ unsafe fn create_or_lookup_adhoc_group(
     group matching the to-list or if we can create one */
     let mut member_ids: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut chat_id: uint32_t = 0i32 as uint32_t;
-    let mut chat_id_blocked: libc::c_int = 0i32;
-    let mut i: libc::c_int = 0i32;
+    let mut chat_id_blocked = 0;
+    let mut i = 0;
     let mut chat_ids: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut chat_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1589,9 +1582,7 @@ unsafe fn create_or_lookup_adhoc_group(
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
     /* build member list from the given ids */
-    if !(dc_array_get_cnt(to_ids) == 0i32 as libc::c_ulong
-        || 0 != dc_mimeparser_is_mailinglist_message(mime_parser))
-    {
+    if !(dc_array_get_cnt(to_ids) == 0 || 0 != dc_mimeparser_is_mailinglist_message(mime_parser)) {
         /* too few contacts or a mailinglist */
         member_ids = dc_array_duplicate(to_ids);
         if 0 == dc_array_search_id(member_ids, from_id as uint32_t, 0 as *mut size_t) {
@@ -1600,10 +1591,10 @@ unsafe fn create_or_lookup_adhoc_group(
         if 0 == dc_array_search_id(member_ids, 1i32 as uint32_t, 0 as *mut size_t) {
             dc_array_add_id(member_ids, 1i32 as uint32_t);
         }
-        if !(dc_array_get_cnt(member_ids) < 3i32 as libc::c_ulong) {
+        if !(dc_array_get_cnt(member_ids) < 3) {
             /* too few contacts given */
             chat_ids = search_chat_ids_by_contact_ids(context, member_ids);
-            if dc_array_get_cnt(chat_ids) > 0i32 as libc::c_ulong {
+            if dc_array_get_cnt(chat_ids) > 0 {
                 chat_ids_str =
                     dc_array_get_string(chat_ids, b",\x00" as *const u8 as *const libc::c_char);
                 q3 =
@@ -1646,8 +1637,8 @@ unsafe fn create_or_lookup_adhoc_group(
                             chat_id =
                                 create_group_record(context, grpid, grpname, create_blocked, 0i32);
                             chat_id_blocked = create_blocked;
-                            i = 0i32;
-                            while (i as libc::c_ulong) < dc_array_get_cnt(member_ids) {
+                            i = 0;
+                            while i < dc_array_get_cnt(member_ids) {
                                 dc_add_to_chat_contacts_table(
                                     context,
                                     chat_id,
@@ -1777,10 +1768,10 @@ unsafe fn create_adhoc_grp_id(
         strlen(member_cs.buf) as usize,
     );
     if !binary_hash.is_null() {
-        ret = calloc(1i32 as libc::c_ulong, 256i32 as libc::c_ulong) as *mut libc::c_char;
+        ret = calloc(1, 256) as *mut libc::c_char;
         if !ret.is_null() {
-            i = 0i32;
-            while i < 8i32 {
+            i = 0;
+            while i < 8 {
                 sprintf(
                     &mut *ret.offset((i * 2i32) as isize) as *mut libc::c_char,
                     b"%02x\x00" as *const u8 as *const libc::c_char,
@@ -1824,7 +1815,7 @@ unsafe fn search_chat_ids_by_contact_ids(
                 }
                 i += 1
             }
-            if !(dc_array_get_cnt(contact_ids) == 0i32 as libc::c_ulong) {
+            if !(dc_array_get_cnt(contact_ids) == 0) {
                 dc_array_sort_ids(contact_ids);
                 contact_ids_str =
                     dc_array_get_string(contact_ids, b",\x00" as *const u8 as *const libc::c_char);
@@ -1833,21 +1824,21 @@ unsafe fn search_chat_ids_by_contact_ids(
                                         as *const u8 as *const libc::c_char,
                                     contact_ids_str);
                 stmt = dc_sqlite3_prepare((*context).sql, q3);
-                let mut last_chat_id: uint32_t = 0i32 as uint32_t;
-                let mut matches: uint32_t = 0i32 as uint32_t;
-                let mut mismatches: uint32_t = 0i32 as uint32_t;
-                while sqlite3_step(stmt) == 100i32 {
+                let mut last_chat_id = 0;
+                let mut matches = 0;
+                let mut mismatches = 0;
+                while sqlite3_step(stmt) == 100 {
                     let mut chat_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
                     let mut contact_id: uint32_t = sqlite3_column_int(stmt, 1i32) as uint32_t;
                     if chat_id != last_chat_id {
-                        if matches as libc::c_ulong == dc_array_get_cnt(contact_ids)
+                        if matches == dc_array_get_cnt(contact_ids)
                             && mismatches == 0i32 as libc::c_uint
                         {
                             dc_array_add_id(chat_ids, last_chat_id);
                         }
                         last_chat_id = chat_id;
-                        matches = 0i32 as uint32_t;
-                        mismatches = 0i32 as uint32_t
+                        matches = 0;
+                        mismatches = 0;
                     }
                     if contact_id == dc_array_get_id(contact_ids, matches as size_t) {
                         matches = matches.wrapping_add(1)
@@ -1855,9 +1846,7 @@ unsafe fn search_chat_ids_by_contact_ids(
                         mismatches = mismatches.wrapping_add(1)
                     }
                 }
-                if matches as libc::c_ulong == dc_array_get_cnt(contact_ids)
-                    && mismatches == 0i32 as libc::c_uint
-                {
+                if matches == dc_array_get_cnt(contact_ids) && mismatches == 0 {
                     dc_array_add_id(chat_ids, last_chat_id);
                 }
             }

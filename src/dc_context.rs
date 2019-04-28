@@ -85,10 +85,7 @@ pub unsafe fn dc_context_new(
     mut os_name: *const libc::c_char,
 ) -> *mut dc_context_t {
     let mut context: *mut dc_context_t = 0 as *mut dc_context_t;
-    context = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_context_t>() as libc::c_ulong,
-    ) as *mut dc_context_t;
+    context = calloc(1, ::std::mem::size_of::<dc_context_t>()) as *mut dc_context_t;
     if context.is_null() {
         exit(23i32);
     }
@@ -174,7 +171,7 @@ pub unsafe fn dc_context_new(
     dc_pgp_rand_seed(
         context,
         seed.as_mut_ptr() as *const libc::c_void,
-        ::std::mem::size_of::<[uintptr_t; 5]>() as libc::c_ulong,
+        ::std::mem::size_of::<[uintptr_t; 5]>(),
     );
     return context;
 }
@@ -435,10 +432,10 @@ pub unsafe fn dc_set_config(
  * INI-handling, Information
  ******************************************************************************/
 unsafe fn is_settable_config_key(mut key: *const libc::c_char) -> libc::c_int {
-    let mut i: libc::c_int = 0i32;
-    while (i as libc::c_ulong)
-        < (::std::mem::size_of::<[*const libc::c_char; 33]>() as libc::c_ulong)
-            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>() as libc::c_ulong)
+    let mut i = 0;
+    while i
+        < (::std::mem::size_of::<[*const libc::c_char; 33]>())
+            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>())
     {
         if strcmp(key, config_keys[i as usize]) == 0i32 {
             return 1i32;
@@ -542,10 +539,10 @@ pub unsafe fn dc_get_config(
     return value;
 }
 unsafe fn is_gettable_config_key(mut key: *const libc::c_char) -> libc::c_int {
-    let mut i: libc::c_int = 0i32;
-    while (i as libc::c_ulong)
-        < (::std::mem::size_of::<[*const libc::c_char; 3]>() as libc::c_ulong)
-            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>() as libc::c_ulong)
+    let mut i = 0;
+    while i
+        < (::std::mem::size_of::<[*const libc::c_char; 3]>())
+            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>())
     {
         if strcmp(key, sys_config_keys[i as usize]) == 0i32 {
             return 1i32;
@@ -590,23 +587,23 @@ unsafe fn get_config_keys_str() -> *mut libc::c_char {
         eos: 0 as *mut libc::c_char,
     };
     dc_strbuilder_init(&mut ret, 0i32);
-    let mut i: libc::c_int = 0i32;
-    while (i as libc::c_ulong)
-        < (::std::mem::size_of::<[*const libc::c_char; 33]>() as libc::c_ulong)
-            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>() as libc::c_ulong)
+    let mut i = 0;
+    while i
+        < (::std::mem::size_of::<[*const libc::c_char; 33]>())
+            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>())
     {
-        if strlen(ret.buf) > 0i32 as libc::c_ulong {
+        if strlen(ret.buf) > 0 {
             dc_strbuilder_cat(&mut ret, b" \x00" as *const u8 as *const libc::c_char);
         }
         dc_strbuilder_cat(&mut ret, config_keys[i as usize]);
         i += 1
     }
-    let mut i_0: libc::c_int = 0i32;
-    while (i_0 as libc::c_ulong)
-        < (::std::mem::size_of::<[*const libc::c_char; 3]>() as libc::c_ulong)
-            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>() as libc::c_ulong)
+    let mut i_0 = 0;
+    while i_0
+        < (::std::mem::size_of::<[*const libc::c_char; 3]>())
+            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>())
     {
-        if strlen(ret.buf) > 0i32 as libc::c_ulong {
+        if strlen(ret.buf) > 0 {
             dc_strbuilder_cat(&mut ret, b" \x00" as *const u8 as *const libc::c_char);
         }
         dc_strbuilder_cat(&mut ret, sys_config_keys[i_0 as usize]);
@@ -795,8 +792,7 @@ pub unsafe fn dc_get_info(mut context: *mut dc_context_t) -> *mut libc::c_char {
         'a' as libc::c_char as libc::c_int,
         rpgp_enabled,
         // arch
-        (::std::mem::size_of::<*mut libc::c_void>() as libc::c_ulong)
-            .wrapping_mul(8i32 as libc::c_ulong),
+        (::std::mem::size_of::<*mut libc::c_void>()).wrapping_mul(8),
         chats,
         real_msgs,
         deaddrop_msgs,

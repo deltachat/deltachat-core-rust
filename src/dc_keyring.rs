@@ -15,10 +15,7 @@ pub struct dc_keyring_t {
 
 pub unsafe fn dc_keyring_new() -> *mut dc_keyring_t {
     let mut keyring: *mut dc_keyring_t = 0 as *mut dc_keyring_t;
-    keyring = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_keyring_t>() as libc::c_ulong,
-    ) as *mut dc_keyring_t;
+    keyring = calloc(1, ::std::mem::size_of::<dc_keyring_t>()) as *mut dc_keyring_t;
     if keyring.is_null() {
         exit(42i32);
     }
@@ -42,11 +39,10 @@ pub unsafe fn dc_keyring_add(mut keyring: *mut dc_keyring_t, mut to_add: *mut dc
         return;
     }
     if (*keyring).count == (*keyring).allocated {
-        let mut newsize: libc::c_int = (*keyring).allocated * 2i32 + 10i32;
+        let mut newsize = (*keyring).allocated * 2 + 10;
         (*keyring).keys = realloc(
             (*keyring).keys as *mut libc::c_void,
-            (newsize as libc::c_ulong)
-                .wrapping_mul(::std::mem::size_of::<*mut dc_key_t>() as libc::c_ulong),
+            (newsize as size_t).wrapping_mul(::std::mem::size_of::<*mut dc_key_t>()),
         ) as *mut *mut dc_key_t;
         if (*keyring).keys.is_null() {
             exit(41i32);

@@ -18,10 +18,7 @@ pub struct dc_aheader_t {
 
 /// the returned pointer is ref'd and must be unref'd after usage
 pub unsafe fn dc_aheader_new() -> *mut dc_aheader_t {
-    let mut aheader = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_aheader_t>() as libc::c_ulong,
-    ) as *mut dc_aheader_t;
+    let mut aheader = calloc(1, ::std::mem::size_of::<dc_aheader_t>()) as *mut dc_aheader_t;
 
     if aheader.is_null() {
         exit(37i32);

@@ -37,10 +37,7 @@ pub struct dc_lot_t {
  */
 pub unsafe fn dc_lot_new() -> *mut dc_lot_t {
     let mut lot: *mut dc_lot_t = 0 as *mut dc_lot_t;
-    lot = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_lot_t>() as libc::c_ulong,
-    ) as *mut dc_lot_t;
+    lot = calloc(1, ::std::mem::size_of::<dc_lot_t>()) as *mut dc_lot_t;
     if lot.is_null() {
         exit(27i32);
     }

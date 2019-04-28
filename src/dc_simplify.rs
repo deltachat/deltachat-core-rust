@@ -16,10 +16,7 @@ pub struct dc_simplify_t {
 
 pub unsafe fn dc_simplify_new() -> *mut dc_simplify_t {
     let mut simplify: *mut dc_simplify_t = 0 as *mut dc_simplify_t;
-    simplify = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_simplify_t>() as libc::c_ulong,
-    ) as *mut dc_simplify_t;
+    simplify = calloc(1, ::std::mem::size_of::<dc_simplify_t>()) as *mut dc_simplify_t;
     if simplify.is_null() {
         exit(31i32);
     }
@@ -129,11 +126,7 @@ unsafe fn dc_simplify_simplify_plain_text(
             line0,
             b"---------- Forwarded message ----------\x00" as *const u8 as *const libc::c_char,
         ) == 0i32
-            && strncmp(
-                line1,
-                b"From: \x00" as *const u8 as *const libc::c_char,
-                6i32 as libc::c_ulong,
-            ) == 0i32
+            && strncmp(line1, b"From: \x00" as *const u8 as *const libc::c_char, 6) == 0i32
             && *line2.offset(0isize) as libc::c_int == 0i32
         {
             (*simplify).is_forwarded = 1i32;
@@ -143,31 +136,11 @@ unsafe fn dc_simplify_simplify_plain_text(
     l = l_first;
     while l <= l_last {
         line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
-        if strncmp(
-            line,
-            b"-----\x00" as *const u8 as *const libc::c_char,
-            5i32 as libc::c_ulong,
-        ) == 0i32
-            || strncmp(
-                line,
-                b"_____\x00" as *const u8 as *const libc::c_char,
-                5i32 as libc::c_ulong,
-            ) == 0i32
-            || strncmp(
-                line,
-                b"=====\x00" as *const u8 as *const libc::c_char,
-                5i32 as libc::c_ulong,
-            ) == 0i32
-            || strncmp(
-                line,
-                b"*****\x00" as *const u8 as *const libc::c_char,
-                5i32 as libc::c_ulong,
-            ) == 0i32
-            || strncmp(
-                line,
-                b"~~~~~\x00" as *const u8 as *const libc::c_char,
-                5i32 as libc::c_ulong,
-            ) == 0i32
+        if strncmp(line, b"-----\x00" as *const u8 as *const libc::c_char, 5) == 0i32
+            || strncmp(line, b"_____\x00" as *const u8 as *const libc::c_char, 5) == 0i32
+            || strncmp(line, b"=====\x00" as *const u8 as *const libc::c_char, 5) == 0i32
+            || strncmp(line, b"*****\x00" as *const u8 as *const libc::c_char, 5) == 0i32
+            || strncmp(line, b"~~~~~\x00" as *const u8 as *const libc::c_char, 5) == 0i32
         {
             l_last = l - 1i32;
             (*simplify).is_cut_at_end = 1i32;

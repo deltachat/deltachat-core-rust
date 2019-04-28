@@ -58,13 +58,12 @@ pub unsafe fn dc_split_armored_data(
                     if strncmp(
                         line,
                         b"-----BEGIN \x00" as *const u8 as *const libc::c_char,
-                        11i32 as libc::c_ulong,
+                        1,
                     ) == 0i32
                         && strncmp(
-                            &mut *line
-                                .offset(strlen(line).wrapping_sub(5i32 as libc::c_ulong) as isize),
+                            &mut *line.offset(strlen(line).wrapping_sub(5) as isize),
                             b"-----\x00" as *const u8 as *const libc::c_char,
-                            5i32 as libc::c_ulong,
+                            5,
                         ) == 0i32
                     {
                         headerline = line;
@@ -264,7 +263,7 @@ pub unsafe fn dc_pgp_calc_fingerprint(
         || ret_fingerprint.is_null()
         || !(*ret_fingerprint).is_null()
         || ret_fingerprint_bytes.is_null()
-        || *ret_fingerprint_bytes != 0i32 as libc::c_ulong
+        || *ret_fingerprint_bytes != 0
         || (*raw_key).binary.is_null()
         || (*raw_key).bytes <= 0i32)
     {
@@ -362,7 +361,7 @@ pub unsafe fn dc_pgp_pk_encrypt(
     let mut encrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
     if !(context.is_null()
         || plain_text == 0 as *mut libc::c_void
-        || plain_bytes == 0i32 as libc::c_ulong
+        || plain_bytes == 0
         || ret_ctext.is_null()
         || ret_ctext_bytes.is_null()
         || raw_public_keys_for_encryption.is_null()
@@ -374,8 +373,8 @@ pub unsafe fn dc_pgp_pk_encrypt(
         *ret_ctext_bytes = 0i32 as size_t;
         public_keys_len = (*raw_public_keys_for_encryption).count;
         public_keys = malloc(
-            (::std::mem::size_of::<*mut rpgp::signed_public_key>() as libc::c_ulong)
-                .wrapping_mul(public_keys_len as libc::c_ulong),
+            (::std::mem::size_of::<*mut rpgp::signed_public_key>())
+                .wrapping_mul(public_keys_len as usize),
         ) as *mut *mut rpgp::signed_public_key;
         /* setup secret key for signing */
         if !raw_private_key_for_signing.is_null() {
@@ -535,7 +534,7 @@ pub unsafe fn dc_pgp_pk_decrypt(
     let mut public_keys: *mut *mut rpgp::signed_public_key = 0 as *mut *mut rpgp::signed_public_key;
     if !(context.is_null()
         || ctext == 0 as *mut libc::c_void
-        || ctext_bytes == 0i32 as libc::c_ulong
+        || ctext_bytes == 0
         || ret_plain.is_null()
         || ret_plain_bytes.is_null()
         || raw_private_keys_for_decryption.is_null()
@@ -547,14 +546,14 @@ pub unsafe fn dc_pgp_pk_decrypt(
         *ret_plain_bytes = 0i32 as size_t;
         private_keys_len = (*raw_private_keys_for_decryption).count;
         private_keys = malloc(
-            (::std::mem::size_of::<*mut rpgp::signed_secret_key>() as libc::c_ulong)
-                .wrapping_mul(private_keys_len as libc::c_ulong),
+            (::std::mem::size_of::<*mut rpgp::signed_secret_key>())
+                .wrapping_mul(private_keys_len as usize),
         ) as *mut *mut rpgp::signed_secret_key;
         if !raw_public_keys_for_validation.is_null() {
             public_keys_len = (*raw_public_keys_for_validation).count;
             public_keys = malloc(
-                (::std::mem::size_of::<*mut rpgp::signed_public_key>() as libc::c_ulong)
-                    .wrapping_mul(public_keys_len as libc::c_ulong),
+                (::std::mem::size_of::<*mut rpgp::signed_public_key>())
+                    .wrapping_mul(public_keys_len as usize),
             ) as *mut *mut rpgp::signed_public_key
         }
         /* setup secret keys for decryption */
@@ -687,7 +686,7 @@ pub unsafe fn dc_pgp_symm_encrypt(
     if !(context.is_null()
         || passphrase.is_null()
         || plain == 0 as *mut libc::c_void
-        || plain_bytes == 0i32 as libc::c_ulong
+        || plain_bytes == 0
         || ret_ctext_armored.is_null())
     {
         decrypted = rpgp::rpgp_encrypt_bytes_with_password(

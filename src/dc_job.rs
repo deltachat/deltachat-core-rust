@@ -81,8 +81,8 @@ unsafe fn dc_job_perform(
     };
     memset(
         &mut job as *mut dc_job_t as *mut libc::c_void,
-        0i32,
-        ::std::mem::size_of::<dc_job_t>() as libc::c_ulong,
+        0,
+        ::std::mem::size_of::<dc_job_t>(),
     );
     job.param = dc_param_new();
     if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
@@ -1206,8 +1206,8 @@ pub unsafe fn dc_perform_smtp_idle(mut context: *mut dc_context_t) {
         };
         memset(
             &mut wakeup_at as *mut timespec as *mut libc::c_void,
-            0i32,
-            ::std::mem::size_of::<timespec>() as libc::c_ulong,
+            0,
+            ::std::mem::size_of::<timespec>(),
         );
         wakeup_at.tv_sec = get_next_wakeup_time(context, 5000i32) + 1i32 as libc::c_long;
         while (*context).smtpidle_condflag == 0i32 && r == 0i32 {

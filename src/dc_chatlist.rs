@@ -83,10 +83,7 @@ pub unsafe fn dc_get_chatlist(
  */
 pub unsafe fn dc_chatlist_new(mut context: *mut dc_context_t) -> *mut dc_chatlist_t {
     let mut chatlist: *mut dc_chatlist_t = 0 as *mut dc_chatlist_t;
-    chatlist = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_chatlist_t>() as libc::c_ulong,
-    ) as *mut dc_chatlist_t;
+    chatlist = calloc(1, ::std::mem::size_of::<dc_chatlist_t>()) as *mut dc_chatlist_t;
     if chatlist.is_null() {
         exit(20i32);
     }
@@ -204,7 +201,7 @@ unsafe fn dc_chatlist_load_from_db(
                     );
                 }
                 if 0 != add_archived_link_item && dc_get_archived_cnt((*chatlist).context) > 0i32 {
-                    if dc_array_get_cnt((*chatlist).chatNlastmsg_ids) == 0i32 as libc::c_ulong
+                    if dc_array_get_cnt((*chatlist).chatNlastmsg_ids) == 0
                         && 0 != listflags & 0x4i32
                     {
                         dc_array_add_id((*chatlist).chatNlastmsg_ids, 7i32 as uint32_t);
@@ -213,8 +210,7 @@ unsafe fn dc_chatlist_load_from_db(
                     dc_array_add_id((*chatlist).chatNlastmsg_ids, 6i32 as uint32_t);
                     dc_array_add_id((*chatlist).chatNlastmsg_ids, 0i32 as uint32_t);
                 }
-                (*chatlist).cnt = dc_array_get_cnt((*chatlist).chatNlastmsg_ids)
-                    .wrapping_div(2i32 as libc::c_ulong);
+                (*chatlist).cnt = dc_array_get_cnt((*chatlist).chatNlastmsg_ids).wrapping_div(2);
                 success = 1i32
             }
         }
@@ -269,10 +265,7 @@ pub unsafe fn dc_chatlist_get_chat_id(
     {
         return 0i32 as uint32_t;
     }
-    return dc_array_get_id(
-        (*chatlist).chatNlastmsg_ids,
-        index.wrapping_mul(2i32 as libc::c_ulong),
-    );
+    return dc_array_get_id((*chatlist).chatNlastmsg_ids, index.wrapping_mul(2));
 }
 pub unsafe fn dc_chatlist_get_msg_id(
     mut chatlist: *const dc_chatlist_t,
@@ -287,9 +280,7 @@ pub unsafe fn dc_chatlist_get_msg_id(
     }
     return dc_array_get_id(
         (*chatlist).chatNlastmsg_ids,
-        index
-            .wrapping_mul(2i32 as libc::c_ulong)
-            .wrapping_add(1i32 as libc::c_ulong),
+        index.wrapping_mul(2).wrapping_add(1),
     );
 }
 pub unsafe fn dc_chatlist_get_summary(
@@ -314,19 +305,14 @@ pub unsafe fn dc_chatlist_get_summary(
     } else {
         lastmsg_id = dc_array_get_id(
             (*chatlist).chatNlastmsg_ids,
-            index
-                .wrapping_mul(2i32 as libc::c_ulong)
-                .wrapping_add(1i32 as libc::c_ulong),
+            index.wrapping_mul(2).wrapping_add(1),
         );
         if chat.is_null() {
             chat = dc_chat_new((*chatlist).context);
             chat_to_delete = chat;
             if 0 == dc_chat_load_from_db(
                 chat,
-                dc_array_get_id(
-                    (*chatlist).chatNlastmsg_ids,
-                    index.wrapping_mul(2i32 as libc::c_ulong),
-                ),
+                dc_array_get_id((*chatlist).chatNlastmsg_ids, index.wrapping_mul(2)),
             ) {
                 (*ret).text2 =
                     dc_strdup(b"ErrCannotReadChat\x00" as *const u8 as *const libc::c_char);

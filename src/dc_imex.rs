@@ -47,10 +47,8 @@ pub unsafe fn dc_imex_has_backup(
     let mut ret_backup_time: time_t = 0i32 as time_t;
     let mut dir_handle: *mut DIR = 0 as *mut DIR;
     let mut dir_entry: *mut dirent = 0 as *mut dirent;
-    let mut prefix_len: libc::c_int =
-        strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char) as libc::c_int;
-    let mut suffix_len: libc::c_int =
-        strlen(b"bak\x00" as *const u8 as *const libc::c_char) as libc::c_int;
+    let mut prefix_len = strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char);
+    let mut suffix_len = strlen(b"bak\x00" as *const u8 as *const libc::c_char);
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut test_sql: *mut dc_sqlite3_t = 0 as *mut dc_sqlite3_t;
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
@@ -71,18 +69,18 @@ pub unsafe fn dc_imex_has_backup(
                 break;
             }
             let mut name: *const libc::c_char = (*dir_entry).d_name.as_mut_ptr();
-            let mut name_len: libc::c_int = strlen(name) as libc::c_int;
+            let mut name_len = strlen(name);
             if name_len > prefix_len
                 && strncmp(
                     name,
                     b"delta-chat\x00" as *const u8 as *const libc::c_char,
-                    prefix_len as libc::c_ulong,
+                    prefix_len,
                 ) == 0i32
                 && name_len > suffix_len
                 && strncmp(
-                    &*name.offset((name_len - suffix_len - 1i32) as isize),
+                    &*name.offset((name_len - suffix_len - 1) as isize),
                     b".bak\x00" as *const u8 as *const libc::c_char,
-                    suffix_len as libc::c_ulong,
+                    suffix_len,
                 ) == 0i32
             {
                 free(curr_pathNfilename as *mut libc::c_void);
@@ -261,14 +259,10 @@ pub unsafe extern "C" fn dc_render_setup_file(
     if !(context.is_null()
         || (*context).magic != 0x11a11807i32 as libc::c_uint
         || passphrase.is_null()
-        || strlen(passphrase) < 2i32 as libc::c_ulong
+        || strlen(passphrase) < 2
         || curr_private_key.is_null())
     {
-        strncpy(
-            passphrase_begin.as_mut_ptr(),
-            passphrase,
-            2i32 as libc::c_ulong,
-        );
+        strncpy(passphrase_begin.as_mut_ptr(), passphrase, 2);
         passphrase_begin[2usize] = 0i32 as libc::c_char;
         /* create the payload */
         if !(0 == dc_ensure_secret_key_exists(context)) {
@@ -414,7 +408,7 @@ pub unsafe fn dc_continue_key_transfer(
                 &mut filebytes,
             )
             || filecontent.is_null()
-            || filebytes <= 0i32 as libc::c_ulong
+            || filebytes <= 0
         {
             dc_log_error(
                 context,
@@ -584,7 +578,7 @@ pub unsafe fn dc_decrypt_setup_file(
     let mut binary_bytes: size_t = 0i32 as size_t;
     let mut indx: size_t = 0i32 as size_t;
     let mut plain: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut plain_bytes: size_t = 0i32 as size_t;
+    let mut plain_bytes = 0;
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     fc_buf = dc_strdup(filecontent);
     if !(0
@@ -612,7 +606,7 @@ pub unsafe fn dc_decrypt_setup_file(
             &mut binary_bytes,
         ) != MAILIMF_NO_ERROR as libc::c_int
             || binary.is_null()
-            || binary_bytes == 0i32 as libc::c_ulong)
+            || binary_bytes == 0)
         {
             /* decrypt symmetrically */
             if !(0
@@ -625,7 +619,7 @@ pub unsafe fn dc_decrypt_setup_file(
                     &mut plain_bytes,
                 ))
             {
-                payload = strndup(plain as *const libc::c_char, plain_bytes)
+                payload = strndup(plain as *const libc::c_char, plain_bytes as libc::c_ulong)
             }
         }
     }
@@ -1089,13 +1083,11 @@ unsafe fn export_backup(
     let mut closed: libc::c_int = 0i32;
     let mut dest_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut dest_sql: *mut dc_sqlite3_t = 0 as *mut dc_sqlite3_t;
-    let mut now: time_t = time(0 as *mut time_t);
+    let mut now = time(0 as *mut time_t);
     let mut dir_handle: *mut DIR = 0 as *mut DIR;
     let mut dir_entry: *mut dirent = 0 as *mut dirent;
-    let mut prefix_len: libc::c_int =
-        strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char) as libc::c_int;
-    let mut suffix_len: libc::c_int =
-        strlen(b"bak\x00" as *const u8 as *const libc::c_char) as libc::c_int;
+    let mut prefix_len = strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char);
+    let mut suffix_len = strlen(b"bak\x00" as *const u8 as *const libc::c_char);
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut buf_bytes: size_t = 0i32 as size_t;
@@ -1232,12 +1224,11 @@ unsafe fn export_backup(
                                             /* name without path; may also be `.` or `..` */
                                             let mut name: *mut libc::c_char =
                                                 (*dir_entry).d_name.as_mut_ptr();
-                                            let mut name_len: libc::c_int =
-                                                strlen(name) as libc::c_int;
-                                            if !(name_len == 1i32
+                                            let mut name_len = strlen(name);
+                                            if !(name_len == 1
                                                 && *name.offset(0isize) as libc::c_int
                                                     == '.' as i32
-                                                || name_len == 2i32
+                                                || name_len == 2
                                                     && *name.offset(0isize) as libc::c_int
                                                         == '.' as i32
                                                     && *name.offset(1isize) as libc::c_int
@@ -1247,16 +1238,16 @@ unsafe fn export_backup(
                                                         name,
                                                         b"delta-chat\x00" as *const u8
                                                             as *const libc::c_char,
-                                                        prefix_len as libc::c_ulong,
+                                                        prefix_len,
                                                     ) == 0i32
                                                     && name_len > suffix_len
                                                     && strncmp(
                                                         &mut *name.offset(
-                                                            (name_len - suffix_len - 1i32) as isize,
+                                                            (name_len - suffix_len - 1) as isize,
                                                         ),
                                                         b".bak\x00" as *const u8
                                                             as *const libc::c_char,
-                                                        suffix_len as libc::c_ulong,
+                                                        suffix_len,
                                                     ) == 0i32)
                                             {
                                                 //dc_log_info(context, 0, "Backup: Skipping \"%s\".", name);
@@ -1274,7 +1265,7 @@ unsafe fn export_backup(
                                                     &mut buf,
                                                     &mut buf_bytes,
                                                 ) || buf.is_null()
-                                                    || buf_bytes <= 0i32 as libc::c_ulong
+                                                    || buf_bytes <= 0
                                                 {
                                                     continue;
                                                 }
@@ -1425,7 +1416,7 @@ unsafe fn import_self_keys(
                     path_plus_name,
                     &mut buf as *mut *mut libc::c_char as *mut *mut libc::c_void,
                     &mut buf_bytes,
-                ) || buf_bytes < 50i32 as libc::c_ulong
+                ) || buf_bytes < 50
                 {
                     continue;
                 }

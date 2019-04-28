@@ -331,7 +331,7 @@ unsafe fn chat_id_2_contact_id(
 ) -> uint32_t {
     let mut contact_id: uint32_t = 0i32 as uint32_t;
     let mut contacts: *mut dc_array_t = dc_get_chat_contacts(context, contact_chat_id);
-    if !(dc_array_get_cnt(contacts) != 1i32 as libc::c_ulong) {
+    if !(dc_array_get_cnt(contacts) != 1) {
         contact_id = dc_array_get_id(contacts, 0i32 as size_t)
     }
     dc_array_unref(contacts);
@@ -347,7 +347,7 @@ unsafe fn fingerprint_equals_sender(
     let mut contact: *mut dc_contact_t = dc_contact_new(context);
     let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
     let mut fingerprint_normalized: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(dc_array_get_cnt(contacts) != 1i32 as libc::c_ulong) {
+    if !(dc_array_get_cnt(contacts) != 1) {
         if !(0
             == dc_contact_load_from_db(
                 contact,
@@ -398,11 +398,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     as *const libc::c_char,
                 step,
             );
-            join_vg = (strncmp(
-                step,
-                b"vg-\x00" as *const u8 as *const libc::c_char,
-                3i32 as libc::c_ulong,
-            ) == 0i32) as libc::c_int;
+            join_vg = (strncmp(step, b"vg-\x00" as *const u8 as *const libc::c_char, 3) == 0)
+                as libc::c_int;
             dc_create_or_lookup_nchat_by_contact_id(
                 context,
                 contact_id,

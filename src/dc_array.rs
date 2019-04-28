@@ -58,15 +58,10 @@ pub unsafe fn dc_array_add_uint(mut array: *mut dc_array_t, mut item: uintptr_t)
         return;
     }
     if (*array).count == (*array).allocated {
-        let mut newsize: libc::c_int = (*array)
-            .allocated
-            .wrapping_mul(2i32 as libc::c_ulong)
-            .wrapping_add(10i32 as libc::c_ulong)
-            as libc::c_int;
+        let mut newsize = (*array).allocated.wrapping_mul(2).wrapping_add(10);
         (*array).array = realloc(
             (*array).array as *mut libc::c_void,
-            (newsize as libc::c_ulong)
-                .wrapping_mul(::std::mem::size_of::<uintptr_t>() as libc::c_ulong),
+            (newsize).wrapping_mul(::std::mem::size_of::<uintptr_t>()),
         ) as *mut uintptr_t;
         if (*array).array.is_null() {
             exit(49i32);
@@ -120,7 +115,7 @@ pub unsafe fn dc_array_get_latitude(
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as libc::c_double;
     }
@@ -134,7 +129,7 @@ pub unsafe fn dc_array_get_longitude(
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as libc::c_double;
     }
@@ -148,7 +143,7 @@ pub unsafe fn dc_array_get_accuracy(
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as libc::c_double;
     }
@@ -159,7 +154,7 @@ pub unsafe fn dc_array_get_timestamp(mut array: *const dc_array_t, mut index: si
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as time_t;
     }
@@ -170,7 +165,7 @@ pub unsafe fn dc_array_get_chat_id(mut array: *const dc_array_t, mut index: size
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as uint32_t;
     }
@@ -181,7 +176,7 @@ pub unsafe fn dc_array_get_contact_id(mut array: *const dc_array_t, mut index: s
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as uint32_t;
     }
@@ -192,7 +187,7 @@ pub unsafe fn dc_array_get_msg_id(mut array: *const dc_array_t, mut index: size_
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as uint32_t;
     }
@@ -206,7 +201,7 @@ pub unsafe fn dc_array_get_marker(
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0 as *mut libc::c_char;
     }
@@ -230,7 +225,7 @@ pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
-        || *(*array).array.offset(index as isize) == 0i32 as libc::c_ulong
+        || *(*array).array.offset(index as isize) == 0
     {
         return 0;
     }
@@ -251,7 +246,7 @@ pub unsafe fn dc_array_search_id(
     let mut cnt: size_t = (*array).count;
     i = 0i32 as size_t;
     while i < cnt {
-        if *data.offset(i as isize) == needle as libc::c_ulong {
+        if *data.offset(i as isize) == needle as size_t {
             if !ret_index.is_null() {
                 *ret_index = i
             }
@@ -279,26 +274,19 @@ pub unsafe extern "C" fn dc_array_new_typed(
     mut initsize: size_t,
 ) -> *mut dc_array_t {
     let mut array: *mut dc_array_t = 0 as *mut dc_array_t;
-    array = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_array_t>() as libc::c_ulong,
-    ) as *mut dc_array_t;
+    array = calloc(1, ::std::mem::size_of::<dc_array_t>()) as *mut dc_array_t;
     if array.is_null() {
         exit(47i32);
     }
     (*array).magic = 0xa11aai32 as uint32_t;
     (*array).context = context;
     (*array).count = 0i32 as size_t;
-    (*array).allocated = if initsize < 1i32 as libc::c_ulong {
-        1i32 as libc::c_ulong
-    } else {
-        initsize
-    };
+    (*array).allocated = if initsize < 1 { 1 } else { initsize };
     (*array).type_0 = type_0;
     (*array).array = malloc(
         (*array)
             .allocated
-            .wrapping_mul(::std::mem::size_of::<uintptr_t>() as libc::c_ulong),
+            .wrapping_mul(::std::mem::size_of::<uintptr_t>()),
     ) as *mut uintptr_t;
     if (*array).array.is_null() {
         exit(48i32);
@@ -323,21 +311,18 @@ pub unsafe fn dc_array_duplicate(mut array: *const dc_array_t) -> *mut dc_array_
         (*array).array as *const libc::c_void,
         (*array)
             .count
-            .wrapping_mul(::std::mem::size_of::<uintptr_t>() as libc::c_ulong),
+            .wrapping_mul(::std::mem::size_of::<uintptr_t>()),
     );
     return ret;
 }
 pub unsafe fn dc_array_sort_ids(mut array: *mut dc_array_t) {
-    if array.is_null()
-        || (*array).magic != 0xa11aai32 as libc::c_uint
-        || (*array).count <= 1i32 as libc::c_ulong
-    {
+    if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || (*array).count <= 1 {
         return;
     }
     qsort(
         (*array).array as *mut libc::c_void,
         (*array).count,
-        ::std::mem::size_of::<uintptr_t>() as libc::c_ulong,
+        ::std::mem::size_of::<uintptr_t>(),
         Some(cmp_intptr_t),
     );
 }
@@ -356,16 +341,13 @@ unsafe extern "C" fn cmp_intptr_t(
     };
 }
 pub unsafe fn dc_array_sort_strings(mut array: *mut dc_array_t) {
-    if array.is_null()
-        || (*array).magic != 0xa11aai32 as libc::c_uint
-        || (*array).count <= 1i32 as libc::c_ulong
-    {
+    if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || (*array).count <= 1 {
         return;
     }
     qsort(
         (*array).array as *mut libc::c_void,
         (*array).count,
-        ::std::mem::size_of::<*mut libc::c_char>() as libc::c_ulong,
+        ::std::mem::size_of::<*mut libc::c_char>(),
         Some(cmp_strings_t),
     );
 }
@@ -385,19 +367,19 @@ pub unsafe fn dc_array_get_string(
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || sep.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut i: libc::c_int = 0;
+    let mut i = 0;
     ret = malloc(
         (*array)
             .count
-            .wrapping_mul((11i32 as libc::c_ulong).wrapping_add(strlen(sep)))
-            .wrapping_add(1i32 as libc::c_ulong),
+            .wrapping_mul((11usize).wrapping_add(strlen(sep)))
+            .wrapping_add(1),
     ) as *mut libc::c_char;
     if ret.is_null() {
         exit(35i32);
     }
     *ret.offset(0isize) = 0i32 as libc::c_char;
-    i = 0i32;
-    while (i as libc::c_ulong) < (*array).count {
+    i = 0;
+    while i < (*array).count {
         if 0 != i {
             strcat(ret, sep);
         }
@@ -422,9 +404,9 @@ pub unsafe fn dc_arr_to_string(
     }
     let mut i: libc::c_int = 0;
     ret = malloc(
-        (cnt as libc::c_ulong)
-            .wrapping_mul((11i32 as libc::c_ulong).wrapping_add(strlen(sep)))
-            .wrapping_add(1i32 as libc::c_ulong),
+        (cnt as usize)
+            .wrapping_mul((11usize).wrapping_add(strlen(sep)))
+            .wrapping_add(0usize),
     ) as *mut libc::c_char;
     if ret.is_null() {
         exit(35i32);

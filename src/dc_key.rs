@@ -33,10 +33,7 @@ pub unsafe fn toupper(mut _c: libc::c_int) -> libc::c_int {
 }
 pub unsafe fn dc_key_new() -> *mut dc_key_t {
     let mut key: *mut dc_key_t = 0 as *mut dc_key_t;
-    key = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_key_t>() as libc::c_ulong,
-    ) as *mut dc_key_t;
+    key = calloc(1, ::std::mem::size_of::<dc_key_t>()) as *mut dc_key_t;
     if key.is_null() {
         exit(44i32);
     }
@@ -74,7 +71,7 @@ unsafe fn dc_key_empty(mut key: *mut dc_key_t) {
     (*key).type_0 = 0i32;
 }
 pub unsafe fn dc_wipe_secret_mem(mut buf: *mut libc::c_void, mut buf_bytes: size_t) {
-    if buf.is_null() || buf_bytes <= 0i32 as libc::c_ulong {
+    if buf.is_null() || buf_bytes <= 0 {
         return;
     }
     memset(buf, 0i32, buf_bytes);
@@ -89,11 +86,11 @@ pub unsafe fn dc_key_set_from_binary(
     if key.is_null() || data == 0 as *mut libc::c_void || bytes <= 0i32 {
         return 0i32;
     }
-    (*key).binary = malloc(bytes as libc::c_ulong);
+    (*key).binary = malloc(bytes as size_t);
     if (*key).binary.is_null() {
         exit(40i32);
     }
-    memcpy((*key).binary, data, bytes as libc::c_ulong);
+    memcpy((*key).binary, data, bytes as size_t);
     (*key).bytes = bytes;
     (*key).type_0 = type_0;
     return 1i32;
@@ -142,9 +139,9 @@ pub unsafe fn dc_key_set_from_base64(
         &mut result_len,
     ) != MAILIMF_NO_ERROR as libc::c_int
         || result.is_null()
-        || result_len == 0i32 as libc::c_ulong
+        || result_len == 0
     {
-        return 0i32;
+        return 0;
     }
     dc_key_set_from_binary(
         key,
@@ -178,7 +175,7 @@ pub unsafe fn dc_key_set_from_file(
                 &mut buf as *mut *mut libc::c_char as *mut *mut libc::c_void,
                 &mut buf_bytes,
             )
-            || buf_bytes < 50i32 as libc::c_ulong)
+            || buf_bytes < 50)
         {
             /* error is already loged */
             if !(0
@@ -245,19 +242,20 @@ pub unsafe fn dc_key_equals(mut key: *const dc_key_t, mut o: *const dc_key_t) ->
         || (*o).binary.is_null()
         || (*o).bytes <= 0i32
     {
-        return 0i32;
+        return 0;
     }
     if (*key).bytes != (*o).bytes {
-        return 0i32;
+        return 0;
     }
     if (*key).type_0 != (*o).type_0 {
-        return 0i32;
+        return 0;
     }
-    return if memcmp((*key).binary, (*o).binary, (*o).bytes as libc::c_ulong) == 0i32 {
-        1i32
+
+    if memcmp((*key).binary, (*o).binary, (*o).bytes as size_t) == 0 {
+        1
     } else {
-        0i32
-    };
+        0
+    }
 }
 pub unsafe fn dc_key_save_self_keypair(
     mut public_key: *const dc_key_t,
@@ -352,7 +350,7 @@ pub unsafe fn dc_render_base64(
     mut add_checksum: libc::c_int,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(buf == 0 as *mut libc::c_void || buf_bytes <= 0i32 as libc::c_ulong) {
+    if !(buf == 0 as *mut libc::c_void || buf_bytes <= 0) {
         ret = encode_base64(buf as *const libc::c_char, buf_bytes as libc::c_int);
         if !ret.is_null() {
             if break_every > 0i32 {

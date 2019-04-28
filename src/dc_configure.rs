@@ -719,7 +719,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                         (*param).send_server,
                                                         b"imap.\x00" as *const u8
                                                             as *const libc::c_char,
-                                                        5i32 as libc::c_ulong,
+                                                        5,
                                                     ) == 0i32
                                                     {
                                                         memcpy(
@@ -728,7 +728,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                             b"smtp\x00" as *const u8
                                                                 as *const libc::c_char
                                                                 as *const libc::c_void,
-                                                            4i32 as libc::c_ulong,
+                                                            4,
                                                         );
                                                     }
                                                 }
@@ -1531,11 +1531,8 @@ unsafe fn list_folders(mut imap: *mut dc_imap_t) -> *mut clist {
                 if 0 != (*imap_folder).mb_delimiter {
                     (*imap).imap_delimiter = (*imap_folder).mb_delimiter
                 }
-                let mut ret_folder: *mut dc_imapfolder_t = calloc(
-                    1i32 as libc::c_ulong,
-                    ::std::mem::size_of::<dc_imapfolder_t>() as libc::c_ulong,
-                )
-                    as *mut dc_imapfolder_t;
+                let mut ret_folder: *mut dc_imapfolder_t =
+                    calloc(1, ::std::mem::size_of::<dc_imapfolder_t>()) as *mut dc_imapfolder_t;
                 if strcasecmp(
                     (*imap_folder).mb_name,
                     b"INBOX\x00" as *const u8 as *const libc::c_char,
@@ -1679,7 +1676,7 @@ unsafe fn moz_autoconfigure(
     memset(
         &mut moz_ac as *mut moz_autoconfigure_t as *mut libc::c_void,
         0i32,
-        ::std::mem::size_of::<moz_autoconfigure_t>() as libc::c_ulong,
+        ::std::mem::size_of::<moz_autoconfigure_t>(),
     );
     xml_raw = read_autoconf_file(context, url);
     if !xml_raw.is_null() {
@@ -1933,7 +1930,7 @@ unsafe fn outlk_autodiscover(
         memset(
             &mut outlk_ad as *mut outlk_autodiscover_t as *mut libc::c_void,
             0i32,
-            ::std::mem::size_of::<outlk_autodiscover_t>() as libc::c_ulong,
+            ::std::mem::size_of::<outlk_autodiscover_t>(),
         );
         xml_raw = read_autoconf_file(context, url);
         if xml_raw.is_null() {

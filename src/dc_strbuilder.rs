@@ -23,7 +23,7 @@ pub unsafe fn dc_strbuilder_init(
     } else {
         128i32
     };
-    (*strbuilder).buf = malloc((*strbuilder).allocated as libc::c_ulong) as *mut libc::c_char;
+    (*strbuilder).buf = malloc((*strbuilder).allocated as usize) as *mut libc::c_char;
     if (*strbuilder).buf.is_null() {
         exit(38i32);
     }
@@ -50,7 +50,7 @@ pub unsafe fn dc_strbuilder_cat(
         (*strbuilder).allocated = (*strbuilder).allocated + add_bytes;
         (*strbuilder).buf = realloc(
             (*strbuilder).buf as *mut libc::c_void,
-            ((*strbuilder).allocated + add_bytes) as libc::c_ulong,
+            ((*strbuilder).allocated + add_bytes) as usize,
         ) as *mut libc::c_char;
         if (*strbuilder).buf.is_null() {
             exit(39i32);

@@ -164,29 +164,25 @@ pub unsafe fn dc_hash_insert(
     if data.is_null() {
         return 0 as *mut libc::c_void;
     }
-    new_elem = sjhashMalloc(::std::mem::size_of::<dc_hashelem_t>() as libc::c_ulong as libc::c_long)
-        as *mut dc_hashelem_t;
+    new_elem =
+        sjhashMalloc(::std::mem::size_of::<dc_hashelem_t>() as libc::c_int) as *mut dc_hashelem_t;
     if new_elem.is_null() {
         return data;
     }
     if 0 != (*pH).copyKey as libc::c_int && !pKey.is_null() {
-        (*new_elem).pKey = malloc(nKey as libc::c_ulong);
+        (*new_elem).pKey = malloc(nKey as usize);
         if (*new_elem).pKey.is_null() {
             free(new_elem as *mut libc::c_void);
             return data;
         }
-        memcpy(
-            (*new_elem).pKey as *mut libc::c_void,
-            pKey,
-            nKey as libc::c_ulong,
-        );
+        memcpy((*new_elem).pKey as *mut libc::c_void, pKey, nKey as usize);
     } else {
         (*new_elem).pKey = pKey as *mut libc::c_void
     }
     (*new_elem).nKey = nKey;
     (*pH).count += 1;
     if (*pH).htsize == 0i32 {
-        rehash(pH, 8i32);
+        rehash(pH, 8);
         if (*pH).htsize == 0i32 {
             (*pH).count = 0i32;
             free(new_elem as *mut libc::c_void);
@@ -194,7 +190,7 @@ pub unsafe fn dc_hash_insert(
         }
     }
     if (*pH).count > (*pH).htsize {
-        rehash(pH, (*pH).htsize * 2i32);
+        rehash(pH, (*pH).htsize * 2);
     }
     if 0 != !((*pH).htsize > 0i32) as libc::c_int as libc::c_long {
         __assert_rtn(
@@ -273,8 +269,7 @@ unsafe fn rehash(mut pH: *mut dc_hash_t, mut new_size: libc::c_int) {
     } else {
     };
     new_ht = sjhashMalloc(
-        (new_size as libc::c_ulong).wrapping_mul(::std::mem::size_of::<_ht>() as libc::c_ulong)
-            as libc::c_long,
+        new_size.wrapping_mul(::std::mem::size_of::<_ht>() as libc::c_int) as libc::c_int,
     ) as *mut _ht;
     if new_ht.is_null() {
         return;
@@ -634,12 +629,12 @@ unsafe fn intHash(_pKey: *const libc::c_void, mut nKey: libc::c_int) -> libc::c_
 ** May you find forgiveness for yourself and forgive others.
 ** May you share freely, never taking more than you give.
 */
-unsafe fn sjhashMalloc(mut bytes: libc::c_long) -> *mut libc::c_void {
-    let mut p: *mut libc::c_void = malloc(bytes as libc::c_ulong);
+unsafe fn sjhashMalloc(mut bytes: libc::c_int) -> *mut libc::c_void {
+    let mut p: *mut libc::c_void = malloc(bytes as size_t);
     if !p.is_null() {
-        memset(p, 0i32, bytes as libc::c_ulong);
+        memset(p, 0i32, bytes as size_t);
     }
-    return p;
+    p
 }
 /* Remove a single entry from the hash table given a pointer to that
  * element and a hash on the element's key.
@@ -746,7 +741,7 @@ unsafe fn binCompare(
     if n1 != n2 {
         return 1i32;
     }
-    return memcmp(pKey1, pKey2, n1 as libc::c_ulong);
+    return memcmp(pKey1, pKey2, n1 as libc::size_t);
 }
 unsafe fn strCompare(
     mut pKey1: *const libc::c_void,
@@ -834,7 +829,7 @@ pub unsafe fn dc_hash_find(
         return 0 as *mut libc::c_void;
     }
     xHash = hashFunction((*pH).keyClass as libc::c_int);
-    if 0 != xHash.is_none() as libc::c_int as libc::c_long {
+    if 0 != xHash.is_none() as libc::c_int {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 13], &[libc::c_char; 13]>(b"dc_hash_find\x00"))
                 .as_ptr(),
@@ -845,7 +840,7 @@ pub unsafe fn dc_hash_find(
     } else {
     };
     h = xHash.expect("non-null function pointer")(pKey, nKey);
-    if 0 != !((*pH).htsize & (*pH).htsize - 1i32 == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !((*pH).htsize & (*pH).htsize - 1i32 == 0i32) as libc::c_int {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 13], &[libc::c_char; 13]>(b"dc_hash_find\x00"))
                 .as_ptr(),

@@ -310,12 +310,9 @@ pub unsafe fn dc_stock_system_msg(
     let mut action: *mut libc::c_char = dc_stock_str_repl_string2(context, str_id, param1, param2);
     if 0 != from_id {
         if 0 != strlen(action)
-            && *action.offset(strlen(action).wrapping_sub(1i32 as libc::c_ulong) as isize)
-                as libc::c_int
-                == '.' as i32
+            && *action.offset(strlen(action).wrapping_sub(1) as isize) as libc::c_int == '.' as i32
         {
-            *action.offset(strlen(action).wrapping_sub(1i32 as libc::c_ulong) as isize) =
-                0i32 as libc::c_char
+            *action.offset(strlen(action).wrapping_sub(1) as isize) = 0i32 as libc::c_char
         }
         from_contact = dc_get_contact(context, from_id);
         from_displayname = dc_contact_get_display_name(from_contact);

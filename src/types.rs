@@ -6,6 +6,10 @@ use crate::dc_context::dc_context_t;
 use crate::dc_imap::dc_imap_t;
 use crate::x::*;
 
+pub use libc::{
+    dirent, pthread_attr_t, pthread_cond_t, pthread_condattr_t, pthread_mutex_t,
+    pthread_mutexattr_t, pthread_t, tm, DIR, FILE,
+};
 pub use libsqlite3_sys::*;
 
 extern "C" {
@@ -13,100 +17,31 @@ extern "C" {
 
     pub type _telldir;
     pub type mailstream_cancel;
+    #[cfg(not(target_os = "android"))]
     pub static mut __stdinp: *mut FILE;
 }
 
-pub type FILE = libc::FILE;
-pub type sqlite_int64 = libc::c_longlong;
+pub type sqlite_int64 = libc::int64_t;
 pub type sqlite3_int64 = sqlite_int64;
 
-pub type useconds_t = __darwin_useconds_t;
-pub type int32_t = libc::c_int;
-pub type int64_t = libc::c_longlong;
-pub type uintptr_t = libc::c_ulong;
-pub type __uint8_t = libc::c_uchar;
-pub type __uint16_t = libc::c_ushort;
-pub type __int32_t = libc::c_int;
-pub type __uint64_t = libc::c_ulonglong;
-pub type __darwin_size_t = libc::c_ulong;
-pub type __darwin_ssize_t = libc::c_long;
-pub type __darwin_time_t = libc::c_long;
-pub type __darwin_pid_t = __int32_t;
+pub type useconds_t = libc::useconds_t;
+pub type int32_t = libc::int32_t;
+pub type int64_t = libc::int64_t;
+pub type uintptr_t = libc::uintptr_t;
+pub type __uint8_t = libc::uint8_t;
+pub type __uint16_t = libc::uint16_t;
+pub type __int32_t = libc::int32_t;
+pub type __uint64_t = libc::uint64_t;
 
-pub type pthread_attr_t = __darwin_pthread_attr_t;
-pub type __darwin_pthread_attr_t = _opaque_pthread_attr_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_attr_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 56],
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct __darwin_pthread_handler_rec {
-    pub __routine: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> ()>,
-    pub __arg: *mut libc::c_void,
-    pub __next: *mut __darwin_pthread_handler_rec,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_cond_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 40],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_condattr_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 8],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_mutex_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 56],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_mutexattr_t {
-    pub __sig: libc::c_long,
-    pub __opaque: [libc::c_char; 8],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _opaque_pthread_t {
-    pub __sig: libc::c_long,
-    pub __cleanup_stack: *mut __darwin_pthread_handler_rec,
-    pub __opaque: [libc::c_char; 8176],
-}
-pub type __darwin_pthread_cond_t = _opaque_pthread_cond_t;
-pub type __darwin_pthread_condattr_t = _opaque_pthread_condattr_t;
-pub type __darwin_pthread_mutex_t = _opaque_pthread_mutex_t;
-pub type __darwin_pthread_mutexattr_t = _opaque_pthread_mutexattr_t;
-pub type __darwin_pthread_t = *mut _opaque_pthread_t;
-pub type time_t = __darwin_time_t;
-pub type pid_t = __darwin_pid_t;
-pub type size_t = __darwin_size_t;
-pub type ssize_t = __darwin_ssize_t;
-pub type pthread_cond_t = __darwin_pthread_cond_t;
-pub type pthread_condattr_t = __darwin_pthread_condattr_t;
-pub type pthread_mutex_t = __darwin_pthread_mutex_t;
-pub type pthread_mutexattr_t = __darwin_pthread_mutexattr_t;
-pub type pthread_t = __darwin_pthread_t;
+pub type time_t = libc::time_t;
+pub type pid_t = libc::pid_t;
+pub type size_t = libc::size_t;
+pub type ssize_t = libc::ssize_t;
 pub type uint32_t = libc::c_uint;
 pub type uint8_t = libc::c_uchar;
 pub type uint16_t = libc::c_ushort;
 
 pub type __uint32_t = libc::c_uint;
-pub type __darwin_clock_t = libc::c_ulong;
-pub type __darwin_useconds_t = __uint32_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct timespec {
-    pub tv_sec: __darwin_time_t,
-    pub tv_nsec: libc::c_long,
-}
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -1167,14 +1102,14 @@ pub type __int64_t = libc::c_longlong;
 pub type __darwin_ct_rune_t = libc::c_int;
 pub type __darwin_wchar_t = libc::c_int;
 pub type __darwin_rune_t = __darwin_wchar_t;
-pub type __darwin_blkcnt_t = __int64_t;
-pub type __darwin_blksize_t = __int32_t;
-pub type __darwin_dev_t = __int32_t;
-pub type __darwin_gid_t = __uint32_t;
-pub type __darwin_ino64_t = __uint64_t;
-pub type __darwin_mode_t = __uint16_t;
-pub type __darwin_off_t = __int64_t;
-pub type __darwin_uid_t = __uint32_t;
+
+#[derive(Copy, Clone)]
+#[repr(C)]
+pub struct timespec {
+    pub tv_sec: libc::time_t,
+    pub tv_nsec: libc::c_long,
+}
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _RuneEntry {
@@ -1203,7 +1138,7 @@ pub struct _RuneLocale {
     pub __sgetrune: Option<
         unsafe extern "C" fn(
             _: *const libc::c_char,
-            _: __darwin_size_t,
+            _: size_t,
             _: *mut *const libc::c_char,
         ) -> __darwin_rune_t,
     >,
@@ -1211,7 +1146,7 @@ pub struct _RuneLocale {
         unsafe extern "C" fn(
             _: __darwin_rune_t,
             _: *mut libc::c_char,
-            _: __darwin_size_t,
+            _: size_t,
             _: *mut *mut libc::c_char,
         ) -> libc::c_int,
     >,
@@ -1227,53 +1162,16 @@ pub struct _RuneLocale {
     pub __ncharclasses: libc::c_int,
     pub __charclasses: *mut _RuneCharClass,
 }
-pub type mode_t = __darwin_mode_t;
-pub type off_t = __darwin_off_t;
+pub type mode_t = libc::mode_t;
+pub type off_t = libc::off_t;
 
 pub type uint64_t = libc::c_ulonglong;
-pub type uid_t = __darwin_uid_t;
-pub type gid_t = __darwin_gid_t;
-pub type dev_t = __darwin_dev_t;
-pub type blkcnt_t = __darwin_blkcnt_t;
-pub type blksize_t = __darwin_blksize_t;
+pub type uid_t = libc::uid_t;
+pub type gid_t = libc::gid_t;
+pub type dev_t = libc::dev_t;
+pub type blkcnt_t = libc::blkcnt_t;
+pub type blksize_t = libc::blksize_t;
 pub type nlink_t = __uint16_t;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct stat {
-    pub st_dev: dev_t,
-    pub st_mode: mode_t,
-    pub st_nlink: nlink_t,
-    pub st_ino: __darwin_ino64_t,
-    pub st_uid: uid_t,
-    pub st_gid: gid_t,
-    pub st_rdev: dev_t,
-    pub st_atimespec: timespec,
-    pub st_mtimespec: timespec,
-    pub st_ctimespec: timespec,
-    pub st_birthtimespec: timespec,
-    pub st_size: off_t,
-    pub st_blocks: blkcnt_t,
-    pub st_blksize: blksize_t,
-    pub st_flags: __uint32_t,
-    pub st_gen: __uint32_t,
-    pub st_lspare: __int32_t,
-    pub st_qspare: [__int64_t; 2],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct tm {
-    pub tm_sec: libc::c_int,
-    pub tm_min: libc::c_int,
-    pub tm_hour: libc::c_int,
-    pub tm_mday: libc::c_int,
-    pub tm_mon: libc::c_int,
-    pub tm_year: libc::c_int,
-    pub tm_wday: libc::c_int,
-    pub tm_yday: libc::c_int,
-    pub tm_isdst: libc::c_int,
-    pub tm_gmtoff: libc::c_long,
-    pub tm_zone: *mut libc::c_char,
-}
 
 pub type dc_receive_imf_t = Option<
     unsafe fn(
@@ -1366,31 +1264,6 @@ pub unsafe fn carray_get(mut array: *mut carray, mut indx: libc::c_uint) -> *mut
  */
 pub type dc_callback_t =
     Option<unsafe fn(_: *mut dc_context_t, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t>;
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct dirent {
-    pub d_ino: __uint64_t,
-    pub d_seekoff: __uint64_t,
-    pub d_reclen: __uint16_t,
-    pub d_namlen: __uint16_t,
-    pub d_type: __uint8_t,
-    pub d_name: [libc::c_char; 1024],
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct DIR {
-    pub __dd_fd: libc::c_int,
-    pub __dd_loc: libc::c_long,
-    pub __dd_size: libc::c_long,
-    pub __dd_buf: *mut libc::c_char,
-    pub __dd_len: libc::c_int,
-    pub __dd_seek: libc::c_long,
-    pub __padding: libc::c_long,
-    pub __dd_flags: libc::c_int,
-    pub __dd_lock: __darwin_pthread_mutex_t,
-    pub __dd_td: *mut _telldir,
-}
 
 pub const DC_MOVE_STATE_MOVING: libc::c_uint = 3;
 pub const DC_MOVE_STATE_STAY: libc::c_uint = 2;
@@ -1648,13 +1521,6 @@ pub const MAILMIME_DISCRETE_TYPE_AUDIO: libc::c_uint = 3;
 pub const MAILMIME_DISCRETE_TYPE_IMAGE: libc::c_uint = 2;
 pub const MAILMIME_DISCRETE_TYPE_TEXT: libc::c_uint = 1;
 pub const MAILMIME_DISCRETE_TYPE_ERROR: libc::c_uint = 0;
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CRYPTO_dynlock_value {
-    pub mutex: pthread_mutex_t,
-}
-
 pub const MAILIMAP_MBX_LIST_OFLAG_FLAG_EXT: libc::c_uint = 2;
 pub const MAILIMAP_MBX_LIST_OFLAG_NOINFERIORS: libc::c_uint = 1;
 pub const MAILIMAP_MBX_LIST_OFLAG_ERROR: libc::c_uint = 0;

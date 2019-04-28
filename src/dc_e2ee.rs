@@ -58,8 +58,8 @@ pub unsafe fn dc_e2ee_encrypt(
     if !helper.is_null() {
         memset(
             helper as *mut libc::c_void,
-            0i32,
-            ::std::mem::size_of::<dc_e2ee_helper_t>() as libc::c_ulong,
+            0,
+            ::std::mem::size_of::<dc_e2ee_helper_t>(),
         );
     }
     if !(context.is_null()
@@ -222,20 +222,20 @@ pub unsafe fn dc_e2ee_encrypt(
                                         if strncmp(
                                             (*opt_field).fld_name,
                                             b"Secure-Join\x00" as *const u8 as *const libc::c_char,
-                                            11i32 as libc::c_ulong,
-                                        ) == 0i32
+                                            11,
+                                        ) == 0
                                             || strncmp(
                                                 (*opt_field).fld_name,
                                                 b"Chat-\x00" as *const u8 as *const libc::c_char,
-                                                5i32 as libc::c_ulong,
-                                            ) == 0i32
+                                                5,
+                                            ) == 0
                                                 && strcmp(
                                                     (*opt_field).fld_name,
                                                     b"Chat-Version\x00" as *const u8
                                                         as *const libc::c_char,
-                                                ) != 0i32
+                                                ) != 0
                                         {
-                                            move_to_encrypted = 1i32
+                                            move_to_encrypted = 1
                                         }
                                     }
                                 }
@@ -292,7 +292,7 @@ pub unsafe fn dc_e2ee_encrypt(
                             ) as *mut libc::c_void,
                         );
                         mailmime_write_mem(plain, &mut col, message_to_encrypt);
-                        if (*plain).str_0.is_null() || (*plain).len <= 0i32 as libc::c_ulong {
+                        if (*plain).str_0.is_null() || (*plain).len <= 0 {
                             current_block = 14181132614457621749;
                         } else if 0
                             == dc_pgp_pk_encrypt(
@@ -301,7 +301,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 (*plain).len,
                                 keyring,
                                 sign_key,
-                                1i32,
+                                1,
                                 &mut ctext as *mut *mut libc::c_char as *mut *mut libc::c_void,
                                 &mut ctext_bytes,
                             )
@@ -386,9 +386,8 @@ pub unsafe fn dc_e2ee_encrypt(
     if !plain.is_null() {
         mmap_string_free(plain);
     }
-    let mut i_0: libc::c_int =
-        dc_array_get_cnt(peerstates).wrapping_sub(1i32 as libc::c_ulong) as libc::c_int;
-    while i_0 >= 0i32 {
+    let mut i_0 = (dc_array_get_cnt(peerstates) as isize) - 1;
+    while i_0 >= 0 {
         dc_apeerstate_unref(dc_array_get_ptr(peerstates, i_0 as size_t) as *mut dc_apeerstate_t);
         i_0 -= 1
     }
@@ -477,7 +476,7 @@ unsafe fn new_data_part(
                         mailmime_content_free(content);
                     } else {
                         if !data.is_null()
-                            && data_bytes > 0i32 as libc::c_ulong
+                            && data_bytes > 0
                             && (*mime).mm_type == MAILMIME_SINGLE as libc::c_int
                         {
                             mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes);
@@ -537,7 +536,7 @@ unsafe fn load_or_generate_self_public_key(
                 dc_pgp_rand_seed(
                     context,
                     seed.as_mut_ptr() as *const libc::c_void,
-                    ::std::mem::size_of::<[uintptr_t; 4]>() as libc::c_ulong,
+                    ::std::mem::size_of::<[uintptr_t; 4]>(),
                 );
                 if !random_data_mime.is_null() {
                     let mut random_data_mmap: *mut MMAPString = 0 as *mut MMAPString;
@@ -657,7 +656,7 @@ pub unsafe fn dc_e2ee_decrypt(
         memset(
             helper as *mut libc::c_void,
             0i32,
-            ::std::mem::size_of::<dc_e2ee_helper_t>() as libc::c_ulong,
+            ::std::mem::size_of::<dc_e2ee_helper_t>(),
         );
     }
     if !(context.is_null()
@@ -730,8 +729,7 @@ pub unsafe fn dc_e2ee_decrypt(
                 }
                 dc_keyring_add(public_keyring_for_validate, (*peerstate).gossip_key);
                 dc_keyring_add(public_keyring_for_validate, (*peerstate).public_key);
-                (*helper).signatures =
-                    malloc(::std::mem::size_of::<dc_hash_t>() as libc::c_ulong) as *mut dc_hash_t;
+                (*helper).signatures = malloc(::std::mem::size_of::<dc_hash_t>()) as *mut dc_hash_t;
                 dc_hash_init((*helper).signatures, 3i32, 1i32);
                 iterations = 0i32;
                 while iterations < 10i32 {
@@ -828,8 +826,7 @@ unsafe fn update_gossip_peerstates(
                         dc_apeerstate_unref(peerstate);
                         if gossipped_addr.is_null() {
                             gossipped_addr =
-                                malloc(::std::mem::size_of::<dc_hash_t>() as libc::c_ulong)
-                                    as *mut dc_hash_t;
+                                malloc(::std::mem::size_of::<dc_hash_t>()) as *mut dc_hash_t;
                             dc_hash_init(gossipped_addr, 3i32, 1i32);
                         }
                         dc_hash_insert(
@@ -993,7 +990,7 @@ unsafe fn decrypt_part(
     /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
     if !((*mime_data).dt_type != MAILMIME_DATA_TEXT as libc::c_int
         || (*mime_data).dt_data.dt_text.dt_data.is_null()
-        || (*mime_data).dt_data.dt_text.dt_length <= 0i32 as libc::c_ulong)
+        || (*mime_data).dt_data.dt_text.dt_length <= 0)
     {
         if !(*mime).mm_mime_fields.is_null() {
             let mut cur: *mut clistiter = 0 as *mut clistiter;
@@ -1025,7 +1022,7 @@ unsafe fn decrypt_part(
         {
             decoded_data = (*mime_data).dt_data.dt_text.dt_data;
             decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
-            if decoded_data.is_null() || decoded_data_bytes <= 0i32 as libc::c_ulong {
+            if decoded_data.is_null() || decoded_data_bytes <= 0 {
                 /* no error - but no data */
                 current_block = 2554982661806928548;
             } else {
@@ -1044,7 +1041,7 @@ unsafe fn decrypt_part(
             );
             if r != MAILIMF_NO_ERROR as libc::c_int
                 || transfer_decoding_buffer.is_null()
-                || decoded_data_bytes <= 0i32 as libc::c_ulong
+                || decoded_data_bytes <= 0
             {
                 current_block = 2554982661806928548;
             } else {
@@ -1077,7 +1074,7 @@ unsafe fn decrypt_part(
                             add_signatures,
                         )
                         || plain_buf.is_null()
-                        || plain_bytes <= 0i32 as libc::c_ulong)
+                        || plain_bytes <= 0)
                     {
                         //{char* t1=dc_null_terminate(plain_buf,plain_bytes);printf("\n**********\n%s\n**********\n",t1);free(t1);}
                         let mut index: size_t = 0i32 as size_t;
@@ -1130,12 +1127,12 @@ unsafe fn has_decrypted_pgp_armor(
         && strncmp(
             p as *const libc::c_char,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-            27i32 as libc::c_ulong,
-        ) == 0i32
+            27,
+        ) == 0
     {
-        return 1i32;
+        return 1;
     }
-    return 0i32;
+    return 0;
 }
 /* *
  * Check if a MIME structure contains a multipart/report part.

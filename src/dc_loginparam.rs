@@ -23,10 +23,7 @@ pub struct dc_loginparam_t {
 
 pub unsafe fn dc_loginparam_new() -> *mut dc_loginparam_t {
     let mut loginparam: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
-    loginparam = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_loginparam_t>() as libc::c_ulong,
-    ) as *mut dc_loginparam_t;
+    loginparam = calloc(1, ::std::mem::size_of::<dc_loginparam_t>()) as *mut dc_loginparam_t;
     if loginparam.is_null() {
         exit(22i32);
     }

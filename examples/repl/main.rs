@@ -267,8 +267,9 @@ unsafe fn receive_event(
 /* ******************************************************************************
  * Threads for waiting for messages and for jobs
  ******************************************************************************/
-static mut inbox_thread: pthread_t = 0 as *const _opaque_pthread_t as pthread_t;
+static mut inbox_thread: pthread_t = 0 as pthread_t;
 static mut run_threads: libc::c_int = 0i32;
+
 unsafe extern "C" fn inbox_thread_entry_point(
     mut entry_arg: *mut libc::c_void,
 ) -> *mut libc::c_void {
@@ -282,7 +283,7 @@ unsafe extern "C" fn inbox_thread_entry_point(
     }
     return 0 as *mut libc::c_void;
 }
-static mut mvbox_thread: pthread_t = 0 as *const _opaque_pthread_t as pthread_t;
+static mut mvbox_thread: pthread_t = 0 as pthread_t;
 unsafe extern "C" fn mvbox_thread_entry_point(
     mut entry_arg: *mut libc::c_void,
 ) -> *mut libc::c_void {
@@ -295,7 +296,7 @@ unsafe extern "C" fn mvbox_thread_entry_point(
     }
     return 0 as *mut libc::c_void;
 }
-static mut sentbox_thread: pthread_t = 0 as *const _opaque_pthread_t as pthread_t;
+static mut sentbox_thread: pthread_t = 0 as pthread_t;
 unsafe extern "C" fn sentbox_thread_entry_point(
     mut entry_arg: *mut libc::c_void,
 ) -> *mut libc::c_void {
@@ -308,7 +309,7 @@ unsafe extern "C" fn sentbox_thread_entry_point(
     }
     return 0 as *mut libc::c_void;
 }
-static mut smtp_thread: pthread_t = 0 as *const _opaque_pthread_t as pthread_t;
+static mut smtp_thread: pthread_t = 0 as pthread_t;
 unsafe extern "C" fn smtp_thread_entry_point(
     mut entry_arg: *mut libc::c_void,
 ) -> *mut libc::c_void {
@@ -323,7 +324,7 @@ unsafe extern "C" fn smtp_thread_entry_point(
 }
 unsafe extern "C" fn start_threads(mut context: *mut dc_context_t) {
     run_threads = 1i32;
-    if inbox_thread.is_null() {
+    if inbox_thread == 0 {
         pthread_create(
             &mut inbox_thread,
             0 as *const pthread_attr_t,
@@ -331,7 +332,7 @@ unsafe extern "C" fn start_threads(mut context: *mut dc_context_t) {
             context as *mut libc::c_void,
         );
     }
-    if mvbox_thread.is_null() {
+    if mvbox_thread == 0 {
         pthread_create(
             &mut mvbox_thread,
             0 as *const pthread_attr_t,
@@ -339,7 +340,7 @@ unsafe extern "C" fn start_threads(mut context: *mut dc_context_t) {
             context as *mut libc::c_void,
         );
     }
-    if sentbox_thread.is_null() {
+    if sentbox_thread == 0 {
         pthread_create(
             &mut sentbox_thread,
             0 as *const pthread_attr_t,
@@ -347,7 +348,7 @@ unsafe extern "C" fn start_threads(mut context: *mut dc_context_t) {
             context as *mut libc::c_void,
         );
     }
-    if smtp_thread.is_null() {
+    if smtp_thread == 0 {
         pthread_create(
             &mut smtp_thread,
             0 as *const pthread_attr_t,
@@ -374,24 +375,24 @@ unsafe extern "C" fn stop_threads(mut context: *mut dc_context_t) {
 /* ******************************************************************************
  * The main loop
  ******************************************************************************/
+#[cfg(not(target_os = "android"))]
 unsafe extern "C" fn read_cmd() -> *mut libc::c_char {
     printf(b"> \x00" as *const u8 as *const libc::c_char);
     static mut cmdbuffer: [libc::c_char; 1024] = [0; 1024];
     fgets(cmdbuffer.as_mut_ptr(), 1000i32, __stdinp);
-    while strlen(cmdbuffer.as_mut_ptr()) > 0i32 as libc::c_ulong
-        && (cmdbuffer[strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1i32 as libc::c_ulong) as usize]
-            as libc::c_int
+    while strlen(cmdbuffer.as_mut_ptr()) > 0
+        && (cmdbuffer[strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1) as usize] as libc::c_int
             == '\n' as i32
-            || cmdbuffer
-                [strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1i32 as libc::c_ulong) as usize]
-                as libc::c_int
+            || cmdbuffer[strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1) as usize] as libc::c_int
                 == ' ' as i32)
     {
-        cmdbuffer[strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1i32 as libc::c_ulong) as usize] =
+        cmdbuffer[strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1) as usize] =
             '\u{0}' as i32 as libc::c_char
     }
     return cmdbuffer.as_mut_ptr();
 }
+
+#[cfg(not(target_os = "android"))]
 unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> libc::c_int {
     let mut cmd: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut context: *mut dc_context_t = dc_context_new(
@@ -496,7 +497,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             );
             if !qrstr.is_null() && 0 != *qrstr.offset(0isize) as libc::c_int {
                 if strcmp(cmd, b"getbadqr\x00" as *const u8 as *const libc::c_char) == 0i32
-                    && strlen(qrstr) > 40i32 as libc::c_ulong
+                    && strlen(qrstr) > 40
                 {
                     let mut i: libc::c_int = 12i32;
                     while i < 22i32 {
@@ -541,6 +542,8 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
     context = 0 as *mut dc_context_t;
     return 0i32;
 }
+
+#[cfg(not(target_os = "android"))]
 pub fn main() {
     let mut args: Vec<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
@@ -558,3 +561,6 @@ pub fn main() {
         ) as i32)
     }
 }
+
+#[cfg(target_os = "android")]
+fn main() {}

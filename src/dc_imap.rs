@@ -55,10 +55,7 @@ pub unsafe fn dc_imap_new(
     mut context: *mut dc_context_t,
 ) -> *mut dc_imap_t {
     let mut imap: *mut dc_imap_t = 0 as *mut dc_imap_t;
-    imap = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_imap_t>() as libc::c_ulong,
-    ) as *mut dc_imap_t;
+    imap = calloc(1, ::std::mem::size_of::<dc_imap_t>()) as *mut dc_imap_t;
     if imap.is_null() {
         exit(25i32);
     }
@@ -74,10 +71,8 @@ pub unsafe fn dc_imap_new(
         0 as *const pthread_mutexattr_t,
     );
     pthread_cond_init(&mut (*imap).watch_cond, 0 as *const pthread_condattr_t);
-    (*imap).watch_folder =
-        calloc(1i32 as libc::c_ulong, 1i32 as libc::c_ulong) as *mut libc::c_char;
-    (*imap).selected_folder =
-        calloc(1i32 as libc::c_ulong, 1i32 as libc::c_ulong) as *mut libc::c_char;
+    (*imap).watch_folder = calloc(1, 1) as *mut libc::c_char;
+    (*imap).selected_folder = calloc(1, 1) as *mut libc::c_char;
     (*imap).fetch_type_prefetch = mailimap_fetch_type_new_fetch_att_list_empty();
     mailimap_fetch_type_new_fetch_att_list_add(
         (*imap).fetch_type_prefetch,
@@ -971,10 +966,7 @@ unsafe fn fetch_single_msg(
                         &mut flags,
                         &mut deleted,
                     );
-                    if !(msg_content.is_null()
-                        || msg_bytes <= 0i32 as libc::c_ulong
-                        || 0 != deleted)
-                    {
+                    if !(msg_content.is_null() || msg_bytes <= 0 || 0 != deleted) {
                         /* dc_log_warning(imap->context, 0, "Message #%i in folder \"%s\" is empty or deleted.", (int)server_uid, folder); -- this is a quite usual situation, do not print a warning */
                         (*imap).receive_imf.expect("non-null function pointer")(
                             imap,
@@ -1269,8 +1261,8 @@ unsafe fn fake_idle(mut imap: *mut dc_imap_t) {
         };
         memset(
             &mut wakeup_at as *mut timespec as *mut libc::c_void,
-            0i32,
-            ::std::mem::size_of::<timespec>() as libc::c_ulong,
+            0,
+            ::std::mem::size_of::<timespec>(),
         );
         wakeup_at.tv_sec = time(0 as *mut time_t) + seconds_to_wait;
         while (*imap).watch_condflag == 0i32 && r == 0i32 {

@@ -85,10 +85,7 @@ pub unsafe fn dc_create_chat_by_msg_id(
 pub unsafe fn dc_chat_new(mut context: *mut dc_context_t) -> *mut dc_chat_t {
     let mut chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
     if context.is_null() || {
-        chat = calloc(
-            1i32 as libc::c_ulong,
-            ::std::mem::size_of::<dc_chat_t>() as libc::c_ulong,
-        ) as *mut dc_chat_t;
+        chat = calloc(1, ::std::mem::size_of::<dc_chat_t>()) as *mut dc_chat_t;
         chat.is_null()
     } {
         exit(14i32);
@@ -1028,7 +1025,7 @@ pub unsafe fn dc_send_msg(
         (*context).cb.expect("non-null function pointer")(
             context,
             Event::LOCATION_CHANGED,
-            DC_CONTACT_ID_SELF as u64,
+            DC_CONTACT_ID_SELF,
             0,
         );
     }
@@ -2254,20 +2251,16 @@ pub unsafe fn dc_forward_msgs(
         dc_sqlite3_rollback((*context).sql);
     }
     if !created_db_entries.is_null() {
-        let mut i: size_t = 0;
-        let mut icnt: size_t = carray_count(created_db_entries) as size_t;
-        i = 0i32 as size_t;
+        let mut i = 0u32;
+        let mut icnt = carray_count(created_db_entries);
         while i < icnt {
             (*context).cb.expect("non-null function pointer")(
                 context,
                 Event::MSGS_CHANGED,
-                carray_get(created_db_entries, i as libc::c_uint) as uintptr_t,
-                carray_get(
-                    created_db_entries,
-                    i.wrapping_add(1i32 as libc::c_ulong) as libc::c_uint,
-                ) as uintptr_t,
+                carray_get(created_db_entries, i) as uintptr_t,
+                carray_get(created_db_entries, i.wrapping_add(1)) as uintptr_t,
             );
-            i = (i as libc::c_ulong).wrapping_add(2i32 as libc::c_ulong) as size_t as size_t
+            i = i.wrapping_add(2);
         }
         carray_free(created_db_entries);
     }
@@ -2360,7 +2353,7 @@ pub unsafe fn dc_chat_get_profile_image(mut chat: *const dc_chat_t) -> *mut libc
             image_abs = dc_get_abs_path((*chat).context, image_rel)
         } else if (*chat).type_0 == 100i32 {
             contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-            if (*contacts).count >= 1i32 as libc::c_ulong {
+            if (*contacts).count >= 1 {
                 contact = dc_get_contact(
                     (*chat).context,
                     *(*contacts).array.offset(0isize) as uint32_t,
@@ -2381,7 +2374,7 @@ pub unsafe fn dc_chat_get_color(mut chat: *const dc_chat_t) -> uint32_t {
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
         if (*chat).type_0 == 100i32 {
             contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-            if (*contacts).count >= 1i32 as libc::c_ulong {
+            if (*contacts).count >= 1 {
                 contact = dc_get_contact(
                     (*chat).context,
                     *(*contacts).array.offset(0isize) as uint32_t,

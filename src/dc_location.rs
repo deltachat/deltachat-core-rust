@@ -257,10 +257,8 @@ pub unsafe fn dc_get_locations(
         sqlite3_bind_int(stmt, 5i32, timestamp_from as libc::c_int);
         sqlite3_bind_int(stmt, 6i32, timestamp_to as libc::c_int);
         while sqlite3_step(stmt) == 100i32 {
-            let mut loc: *mut _dc_location = calloc(
-                1i32 as libc::c_ulong,
-                ::std::mem::size_of::<_dc_location>() as libc::c_ulong,
-            ) as *mut _dc_location;
+            let mut loc: *mut _dc_location =
+                calloc(1, ::std::mem::size_of::<_dc_location>()) as *mut _dc_location;
             if loc.is_null() {
                 break;
             }
@@ -437,7 +435,7 @@ unsafe fn get_kml_timestamp(mut utc: time_t) -> *mut libc::c_char {
     memcpy(
         &mut wanted_struct as *mut tm as *mut libc::c_void,
         gmtime(&mut utc) as *const libc::c_void,
-        ::std::mem::size_of::<tm>() as libc::c_ulong,
+        ::std::mem::size_of::<tm>(),
     );
     return dc_mprintf(
         b"%04i-%02i-%02iT%02i:%02i:%02iZ\x00" as *const u8 as *const libc::c_char,
@@ -544,8 +542,8 @@ pub unsafe fn dc_save_locations(
                   (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
                   VALUES (?,?,?,?,?,?,?);\x00" as *const u8 as *const libc::c_char,
         );
-        let mut i: libc::c_int = 0i32;
-        while (i as libc::c_ulong) < dc_array_get_cnt(locations) {
+        let mut i = 0;
+        while i < dc_array_get_cnt(locations) {
             let mut location: *mut dc_location_t =
                 dc_array_get_ptr(locations, i as size_t) as *mut dc_location_t;
             sqlite3_reset(stmt_test);
@@ -585,10 +583,7 @@ pub unsafe fn dc_kml_parse(
     mut content: *const libc::c_char,
     mut content_bytes: size_t,
 ) -> *mut dc_kml_t {
-    let mut kml: *mut dc_kml_t = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_kml_t>() as libc::c_ulong,
-    ) as *mut dc_kml_t;
+    let mut kml: *mut dc_kml_t = calloc(1, ::std::mem::size_of::<dc_kml_t>()) as *mut dc_kml_t;
     let mut content_nullterminated: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut saxparser: dc_saxparser_t = dc_saxparser_t {
         starttag_cb: None,
@@ -597,10 +592,10 @@ pub unsafe fn dc_kml_parse(
         userdata: 0 as *mut libc::c_void,
     };
     if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
-        if content_bytes > (1i32 * 1024i32 * 1024i32) as libc::c_ulong {
+        if content_bytes > (1 * 1024 * 1024) {
             dc_log_warning(
                 context,
-                0i32,
+                0,
                 b"A kml-files with %i bytes is larger than reasonably expected.\x00" as *const u8
                     as *const libc::c_char,
                 content_bytes,
@@ -608,7 +603,7 @@ pub unsafe fn dc_kml_parse(
         } else {
             content_nullterminated = dc_null_terminate(content, content_bytes as libc::c_int);
             if !content_nullterminated.is_null() {
-                (*kml).locations = dc_array_new_typed(context, 1i32, 100i32 as size_t);
+                (*kml).locations = dc_array_new_typed(context, 1, 100 as size_t);
                 dc_saxparser_init(&mut saxparser, kml as *mut libc::c_void);
                 dc_saxparser_set_tag_handler(
                     &mut saxparser,
@@ -625,7 +620,7 @@ pub unsafe fn dc_kml_parse(
 }
 unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _len: libc::c_int) {
     let mut kml: *mut dc_kml_t = userdata as *mut dc_kml_t;
-    if 0 != (*kml).tag & (0x4i32 | 0x10i32) {
+    if 0 != (*kml).tag & (0x4 | 0x10) {
         let mut val: *mut libc::c_char = dc_strdup(text);
         dc_str_replace(
             &mut val,
@@ -647,7 +642,7 @@ unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _l
             b" \x00" as *const u8 as *const libc::c_char,
             b"\x00" as *const u8 as *const libc::c_char,
         );
-        if 0 != (*kml).tag & 0x4i32 && strlen(val) >= 19i32 as libc::c_ulong {
+        if 0 != (*kml).tag & 0x4 && strlen(val) >= 19 {
             let mut tmval: tm = tm {
                 tm_sec: 0,
                 tm_min: 0,
@@ -663,8 +658,8 @@ unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _l
             };
             memset(
                 &mut tmval as *mut tm as *mut libc::c_void,
-                0i32,
-                ::std::mem::size_of::<tm>() as libc::c_ulong,
+                0,
+                ::std::mem::size_of::<tm>(),
             );
             *val.offset(4isize) = 0i32 as libc::c_char;
             tmval.tm_year = atoi(val) - 1900i32;
@@ -707,10 +702,8 @@ unsafe fn kml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c
             && 0. != (*kml).curr.latitude
             && 0. != (*kml).curr.longitude
         {
-            let mut location: *mut dc_location_t = calloc(
-                1i32 as libc::c_ulong,
-                ::std::mem::size_of::<dc_location_t>() as libc::c_ulong,
-            ) as *mut dc_location_t;
+            let mut location: *mut dc_location_t =
+                calloc(1, ::std::mem::size_of::<dc_location_t>()) as *mut dc_location_t;
             *location = (*kml).curr;
             dc_array_add_ptr((*kml).locations, location as *mut libc::c_void);
         }

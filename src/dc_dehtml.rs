@@ -38,8 +38,8 @@ pub unsafe fn dc_dehtml(mut buf_terminated: *mut libc::c_char) -> *mut libc::c_c
         };
         memset(
             &mut dehtml as *mut dehtml_t as *mut libc::c_void,
-            0i32,
-            ::std::mem::size_of::<dehtml_t>() as libc::c_ulong,
+            0,
+            ::std::mem::size_of::<dehtml_t>(),
         );
         dehtml.add_text = 1i32;
         dc_strbuilder_init(

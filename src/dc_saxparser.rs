@@ -112,24 +112,14 @@ pub unsafe fn dc_saxparser_parse(
                 '&' as i32 as libc::c_char,
             );
             p = p.offset(1isize);
-            if strncmp(
-                p,
-                b"!--\x00" as *const u8 as *const libc::c_char,
-                3i32 as libc::c_ulong,
-            ) == 0i32
-            {
+            if strncmp(p, b"!--\x00" as *const u8 as *const libc::c_char, 3) == 0i32 {
                 p = strstr(p, b"-->\x00" as *const u8 as *const libc::c_char);
                 if p.is_null() {
                     current_block = 7627180618761592946;
                     break;
                 }
                 p = p.offset(3isize)
-            } else if strncmp(
-                p,
-                b"![CDATA[\x00" as *const u8 as *const libc::c_char,
-                8i32 as libc::c_ulong,
-            ) == 0i32
-            {
+            } else if strncmp(p, b"![CDATA[\x00" as *const u8 as *const libc::c_char, 8) == 0i32 {
                 /* process <![CDATA[ ... ]]> text
                  **************************************************************/
                 let mut text_beg: *mut libc::c_char = p.offset(8isize);
@@ -152,12 +142,7 @@ pub unsafe fn dc_saxparser_parse(
                     current_block = 7627180618761592946;
                     break;
                 }
-            } else if strncmp(
-                p,
-                b"!DOCTYPE\x00" as *const u8 as *const libc::c_char,
-                8i32 as libc::c_ulong,
-            ) == 0i32
-            {
+            } else if strncmp(p, b"!DOCTYPE\x00" as *const u8 as *const libc::c_char, 8) == 0i32 {
                 while 0 != *p as libc::c_int
                     && *p as libc::c_int != '[' as i32
                     && *p as libc::c_int != '>' as i32
@@ -436,10 +421,10 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
     let mut e: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut r: *mut libc::c_char = s;
     let mut original_buf: *const libc::c_char = s;
-    let mut b: libc::c_long = 0i32 as libc::c_long;
-    let mut c: libc::c_long = 0i32 as libc::c_long;
-    let mut d: libc::c_long = 0i32 as libc::c_long;
-    let mut l: libc::c_long = 0i32 as libc::c_long;
+    let mut b = 0;
+    let mut c: isize = 0;
+    let mut d: isize = 0;
+    let mut l: isize = 0;
     while 0 != *s {
         while *s as libc::c_int == '\r' as i32 {
             let fresh1 = s;
@@ -467,22 +452,18 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
             break;
         }
         if type_0 as libc::c_int != 'c' as i32
-            && 0 == strncmp(
-                s,
-                b"&#\x00" as *const u8 as *const libc::c_char,
-                2i32 as libc::c_ulong,
-            )
+            && 0 == strncmp(s, b"&#\x00" as *const u8 as *const libc::c_char, 2)
         {
             if *s.offset(2isize) as libc::c_int == 'x' as i32 {
-                c = strtol(s.offset(3isize), &mut e, 16i32)
+                c = strtol(s.offset(3isize), &mut e, 16i32) as isize;
             } else {
-                c = strtol(s.offset(2isize), &mut e, 10i32)
+                c = strtol(s.offset(2isize), &mut e, 10i32) as isize;
             }
             if 0 == c || *e as libc::c_int != ';' as i32 {
-                s = s.offset(1isize)
+                s = s.offset(1isize);
             } else {
                 /* not a character ref */
-                if c < 0x80i32 as libc::c_long {
+                if c < 0x80 {
                     let fresh2 = s;
                     s = s.offset(1);
                     *fresh2 = c as libc::c_char
@@ -491,21 +472,17 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
                     d = c;
                     while 0 != d {
                         b += 1;
-                        d /= 2i32 as libc::c_long
+                        d /= 2;
                     }
-                    b = (b - 2i32 as libc::c_long) / 5i32 as libc::c_long;
+                    b = (b - 2) / 5;
                     let fresh3 = s;
                     s = s.offset(1);
-                    *fresh3 = ((0xffi32 << 7i32 as libc::c_long - b) as libc::c_long
-                        | c >> 6i32 as libc::c_long * b)
-                        as libc::c_char;
+                    *fresh3 = ((0xff << 7 - b) | c >> 6 * b) as libc::c_char;
                     while 0 != b {
                         let fresh4 = s;
                         s = s.offset(1);
                         b -= 1;
-                        *fresh4 = (0x80i32 as libc::c_long
-                            | c >> 6i32 as libc::c_long * b & 0x3fi32 as libc::c_long)
-                            as libc::c_char
+                        *fresh4 = (0x80 | c >> 6 * b & 0x3f) as libc::c_char
                     }
                 }
                 memmove(
@@ -530,14 +507,13 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
             let fresh5 = b;
             b = b + 1;
             if !s_ent[fresh5 as usize].is_null() {
-                c = strlen(s_ent[b as usize]) as libc::c_long;
+                c = strlen(s_ent[b as usize]) as isize;
                 e = strchr(s, ';' as i32);
-                if c - 1i32 as libc::c_long > e.wrapping_offset_from(s) as libc::c_long {
-                    d = s.wrapping_offset_from(r) as libc::c_long;
-                    l = ((d + c) as libc::c_ulong).wrapping_add(strlen(e)) as libc::c_long;
+                if c - 1 > e.wrapping_offset_from(s) as isize {
+                    d = s.wrapping_offset_from(r) as isize;
+                    l = (d + c).wrapping_add(strlen(e) as isize);
                     if r == original_buf as *mut libc::c_char {
-                        let mut new_ret: *mut libc::c_char =
-                            malloc(l as libc::c_ulong) as *mut libc::c_char;
+                        let mut new_ret = malloc(l as usize) as *mut libc::c_char;
                         if new_ret.is_null() {
                             return r;
                         }
@@ -545,8 +521,7 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
                         r = new_ret
                     } else {
                         let mut new_ret_0: *mut libc::c_char =
-                            realloc(r as *mut libc::c_void, l as libc::c_ulong)
-                                as *mut libc::c_char;
+                            realloc(r as *mut libc::c_void, l as usize) as *mut libc::c_char;
                         if new_ret_0.is_null() {
                             return r;
                         }
@@ -560,7 +535,7 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
                     e.offset(1isize) as *const libc::c_void,
                     strlen(e),
                 );
-                strncpy(s, s_ent[b as usize], c as libc::c_ulong);
+                strncpy(s, s_ent[b as usize], c as usize);
             } else {
                 s = s.offset(1isize)
             }

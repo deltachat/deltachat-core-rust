@@ -23,10 +23,7 @@ pub struct dc_smtp_t {
 
 pub unsafe fn dc_smtp_new(mut context: *mut dc_context_t) -> *mut dc_smtp_t {
     let mut smtp: *mut dc_smtp_t = 0 as *mut dc_smtp_t;
-    smtp = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_smtp_t>() as libc::c_ulong,
-    ) as *mut dc_smtp_t;
+    smtp = calloc(1, ::std::mem::size_of::<dc_smtp_t>()) as *mut dc_smtp_t;
     if smtp.is_null() {
         exit(29i32);
     }
@@ -300,8 +297,7 @@ pub unsafe fn dc_smtp_connect(
                                                 let mut hostname: [libc::c_char; 513] = [0; 513];
                                                 err = gethostname(
                                                     hostname.as_mut_ptr(),
-                                                    ::std::mem::size_of::<[libc::c_char; 513]>()
-                                                        as libc::c_ulong,
+                                                    ::std::mem::size_of::<[libc::c_char; 513]>(),
                                                 );
                                                 if err < 0i32 {
                                                     dc_log_error(
@@ -406,7 +402,7 @@ pub unsafe fn dc_smtp_send_msg(
         if recipients.is_null()
             || (*recipients).count == 0i32
             || data_not_terminated.is_null()
-            || data_bytes == 0i32 as libc::c_ulong
+            || data_bytes == 0
         {
             success = 1i32
         } else if !(*smtp).etpan.is_null() {

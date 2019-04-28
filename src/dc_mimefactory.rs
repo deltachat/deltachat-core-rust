@@ -56,8 +56,8 @@ pub unsafe fn dc_mimefactory_init(
     }
     memset(
         factory as *mut libc::c_void,
-        0i32,
-        ::std::mem::size_of::<dc_mimefactory_t>() as libc::c_ulong,
+        0,
+        ::std::mem::size_of::<dc_mimefactory_t>(),
     );
     (*factory).context = context;
 }
@@ -344,8 +344,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
     };
     memset(
         &mut e2ee_helper as *mut dc_e2ee_helper_t as *mut libc::c_void,
-        0i32,
-        ::std::mem::size_of::<dc_e2ee_helper_t>() as libc::c_ulong,
+        0,
+        ::std::mem::size_of::<dc_e2ee_helper_t>(),
     );
     if factory.is_null()
         || (*factory).loaded as libc::c_uint == DC_MF_NOTHING_LOADED as libc::c_int as libc::c_uint
@@ -1148,7 +1148,7 @@ unsafe fn build_body_file(
             memcpy(
                 &mut wanted_struct as *mut tm as *mut libc::c_void,
                 localtime(&(*msg).timestamp_sort) as *const libc::c_void,
-                ::std::mem::size_of::<tm>() as libc::c_ulong,
+                ::std::mem::size_of::<tm>(),
             );
             filename_to_send = dc_mprintf(
                 b"voice-message_%04i-%02i-%02i_%02i-%02i-%02i.%s\x00" as *const u8

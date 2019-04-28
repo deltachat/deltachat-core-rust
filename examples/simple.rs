@@ -16,7 +16,7 @@ use deltachat::dc_job::{
 };
 use deltachat::dc_lot::*;
 
-fn cb(_ctx: *mut dc_context_t, event: Event, data1: u64, data2: u64) -> u64 {
+fn cb(_ctx: *mut dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
     println!("[{:?}]", event);
 
     match event {
@@ -28,7 +28,7 @@ fn cb(_ctx: *mut dc_context_t, event: Event, data1: u64, data2: u64) -> u64 {
                     let c_res = CString::new(res.text().unwrap()).unwrap();
                     // need to use strdup to allocate the result with malloc
                     // so it can be `free`d later.
-                    unsafe { libc::strdup(c_res.as_ptr()) as u64 }
+                    unsafe { libc::strdup(c_res.as_ptr()) as usize }
                 }
                 Err(err) => {
                     println!("failed to download: {}: {:?}", url, err);

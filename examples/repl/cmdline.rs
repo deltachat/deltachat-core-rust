@@ -342,11 +342,9 @@ unsafe extern "C" fn poke_spec(
                                 break;
                             }
                             name = (*dir_entry).d_name.as_mut_ptr();
-                            if strlen(name) >= 4i32 as libc::c_ulong
+                            if strlen(name) >= 4
                                 && strcmp(
-                                    &mut *name
-                                        .offset(strlen(name).wrapping_sub(4i32 as libc::c_ulong)
-                                            as isize),
+                                    &mut *name.offset(strlen(name).wrapping_sub(4) as isize),
                                     b".eml\x00" as *const u8 as *const libc::c_char,
                                 ) == 0i32
                             {
@@ -509,8 +507,8 @@ unsafe extern "C" fn log_contactlist(
     if 0 == dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
     }
-    let mut i: libc::c_int = 0i32;
-    while (i as libc::c_ulong) < dc_array_get_cnt(contacts) {
+    let mut i = 0;
+    while i < dc_array_get_cnt(contacts) {
         let mut contact_id: uint32_t = dc_array_get_id(contacts, i as size_t);
         let mut line: *mut libc::c_char = 0 as *mut libc::c_char;
         let mut line2: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1241,8 +1239,8 @@ pub unsafe extern "C" fn dc_cmdline(
                 0i32 as time_t,
                 0i32 as time_t,
             );
-            let mut j: libc::c_int = 0i32;
-            while (j as libc::c_ulong) < dc_array_get_cnt(loc) {
+            let mut j = 0;
+            while j < dc_array_get_cnt(loc) {
                 let mut timestr_0: *mut libc::c_char =
                     dc_timestamp_to_str(dc_array_get_timestamp(loc, j as size_t));
                 let mut marker: *mut libc::c_char = dc_array_get_marker(loc, j as size_t);
@@ -1269,7 +1267,7 @@ pub unsafe extern "C" fn dc_cmdline(
                 free(marker as *mut libc::c_void);
                 j += 1
             }
-            if dc_array_get_cnt(loc) == 0i32 as libc::c_ulong {
+            if dc_array_get_cnt(loc) == 0 {
                 dc_log_info(
                     context,
                     0i32,

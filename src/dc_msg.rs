@@ -310,10 +310,7 @@ pub unsafe fn dc_msg_new(
     mut viewtype: libc::c_int,
 ) -> *mut dc_msg_t {
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
-    msg = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_msg_t>() as libc::c_ulong,
-    ) as *mut dc_msg_t;
+    msg = calloc(1, ::std::mem::size_of::<dc_msg_t>()) as *mut dc_msg_t;
     if msg.is_null() {
         exit(15i32);
     }
@@ -1127,7 +1124,7 @@ pub unsafe fn dc_msg_get_setupcodebegin(mut msg: *const dc_msg_t) -> *mut libc::
                     &mut buf_bytes,
                 )
                 || buf.is_null()
-                || buf_bytes <= 0i32 as libc::c_ulong)
+                || buf_bytes <= 0)
             {
                 if !(0
                     == dc_split_armored_data(

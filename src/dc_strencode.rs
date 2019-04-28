@@ -44,11 +44,8 @@ pub unsafe extern "C" fn dc_urlencode(mut to_encode: *const libc::c_char) -> *mu
     if to_encode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut buf: *mut libc::c_char = malloc(
-        strlen(to_encode)
-            .wrapping_mul(3i32 as libc::c_ulong)
-            .wrapping_add(1i32 as libc::c_ulong),
-    ) as *mut libc::c_char;
+    let mut buf: *mut libc::c_char =
+        malloc(strlen(to_encode).wrapping_mul(3).wrapping_add(1)) as *mut libc::c_char;
     let mut pbuf: *mut libc::c_char = buf;
     if buf.is_null() {
         exit(46i32);
@@ -97,8 +94,7 @@ pub unsafe fn dc_urldecode(mut to_decode: *const libc::c_char) -> *mut libc::c_c
     if to_decode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut buf: *mut libc::c_char =
-        malloc(strlen(to_decode).wrapping_add(1i32 as libc::c_ulong)) as *mut libc::c_char;
+    let mut buf: *mut libc::c_char = malloc(strlen(to_decode).wrapping_add(1)) as *mut libc::c_char;
     let mut pbuf: *mut libc::c_char = buf;
     if buf.is_null() {
         exit(50i32);
@@ -269,7 +265,7 @@ unsafe fn quote_word(
         if 0 != do_quote_char {
             snprintf(
                 hex.as_mut_ptr(),
-                4i32 as libc::c_ulong,
+                4,
                 b"=%2.2X\x00" as *const u8 as *const libc::c_char,
                 *cur as libc::c_uchar as libc::c_int,
             );
@@ -365,18 +361,14 @@ pub unsafe fn dc_encode_modified_utf7(
     let mut utf7mode: libc::c_uint = 0i32 as libc::c_uint;
     let mut bitstogo: libc::c_uint = 0i32 as libc::c_uint;
     let mut utf16flag: libc::c_uint = 0i32 as libc::c_uint;
-    let mut ucs4: libc::c_ulong = 0i32 as libc::c_ulong;
-    let mut bitbuf: libc::c_ulong = 0i32 as libc::c_ulong;
+    let mut ucs4: libc::c_ulong = 0;
+    let mut bitbuf: libc::c_ulong = 0;
     let mut dst: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut res: *mut libc::c_char = 0 as *mut libc::c_char;
     if to_encode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    res = malloc(
-        (2i32 as libc::c_ulong)
-            .wrapping_mul(strlen(to_encode))
-            .wrapping_add(1i32 as libc::c_ulong),
-    ) as *mut libc::c_char;
+    res = malloc(2usize.wrapping_mul(strlen(to_encode)).wrapping_add(1)) as *mut libc::c_char;
     dst = res;
     if dst.is_null() {
         exit(51i32);
@@ -400,9 +392,8 @@ pub unsafe fn dc_encode_modified_utf7(
                 if 0 != bitstogo {
                     let fresh8 = dst;
                     dst = dst.offset(1);
-                    *fresh8 = base64chars[(bitbuf << (6i32 as libc::c_uint).wrapping_sub(bitstogo)
-                        & 0x3fi32 as libc::c_ulong)
-                        as usize]
+                    *fresh8 = base64chars
+                        [(bitbuf << (6i32 as libc::c_uint).wrapping_sub(bitstogo) & 0x3f) as usize]
                 }
                 let fresh9 = dst;
                 dst = dst.offset(1);
@@ -476,8 +467,7 @@ pub unsafe fn dc_encode_modified_utf7(
                         bitbuf >> bitstogo
                     } else {
                         bitbuf
-                    } & 0x3fi32 as libc::c_ulong)
-                        as usize]
+                    } & 0x3f) as usize]
                 }
                 if !(0 != utf16flag) {
                     break;
@@ -489,8 +479,8 @@ pub unsafe fn dc_encode_modified_utf7(
         if 0 != bitstogo {
             let fresh15 = dst;
             dst = dst.offset(1);
-            *fresh15 = base64chars[(bitbuf << (6i32 as libc::c_uint).wrapping_sub(bitstogo)
-                & 0x3fi32 as libc::c_ulong) as usize]
+            *fresh15 = base64chars
+                [(bitbuf << (6i32 as libc::c_uint).wrapping_sub(bitstogo) & 0x3f) as usize]
         }
         let fresh16 = dst;
         dst = dst.offset(1);
@@ -515,9 +505,9 @@ pub unsafe fn dc_decode_modified_utf7(
     let mut c: libc::c_uint = 0i32 as libc::c_uint;
     let mut i: libc::c_uint = 0i32 as libc::c_uint;
     let mut bitcount: libc::c_uint = 0i32 as libc::c_uint;
-    let mut ucs4: libc::c_ulong = 0i32 as libc::c_ulong;
-    let mut utf16: libc::c_ulong = 0i32 as libc::c_ulong;
-    let mut bitbuf: libc::c_ulong = 0i32 as libc::c_ulong;
+    let mut ucs4: libc::c_ulong = 0;
+    let mut utf16: libc::c_ulong = 0;
+    let mut bitbuf: libc::c_ulong = 0;
     let mut base64: [libc::c_uchar; 256] = [0; 256];
     let mut src: *const libc::c_char = 0 as *const libc::c_char;
     let mut dst: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -525,11 +515,7 @@ pub unsafe fn dc_decode_modified_utf7(
     if to_decode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    res = malloc(
-        (4i32 as libc::c_ulong)
-            .wrapping_mul(strlen(to_decode))
-            .wrapping_add(1i32 as libc::c_ulong),
-    ) as *mut libc::c_char;
+    res = malloc(4usize.wrapping_mul(strlen(to_decode)).wrapping_add(1)) as *mut libc::c_char;
     dst = res;
     src = to_decode;
     if dst.is_null() {
@@ -537,8 +523,8 @@ pub unsafe fn dc_decode_modified_utf7(
     }
     memset(
         base64.as_mut_ptr() as *mut libc::c_void,
-        64i32,
-        ::std::mem::size_of::<[libc::c_uchar; 256]>() as libc::c_ulong,
+        64,
+        ::std::mem::size_of::<[libc::c_uchar; 256]>(),
     );
     i = 0i32 as libc::c_uint;
     while (i as libc::c_ulong) < ::std::mem::size_of::<[libc::c_char; 65]>() as libc::c_ulong {
@@ -563,9 +549,9 @@ pub unsafe fn dc_decode_modified_utf7(
                 src = src.offset(1isize)
             }
         } else {
-            bitbuf = 0i32 as libc::c_ulong;
+            bitbuf = 0;
             bitcount = 0i32 as libc::c_uint;
-            ucs4 = 0i32 as libc::c_ulong;
+            ucs4 = 0;
             loop {
                 c = base64[*src as libc::c_uchar as usize] as libc::c_uint;
                 if !(c != 64i32 as libc::c_uint) {
@@ -583,7 +569,7 @@ pub unsafe fn dc_decode_modified_utf7(
                     bitbuf >> bitcount
                 } else {
                     bitbuf
-                } & 0xffffi32 as libc::c_ulong;
+                } & 0xffff;
                 // convert UTF16 to UCS4
                 if utf16 >= 0xd800u64 && utf16 <= 0xdbffu64 {
                     ucs4 = utf16.wrapping_sub(0xd800u64) << 10i32
@@ -598,34 +584,19 @@ pub unsafe fn dc_decode_modified_utf7(
                         *dst.offset(0isize) = ucs4 as libc::c_char;
                         dst = dst.offset(1isize)
                     } else if ucs4 <= 0x7ffu64 {
-                        *dst.offset(0isize) =
-                            (0xc0i32 as libc::c_ulong | ucs4 >> 6i32) as libc::c_char;
-                        *dst.offset(1isize) = (0x80i32 as libc::c_ulong
-                            | ucs4 & 0x3fi32 as libc::c_ulong)
-                            as libc::c_char;
+                        *dst.offset(0isize) = (0xc0 | ucs4 >> 6i32) as libc::c_char;
+                        *dst.offset(1isize) = (0x80 | ucs4 & 0x3f) as libc::c_char;
                         dst = dst.offset(2isize)
                     } else if ucs4 <= 0xffffu64 {
-                        *dst.offset(0isize) =
-                            (0xe0i32 as libc::c_ulong | ucs4 >> 12i32) as libc::c_char;
-                        *dst.offset(1isize) = (0x80i32 as libc::c_ulong
-                            | ucs4 >> 6i32 & 0x3fi32 as libc::c_ulong)
-                            as libc::c_char;
-                        *dst.offset(2isize) = (0x80i32 as libc::c_ulong
-                            | ucs4 & 0x3fi32 as libc::c_ulong)
-                            as libc::c_char;
+                        *dst.offset(0isize) = (0xe0 | ucs4 >> 12i32) as libc::c_char;
+                        *dst.offset(1isize) = (0x80 | ucs4 >> 6i32 & 0x3f) as libc::c_char;
+                        *dst.offset(2isize) = (0x80 | ucs4 & 0x3f) as libc::c_char;
                         dst = dst.offset(3isize)
                     } else {
-                        *dst.offset(0isize) =
-                            (0xf0i32 as libc::c_ulong | ucs4 >> 18i32) as libc::c_char;
-                        *dst.offset(1isize) = (0x80i32 as libc::c_ulong
-                            | ucs4 >> 12i32 & 0x3fi32 as libc::c_ulong)
-                            as libc::c_char;
-                        *dst.offset(2isize) = (0x80i32 as libc::c_ulong
-                            | ucs4 >> 6i32 & 0x3fi32 as libc::c_ulong)
-                            as libc::c_char;
-                        *dst.offset(3isize) = (0x80i32 as libc::c_ulong
-                            | ucs4 & 0x3fi32 as libc::c_ulong)
-                            as libc::c_char;
+                        *dst.offset(0isize) = (0xf0 | ucs4 >> 18i32) as libc::c_char;
+                        *dst.offset(1isize) = (0x80 | ucs4 >> 12i32 & 0x3f) as libc::c_char;
+                        *dst.offset(2isize) = (0x80 | ucs4 >> 6i32 & 0x3f) as libc::c_char;
+                        *dst.offset(3isize) = (0x80 | ucs4 & 0x3f) as libc::c_char;
                         dst = dst.offset(4isize)
                     }
                 }
@@ -661,8 +632,8 @@ pub unsafe fn dc_encode_ext_header(mut to_encode: *const libc::c_char) -> *mut l
     }
     let mut buf: *mut libc::c_char = malloc(
         strlen(b"utf-8\'\'\x00" as *const u8 as *const libc::c_char)
-            .wrapping_add(strlen(to_encode).wrapping_mul(3i32 as libc::c_ulong))
-            .wrapping_add(1i32 as libc::c_ulong),
+            .wrapping_add(strlen(to_encode).wrapping_mul(3))
+            .wrapping_add(1),
     ) as *mut libc::c_char;
     if buf.is_null() {
         exit(46i32);

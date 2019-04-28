@@ -81,10 +81,7 @@ unsafe fn get_info(mut addr: *const libc::c_char) -> *mut oauth2_t {
                 b"googlemail.com\x00" as *const u8 as *const libc::c_char,
             ) == 0i32
         {
-            oauth2 = calloc(
-                1i32 as libc::c_ulong,
-                ::std::mem::size_of::<oauth2_t>() as libc::c_ulong,
-            ) as *mut oauth2_t;
+            oauth2 = calloc(1, ::std::mem::size_of::<oauth2_t>()) as *mut oauth2_t;
             (*oauth2).client_id =
                 b"959970109878-4mvtgf6feshskf7695nfln6002mom908.apps.googleusercontent.com\x00"
                     as *const u8 as *const libc::c_char as *mut libc::c_char;
@@ -107,10 +104,7 @@ unsafe fn get_info(mut addr: *const libc::c_char) -> *mut oauth2_t {
             || strcasecmp(domain, b"yandex.ru\x00" as *const u8 as *const libc::c_char) == 0i32
             || strcasecmp(domain, b"yandex.ua\x00" as *const u8 as *const libc::c_char) == 0i32
         {
-            oauth2 = calloc(
-                1i32 as libc::c_ulong,
-                ::std::mem::size_of::<oauth2_t>() as libc::c_ulong,
-            ) as *mut oauth2_t;
+            oauth2 = calloc(1, ::std::mem::size_of::<oauth2_t>()) as *mut oauth2_t;
             (*oauth2).client_id = b"c4d0b6735fc8420a816d7e1303469341\x00" as *const u8
                 as *const libc::c_char as *mut libc::c_char;
             (*oauth2).get_code =
@@ -478,7 +472,7 @@ unsafe extern "C" fn jsoneq(
         && strncmp(
             json.offset((*tok).start as isize),
             s,
-            ((*tok).end - (*tok).start) as libc::c_ulong,
+            ((*tok).end - (*tok).start) as usize,
         ) == 0i32
     {
         return 0i32;

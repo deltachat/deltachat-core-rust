@@ -26,7 +26,7 @@ pub unsafe fn dc_strdup(mut s: *const libc::c_char) -> *mut libc::c_char {
             exit(16i32);
         }
     } else {
-        ret = calloc(1i32 as libc::c_ulong, 1i32 as libc::c_ulong) as *mut libc::c_char;
+        ret = calloc(1, 1) as *mut libc::c_char;
         if ret.is_null() {
             exit(17i32);
         }
@@ -80,7 +80,7 @@ pub unsafe fn dc_str_replace(
     replacement_len = (if !replacement.is_null() {
         strlen(replacement)
     } else {
-        0i32 as libc::c_ulong
+        0
     }) as libc::c_int;
     loop {
         let mut p2: *mut libc::c_char =
@@ -136,7 +136,7 @@ pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
             memmove(
                 buf as *mut libc::c_void,
                 cur as *const libc::c_void,
-                len.wrapping_add(1i32 as libc::c_ulong),
+                len.wrapping_add(1),
             );
         }
     };
@@ -209,32 +209,30 @@ pub unsafe fn dc_null_terminate(
     mut in_0: *const libc::c_char,
     mut bytes: libc::c_int,
 ) -> *mut libc::c_char {
-    let mut out: *mut libc::c_char = malloc((bytes + 1i32) as libc::c_ulong) as *mut libc::c_char;
+    let mut out: *mut libc::c_char = malloc(bytes as usize + 1) as *mut libc::c_char;
     if out.is_null() {
         exit(45i32);
     }
     if !in_0.is_null() && bytes > 0i32 {
-        strncpy(out, in_0, bytes as libc::c_ulong);
+        strncpy(out, in_0, bytes as usize);
     }
     *out.offset(bytes as isize) = 0i32 as libc::c_char;
     return out;
 }
 pub unsafe fn dc_binary_to_uc_hex(mut buf: *const uint8_t, mut bytes: size_t) -> *mut libc::c_char {
     let mut hex: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut i: libc::c_int = 0i32;
-    if !(buf.is_null() || bytes <= 0i32 as libc::c_ulong) {
+    let mut i = 0;
+    if !(buf.is_null() || bytes <= 0) {
         hex = calloc(
-            ::std::mem::size_of::<libc::c_char>() as libc::c_ulong,
-            bytes
-                .wrapping_mul(2i32 as libc::c_ulong)
-                .wrapping_add(1i32 as libc::c_ulong),
+            ::std::mem::size_of::<libc::c_char>(),
+            bytes.wrapping_mul(2).wrapping_add(1),
         ) as *mut libc::c_char;
         if !hex.is_null() {
-            i = 0i32;
-            while (i as libc::c_ulong) < bytes {
+            i = 0;
+            while i < bytes {
                 snprintf(
-                    &mut *hex.offset((i * 2i32) as isize) as *mut libc::c_char,
-                    3i32 as libc::c_ulong,
+                    &mut *hex.offset((i * 2) as isize) as *mut libc::c_char,
+                    3,
                     b"%02X\x00" as *const u8 as *const libc::c_char,
                     *buf.offset(i as isize) as libc::c_int,
                 );
@@ -351,10 +349,11 @@ pub unsafe fn dc_utf8_strlen(mut s: *const libc::c_char) -> size_t {
     return j;
 }
 pub unsafe fn dc_truncate_str(mut buf: *mut libc::c_char, mut approx_chars: libc::c_int) {
-    if approx_chars > 0i32
+    if approx_chars > 0
         && strlen(buf)
-            > (approx_chars as libc::c_ulong)
-                .wrapping_add(strlen(b"[...]\x00" as *const u8 as *const libc::c_char))
+            > approx_chars.wrapping_add(
+                strlen(b"[...]\x00" as *const u8 as *const libc::c_char) as libc::c_int
+            ) as usize
     {
         let mut p: *mut libc::c_char = &mut *buf.offset(approx_chars as isize) as *mut libc::c_char;
         *p = 0i32 as libc::c_char;
@@ -391,7 +390,7 @@ pub unsafe fn dc_truncate_n_unwrap_str(
             lastIsCharacter = 1i32
         } else if 0 != lastIsCharacter {
             let mut used_bytes: size_t = (p1 as uintptr_t).wrapping_sub(buf as uintptr_t) as size_t;
-            if dc_utf8_strnlen(buf, used_bytes) >= approx_characters as libc::c_ulong {
+            if dc_utf8_strnlen(buf, used_bytes) >= approx_characters as usize {
                 let mut buf_bytes: size_t = strlen(buf);
                 if buf_bytes.wrapping_sub(used_bytes) >= strlen(ellipse_utf8) {
                     strcpy(p1 as *mut libc::c_char, ellipse_utf8);
@@ -429,7 +428,7 @@ unsafe fn dc_utf8_strnlen(mut s: *const libc::c_char, mut n: size_t) -> size_t {
 /* split string into lines*/
 pub unsafe fn dc_split_into_lines(mut buf_terminated: *const libc::c_char) -> *mut carray {
     let mut lines: *mut carray = carray_new(1024i32 as libc::c_uint);
-    let mut line_chars: size_t = 0i32 as size_t;
+    let mut line_chars = 0;
     let mut p1: *const libc::c_char = buf_terminated;
     let mut line_start: *const libc::c_char = p1;
     let mut l_indx: libc::c_uint = 0i32 as libc::c_uint;
@@ -442,7 +441,7 @@ pub unsafe fn dc_split_into_lines(mut buf_terminated: *const libc::c_char) -> *m
             );
             p1 = p1.offset(1isize);
             line_start = p1;
-            line_chars = 0i32 as size_t
+            line_chars = 0;
         } else {
             p1 = p1.offset(1isize);
             line_chars = line_chars.wrapping_add(1)
@@ -476,11 +475,11 @@ pub unsafe fn dc_insert_breaks(
     if in_0.is_null() || break_every <= 0i32 || break_chars.is_null() {
         return dc_strdup(in_0);
     }
-    let mut out_len: libc::c_int = strlen(in_0) as libc::c_int;
-    let mut chars_added: libc::c_int = 0i32;
-    let mut break_chars_len: libc::c_int = strlen(break_chars) as libc::c_int;
-    out_len += (out_len / break_every + 1i32) * break_chars_len + 1i32;
-    let mut out: *mut libc::c_char = malloc(out_len as libc::c_ulong) as *mut libc::c_char;
+    let mut out_len = strlen(in_0);
+    let mut chars_added = 0;
+    let mut break_chars_len = strlen(break_chars);
+    out_len += (out_len / break_every as usize + 1) * break_chars_len + 1;
+    let mut out: *mut libc::c_char = malloc(out_len) as *mut libc::c_char;
     if out.is_null() {
         return 0 as *mut libc::c_char;
     }
@@ -544,7 +543,7 @@ pub unsafe fn dc_str_to_clist(
     if list.is_null() {
         exit(54i32);
     }
-    if !str.is_null() && !delimiter.is_null() && strlen(delimiter) >= 1i32 as libc::c_ulong {
+    if !str.is_null() && !delimiter.is_null() && strlen(delimiter) >= 1 {
         let mut p1: *const libc::c_char = str;
         loop {
             let mut p2: *const libc::c_char = strstr(p1, delimiter);
@@ -659,8 +658,8 @@ pub unsafe fn dc_timestamp_from_date(mut date_time: *mut mailimf_date_time) -> t
     let mut zone_hour: libc::c_int = 0i32;
     memset(
         &mut tmval as *mut tm as *mut libc::c_void,
-        0i32,
-        ::std::mem::size_of::<tm>() as libc::c_ulong,
+        0,
+        ::std::mem::size_of::<tm>(),
     );
     tmval.tm_sec = (*date_time).dt_sec;
     tmval.tm_min = (*date_time).dt_min;
@@ -799,7 +798,7 @@ pub unsafe fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c_char {
     memcpy(
         &mut wanted_struct as *mut tm as *mut libc::c_void,
         localtime(&mut wanted) as *const libc::c_void,
-        ::std::mem::size_of::<tm>() as libc::c_ulong,
+        ::std::mem::size_of::<tm>(),
     );
     return dc_mprintf(
         b"%02i.%02i.%04i %02i:%02i:%02i\x00" as *const u8 as *const libc::c_char,
@@ -959,7 +958,7 @@ unsafe fn encode_66bits_as_base64(
     we save 5 character in each id compared to 64 bit hex encoding, for a typical group ID, these are 10 characters (grpid+msgid):
     hex:    64 bit, 4 bits/character, length = 64/4 = 16 characters
     base64: 64 bit, 6 bits/character, length = 64/6 = 11 characters (plus 2 additional bits) */
-    let mut ret: *mut libc::c_char = malloc(12i32 as libc::c_ulong) as *mut libc::c_char;
+    let mut ret: *mut libc::c_char = malloc(12) as *mut libc::c_char;
     if ret.is_null() {
         exit(34i32);
     }
@@ -990,7 +989,7 @@ pub unsafe fn dc_create_incoming_rfc724_mid(
     mut contact_id_from: uint32_t,
     mut contact_ids_to: *mut dc_array_t,
 ) -> *mut libc::c_char {
-    if contact_ids_to.is_null() || dc_array_get_cnt(contact_ids_to) == 0i32 as libc::c_ulong {
+    if contact_ids_to.is_null() || dc_array_get_cnt(contact_ids_to) == 0 {
         return 0 as *mut libc::c_char;
     }
     /* find out the largest receiver ID (we could also take the smallest, but it should be unique) */
@@ -1054,7 +1053,7 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid(mut mid: *const libc::c_char) -> 
     let mut p1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpid_len: libc::c_int = 0i32;
     if !(mid.is_null()
-        || strlen(mid) < 8i32 as libc::c_ulong
+        || strlen(mid) < 8
         || *mid.offset(0isize) as libc::c_int != 'G' as i32
         || *mid.offset(1isize) as libc::c_int != 'r' as i32
         || *mid.offset(2isize) as libc::c_int != '.' as i32)
@@ -1193,38 +1192,36 @@ pub unsafe fn dc_get_filemeta(
     In all formats, the file is at least 24 bytes big, so we'll read that always
     inspired by http://www.cplusplus.com/forum/beginner/45217/ */
     let mut buf: *const libc::c_uchar = buf_start as *const libc::c_uchar;
-    if buf_bytes < 24i32 as libc::c_ulong {
+    if buf_bytes < 24 {
         return 0i32;
     }
     if *buf.offset(0isize) as libc::c_int == 0xffi32
         && *buf.offset(1isize) as libc::c_int == 0xd8i32
         && *buf.offset(2isize) as libc::c_int == 0xffi32
     {
-        let mut pos: libc::c_long = 2i32 as libc::c_long;
+        let mut pos = 2;
         while *buf.offset(pos as isize) as libc::c_int == 0xffi32 {
-            if *buf.offset((pos + 1i32 as libc::c_long) as isize) as libc::c_int == 0xc0i32
-                || *buf.offset((pos + 1i32 as libc::c_long) as isize) as libc::c_int == 0xc1i32
-                || *buf.offset((pos + 1i32 as libc::c_long) as isize) as libc::c_int == 0xc2i32
-                || *buf.offset((pos + 1i32 as libc::c_long) as isize) as libc::c_int == 0xc3i32
-                || *buf.offset((pos + 1i32 as libc::c_long) as isize) as libc::c_int == 0xc9i32
-                || *buf.offset((pos + 1i32 as libc::c_long) as isize) as libc::c_int == 0xcai32
-                || *buf.offset((pos + 1i32 as libc::c_long) as isize) as libc::c_int == 0xcbi32
+            if *buf.offset((pos + 1) as isize) as libc::c_int == 0xc0i32
+                || *buf.offset((pos + 1) as isize) as libc::c_int == 0xc1i32
+                || *buf.offset((pos + 1) as isize) as libc::c_int == 0xc2i32
+                || *buf.offset((pos + 1) as isize) as libc::c_int == 0xc3i32
+                || *buf.offset((pos + 1) as isize) as libc::c_int == 0xc9i32
+                || *buf.offset((pos + 1) as isize) as libc::c_int == 0xcai32
+                || *buf.offset((pos + 1) as isize) as libc::c_int == 0xcbi32
             {
-                *ret_height =
-                    (((*buf.offset((pos + 5i32 as libc::c_long) as isize) as libc::c_int) << 8i32)
-                        + *buf.offset((pos + 6i32 as libc::c_long) as isize) as libc::c_int)
-                        as uint32_t;
-                *ret_width = (((*buf.offset((pos + 7i32 as libc::c_long) as isize) as libc::c_int)
-                    << 8i32)
-                    + *buf.offset((pos + 8i32 as libc::c_long) as isize) as libc::c_int)
+                *ret_height = (((*buf.offset((pos + 5) as isize) as libc::c_int) << 8i32)
+                    + *buf.offset((pos + 6) as isize) as libc::c_int)
+                    as uint32_t;
+                *ret_width = (((*buf.offset((pos + 7) as isize) as libc::c_int) << 8i32)
+                    + *buf.offset((pos + 8) as isize) as libc::c_int)
                     as uint32_t;
                 return 1i32;
             }
             pos += (2i32
-                + ((*buf.offset((pos + 2i32 as libc::c_long) as isize) as libc::c_int) << 8i32)
-                + *buf.offset((pos + 3i32 as libc::c_long) as isize) as libc::c_int)
+                + ((*buf.offset((pos + 2) as isize) as libc::c_int) << 8i32)
+                + *buf.offset((pos + 3) as isize) as libc::c_int)
                 as libc::c_long;
-            if (pos + 12i32 as libc::c_long) as libc::c_ulong > buf_bytes {
+            if (pos + 12) > buf_bytes as i64 {
                 break;
             }
         }
@@ -1276,7 +1273,7 @@ pub unsafe fn dc_get_abs_path(
         if strncmp(
             pathNfilename_abs,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            8i32 as libc::c_ulong,
+            8,
         ) == 0i32
         {
             if (*context).blobdir.is_null() {
@@ -1315,22 +1312,14 @@ pub unsafe fn dc_file_exist(
         st_uid: 0,
         st_gid: 0,
         st_rdev: 0,
-        st_atimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_mtimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_ctimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_birthtimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
+        st_atime: 0,
+        st_atime_nsec: 0,
+        st_mtime: 0,
+        st_mtime_nsec: 0,
+        st_ctime: 0,
+        st_ctime_nsec: 0,
+        st_birthtime: 0,
+        st_birthtime_nsec: 0,
         st_size: 0,
         st_blocks: 0,
         st_blksize: 0,
@@ -1351,22 +1340,14 @@ pub unsafe fn dc_file_exist(
             st_uid: 0,
             st_gid: 0,
             st_rdev: 0,
-            st_atimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_mtimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_ctimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_birthtimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
+            st_atime: 0,
+            st_atime_nsec: 0,
+            st_mtime: 0,
+            st_mtime_nsec: 0,
+            st_ctime: 0,
+            st_ctime_nsec: 0,
+            st_birthtime: 0,
+            st_birthtime_nsec: 0,
             st_size: 0,
             st_blocks: 0,
             st_blksize: 0,
@@ -1394,22 +1375,14 @@ pub unsafe fn dc_get_filebytes(
         st_uid: 0,
         st_gid: 0,
         st_rdev: 0,
-        st_atimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_mtimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_ctimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_birthtimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
+        st_atime: 0,
+        st_atime_nsec: 0,
+        st_mtime: 0,
+        st_mtime_nsec: 0,
+        st_ctime: 0,
+        st_ctime_nsec: 0,
+        st_birthtime: 0,
+        st_birthtime_nsec: 0,
         st_size: 0,
         st_blocks: 0,
         st_blksize: 0,
@@ -1430,22 +1403,14 @@ pub unsafe fn dc_get_filebytes(
             st_uid: 0,
             st_gid: 0,
             st_rdev: 0,
-            st_atimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_mtimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_ctimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_birthtimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
+            st_atime: 0,
+            st_atime_nsec: 0,
+            st_mtime: 0,
+            st_mtime_nsec: 0,
+            st_ctime: 0,
+            st_ctime_nsec: 0,
+            st_birthtime: 0,
+            st_birthtime_nsec: 0,
             st_size: 0,
             st_blocks: 0,
             st_blksize: 0,
@@ -1495,7 +1460,7 @@ pub unsafe fn dc_copy_file(
     let mut fd_src: libc::c_int = -1i32;
     let mut fd_dest: libc::c_int = -1i32;
     let mut buf: [libc::c_char; 4096] = [0; 4096];
-    let mut bytes_read: size_t = 0i32 as size_t;
+    let mut bytes_read = 0;
     let mut anything_copied: libc::c_int = 0i32;
     src_abs = dc_get_abs_path(context, src);
     if !(src_abs.is_null() || {
@@ -1526,12 +1491,11 @@ pub unsafe fn dc_copy_file(
                         buf.as_mut_ptr() as *mut libc::c_void,
                         4096i32 as size_t,
                     ) as size_t;
-                    if !(bytes_read > 0i32 as libc::c_ulong) {
+                    if !(bytes_read > 0) {
                         break;
                     }
                     if write(fd_dest, buf.as_mut_ptr() as *const libc::c_void, bytes_read)
-                        as libc::c_ulong
-                        != bytes_read
+                        != bytes_read as isize
                     {
                         dc_log_error(
                             context,
@@ -1547,7 +1511,7 @@ pub unsafe fn dc_copy_file(
                 if 0 == anything_copied {
                     close(fd_src);
                     fd_src = -1i32;
-                    if dc_get_filebytes(context, src) != 0i32 as libc::c_ulonglong {
+                    if dc_get_filebytes(context, src) != 0 {
                         dc_log_error(
                             context,
                             0i32,
@@ -1592,22 +1556,14 @@ pub unsafe fn dc_create_folder(
         st_uid: 0,
         st_gid: 0,
         st_rdev: 0,
-        st_atimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_mtimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_ctimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
-        st_birthtimespec: timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        },
+        st_atime: 0,
+        st_atime_nsec: 0,
+        st_mtime: 0,
+        st_mtime_nsec: 0,
+        st_ctime: 0,
+        st_ctime_nsec: 0,
+        st_birthtime: 0,
+        st_birthtime_nsec: 0,
         st_size: 0,
         st_blocks: 0,
         st_blksize: 0,
@@ -1629,22 +1585,14 @@ pub unsafe fn dc_create_folder(
             st_uid: 0,
             st_gid: 0,
             st_rdev: 0,
-            st_atimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_mtimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_ctimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
-            st_birthtimespec: timespec {
-                tv_sec: 0,
-                tv_nsec: 0,
-            },
+            st_atime: 0,
+            st_atime_nsec: 0,
+            st_mtime: 0,
+            st_mtime_nsec: 0,
+            st_ctime: 0,
+            st_ctime_nsec: 0,
+            st_birthtime: 0,
+            st_birthtime_nsec: 0,
             st_size: 0,
             st_blocks: 0,
             st_blksize: 0,
@@ -1692,7 +1640,7 @@ pub unsafe fn dc_write_file(
             b"wb\x00" as *const u8 as *const libc::c_char,
         );
         if !f.is_null() {
-            if fwrite(buf, 1i32 as libc::c_ulong, buf_bytes, f) == buf_bytes {
+            if fwrite(buf, 1, buf_bytes, f) == buf_bytes {
                 success = 1i32
             } else {
                 dc_log_warning(
@@ -1737,14 +1685,14 @@ pub unsafe fn dc_read_file(
             b"rb\x00" as *const u8 as *const libc::c_char,
         );
         if !f.is_null() {
-            fseek(f, 0i32 as libc::c_long, 2i32);
+            fseek(f, 0, 2i32);
             *buf_bytes = ftell(f) as size_t;
-            fseek(f, 0i32 as libc::c_long, 0i32);
-            if !(*buf_bytes <= 0i32 as libc::c_ulong) {
-                *buf = malloc((*buf_bytes).wrapping_add(1i32 as libc::c_ulong));
+            fseek(f, 0, 0i32);
+            if !(*buf_bytes <= 0) {
+                *buf = malloc((*buf_bytes).wrapping_add(1));
                 if !(*buf).is_null() {
                     *(*buf as *mut libc::c_char).offset(*buf_bytes as isize) = 0i32 as libc::c_char;
-                    if !(fread(*buf, 1i32 as libc::c_ulong, *buf_bytes, f) != *buf_bytes) {
+                    if !(fread(*buf, 1, *buf_bytes, f) != *buf_bytes) {
                         success = 1i32
                     }
                 }
@@ -1829,11 +1777,7 @@ pub unsafe fn dc_is_blobdir_path(
     mut path: *const libc::c_char,
 ) -> libc::c_int {
     if strncmp(path, (*context).blobdir, strlen((*context).blobdir)) == 0i32
-        || strncmp(
-            path,
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            8i32 as libc::c_ulong,
-        ) == 0i32
+        || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0i32
     {
         return 1i32;
     }

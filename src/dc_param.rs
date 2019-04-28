@@ -298,14 +298,11 @@ pub unsafe fn dc_param_set_int(
 /* library-private */
 pub unsafe fn dc_param_new() -> *mut dc_param_t {
     let mut param: *mut dc_param_t = 0 as *mut dc_param_t;
-    param = calloc(
-        1i32 as libc::c_ulong,
-        ::std::mem::size_of::<dc_param_t>() as libc::c_ulong,
-    ) as *mut dc_param_t;
+    param = calloc(1, ::std::mem::size_of::<dc_param_t>()) as *mut dc_param_t;
     if param.is_null() {
         exit(28i32);
     }
-    (*param).packed = calloc(1i32 as libc::c_ulong, 1i32 as libc::c_ulong) as *mut libc::c_char;
+    (*param).packed = calloc(1, 1) as *mut libc::c_char;
     return param;
 }
 pub unsafe fn dc_param_empty(mut param: *mut dc_param_t) {
