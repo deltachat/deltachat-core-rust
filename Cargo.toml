@@ -17,7 +17,7 @@ hex = "0.3.2"
 sha2 = "0.8.0"
 rand = "0.6.5"
 smallvec = "0.6.9"
-libsqlite3-sys = "0.14.0"
+libsqlite3-sys = { version = "0.14.0", features = ["bundled"] }
 reqwest = "0.9.15"
 num-derive = "0.2.5"
 num-traits = "0.2.6"
