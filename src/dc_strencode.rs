@@ -428,7 +428,7 @@ pub unsafe fn dc_encode_modified_utf7(
             if c < 0x80i32 as libc::c_uint {
                 ucs4 = c as libc::c_ulong
             } else if 0 != utf8total {
-                ucs4 = ucs4 << 6i32 | c as libc::c_ulong & 0x3fu64;
+                ucs4 = ucs4 << 6i32 | c as libc::c_ulong & 0x3f;
                 utf8pos = utf8pos.wrapping_add(1);
                 if utf8pos < utf8total {
                     continue;
@@ -449,13 +449,13 @@ pub unsafe fn dc_encode_modified_utf7(
             }
             utf8total = 0i32 as libc::c_uint;
             loop {
-                if ucs4 >= 0x10000u64 {
-                    ucs4 = ucs4.wrapping_sub(0x10000u64);
-                    bitbuf = bitbuf << 16i32 | (ucs4 >> 10i32).wrapping_add(0xd800u64);
-                    ucs4 = (ucs4 & 0x3ffu64).wrapping_add(0xdc00u64);
+                if ucs4 >= 0x10000 {
+                    ucs4 = ucs4.wrapping_sub(0x10000);
+                    bitbuf = bitbuf << 16 | (ucs4 >> 10).wrapping_add(0xd800);
+                    ucs4 = (ucs4 & 0x3ff).wrapping_add(0xdc00);
                     utf16flag = 1i32 as libc::c_uint
                 } else {
-                    bitbuf = bitbuf << 16i32 | ucs4;
+                    bitbuf = bitbuf << 16 | ucs4;
                     utf16flag = 0i32 as libc::c_uint
                 }
                 bitstogo = bitstogo.wrapping_add(16i32 as libc::c_uint);
@@ -570,24 +570,24 @@ pub unsafe fn dc_decode_modified_utf7(
                 } else {
                     bitbuf
                 } & 0xffff;
+
                 // convert UTF16 to UCS4
-                if utf16 >= 0xd800u64 && utf16 <= 0xdbffu64 {
-                    ucs4 = utf16.wrapping_sub(0xd800u64) << 10i32
+                if utf16 >= 0xd800 && utf16 <= 0xdbff {
+                    ucs4 = utf16.wrapping_sub(0xd800) << 10i32
                 } else {
-                    if utf16 >= 0xdc00u64 && utf16 <= 0xdfffu64 {
-                        ucs4 = ucs4
-                            .wrapping_add(utf16.wrapping_sub(0xdc00u64).wrapping_add(0x10000u64))
+                    if utf16 >= 0xdc00 && utf16 <= 0xdfff {
+                        ucs4 = ucs4.wrapping_add(utf16.wrapping_sub(0xdc00).wrapping_add(0x10000))
                     } else {
                         ucs4 = utf16
                     }
-                    if ucs4 <= 0x7fu64 {
+                    if ucs4 <= 0x7f {
                         *dst.offset(0isize) = ucs4 as libc::c_char;
                         dst = dst.offset(1isize)
-                    } else if ucs4 <= 0x7ffu64 {
+                    } else if ucs4 <= 0x7ff {
                         *dst.offset(0isize) = (0xc0 | ucs4 >> 6i32) as libc::c_char;
                         *dst.offset(1isize) = (0x80 | ucs4 & 0x3f) as libc::c_char;
                         dst = dst.offset(2isize)
-                    } else if ucs4 <= 0xffffu64 {
+                    } else if ucs4 <= 0xffff {
                         *dst.offset(0isize) = (0xe0 | ucs4 >> 12i32) as libc::c_char;
                         *dst.offset(1isize) = (0x80 | ucs4 >> 6i32 & 0x3f) as libc::c_char;
                         *dst.offset(2isize) = (0x80 | ucs4 & 0x3f) as libc::c_char;

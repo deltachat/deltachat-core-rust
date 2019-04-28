@@ -102,7 +102,7 @@ pub unsafe fn dc_send_locations_to_chat(
             );
             dc_add_device_msg(context, chat_id, stock_str);
         }
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::CHAT_MODIFIED,
             chat_id as uintptr_t,
@@ -198,7 +198,7 @@ pub unsafe fn dc_set_location(
             continue_streaming = 1i32
         }
         if 0 != continue_streaming {
-            (*context).cb.expect("non-null function pointer")(
+            ((*context).cb)(
                 context,
                 Event::LOCATION_CHANGED,
                 1i32 as uintptr_t,
@@ -302,7 +302,7 @@ pub unsafe fn dc_delete_all_locations(mut context: *mut dc_context_t) {
             b"DELETE FROM locations;\x00" as *const u8 as *const libc::c_char,
         );
         sqlite3_step(stmt);
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::LOCATION_CHANGED,
             0i32 as uintptr_t,
@@ -883,7 +883,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
                     0i32 as uint32_t,
                 );
                 dc_add_device_msg(context, chat_id, stock_str);
-                (*context).cb.expect("non-null function pointer")(
+                ((*context).cb)(
                     context,
                     Event::CHAT_MODIFIED,
                     chat_id as uintptr_t,

@@ -1221,7 +1221,7 @@ pub unsafe fn dc_get_filemeta(
                 + ((*buf.offset((pos + 2) as isize) as libc::c_int) << 8i32)
                 + *buf.offset((pos + 3) as isize) as libc::c_int)
                 as libc::c_long;
-            if (pos + 12) > buf_bytes as i64 {
+            if (pos + 12) > buf_bytes as libc::c_long {
                 break;
             }
         }
@@ -1304,128 +1304,38 @@ pub unsafe fn dc_file_exist(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
-    let mut st: stat = stat {
-        st_dev: 0,
-        st_mode: 0,
-        st_nlink: 0,
-        st_ino: 0,
-        st_uid: 0,
-        st_gid: 0,
-        st_rdev: 0,
-        st_atime: 0,
-        st_atime_nsec: 0,
-        st_mtime: 0,
-        st_mtime_nsec: 0,
-        st_ctime: 0,
-        st_ctime_nsec: 0,
-        st_birthtime: 0,
-        st_birthtime_nsec: 0,
-        st_size: 0,
-        st_blocks: 0,
-        st_blksize: 0,
-        st_flags: 0,
-        st_gen: 0,
-        st_lspare: 0,
-        st_qspare: [0; 2],
+    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+    let exist = {
+        let p = std::path::Path::new(
+            std::ffi::CStr::from_ptr(pathNfilename_abs)
+                .to_str()
+                .unwrap(),
+        );
+        p.exists()
     };
-    let mut exist: libc::c_int = 0i32;
-    let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if !pathNfilename_abs.is_null() {
-        st = stat {
-            st_dev: 0,
-            st_mode: 0,
-            st_nlink: 0,
-            st_ino: 0,
-            st_uid: 0,
-            st_gid: 0,
-            st_rdev: 0,
-            st_atime: 0,
-            st_atime_nsec: 0,
-            st_mtime: 0,
-            st_mtime_nsec: 0,
-            st_ctime: 0,
-            st_ctime_nsec: 0,
-            st_birthtime: 0,
-            st_birthtime_nsec: 0,
-            st_size: 0,
-            st_blocks: 0,
-            st_blksize: 0,
-            st_flags: 0,
-            st_gen: 0,
-            st_lspare: 0,
-            st_qspare: [0; 2],
-        };
-        if stat(pathNfilename_abs, &mut st) == 0i32 {
-            exist = 1i32
-        }
-    }
+
     free(pathNfilename_abs as *mut libc::c_void);
-    return exist;
+
+    exist as libc::c_int
 }
+
 pub unsafe fn dc_get_filebytes(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> uint64_t {
-    let mut st: stat = stat {
-        st_dev: 0,
-        st_mode: 0,
-        st_nlink: 0,
-        st_ino: 0,
-        st_uid: 0,
-        st_gid: 0,
-        st_rdev: 0,
-        st_atime: 0,
-        st_atime_nsec: 0,
-        st_mtime: 0,
-        st_mtime_nsec: 0,
-        st_ctime: 0,
-        st_ctime_nsec: 0,
-        st_birthtime: 0,
-        st_birthtime_nsec: 0,
-        st_size: 0,
-        st_blocks: 0,
-        st_blksize: 0,
-        st_flags: 0,
-        st_gen: 0,
-        st_lspare: 0,
-        st_qspare: [0; 2],
+    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+
+    let filebytes = {
+        let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
+            .to_str()
+            .unwrap();
+        std::fs::metadata(p).unwrap().len()
     };
-    let mut filebytes: uint64_t = 0i32 as uint64_t;
-    let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if !pathNfilename_abs.is_null() {
-        st = stat {
-            st_dev: 0,
-            st_mode: 0,
-            st_nlink: 0,
-            st_ino: 0,
-            st_uid: 0,
-            st_gid: 0,
-            st_rdev: 0,
-            st_atime: 0,
-            st_atime_nsec: 0,
-            st_mtime: 0,
-            st_mtime_nsec: 0,
-            st_ctime: 0,
-            st_ctime_nsec: 0,
-            st_birthtime: 0,
-            st_birthtime_nsec: 0,
-            st_size: 0,
-            st_blocks: 0,
-            st_blksize: 0,
-            st_flags: 0,
-            st_gen: 0,
-            st_lspare: 0,
-            st_qspare: [0; 2],
-        };
-        if stat(pathNfilename_abs, &mut st) == 0i32 {
-            filebytes = st.st_size as uint64_t
-        }
-    }
+
     free(pathNfilename_abs as *mut libc::c_void);
-    return filebytes;
+    filebytes as uint64_t
 }
+
 pub unsafe fn dc_delete_file(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
@@ -1548,60 +1458,15 @@ pub unsafe fn dc_create_folder(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
-    let mut st: stat = stat {
-        st_dev: 0,
-        st_mode: 0,
-        st_nlink: 0,
-        st_ino: 0,
-        st_uid: 0,
-        st_gid: 0,
-        st_rdev: 0,
-        st_atime: 0,
-        st_atime_nsec: 0,
-        st_mtime: 0,
-        st_mtime_nsec: 0,
-        st_ctime: 0,
-        st_ctime_nsec: 0,
-        st_birthtime: 0,
-        st_birthtime_nsec: 0,
-        st_size: 0,
-        st_blocks: 0,
-        st_blksize: 0,
-        st_flags: 0,
-        st_gen: 0,
-        st_lspare: 0,
-        st_qspare: [0; 2],
-    };
-    let mut current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if !pathNfilename_abs.is_null() {
-        st = stat {
-            st_dev: 0,
-            st_mode: 0,
-            st_nlink: 0,
-            st_ino: 0,
-            st_uid: 0,
-            st_gid: 0,
-            st_rdev: 0,
-            st_atime: 0,
-            st_atime_nsec: 0,
-            st_mtime: 0,
-            st_mtime_nsec: 0,
-            st_ctime: 0,
-            st_ctime_nsec: 0,
-            st_birthtime: 0,
-            st_birthtime_nsec: 0,
-            st_size: 0,
-            st_blocks: 0,
-            st_blksize: 0,
-            st_flags: 0,
-            st_gen: 0,
-            st_lspare: 0,
-            st_qspare: [0; 2],
-        };
-        if stat(pathNfilename_abs, &mut st) == -1i32 {
+    let mut success = 0;
+    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+    {
+        let p = std::path::Path::new(
+            std::ffi::CStr::from_ptr(pathNfilename_abs)
+                .to_str()
+                .unwrap(),
+        );
+        if !p.exists() {
             if mkdir(pathNfilename_abs, 0o755i32 as mode_t) != 0i32 {
                 dc_log_warning(
                     context,
@@ -1609,21 +1474,18 @@ pub unsafe fn dc_create_folder(
                     b"Cannot create directory \"%s\".\x00" as *const u8 as *const libc::c_char,
                     pathNfilename,
                 );
-                current_block = 7696101774396965466;
             } else {
-                current_block = 7815301370352969686;
+                success = 1;
             }
         } else {
-            current_block = 7815301370352969686;
-        }
-        match current_block {
-            7696101774396965466 => {}
-            _ => success = 1i32,
+            success = 1;
         }
     }
+
     free(pathNfilename_abs as *mut libc::c_void);
-    return success;
+    success
 }
+
 pub unsafe fn dc_write_file(
     mut context: *mut dc_context_t,
     mut pathNfilename: *const libc::c_char,

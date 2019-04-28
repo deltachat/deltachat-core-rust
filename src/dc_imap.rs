@@ -1024,7 +1024,7 @@ unsafe fn peek_body(
                             let mut flag: *mut mailimap_flag = (*flag_fetch).fl_flag;
                             if !flag.is_null() {
                                 if (*flag).fl_type == MAILIMAP_FLAG_SEEN as libc::c_int {
-                                    *flags = (*flags as libc::c_long | 0x1i64) as uint32_t
+                                    *flags = (*flags as libc::c_long | 0x1) as uint32_t
                                 } else if (*flag).fl_type == MAILIMAP_FLAG_DELETED as libc::c_int {
                                     *deleted = 1i32
                                 }

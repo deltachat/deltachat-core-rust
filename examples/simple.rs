@@ -16,7 +16,7 @@ use deltachat::dc_job::{
 };
 use deltachat::dc_lot::*;
 
-fn cb(_ctx: *mut dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
+extern "C" fn cb(_ctx: *mut dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
     println!("[{:?}]", event);
 
     match event {
@@ -56,7 +56,7 @@ unsafe impl std::marker::Sync for Wrapper {}
 
 fn main() {
     unsafe {
-        let ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
+        let ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
         let info = dc_get_info(ctx);
         let info_s = CStr::from_ptr(info);
         println!("info: {}", info_s.to_str().unwrap());

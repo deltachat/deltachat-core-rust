@@ -1,4 +1,5 @@
 use libc;
+use rand::{thread_rng, Rng};
 
 use crate::constants::Event;
 use crate::dc_chat::*;
@@ -257,7 +258,9 @@ unsafe fn get_backoff_time_offset(mut c_tries: libc::c_int) -> time_t {
     // results in ~3 weeks for the last backoff timespan
     let mut N: time_t = pow(2i32 as libc::c_double, (c_tries - 1i32) as libc::c_double) as time_t;
     N = N * 60i32 as libc::c_long;
-    let mut seconds: time_t = rand() as libc::c_long % (N + 1i32 as libc::c_long);
+    let mut rng = thread_rng();
+    let n: libc::c_long = rng.gen();
+    let mut seconds: time_t = n % (N + 1i32 as libc::c_long);
     if seconds < 1i32 as libc::c_long {
         seconds = 1i32 as time_t
     }
@@ -404,7 +407,7 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: *mut dc_context_t, mut j
                                     } else {
                                         0i32
                                     };
-                                    (*context).cb.expect("non-null function pointer")(
+                                    ((*context).cb)(
                                         context,
                                         Event::MSG_DELIVERED,
                                         chat_id as uintptr_t,

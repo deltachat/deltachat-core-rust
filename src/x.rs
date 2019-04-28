@@ -4,12 +4,12 @@ use crate::dc_strbuilder::dc_strbuilder_t;
 use crate::types::*;
 
 pub use libc::{
-    atof, atoi, calloc, close, closedir, exit, fclose, fgets, fopen, fread, free, fseek, ftell,
-    fwrite, gmtime, gmtime_r, localtime, localtime_r, malloc, memcmp, memcpy, memmove, memset,
-    mkdir, open, opendir, printf, rand, read, readdir, realloc, remove, sleep, snprintf, sprintf,
-    sscanf, stat, strcasecmp, strcat, strchr, strcmp, strcpy, strcspn, strdup, strlen, strncasecmp,
-    strncmp, strncpy, strrchr, strspn, strstr, strtol, system, time, tolower as __tolower,
-    toupper as __toupper, usleep, write,
+    atoi, calloc, close, closedir, exit, fclose, fgets, fopen, fread, free, fseek, ftell, fwrite,
+    gmtime, gmtime_r, localtime, localtime_r, malloc, memcmp, memcpy, memmove, memset, mkdir, open,
+    opendir, printf, read, readdir, realloc, remove, sleep, snprintf, sprintf, sscanf, strcasecmp,
+    strcat, strchr, strcmp, strcpy, strcspn, strdup, strlen, strncasecmp, strncmp, strncpy,
+    strrchr, strspn, strstr, strtol, system, time, tolower as __tolower, toupper as __toupper,
+    usleep, write,
 };
 
 extern "C" {
@@ -542,4 +542,12 @@ pub unsafe extern "C" fn __assert_rtn(
     d: *const libc::c_char,
 ) -> ! {
     __assert(a, b, c, d)
+}
+
+#[cfg(not(target_os = "android"))]
+pub use libc::atof;
+
+#[cfg(target_os = "android")]
+pub unsafe fn atof(nptr: *mut libc::c_char) -> libc::c_double {
+    libc::strtod(nptr, std::ptr::null_mut())
 }

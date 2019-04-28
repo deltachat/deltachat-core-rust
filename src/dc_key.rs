@@ -21,16 +21,10 @@ pub struct dc_key_t {
 }
 
 #[inline]
-#[cfg(target_os = "macos")]
 pub unsafe fn toupper(mut _c: libc::c_int) -> libc::c_int {
     return __toupper(_c);
 }
 
-#[inline]
-#[cfg(not(target_os = "macos"))]
-pub unsafe fn toupper(mut _c: libc::c_int) -> libc::c_int {
-    return _toupper(_c);
-}
 pub unsafe fn dc_key_new() -> *mut dc_key_t {
     let mut key: *mut dc_key_t = 0 as *mut dc_key_t;
     key = calloc(1, ::std::mem::size_of::<dc_key_t>()) as *mut dc_key_t;
@@ -384,7 +378,7 @@ pub unsafe fn dc_render_base64(
  * Render keys
  ******************************************************************************/
 unsafe fn crc_octets(mut octets: *const libc::c_uchar, mut len: size_t) -> libc::c_long {
-    let mut crc: libc::c_long = 0xb704cei64;
+    let mut crc: libc::c_long = 0xb704ce;
     loop {
         let fresh0 = len;
         len = len.wrapping_sub(1);
@@ -397,13 +391,13 @@ unsafe fn crc_octets(mut octets: *const libc::c_uchar, mut len: size_t) -> libc:
         let mut i: libc::c_int = 0i32;
         while i < 8i32 {
             crc <<= 1i32;
-            if 0 != crc & 0x1000000i32 as libc::c_long {
-                crc ^= 0x1864cfbi64
+            if 0 != crc & 0x1000000 as libc::c_long {
+                crc ^= 0x1864cfb
             }
             i += 1
         }
     }
-    return crc & 0xffffffi64;
+    return crc & 0xffffff;
 }
 /* the result must be freed */
 pub unsafe fn dc_key_render_base64(

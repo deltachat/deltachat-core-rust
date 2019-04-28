@@ -1,6 +1,6 @@
 use libc;
 
-use crate::constants::{Event, VERSION};
+use crate::constants::VERSION;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -127,10 +127,10 @@ pub unsafe fn dc_context_new(
     );
     (*context).magic = 0x11a11807i32 as uint32_t;
     (*context).userdata = userdata;
-    (*context).cb = if cb.is_some() { cb } else { Some(cb_dummy) };
+    (*context).cb = cb;
     (*context).os_name = dc_strdup_keep_null(os_name);
     (*context).shall_stop_ongoing = 1i32;
-    // dc_openssl_init();
+
     dc_pgp_init();
     (*context).sql = dc_sqlite3_new(context);
     (*context).inbox = dc_imap_new(
@@ -270,20 +270,6 @@ unsafe fn cb_get_config(
 ) -> *mut libc::c_char {
     let mut context: *mut dc_context_t = (*imap).userData as *mut dc_context_t;
     return dc_sqlite3_get_config((*context).sql, key, def);
-}
-/* *
- * A callback function that is used if no user-defined callback is given to dc_context_new().
- * The callback function simply returns 0 which is safe for every event.
- *
- * @private @memberof dc_context_t
- */
-unsafe fn cb_dummy(
-    _context: *mut dc_context_t,
-    _event: Event,
-    _data1: uintptr_t,
-    _data2: uintptr_t,
-) -> uintptr_t {
-    0i32 as uintptr_t
 }
 
 pub unsafe fn dc_context_unref(mut context: *mut dc_context_t) {

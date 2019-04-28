@@ -58,7 +58,7 @@ pub unsafe fn dc_create_chat_by_msg_id(
     dc_msg_unref(msg);
     dc_chat_unref(chat);
     if 0 != send_event {
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::MSGS_CHANGED,
             0i32 as uintptr_t,
@@ -258,7 +258,7 @@ pub unsafe fn dc_create_chat_by_contact_id(
         dc_scaleup_contact_origin(context, contact_id, 0x800i32);
     }
     if 0 != send_event {
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::MSGS_CHANGED,
             0i32 as uintptr_t,
@@ -442,7 +442,7 @@ pub unsafe fn dc_prepare_msg(
     }
     (*msg).state = 18i32;
     let mut msg_id: uint32_t = prepare_msg_common(context, chat_id, msg);
-    (*context).cb.expect("non-null function pointer")(
+    ((*context).cb)(
         context,
         Event::MSGS_CHANGED,
         (*msg).chat_id as uintptr_t,
@@ -767,7 +767,7 @@ unsafe fn prepare_msg_raw(
                               VALUES (?,?,?, ?,?,1);\x00" as *const u8
                                 as *const libc::c_char,
                         );
-                        sqlite3_bind_int64(stmt, 1, timestamp);
+                        sqlite3_bind_int64(stmt, 1, timestamp as libc::int64_t);
                         sqlite3_bind_int(stmt, 2, DC_CONTACT_ID_SELF as libc::c_int);
                         sqlite3_bind_int(stmt, 3, (*chat).id as libc::c_int);
                         sqlite3_bind_double(
@@ -1014,7 +1014,7 @@ pub unsafe fn dc_send_msg(
     if 0 == dc_job_send_msg(context, (*msg).id) {
         return 0i32 as uint32_t;
     }
-    (*context).cb.expect("non-null function pointer")(
+    ((*context).cb)(
         context,
         Event::MSGS_CHANGED,
         (*msg).chat_id as uintptr_t,
@@ -1022,12 +1022,7 @@ pub unsafe fn dc_send_msg(
     );
 
     if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
-        (*context).cb.expect("non-null function pointer")(
-            context,
-            Event::LOCATION_CHANGED,
-            DC_CONTACT_ID_SELF,
-            0,
-        );
+        ((*context).cb)(context, Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF, 0);
     }
 
     if 0 == chat_id {
@@ -1085,7 +1080,7 @@ pub unsafe fn dc_set_draft(
         return;
     }
     if 0 != set_draft_raw(context, chat_id, msg) {
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::MSGS_CHANGED,
             chat_id as uintptr_t,
@@ -1330,7 +1325,7 @@ pub unsafe fn dc_marknoticed_chat(mut context: *mut dc_context_t, mut chat_id: u
             );
             sqlite3_bind_int(update, 1i32, chat_id as libc::c_int);
             sqlite3_step(update);
-            (*context).cb.expect("non-null function pointer")(
+            ((*context).cb)(
                 context,
                 Event::MSGS_CHANGED,
                 0i32 as uintptr_t,
@@ -1356,7 +1351,7 @@ pub unsafe fn dc_marknoticed_all_chats(mut context: *mut dc_context_t) {
                     as *const libc::c_char,
             );
             sqlite3_step(update);
-            (*context).cb.expect("non-null function pointer")(
+            ((*context).cb)(
                 context,
                 Event::MSGS_CHANGED,
                 0i32 as uintptr_t,
@@ -1490,7 +1485,7 @@ pub unsafe fn dc_archive_chat(
     sqlite3_bind_int(stmt_0, 2i32, chat_id as libc::c_int);
     sqlite3_step(stmt_0);
     sqlite3_finalize(stmt_0);
-    (*context).cb.expect("non-null function pointer")(
+    ((*context).cb)(
         context,
         Event::MSGS_CHANGED,
         0i32 as uintptr_t,
@@ -1542,7 +1537,7 @@ pub unsafe fn dc_delete_chat(mut context: *mut dc_context_t, mut chat_id: uint32
                             q3 = 0 as *mut libc::c_char;
                             dc_sqlite3_commit((*context).sql);
                             pending_transaction = 0i32;
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::MSGS_CHANGED,
                                 0i32 as uintptr_t,
@@ -1649,7 +1644,7 @@ pub unsafe fn dc_create_group_chat(
     dc_msg_unref(draft_msg);
     free(grpid as *mut libc::c_void);
     if 0 != chat_id {
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::MSGS_CHANGED,
             0i32 as uintptr_t,
@@ -1786,14 +1781,14 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                                 dc_param_set((*msg).param, 'E' as i32, (*contact).addr);
                                 dc_param_set_int((*msg).param, 'F' as i32, flags);
                                 (*msg).id = dc_send_msg(context, chat_id, msg);
-                                (*context).cb.expect("non-null function pointer")(
+                                ((*context).cb)(
                                     context,
                                     Event::MSGS_CHANGED,
                                     chat_id as uintptr_t,
                                     (*msg).id as uintptr_t,
                                 );
                             }
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::MSGS_CHANGED,
                                 chat_id as uintptr_t,
@@ -1929,7 +1924,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                         dc_param_set_int((*msg).param, 'S' as i32, 5i32);
                         dc_param_set((*msg).param, 'E' as i32, (*contact).addr);
                         (*msg).id = dc_send_msg(context, chat_id, msg);
-                        (*context).cb.expect("non-null function pointer")(
+                        ((*context).cb)(
                             context,
                             Event::MSGS_CHANGED,
                             chat_id as uintptr_t,
@@ -1944,7 +1939,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                     contact_id,
                 );
                 if !(0 == dc_sqlite3_execute((*context).sql, q3)) {
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::CHAT_MODIFIED,
                         chat_id as uintptr_t,
@@ -2038,14 +2033,14 @@ pub unsafe fn dc_set_chat_name(
                         dc_param_set_int((*msg).param, 'S' as i32, 2i32);
                         dc_param_set((*msg).param, 'E' as i32, (*chat).name);
                         (*msg).id = dc_send_msg(context, chat_id, msg);
-                        (*context).cb.expect("non-null function pointer")(
+                        ((*context).cb)(
                             context,
                             Event::MSGS_CHANGED,
                             chat_id as uintptr_t,
                             (*msg).id as uintptr_t,
                         );
                     }
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::CHAT_MODIFIED,
                         chat_id as uintptr_t,
@@ -2119,14 +2114,14 @@ pub unsafe fn dc_set_chat_profile_image(
                                     1i32 as uint32_t,
                                 );
                                 (*msg).id = dc_send_msg(context, chat_id, msg);
-                                (*context).cb.expect("non-null function pointer")(
+                                ((*context).cb)(
                                     context,
                                     Event::MSGS_CHANGED,
                                     chat_id as uintptr_t,
                                     (*msg).id as uintptr_t,
                                 );
                             }
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
@@ -2254,7 +2249,7 @@ pub unsafe fn dc_forward_msgs(
         let mut i = 0u32;
         let mut icnt = carray_count(created_db_entries);
         while i < icnt {
-            (*context).cb.expect("non-null function pointer")(
+            ((*context).cb)(
                 context,
                 Event::MSGS_CHANGED,
                 carray_get(created_db_entries, i) as uintptr_t,
@@ -2502,7 +2497,7 @@ pub unsafe fn dc_add_device_msg(
                 b"rfc724_mid\x00" as *const u8 as *const libc::c_char,
                 rfc724_mid,
             );
-            (*context).cb.expect("non-null function pointer")(
+            ((*context).cb)(
                 context,
                 Event::MSGS_CHANGED,
                 chat_id as uintptr_t,

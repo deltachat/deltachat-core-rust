@@ -698,7 +698,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: *mut dc_context_t, mut job
                     0i32,
                     b"Import/export process started.\x00" as *const u8 as *const libc::c_char,
                 );
-                (*context).cb.expect("non-null function pointer")(
+                ((*context).cb)(
                     context,
                     Event::IMEX_PROGRESS,
                     10i32 as uintptr_t,
@@ -922,7 +922,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: *mut dc_context_t, mut job
     if 0 != ongoing_allocated_here {
         dc_free_ongoing(context);
     }
-    (*context).cb.expect("non-null function pointer")(
+    ((*context).cb)(
         context,
         Event::IMEX_PROGRESS,
         (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
@@ -1003,7 +1003,7 @@ unsafe fn import_backup(
                     if permille > 990i32 {
                         permille = 990i32
                     }
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::IMEX_PROGRESS,
                         permille as uintptr_t,
@@ -1215,7 +1215,7 @@ unsafe fn export_backup(
                                             if permille > 990i32 {
                                                 permille = 990i32
                                             }
-                                            (*context).cb.expect("non-null function pointer")(
+                                            ((*context).cb)(
                                                 context,
                                                 Event::IMEX_PROGRESS,
                                                 permille as uintptr_t,
@@ -1314,7 +1314,7 @@ unsafe fn export_backup(
                                         b"backup_time\x00" as *const u8 as *const libc::c_char,
                                         now as int32_t,
                                     );
-                                    (*context).cb.expect("non-null function pointer")(
+                                    ((*context).cb)(
                                         context,
                                         Event::IMEX_FILE_WRITTEN,
                                         dest_pathNfilename as uintptr_t,
@@ -1570,7 +1570,7 @@ unsafe fn export_key_to_asc_file(
             file_name,
         );
     } else {
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::IMEX_FILE_WRITTEN,
             file_name as uintptr_t,

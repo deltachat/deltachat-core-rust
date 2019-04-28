@@ -154,7 +154,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                     b"Configure ...\x00" as *const u8 as *const libc::c_char,
                 );
                 if !(0 != (*context).shall_stop_ongoing) {
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::CONFIGURE_PROGRESS,
                         (if 0i32 < 1i32 {
@@ -188,7 +188,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                             if 0 != (*context).shall_stop_ongoing {
                                 current_block = 2927484062889439186;
                             } else {
-                                (*context).cb.expect("non-null function pointer")(
+                                ((*context).cb)(
                                     context,
                                     Event::CONFIGURE_PROGRESS,
                                     (if 10i32 < 1i32 {
@@ -214,7 +214,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                 if 0 != (*context).shall_stop_ongoing {
                                     current_block = 2927484062889439186;
                                 } else {
-                                    (*context).cb.expect("non-null function pointer")(
+                                    ((*context).cb)(
                                         context,
                                         Event::CONFIGURE_PROGRESS,
                                         (if 20i32 < 1i32 {
@@ -252,7 +252,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                         (*param).mail_pw = dc_strdup(0 as *const libc::c_char)
                                     }
                                     if !(0 != (*context).shall_stop_ongoing) {
-                                        (*context).cb.expect("non-null function pointer")(
+                                        ((*context).cb)(
                                             context,
                                             Event::CONFIGURE_PROGRESS,
                                             (if 200i32 < 1i32 {
@@ -296,9 +296,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                 if 0 != (*context).shall_stop_ongoing {
                                                     current_block = 2927484062889439186;
                                                 } else {
-                                                    (*context)
-                                                        .cb
-                                                        .expect("non-null function pointer")(
+                                                    ((*context).cb)(
                                                         context,
                                                         Event::CONFIGURE_PROGRESS,
                                                         (if 300i32 < 1i32 {
@@ -337,9 +335,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                         if 0 != (*context).shall_stop_ongoing {
                                                             current_block = 2927484062889439186;
                                                         } else {
-                                                            (*context).cb.expect(
-                                                                "non-null function pointer",
-                                                            )(
+                                                            ((*context).cb)(
                                                                 context,
                                                                 Event::CONFIGURE_PROGRESS,
                                                                 (if 310i32 < 1i32 {
@@ -407,9 +403,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                             2927484062889439186;
                                                                         break;
                                                                     }
-                                                                    (*context).cb.expect(
-                                                                        "non-null function pointer",
-                                                                    )(
+                                                                    ((*context).cb)(
                                                                         context,
                                                                         Event::CONFIGURE_PROGRESS,
                                                                         (if 320i32 + i * 10i32
@@ -456,7 +450,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                             current_block =
                                                                                 2927484062889439186;
                                                                         } else {
-                                                                            (*context).cb.expect("non-null function pointer")(
+                                                                            ((*context).cb)(
                                                                                 context,
                                                                                 Event::CONFIGURE_PROGRESS,
                                                                                 (if 340i32
@@ -517,7 +511,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                                         =
                                                                                         2927484062889439186;
                                                                                 } else {
-                                                                                    (*context).cb.expect("non-null function pointer")(context,
+                                                                                    ((*context).cb)(context,
                                                                                                                                       Event::CONFIGURE_PROGRESS,
                                                                                                                                       (if 350i32
                                                                                                                                        <
@@ -583,7 +577,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                                                 =
                                                                                                 2927484062889439186;
                                                                                         } else {
-                                                                                            (*context).cb.expect("non-null function pointer")(context,
+                                                                                            ((*context).cb)(context,
                                                                                                                                               Event::CONFIGURE_PROGRESS,
                                                                                                                                               (if 500i32
                                                                                                                                                <
@@ -809,9 +803,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                             as *const libc::c_char,
                                                     );
                                                 } else if !(0 != (*context).shall_stop_ongoing) {
-                                                    (*context)
-                                                        .cb
-                                                        .expect("non-null function pointer")(
+                                                    ((*context).cb)(
                                                         context,
                                                         Event::CONFIGURE_PROGRESS,
                                                         (if 600i32 < 1i32 {
@@ -858,9 +850,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                             current_block = 2927484062889439186;
                                                             break;
                                                         }
-                                                        (*context)
-                                                            .cb
-                                                            .expect("non-null function pointer")(
+                                                        ((*context).cb)(
                                                             context,
                                                             Event::CONFIGURE_PROGRESS,
                                                             (if 650i32 + username_variation * 30i32
@@ -903,9 +893,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                             current_block = 2927484062889439186;
                                                             break;
                                                         }
-                                                        (*context)
-                                                            .cb
-                                                            .expect("non-null function pointer")(
+                                                        ((*context).cb)(
                                                             context,
                                                             Event::CONFIGURE_PROGRESS,
                                                             (if 660i32 + username_variation * 30i32
@@ -950,9 +938,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                             current_block = 2927484062889439186;
                                                             break;
                                                         }
-                                                        (*context)
-                                                            .cb
-                                                            .expect("non-null function pointer")(
+                                                        ((*context).cb)(
                                                             context,
                                                             Event::CONFIGURE_PROGRESS,
                                                             (if 670i32 + username_variation * 30i32
@@ -991,9 +977,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                             imap_connected_here = 1i32;
                                                             if !(0 != (*context).shall_stop_ongoing)
                                                             {
-                                                                (*context).cb.expect(
-                                                                    "non-null function pointer",
-                                                                )(
+                                                                ((*context).cb)(
                                                                     context,
                                                                     Event::CONFIGURE_PROGRESS,
                                                                     (if 800i32 < 1i32 {
@@ -1021,7 +1005,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                         current_block =
                                                                             2927484062889439186;
                                                                     } else {
-                                                                        (*context).cb.expect("non-null function pointer")(context,
+                                                                        ((*context).cb)(context,
                                                                                                                           Event::CONFIGURE_PROGRESS,
                                                                                                                           (if 850i32
                                                                                                                            <
@@ -1073,7 +1057,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                                     =
                                                                                     2927484062889439186;
                                                                             } else {
-                                                                                (*context).cb.expect("non-null function pointer")(context,
+                                                                                ((*context).cb)(context,
                                                                                                                                   Event::CONFIGURE_PROGRESS,
                                                                                                                                   (if 860i32
                                                                                                                                    <
@@ -1151,7 +1135,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                             != (*context)
                                                                                 .shall_stop_ongoing)
                                                                         {
-                                                                            (*context).cb.expect("non-null function pointer")(context,
+                                                                            ((*context).cb)(context,
                                                                                                                               Event::CONFIGURE_PROGRESS,
                                                                                                                               (if 900i32
                                                                                                                                <
@@ -1205,7 +1189,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                             if !(0 != (*context)
                                                                                 .shall_stop_ongoing)
                                                                             {
-                                                                                (*context).cb.expect("non-null function pointer")(context,
+                                                                                ((*context).cb)(context,
                                                                                                                                   Event::CONFIGURE_PROGRESS,
                                                                                                                                   (if 910i32
                                                                                                                                    <
@@ -1243,7 +1227,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                                      !=
                                                                                      (*context).shall_stop_ongoing)
                                                                                 {
-                                                                                    (*context).cb.expect("non-null function pointer")(context,
+                                                                                    ((*context).cb)(context,
                                                                                                                                       Event::CONFIGURE_PROGRESS,
                                                                                                                                       (if 920i32
                                                                                                                                        <
@@ -1278,7 +1262,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                                          !=
                                                                                          (*context).shall_stop_ongoing)
                                                                                     {
-                                                                                        (*context).cb.expect("non-null function pointer")(context,
+                                                                                        ((*context).cb)(context,
                                                                                                                                           Event::CONFIGURE_PROGRESS,
                                                                                                                                           (if 940i32
                                                                                                                                            <
@@ -1332,7 +1316,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
         dc_free_ongoing(context);
     }
     free(mvbox_folder as *mut libc::c_void);
-    (*context).cb.expect("non-null function pointer")(
+    ((*context).cb)(
         context,
         Event::CONFIGURE_PROGRESS,
         (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
@@ -1886,7 +1870,7 @@ unsafe fn read_autoconf_file(
         b"Testing %s ...\x00" as *const u8 as *const libc::c_char,
         url,
     );
-    filecontent = (*context).cb.expect("non-null function pointer")(
+    filecontent = ((*context).cb)(
         context,
         Event::HTTP_GET,
         url as uintptr_t,

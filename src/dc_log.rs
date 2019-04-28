@@ -48,12 +48,7 @@ unsafe fn log_vprintf(
             event as libc::c_int,
         )
     }
-    (*context).cb.expect("non-null function pointer")(
-        context,
-        event,
-        data1 as uintptr_t,
-        msg as uintptr_t,
-    );
+    ((*context).cb)(context, event, data1 as uintptr_t, msg as uintptr_t);
     free(msg as *mut libc::c_void);
 }
 pub unsafe extern "C" fn dc_log_event_seq(

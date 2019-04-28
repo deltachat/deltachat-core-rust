@@ -1231,15 +1231,8 @@ pub unsafe fn isspace(mut _c: libc::c_int) -> libc::c_int {
 }
 
 #[inline]
-#[cfg(target_os = "macos")]
 pub unsafe fn tolower(mut _c: libc::c_int) -> libc::c_int {
     return __tolower(_c);
-}
-
-#[inline]
-#[cfg(not(target_os = "macos"))]
-pub unsafe fn tolower(mut _c: libc::c_int) -> libc::c_int {
-    return _tolower(_c);
 }
 
 #[inline]
@@ -1263,7 +1256,7 @@ pub unsafe fn carray_get(mut array: *mut carray, mut indx: libc::c_uint) -> *mut
  * @return return 0 unless stated otherwise in the event parameter documentation
  */
 pub type dc_callback_t =
-    Option<unsafe fn(_: *mut dc_context_t, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t>;
+    unsafe extern "C" fn(_: *mut dc_context_t, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
 
 pub const DC_MOVE_STATE_MOVING: libc::c_uint = 3;
 pub const DC_MOVE_STATE_STAY: libc::c_uint = 2;

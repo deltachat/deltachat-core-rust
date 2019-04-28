@@ -267,7 +267,7 @@ pub unsafe fn dc_receive_imf(
                                 }
                             }
                             if 0 != incoming {
-                                state = if 0 != flags as libc::c_long & 0x1i64 {
+                                state = if 0 != flags as libc::c_long & 0x1 {
                                     16i32
                                 } else {
                                     10i32
@@ -456,7 +456,7 @@ pub unsafe fn dc_receive_imf(
                                 chat_id,
                                 from_id,
                                 sent_timestamp,
-                                if 0 != flags as libc::c_long & 0x1i64 {
+                                if 0 != flags as libc::c_long & 0x1 {
                                     0i32
                                 } else {
                                     1i32
@@ -967,7 +967,7 @@ pub unsafe fn dc_receive_imf(
                             dc_contact_unref(contact);
                         }
                         if send_event {
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::LOCATION_CHANGED,
                                 from_id as uintptr_t,
@@ -1008,7 +1008,7 @@ pub unsafe fn dc_receive_imf(
             let mut icnt_0: size_t = carray_count(created_db_entries) as size_t;
             i_0 = 0i32 as size_t;
             while i_0 < icnt_0 {
-                (*context).cb.expect("non-null function pointer")(
+                ((*context).cb)(
                     context,
                     create_event_to_send,
                     carray_get(created_db_entries, i_0 as libc::c_uint) as uintptr_t,
@@ -1025,7 +1025,7 @@ pub unsafe fn dc_receive_imf(
         let mut icnt_1: size_t = carray_count(rr_event_to_send) as size_t;
         i_1 = 0i32 as size_t;
         while i_1 < icnt_1 {
-            (*context).cb.expect("non-null function pointer")(
+            ((*context).cb)(
                 context,
                 Event::MSG_READ,
                 carray_get(rr_event_to_send, i_1 as libc::c_uint) as uintptr_t,
@@ -1407,7 +1407,7 @@ unsafe fn create_or_lookup_group(
                             sqlite3_bind_int(stmt, 2i32, chat_id as libc::c_int);
                             sqlite3_step(stmt);
                             sqlite3_finalize(stmt);
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
@@ -1510,7 +1510,7 @@ unsafe fn create_or_lookup_group(
                             dc_reset_gossiped_timestamp(context, chat_id);
                         }
                         if 0 != send_EVENT_CHAT_MODIFIED {
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
@@ -1646,7 +1646,7 @@ unsafe fn create_or_lookup_adhoc_group(
                                 );
                                 i += 1
                             }
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,

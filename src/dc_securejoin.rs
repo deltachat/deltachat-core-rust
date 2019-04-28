@@ -217,7 +217,7 @@ pub unsafe fn dc_join_securejoin(
                         b"Taking protocol shortcut.\x00" as *const u8 as *const libc::c_char,
                     );
                     (*context).bob_expects = 6i32;
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::SECUREJOIN_JOINER_PROGRESS,
                         chat_id_2_contact_id(context, contact_chat_id) as uintptr_t,
@@ -449,7 +449,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         0i32,
                         b"Secure-join requested.\x00" as *const u8 as *const libc::c_char,
                     );
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
@@ -537,7 +537,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Fingerprint verified.\x00" as *const u8 as *const libc::c_char,
                         );
                         own_fingerprint = get_self_fingerprint(context);
-                        (*context).cb.expect("non-null function pointer")(
+                        ((*context).cb)(
                             context,
                             Event::SECUREJOIN_JOINER_PROGRESS,
                             contact_id as uintptr_t,
@@ -643,13 +643,13 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Auth verified.\x00" as *const u8 as *const libc::c_char,
                         );
                         secure_connection_established(context, contact_chat_id);
-                        (*context).cb.expect("non-null function pointer")(
+                        ((*context).cb)(
                             context,
                             Event::CONTACTS_CHANGED,
                             contact_id as uintptr_t,
                             0i32 as uintptr_t,
                         );
-                        (*context).cb.expect("non-null function pointer")(
+                        ((*context).cb)(
                             context,
                             Event::SECUREJOIN_INVITER_PROGRESS,
                             contact_id as uintptr_t,
@@ -692,7 +692,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 0 as *const libc::c_char,
                                 0 as *const libc::c_char,
                             );
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::SECUREJOIN_INVITER_PROGRESS,
                                 contact_id as uintptr_t,
@@ -788,7 +788,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                     current_block = 4378276786830486580;
                                 } else {
                                     dc_scaleup_contact_origin(context, contact_id, 0x2000000i32);
-                                    (*context).cb.expect("non-null function pointer")(
+                                    ((*context).cb)(
                                         context,
                                         Event::CONTACTS_CHANGED,
                                         0i32 as uintptr_t,
@@ -858,13 +858,13 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     );
                     current_block = 4378276786830486580;
                 } else {
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
                         800i32 as uintptr_t,
                     );
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
@@ -916,7 +916,7 @@ unsafe fn secure_connection_established(
         },
     );
     dc_add_device_msg(context, contact_chat_id, msg);
-    (*context).cb.expect("non-null function pointer")(
+    ((*context).cb)(
         context,
         Event::CHAT_MODIFIED,
         contact_chat_id as uintptr_t,
@@ -1070,7 +1070,7 @@ pub unsafe fn dc_handle_degrade_event(
                     dc_stock_str_repl_string(context, 37i32, (*peerstate).addr);
                 dc_add_device_msg(context, contact_chat_id, msg);
                 free(msg as *mut libc::c_void);
-                (*context).cb.expect("non-null function pointer")(
+                ((*context).cb)(
                     context,
                     Event::CHAT_MODIFIED,
                     contact_chat_id as uintptr_t,

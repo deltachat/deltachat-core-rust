@@ -653,7 +653,7 @@ pub unsafe fn dc_delete_msgs(
     }
     dc_sqlite3_commit((*context).sql);
     if 0 != msg_cnt {
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::MSGS_CHANGED,
             0i32 as uintptr_t,
@@ -734,7 +734,7 @@ pub unsafe fn dc_markseen_msgs(
         dc_sqlite3_commit((*context).sql);
         transaction_pending = 0i32;
         if 0 != send_event {
-            (*context).cb.expect("non-null function pointer")(
+            ((*context).cb)(
                 context,
                 Event::MSGS_CHANGED,
                 0i32 as uintptr_t,
@@ -1325,7 +1325,7 @@ pub unsafe fn dc_set_msg_failed(
         sqlite3_bind_text(stmt, 2i32, (*(*msg).param).packed, -1i32, None);
         sqlite3_bind_int(stmt, 3i32, msg_id as libc::c_int);
         sqlite3_step(stmt);
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::MSG_FAILED,
             (*msg).chat_id as uintptr_t,

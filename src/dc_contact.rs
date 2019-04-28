@@ -42,7 +42,7 @@ pub unsafe fn dc_marknoticed_contact(mut context: *mut dc_context_t, mut contact
     sqlite3_bind_int(stmt, 1i32, contact_id as libc::c_int);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-    (*context).cb.expect("non-null function pointer")(
+    ((*context).cb)(
         context,
         Event::MSGS_CHANGED,
         0i32 as uintptr_t,
@@ -144,7 +144,7 @@ pub unsafe fn dc_create_contact(
     {
         contact_id = dc_add_or_lookup_contact(context, name, addr, 0x4000000i32, &mut sth_modified);
         blocked = dc_is_contact_blocked(context, contact_id);
-        (*context).cb.expect("non-null function pointer")(
+        ((*context).cb)(
             context,
             Event::CONTACTS_CHANGED,
             (if sth_modified == 2i32 {
@@ -211,7 +211,7 @@ pub unsafe fn dc_block_contact(
             5249903830285462583 => {}
             _ => {
                 if 0 != send_event {
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::CONTACTS_CHANGED,
                         0i32 as uintptr_t,
@@ -572,7 +572,7 @@ pub unsafe fn dc_add_address_book(
             }
             dc_sqlite3_commit((*context).sql);
             if 0 != modify_cnt {
-                (*context).cb.expect("non-null function pointer")(
+                ((*context).cb)(
                     context,
                     Event::CONTACTS_CHANGED,
                     0i32 as uintptr_t,
@@ -929,7 +929,7 @@ pub unsafe fn dc_delete_contact(
                 );
                 sqlite3_bind_int(stmt, 1i32, contact_id as libc::c_int);
                 if !(sqlite3_step(stmt) != 101i32) {
-                    (*context).cb.expect("non-null function pointer")(
+                    ((*context).cb)(
                         context,
                         Event::CONTACTS_CHANGED,
                         0i32 as uintptr_t,

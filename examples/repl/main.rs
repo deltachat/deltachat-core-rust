@@ -77,7 +77,7 @@ use self::stress::*;
  ******************************************************************************/
 static mut s_do_log_info: libc::c_int = 1i32;
 
-unsafe fn receive_event(
+unsafe extern "C" fn receive_event(
     mut context: *mut dc_context_t,
     mut event: Event,
     mut data1: uintptr_t,
@@ -396,7 +396,7 @@ unsafe extern "C" fn read_cmd() -> *mut libc::c_char {
 unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> libc::c_int {
     let mut cmd: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut context: *mut dc_context_t = dc_context_new(
-        Some(receive_event),
+        receive_event,
         0 as *mut libc::c_void,
         b"CLI\x00" as *const u8 as *const libc::c_char,
     );

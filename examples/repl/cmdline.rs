@@ -132,7 +132,7 @@ pub unsafe extern "C" fn dc_reset_tables(
             b"(8) Rest but server config reset.\x00" as *const u8 as *const libc::c_char,
         );
     }
-    (*context).cb.expect("non-null function pointer")(
+    ((*context).cb)(
         context,
         Event::MSGS_CHANGED,
         0i32 as uintptr_t,
@@ -380,7 +380,7 @@ unsafe extern "C" fn poke_spec(
                             real_spec,
                         );
                         if read_cnt > 0i32 {
-                            (*context).cb.expect("non-null function pointer")(
+                            ((*context).cb)(
                                 context,
                                 Event::MSGS_CHANGED,
                                 0i32 as uintptr_t,
@@ -1749,12 +1749,8 @@ pub unsafe extern "C" fn dc_cmdline(
         } else if strcmp(cmd, b"event\x00" as *const u8 as *const libc::c_char) == 0i32 {
             if !arg1.is_null() {
                 let mut event = Event::from_u32(atoi(arg1) as u32).unwrap();
-                let mut r: uintptr_t = (*context).cb.expect("non-null function pointer")(
-                    context,
-                    event,
-                    0i32 as uintptr_t,
-                    0i32 as uintptr_t,
-                );
+                let mut r: uintptr_t =
+                    ((*context).cb)(context, event, 0i32 as uintptr_t, 0i32 as uintptr_t);
                 ret = dc_mprintf(
                     b"Sending event %i, received value %i.\x00" as *const u8 as *const libc::c_char,
                     event as libc::c_int,

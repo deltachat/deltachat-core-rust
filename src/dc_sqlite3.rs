@@ -1222,7 +1222,6 @@ pub unsafe fn dc_sqlite3_rollback(_sql: *mut dc_sqlite3_t) {}
 
 /* housekeeping */
 pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
-    let mut keep_files_newer_than: time_t = 0;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut dir_handle: *mut DIR = 0 as *mut DIR;
     let mut dir_entry: *mut dirent = 0 as *mut dirent;
@@ -1294,7 +1293,9 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
         );
     } else {
         /* avoid deletion of files that are just created to build a message object */
-        keep_files_newer_than = time(0 as *mut time_t) - (60i32 * 60i32) as libc::c_long;
+        let diff = std::time::Duration::from_secs(60 * 60);
+        let keep_files_newer_than = std::time::SystemTime::now().checked_sub(diff).unwrap();
+
         loop {
             dir_entry = readdir(dir_handle);
             if dir_entry.is_null() {
@@ -1336,45 +1337,25 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
                 (*context).blobdir,
                 name,
             );
-            let mut st: stat = stat {
-                st_dev: 0,
-                st_mode: 0,
-                st_nlink: 0,
-                st_ino: 0,
-                st_uid: 0,
-                st_gid: 0,
-                st_rdev: 0,
-                st_atime: 0,
-                st_atime_nsec: 0,
-                st_mtime: 0,
-                st_mtime_nsec: 0,
-                st_ctime: 0,
-                st_ctime_nsec: 0,
-                st_birthtime: 0,
-                st_birthtime_nsec: 0,
-                st_size: 0,
-                st_blocks: 0,
-                st_blksize: 0,
-                st_flags: 0,
-                st_gen: 0,
-                st_lspare: 0,
-                st_qspare: [0; 2],
-            };
-            if stat(path, &mut st) == 0i32 {
-                if st.st_mtime > keep_files_newer_than
-                    || st.st_atime > keep_files_newer_than
-                    || st.st_ctime > keep_files_newer_than
-                {
-                    dc_log_info(
-                        context,
-                        0i32,
-                        b"Housekeeping: Keeping new unreferenced file #%i: %s\x00" as *const u8
-                            as *const libc::c_char,
-                        unreferenced_count,
-                        name,
-                    );
-                    continue;
+
+            match std::fs::metadata(std::ffi::CStr::from_ptr(path).to_str().unwrap()) {
+                Ok(stats) => {
+                    if stats.created().unwrap() > keep_files_newer_than
+                        || stats.modified().unwrap() > keep_files_newer_than
+                        || stats.accessed().unwrap() > keep_files_newer_than
+                    {
+                        dc_log_info(
+                            context,
+                            0i32,
+                            b"Housekeeping: Keeping new unreferenced file #%i: %s\x00" as *const u8
+                                as *const libc::c_char,
+                            unreferenced_count,
+                            name,
+                        );
+                        continue;
+                    }
                 }
+                Err(_) => {}
             }
             dc_log_info(
                 context,

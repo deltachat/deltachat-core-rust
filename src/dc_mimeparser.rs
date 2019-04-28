@@ -1261,8 +1261,10 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                             (*part).type_0 = 10i32;
                                             (*part).int_mimetype = mime_type;
                                             (*part).msg = simplified_txt;
-                                            (*part).msg_raw =
-                                                strndup(decoded_data, decoded_data_bytes as u64);
+                                            (*part).msg_raw = strndup(
+                                                decoded_data,
+                                                decoded_data_bytes as libc::c_ulong,
+                                            );
                                             do_add_single_part(mimeparser, part);
                                             part = 0 as *mut dc_mimepart_t
                                         } else {

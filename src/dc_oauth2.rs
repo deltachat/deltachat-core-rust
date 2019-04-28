@@ -253,7 +253,7 @@ pub unsafe fn dc_get_oauth2_access_token(
                         b"$REFRESH_TOKEN\x00" as *const u8 as *const libc::c_char,
                         refresh_token,
                     );
-                    json = (*context).cb.expect("non-null function pointer")(
+                    json = ((*context).cb)(
                         context,
                         Event::HTTP_POST,
                         token_url as uintptr_t,
@@ -554,7 +554,7 @@ unsafe fn get_oauth2_addr(
             b"$ACCESS_TOKEN\x00" as *const u8 as *const libc::c_char,
             access_token,
         );
-        json = (*context).cb.expect("non-null function pointer")(
+        json = ((*context).cb)(
             context,
             Event::HTTP_GET,
             userinfo_url as uintptr_t,

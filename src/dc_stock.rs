@@ -22,7 +22,7 @@ unsafe fn get_string(
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     if !context.is_null() {
-        ret = (*context).cb.expect("non-null function pointer")(
+        ret = ((*context).cb)(
             context,
             Event::GET_STRING,
             id as uintptr_t,
