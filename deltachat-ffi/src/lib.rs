@@ -6,21 +6,33 @@
     non_camel_case_types,
     non_snake_case
 )]
+
+extern crate deltachat;
+extern crate libc;
+
 use deltachat::*;
-use libc;
 
 pub const DC_VERSION_STR: &'static str = "0.43.0\x00";
 
-// TODO: dc_context_new (wrt callback)
 // TODO: constants
 
 // dc_context_t
 
-#[no_mangle]
 pub type dc_context_t = dc_context::dc_context_t;
 
+pub type dc_callback_t = types::dc_callback_t;
+
 #[no_mangle]
-pub unsafe extern "C" fn dc_context_unref(context: *mut dc_context::dc_context_t) {
+pub unsafe extern "C" fn dc_context_new(
+    cb: dc_callback_t,
+    userdata: *mut libc::c_void,
+    os_name: *const libc::c_char,
+) -> *mut dc_context_t {
+    dc_context::dc_context_new(cb, userdata, os_name)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_context_unref(context: *mut dc_context_t) {
     dc_context::dc_context_unref(context)
 }
 

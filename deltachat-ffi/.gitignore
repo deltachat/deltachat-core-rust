@@ -2,4 +2,3 @@
 **/*.rs.bk
 Cargo.lock
 .profile
-*.h
