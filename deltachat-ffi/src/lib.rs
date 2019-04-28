@@ -687,7 +687,7 @@ pub unsafe extern "C" fn dc_array_unref(a: *mut dc_array::dc_array_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_add_uint(array: *mut dc_array_t, item: libc::c_ulong) {
+pub unsafe extern "C" fn dc_array_add_uint(array: *mut dc_array_t, item: libc::uintptr_t) {
     dc_array::dc_array_add_uint(array, item)
 }
 #[no_mangle]
@@ -700,83 +700,83 @@ pub unsafe extern "C" fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut lib
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_get_cnt(array: *const dc_array_t) -> libc::c_ulong {
+pub unsafe extern "C" fn dc_array_get_cnt(array: *const dc_array_t) -> libc::size_t {
     dc_array::dc_array_get_cnt(array)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_uint(
     array: *const dc_array_t,
-    index: libc::c_ulong,
-) -> libc::c_ulong {
+    index: libc::size_t,
+) -> libc::uintptr_t {
     dc_array::dc_array_get_uint(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_id(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::c_uint {
     dc_array::dc_array_get_id(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_ptr(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> *mut libc::c_void {
     dc_array::dc_array_get_ptr(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_latitude(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::c_double {
     dc_array::dc_array_get_latitude(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_longitude(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::c_double {
     dc_array::dc_array_get_longitude(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_accuracy(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::c_double {
     dc_array::dc_array_get_accuracy(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_timestamp(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::c_long {
     dc_array::dc_array_get_timestamp(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_chat_id(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::c_uint {
     dc_array::dc_array_get_chat_id(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_contact_id(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::c_uint {
     dc_array::dc_array_get_contact_id(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_msg_id(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::c_uint {
     dc_array::dc_array_get_msg_id(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_marker(
     array: *const dc_array_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> *mut libc::c_char {
     dc_array::dc_array_get_marker(array, index)
 }
@@ -785,12 +785,12 @@ pub unsafe extern "C" fn dc_array_get_marker(
 pub unsafe extern "C" fn dc_array_search_id(
     array: *const dc_array_t,
     needle: libc::c_uint,
-    ret_index: *mut libc::c_ulong,
+    ret_index: *mut libc::size_t,
 ) -> libc::c_int {
     dc_array::dc_array_search_id(array, needle, ret_index)
 }
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const libc::c_ulong {
+pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const libc::size_t {
     dc_array::dc_array_get_raw(array)
 }
 
@@ -807,14 +807,14 @@ pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist::dc_chatli
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_cnt(
     chatlist: *mut dc_chatlist::dc_chatlist_t,
-) -> libc::c_ulong {
+) -> libc::size_t {
     dc_chatlist::dc_chatlist_get_cnt(chatlist)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_chat_id(
     chatlist: *mut dc_chatlist::dc_chatlist_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::uint32_t {
     dc_chatlist::dc_chatlist_get_chat_id(chatlist, index)
 }
@@ -822,7 +822,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_msg_id(
     chatlist: *mut dc_chatlist::dc_chatlist_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
 ) -> libc::uint32_t {
     dc_chatlist::dc_chatlist_get_msg_id(chatlist, index)
 }
@@ -830,7 +830,7 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_summary(
     chatlist: *mut dc_chatlist::dc_chatlist_t,
-    index: libc::c_ulong,
+    index: libc::size_t,
     chat: *mut dc_chat::dc_chat_t,
 ) -> *mut dc_lot::dc_lot_t {
     dc_chatlist::dc_chatlist_get_summary(chatlist, index, chat)
