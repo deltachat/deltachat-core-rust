@@ -973,19 +973,17 @@ pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg::dc_msg_t) -> libc::c
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::int64_t {
+pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::time_t {
     dc_msg::dc_msg_get_timestamp(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_received_timestamp(
-    msg: *mut dc_msg::dc_msg_t,
-) -> libc::int64_t {
+pub unsafe extern "C" fn dc_msg_get_received_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::time_t {
     dc_msg::dc_msg_get_received_timestamp(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::int64_t {
+pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::time_t {
     dc_msg::dc_msg_get_sort_timestamp(msg)
 }
 
