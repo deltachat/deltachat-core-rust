@@ -12,10 +12,451 @@ use libc;
 pub const DC_VERSION_STR: &'static str = "0.43.0\x00";
 
 
+// TODO: dc_context_new (wrt callback)
+// TODO: constants
+ 
+
 // dc_context_t
 
 #[no_mangle]
 pub type dc_context_t = dc_context::dc_context_t;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_context_unref(context: *mut dc_context::dc_context_t) {
+    dc_context::dc_context_unref(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_userdata(context: *mut dc_context::dc_context_t) -> *mut libc::c_void {
+    dc_context::dc_get_userdata(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_open(context: *mut dc_context::dc_context_t, dbfile: *mut libc::c_char, blobdir: *mut libc::c_char) -> libc::c_int {
+    dc_context::dc_open(context, dbfile, blobdir)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_close(context: *mut dc_context::dc_context_t) {
+    dc_context::dc_close(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_is_open(context: *mut dc_context::dc_context_t) -> libc::c_int {
+    dc_context::dc_is_open(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_blobdir(context: *mut dc_context::dc_context_t)-> *mut libc::c_char {
+    dc_context::dc_get_blobdir(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_set_config(context: *mut dc_context::dc_context_t, key: *mut libc::c_char, value: *mut libc::c_char) -> libc::c_int {
+    dc_context::dc_set_config(context, key, value)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_config(context: *mut dc_context::dc_context_t, key: *mut libc::c_char)-> *mut libc::c_char {
+    dc_context::dc_get_config(context, key)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_info(context: *mut dc_context::dc_context_t)-> *mut libc::c_char {
+    dc_context::dc_get_info(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_oauth2_url(context: *mut dc_context::dc_context_t, addr: *mut libc::c_char, redirect: *mut libc::c_char)-> *mut libc::c_char {
+    dc_oauth2::dc_get_oauth2_url(context, addr, redirect)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_version_str()-> *mut libc::c_char {
+    dc_context::dc_get_version_str()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_configure(context: *mut dc_context::dc_context_t) {
+    dc_configure::dc_configure(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context::dc_context_t) -> libc::c_int {
+    dc_configure::dc_is_configured(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_imap_jobs(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_imap_jobs(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_imap_fetch(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_imap_fetch(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_imap_idle(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_imap_idle(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_interrupt_imap_idle(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_interrupt_imap_idle(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_mvbox_fetch(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_mvbox_fetch(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_mvbox_idle(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_mvbox_idle(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_interrupt_mvbox_idle(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_interrupt_mvbox_idle(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_sentbox_fetch(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_sentbox_fetch(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_sentbox_idle(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_sentbox_idle(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_interrupt_sentbox_idle(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_interrupt_sentbox_idle(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_smtp_jobs(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_smtp_jobs(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_perform_smtp_idle(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_perform_smtp_idle(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_interrupt_smtp_idle(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_interrupt_smtp_idle(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context::dc_context_t) {
+    dc_job::dc_maybe_network(context)
+}
+
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_chatlist(context: *mut dc_context::dc_context_t, flags: libc::c_int, query_str: *mut libc::c_char, query_id: libc::uint32_t) -> *mut dc_chatlist::dc_chatlist_t {
+    dc_chatlist::dc_get_chatlist(context, flags, query_str, query_id)
+}
+
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context::dc_context_t, msg_id: libc::uint32_t) -> libc::uint32_t {
+    dc_chat::dc_create_chat_by_msg_id(context, msg_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_create_chat_by_contact_id(context: *mut dc_context::dc_context_t, contact_id: libc::uint32_t) -> libc::uint32_t {
+    dc_chat::dc_create_chat_by_contact_id(context, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(context: *mut dc_context::dc_context_t, contact_id: libc::uint32_t) -> libc::uint32_t {
+    dc_chat::dc_get_chat_id_by_contact_id(context, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_prepare_msg(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+    dc_chat::dc_prepare_msg(context, chat_id, msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_send_msg(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+    dc_chat::dc_send_msg(context, chat_id, msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_send_text_msg(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, text_to_send: *mut libc::c_char) -> libc::uint32_t {
+    dc_chat::dc_send_text_msg(context, chat_id, text_to_send)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_set_draft(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, msg: *mut dc_msg::dc_msg_t) {
+    dc_chat::dc_set_draft(context, chat_id, msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t) -> *mut dc_msg::dc_msg_t {
+    dc_chat::dc_get_draft(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_chat_msgs(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, flags: libc::uint32_t, marker1before: libc::uint32_t) -> *mut dc_array::dc_array_t {
+    dc_chat::dc_get_chat_msgs(context, chat_id, flags, marker1before)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t) -> libc::c_int {
+    dc_chat::dc_get_msg_cnt(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_fresh_msg_cnt(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t) -> libc::c_int {
+    dc_chat::dc_get_fresh_msg_cnt(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_fresh_msgs(context: *mut dc_context::dc_context_t) -> *mut dc_array::dc_array_t {
+    dc_context::dc_get_fresh_msgs(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t) {
+    dc_chat::dc_marknoticed_chat(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context::dc_context_t) {
+    dc_chat::dc_marknoticed_all_chats(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_chat_media(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, msg_type: libc::c_int, or_msg_type2: libc::c_int, or_msg_type3: libc::c_int) -> *mut dc_array::dc_array_t {
+    dc_chat::dc_get_chat_media(context, chat_id, msg_type, or_msg_type2, or_msg_type3)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_next_media(context: *mut dc_context::dc_context_t, msg_id: libc::uint32_t, dir: libc::c_int, msg_type: libc::c_int, or_msg_type2: libc::c_int, or_msg_type3: libc::c_int) -> libc::uint32_t {
+    dc_chat::dc_get_next_media(context, msg_id, dir, msg_type, or_msg_type2, or_msg_type3)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_archive_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, archive: libc::c_int) {
+    dc_chat::dc_archive_chat(context, chat_id, archive)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t) {
+    dc_chat::dc_delete_chat(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_chat_contacts(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t)-> *mut dc_array::dc_array_t {
+    dc_chat::dc_get_chat_contacts(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_search_msgs(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, query: *mut libc::c_char)-> *mut dc_array::dc_array_t {
+    dc_context::dc_search_msgs(context, chat_id, query)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t)-> *mut dc_chat::dc_chat_t {
+    dc_chat::dc_get_chat(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_create_group_chat(context: *mut dc_context::dc_context_t, verified: libc::c_int, name: *mut libc::c_char) -> libc::uint32_t {
+    dc_chat::dc_create_group_chat(context, verified, name)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_is_contact_in_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, contact_id: libc::uint32_t) -> libc::c_int {
+    dc_chat::dc_is_contact_in_chat(context, chat_id, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_add_contact_to_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, contact_id: libc::uint32_t) -> libc::c_int {
+    dc_chat::dc_add_contact_to_chat(context, chat_id, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_remove_contact_from_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, contact_id: libc::uint32_t) -> libc::c_int {
+    dc_chat::dc_remove_contact_from_chat(context, chat_id, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_set_chat_name(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, name: *mut libc::c_char) -> libc::c_int {
+    dc_chat::dc_set_chat_name(context, chat_id, name)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_set_chat_profile_image(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, image: *mut libc::c_char) -> libc::c_int {
+    dc_chat::dc_set_chat_profile_image(context, chat_id, image)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_msg_info(context: *mut dc_context::dc_context_t, msg_id: libc::uint32_t)-> *mut libc::c_char {
+    dc_msg::dc_get_msg_info(context, msg_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_mime_headers(context: *mut dc_context::dc_context_t, msg_id: libc::uint32_t)-> *mut libc::c_char {
+    dc_msg::dc_get_mime_headers(context, msg_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_delete_msgs(context: *mut dc_context::dc_context_t, msg_ids: *const libc::uint32_t, msg_cnt: libc::c_int) {
+    dc_msg::dc_delete_msgs(context, msg_ids, msg_cnt)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_forward_msgs(context: *mut dc_context::dc_context_t, msg_ids: *const libc::uint32_t, msg_cnt: libc::c_int, chat_id: libc::uint32_t) {
+    dc_chat::dc_forward_msgs(context, msg_ids, msg_cnt, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_marknoticed_contact(context: *mut dc_context::dc_context_t, contact_id: libc::uint32_t) {
+    dc_contact::dc_marknoticed_contact(context, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_markseen_msgs(context: *mut dc_context::dc_context_t, msg_ids: *const libc::uint32_t, msg_cnt: libc::c_int) {
+    dc_msg::dc_markseen_msgs(context, msg_ids, msg_cnt)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_star_msgs(context: *mut dc_context::dc_context_t, msg_ids: *const libc::uint32_t, msg_cnt: libc::c_int, star: libc::c_int) {
+    dc_msg::dc_star_msgs(context, msg_ids, msg_cnt, star)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_msg(context: *mut dc_context::dc_context_t, msg_id: libc::uint32_t) -> *mut dc_msg::dc_msg_t {
+    dc_msg::dc_get_msg(context, msg_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *mut libc::c_char) -> libc::c_int {
+    dc_contact::dc_may_be_valid_addr(addr)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(context: *mut dc_context::dc_context_t, addr: *mut libc::c_char) -> libc::uint32_t {
+    dc_contact::dc_lookup_contact_id_by_addr(context, addr)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_create_contact(context: *mut dc_context::dc_context_t, name: *mut libc::c_char, addr: *mut libc::c_char) -> libc::uint32_t {
+    dc_contact::dc_create_contact(context, name, addr)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_add_address_book(context: *mut dc_context::dc_context_t, addr_book: *mut libc::c_char) -> libc::c_int {
+    dc_contact::dc_add_address_book(context, addr_book)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_contacts(context: *mut dc_context::dc_context_t, flags: libc::uint32_t, query: *mut libc::c_char) -> *mut dc_array::dc_array_t {
+    dc_contact::dc_get_contacts(context, flags, query)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_blocked_cnt(context: *mut dc_context::dc_context_t) -> libc::c_int {
+    dc_contact::dc_get_blocked_cnt(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_blocked_contacts(context: *mut dc_context::dc_context_t) -> *mut dc_array::dc_array_t {
+    dc_contact::dc_get_blocked_contacts(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_block_contact(context: *mut dc_context::dc_context_t, contact_id: libc::uint32_t, block: libc::c_int) {
+    dc_contact::dc_block_contact(context, contact_id, block)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_contact_encrinfo(context: *mut dc_context::dc_context_t, contact_id: libc::uint32_t)-> *mut libc::c_char {
+    dc_contact::dc_get_contact_encrinfo(context, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_delete_contact(context: *mut dc_context::dc_context_t, contact_id: libc::uint32_t) -> libc::c_int {
+    dc_contact::dc_delete_contact(context, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_contact(context: *mut dc_context::dc_context_t, contact_id: libc::uint32_t) -> *mut dc_contact::dc_contact_t {
+    dc_contact::dc_get_contact(context, contact_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_imex(context: *mut dc_context::dc_context_t, what: libc::c_int, param1: *mut libc::c_char, param2: *mut libc::c_char) {
+    dc_imex::dc_imex(context, what, param1, param2)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_imex_has_backup(context: *mut dc_context::dc_context_t, dir: *mut libc::c_char) -> *mut libc::c_char {
+    dc_imex::dc_imex_has_backup(context, dir)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context::dc_context_t) -> *mut libc::c_char {
+    dc_imex::dc_initiate_key_transfer(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_continue_key_transfer(context: *mut dc_context::dc_context_t, msg_id: libc::uint32_t, setup_code: *mut libc::c_char) -> libc::c_int {
+    dc_imex::dc_continue_key_transfer(context, msg_id, setup_code)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_stop_ongoing_process(context: *mut dc_context::dc_context_t) {
+    dc_configure::dc_stop_ongoing_process(context)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_check_qr(context: *mut dc_context::dc_context_t, qr: *mut libc::c_char) -> *mut dc_lot::dc_lot_t {
+    dc_qr::dc_check_qr(context, qr)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_securejoin_qr(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t)-> *mut libc::c_char {
+    dc_securejoin::dc_get_securejoin_qr(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_join_securejoin(context: *mut dc_context::dc_context_t, qr: *mut libc::c_char) -> libc::uint32_t {
+    dc_securejoin::dc_join_securejoin(context, qr)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_send_locations_to_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, seconds: libc::c_int) {
+    dc_location::dc_send_locations_to_chat(context, chat_id, seconds)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_is_sending_locations_to_chat(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t) -> libc::c_int {
+    dc_location::dc_is_sending_locations_to_chat(context, chat_id)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_set_location(context: *mut dc_context::dc_context_t, latitude: libc::c_double, longitude: libc::c_double, accuracy: libc::c_double) -> libc::c_int {
+    dc_location::dc_set_location(context, latitude, longitude, accuracy)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_locations(context: *mut dc_context::dc_context_t, chat_id: libc::uint32_t, contact_id: libc::uint32_t, timestamp_begin: libc::time_t, timestamp_end: libc::time_t) -> *mut dc_array::dc_array_t {
+    dc_location::dc_get_locations(context, chat_id, contact_id, timestamp_begin, timestamp_end)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context::dc_context_t) {
+    dc_location::dc_delete_all_locations(context)
+}
 
 
 // dc_array_t
@@ -178,9 +619,366 @@ pub unsafe extern "C" fn dc_chatlist_get_context(chatlist: *mut dc_chatlist::dc_
 #[no_mangle]
 pub type dc_chat_t = dc_chat::dc_chat_t;
 
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat::dc_chat_t) {
+    dc_chat::dc_chat_unref(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat::dc_chat_t) -> libc::uint32_t {
+    dc_chat::dc_chat_get_id(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+    dc_chat::dc_chat_get_type(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat::dc_chat_t) -> *mut libc::c_char {
+    dc_chat::dc_chat_get_name(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat::dc_chat_t) -> *mut libc::c_char {
+    dc_chat::dc_chat_get_subtitle(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat::dc_chat_t) -> *mut libc::c_char {
+    dc_chat::dc_chat_get_profile_image(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat::dc_chat_t) -> libc::uint32_t {
+    dc_chat::dc_chat_get_color(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+    dc_chat::dc_chat_get_archived(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+    dc_chat::dc_chat_is_unpromoted(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_self_talk(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+    dc_chat::dc_chat_is_self_talk(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat::dc_chat_t)-> libc::c_int {
+    dc_chat::dc_chat_is_verified(chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+    dc_chat::dc_chat_is_sending_locations(chat)
+}
+
+
+// dc_msg_t
+
+#[no_mangle]
+pub type dc_msg_t = dc_msg::dc_msg_t;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_new(context: *mut dc_context::dc_context_t, viewtype: libc::c_int) -> *mut dc_msg::dc_msg_t {
+    dc_msg::dc_msg_new(context, viewtype)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_unref (msg: *mut dc_msg::dc_msg_t) {
+    dc_msg::dc_msg_unref(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_empty (msg: *mut dc_msg::dc_msg_t) {
+    dc_msg::dc_msg_empty(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_id (msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+    dc_msg::dc_msg_get_id(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_from_id (msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+    dc_msg::dc_msg_get_from_id(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_chat_id (msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+    dc_msg::dc_msg_get_chat_id(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_viewtype (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_viewtype(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_state (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_state(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_timestamp (msg: *mut dc_msg::dc_msg_t) -> libc::int64_t {
+    dc_msg::dc_msg_get_timestamp(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_received_timestamp (msg: *mut dc_msg::dc_msg_t) -> libc::int64_t {
+    dc_msg::dc_msg_get_received_timestamp(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_sort_timestamp (msg: *mut dc_msg::dc_msg_t) -> libc::int64_t {
+    dc_msg::dc_msg_get_sort_timestamp(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_text (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_text(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_file (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_file(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_filename (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_filename(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_filemime (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_filemime(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_filebytes (msg: *mut dc_msg::dc_msg_t) -> libc::uint64_t {
+    dc_msg::dc_msg_get_filebytes(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_width (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_width(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_height (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_height(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_duration (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_duration(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_showpadlock (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_get_showpadlock(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_summary (msg: *mut dc_msg::dc_msg_t, chat: *mut dc_chat::dc_chat_t) -> *mut dc_lot::dc_lot_t {
+    dc_msg::dc_msg_get_summary(msg, chat)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_summarytext (msg: *mut dc_msg::dc_msg_t, approx_characters: libc::c_int) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_summarytext(msg, approx_characters)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_has_deviating_timestamp(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_has_location (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_has_location(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_sent (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_sent(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_starred (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_starred(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_forwarded (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_forwarded(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_info (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_info(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_increation (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_increation(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_is_setupmessage (msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    dc_msg::dc_msg_is_setupmessage(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_get_setupcodebegin (msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    dc_msg::dc_msg_get_setupcodebegin(msg)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_text (msg: *mut dc_msg::dc_msg_t, text: *mut libc::c_char) {
+    dc_msg::dc_msg_set_text(msg, text)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_file (msg: *mut dc_msg::dc_msg_t, file: *mut libc::c_char, filemime: *mut libc::c_char) {
+    dc_msg::dc_msg_set_file(msg, file, filemime)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_dimension(msg: *mut dc_msg::dc_msg_t, width: libc::c_int, height: libc::c_int) {
+    dc_msg::dc_msg_set_dimension(msg, width, height)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_duration (msg: *mut dc_msg::dc_msg_t, duration: libc::c_int) {
+    dc_msg::dc_msg_set_duration(msg, duration)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_set_location (msg: *mut dc_msg::dc_msg_t, latitude: libc::c_double, longitude: libc::c_double) {
+    dc_msg::dc_msg_set_location(msg, latitude, longitude)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_msg_latefiling_mediasize (msg: *mut dc_msg::dc_msg_t, width: libc::c_int, height: libc::c_int, duration: libc::c_int) {
+    dc_msg::dc_msg_latefiling_mediasize(msg, width, height, duration)
+}
+
+
+// dc_contact_t
+
+#[no_mangle]
+pub type dc_contact_t = dc_contact::dc_contact_t;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_unref(contact: *mut dc_contact::dc_contact_t) {
+    dc_contact::dc_contact_unref(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_id(contact: *mut dc_contact::dc_contact_t) -> libc::uint32_t {
+    dc_contact::dc_contact_get_id(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_addr(contact: *mut dc_contact::dc_contact_t) -> *mut libc::c_char {
+    dc_contact::dc_contact_get_addr(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_name(contact: *mut dc_contact::dc_contact_t) -> *mut libc::c_char {
+    dc_contact::dc_contact_get_name(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_display_name(contact: *mut dc_contact::dc_contact_t) -> *mut libc::c_char {
+    dc_contact::dc_contact_get_display_name(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_name_n_addr(contact: *mut dc_contact::dc_contact_t) -> *mut libc::c_char {
+    dc_contact::dc_contact_get_name_n_addr(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_first_name(contact: *mut dc_contact::dc_contact_t) -> *mut libc::c_char {
+    dc_contact::dc_contact_get_first_name(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_profile_image(contact: *mut dc_contact::dc_contact_t) -> *mut libc::c_char {
+    dc_contact::dc_contact_get_profile_image(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_get_color(contact: *mut dc_contact::dc_contact_t) -> libc::uint32_t {
+    dc_contact::dc_contact_get_color(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_is_blocked(contact: *mut dc_contact::dc_contact_t) -> libc::c_int {
+    dc_contact::dc_contact_is_blocked(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact::dc_contact_t) -> libc::c_int {
+    dc_contact::dc_contact_is_verified(contact)
+}
+
 
 // dc_lot_t
 
 #[no_mangle]
 pub type dc_lot_t = dc_lot::dc_lot_t;
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_new()-> *mut dc_lot::dc_lot_t {
+    dc_lot::dc_lot_new()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_empty(lot: *mut dc_lot::dc_lot_t) {
+    dc_lot::dc_lot_empty(lot)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_unref(lot: *mut dc_lot::dc_lot_t) {
+    dc_lot::dc_lot_unref(lot)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_get_text1(lot: *mut dc_lot::dc_lot_t) -> *mut libc::c_char {
+    dc_lot::dc_lot_get_text1(lot)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_get_text2(lot: *mut dc_lot::dc_lot_t) -> *mut libc::c_char {
+    dc_lot::dc_lot_get_text2(lot)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_get_text1_meaning(lot: *mut dc_lot::dc_lot_t) -> libc::c_int {
+    dc_lot::dc_lot_get_text1_meaning(lot)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_get_state(lot: *mut dc_lot::dc_lot_t) -> libc::c_int {
+    dc_lot::dc_lot_get_state(lot)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_get_id(lot: *mut dc_lot::dc_lot_t) -> libc::uint32_t {
+    dc_lot::dc_lot_get_id(lot)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot::dc_lot_t) -> libc::time_t {
+    dc_lot::dc_lot_get_timestamp(lot)
+}
 
