@@ -315,9 +315,9 @@ pub unsafe extern "C" fn dc_render_setup_file(
             let mut payload_key_asc: *mut libc::c_char = dc_key_render_asc(
                 curr_private_key,
                 if 0 != e2ee_enabled {
-                    b"Autocrypt-Prefer-Encrypt: mutual\r\n\x00" as *const u8 as *const libc::c_char
+                    Some(("Autocrypt-Prefer-Encrypt", "mutual"))
                 } else {
-                    0 as *const libc::c_char
+                    None
                 },
             );
             if !payload_key_asc.is_null() {

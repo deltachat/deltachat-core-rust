@@ -3173,11 +3173,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     let ah: *mut dc_aheader_t = dc_aheader_new();
     let rendered: *mut libc::c_char;
     let mut ah_ok: libc::c_int;
-    ah_ok = dc_aheader_set_from_string(
-        ah,
-        b"addr=a@b.example.org; prefer-encrypt=mutual; keydata=RGVsdGEgQ2hhdA==\x00" as *const u8
-            as *const libc::c_char,
-    );
+    let fixed_header = b"addr=a@b.example.org; prefer-encrypt=mutual; keydata= xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJgWL7O3y/g 4HdDW/dN2z26Y6W13IMzx9gLInn1KQZChtqWAcr/ReUucXcymwcfg1mdkBGk3TSLeLihN6CJx8Wsv8 ig+kgAzte4f5rqEEAJVQ9WZHuti7UiYs6oRzqTo06CRe9owVXxzdMf0VDQtf7ZFm9dpzKKbhH7Lu88 80iiotQ9/yRCkDGp9fNThsrLdZiK6OIAcIBAqi2rI89aS1dAmnRbktQieCx5izzyYkR1KvVL3gTTll HOzfKVEC2asmtWu2e4se/+O4WMIS1eGrn7GeWVb0Vwc5ABEBAAHNETxhQEBiLmV4YW1wbGUuZGU+ws CJBBABCAAzAhkBBQJcxt5FAhsDBAsJCAcGFQgJCgsCAxYCARYhBI4xxYKBgH3ANh5cufaKrc9mtiML AAoJEPaKrc9mtiML938H/18F+3Wf9/JaAy/8hCO1v4S2PVBhxaKCokaNFtkfaMRne2l087LscCFPiF Nyb4mv6Z3YeK8Xpxlp2sI0ecvdiqLUOGfnxS6tQrj+83EjtIrZ/hXOk1h121QFWH9Zg2VNHtODXjAg dLDC0NWUrclR0ZOqEDQHeo0ibTILdokVfXFN25wakPmGaYJP2y729cb1ve7RzvIvwn+Dddfxo3ao72 rBfLi7l4NQ4S0KsY4cw+/6l5bRCKYCP77wZtvCwUvfVVosLdT43agtSiBI49+ayqvZ8OCvSJa61i+v 81brTiEy9GBod4eAp45Ibsuemkw+gon4ZOvUXHTjwFB+h63MrozOwE0EXMbePQEIAL/vauf1zK8JgC u3V+G+SOX0iWw5xUlCPX+ERpBbWfwu3uAqn4wYXD3JDE/fVAF668xiV4eTPtlSUd5h0mn+G7uXMMOt kb+20SoEt50f8zw8TrL9t+ZsV11GKZWJpCar5AhXWsn6EEi8I2hLL5vn55ZZmHuGgN4jjmkRl3ToKC LhaXwTBjCJem7N5EH7F75wErEITa55v4Lb4Nfca7vnvtYrI1OA446xa8gHra0SINelTD09/JM/Fw4s WVPBaRZmJK/Tnu79N23No9XBUubmFPv1pNexZsQclicnTpt/BEWhiun7d6lfGB63K1aoHRTR1pcrWv BuALuuz0gqar2zlI0AEQEAAcLAdgQYAQgAIAUCXMbeRQIbDBYhBI4xxYKBgH3ANh5cufaKrc9mtiML AAoJEPaKrc9mtiMLKSEIAIyLCRO2OyZ0IYRvRPpMn4p7E+7Pfcz/0mSkOy+1hshgJnqivXurm8zwGr wdMqeV4eslKR9H1RUdWGUQJNbtwmmjrt5DHpIhYHl5t3FpCBaGbV20Omo00Q38lBl9MtrmZkZw+ktE k6X+0xCKssMF+2MADkSOIufbR5HrDVB89VZOHCO9DeXvCUUAw2hyJiL/LHmLzJ40zYoTmb+F//f0k0 j+tRdbkefyRoCmwG7YGiT+2hnCdgcezswnzah5J3ZKlrg7jOGo1LxtbvNUzxNBbC6S/aNgwm6qxo7x egRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc=";
+    ah_ok = dc_aheader_set_from_string(ah, fixed_header as *const u8 as *const libc::c_char);
     if 0 != !(ah_ok == 1i32) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -3204,21 +3201,9 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !((*(*ah).public_key).bytes == 10i32
-        && strncmp(
-            (*(*ah).public_key).binary as *mut libc::c_char,
-            b"Delta Chat\x00" as *const u8 as *const libc::c_char,
-            10,
-        ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                               &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                     b"../cmdline/stress.c\x00" as *const u8 as
-                         *const libc::c_char, 771i32,
-                     b"ah->public_key->bytes==10 && strncmp((char*)ah->public_key->binary, \"Delta Chat\", 10)==0\x00"
-                         as *const u8 as *const libc::c_char);
-    } else {
-    };
+
+    assert_eq!((*(*ah).public_key).bytes, 1212);
+
     if 0 != !((*ah).prefer_encrypt == 1i32) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -3229,22 +3214,15 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
+
     rendered = dc_aheader_render(ah);
-    if 0 != !(!rendered.is_null()
-        && strcmp(
-            rendered,
-            b"addr=a@b.example.org; prefer-encrypt=mutual; keydata= RGVsdGEgQ2hhdA==\x00"
-                as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                               &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                     b"../cmdline/stress.c\x00" as *const u8 as
-                         *const libc::c_char, 775i32,
-                     b"rendered && strcmp(rendered, \"addr=a@b.example.org; prefer-encrypt=mutual; keydata= RGVsdGEgQ2hhdA==\")==0\x00"
-                         as *const u8 as *const libc::c_char);
-    } else {
-    };
+
+    assert!(!rendered.is_null());
+    assert_eq!(
+        std::ffi::CStr::from_ptr(rendered).to_str().unwrap(),
+        std::str::from_utf8(fixed_header).unwrap()
+    );
+
     ah_ok =
         dc_aheader_set_from_string(ah,
                                    b" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = RG VsdGEgQ\r\n2hhdA==\x00"
@@ -3275,6 +3253,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
+
     if 0 != !((*(*ah).public_key).bytes == 10i32
         && strncmp(
             (*(*ah).public_key).binary as *mut libc::c_char,

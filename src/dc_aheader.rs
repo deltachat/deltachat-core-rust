@@ -261,12 +261,8 @@ pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::
         // TODO replace 78 with enum /rtn
         /* adds a whitespace every 78 characters, this allows libEtPan to wrap the lines according to RFC 5322
         (which may insert a linebreak before every whitespace) */
-        keybase64_wrapped = dc_key_render_base64(
-            (*aheader).public_key,
-            78,
-            b" \x00" as *const u8 as *const libc::c_char,
-            0,
-        );
+        keybase64_wrapped = dc_key_render_base64((*aheader).public_key, 78);
+
         if !keybase64_wrapped.is_null() {
             /*no checksum*/
             dc_strbuilder_cat(&mut ret, keybase64_wrapped);
