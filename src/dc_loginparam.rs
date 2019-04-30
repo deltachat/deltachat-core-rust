@@ -13,12 +13,12 @@ pub struct dc_loginparam_t {
     pub mail_server: *mut libc::c_char,
     pub mail_user: *mut libc::c_char,
     pub mail_pw: *mut libc::c_char,
-    pub mail_port: uint16_t,
+    pub mail_port: i32,
     pub send_server: *mut libc::c_char,
     pub send_user: *mut libc::c_char,
     pub send_pw: *mut libc::c_char,
-    pub send_port: libc::c_int,
-    pub server_flags: libc::c_int,
+    pub send_port: i32,
+    pub server_flags: i32,
 }
 
 pub unsafe fn dc_loginparam_new() -> *mut dc_loginparam_t {
@@ -45,7 +45,7 @@ pub unsafe fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
     (*loginparam).addr = 0 as *mut libc::c_char;
     free((*loginparam).mail_server as *mut libc::c_void);
     (*loginparam).mail_server = 0 as *mut libc::c_char;
-    (*loginparam).mail_port = 0i32 as uint16_t;
+    (*loginparam).mail_port = 0i32;
     free((*loginparam).mail_user as *mut libc::c_void);
     (*loginparam).mail_user = 0 as *mut libc::c_char;
     free((*loginparam).mail_pw as *mut libc::c_void);
@@ -86,7 +86,7 @@ pub unsafe fn dc_loginparam_read(
         prefix,
         b"mail_port\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).mail_port = dc_sqlite3_get_config_int(sql, key, 0i32) as uint16_t;
+    (*loginparam).mail_port = dc_sqlite3_get_config_int(sql, key, 0i32);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
@@ -164,7 +164,7 @@ pub unsafe fn dc_loginparam_write(
         prefix,
         b"mail_port\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config_int(sql, key, (*loginparam).mail_port as int32_t);
+    dc_sqlite3_set_config_int(sql, key, (*loginparam).mail_port);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
@@ -247,7 +247,7 @@ pub unsafe fn dc_loginparam_get_readable(
         } else {
             unset
         },
-        (*loginparam).mail_port as libc::c_int,
+        (*loginparam).mail_port,
         if !(*loginparam).send_user.is_null() {
             (*loginparam).send_user
         } else {

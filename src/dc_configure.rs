@@ -268,7 +268,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                         /* 2.  Autoconfig
                                          **************************************************************************/
                                         if (*param).mail_server.is_null()
-                                            && (*param).mail_port as libc::c_int == 0i32
+                                            && (*param).mail_port == 0i32
                                             && (*param).send_server.is_null()
                                             && (*param).send_port == 0i32
                                             && (*param).send_user.is_null()
@@ -690,16 +690,15 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                         param_domain,
                                                     )
                                                 }
-                                                if (*param).mail_port as libc::c_int == 0i32 {
-                                                    (*param).mail_port = (if 0
+                                                if (*param).mail_port == 0i32 {
+                                                    (*param).mail_port = if 0
                                                         != (*param).server_flags
                                                             & (0x100i32 | 0x400i32)
                                                     {
                                                         143i32
                                                     } else {
                                                         993i32
-                                                    })
-                                                        as uint16_t
+                                                    }
                                                 }
                                                 if (*param).mail_user.is_null() {
                                                     (*param).mail_user = dc_strdup((*param).addr)
@@ -786,7 +785,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                 /* do we have a complete configuration? */
                                                 if (*param).addr.is_null()
                                                     || (*param).mail_server.is_null()
-                                                    || (*param).mail_port as libc::c_int == 0i32
+                                                    || (*param).mail_port == 0i32
                                                     || (*param).mail_user.is_null()
                                                     || (*param).mail_pw.is_null()
                                                     || (*param).send_server.is_null()
@@ -911,7 +910,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                                 as uintptr_t,
                                                             0i32 as uintptr_t,
                                                         );
-                                                        (*param).mail_port = 143i32 as uint16_t;
+                                                        (*param).mail_port = 143i32;
                                                         let mut r_2: *mut libc::c_char =
                                                             dc_loginparam_get_readable(param);
                                                         dc_log_info(
@@ -959,7 +958,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
                                                         (*param).server_flags &=
                                                             !(0x100i32 | 0x200i32 | 0x400i32);
                                                         (*param).server_flags |= 0x200i32;
-                                                        (*param).mail_port = 993i32 as uint16_t;
+                                                        (*param).mail_port = 993i32;
                                                         let mut at: *mut libc::c_char =
                                                             strchr((*param).mail_user, '@' as i32);
                                                         if !at.is_null() {
@@ -1689,7 +1688,7 @@ unsafe fn moz_autoconfigure(
             dc_saxparser_set_text_handler(&mut saxparser, Some(moz_autoconfigure_text_cb));
             dc_saxparser_parse(&mut saxparser, xml_raw);
             if (*moz_ac.out).mail_server.is_null()
-                || (*moz_ac.out).mail_port as libc::c_int == 0i32
+                || (*moz_ac.out).mail_port == 0i32
                 || (*moz_ac.out).send_server.is_null()
                 || (*moz_ac.out).send_port == 0i32
             {
@@ -1741,7 +1740,7 @@ unsafe fn moz_autoconfigure_text_cb(
                 (*(*moz_ac).out).mail_server = val;
                 val = 0 as *mut libc::c_char
             }
-            11 => (*(*moz_ac).out).mail_port = atoi(val) as uint16_t,
+            11 => (*(*moz_ac).out).mail_port = atoi(val),
             12 => {
                 free((*(*moz_ac).out).mail_user as *mut libc::c_void);
                 (*(*moz_ac).out).mail_user = val;
@@ -1957,7 +1956,7 @@ unsafe fn outlk_autodiscover(
     match current_block {
         11584701595673473500 => {
             if (*outlk_ad.out).mail_server.is_null()
-                || (*outlk_ad.out).mail_port as libc::c_int == 0i32
+                || (*outlk_ad.out).mail_port == 0i32
                 || (*outlk_ad.out).send_server.is_null()
                 || (*outlk_ad.out).send_port == 0i32
             {
@@ -2025,7 +2024,7 @@ unsafe fn outlk_autodiscover_endtag_cb(
                 && (*outlk_ad).out_imap_set == 0i32
             {
                 (*(*outlk_ad).out).mail_server = dc_strdup_keep_null((*outlk_ad).config[2usize]);
-                (*(*outlk_ad).out).mail_port = port as uint16_t;
+                (*(*outlk_ad).out).mail_port = port;
                 if 0 != ssl_on {
                     (*(*outlk_ad).out).server_flags |= 0x200i32
                 } else if 0 != ssl_off {
