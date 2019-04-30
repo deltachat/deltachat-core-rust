@@ -21,7 +21,8 @@ pub unsafe fn dc_aheader_new() -> *mut dc_aheader_t {
     let mut aheader = calloc(1, ::std::mem::size_of::<dc_aheader_t>()) as *mut dc_aheader_t;
 
     if aheader.is_null() {
-        exit(37i32);
+        // TODO replace with enum (hardcoded in deltachat-core) /rtn
+        exit(37);
     }
 
     (*aheader).public_key = dc_key_new();
@@ -55,11 +56,11 @@ pub unsafe fn dc_aheader_new_from_imffields(
                 && strcasecmp(
                     (*optional_field).fld_name,
                     b"Autocrypt\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
+                ) == 0
             {
                 let mut test = dc_aheader_new();
                 if 0 == dc_aheader_set_from_string(test, (*optional_field).fld_value)
-                    || dc_addr_cmp((*test).addr, wanted_from) != 0i32
+                    || dc_addr_cmp((*test).addr, wanted_from) != 0
                 {
                     dc_aheader_unref(test);
                     test = 0 as *mut dc_aheader_t
@@ -80,7 +81,8 @@ pub unsafe fn dc_aheader_new_from_imffields(
             0 as *mut clistcell_s
         }
     }
-    return fine_header;
+
+    fine_header
 }
 
 pub unsafe fn dc_aheader_unref(mut aheader: *mut dc_aheader_t) {
@@ -107,11 +109,11 @@ pub unsafe fn dc_aheader_set_from_string(
     let mut beg_attr_name = 0 as *mut libc::c_char;
     let mut after_attr_name = 0 as *mut libc::c_char;
     let mut beg_attr_value = 0 as *mut libc::c_char;
-    let mut success: libc::c_int = 0i32;
+    let mut success: libc::c_int = 0;
 
     dc_aheader_empty(aheader);
     if !(aheader.is_null() || header_str__.is_null()) {
-        (*aheader).prefer_encrypt = 0i32;
+        (*aheader).prefer_encrypt = 0;
         header_str = dc_strdup(header_str__);
         p = header_str;
         loop {
@@ -155,7 +157,7 @@ pub unsafe fn dc_aheader_set_from_string(
             9271062167157603455 => {}
             _ => {
                 if !(*aheader).addr.is_null() && !(*(*aheader).public_key).binary.is_null() {
-                    success = 1i32
+                    success = 1
                 }
             }
         }
@@ -172,14 +174,14 @@ pub unsafe fn dc_aheader_empty(mut aheader: *mut dc_aheader_t) {
     if aheader.is_null() {
         return;
     }
-    (*aheader).prefer_encrypt = 0i32;
+    (*aheader).prefer_encrypt = 0;
     free((*aheader).addr as *mut libc::c_void);
     (*aheader).addr = 0 as *mut libc::c_char;
 
     if !(*(*aheader).public_key).binary.is_null() {
         dc_key_unref((*aheader).public_key);
         (*aheader).public_key = dc_key_new()
-    };
+    }
 }
 
 /* ******************************************************************************
@@ -191,46 +193,47 @@ unsafe fn add_attribute(
     mut name: *const libc::c_char,
     mut value: *const libc::c_char,
 ) -> libc::c_int {
-    if strcasecmp(name, b"addr\x00" as *const u8 as *const libc::c_char) == 0i32 {
+    if strcasecmp(name, b"addr\x00" as *const u8 as *const libc::c_char) == 0 {
         if value.is_null() || 0 == dc_may_be_valid_addr(value) || !(*aheader).addr.is_null() {
-            return 0i32;
+            return 0;
         }
         (*aheader).addr = dc_addr_normalize(value);
-        return 1i32;
+        return 1;
     } else {
         if strcasecmp(
             name,
             b"prefer-encrypt\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32
+        ) == 0
         {
             if !value.is_null()
-                && strcasecmp(value, b"mutual\x00" as *const u8 as *const libc::c_char) == 0i32
+                && strcasecmp(value, b"mutual\x00" as *const u8 as *const libc::c_char) == 0
             {
-                (*aheader).prefer_encrypt = 1i32;
-                return 1i32;
+                (*aheader).prefer_encrypt = 1;
+                return 1;
             }
-            return 1i32;
+            return 1;
         } else {
-            if strcasecmp(name, b"keydata\x00" as *const u8 as *const libc::c_char) == 0i32 {
+            if strcasecmp(name, b"keydata\x00" as *const u8 as *const libc::c_char) == 0 {
                 if value.is_null()
                     || !(*(*aheader).public_key).binary.is_null()
                     || 0 != (*(*aheader).public_key).bytes
                 {
-                    return 0i32;
+                    return 0;
                 }
-                return dc_key_set_from_base64((*aheader).public_key, value, 0i32);
+                return dc_key_set_from_base64((*aheader).public_key, value, 0);
             } else {
                 if *name.offset(0isize) as libc::c_int == '_' as i32 {
-                    return 1i32;
+                    return 1;
                 }
             }
         }
     }
-    return 0i32;
+
+    0
 }
 
 pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::c_char {
-    let mut success: libc::c_int = 0i32;
+    let mut success: libc::c_int = 0;
     let mut keybase64_wrapped: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -238,16 +241,16 @@ pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::
         free: 0,
         eos: 0 as *mut libc::c_char,
     };
-    dc_strbuilder_init(&mut ret, 0i32);
+    dc_strbuilder_init(&mut ret, 0);
     if !(aheader.is_null()
         || (*aheader).addr.is_null()
         || (*(*aheader).public_key).binary.is_null()
-        || (*(*aheader).public_key).type_0 != 0i32)
+        || (*(*aheader).public_key).type_0 != 0)
     {
         dc_strbuilder_cat(&mut ret, b"addr=\x00" as *const u8 as *const libc::c_char);
         dc_strbuilder_cat(&mut ret, (*aheader).addr);
         dc_strbuilder_cat(&mut ret, b"; \x00" as *const u8 as *const libc::c_char);
-        if (*aheader).prefer_encrypt == 1i32 {
+        if (*aheader).prefer_encrypt == 1 {
             dc_strbuilder_cat(
                 &mut ret,
                 b"prefer-encrypt=mutual; \x00" as *const u8 as *const libc::c_char,
@@ -257,18 +260,19 @@ pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::
             &mut ret,
             b"keydata= \x00" as *const u8 as *const libc::c_char,
         );
+        // TODO replace 78 with enum /rtn
         /* adds a whitespace every 78 characters, this allows libEtPan to wrap the lines according to RFC 5322
         (which may insert a linebreak before every whitespace) */
         keybase64_wrapped = dc_key_render_base64(
             (*aheader).public_key,
-            78i32,
+            78,
             b" \x00" as *const u8 as *const libc::c_char,
-            0i32,
+            0,
         );
         if !keybase64_wrapped.is_null() {
             /*no checksum*/
             dc_strbuilder_cat(&mut ret, keybase64_wrapped);
-            success = 1i32
+            success = 1
         }
     }
 
