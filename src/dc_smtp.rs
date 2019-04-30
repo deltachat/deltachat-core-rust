@@ -16,21 +16,24 @@ pub struct dc_smtp_t {
     pub from: *mut libc::c_char,
     pub esmtp: libc::c_int,
     pub log_connect_errors: libc::c_int,
+    // TODO: Remvoe
     pub context: *mut dc_context_t,
     pub error: *mut libc::c_char,
     pub error_etpan: libc::c_int,
 }
 
-pub unsafe fn dc_smtp_new(mut context: *mut dc_context_t) -> *mut dc_smtp_t {
-    let mut smtp: *mut dc_smtp_t = 0 as *mut dc_smtp_t;
-    smtp = calloc(1, ::std::mem::size_of::<dc_smtp_t>()) as *mut dc_smtp_t;
-    if smtp.is_null() {
-        exit(29i32);
+pub fn dc_smtp_new() -> dc_smtp_t {
+    dc_smtp_t {
+        etpan: std::ptr::null_mut(),
+        from: std::ptr::null_mut(),
+        esmtp: 0,
+        log_connect_errors: 1,
+        context: std::ptr::null_mut(),
+        error: std::ptr::null_mut(),
+        error_etpan: 0,
     }
-    (*smtp).log_connect_errors = 1i32;
-    (*smtp).context = context;
-    return smtp;
 }
+
 pub unsafe fn dc_smtp_unref(mut smtp: *mut dc_smtp_t) {
     if smtp.is_null() {
         return;

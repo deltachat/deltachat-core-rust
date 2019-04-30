@@ -527,17 +527,6 @@ unsafe fn load_or_generate_self_public_key(
             } else {
                 key_creation_here = 1i32;
                 s_in_key_creation = 1i32;
-                /* seed the random generator */
-                let mut seed: [uintptr_t; 4] = [0; 4];
-                seed[0usize] = time(0 as *mut time_t) as uintptr_t;
-                seed[1usize] = seed.as_mut_ptr() as uintptr_t;
-                seed[2usize] = public_key as uintptr_t;
-                seed[3usize] = pthread_self() as uintptr_t;
-                dc_pgp_rand_seed(
-                    context,
-                    seed.as_mut_ptr() as *const libc::c_void,
-                    ::std::mem::size_of::<[uintptr_t; 4]>(),
-                );
                 if !random_data_mime.is_null() {
                     let mut random_data_mmap: *mut MMAPString = 0 as *mut MMAPString;
                     let mut col: libc::c_int = 0i32;
@@ -546,11 +535,6 @@ unsafe fn load_or_generate_self_public_key(
                         current_block = 10496152961502316708;
                     } else {
                         mailmime_write_mem(random_data_mmap, &mut col, random_data_mime);
-                        dc_pgp_rand_seed(
-                            context,
-                            (*random_data_mmap).str_0 as *const libc::c_void,
-                            (*random_data_mmap).len,
-                        );
                         mmap_string_free(random_data_mmap);
                         current_block = 26972500619410423;
                     }

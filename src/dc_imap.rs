@@ -1,4 +1,5 @@
 use libc;
+use std::sync::{Condvar, Mutex};
 
 use crate::constants::Event;
 use crate::dc_context::dc_context_t;
@@ -11,28 +12,25 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_imap_t {
     pub addr: *mut libc::c_char,
     pub imap_server: *mut libc::c_char,
-    pub imap_port: libc::c_int,
+    pub imap_port: i32,
     pub imap_user: *mut libc::c_char,
     pub imap_pw: *mut libc::c_char,
-    pub server_flags: libc::c_int,
-    pub connected: libc::c_int,
+    pub server_flags: i32,
+    pub connected: i32,
     pub etpan: *mut mailimap,
-    pub idle_set_up: libc::c_int,
+    pub idle_set_up: i32,
     pub selected_folder: *mut libc::c_char,
-    pub selected_folder_needs_expunge: libc::c_int,
-    pub should_reconnect: libc::c_int,
-    pub can_idle: libc::c_int,
-    pub has_xlist: libc::c_int,
+    pub selected_folder_needs_expunge: i32,
+    pub should_reconnect: i32,
+    pub can_idle: i32,
+    pub has_xlist: i32,
     pub imap_delimiter: libc::c_char,
     pub watch_folder: *mut libc::c_char,
-    pub watch_cond: pthread_cond_t,
-    pub watch_condmutex: pthread_mutex_t,
-    pub watch_condflag: libc::c_int,
+    pub watch: (Mutex<bool>, Condvar),
     pub fetch_type_prefetch: *mut mailimap_fetch_type,
     pub fetch_type_body: *mut mailimap_fetch_type,
     pub fetch_type_flags: *mut mailimap_fetch_type,
@@ -40,66 +38,75 @@ pub struct dc_imap_t {
     pub set_config: dc_set_config_t,
     pub precheck_imf: dc_precheck_imf_t,
     pub receive_imf: dc_receive_imf_t,
-    pub userData: *mut libc::c_void,
+    // TODO: remove
     pub context: *mut dc_context_t,
-    pub log_connect_errors: libc::c_int,
-    pub skip_log_capabilities: libc::c_int,
+    pub log_connect_errors: i32,
+    pub skip_log_capabilities: i32,
 }
 
 pub unsafe fn dc_imap_new(
-    mut get_config: dc_get_config_t,
-    mut set_config: dc_set_config_t,
-    mut precheck_imf: dc_precheck_imf_t,
-    mut receive_imf: dc_receive_imf_t,
-    mut userData: *mut libc::c_void,
-    mut context: *mut dc_context_t,
-) -> *mut dc_imap_t {
-    let mut imap: *mut dc_imap_t = 0 as *mut dc_imap_t;
-    imap = calloc(1, ::std::mem::size_of::<dc_imap_t>()) as *mut dc_imap_t;
-    if imap.is_null() {
-        exit(25i32);
-    }
-    (*imap).log_connect_errors = 1i32;
-    (*imap).context = context;
-    (*imap).get_config = get_config;
-    (*imap).set_config = set_config;
-    (*imap).precheck_imf = precheck_imf;
-    (*imap).receive_imf = receive_imf;
-    (*imap).userData = userData;
-    pthread_mutex_init(
-        &mut (*imap).watch_condmutex,
-        0 as *const pthread_mutexattr_t,
-    );
-    pthread_cond_init(&mut (*imap).watch_cond, 0 as *const pthread_condattr_t);
-    (*imap).watch_folder = calloc(1, 1) as *mut libc::c_char;
-    (*imap).selected_folder = calloc(1, 1) as *mut libc::c_char;
-    (*imap).fetch_type_prefetch = mailimap_fetch_type_new_fetch_att_list_empty();
+    get_config: dc_get_config_t,
+    set_config: dc_set_config_t,
+    precheck_imf: dc_precheck_imf_t,
+    receive_imf: dc_receive_imf_t,
+) -> dc_imap_t {
+    let mut imap = dc_imap_t {
+        addr: std::ptr::null_mut(),
+        imap_server: std::ptr::null_mut(),
+        imap_port: 0,
+        imap_user: std::ptr::null_mut(),
+        imap_pw: std::ptr::null_mut(),
+        server_flags: 0,
+        connected: 0,
+        etpan: std::ptr::null_mut(),
+        idle_set_up: 0,
+        selected_folder: calloc(1, 1) as *mut libc::c_char,
+        selected_folder_needs_expunge: 0,
+        should_reconnect: 0,
+        can_idle: 0,
+        has_xlist: 0,
+        imap_delimiter: 0 as libc::c_char,
+        watch_folder: calloc(1, 1) as *mut libc::c_char,
+        watch: (Mutex::new(false), Condvar::new()),
+        fetch_type_prefetch: mailimap_fetch_type_new_fetch_att_list_empty(),
+        fetch_type_body: mailimap_fetch_type_new_fetch_att_list_empty(),
+        fetch_type_flags: mailimap_fetch_type_new_fetch_att_list_empty(),
+        get_config,
+        set_config,
+        precheck_imf,
+        receive_imf,
+        // TODO: remove
+        context: std::ptr::null_mut(),
+        log_connect_errors: 1,
+        skip_log_capabilities: 0,
+    };
     mailimap_fetch_type_new_fetch_att_list_add(
-        (*imap).fetch_type_prefetch,
+        imap.fetch_type_prefetch,
         mailimap_fetch_att_new_uid(),
     );
     mailimap_fetch_type_new_fetch_att_list_add(
-        (*imap).fetch_type_prefetch,
+        imap.fetch_type_prefetch,
         mailimap_fetch_att_new_envelope(),
     );
-    (*imap).fetch_type_body = mailimap_fetch_type_new_fetch_att_list_empty();
+
     mailimap_fetch_type_new_fetch_att_list_add(
-        (*imap).fetch_type_body,
+        imap.fetch_type_body,
         mailimap_fetch_att_new_flags(),
     );
     mailimap_fetch_type_new_fetch_att_list_add(
-        (*imap).fetch_type_body,
+        imap.fetch_type_body,
         mailimap_fetch_att_new_body_peek_section(mailimap_section_new(
             0 as *mut mailimap_section_spec,
         )),
     );
-    (*imap).fetch_type_flags = mailimap_fetch_type_new_fetch_att_list_empty();
     mailimap_fetch_type_new_fetch_att_list_add(
         (*imap).fetch_type_flags,
         mailimap_fetch_att_new_flags(),
     );
-    return imap;
+
+    imap
 }
+
 pub unsafe fn dc_imap_unref(mut imap: *mut dc_imap_t) {
     if imap.is_null() {
         return;

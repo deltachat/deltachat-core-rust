@@ -51,11 +51,13 @@ pub unsafe fn dc_perform_imap_jobs(mut context: *mut dc_context_t) {
         0i32,
         b"INBOX-jobs started...\x00" as *const u8 as *const libc::c_char,
     );
-    pthread_mutex_lock(&mut (*context).inboxidle_condmutex);
+
+    let l = (*context).inboxidle_condmutex.lock().unwrap();
     let mut probe_imap_network: libc::c_int = (*context).probe_imap_network;
     (*context).probe_imap_network = 0i32;
     (*context).perform_inbox_jobs_needed = 0i32;
-    pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
+    drop(l);
+
     dc_job_perform(context, 100i32, probe_imap_network);
     dc_log_info(
         context,
@@ -934,9 +936,9 @@ pub unsafe fn dc_interrupt_imap_idle(mut context: *mut dc_context_t) {
         0i32,
         b"Interrupting IMAP-IDLE...\x00" as *const u8 as *const libc::c_char,
     );
-    pthread_mutex_lock(&mut (*context).inboxidle_condmutex);
+    let l = (*context).inboxidle_condmutex.lock().unwrap();
     (*context).perform_inbox_jobs_needed = 1i32;
-    pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
+    drop(l);
     dc_imap_interrupt_idle((*context).inbox);
 }
 unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(
@@ -1058,7 +1060,7 @@ pub unsafe fn dc_perform_imap_idle(mut context: *mut dc_context_t) {
         return;
     }
     connect_to_inbox(context);
-    pthread_mutex_lock(&mut (*context).inboxidle_condmutex);
+    let l = (*context).inboxidle_condmutex.lock().unwrap();
     if 0 != (*context).perform_inbox_jobs_needed {
         dc_log_info(
             context,
@@ -1066,10 +1068,10 @@ pub unsafe fn dc_perform_imap_idle(mut context: *mut dc_context_t) {
             b"INBOX-IDLE will not be started because of waiting jobs.\x00" as *const u8
                 as *const libc::c_char,
         );
-        pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
+        drop(l);
         return;
     }
-    pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
+    drop(l);
     dc_log_info(
         context,
         0i32,
@@ -1251,9 +1253,9 @@ pub unsafe fn dc_maybe_network(mut context: *mut dc_context_t) {
     pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
     (*context).probe_smtp_network = 1i32;
     pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
-    pthread_mutex_lock(&mut (*context).inboxidle_condmutex);
+    let l = (*context).inboxidle_condmutex.lock().unwrap();
     (*context).probe_imap_network = 1i32;
-    pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
+    drop(l);
     dc_interrupt_smtp_idle(context);
     dc_interrupt_imap_idle(context);
     dc_interrupt_mvbox_idle(context);

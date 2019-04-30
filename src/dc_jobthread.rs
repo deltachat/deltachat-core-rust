@@ -1,3 +1,5 @@
+use std::sync::{Condvar, Mutex};
+
 use libc;
 
 use crate::dc_configure::*;
@@ -10,52 +12,47 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-#[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_jobthread_t {
+    // TODO: remove
     pub context: *mut dc_context_t,
     pub name: *mut libc::c_char,
     pub folder_config_name: *mut libc::c_char,
     pub imap: *mut dc_imap_t,
-    pub mutex: pthread_mutex_t,
-    pub idle_cond: pthread_cond_t,
-    pub idle_condflag: libc::c_int,
+    pub idle: (Mutex<bool>, Condvar),
     pub jobs_needed: libc::c_int,
     pub suspended: libc::c_int,
     pub using_handle: libc::c_int,
 }
 
 pub unsafe fn dc_jobthread_init(
-    mut jobthread: *mut dc_jobthread_t,
-    mut context: *mut dc_context_t,
-    mut name: *const libc::c_char,
-    mut folder_config_name: *const libc::c_char,
-) {
-    if jobthread.is_null() || context.is_null() || name.is_null() {
-        return;
+    name: *const libc::c_char,
+    folder_config_name: *const libc::c_char,
+    imap: *mut dc_imap_t,
+) -> dc_jobthread_t {
+    dc_jobthread_t {
+        context: std::ptr::null_mut(),
+        name: dc_strdup(name),
+        folder_config_name: dc_strdup(folder_config_name),
+        imap,
+        idle: (Mutex::new(false), Condvar::new()),
+        jobs_needed: 0i32,
+        suspended: 0i32,
+        using_handle: 0i32,
     }
-    (*jobthread).context = context;
-    (*jobthread).name = dc_strdup(name);
-    (*jobthread).folder_config_name = dc_strdup(folder_config_name);
-    (*jobthread).imap = 0 as *mut dc_imap_t;
-    pthread_mutex_init(&mut (*jobthread).mutex, 0 as *const pthread_mutexattr_t);
-    pthread_cond_init(&mut (*jobthread).idle_cond, 0 as *const pthread_condattr_t);
-    (*jobthread).idle_condflag = 0i32;
-    (*jobthread).jobs_needed = 0i32;
-    (*jobthread).suspended = 0i32;
-    (*jobthread).using_handle = 0i32;
 }
+
 pub unsafe fn dc_jobthread_exit(mut jobthread: *mut dc_jobthread_t) {
     if jobthread.is_null() {
         return;
     }
-    pthread_cond_destroy(&mut (*jobthread).idle_cond);
-    pthread_mutex_destroy(&mut (*jobthread).mutex);
+
     free((*jobthread).name as *mut libc::c_void);
     (*jobthread).name = 0 as *mut libc::c_char;
     free((*jobthread).folder_config_name as *mut libc::c_void);
     (*jobthread).folder_config_name = 0 as *mut libc::c_char;
 }
+
 pub unsafe fn dc_jobthread_suspend(mut jobthread: *mut dc_jobthread_t, mut suspend: libc::c_int) {
     if jobthread.is_null() {
         return;

@@ -793,11 +793,6 @@ pub unsafe fn dc_get_contact_encrinfo(
                 dc_strbuilder_cat(&mut ret, p);
                 free(p as *mut libc::c_void);
                 if (*self_key).binary.is_null() {
-                    dc_pgp_rand_seed(
-                        context,
-                        (*peerstate).addr as *const libc::c_void,
-                        strlen((*peerstate).addr),
-                    );
                     dc_ensure_secret_key_exists(context);
                     dc_key_load_self_public(self_key, (*loginparam).addr, (*context).sql);
                 }

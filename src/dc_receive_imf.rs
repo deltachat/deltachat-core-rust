@@ -25,12 +25,12 @@ use crate::types::*;
 use crate::x::*;
 
 pub unsafe fn dc_receive_imf(
-    mut context: *mut dc_context_t,
-    mut imf_raw_not_terminated: *const libc::c_char,
-    mut imf_raw_bytes: size_t,
-    mut server_folder: *const libc::c_char,
-    mut server_uid: uint32_t,
-    mut flags: uint32_t,
+    context: &dc_context_t,
+    imf_raw_not_terminated: *const libc::c_char,
+    imf_raw_bytes: size_t,
+    server_folder: *const libc::c_char,
+    server_uid: uint32_t,
+    flags: uint32_t,
 ) {
     let mut current_block: u64;
     /* the function returns the number of created messages in the database */
