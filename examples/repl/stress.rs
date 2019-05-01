@@ -2445,7 +2445,7 @@ pub unsafe extern "C" fn stress_functions(mut context: &dc_context_t) {
         );
     } else {
     };
-    let mut arr: &dc_array_t = dc_array_new(0 as *mut dc_context_t, 7i32 as size_t);
+    let mut arr = dc_array_new(7i32 as size_t);
     if 0 != !(dc_array_get_cnt(arr) == 0) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
