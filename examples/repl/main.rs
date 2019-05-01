@@ -380,7 +380,7 @@ unsafe extern "C" fn stop_threads(mut context: *mut dc_context_t) {
  ******************************************************************************/
 fn read_cmd() -> String {
     print!("> ");
-    io::stdout().flush();
+    io::stdout().flush().unwrap();
 
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap();
