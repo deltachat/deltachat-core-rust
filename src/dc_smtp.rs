@@ -48,7 +48,7 @@ pub unsafe fn dc_smtp_disconnect(smtp: &mut dc_smtp_t) {
     }
 }
 
-pub unsafe fn dc_smtp_is_connected(smtp: *const dc_smtp_t) -> libc::c_int {
+pub unsafe fn dc_smtp_is_connected(smtp: &dc_smtp_t) -> libc::c_int {
     if !smtp.etpan.is_null() {
         1
     } else {

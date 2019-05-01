@@ -833,8 +833,8 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job
     sqlite3_finalize(stmt_locations);
 }
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
-    mut context: *mut dc_context_t,
-    mut job: *mut dc_job_t,
+    mut context: &dc_context_t,
+    mut job: &mut dc_job_t,
 ) {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;

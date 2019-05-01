@@ -36,11 +36,7 @@ pub struct dc_context_t {
     pub sentbox_thread: dc_jobthread_t,
     pub mvbox_thread: dc_jobthread_t,
     pub smtp: Arc<Mutex<dc_smtp_t>>,
-    pub smtpidle: Arc<(Mutex<bool>, Condvar)>,
-    pub smtp_suspended: Arc<RwLock<i32>>,
-    pub smtp_doing_jobs: Arc<RwLock<i32>>,
-    pub perform_smtp_jobs_needed: Arc<RwLock<i32>>,
-    pub probe_smtp_network: Arc<RwLock<i32>>,
+    pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
     pub cb: dc_callback_t,
     pub os_name: *mut libc::c_char,
@@ -51,6 +47,15 @@ pub struct dc_context_t {
     pub last_smeared_timestamp: Arc<RwLock<Option<SystemTime>>>,
     pub ongoing_running: i32,
     pub shall_stop_ongoing: i32,
+}
+
+#[derive(Default, Debug)]
+pub struct SmtpState {
+    pub idle: bool,
+    pub suspended: i32,
+    pub doing_jobs: i32,
+    pub perform_jobs_needed: i32,
+    pub probe_network: i32,
 }
 
 // location handling
@@ -93,11 +98,7 @@ pub fn dc_context_new(
         shall_stop_ongoing: 1,
         sql: Arc::new(Mutex::new(dc_sqlite3_new())),
         smtp: Arc::new(Mutex::new(dc_smtp_new())),
-        smtpidle: Arc::new((Mutex::new(false), Condvar::new())),
-        smtp_suspended: Arc::new(RwLock::new(0)),
-        smtp_doing_jobs: Arc::new(RwLock::new(0)),
-        perform_smtp_jobs_needed: Arc::new(RwLock::new(0)),
-        probe_smtp_network: Arc::new(RwLock::new(0)),
+        smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
         oauth2_critical: Arc::new(Mutex::new(())),
         bob_expects: 0,
         bobs_status: 0,
