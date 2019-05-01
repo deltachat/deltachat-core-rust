@@ -19,6 +19,9 @@
     non_snake_case
 )]
 
+use std::ffi::CString;
+use std::io::{self, Write};
+
 use deltachat::constants::*;
 use deltachat::dc_aheader::*;
 use deltachat::dc_apeerstate::*;
@@ -375,21 +378,13 @@ unsafe extern "C" fn stop_threads(mut context: *mut dc_context_t) {
 /* ******************************************************************************
  * The main loop
  ******************************************************************************/
-#[cfg(not(target_os = "android"))]
-unsafe extern "C" fn read_cmd() -> *mut libc::c_char {
-    printf(b"> \x00" as *const u8 as *const libc::c_char);
-    static mut cmdbuffer: [libc::c_char; 1024] = [0; 1024];
-    fgets(cmdbuffer.as_mut_ptr(), 1000i32, __stdinp);
-    while strlen(cmdbuffer.as_mut_ptr()) > 0
-        && (cmdbuffer[strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1) as usize] as libc::c_int
-            == '\n' as i32
-            || cmdbuffer[strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1) as usize] as libc::c_int
-                == ' ' as i32)
-    {
-        cmdbuffer[strlen(cmdbuffer.as_mut_ptr()).wrapping_sub(1) as usize] =
-            '\u{0}' as i32 as libc::c_char
-    }
-    return cmdbuffer.as_mut_ptr();
+fn read_cmd() -> String {
+    print!("> ");
+    io::stdout().flush();
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap();
+    input.trim_end().to_string()
 }
 
 #[cfg(not(target_os = "android"))]
@@ -427,9 +422,9 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
     printf(b"Delta Chat Core is awaiting your commands.\n\x00" as *const u8 as *const libc::c_char);
     loop {
         /* read command */
-        let mut cmdline: *const libc::c_char = read_cmd();
+        let cmdline = read_cmd();
         free(cmd as *mut libc::c_void);
-        cmd = dc_strdup(cmdline);
+        cmd = dc_strdup(CString::new(cmdline.clone()).unwrap().as_ptr());
         let mut arg1: *mut libc::c_char = strchr(cmd, ' ' as i32);
         if !arg1.is_null() {
             *arg1 = 0i32 as libc::c_char;
@@ -524,7 +519,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
                 break;
             }
             if !(*cmd.offset(0isize) as libc::c_int == 0i32) {
-                let mut execute_result: *mut libc::c_char = dc_cmdline(context, cmdline);
+                let mut execute_result: *mut libc::c_char = dc_cmdline(context, &cmdline);
                 if !execute_result.is_null() {
                     printf(
                         b"%s\n\x00" as *const u8 as *const libc::c_char,
@@ -543,7 +538,6 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
     return 0i32;
 }
 
-#[cfg(not(target_os = "android"))]
 pub fn main() {
     let mut args: Vec<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
@@ -554,13 +548,12 @@ pub fn main() {
         );
     }
     args.push(::std::ptr::null_mut());
-    unsafe {
-        ::std::process::exit(main_0(
+
+    let res = unsafe {
+        main_0(
             (args.len() - 1) as libc::c_int,
             args.as_mut_ptr() as *mut *mut libc::c_char,
-        ) as i32)
-    }
+        )
+    };
+    ::std::process::exit(res)
 }
-
-#[cfg(target_os = "android")]
-fn main() {}

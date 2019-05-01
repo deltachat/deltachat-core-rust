@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use deltachat::constants::*;
 use deltachat::dc_aheader::*;
 use deltachat::dc_apeerstate::*;
@@ -600,17 +602,17 @@ unsafe extern "C" fn chat_prefix(mut chat: *const dc_chat_t) -> *const libc::c_c
 #[no_mangle]
 pub unsafe extern "C" fn dc_cmdline(
     mut context: *mut dc_context_t,
-    mut cmdline: *const libc::c_char,
+    cmdline: &str,
 ) -> *mut libc::c_char {
     let mut cmd: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut arg1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: *mut libc::c_char = 1i32 as *mut libc::c_char;
     let mut sel_chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
-    if !(context.is_null() || cmdline.is_null() || *cmdline.offset(0isize) as libc::c_int == 0i32) {
+    if !context.is_null() {
         if 0 != (*context).cmdline_sel_chat_id {
             sel_chat = dc_get_chat(context, (*context).cmdline_sel_chat_id)
         }
-        cmd = dc_strdup(cmdline);
+        cmd = dc_strdup(CString::new(cmdline).unwrap().as_ptr());
         arg1 = strchr(cmd, ' ' as i32);
         if !arg1.is_null() {
             *arg1 = 0i32 as libc::c_char;
