@@ -233,7 +233,7 @@ unsafe fn add_attribute(
 }
 
 pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::c_char {
-    let mut success: libc::c_int = 0;
+    let mut success: bool = false;
     let mut keybase64_wrapped: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -272,11 +272,11 @@ pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::
         if !keybase64_wrapped.is_null() {
             /*no checksum*/
             dc_strbuilder_cat(&mut ret, keybase64_wrapped);
-            success = 1
+            success = true;
         }
     }
 
-    if 0 == success {
+    if !success {
         free(ret.buf as *mut libc::c_void);
         ret.buf = 0 as *mut libc::c_char
     }
