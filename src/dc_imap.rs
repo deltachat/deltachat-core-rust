@@ -1250,7 +1250,6 @@ unsafe fn fake_idle(context: &dc_context_t, imap: &mut dc_imap_t) {
             }) as time_t;
         // FIXME
         // pthread_mutex_lock(&mut imap.watch_condmutex);
-        let mut r: libc::c_int = 0;
         let mut wakeup_at: timespec = timespec {
             tv_sec: 0,
             tv_nsec: 0,
@@ -1746,7 +1745,7 @@ pub unsafe fn dc_imap_delete_msg(
     imap: &mut dc_imap_t,
     rfc724_mid: *const libc::c_char,
     folder: *const libc::c_char,
-    server_uid: uint32_t,
+    mut server_uid: uint32_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0;
     let mut r: libc::c_int = 0;

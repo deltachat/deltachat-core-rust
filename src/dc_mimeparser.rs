@@ -35,7 +35,7 @@ pub struct dc_mimepart_t {
  */
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct dc_mimeparser_t {
+pub struct dc_mimeparser_t<'a> {
     pub parts: *mut carray,
     pub mimeroot: *mut mailmime,
     pub header: dc_hash_t,
@@ -47,7 +47,7 @@ pub struct dc_mimeparser_t {
     pub e2ee_helper: *mut dc_e2ee_helper_t,
     pub blobdir: *const libc::c_char,
     pub is_forwarded: libc::c_int,
-    pub context: *mut dc_context_t,
+    pub context: &'a dc_context_t,
     pub reports: *mut carray,
     pub is_system_message: libc::c_int,
     pub location_kml: *mut dc_kml_t,
@@ -61,8 +61,8 @@ pub unsafe fn dc_no_compound_msgs() {
 // deprecated: flag to switch generation of compound messages on and off.
 static mut s_generate_compound_msgs: libc::c_int = 1i32;
 pub unsafe fn dc_mimeparser_new(
-    mut blobdir: *const libc::c_char,
-    mut context: &dc_context_t,
+    blobdir: *const libc::c_char,
+    context: &dc_context_t,
 ) -> *mut dc_mimeparser_t {
     let mut mimeparser: *mut dc_mimeparser_t = 0 as *mut dc_mimeparser_t;
     mimeparser = calloc(1, ::std::mem::size_of::<dc_mimeparser_t>()) as *mut dc_mimeparser_t;

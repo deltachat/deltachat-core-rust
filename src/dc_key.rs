@@ -252,24 +252,26 @@ pub unsafe fn dc_key_equals(mut key: *const dc_key_t, mut o: *const dc_key_t) ->
     }
 }
 pub unsafe fn dc_key_save_self_keypair(
-    mut public_key: *const dc_key_t,
-    mut private_key: *const dc_key_t,
-    mut addr: *const libc::c_char,
-    mut is_default: libc::c_int,
-    mut sql: &mut dc_sqlite3_t,
+    context: &dc_context_t,
+    public_key: *const dc_key_t,
+    private_key: *const dc_key_t,
+    addr: *const libc::c_char,
+    is_default: libc::c_int,
+    sql: &mut dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(public_key.is_null()
         || private_key.is_null()
         || addr.is_null()
-        || sql.is_null()
         || (*public_key).binary.is_null()
         || (*private_key).binary.is_null())
     {
         stmt =
-            dc_sqlite3_prepare(sql,
-                               b"INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);\x00"
+            dc_sqlite3_prepare(
+                context,
+                sql,
+                b"INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);\x00"
                                    as *const u8 as *const libc::c_char);
         sqlite3_bind_text(stmt, 1i32, addr, -1i32, None);
         sqlite3_bind_int(stmt, 2i32, is_default);
@@ -290,15 +292,17 @@ pub unsafe fn dc_key_save_self_keypair(
     return success;
 }
 pub unsafe fn dc_key_load_self_public(
-    mut key: *mut dc_key_t,
-    mut self_addr: *const libc::c_char,
-    mut sql: &mut dc_sqlite3_t,
+    context: &dc_context_t,
+    key: *mut dc_key_t,
+    self_addr: *const libc::c_char,
+    sql: &mut dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(key.is_null() || self_addr.is_null() || sql.is_null()) {
+    if !(key.is_null() || self_addr.is_null()) {
         dc_key_empty(key);
         stmt = dc_sqlite3_prepare(
+            context,
             sql,
             b"SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
                 as *const libc::c_char,
@@ -313,15 +317,17 @@ pub unsafe fn dc_key_load_self_public(
     return success;
 }
 pub unsafe fn dc_key_load_self_private(
-    mut key: *mut dc_key_t,
-    mut self_addr: *const libc::c_char,
-    mut sql: &mut dc_sqlite3_t,
+    context: &dc_context_t,
+    key: *mut dc_key_t,
+    self_addr: *const libc::c_char,
+    sql: &mut dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(key.is_null() || self_addr.is_null() || sql.is_null()) {
+    if !(key.is_null() || self_addr.is_null()) {
         dc_key_empty(key);
         stmt = dc_sqlite3_prepare(
+            context,
             sql,
             b"SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
                 as *const libc::c_char,
@@ -469,7 +475,7 @@ pub unsafe fn dc_key_render_asc_to_file(
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut file_content: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(key.is_null() || file.is_null() || context.is_null()) {
+    if !(key.is_null() || file.is_null()) {
         file_content = dc_key_render_asc(key, 0 as *const libc::c_char);
         if !file_content.is_null() {
             if 0 == dc_write_file(
@@ -546,12 +552,17 @@ pub unsafe fn dc_normalize_fingerprint(mut in_0: *const libc::c_char) -> *mut li
     }
     return out.buf;
 }
-pub unsafe fn dc_key_get_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_char {
+pub unsafe fn dc_key_get_fingerprint(
+    context: &dc_context_t,
+    key: *const dc_key_t,
+) -> *mut libc::c_char {
     let mut fingerprint_buf: *mut uint8_t = 0 as *mut uint8_t;
     let mut fingerprint_bytes: size_t = 0i32 as size_t;
     let mut fingerprint_hex: *mut libc::c_char = 0 as *mut libc::c_char;
     if !key.is_null() {
-        if !(0 == dc_pgp_calc_fingerprint(key, &mut fingerprint_buf, &mut fingerprint_bytes)) {
+        if !(0
+            == dc_pgp_calc_fingerprint(context, key, &mut fingerprint_buf, &mut fingerprint_bytes))
+        {
             fingerprint_hex = dc_binary_to_uc_hex(fingerprint_buf, fingerprint_bytes)
         }
     }
@@ -562,8 +573,11 @@ pub unsafe fn dc_key_get_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_c
         dc_strdup(0 as *const libc::c_char)
     };
 }
-pub unsafe fn dc_key_get_formatted_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_char {
-    let mut rawhex: *mut libc::c_char = dc_key_get_fingerprint(key);
+pub unsafe fn dc_key_get_formatted_fingerprint(
+    context: &dc_context_t,
+    key: *const dc_key_t,
+) -> *mut libc::c_char {
+    let mut rawhex: *mut libc::c_char = dc_key_get_fingerprint(context, key);
     let mut formatted: *mut libc::c_char = dc_format_fingerprint(rawhex);
     free(rawhex as *mut libc::c_void);
     return formatted;

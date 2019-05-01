@@ -74,6 +74,7 @@ pub unsafe fn dc_e2ee_encrypt(
         /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
         (*autocryptheader).prefer_encrypt = 0i32;
         if 0 != dc_sqlite3_get_config_int(
+            context,
             &mut context.sql.clone().lock().unwrap(),
             b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
             1i32,
@@ -81,6 +82,7 @@ pub unsafe fn dc_e2ee_encrypt(
             (*autocryptheader).prefer_encrypt = 1i32
         }
         (*autocryptheader).addr = dc_sqlite3_get_config(
+            context,
             &mut context.sql.clone().lock().unwrap(),
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
@@ -137,6 +139,7 @@ pub unsafe fn dc_e2ee_encrypt(
                 if 0 != do_encrypt {
                     dc_keyring_add(keyring, (*autocryptheader).public_key);
                     if 0 == dc_key_load_self_private(
+                        context,
                         sign_key,
                         (*autocryptheader).addr,
                         &mut context.sql.clone().lock().unwrap(),
@@ -516,6 +519,7 @@ unsafe fn load_or_generate_self_public_key(
     let mut key_creation_here: libc::c_int = 0i32;
     if !public_key.is_null() {
         if 0 == dc_key_load_self_public(
+            context,
             public_key,
             self_addr,
             &mut context.sql.clone().lock().unwrap(),
@@ -574,6 +578,7 @@ unsafe fn load_or_generate_self_public_key(
                             current_block = 10496152961502316708;
                         } else if 0
                             == dc_key_save_self_keypair(
+                                context,
                                 public_key,
                                 private_key,
                                 self_addr,
@@ -699,6 +704,7 @@ pub unsafe fn dc_e2ee_decrypt(
         }
         /* load private key for decryption */
         self_addr = dc_sqlite3_get_config(
+            context,
             &mut context.sql.clone().lock().unwrap(),
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
@@ -706,6 +712,7 @@ pub unsafe fn dc_e2ee_decrypt(
         if !self_addr.is_null() {
             if !(0
                 == dc_keyring_load_self_private_for_decrypting(
+                    context,
                     private_keyring,
                     self_addr,
                     &mut context.sql.clone().lock().unwrap(),
@@ -1218,6 +1225,7 @@ pub unsafe fn dc_ensure_secret_key_exists(mut context: &dc_context_t) -> libc::c
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     if !public_key.is_null() {
         self_addr = dc_sqlite3_get_config(
+            context,
             &mut context.sql.clone().lock().unwrap(),
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,

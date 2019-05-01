@@ -15,7 +15,8 @@ pub unsafe fn dc_do_heuristics_moves(
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(dc_sqlite3_get_config_int(
-        (*context).sql,
+        context,
+        &mut context.sql.clone().lock().unwrap(),
         b"mvbox_move\x00" as *const u8 as *const libc::c_char,
         1i32,
     ) == 0i32)

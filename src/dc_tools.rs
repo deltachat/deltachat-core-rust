@@ -890,27 +890,28 @@ pub unsafe fn dc_gm2local_offset() -> libc::c_long {
 pub unsafe fn dc_smeared_time(mut context: &dc_context_t) -> time_t {
     /* function returns a corrected time(NULL) */
     let mut now: time_t = time(0 as *mut time_t);
-    pthread_mutex_lock(&mut (*context).smear_critical);
-    if (*context).last_smeared_timestamp >= now {
-        now = (*context).last_smeared_timestamp + 1i32 as libc::c_long
+    let mut ts = *context.last_smeared_timestamp.clone().read().unwrap();
+    if ts >= now {
+        now = ts + 1;
     }
-    pthread_mutex_unlock(&mut (*context).smear_critical);
-    return now;
+    now
 }
+
 pub unsafe fn dc_create_smeared_timestamp(mut context: &dc_context_t) -> time_t {
     let mut now: time_t = time(0 as *mut time_t);
     let mut ret: time_t = now;
-    pthread_mutex_lock(&mut (*context).smear_critical);
-    if ret <= (*context).last_smeared_timestamp {
-        ret = (*context).last_smeared_timestamp + 1i32 as libc::c_long;
-        if ret - now > 5i32 as libc::c_long {
-            ret = now + 5i32 as libc::c_long
+
+    let mut ts = *context.last_smeared_timestamp.clone().write().unwrap();
+    if ret <= ts {
+        ret = ts + 1;
+        if ret - now > 5 {
+            ret = now + 5
         }
     }
-    (*context).last_smeared_timestamp = ret;
-    pthread_mutex_unlock(&mut (*context).smear_critical);
-    return ret;
+    ts = ret;
+    ret
 }
+
 pub unsafe fn dc_create_smeared_timestamps(
     mut context: &dc_context_t,
     mut count: libc::c_int,
@@ -919,16 +920,13 @@ pub unsafe fn dc_create_smeared_timestamps(
     let mut now: time_t = time(0 as *mut time_t);
     let mut start: time_t =
         now + (if count < 5i32 { count } else { 5i32 }) as libc::c_long - count as libc::c_long;
-    pthread_mutex_lock(&mut (*context).smear_critical);
-    start = if (*context).last_smeared_timestamp + 1i32 as libc::c_long > start {
-        (*context).last_smeared_timestamp + 1i32 as libc::c_long
-    } else {
-        start
-    };
-    (*context).last_smeared_timestamp = start + (count - 1i32) as libc::c_long;
-    pthread_mutex_unlock(&mut (*context).smear_critical);
-    return start;
+
+    let mut ts = *context.last_smeared_timestamp.clone().write().unwrap();
+    start = if ts + 1 > start { ts + 1 } else { start };
+    ts = start + ((count - 1) as time_t);
+    start
 }
+
 /* Message-ID tools */
 pub unsafe fn dc_create_id() -> *mut libc::c_char {
     /* generate an id. the generated ID should be as short and as unique as possible:
@@ -1268,7 +1266,7 @@ pub unsafe fn dc_get_abs_path(
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(context.is_null() || pathNfilename.is_null()) {
+    if !pathNfilename.is_null() {
         pathNfilename_abs = dc_strdup(pathNfilename);
         if strncmp(
             pathNfilename_abs,
@@ -1276,13 +1274,13 @@ pub unsafe fn dc_get_abs_path(
             8,
         ) == 0i32
         {
-            if (*context).blobdir.is_null() {
+            if context.blobdir.is_null() {
                 current_block = 3805228753452640762;
             } else {
                 dc_str_replace(
                     &mut pathNfilename_abs,
                     b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-                    (*context).blobdir,
+                    context.blobdir,
                 );
                 current_block = 6937071982253665452;
             }
@@ -1638,7 +1636,7 @@ pub unsafe fn dc_is_blobdir_path(
     mut context: &dc_context_t,
     mut path: *const libc::c_char,
 ) -> libc::c_int {
-    if strncmp(path, (*context).blobdir, strlen((*context).blobdir)) == 0i32
+    if strncmp(path, context.blobdir, strlen(context.blobdir)) == 0i32
         || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0i32
     {
         return 1i32;
@@ -1646,13 +1644,13 @@ pub unsafe fn dc_is_blobdir_path(
     return 0i32;
 }
 pub unsafe fn dc_make_rel_path(mut context: &dc_context_t, mut path: *mut *mut libc::c_char) {
-    if context.is_null() || path.is_null() || (*path).is_null() {
+    if path.is_null() || (*path).is_null() {
         return;
     }
-    if strncmp(*path, (*context).blobdir, strlen((*context).blobdir)) == 0i32 {
+    if strncmp(*path, context.blobdir, strlen(context.blobdir)) == 0i32 {
         dc_str_replace(
             path,
-            (*context).blobdir,
+            context.blobdir,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
         );
     };
@@ -1664,7 +1662,7 @@ pub unsafe fn dc_make_rel_and_copy(
     let mut success: libc::c_int = 0i32;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut blobdir_path: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(context.is_null() || path.is_null() || (*path).is_null()) {
+    if !(path.is_null() || (*path).is_null()) {
         if 0 != dc_is_blobdir_path(context, *path) {
             dc_make_rel_path(context, path);
             success = 1i32

@@ -30,9 +30,6 @@ unsafe fn log_vprintf(
     mut va_0: ::std::ffi::VaList,
 ) {
     let mut msg: *mut libc::c_char = 0 as *mut libc::c_char;
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
     if !msg_format.is_null() {
         let mut tempbuf: [libc::c_char; 1025] = [0; 1025];
         vsnprintf(
@@ -58,10 +55,7 @@ pub unsafe extern "C" fn dc_log_event_seq(
     mut msg: *const libc::c_char,
     mut va_0: ...
 ) {
-    if context.is_null()
-        || sequence_start.is_null()
-        || (*context).magic != 0x11a11807i32 as libc::c_uint
-    {
+    if sequence_start.is_null() {
         return;
     }
     log_vprintf(context, event_code, *sequence_start, msg, va_0);

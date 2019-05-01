@@ -43,7 +43,7 @@ pub unsafe fn dc_check_qr(
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
     (*qr_parsed).state = 0i32;
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint || qr.is_null()) {
+    if !qr.is_null() {
         dc_log_info(
             context,
             0i32,
@@ -247,7 +247,7 @@ pub unsafe fn dc_check_qr(
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if 0 != dc_apeerstate_load_by_fingerprint(
                                             peerstate,
-                                            (*context).sql,
+                                            &mut context.sql.clone().lock().unwrap(),
                                             fingerprint,
                                         ) {
                                             (*qr_parsed).state = 210i32;

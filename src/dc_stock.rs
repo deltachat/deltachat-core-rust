@@ -19,14 +19,14 @@ unsafe fn get_string(
     mut qty: libc::c_int,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !context.is_null() {
-        ret = ((*context).cb)(
-            context,
-            Event::GET_STRING,
-            id as uintptr_t,
-            qty as uintptr_t,
-        ) as *mut libc::c_char;
-    }
+
+    ret = ((*context).cb)(
+        context,
+        Event::GET_STRING,
+        id as uintptr_t,
+        qty as uintptr_t,
+    ) as *mut libc::c_char;
+
     if ret.is_null() {
         ret = default_string(id)
     }

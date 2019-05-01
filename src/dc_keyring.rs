@@ -1,5 +1,6 @@
 use libc;
 
+use crate::dc_context::dc_context_t;
 use crate::dc_key::*;
 use crate::dc_sqlite3::*;
 use crate::types::*;
@@ -54,14 +55,16 @@ pub unsafe fn dc_keyring_add(mut keyring: *mut dc_keyring_t, mut to_add: *mut dc
     (*keyring).count += 1;
 }
 pub unsafe fn dc_keyring_load_self_private_for_decrypting(
-    mut keyring: *mut dc_keyring_t,
-    mut self_addr: *const libc::c_char,
-    mut sql: &mut dc_sqlite3_t,
+    context: &dc_context_t,
+    keyring: *mut dc_keyring_t,
+    self_addr: *const libc::c_char,
+    sql: &mut dc_sqlite3_t,
 ) -> libc::c_int {
-    if keyring.is_null() || self_addr.is_null() || sql.is_null() {
+    if keyring.is_null() || self_addr.is_null() {
         return 0i32;
     }
     let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+        context,
         sql,
         b"SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;\x00" as *const u8
             as *const libc::c_char,

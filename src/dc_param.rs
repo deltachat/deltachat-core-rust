@@ -119,9 +119,9 @@ unsafe extern "C" fn find_param(
 }
 /* the value may be an empty string, "def" is returned only if the value unset.  The result must be free()'d in any case. */
 pub unsafe fn dc_param_get(
-    mut param: *const dc_param_t,
-    mut key: libc::c_int,
-    mut def: *const libc::c_char,
+    param: *const dc_param_t,
+    key: libc::c_int,
+    def: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut p1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;

@@ -16,8 +16,6 @@ pub struct dc_smtp_t {
     pub from: *mut libc::c_char,
     pub esmtp: libc::c_int,
     pub log_connect_errors: libc::c_int,
-    // TODO: Remvoe
-    pub context: *mut dc_context_t,
     pub error: *mut libc::c_char,
     pub error_etpan: libc::c_int,
 }
@@ -28,7 +26,6 @@ pub fn dc_smtp_new() -> dc_smtp_t {
         from: std::ptr::null_mut(),
         esmtp: 0,
         log_connect_errors: 1,
-        context: std::ptr::null_mut(),
         error: std::ptr::null_mut(),
         error_etpan: 0,
     }
@@ -38,7 +35,6 @@ pub unsafe fn dc_smtp_unref(smtp: &mut dc_smtp_t) {
     dc_smtp_disconnect(smtp);
     free(smtp.from as *mut libc::c_void);
     free(smtp.error as *mut libc::c_void);
-    free(smtp as *mut libc::c_void);
 }
 
 pub unsafe fn dc_smtp_disconnect(smtp: &mut dc_smtp_t) {
@@ -56,7 +52,11 @@ pub unsafe fn dc_smtp_is_connected(smtp: &dc_smtp_t) -> libc::c_int {
     }
 }
 
-pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) -> libc::c_int {
+pub unsafe fn dc_smtp_connect(
+    context: &dc_context_t,
+    smtp: &mut dc_smtp_t,
+    lp: *const dc_loginparam_t,
+) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0;
     let mut r: libc::c_int = 0;
@@ -67,14 +67,14 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
 
     if !smtp.etpan.is_null() {
         dc_log_warning(
-            smtp.context,
+            context,
             0,
             b"SMTP already connected.\x00" as *const u8 as *const libc::c_char,
         );
         success = 1;
     } else if (*lp).addr.is_null() || (*lp).send_server.is_null() || (*lp).send_port == 0 {
         dc_log_event_seq(
-            smtp.context,
+            context,
             Event::ERROR_NETWORK,
             &mut smtp.log_connect_errors as *mut libc::c_int,
             b"SMTP bad parameters.\x00" as *const u8 as *const libc::c_char,
@@ -85,7 +85,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
         smtp.etpan = mailsmtp_new(0 as size_t, None);
         if smtp.etpan.is_null() {
             dc_log_error(
-                smtp.context,
+                context,
                 0,
                 b"SMTP-object creation failed.\x00" as *const u8 as *const libc::c_char,
             );
@@ -94,7 +94,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
             mailsmtp_set_progress_callback(
                 smtp.etpan,
                 Some(body_progress),
-                smtp as *mut libc::c_void,
+                smtp as *mut _ as *mut libc::c_void,
             );
             /* connect to SMTP server */
             if 0 != (*lp).server_flags & (0x10000 | 0x40000) {
@@ -105,7 +105,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                 );
                 if r != MAILSMTP_NO_ERROR as libc::c_int {
                     dc_log_event_seq(
-                        smtp.context,
+                        context,
                         Event::ERROR_NETWORK,
                         &mut smtp.log_connect_errors as *mut libc::c_int,
                         b"SMTP-Socket connection to %s:%i failed (%s)\x00" as *const u8
@@ -126,7 +126,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                 );
                 if r != MAILSMTP_NO_ERROR as libc::c_int {
                     dc_log_event_seq(
-                        smtp.context,
+                        context,
                         Event::ERROR_NETWORK,
                         &mut smtp.log_connect_errors as *mut libc::c_int,
                         b"SMTP-SSL connection to %s:%i failed (%s)\x00" as *const u8
@@ -155,7 +155,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                     }
                     if r != MAILSMTP_NO_ERROR as libc::c_int {
                         dc_log_event_seq(
-                            smtp.context,
+                            context,
                             Event::ERROR_NETWORK,
                             &mut smtp.log_connect_errors as *mut libc::c_int,
                             b"SMTP-helo failed (%s)\x00" as *const u8 as *const libc::c_char,
@@ -166,7 +166,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                             r = mailsmtp_socket_starttls(smtp.etpan);
                             if r != MAILSMTP_NO_ERROR as libc::c_int {
                                 dc_log_event_seq(
-                                    smtp.context,
+                                    context,
                                     Event::ERROR_NETWORK,
                                     &mut smtp.log_connect_errors as *mut libc::c_int,
                                     b"SMTP-STARTTLS failed (%s)\x00" as *const u8
@@ -188,7 +188,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                 }
                                 if r != MAILSMTP_NO_ERROR as libc::c_int {
                                     dc_log_event_seq(
-                                        smtp.context,
+                                        context,
                                         Event::ERROR_NETWORK,
                                         &mut smtp.log_connect_errors as *mut libc::c_int,
                                         b"SMTP-helo failed (%s)\x00" as *const u8
@@ -198,7 +198,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                     current_block = 12512295087047028901;
                                 } else {
                                     dc_log_info(
-                                        smtp.context,
+                                        context,
                                         0,
                                         b"SMTP-server %s:%i STARTTLS-connected.\x00" as *const u8
                                             as *const libc::c_char,
@@ -211,7 +211,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                         } else {
                             if 0 != (*lp).server_flags & 0x40000 {
                                 dc_log_info(
-                                    smtp.context,
+                                    context,
                                     0,
                                     b"SMTP-server %s:%i connected.\x00" as *const u8
                                         as *const libc::c_char,
@@ -220,7 +220,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                 );
                             } else {
                                 dc_log_info(
-                                    smtp.context,
+                                    context,
                                     0,
                                     b"SMTP-server %s:%i SSL-connected.\x00" as *const u8
                                         as *const libc::c_char,
@@ -236,14 +236,14 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                 if !(*lp).send_user.is_null() {
                                     if 0 != (*lp).server_flags & 0x2 {
                                         dc_log_info(
-                                            smtp.context,
+                                            context,
                                             0,
                                             b"SMTP-OAuth2 connect...\x00" as *const u8
                                                 as *const libc::c_char,
                                         );
                                         let mut access_token: *mut libc::c_char =
                                             dc_get_oauth2_access_token(
-                                                smtp.context,
+                                                context,
                                                 (*lp).addr,
                                                 (*lp).send_pw,
                                                 0,
@@ -256,7 +256,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                         if r != MAILSMTP_NO_ERROR as libc::c_int {
                                             free(access_token as *mut libc::c_void);
                                             access_token = dc_get_oauth2_access_token(
-                                                smtp.context,
+                                                context,
                                                 (*lp).addr,
                                                 (*lp).send_pw,
                                                 0x1,
@@ -284,7 +284,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                                 & MAILSMTP_AUTH_PLAIN as libc::c_int
                                             {
                                                 dc_log_info(
-                                                    smtp.context,
+                                                    context,
                                                     0,
                                                     b"Trying SMTP-Login workaround \"%s\"...\x00"
                                                         as *const u8
@@ -299,7 +299,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                                 );
                                                 if err < 0 {
                                                     dc_log_error(
-                                                        smtp.context,
+                                                        context,
                                                         0,
                                                         b"SMTP-Login: Cannot get hostname.\x00"
                                                             as *const u8
@@ -333,7 +333,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                         _ => {
                                             if r != MAILSMTP_NO_ERROR as libc::c_int {
                                                 dc_log_event_seq(
-                                                    smtp.context,
+                                                    context,
                                                     Event::ERROR_NETWORK,
                                                     &mut smtp.log_connect_errors
                                                         as *mut libc::c_int,
@@ -346,7 +346,7 @@ pub unsafe fn dc_smtp_connect(smtp: &mut dc_smtp_t, lp: *const dc_loginparam_t) 
                                                 current_block = 12512295087047028901;
                                             } else {
                                                 dc_log_event(
-                                                    smtp.context,
+                                                    context,
                                                     Event::SMTP_CONNECTED,
                                                     0,
                                                     b"SMTP-login as %s ok.\x00" as *const u8
@@ -388,6 +388,7 @@ unsafe extern "C" fn body_progress(
 }
 
 pub unsafe fn dc_smtp_send_msg(
+    context: &dc_context_t,
     smtp: &mut dc_smtp_t,
     recipients: *const clist,
     data_not_terminated: *const libc::c_char,
@@ -418,6 +419,7 @@ pub unsafe fn dc_smtp_send_msg(
         };
         if r != MAILSMTP_NO_ERROR as libc::c_int {
             log_error(
+                context,
                 smtp,
                 b"SMTP failed to start message\x00" as *const u8 as *const libc::c_char,
                 r,
@@ -444,6 +446,7 @@ pub unsafe fn dc_smtp_send_msg(
                 };
                 if r != MAILSMTP_NO_ERROR as libc::c_int {
                     log_error(
+                        context,
                         smtp,
                         b"SMTP failed to add recipient\x00" as *const u8 as *const libc::c_char,
                         r,
@@ -465,6 +468,7 @@ pub unsafe fn dc_smtp_send_msg(
                     r = mailsmtp_data(smtp.etpan);
                     if r != MAILSMTP_NO_ERROR as libc::c_int {
                         log_error(
+                            context,
                             smtp,
                             b"SMTP failed to set data\x00" as *const u8 as *const libc::c_char,
                             r,
@@ -473,6 +477,7 @@ pub unsafe fn dc_smtp_send_msg(
                         r = mailsmtp_data_message(smtp.etpan, data_not_terminated, data_bytes);
                         if r != MAILSMTP_NO_ERROR as libc::c_int {
                             log_error(
+                                context,
                                 smtp,
                                 b"SMTP failed to send message\x00" as *const u8
                                     as *const libc::c_char,
@@ -480,7 +485,7 @@ pub unsafe fn dc_smtp_send_msg(
                             );
                         } else {
                             dc_log_event(
-                                smtp.context,
+                                context,
                                 Event::SMTP_MESSAGE_SENT,
                                 0,
                                 b"Message was sent to SMTP server\x00" as *const u8
@@ -497,7 +502,12 @@ pub unsafe fn dc_smtp_send_msg(
     success
 }
 
-unsafe fn log_error(smtp: &mut dc_smtp_t, what_failed: *const libc::c_char, r: libc::c_int) {
+unsafe fn log_error(
+    context: &dc_context_t,
+    smtp: &mut dc_smtp_t,
+    what_failed: *const libc::c_char,
+    r: libc::c_int,
+) {
     let mut error_msg: *mut libc::c_char = dc_mprintf(
         b"%s: %s: %s\x00" as *const u8 as *const libc::c_char,
         what_failed,
@@ -505,7 +515,7 @@ unsafe fn log_error(smtp: &mut dc_smtp_t, what_failed: *const libc::c_char, r: l
         (*smtp.etpan).response,
     );
     dc_log_warning(
-        smtp.context,
+        context,
         0,
         b"%s\x00" as *const u8 as *const libc::c_char,
         error_msg,

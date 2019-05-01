@@ -103,7 +103,8 @@ pub unsafe fn dc_apeerstate_recalc_fingerprint(mut peerstate: *mut dc_apeerstate
     if !peerstate.is_null() {
         if !(*peerstate).public_key.is_null() {
             old_public_fingerprint = (*peerstate).public_key_fingerprint;
-            (*peerstate).public_key_fingerprint = dc_key_get_fingerprint((*peerstate).public_key);
+            (*peerstate).public_key_fingerprint =
+                dc_key_get_fingerprint((*peerstate).context, (*peerstate).public_key);
             if old_public_fingerprint.is_null()
                 || *old_public_fingerprint.offset(0isize) as libc::c_int == 0i32
                 || (*peerstate).public_key_fingerprint.is_null()
@@ -120,7 +121,8 @@ pub unsafe fn dc_apeerstate_recalc_fingerprint(mut peerstate: *mut dc_apeerstate
         }
         if !(*peerstate).gossip_key.is_null() {
             old_gossip_fingerprint = (*peerstate).gossip_key_fingerprint;
-            (*peerstate).gossip_key_fingerprint = dc_key_get_fingerprint((*peerstate).gossip_key);
+            (*peerstate).gossip_key_fingerprint =
+                dc_key_get_fingerprint((*peerstate).context, (*peerstate).gossip_key);
             if old_gossip_fingerprint.is_null()
                 || *old_gossip_fingerprint.offset(0isize) as libc::c_int == 0i32
                 || (*peerstate).gossip_key_fingerprint.is_null()
@@ -320,7 +322,9 @@ pub unsafe fn dc_apeerstate_load_by_addr(
     if !(peerstate.is_null() || addr.is_null()) {
         dc_apeerstate_empty(peerstate);
         stmt =
-            dc_sqlite3_prepare(sql,
+            dc_sqlite3_prepare(
+                (*peerstate).context,
+                sql,
                                b"SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;\x00"
                                    as *const u8 as *const libc::c_char);
         sqlite3_bind_text(stmt, 1i32, addr, -1i32, None);
@@ -370,8 +374,10 @@ pub unsafe fn dc_apeerstate_load_by_fingerprint(
     if !(peerstate.is_null() || fingerprint.is_null()) {
         dc_apeerstate_empty(peerstate);
         stmt =
-            dc_sqlite3_prepare(sql,
-                               b"SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE public_key_fingerprint=? COLLATE NOCASE     OR gossip_key_fingerprint=? COLLATE NOCASE  ORDER BY public_key_fingerprint=? DESC;\x00"
+            dc_sqlite3_prepare(
+                (*peerstate).context,
+                sql,
+                b"SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE public_key_fingerprint=? COLLATE NOCASE     OR gossip_key_fingerprint=? COLLATE NOCASE  ORDER BY public_key_fingerprint=? DESC;\x00"
                                    as *const u8 as *const libc::c_char);
         sqlite3_bind_text(stmt, 1i32, fingerprint, -1i32, None);
         sqlite3_bind_text(stmt, 2i32, fingerprint, -1i32, None);
@@ -397,6 +403,7 @@ pub unsafe fn dc_apeerstate_save_to_db(
     }
     if 0 != create {
         stmt = dc_sqlite3_prepare(
+            (*peerstate).context,
             sql,
             b"INSERT INTO acpeerstates (addr) VALUES(?);\x00" as *const u8 as *const libc::c_char,
         );
@@ -407,7 +414,8 @@ pub unsafe fn dc_apeerstate_save_to_db(
     }
     if 0 != (*peerstate).to_save & 0x2i32 || 0 != create {
         stmt =
-            dc_sqlite3_prepare(sql,
+            dc_sqlite3_prepare(
+                (*peerstate).context,sql,
                                b"UPDATE acpeerstates    SET last_seen=?, last_seen_autocrypt=?, prefer_encrypted=?,        public_key=?, gossip_timestamp=?, gossip_key=?, public_key_fingerprint=?, gossip_key_fingerprint=?, verified_key=?, verified_key_fingerprint=?  WHERE addr=?;\x00"
                                    as *const u8 as *const libc::c_char);
         sqlite3_bind_int64(stmt, 1i32, (*peerstate).last_seen as sqlite3_int64);
@@ -482,7 +490,8 @@ pub unsafe fn dc_apeerstate_save_to_db(
         }
     } else if 0 != (*peerstate).to_save & 0x1i32 {
         stmt =
-            dc_sqlite3_prepare(sql,
+            dc_sqlite3_prepare(
+                (*peerstate).context,sql,
                                b"UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? WHERE addr=?;\x00"
                                    as *const u8 as *const libc::c_char);
         sqlite3_bind_int64(stmt, 1i32, (*peerstate).last_seen as sqlite3_int64);

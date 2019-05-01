@@ -57,7 +57,6 @@ pub unsafe fn dc_receive_imf(
     let mut sent_timestamp: time_t = -1i32 as time_t;
     let mut rcvd_timestamp: time_t = -1i32 as time_t;
     let mut mime_parser: *mut dc_mimeparser_t = dc_mimeparser_new((*context).blobdir, context);
-    let mut transaction_pending: libc::c_int = 0i32;
     let mut field: *const mailimf_field = 0 as *const mailimf_field;
     let mut mime_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut mime_references: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -76,7 +75,7 @@ pub unsafe fn dc_receive_imf(
         },
         server_uid,
     );
-    to_ids = dc_array_new(context, 16i32 as size_t);
+    to_ids = dc_array_new(16i32 as size_t);
     if to_ids.is_null()
         || created_db_entries.is_null()
         || rr_event_to_send.is_null()
@@ -107,7 +106,6 @@ pub unsafe fn dc_receive_imf(
                     sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
                 }
             }
-            transaction_pending = 1i32;
             field = dc_mimeparser_lookup_field(
                 mime_parser,
                 b"From\x00" as *const u8 as *const libc::c_char,
@@ -116,7 +114,7 @@ pub unsafe fn dc_receive_imf(
                 let mut fld_from: *mut mailimf_from = (*field).fld_data.fld_from;
                 if !fld_from.is_null() {
                     let mut check_self: libc::c_int = 0;
-                    let mut from_list: *mut dc_array_t = dc_array_new(context, 16i32 as size_t);
+                    let mut from_list: *mut dc_array_t = dc_array_new(16i32 as size_t);
                     dc_add_or_lookup_contacts_by_mailbox_list(
                         context,
                         (*fld_from).frm_mb_list,
@@ -225,7 +223,6 @@ pub unsafe fn dc_receive_imf(
                             if strcmp(old_server_folder, server_folder) != 0i32
                                 || old_server_uid != server_uid
                             {
-                                transaction_pending = 0i32;
                                 dc_update_server_uid(
                                     context,
                                     rfc724_mid,
@@ -253,7 +250,8 @@ pub unsafe fn dc_receive_imf(
                             let mut allow_creation: libc::c_int = 1i32;
                             if msgrmsg == 0i32 {
                                 let mut show_emails: libc::c_int = dc_sqlite3_get_config_int(
-                                    (*context).sql,
+                                    context,
+                                    &mut context.sql.clone().lock().unwrap(),
                                     b"show_emails\x00" as *const u8 as *const libc::c_char,
                                     0i32,
                                 );
@@ -465,7 +463,8 @@ pub unsafe fn dc_receive_imf(
                             // if the mime-headers should be saved, find out its size
                             // (the mime-header ends with an empty line)
                             let mut save_mime_headers: libc::c_int = dc_sqlite3_get_config_int(
-                                (*context).sql,
+                                context,
+                                &mut context.sql.clone().lock().unwrap(),
                                 b"save_mime_headers\x00" as *const u8 as *const libc::c_char,
                                 0i32,
                             );
@@ -529,8 +528,10 @@ pub unsafe fn dc_receive_imf(
                             }
                             icnt = carray_count((*mime_parser).parts) as size_t;
                             stmt =
-                                dc_sqlite3_prepare((*context).sql,
-                                                   b"INSERT INTO msgs (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);\x00"
+                                dc_sqlite3_prepare(
+                                    context,
+                                    &mut context.sql.clone().lock().unwrap(),
+                                    b"INSERT INTO msgs (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);\x00"
                                                        as *const u8 as
                                                        *const libc::c_char);
                             i = 0i32 as size_t;
@@ -646,7 +647,8 @@ pub unsafe fn dc_receive_imf(
                                         free(txt_raw as *mut libc::c_void);
                                         txt_raw = 0 as *mut libc::c_char;
                                         insert_msg_id = dc_sqlite3_get_rowid(
-                                            (*context).sql,
+                                            context,
+                                            &mut context.sql.clone().lock().unwrap(),
                                             b"msgs\x00" as *const u8 as *const libc::c_char,
                                             b"rfc724_mid\x00" as *const u8 as *const libc::c_char,
                                             rfc724_mid,
@@ -706,7 +708,8 @@ pub unsafe fn dc_receive_imf(
                 _ => {
                     if carray_count((*mime_parser).reports) > 0i32 as libc::c_uint {
                         let mut mdns_enabled: libc::c_int = dc_sqlite3_get_config_int(
-                            (*context).sql,
+                            context,
+                            &mut context.sql.clone().lock().unwrap(),
                             b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                             1i32,
                         );
@@ -897,7 +900,8 @@ pub unsafe fn dc_receive_imf(
                                         dc_param_set_int(param, 'z' as i32, server_uid as int32_t);
                                         if 0 != (*mime_parser).is_send_by_messenger
                                             && 0 != dc_sqlite3_get_config_int(
-                                                (*context).sql,
+                                                context,
+                                                &mut context.sql.clone().lock().unwrap(),
                                                 b"mvbox_move\x00" as *const u8
                                                     as *const libc::c_char,
                                                 1i32,
@@ -984,7 +988,6 @@ pub unsafe fn dc_receive_imf(
                             0i32,
                         );
                     }
-                    transaction_pending = 0i32
                 }
             }
         }
@@ -1051,7 +1054,8 @@ unsafe fn calc_timestamps(
     *sort_timestamp = message_timestamp;
     if 0 != is_fresh_msg {
         let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
-            (*context).sql,
+            context,
+            &mut context.sql.clone().lock().unwrap(),
             b"SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?\x00"
                 as *const u8 as *const libc::c_char,
         );
@@ -1313,7 +1317,8 @@ unsafe fn create_or_lookup_group(
             /* check if the group does not exist but should be created */
             group_explicitly_left = dc_is_group_explicitly_left(context, grpid);
             self_addr = dc_sqlite3_get_config(
-                (*context).sql,
+                context,
+                &mut context.sql.clone().lock().unwrap(),
                 b"configured_addr\x00" as *const u8 as *const libc::c_char,
                 b"\x00" as *const u8 as *const libc::c_char,
             );
@@ -1391,7 +1396,8 @@ unsafe fn create_or_lookup_group(
                             && strlen(grpname) < 200
                         {
                             stmt = dc_sqlite3_prepare(
-                                (*context).sql,
+                                context,
+                                &mut context.sql.clone().lock().unwrap(),
                                 b"UPDATE chats SET name=? WHERE id=?;\x00" as *const u8
                                     as *const libc::c_char,
                             );
@@ -1460,7 +1466,8 @@ unsafe fn create_or_lookup_group(
                                 0 as *mut libc::c_char
                             };
                             stmt = dc_sqlite3_prepare(
-                                (*context).sql,
+                                context,
+                                &mut context.sql.clone().lock().unwrap(),
                                 b"DELETE FROM chats_contacts WHERE chat_id=?;\x00" as *const u8
                                     as *const libc::c_char,
                             );
@@ -1593,7 +1600,7 @@ unsafe fn create_or_lookup_adhoc_group(
                     sqlite3_mprintf(b"SELECT c.id, c.blocked  FROM chats c  LEFT JOIN msgs m ON m.chat_id=c.id  WHERE c.id IN(%s)  ORDER BY m.timestamp DESC, m.id DESC  LIMIT 1;\x00"
                                         as *const u8 as *const libc::c_char,
                                     chat_ids_str);
-                stmt = dc_sqlite3_prepare((*context).sql, q3);
+                stmt = dc_sqlite3_prepare(context, &mut context.sql.clone().lock().unwrap(), q3);
                 if sqlite3_step(stmt) == 100i32 {
                     chat_id = sqlite3_column_int(stmt, 0i32) as uint32_t;
                     chat_id_blocked = sqlite3_column_int(stmt, 1i32);
@@ -1674,7 +1681,8 @@ unsafe fn create_group_record(
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
-        (*context).sql,
+        context,
+        &mut context.sql.clone().lock().unwrap(),
         b"INSERT INTO chats (type, name, grpid, blocked) VALUES(?, ?, ?, ?);\x00" as *const u8
             as *const libc::c_char,
     );
@@ -1688,7 +1696,8 @@ unsafe fn create_group_record(
     sqlite3_bind_int(stmt, 4i32, create_blocked);
     if !(sqlite3_step(stmt) != 101i32) {
         chat_id = dc_sqlite3_get_rowid(
-            (*context).sql,
+            context,
+            &mut context.sql.clone().lock().unwrap(),
             b"chats\x00" as *const u8 as *const libc::c_char,
             b"grpid\x00" as *const u8 as *const libc::c_char,
             grpid,
@@ -1707,7 +1716,7 @@ unsafe fn create_adhoc_grp_id(
     - sha-256 this string (without possibly terminating null-characters)
     - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
      */
-    let mut member_addrs: *mut dc_array_t = dc_array_new(context, 23i32 as size_t);
+    let mut member_addrs: *mut dc_array_t = dc_array_new(23i32 as size_t);
     let mut member_ids_str: *mut libc::c_char =
         dc_array_get_string(member_ids, b",\x00" as *const u8 as *const libc::c_char);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -1728,9 +1737,10 @@ unsafe fn create_adhoc_grp_id(
             as *const libc::c_char,
         member_ids_str,
     );
-    stmt = dc_sqlite3_prepare((*context).sql, q3);
+    stmt = dc_sqlite3_prepare(context, &mut context.sql.clone().lock().unwrap(), q3);
     addr = dc_sqlite3_get_config(
-        (*context).sql,
+        context,
+        &mut context.sql.clone().lock().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         b"no-self\x00" as *const u8 as *const libc::c_char,
     );
@@ -1788,62 +1798,62 @@ unsafe fn search_chat_ids_by_contact_ids(
 ) -> *mut dc_array_t {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut contact_ids: *mut dc_array_t = dc_array_new(context, 23i32 as size_t);
+    let mut contact_ids: *mut dc_array_t = dc_array_new(23i32 as size_t);
     let mut contact_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut chat_ids: *mut dc_array_t = dc_array_new(context, 23i32 as size_t);
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
-        /* copy array, remove duplicates and SELF, sort by ID */
-        let mut i: libc::c_int = 0;
-        let mut iCnt: libc::c_int = dc_array_get_cnt(unsorted_contact_ids) as libc::c_int;
-        if !(iCnt <= 0i32) {
-            i = 0i32;
-            while i < iCnt {
-                let mut curr_id: uint32_t = dc_array_get_id(unsorted_contact_ids, i as size_t);
-                if curr_id != 1i32 as libc::c_uint
-                    && 0 == dc_array_search_id(contact_ids, curr_id, 0 as *mut size_t)
-                {
-                    dc_array_add_id(contact_ids, curr_id);
-                }
-                i += 1
+    let mut chat_ids: *mut dc_array_t = dc_array_new(23i32 as size_t);
+
+    /* copy array, remove duplicates and SELF, sort by ID */
+    let mut i: libc::c_int = 0;
+    let mut iCnt: libc::c_int = dc_array_get_cnt(unsorted_contact_ids) as libc::c_int;
+    if !(iCnt <= 0i32) {
+        i = 0i32;
+        while i < iCnt {
+            let mut curr_id: uint32_t = dc_array_get_id(unsorted_contact_ids, i as size_t);
+            if curr_id != 1i32 as libc::c_uint
+                && 0 == dc_array_search_id(contact_ids, curr_id, 0 as *mut size_t)
+            {
+                dc_array_add_id(contact_ids, curr_id);
             }
-            if !(dc_array_get_cnt(contact_ids) == 0) {
-                dc_array_sort_ids(contact_ids);
-                contact_ids_str =
-                    dc_array_get_string(contact_ids, b",\x00" as *const u8 as *const libc::c_char);
-                q3 =
+            i += 1
+        }
+        if !(dc_array_get_cnt(contact_ids) == 0) {
+            dc_array_sort_ids(contact_ids);
+            contact_ids_str =
+                dc_array_get_string(contact_ids, b",\x00" as *const u8 as *const libc::c_char);
+            q3 =
                     sqlite3_mprintf(b"SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN(%s))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;\x00"
                                         as *const u8 as *const libc::c_char,
                                     contact_ids_str);
-                stmt = dc_sqlite3_prepare((*context).sql, q3);
-                let mut last_chat_id = 0;
-                let mut matches = 0;
-                let mut mismatches = 0;
-                while sqlite3_step(stmt) == 100 {
-                    let mut chat_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
-                    let mut contact_id: uint32_t = sqlite3_column_int(stmt, 1i32) as uint32_t;
-                    if chat_id != last_chat_id {
-                        if matches == dc_array_get_cnt(contact_ids)
-                            && mismatches == 0i32 as libc::c_uint
-                        {
-                            dc_array_add_id(chat_ids, last_chat_id);
-                        }
-                        last_chat_id = chat_id;
-                        matches = 0;
-                        mismatches = 0;
+            stmt = dc_sqlite3_prepare(context, &mut context.sql.clone().lock().unwrap(), q3);
+            let mut last_chat_id = 0;
+            let mut matches = 0;
+            let mut mismatches = 0;
+            while sqlite3_step(stmt) == 100 {
+                let mut chat_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
+                let mut contact_id: uint32_t = sqlite3_column_int(stmt, 1i32) as uint32_t;
+                if chat_id != last_chat_id {
+                    if matches == dc_array_get_cnt(contact_ids)
+                        && mismatches == 0i32 as libc::c_uint
+                    {
+                        dc_array_add_id(chat_ids, last_chat_id);
                     }
-                    if contact_id == dc_array_get_id(contact_ids, matches as size_t) {
-                        matches = matches.wrapping_add(1)
-                    } else {
-                        mismatches = mismatches.wrapping_add(1)
-                    }
+                    last_chat_id = chat_id;
+                    matches = 0;
+                    mismatches = 0;
                 }
-                if matches == dc_array_get_cnt(contact_ids) && mismatches == 0 {
-                    dc_array_add_id(chat_ids, last_chat_id);
+                if contact_id == dc_array_get_id(contact_ids, matches as size_t) {
+                    matches = matches.wrapping_add(1)
+                } else {
+                    mismatches = mismatches.wrapping_add(1)
                 }
+            }
+            if matches == dc_array_get_cnt(contact_ids) && mismatches == 0 {
+                dc_array_add_id(chat_ids, last_chat_id);
             }
         }
     }
+
     sqlite3_finalize(stmt);
     free(contact_ids_str as *mut libc::c_void);
     dc_array_unref(contact_ids);
@@ -1864,7 +1874,7 @@ unsafe fn check_verified_properties(
     let mut to_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if 0 == dc_contact_load_from_db(contact, (*context).sql, from_id) {
+    if 0 == dc_contact_load_from_db(contact, &mut context.sql.clone().lock().unwrap(), from_id) {
         *failure_reason = dc_mprintf(
             b"%s. See \"Info\" for details.\x00" as *const u8 as *const libc::c_char,
             b"Internal Error; cannot load contact.\x00" as *const u8 as *const libc::c_char,
@@ -1882,8 +1892,11 @@ unsafe fn check_verified_properties(
         // this check is skipped for SELF as there is no proper SELF-peerstate
         // and results in group-splits otherwise.
         if from_id != 1i32 as libc::c_uint {
-            if 0 == dc_apeerstate_load_by_addr(peerstate, (*context).sql, (*contact).addr)
-                || dc_contact_is_verified_ex(contact, peerstate) != 2i32
+            if 0 == dc_apeerstate_load_by_addr(
+                peerstate,
+                &mut context.sql.clone().lock().unwrap(),
+                (*contact).addr,
+            ) || dc_contact_is_verified_ex(contact, peerstate) != 2i32
             {
                 *failure_reason = dc_mprintf(
                     b"%s. See \"Info\" for details.\x00" as *const u8 as *const libc::c_char,
@@ -1920,7 +1933,7 @@ unsafe fn check_verified_properties(
                     sqlite3_mprintf(b"SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN(%s) \x00"
                                         as *const u8 as *const libc::c_char,
                                     to_ids_str);
-                stmt = dc_sqlite3_prepare((*context).sql, q3);
+                stmt = dc_sqlite3_prepare(context, &mut context.sql.clone().lock().unwrap(), q3);
                 loop {
                     if !(sqlite3_step(stmt) == 100i32) {
                         current_block = 2604890879466389055;
@@ -1935,7 +1948,11 @@ unsafe fn check_verified_properties(
                         strlen(to_addr) as libc::c_int,
                     )
                     .is_null()
-                        && 0 != dc_apeerstate_load_by_addr(peerstate, (*context).sql, to_addr)
+                        && 0 != dc_apeerstate_load_by_addr(
+                            peerstate,
+                            &mut context.sql.clone().lock().unwrap(),
+                            to_addr,
+                        )
                     {
                         if 0 == is_verified
                             || strcmp(
@@ -1960,7 +1977,11 @@ unsafe fn check_verified_properties(
                                 (*peerstate).gossip_key_fingerprint,
                                 2i32,
                             );
-                            dc_apeerstate_save_to_db(peerstate, (*context).sql, 0i32);
+                            dc_apeerstate_save_to_db(
+                                peerstate,
+                                &mut context.sql.clone().lock().unwrap(),
+                                0i32,
+                            );
                             is_verified = 1i32
                         }
                     }
@@ -2095,7 +2116,7 @@ unsafe fn is_known_rfc724_mid(
     let mut is_known: libc::c_int = 0i32;
     if !rfc724_mid.is_null() {
         let mut stmt: *mut sqlite3_stmt =
-            dc_sqlite3_prepare((*context).sql,
+            dc_sqlite3_prepare(context, &mut context.sql.clone().lock().unwrap(),
                                b"SELECT m.id FROM msgs m  LEFT JOIN chats c ON m.chat_id=c.id  WHERE m.rfc724_mid=?  AND m.chat_id>9 AND c.blocked=0;\x00"
                                    as *const u8 as *const libc::c_char);
         sqlite3_bind_text(stmt, 1i32, rfc724_mid, -1i32, None);
@@ -2184,7 +2205,8 @@ unsafe fn is_msgrmsg_rfc724_mid(
     let mut is_msgrmsg: libc::c_int = 0i32;
     if !rfc724_mid.is_null() {
         let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
-            (*context).sql,
+            context,
+            &mut context.sql.clone().lock().unwrap(),
             b"SELECT id FROM msgs  WHERE rfc724_mid=?  AND msgrmsg!=0  AND chat_id>9;\x00"
                 as *const u8 as *const libc::c_char,
         );
@@ -2203,8 +2225,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
     mut ids: *mut dc_array_t,
     mut check_self: *mut libc::c_int,
 ) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint || adr_list.is_null()
-    {
+    if adr_list.is_null() {
         return;
     }
     let mut cur: *mut clistiter = (*(*adr_list).ad_list).first;
@@ -2254,7 +2275,7 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
     mut ids: *mut dc_array_t,
     mut check_self: *mut libc::c_int,
 ) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint || mb_list.is_null() {
+    if mb_list.is_null() {
         return;
     }
     let mut cur: *mut clistiter = (*(*mb_list).mb_list).first;
@@ -2297,13 +2318,13 @@ unsafe fn add_or_lookup_contact_by_addr(
     if check_self.is_null() {
         check_self = &mut dummy
     }
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint || addr_spec.is_null()
-    {
+    if addr_spec.is_null() {
         return;
     }
     *check_self = 0i32;
     let mut self_addr: *mut libc::c_char = dc_sqlite3_get_config(
-        (*context).sql,
+        context,
+        &mut context.sql.clone().lock().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         b"\x00" as *const u8 as *const libc::c_char,
     );

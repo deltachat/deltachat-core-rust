@@ -72,7 +72,9 @@ pub unsafe fn dc_configure(mut context: &dc_context_t) {
     dc_job_add(context, 900i32, 0i32, 0 as *const libc::c_char, 0i32);
 }
 pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
-    return if 0 != (*context).ongoing_running || (*context).shall_stop_ongoing == 0i32 {
+    return if 0 != context.ongoing_running
+        || *context.shall_stop_ongoing.clone().read().unwrap() == 0
+    {
         1i32
     } else {
         0i32
@@ -81,6 +83,7 @@ pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
 pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
     return if 0
         != dc_sqlite3_get_config_int(
+            context,
             &mut context.sql.lock().unwrap(),
             b"configured\x00" as *const u8 as *const libc::c_char,
             0i32,
@@ -90,14 +93,14 @@ pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
         0i32
     };
 }
-pub unsafe fn dc_stop_ongoing_process(mut context: &dc_context_t) {
-    if 0 != (*context).ongoing_running && (*context).shall_stop_ongoing == 0i32 {
+pub unsafe fn dc_stop_ongoing_process(context: &dc_context_t) {
+    if 0 != context.ongoing_running && *context.shall_stop_ongoing.clone().read().unwrap() == 0 {
         dc_log_info(
             context,
             0i32,
             b"Signaling the ongoing process to stop ASAP.\x00" as *const u8 as *const libc::c_char,
         );
-        (*context).shall_stop_ongoing = 1i32
+        *context.shall_stop_ongoing.clone().write().unwrap() = 1;
     } else {
         dc_log_info(
             context,
@@ -133,17 +136,36 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
             dc_imap_disconnect(context, &mut context.inbox.clone().lock().unwrap());
             dc_imap_disconnect(
                 context,
-                &mut context.sentbox_thread.imap.clone().lock().unwrap(),
+                &mut context
+                    .sentbox_thread
+                    .clone()
+                    .lock()
+                    .unwrap()
+                    .imap
+                    .clone()
+                    .lock()
+                    .unwrap(),
             );
             dc_imap_disconnect(
                 context,
-                &mut context.mvbox_thread.imap.clone().lock().unwrap(),
+                &mut context
+                    .mvbox_thread
+                    .clone()
+                    .lock()
+                    .unwrap()
+                    .imap
+                    .clone()
+                    .lock()
+                    .unwrap(),
             );
             dc_smtp_disconnect(&mut context.smtp.clone().lock().unwrap());
             context.smtp.clone().lock().unwrap().log_connect_errors = 1i32;
             context.inbox.clone().lock().unwrap().log_connect_errors = 1i32;
             context
                 .sentbox_thread
+                .clone()
+                .lock()
+                .unwrap()
                 .imap
                 .clone()
                 .lock()
@@ -151,6 +173,9 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                 .log_connect_errors = 1i32;
             context
                 .mvbox_thread
+                .clone()
+                .lock()
+                .unwrap()
                 .imap
                 .clone()
                 .lock()
@@ -161,7 +186,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                 0i32,
                 b"Configure ...\x00" as *const u8 as *const libc::c_char,
             );
-            if !(0 != context.shall_stop_ongoing) {
+            if !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
                 (context.cb)(
                     context,
                     Event::CONFIGURE_PROGRESS,
@@ -176,6 +201,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                 );
                 param = dc_loginparam_new();
                 dc_loginparam_read(
+                    context,
                     param,
                     &mut context.sql.lock().unwrap(),
                     b"\x00" as *const u8 as *const libc::c_char,
@@ -192,7 +218,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                         // the used oauth2 addr may differ, check this.
                         // if dc_get_oauth2_addr() is not available in the oauth2 implementation,
                         // just use the given one.
-                        if 0 != context.shall_stop_ongoing {
+                        if 0 != *context.shall_stop_ongoing.clone().read().unwrap() {
                             current_block = 2927484062889439186;
                         } else {
                             (context.cb)(
@@ -219,7 +245,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                     (*param).addr,
                                 );
                             }
-                            if 0 != context.shall_stop_ongoing {
+                            if 0 != *context.shall_stop_ongoing.clone().read().unwrap() {
                                 current_block = 2927484062889439186;
                             } else {
                                 (context.cb)(
@@ -258,7 +284,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                 if (*param).mail_pw.is_null() {
                                     (*param).mail_pw = dc_strdup(0 as *const libc::c_char)
                                 }
-                                if !(0 != context.shall_stop_ongoing) {
+                                if !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
                                     (context.cb)(
                                         context,
                                         Event::CONFIGURE_PROGRESS,
@@ -299,7 +325,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                             param_autoconfig =
                                                 moz_autoconfigure(context, url, param);
                                             free(url as *mut libc::c_void);
-                                            if 0 != context.shall_stop_ongoing {
+                                            if 0 != *context
+                                                .shall_stop_ongoing
+                                                .clone()
+                                                .read()
+                                                .unwrap()
+                                            {
                                                 current_block = 2927484062889439186;
                                             } else {
                                                 (context.cb)(
@@ -337,7 +368,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                     param_autoconfig =
                                                         moz_autoconfigure(context, url_0, param);
                                                     free(url_0 as *mut libc::c_void);
-                                                    if 0 != context.shall_stop_ongoing {
+                                                    if 0 != *context
+                                                        .shall_stop_ongoing
+                                                        .clone()
+                                                        .read()
+                                                        .unwrap()
+                                                    {
                                                         current_block = 2927484062889439186;
                                                     } else {
                                                         (context.cb)(
@@ -399,7 +435,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                         context, url_1, param,
                                                                     );
                                                                 free(url_1 as *mut libc::c_void);
-                                                                if 0 != context.shall_stop_ongoing {
+                                                                if 0 != *context
+                                                                    .shall_stop_ongoing
+                                                                    .clone()
+                                                                    .read()
+                                                                    .unwrap()
+                                                                {
                                                                     current_block =
                                                                         2927484062889439186;
                                                                     break;
@@ -442,8 +483,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                     free(
                                                                         url_2 as *mut libc::c_void,
                                                                     );
-                                                                    if 0 != context
+                                                                    if 0 != *context
                                                                         .shall_stop_ongoing
+                                                                        .clone()
+                                                                        .read()
+                                                                        .unwrap()
                                                                     {
                                                                         current_block =
                                                                             2927484062889439186;
@@ -500,8 +544,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             free(url_3
                                                                                  as
                                                                                  *mut libc::c_void);
-                                                                            if 0 != context
+                                                                            if 0 != *context
                                                                                 .shall_stop_ongoing
+                                                                                .clone()
+                                                                                .read()
+                                                                                .unwrap()
                                                                             {
                                                                                 current_block
                                                                                     =
@@ -562,7 +609,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                                          *mut libc::c_void);
                                                                                     if 0
                                                                                         !=
-                                                                                        context.shall_stop_ongoing
+                                                                                        *context.shall_stop_ongoing.clone().read().unwrap()
                                                                                     {
                                                                                         current_block
                                                                                             =
@@ -787,7 +834,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                     b"Account settings incomplete.\x00" as *const u8
                                                         as *const libc::c_char,
                                                 );
-                                            } else if !(0 != context.shall_stop_ongoing) {
+                                            } else if !(0
+                                                != *context
+                                                    .shall_stop_ongoing
+                                                    .clone()
+                                                    .read()
+                                                    .unwrap())
+                                            {
                                                 (context.cb)(
                                                     context,
                                                     Event::CONFIGURE_PROGRESS,
@@ -832,7 +885,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                         break;
                                                     }
                                                     // probe STARTTLS/993
-                                                    if 0 != context.shall_stop_ongoing {
+                                                    if 0 != *context
+                                                        .shall_stop_ongoing
+                                                        .clone()
+                                                        .read()
+                                                        .unwrap()
+                                                    {
                                                         current_block = 2927484062889439186;
                                                         break;
                                                     }
@@ -876,7 +934,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                         break;
                                                     }
                                                     // probe STARTTLS/143
-                                                    if 0 != context.shall_stop_ongoing {
+                                                    if 0 != *context
+                                                        .shall_stop_ongoing
+                                                        .clone()
+                                                        .read()
+                                                        .unwrap()
+                                                    {
                                                         current_block = 2927484062889439186;
                                                         break;
                                                     }
@@ -922,7 +985,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                         break;
                                                     }
                                                     // next probe round with only the localpart of the email-address as the loginname
-                                                    if 0 != context.shall_stop_ongoing {
+                                                    if 0 != *context
+                                                        .shall_stop_ongoing
+                                                        .clone()
+                                                        .read()
+                                                        .unwrap()
+                                                    {
                                                         current_block = 2927484062889439186;
                                                         break;
                                                     }
@@ -963,7 +1031,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                     2927484062889439186 => {}
                                                     _ => {
                                                         imap_connected_here = 1i32;
-                                                        if !(0 != context.shall_stop_ongoing) {
+                                                        if !(0
+                                                            != *context
+                                                                .shall_stop_ongoing
+                                                                .clone()
+                                                                .read()
+                                                                .unwrap())
+                                                        {
                                                             (context.cb)(
                                                                 context,
                                                                 Event::CONFIGURE_PROGRESS,
@@ -979,6 +1053,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                             );
                                                             /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
                                                             if 0 == dc_smtp_connect(
+                                                                context,
                                                                 &mut context
                                                                     .smtp
                                                                     .clone()
@@ -990,7 +1065,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                     current_block =
                                                                         2927484062889439186;
                                                                 } else if 0
-                                                                    != context.shall_stop_ongoing
+                                                                    != *context
+                                                                        .shall_stop_ongoing
+                                                                        .clone()
+                                                                        .read()
+                                                                        .unwrap()
                                                                 {
                                                                     current_block =
                                                                         2927484062889439186;
@@ -1029,6 +1108,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                     );
                                                                     free(r_3 as *mut libc::c_void);
                                                                     if 0 == dc_smtp_connect(
+                                                                        context,
                                                                         &mut context
                                                                             .smtp
                                                                             .clone()
@@ -1036,8 +1116,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             .unwrap(),
                                                                         param,
                                                                     ) {
-                                                                        if 0 != context
+                                                                        if 0 != *context
                                                                             .shall_stop_ongoing
+                                                                            .clone()
+                                                                            .read()
+                                                                            .unwrap()
                                                                         {
                                                                             current_block =
                                                                                 2927484062889439186;
@@ -1087,6 +1170,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                                  as
                                                                                  *mut libc::c_void);
                                                                             if 0 == dc_smtp_connect(
+                                                                                context,
                                                                                 &mut context
                                                                                     .smtp
                                                                                     .clone()
@@ -1116,8 +1200,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                 _ => {
                                                                     smtp_connected_here = 1i32;
                                                                     if !(0
-                                                                        != context
-                                                                            .shall_stop_ongoing)
+                                                                        != *context
+                                                                            .shall_stop_ongoing
+                                                                            .clone()
+                                                                            .read()
+                                                                            .unwrap())
                                                                     {
                                                                         (context.cb)(context,
                                                                                         Event::CONFIGURE_PROGRESS,
@@ -1143,7 +1230,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             =
                                                                             if 0
                                                                             !=
-                                                                            dc_sqlite3_get_config_int(&mut context.sql.lock().unwrap(),
+                                                                            dc_sqlite3_get_config_int(context, &mut context.sql.lock().unwrap(),
                                                                                                       b"mvbox_watch\x00"
                                                                                                       as
                                                                                                       *const u8
@@ -1153,7 +1240,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             ||
                                                                             0
                                                                             !=
-                                                                            dc_sqlite3_get_config_int(&mut context.sql.lock().unwrap(),
+                                                                            dc_sqlite3_get_config_int(context, &mut context.sql.lock().unwrap(),
                                                                                                       b"mvbox_move\x00"
                                                                                                       as
                                                                                                       *const u8
@@ -1175,8 +1262,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             flags,
                                                                         );
                                                                         if !(0
-                                                                            != context
-                                                                                .shall_stop_ongoing)
+                                                                            != *context
+                                                                                .shall_stop_ongoing
+                                                                                .clone()
+                                                                                .read()
+                                                                                .unwrap())
                                                                         {
                                                                             (context.cb)(context,
                                                                                             Event::CONFIGURE_PROGRESS,
@@ -1198,22 +1288,25 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                                             0i32
                                                                                             as
                                                                                             uintptr_t);
-                                                                            dc_loginparam_write(param,
+                                                                            dc_loginparam_write(context, param,
                                                                                                 &mut context.sql.lock().unwrap(),
                                                                                                 b"configured_\x00"
                                                                                                 as
                                                                                                 *const u8
                                                                                                 as
                                                                                                 *const libc::c_char);
-                                                                            dc_sqlite3_set_config_int(&mut context.sql.lock().unwrap(),
+                                                                            dc_sqlite3_set_config_int(context, &mut context.sql.lock().unwrap(),
                                                                                                       b"configured\x00"
                                                                                                       as
                                                                                                       *const u8
                                                                                                       as
                                                                                                       *const libc::c_char,
                                                                                                       1i32);
-                                                                            if !(0 != context
-                                                                                .shall_stop_ongoing)
+                                                                            if !(0 != *context
+                                                                                .shall_stop_ongoing
+                                                                                .clone()
+                                                                                .read()
+                                                                                .unwrap())
                                                                             {
                                                                                 (context.cb)(context,
                                                                                                 Event::CONFIGURE_PROGRESS,
@@ -1246,7 +1339,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                                             *const libc::c_char);
                                                                                 if !(0
                                                                                      !=
-                                                                                     context.shall_stop_ongoing)
+                                                                                     *context.shall_stop_ongoing.clone().read().unwrap())
                                                                                 {
                                                                                     (context.cb)(context,
                                                                                                     Event::CONFIGURE_PROGRESS,
@@ -1311,9 +1404,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
 }
 
 pub unsafe fn dc_free_ongoing(mut context: &dc_context_t) {
-    context.ongoing_running = 0i32;
-    context.shall_stop_ongoing = 1i32;
+    // FIXME
+    // context.ongoing_running = 0i32;
+    *context.shall_stop_ongoing.clone().write().unwrap() = 1;
 }
+
 pub unsafe fn dc_configure_folders(
     context: &dc_context_t,
     imap: &mut dc_imap_t,
@@ -1409,6 +1504,7 @@ pub unsafe fn dc_configure_folders(
             mailimap_subscribe((*imap).etpan, mvbox_folder);
         }
         dc_sqlite3_set_config_int(
+            context,
             &mut context.sql.lock().unwrap(),
             b"folders_configured\x00" as *const u8 as *const libc::c_char,
             3i32,
@@ -2067,10 +2163,12 @@ pub unsafe fn dc_alloc_ongoing(context: &dc_context_t) -> libc::c_int {
         );
         return 0i32;
     }
-    context.ongoing_running = 1i32;
-    context.shall_stop_ongoing = 0i32;
+    // FIXME
+    // context.ongoing_running = 1i32;
+    *context.shall_stop_ongoing.clone().write().unwrap() = 0;
     return 1i32;
 }
+
 pub unsafe fn dc_connect_to_configured_imap(
     context: &dc_context_t,
     imap: &mut dc_imap_t,
@@ -2080,6 +2178,7 @@ pub unsafe fn dc_connect_to_configured_imap(
     if 0 != dc_imap_is_connected(imap) {
         ret_connected = 1i32
     } else if dc_sqlite3_get_config_int(
+        context,
         &mut context.sql.clone().lock().unwrap(),
         b"configured\x00" as *const u8 as *const libc::c_char,
         0i32,
@@ -2092,6 +2191,7 @@ pub unsafe fn dc_connect_to_configured_imap(
         );
     } else {
         dc_loginparam_read(
+            context,
             param,
             &mut context.sql.clone().lock().unwrap(),
             b"configured_\x00" as *const u8 as *const libc::c_char,

@@ -143,15 +143,20 @@ unsafe fn dc_chatlist_load_from_db(
         // shown at all permanent in the chatlist.
         if 0 != query_contact_id {
             stmt =
-                dc_sqlite3_prepare(&mut (*chatlist).context.sql.lock().unwrap(),
-                                   b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
-                                       as *const u8 as *const libc::c_char);
+                dc_sqlite3_prepare(
+                    (*chatlist).context,
+                    &mut (*chatlist).context.sql.lock().unwrap(),
+                    b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
+                        as *const u8 as *const libc::c_char
+                );
             sqlite3_bind_int(stmt, 1i32, query_contact_id as libc::c_int);
             current_block = 3437258052017859086;
         } else if 0 != listflags & 0x1i32 {
             stmt =
-                dc_sqlite3_prepare(&mut (*chatlist).context.sql.lock().unwrap(),
-                                   b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.archived=1  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
+                dc_sqlite3_prepare(
+                    (*chatlist).context,
+                    &mut (*chatlist).context.sql.lock().unwrap(),
+                    b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.archived=1  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
                                        as *const u8 as *const libc::c_char);
             current_block = 3437258052017859086;
         } else if query__.is_null() {
@@ -165,7 +170,9 @@ unsafe fn dc_chatlist_load_from_db(
                 add_archived_link_item = 1i32
             }
             stmt =
-                dc_sqlite3_prepare(&mut (*chatlist).context.sql.lock().unwrap(),
+                dc_sqlite3_prepare(
+                    (*chatlist).context,
+                    &mut (*chatlist).context.sql.lock().unwrap(),
                                    b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.archived=0  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
                                        as *const u8 as *const libc::c_char);
             current_block = 3437258052017859086;
@@ -178,8 +185,10 @@ unsafe fn dc_chatlist_load_from_db(
             } else {
                 strLikeCmd = dc_mprintf(b"%%%s%%\x00" as *const u8 as *const libc::c_char, query);
                 stmt =
-                    dc_sqlite3_prepare(&mut (*chatlist).context.sql.lock().unwrap(),
-                                       b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.name LIKE ?  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
+                    dc_sqlite3_prepare(
+                        (*chatlist).context,
+                        &mut (*chatlist).context.sql.lock().unwrap(),
+                        b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.name LIKE ?  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
                                            as *const u8 as
                                            *const libc::c_char);
                 sqlite3_bind_text(stmt, 1i32, strLikeCmd, -1i32, None);
@@ -223,6 +232,7 @@ unsafe fn dc_chatlist_load_from_db(
 pub unsafe fn dc_get_archived_cnt(mut context: &dc_context_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+        context,
         &mut context.sql.lock().unwrap(),
         b"SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;\x00" as *const u8
             as *const libc::c_char,
@@ -237,8 +247,10 @@ unsafe fn get_last_deaddrop_fresh_msg(mut context: &dc_context_t) -> uint32_t {
     let mut ret: uint32_t = 0i32 as uint32_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     stmt =
-        dc_sqlite3_prepare(&mut context.sql.lock().unwrap(),
-                           b"SELECT m.id  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.state=10   AND m.hidden=0    AND c.blocked=2 ORDER BY m.timestamp DESC, m.id DESC;\x00"
+        dc_sqlite3_prepare(
+            context,
+            &mut context.sql.lock().unwrap(),
+            b"SELECT m.id  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.state=10   AND m.hidden=0    AND c.blocked=2 ORDER BY m.timestamp DESC, m.id DESC;\x00"
                                as *const u8 as *const libc::c_char);
     /* we have an index over the state-column, this should be sufficient as there are typically only few fresh messages */
     if !(sqlite3_step(stmt) != 100i32) {

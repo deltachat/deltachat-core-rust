@@ -18,11 +18,11 @@ pub unsafe fn dc_token_save(
     mut token: *const libc::c_char,
 ) {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint || token.is_null())
-    {
+    if !token.is_null() {
         // foreign_id may be 0
         stmt = dc_sqlite3_prepare(
-            (*context).sql,
+            context,
+            &mut context.sql.clone().lock().unwrap(),
             b"INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);\x00"
                 as *const u8 as *const libc::c_char,
         );
@@ -41,20 +41,21 @@ pub unsafe fn dc_token_lookup(
 ) -> *mut libc::c_char {
     let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
-        stmt = dc_sqlite3_prepare(
-            (*context).sql,
-            b"SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;\x00" as *const u8
-                as *const libc::c_char,
-        );
-        sqlite3_bind_int(stmt, 1i32, namespc as libc::c_int);
-        sqlite3_bind_int(stmt, 2i32, foreign_id as libc::c_int);
-        sqlite3_step(stmt);
-        token = dc_strdup_keep_null(sqlite3_column_text(stmt, 0i32) as *mut libc::c_char)
-    }
+    stmt = dc_sqlite3_prepare(
+        context,
+        &mut context.sql.clone().lock().unwrap(),
+        b"SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;\x00" as *const u8
+            as *const libc::c_char,
+    );
+    sqlite3_bind_int(stmt, 1i32, namespc as libc::c_int);
+    sqlite3_bind_int(stmt, 2i32, foreign_id as libc::c_int);
+    sqlite3_step(stmt);
+    token = dc_strdup_keep_null(sqlite3_column_text(stmt, 0i32) as *mut libc::c_char);
+
     sqlite3_finalize(stmt);
-    return token;
+    token
 }
+
 pub unsafe fn dc_token_exists(
     mut context: &dc_context_t,
     mut namespc: dc_tokennamespc_t,
@@ -62,10 +63,10 @@ pub unsafe fn dc_token_exists(
 ) -> libc::c_int {
     let mut exists: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint || token.is_null())
-    {
+    if !token.is_null() {
         stmt = dc_sqlite3_prepare(
-            (*context).sql,
+            context,
+            &mut context.sql.clone().lock().unwrap(),
             b"SELECT id FROM tokens WHERE namespc=? AND token=?;\x00" as *const u8
                 as *const libc::c_char,
         );

@@ -44,91 +44,92 @@ pub unsafe fn dc_get_securejoin_qr(
     let mut chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
     let mut group_name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut group_name_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
-        dc_ensure_secret_key_exists(context);
-        invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id);
-        if invitenumber.is_null() {
-            invitenumber = dc_create_id();
-            dc_token_save(context, DC_TOKEN_INVITENUMBER, group_chat_id, invitenumber);
-        }
-        auth = dc_token_lookup(context, DC_TOKEN_AUTH, group_chat_id);
-        if auth.is_null() {
-            auth = dc_create_id();
-            dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, auth);
-        }
-        self_addr = dc_sqlite3_get_config(
-            (*context).sql,
-            b"configured_addr\x00" as *const u8 as *const libc::c_char,
-            0 as *const libc::c_char,
+
+    dc_ensure_secret_key_exists(context);
+    invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id);
+    if invitenumber.is_null() {
+        invitenumber = dc_create_id();
+        dc_token_save(context, DC_TOKEN_INVITENUMBER, group_chat_id, invitenumber);
+    }
+    auth = dc_token_lookup(context, DC_TOKEN_AUTH, group_chat_id);
+    if auth.is_null() {
+        auth = dc_create_id();
+        dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, auth);
+    }
+    self_addr = dc_sqlite3_get_config(
+        context,
+        &mut context.sql.clone().lock().unwrap(),
+        b"configured_addr\x00" as *const u8 as *const libc::c_char,
+        0 as *const libc::c_char,
+    );
+    if self_addr.is_null() {
+        dc_log_error(
+            context,
+            0i32,
+            b"Not configured, cannot generate QR code.\x00" as *const u8 as *const libc::c_char,
         );
-        if self_addr.is_null() {
-            dc_log_error(
-                context,
-                0i32,
-                b"Not configured, cannot generate QR code.\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-            self_name = dc_sqlite3_get_config(
-                (*context).sql,
-                b"displayname\x00" as *const u8 as *const libc::c_char,
-                b"\x00" as *const u8 as *const libc::c_char,
-            );
-            fingerprint = get_self_fingerprint(context);
-            if !fingerprint.is_null() {
-                self_addr_urlencoded = dc_urlencode(self_addr);
-                self_name_urlencoded = dc_urlencode(self_name);
-                if 0 != group_chat_id {
-                    chat = dc_get_chat(context, group_chat_id);
-                    if chat.is_null() {
-                        dc_log_error(
-                            context,
-                            0i32,
-                            b"Cannot get QR-code for chat-id %i\x00" as *const u8
-                                as *const libc::c_char,
-                            group_chat_id,
-                        );
-                        current_block = 9531737720721467826;
-                    } else {
-                        group_name = dc_chat_get_name(chat);
-                        group_name_urlencoded = dc_urlencode(group_name);
-                        qr = dc_mprintf(
-                            b"OPENPGP4FPR:%s#a=%s&g=%s&x=%s&i=%s&s=%s\x00" as *const u8
-                                as *const libc::c_char,
-                            fingerprint,
-                            self_addr_urlencoded,
-                            group_name_urlencoded,
-                            (*chat).grpid,
-                            invitenumber,
-                            auth,
-                        );
-                        current_block = 1118134448028020070;
-                    }
+    } else {
+        self_name = dc_sqlite3_get_config(
+            context,
+            &mut context.sql.clone().lock().unwrap(),
+            b"displayname\x00" as *const u8 as *const libc::c_char,
+            b"\x00" as *const u8 as *const libc::c_char,
+        );
+        fingerprint = get_self_fingerprint(context);
+        if !fingerprint.is_null() {
+            self_addr_urlencoded = dc_urlencode(self_addr);
+            self_name_urlencoded = dc_urlencode(self_name);
+            if 0 != group_chat_id {
+                chat = dc_get_chat(context, group_chat_id);
+                if chat.is_null() {
+                    dc_log_error(
+                        context,
+                        0i32,
+                        b"Cannot get QR-code for chat-id %i\x00" as *const u8
+                            as *const libc::c_char,
+                        group_chat_id,
+                    );
+                    current_block = 9531737720721467826;
                 } else {
+                    group_name = dc_chat_get_name(chat);
+                    group_name_urlencoded = dc_urlencode(group_name);
                     qr = dc_mprintf(
-                        b"OPENPGP4FPR:%s#a=%s&n=%s&i=%s&s=%s\x00" as *const u8
+                        b"OPENPGP4FPR:%s#a=%s&g=%s&x=%s&i=%s&s=%s\x00" as *const u8
                             as *const libc::c_char,
                         fingerprint,
                         self_addr_urlencoded,
-                        self_name_urlencoded,
+                        group_name_urlencoded,
+                        (*chat).grpid,
                         invitenumber,
                         auth,
                     );
                     current_block = 1118134448028020070;
                 }
-                match current_block {
-                    9531737720721467826 => {}
-                    _ => {
-                        dc_log_info(
-                            context,
-                            0i32,
-                            b"Generated QR code: %s\x00" as *const u8 as *const libc::c_char,
-                            qr,
-                        );
-                    }
+            } else {
+                qr = dc_mprintf(
+                    b"OPENPGP4FPR:%s#a=%s&n=%s&i=%s&s=%s\x00" as *const u8 as *const libc::c_char,
+                    fingerprint,
+                    self_addr_urlencoded,
+                    self_name_urlencoded,
+                    invitenumber,
+                    auth,
+                );
+                current_block = 1118134448028020070;
+            }
+            match current_block {
+                9531737720721467826 => {}
+                _ => {
+                    dc_log_info(
+                        context,
+                        0i32,
+                        b"Generated QR code: %s\x00" as *const u8 as *const libc::c_char,
+                        qr,
+                    );
                 }
             }
         }
     }
+
     free(self_addr_urlencoded as *mut libc::c_void);
     free(self_addr as *mut libc::c_void);
     free(self_name as *mut libc::c_void);
@@ -145,17 +146,26 @@ pub unsafe fn dc_get_securejoin_qr(
         dc_strdup(0 as *const libc::c_char)
     };
 }
+
 unsafe fn get_self_fingerprint(mut context: &dc_context_t) -> *mut libc::c_char {
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut self_key: *mut dc_key_t = dc_key_new();
     let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     self_addr = dc_sqlite3_get_config(
-        (*context).sql,
+        context,
+        &mut context.sql.clone().lock().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
-    if !(self_addr.is_null() || 0 == dc_key_load_self_public(self_key, self_addr, (*context).sql)) {
-        fingerprint = dc_key_get_fingerprint(self_key);
+    if !(self_addr.is_null()
+        || 0 == dc_key_load_self_public(
+            context,
+            self_key,
+            self_addr,
+            &mut context.sql.clone().lock().unwrap(),
+        ))
+    {
+        fingerprint = dc_key_get_fingerprint(context, self_key);
         fingerprint.is_null();
     }
     free(self_addr as *mut libc::c_void);
@@ -175,7 +185,6 @@ pub unsafe fn dc_join_securejoin(
     let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
     let mut join_vg: libc::c_int = 0i32;
     let mut qr_scan: *mut dc_lot_t = 0 as *mut dc_lot_t;
-    let mut qr_locked: libc::c_int = 0i32;
     dc_log_info(
         context,
         0i32,
@@ -199,16 +208,12 @@ pub unsafe fn dc_join_securejoin(
                     0i32,
                     b"Unknown contact.\x00" as *const u8 as *const libc::c_char,
                 );
-            } else if !(0 != (*context).shall_stop_ongoing) {
+            } else if !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
                 join_vg = ((*qr_scan).state == 202i32) as libc::c_int;
-                (*context).bobs_status = 0i32;
-                pthread_mutex_lock(&mut (*context).bobs_qr_critical);
-                qr_locked = 1i32;
-                (*context).bobs_qr_scan = qr_scan;
-                if 0 != qr_locked {
-                    pthread_mutex_unlock(&mut (*context).bobs_qr_critical);
-                    qr_locked = 0i32
-                }
+                let bob_a = context.bob.clone();
+                let mut bob = bob_a.write().unwrap();
+                bob.status = 0;
+                bob.qr_scan = qr_scan;
                 if 0 != fingerprint_equals_sender(context, (*qr_scan).fingerprint, contact_chat_id)
                 {
                     dc_log_info(
@@ -216,8 +221,8 @@ pub unsafe fn dc_join_securejoin(
                         0i32,
                         b"Taking protocol shortcut.\x00" as *const u8 as *const libc::c_char,
                     );
-                    (*context).bob_expects = 6i32;
-                    ((*context).cb)(
+                    bob.expects = 6;
+                    (context.cb)(
                         context,
                         Event::SECUREJOIN_JOINER_PROGRESS,
                         chat_id_2_contact_id(context, contact_chat_id) as uintptr_t,
@@ -242,7 +247,7 @@ pub unsafe fn dc_join_securejoin(
                     );
                     free(own_fingerprint as *mut libc::c_void);
                 } else {
-                    (*context).bob_expects = 2i32;
+                    bob.expects = 2;
                     send_handshake_msg(
                         context,
                         contact_chat_id,
@@ -257,14 +262,17 @@ pub unsafe fn dc_join_securejoin(
                     );
                 }
                 // Bob -> Alice
-                while !(0 != (*context).shall_stop_ongoing) {
+                while !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
                     usleep((300i32 * 1000i32) as useconds_t);
                 }
             }
         }
     }
-    (*context).bob_expects = 0i32;
-    if (*context).bobs_status == 1i32 {
+    let bob_a = context.bob.clone();
+    let mut bob = bob_a.write().unwrap();
+
+    bob.expects = 0;
+    if bob.status == 1 {
         if 0 != join_vg {
             ret_chat_id = dc_get_chat_id_by_grpid(
                 context,
@@ -276,19 +284,15 @@ pub unsafe fn dc_join_securejoin(
             ret_chat_id = contact_chat_id as libc::c_int
         }
     }
-    pthread_mutex_lock(&mut (*context).bobs_qr_critical);
-    qr_locked = 1i32;
-    (*context).bobs_qr_scan = 0 as *mut dc_lot_t;
-    if 0 != qr_locked {
-        pthread_mutex_unlock(&mut (*context).bobs_qr_critical);
-        qr_locked = 0i32
-    }
+    bob.qr_scan = std::ptr::null_mut();
+
     dc_lot_unref(qr_scan);
     if 0 != ongoing_allocated {
         dc_free_ongoing(context);
     }
-    return ret_chat_id as uint32_t;
+    ret_chat_id as uint32_t
 }
+
 unsafe fn send_handshake_msg(
     mut context: &dc_context_t,
     mut contact_chat_id: uint32_t,
@@ -351,10 +355,14 @@ unsafe fn fingerprint_equals_sender(
         if !(0
             == dc_contact_load_from_db(
                 contact,
-                (*context).sql,
+                &mut context.sql.clone().lock().unwrap(),
                 dc_array_get_id(contacts, 0i32 as size_t),
             )
-            || 0 == dc_apeerstate_load_by_addr(peerstate, (*context).sql, (*contact).addr))
+            || 0 == dc_apeerstate_load_by_addr(
+                peerstate,
+                &mut context.sql.clone().lock().unwrap(),
+                (*contact).addr,
+            ))
         {
             fingerprint_normalized = dc_normalize_fingerprint(fingerprint);
             if strcasecmp(fingerprint_normalized, (*peerstate).public_key_fingerprint) == 0i32 {
@@ -369,12 +377,11 @@ unsafe fn fingerprint_equals_sender(
 }
 /* library private: secure-join */
 pub unsafe fn dc_handle_securejoin_handshake(
-    mut context: &dc_context_t,
-    mut mimeparser: *mut dc_mimeparser_t,
-    mut contact_id: uint32_t,
+    context: &dc_context_t,
+    mimeparser: *mut dc_mimeparser_t,
+    contact_id: uint32_t,
 ) -> libc::c_int {
     let mut current_block: u64;
-    let mut qr_locked: libc::c_int = 0i32;
     let mut step: *const libc::c_char = 0 as *const libc::c_char;
     let mut join_vg: libc::c_int = 0i32;
     let mut scanned_fingerprint_of_alice: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -385,7 +392,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_int = 0i32;
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
-    if !(context.is_null() || mimeparser.is_null() || contact_id <= 9i32 as libc::c_uint) {
+    if !(mimeparser.is_null() || contact_id <= 9i32 as libc::c_uint) {
         step = lookup_field(
             mimeparser,
             b"Secure-Join\x00" as *const u8 as *const libc::c_char,
@@ -449,7 +456,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         0i32,
                         b"Secure-join requested.\x00" as *const u8 as *const libc::c_char,
                     );
-                    ((*context).cb)(
+                    (context.cb)(
                         context,
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
@@ -478,11 +485,10 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     b"vc-auth-required\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
             {
-                pthread_mutex_lock(&mut (*context).bobs_qr_critical);
-                qr_locked = 1i32;
-                if (*context).bobs_qr_scan.is_null()
-                    || (*context).bob_expects != 2i32
-                    || 0 != join_vg && (*(*context).bobs_qr_scan).state != 202i32
+                let bob_a = context.bob.clone();
+                let bob = bob_a.read().unwrap();
+                let scan = bob.qr_scan;
+                if scan.is_null() || bob.expects != 2i32 || 0 != join_vg && (*scan).state != 202i32
                 {
                     dc_log_warning(
                         context,
@@ -493,15 +499,10 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     // no error, just aborted somehow or a mail from another handshake
                     current_block = 4378276786830486580;
                 } else {
-                    scanned_fingerprint_of_alice =
-                        dc_strdup((*(*context).bobs_qr_scan).fingerprint);
-                    auth = dc_strdup((*(*context).bobs_qr_scan).auth);
+                    scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
+                    auth = dc_strdup((*scan).auth);
                     if 0 != join_vg {
-                        grpid = dc_strdup((*(*context).bobs_qr_scan).text2)
-                    }
-                    if 0 != qr_locked {
-                        pthread_mutex_unlock(&mut (*context).bobs_qr_critical);
-                        qr_locked = 0i32
+                        grpid = dc_strdup((*scan).text2)
                     }
                     if 0 == encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
                         could_not_establish_secure_connection(
@@ -537,13 +538,14 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Fingerprint verified.\x00" as *const u8 as *const libc::c_char,
                         );
                         own_fingerprint = get_self_fingerprint(context);
-                        ((*context).cb)(
+                        (context.cb)(
                             context,
                             Event::SECUREJOIN_JOINER_PROGRESS,
                             contact_id as uintptr_t,
                             400i32 as uintptr_t,
                         );
-                        (*context).bob_expects = 6i32;
+                        context.bob.clone().write().unwrap().expects = 6;
+
                         send_handshake_msg(
                             context,
                             contact_chat_id,
@@ -643,13 +645,13 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Auth verified.\x00" as *const u8 as *const libc::c_char,
                         );
                         secure_connection_established(context, contact_chat_id);
-                        ((*context).cb)(
+                        (context.cb)(
                             context,
                             Event::CONTACTS_CHANGED,
                             contact_id as uintptr_t,
                             0i32 as uintptr_t,
                         );
-                        ((*context).cb)(
+                        (context.cb)(
                             context,
                             Event::SECUREJOIN_INVITER_PROGRESS,
                             contact_id as uintptr_t,
@@ -692,7 +694,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 0 as *const libc::c_char,
                                 0 as *const libc::c_char,
                             );
-                            ((*context).cb)(
+                            (context.cb)(
                                 context,
                                 Event::SECUREJOIN_INVITER_PROGRESS,
                                 contact_id as uintptr_t,
@@ -714,7 +716,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 if 0 != join_vg {
                     ret = 0x1i32
                 }
-                if (*context).bob_expects != 6i32 {
+                if context.bob.clone().read().unwrap().expects != 6 {
                     dc_log_info(
                         context,
                         0i32,
@@ -723,11 +725,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     );
                     current_block = 4378276786830486580;
                 } else {
-                    pthread_mutex_lock(&mut (*context).bobs_qr_critical);
-                    qr_locked = 1i32;
-                    if (*context).bobs_qr_scan.is_null()
-                        || 0 != join_vg && (*(*context).bobs_qr_scan).state != 202i32
-                    {
+                    let scan = context.bob.clone().read().unwrap().qr_scan;
+                    if scan.is_null() || 0 != join_vg && (*scan).state != 202i32 {
                         dc_log_warning(
                             context,
                             0i32,
@@ -736,14 +735,9 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         );
                         current_block = 4378276786830486580;
                     } else {
-                        scanned_fingerprint_of_alice =
-                            dc_strdup((*(*context).bobs_qr_scan).fingerprint);
+                        scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
                         if 0 != join_vg {
-                            grpid = dc_strdup((*(*context).bobs_qr_scan).text2)
-                        }
-                        if 0 != qr_locked {
-                            pthread_mutex_unlock(&mut (*context).bobs_qr_critical);
-                            qr_locked = 0i32
+                            grpid = dc_strdup((*scan).text2)
                         }
                         let mut vg_expect_encrypted: libc::c_int = 1i32;
                         if 0 != join_vg {
@@ -788,7 +782,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                     current_block = 4378276786830486580;
                                 } else {
                                     dc_scaleup_contact_origin(context, contact_id, 0x2000000i32);
-                                    ((*context).cb)(
+                                    (context.cb)(
                                         context,
                                         Event::CONTACTS_CHANGED,
                                         0i32 as uintptr_t,
@@ -818,7 +812,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                         4378276786830486580 => {}
                                         _ => {
                                             secure_connection_established(context, contact_chat_id);
-                                            (*context).bob_expects = 0i32;
+                                            context.bob.clone().write().unwrap().expects = 0;
                                             if 0 != join_vg {
                                                 send_handshake_msg(
                                                     context,
@@ -858,13 +852,13 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     );
                     current_block = 4378276786830486580;
                 } else {
-                    ((*context).cb)(
+                    (context.cb)(
                         context,
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
                         800i32 as uintptr_t,
                     );
-                    ((*context).cb)(
+                    (context.cb)(
                         context,
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
@@ -885,10 +879,6 @@ pub unsafe fn dc_handle_securejoin_handshake(
             }
         }
     }
-    if 0 != qr_locked {
-        pthread_mutex_unlock(&mut (*context).bobs_qr_critical);
-        qr_locked = 0i32
-    }
     dc_contact_unref(contact);
     free(scanned_fingerprint_of_alice as *mut libc::c_void);
     free(auth as *mut libc::c_void);
@@ -896,8 +886,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
     free(grpid as *mut libc::c_void);
     return ret;
 }
-unsafe fn end_bobs_joining(mut context: &dc_context_t, mut status: libc::c_int) {
-    (*context).bobs_status = status;
+unsafe fn end_bobs_joining(context: &dc_context_t, status: libc::c_int) {
+    context.bob.clone().write().unwrap().status = status;
     dc_stop_ongoing_process(context);
 }
 unsafe fn secure_connection_established(mut context: &dc_context_t, mut contact_chat_id: uint32_t) {
@@ -913,7 +903,7 @@ unsafe fn secure_connection_established(mut context: &dc_context_t, mut contact_
         },
     );
     dc_add_device_msg(context, contact_chat_id, msg);
-    ((*context).cb)(
+    (context.cb)(
         context,
         Event::CHAT_MODIFIED,
         contact_chat_id as uintptr_t,
@@ -941,12 +931,12 @@ unsafe fn lookup_field(
     return value;
 }
 unsafe fn could_not_establish_secure_connection(
-    mut context: *mut dc_context_t,
-    mut contact_chat_id: uint32_t,
-    mut details: *const libc::c_char,
+    context: &dc_context_t,
+    contact_chat_id: uint32_t,
+    details: *const libc::c_char,
 ) {
     let mut contact_id: uint32_t = chat_id_2_contact_id(context, contact_chat_id);
-    let mut contact: &dc_contact_t = dc_get_contact(context, contact_id);
+    let mut contact = dc_get_contact(context, contact_id);
     let mut msg: *mut libc::c_char = dc_stock_str_repl_string(
         context,
         36i32,
@@ -968,16 +958,22 @@ unsafe fn could_not_establish_secure_connection(
     dc_contact_unref(contact);
 }
 unsafe fn mark_peer_as_verified(
-    mut context: *mut dc_context_t,
-    mut fingerprint: *const libc::c_char,
+    context: &dc_context_t,
+    fingerprint: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut peerstate: &dc_apeerstate_t = dc_apeerstate_new(context);
-    if !(0 == dc_apeerstate_load_by_fingerprint(peerstate, (*context).sql, fingerprint)) {
+    let mut peerstate = dc_apeerstate_new(context);
+    if !(0
+        == dc_apeerstate_load_by_fingerprint(
+            peerstate,
+            &mut context.sql.clone().lock().unwrap(),
+            fingerprint,
+        ))
+    {
         if !(0 == dc_apeerstate_set_verified(peerstate, 1i32, fingerprint, 2i32)) {
             (*peerstate).prefer_encrypt = 1i32;
             (*peerstate).to_save |= 0x2i32;
-            dc_apeerstate_save_to_db(peerstate, (*context).sql, 0i32);
+            dc_apeerstate_save_to_db(peerstate, &mut context.sql.clone().lock().unwrap(), 0i32);
             success = 1i32
         }
     }
@@ -1037,10 +1033,10 @@ pub unsafe fn dc_handle_degrade_event(
     mut context: &dc_context_t,
     mut peerstate: *mut dc_apeerstate_t,
 ) {
-    let mut stmt: &sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut stmt = 0 as *mut sqlite3_stmt;
     let mut contact_id: uint32_t = 0i32 as uint32_t;
     let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
-    if !(context.is_null() || peerstate.is_null()) {
+    if !peerstate.is_null() {
         // - we do not issue an warning for DC_DE_ENCRYPTION_PAUSED as this is quite normal
         // - currently, we do not issue an extra warning for DC_DE_VERIFICATION_LOST - this always comes
         //   together with DC_DE_FINGERPRINT_CHANGED which is logged, the idea is not to bother
@@ -1048,7 +1044,8 @@ pub unsafe fn dc_handle_degrade_event(
         //   (and he will know this and can fix this)
         if 0 != (*peerstate).degrade_event & 0x2i32 {
             stmt = dc_sqlite3_prepare(
-                (*context).sql,
+                context,
+                &mut context.sql.clone().lock().unwrap(),
                 b"SELECT id FROM contacts WHERE addr=?;\x00" as *const u8 as *const libc::c_char,
             );
             sqlite3_bind_text(stmt, 1i32, (*peerstate).addr, -1i32, None);
@@ -1067,7 +1064,7 @@ pub unsafe fn dc_handle_degrade_event(
                     dc_stock_str_repl_string(context, 37i32, (*peerstate).addr);
                 dc_add_device_msg(context, contact_chat_id, msg);
                 free(msg as *mut libc::c_void);
-                ((*context).cb)(
+                (context.cb)(
                     context,
                     Event::CHAT_MODIFIED,
                     contact_chat_id as uintptr_t,

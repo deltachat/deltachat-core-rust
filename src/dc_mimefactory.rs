@@ -51,7 +51,7 @@ pub unsafe fn dc_mimefactory_init<'a>(
     factory: *mut dc_mimefactory_t<'a>,
     context: &'a dc_context_t,
 ) {
-    if factory.is_null() || context.is_null() {
+    if factory.is_null() {
         return;
     }
     memset(
@@ -105,16 +105,11 @@ pub unsafe fn dc_mimefactory_load_msg(
     mut factory: *mut dc_mimefactory_t,
     mut msg_id: uint32_t,
 ) -> libc::c_int {
-    let mut context: *mut dc_context_t = 0 as *mut dc_context_t;
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(factory.is_null()
-        || msg_id <= 9i32 as libc::c_uint
-        || (*factory).context.is_null()
-        || !(*factory).msg.is_null())
-    {
+    if !(factory.is_null() || msg_id <= 9i32 as libc::c_uint || !(*factory).msg.is_null()) {
         /*call empty() before */
-        context = (*factory).context;
+        let context = (*factory).context;
         (*factory).recipients_names = clist_new();
         (*factory).recipients_addr = clist_new();
         (*factory).msg = dc_msg_new_untyped(context);
@@ -128,7 +123,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 clist_insert_after(
                     (*factory).recipients_names,
                     (*(*factory).recipients_names).last,
-                    dc_strdup_keep_null((*factory).from_displayname) as &libc::c_void,
+                    dc_strdup_keep_null((*factory).from_displayname) as *mut libc::c_void,
                 );
                 clist_insert_after(
                     (*factory).recipients_addr,
@@ -137,10 +132,12 @@ pub unsafe fn dc_mimefactory_load_msg(
                 );
             } else {
                 stmt =
-                    dc_sqlite3_prepare((*context).sql,
-                                       b"SELECT c.authname, c.addr  FROM chats_contacts cc  LEFT JOIN contacts c ON cc.contact_id=c.id  WHERE cc.chat_id=? AND cc.contact_id>9;\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
+                    dc_sqlite3_prepare(
+                        context,
+                        &mut context.sql.clone().lock().unwrap(),
+                        b"SELECT c.authname, c.addr  FROM chats_contacts cc  LEFT JOIN contacts c ON cc.contact_id=c.id  WHERE cc.chat_id=? AND cc.contact_id>9;\x00"
+                            as *const u8 as
+                            *const libc::c_char);
                 sqlite3_bind_int(stmt, 1i32, (*(*factory).msg).chat_id as libc::c_int);
                 while sqlite3_step(stmt) == 100i32 {
                     let mut authname: *const libc::c_char =
@@ -176,7 +173,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                         0 as *const libc::c_char,
                     );
                     let mut self_addr: *mut libc::c_char = dc_sqlite3_get_config(
-                        (*context).sql,
+                        context,
+                        &mut context.sql.clone().lock().unwrap(),
                         b"configured_addr\x00" as *const u8 as *const libc::c_char,
                         b"\x00" as *const u8 as *const libc::c_char,
                     );
@@ -202,7 +200,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                 if command != 6i32
                     && command != 7i32
                     && 0 != dc_sqlite3_get_config_int(
-                        (*context).sql,
+                        context,
+                        &mut context.sql.clone().lock().unwrap(),
                         b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                         1i32,
                     )
@@ -211,7 +210,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                 }
             }
             stmt = dc_sqlite3_prepare(
-                (*context).sql,
+                context,
+                &mut context.sql.clone().lock().unwrap(),
                 b"SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?\x00" as *const u8
                     as *const libc::c_char,
             );
@@ -238,17 +238,20 @@ pub unsafe fn dc_mimefactory_load_msg(
 }
 unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     (*factory).from_addr = dc_sqlite3_get_config(
-        (*(*factory).context).sql,
+        (*factory).context,
+        &mut (*factory).context.sql.clone().lock().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
     (*factory).from_displayname = dc_sqlite3_get_config(
-        (*(*factory).context).sql,
+        (*factory).context,
+        &mut (*factory).context.sql.clone().lock().unwrap(),
         b"displayname\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
     (*factory).selfstatus = dc_sqlite3_get_config(
-        (*(*factory).context).sql,
+        (*factory).context,
+        &mut (*factory).context.sql.clone().lock().unwrap(),
         b"selfstatus\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
@@ -268,7 +271,8 @@ pub unsafe fn dc_mimefactory_load_mdn(
         (*factory).msg = dc_msg_new_untyped((*factory).context);
         if !(0
             == dc_sqlite3_get_config_int(
-                (*(*factory).context).sql,
+                (*factory).context,
+                &mut (*factory).context.sql.clone().lock().unwrap(),
                 b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                 1i32,
             ))
@@ -278,7 +282,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
             if !(0 == dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
                 || 0 == dc_contact_load_from_db(
                     contact,
-                    (*(*factory).context).sql,
+                    &mut (*factory).context.sql.clone().lock().unwrap(),
                     (*(*factory).msg).from_id,
                 ))
             {
@@ -858,12 +862,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 DC_PARAM_SET_LONGITUDE as libc::c_int,
                                 0.0,
                             );
-                            let kml_file = dc_get_message_kml(
-                                (*msg).context,
-                                (*msg).timestamp_sort,
-                                latitude,
-                                longitude,
-                            );
+                            let kml_file =
+                                dc_get_message_kml((*msg).timestamp_sort, latitude, longitude);
                             if !kml_file.is_null() {
                                 let content_type = mailmime_content_new_with_str(
                                     b"application/vnd.google-earth.kml+xml\x00" as *const u8
@@ -1057,11 +1057,7 @@ unsafe fn get_subject(
     mut msg: *const dc_msg_t,
     mut afwd_email: libc::c_int,
 ) -> *mut libc::c_char {
-    let mut context: *mut dc_context_t = if !chat.is_null() {
-        (*chat).context
-    } else {
-        std::ptr::null_mut()
-    };
+    let context = (*chat).context;
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut raw_subject: *mut libc::c_char =
         dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, (*msg).param, 32i32, context);
