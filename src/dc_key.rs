@@ -149,7 +149,7 @@ pub unsafe fn dc_key_set_from_base64(
 pub unsafe fn dc_key_set_from_file(
     mut key: *mut dc_key_t,
     mut pathNfilename: *const libc::c_char,
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -465,7 +465,7 @@ pub unsafe fn dc_key_render_asc(
 pub unsafe fn dc_key_render_asc_to_file(
     mut key: *const dc_key_t,
     mut file: *const libc::c_char,
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut file_content: *mut libc::c_char = 0 as *mut libc::c_char;

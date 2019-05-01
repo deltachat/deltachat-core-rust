@@ -62,7 +62,7 @@ pub unsafe fn dc_no_compound_msgs() {
 static mut s_generate_compound_msgs: libc::c_int = 1i32;
 pub unsafe fn dc_mimeparser_new(
     mut blobdir: *const libc::c_char,
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
 ) -> *mut dc_mimeparser_t {
     let mut mimeparser: *mut dc_mimeparser_t = 0 as *mut dc_mimeparser_t;
     mimeparser = calloc(1, ::std::mem::size_of::<dc_mimeparser_t>()) as *mut dc_mimeparser_t;
@@ -814,11 +814,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
     }
     return any_part_added;
 }
-unsafe fn hash_header(
-    out: *mut dc_hash_t,
-    in_0: *const mailimf_fields,
-    _context: *mut dc_context_t,
-) {
+unsafe fn hash_header(out: *mut dc_hash_t, in_0: *const mailimf_fields, _context: &dc_context_t) {
     if in_0.is_null() {
         return;
     }

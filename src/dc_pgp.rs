@@ -130,7 +130,7 @@ pub unsafe fn dc_split_armored_data(
 }
 /* public key encryption */
 pub unsafe fn dc_pgp_create_keypair(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut addr: *const libc::c_char,
     mut ret_public_key: *mut dc_key_t,
     mut ret_private_key: *mut dc_key_t,
@@ -190,7 +190,7 @@ pub unsafe fn dc_pgp_create_keypair(
     return success;
 }
 /* returns 0 if there is no error, otherwise logs the error if a context is provided and returns 1*/
-pub unsafe fn dc_pgp_handle_rpgp_error(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_pgp_handle_rpgp_error(mut context: &dc_context_t) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut len: libc::c_int = 0i32;
     let mut msg: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -213,7 +213,7 @@ pub unsafe fn dc_pgp_handle_rpgp_error(mut context: *mut dc_context_t) -> libc::
     return success;
 }
 pub unsafe fn dc_pgp_is_valid_key(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut raw_key: *const dc_key_t,
 ) -> libc::c_int {
     let mut key_is_valid: libc::c_int = 0i32;
@@ -261,9 +261,9 @@ pub unsafe fn dc_pgp_calc_fingerprint(
             (*raw_key).binary as *const uint8_t,
             (*raw_key).bytes as usize,
         );
-        if !(0 != dc_pgp_handle_rpgp_error(0 as *mut dc_context_t)) {
+        if !(0 != dc_pgp_handle_rpgp_error(0 as &dc_context_t)) {
             fingerprint = rpgp::rpgp_key_fingerprint(key);
-            if !(0 != dc_pgp_handle_rpgp_error(0 as *mut dc_context_t)) {
+            if !(0 != dc_pgp_handle_rpgp_error(0 as &dc_context_t)) {
                 *ret_fingerprint_bytes = rpgp::rpgp_cvec_len(fingerprint) as size_t;
                 *ret_fingerprint = malloc(*ret_fingerprint_bytes) as *mut uint8_t;
                 memcpy(
@@ -284,7 +284,7 @@ pub unsafe fn dc_pgp_calc_fingerprint(
     return success;
 }
 pub unsafe fn dc_pgp_split_key(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut private_in: *const dc_key_t,
     mut ret_public_key: *mut dc_key_t,
 ) -> libc::c_int {
@@ -333,7 +333,7 @@ pub unsafe fn dc_pgp_split_key(
     return success;
 }
 pub unsafe fn dc_pgp_pk_encrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut plain_text: *const libc::c_void,
     mut plain_bytes: size_t,
     mut raw_public_keys_for_encryption: *const dc_keyring_t,
@@ -502,7 +502,7 @@ pub unsafe fn dc_pgp_pk_encrypt(
     return success;
 }
 pub unsafe fn dc_pgp_pk_decrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut ctext: *const libc::c_void,
     mut ctext_bytes: size_t,
     mut raw_private_keys_for_decryption: *const dc_keyring_t,
@@ -665,7 +665,7 @@ pub unsafe fn dc_pgp_pk_decrypt(
 }
 /* symm. encryption */
 pub unsafe fn dc_pgp_symm_encrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut passphrase: *const libc::c_char,
     mut plain: *const libc::c_void,
     mut plain_bytes: size_t,
@@ -697,7 +697,7 @@ pub unsafe fn dc_pgp_symm_encrypt(
     return success;
 }
 pub unsafe fn dc_pgp_symm_decrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut passphrase: *const libc::c_char,
     mut ctext: *const libc::c_void,
     mut ctext_bytes: size_t,

@@ -25,7 +25,7 @@ use crate::types::*;
 use crate::x::*;
 
 pub unsafe fn dc_get_securejoin_qr(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut group_chat_id: uint32_t,
 ) -> *mut libc::c_char {
     let mut current_block: u64;
@@ -145,7 +145,7 @@ pub unsafe fn dc_get_securejoin_qr(
         dc_strdup(0 as *const libc::c_char)
     };
 }
-unsafe fn get_self_fingerprint(mut context: *mut dc_context_t) -> *mut libc::c_char {
+unsafe fn get_self_fingerprint(mut context: &dc_context_t) -> *mut libc::c_char {
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut self_key: *mut dc_key_t = dc_key_new();
     let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -163,7 +163,7 @@ unsafe fn get_self_fingerprint(mut context: *mut dc_context_t) -> *mut libc::c_c
     return fingerprint;
 }
 pub unsafe fn dc_join_securejoin(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut qr: *const libc::c_char,
 ) -> uint32_t {
     /* ==========================================================
@@ -290,7 +290,7 @@ pub unsafe fn dc_join_securejoin(
     return ret_chat_id as uint32_t;
 }
 unsafe fn send_handshake_msg(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut contact_chat_id: uint32_t,
     mut step: *const libc::c_char,
     mut param2: *const libc::c_char,
@@ -326,7 +326,7 @@ unsafe fn send_handshake_msg(
     dc_msg_unref(msg);
 }
 unsafe fn chat_id_2_contact_id(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut contact_chat_id: uint32_t,
 ) -> uint32_t {
     let mut contact_id: uint32_t = 0i32 as uint32_t;
@@ -338,7 +338,7 @@ unsafe fn chat_id_2_contact_id(
     return contact_id;
 }
 unsafe fn fingerprint_equals_sender(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut fingerprint: *const libc::c_char,
     mut contact_chat_id: uint32_t,
 ) -> libc::c_int {
@@ -369,7 +369,7 @@ unsafe fn fingerprint_equals_sender(
 }
 /* library private: secure-join */
 pub unsafe fn dc_handle_securejoin_handshake(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mimeparser: *mut dc_mimeparser_t,
     mut contact_id: uint32_t,
 ) -> libc::c_int {
@@ -896,14 +896,11 @@ pub unsafe fn dc_handle_securejoin_handshake(
     free(grpid as *mut libc::c_void);
     return ret;
 }
-unsafe fn end_bobs_joining(mut context: *mut dc_context_t, mut status: libc::c_int) {
+unsafe fn end_bobs_joining(mut context: &dc_context_t, mut status: libc::c_int) {
     (*context).bobs_status = status;
     dc_stop_ongoing_process(context);
 }
-unsafe fn secure_connection_established(
-    mut context: *mut dc_context_t,
-    mut contact_chat_id: uint32_t,
-) {
+unsafe fn secure_connection_established(mut context: &dc_context_t, mut contact_chat_id: uint32_t) {
     let mut contact_id: uint32_t = chat_id_2_contact_id(context, contact_chat_id);
     let mut contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
     let mut msg: *mut libc::c_char = dc_stock_str_repl_string(
@@ -949,7 +946,7 @@ unsafe fn could_not_establish_secure_connection(
     mut details: *const libc::c_char,
 ) {
     let mut contact_id: uint32_t = chat_id_2_contact_id(context, contact_chat_id);
-    let mut contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
+    let mut contact: &dc_contact_t = dc_get_contact(context, contact_id);
     let mut msg: *mut libc::c_char = dc_stock_str_repl_string(
         context,
         36i32,
@@ -975,7 +972,7 @@ unsafe fn mark_peer_as_verified(
     mut fingerprint: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+    let mut peerstate: &dc_apeerstate_t = dc_apeerstate_new(context);
     if !(0 == dc_apeerstate_load_by_fingerprint(peerstate, (*context).sql, fingerprint)) {
         if !(0 == dc_apeerstate_set_verified(peerstate, 1i32, fingerprint, 2i32)) {
             (*peerstate).prefer_encrypt = 1i32;
@@ -1040,7 +1037,7 @@ pub unsafe fn dc_handle_degrade_event(
     mut context: *mut dc_context_t,
     mut peerstate: *mut dc_apeerstate_t,
 ) {
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut stmt: &sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut contact_id: uint32_t = 0i32 as uint32_t;
     let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
     if !(context.is_null() || peerstate.is_null()) {

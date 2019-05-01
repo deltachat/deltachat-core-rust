@@ -12,7 +12,7 @@ pub const DC_TOKEN_AUTH: dc_tokennamespc_t = 110;
 pub const DC_TOKEN_INVITENUMBER: dc_tokennamespc_t = 100;
 // Functions to read/write token from/to the database. A token is any string associated with a key.
 pub unsafe fn dc_token_save(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut namespc: dc_tokennamespc_t,
     mut foreign_id: uint32_t,
     mut token: *const libc::c_char,
@@ -35,7 +35,7 @@ pub unsafe fn dc_token_save(
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_token_lookup(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut namespc: dc_tokennamespc_t,
     mut foreign_id: uint32_t,
 ) -> *mut libc::c_char {
@@ -56,7 +56,7 @@ pub unsafe fn dc_token_lookup(
     return token;
 }
 pub unsafe fn dc_token_exists(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut namespc: dc_tokennamespc_t,
     mut token: *const libc::c_char,
 ) -> libc::c_int {

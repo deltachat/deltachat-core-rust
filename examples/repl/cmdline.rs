@@ -57,7 +57,7 @@ use num_traits::FromPrimitive;
  */
 #[no_mangle]
 pub unsafe extern "C" fn dc_reset_tables(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut bits: libc::c_int,
 ) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
@@ -152,7 +152,7 @@ pub unsafe extern "C" fn dc_reset_tables(
  * database. With this cleanup, they are also removed, as well as all
  * auto-added contacts, unless they are used in a chat or for blocking purpose.
  */
-unsafe extern "C" fn dc_cleanup_contacts(mut context: *mut dc_context_t) -> libc::c_int {
+unsafe extern "C" fn dc_cleanup_contacts(mut context: &dc_context_t) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0i32;
     }
@@ -167,7 +167,7 @@ unsafe extern "C" fn dc_cleanup_contacts(mut context: *mut dc_context_t) -> libc
     return 1i32;
 }
 unsafe extern "C" fn dc_poke_eml_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut filename: *const libc::c_char,
 ) -> libc::c_int {
     /* mainly for testing, may be called by dc_import_spec() */
@@ -198,7 +198,7 @@ unsafe extern "C" fn dc_poke_eml_file(
     return success;
 }
 unsafe extern "C" fn poke_public_key(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut addr: *const libc::c_char,
     mut public_key_file: *const libc::c_char,
 ) -> libc::c_int {
@@ -245,7 +245,7 @@ unsafe extern "C" fn poke_public_key(
  * @return 1=success, 0=error.
  */
 unsafe extern "C" fn poke_spec(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut spec: *const libc::c_char,
 ) -> libc::c_int {
     let mut current_block: u64;
@@ -403,7 +403,7 @@ unsafe extern "C" fn poke_spec(
     return success;
 }
 unsafe extern "C" fn log_msg(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut prefix: *const libc::c_char,
     mut msg: *mut dc_msg_t,
 ) {
@@ -466,7 +466,7 @@ unsafe extern "C" fn log_msg(
     free(contact_name as *mut libc::c_void);
     dc_contact_unref(contact);
 }
-unsafe extern "C" fn log_msglist(mut context: *mut dc_context_t, mut msglist: *mut dc_array_t) {
+unsafe extern "C" fn log_msglist(mut context: &dc_context_t, mut msglist: *mut dc_array_t) {
     let mut i: libc::c_int = 0;
     let mut cnt: libc::c_int = dc_array_get_cnt(msglist) as libc::c_int;
     let mut lines_out: libc::c_int = 0i32;
@@ -500,10 +500,7 @@ unsafe extern "C" fn log_msglist(mut context: *mut dc_context_t, mut msglist: *m
         );
     };
 }
-unsafe extern "C" fn log_contactlist(
-    mut context: *mut dc_context_t,
-    mut contacts: *mut dc_array_t,
-) {
+unsafe extern "C" fn log_contactlist(mut context: &dc_context_t, mut contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
     if 0 == dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
@@ -604,7 +601,7 @@ pub unsafe extern "C" fn dc_cmdline(
     mut context: *mut dc_context_t,
     cmdline: &str,
 ) -> *mut libc::c_char {
-    let mut cmd: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut cmd: &libc::c_char = 0 as *mut libc::c_char;
     let mut arg1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: *mut libc::c_char = 1i32 as *mut libc::c_char;
     let mut sel_chat: *mut dc_chat_t = 0 as *mut dc_chat_t;

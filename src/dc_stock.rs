@@ -9,17 +9,14 @@ use crate::x::*;
 
 /* Return the string with the given ID by calling DC_EVENT_GET_STRING.
 The result must be free()'d! */
-pub unsafe fn dc_stock_str(
-    mut context: *mut dc_context_t,
-    mut id: libc::c_int,
-) -> *mut libc::c_char {
+pub unsafe fn dc_stock_str(mut context: &dc_context_t, mut id: libc::c_int) -> *mut libc::c_char {
     return get_string(context, id, 0i32);
 }
 unsafe fn get_string(
     mut context: *mut dc_context_t,
     mut id: libc::c_int,
     mut qty: libc::c_int,
-) -> *mut libc::c_char {
+) -> &libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     if !context.is_null() {
         ret = ((*context).cb)(
@@ -218,7 +215,7 @@ pub unsafe fn dc_stock_str_repl_string(
     mut context: *mut dc_context_t,
     mut id: libc::c_int,
     mut to_insert: *const libc::c_char,
-) -> *mut libc::c_char {
+) -> &libc::c_char {
     let mut ret: *mut libc::c_char = get_string(context, id, 0i32);
     dc_str_replace(
         &mut ret,
@@ -236,7 +233,7 @@ pub unsafe fn dc_stock_str_repl_int(
     mut context: *mut dc_context_t,
     mut id: libc::c_int,
     mut to_insert_int: libc::c_int,
-) -> *mut libc::c_char {
+) -> &libc::c_char {
     let mut ret: *mut libc::c_char = get_string(context, id, to_insert_int);
     let mut to_insert_str: *mut libc::c_char = dc_mprintf(
         b"%i\x00" as *const u8 as *const libc::c_char,
@@ -262,7 +259,7 @@ pub unsafe fn dc_stock_str_repl_string2(
     mut id: libc::c_int,
     mut to_insert: *const libc::c_char,
     mut to_insert2: *const libc::c_char,
-) -> *mut libc::c_char {
+) -> &libc::c_char {
     let mut ret: *mut libc::c_char = get_string(context, id, 0i32);
     dc_str_replace(
         &mut ret,
@@ -293,7 +290,7 @@ pub unsafe fn dc_stock_system_msg(
     mut param1: *const libc::c_char,
     mut param2: *const libc::c_char,
     mut from_id: uint32_t,
-) -> *mut libc::c_char {
+) -> &libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut mod_contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut mod_displayname: *mut libc::c_char = 0 as *mut libc::c_char;

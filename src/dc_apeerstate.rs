@@ -18,7 +18,7 @@ use crate::x::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_apeerstate_t {
-    pub context: *mut dc_context_t,
+    pub context: &dc_context_t,
     pub addr: *mut libc::c_char,
     pub last_seen: time_t,
     pub last_seen_autocrypt: time_t,
@@ -35,7 +35,7 @@ pub struct dc_apeerstate_t {
 }
 
 /* the returned pointer is ref'd and must be unref'd after usage */
-pub unsafe fn dc_apeerstate_new(mut context: *mut dc_context_t) -> *mut dc_apeerstate_t {
+pub unsafe fn dc_apeerstate_new(mut context: &dc_context_t) -> *mut dc_apeerstate_t {
     let mut peerstate: *mut dc_apeerstate_t = 0 as *mut dc_apeerstate_t;
     peerstate = calloc(1, ::std::mem::size_of::<dc_apeerstate_t>()) as *mut dc_apeerstate_t;
     if peerstate.is_null() {

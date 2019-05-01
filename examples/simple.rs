@@ -16,7 +16,7 @@ use deltachat::dc_job::{
 };
 use deltachat::dc_lot::*;
 
-extern "C" fn cb(_ctx: *mut dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
+extern "C" fn cb(_ctx: &dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
     println!("[{:?}]", event);
 
     match event {

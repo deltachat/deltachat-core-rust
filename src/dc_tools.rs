@@ -887,7 +887,7 @@ pub unsafe fn dc_gm2local_offset() -> libc::c_long {
     return timeinfo.tm_gmtoff;
 }
 /* timesmearing */
-pub unsafe fn dc_smeared_time(mut context: *mut dc_context_t) -> time_t {
+pub unsafe fn dc_smeared_time(mut context: &dc_context_t) -> time_t {
     /* function returns a corrected time(NULL) */
     let mut now: time_t = time(0 as *mut time_t);
     pthread_mutex_lock(&mut (*context).smear_critical);
@@ -897,7 +897,7 @@ pub unsafe fn dc_smeared_time(mut context: *mut dc_context_t) -> time_t {
     pthread_mutex_unlock(&mut (*context).smear_critical);
     return now;
 }
-pub unsafe fn dc_create_smeared_timestamp(mut context: *mut dc_context_t) -> time_t {
+pub unsafe fn dc_create_smeared_timestamp(mut context: &dc_context_t) -> time_t {
     let mut now: time_t = time(0 as *mut time_t);
     let mut ret: time_t = now;
     pthread_mutex_lock(&mut (*context).smear_critical);
@@ -912,7 +912,7 @@ pub unsafe fn dc_create_smeared_timestamp(mut context: *mut dc_context_t) -> tim
     return ret;
 }
 pub unsafe fn dc_create_smeared_timestamps(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut count: libc::c_int,
 ) -> time_t {
     /* get a range to timestamps that can be used uniquely */
@@ -1262,7 +1262,7 @@ pub unsafe fn dc_get_filemeta(
     return 0i32;
 }
 pub unsafe fn dc_get_abs_path(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut current_block: u64;
@@ -1301,7 +1301,7 @@ pub unsafe fn dc_get_abs_path(
     return pathNfilename_abs;
 }
 pub unsafe fn dc_file_exist(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
@@ -1320,7 +1320,7 @@ pub unsafe fn dc_file_exist(
 }
 
 pub unsafe fn dc_get_filebytes(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> uint64_t {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
@@ -1337,7 +1337,7 @@ pub unsafe fn dc_get_filebytes(
 }
 
 pub unsafe fn dc_delete_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
@@ -1359,7 +1359,7 @@ pub unsafe fn dc_delete_file(
     return success;
 }
 pub unsafe fn dc_copy_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut src: *const libc::c_char,
     mut dest: *const libc::c_char,
 ) -> libc::c_int {
@@ -1455,7 +1455,7 @@ pub unsafe fn dc_copy_file(
     return success;
 }
 pub unsafe fn dc_create_folder(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
     let mut success = 0;
@@ -1487,7 +1487,7 @@ pub unsafe fn dc_create_folder(
 }
 
 pub unsafe fn dc_write_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
     mut buf: *const libc::c_void,
     mut buf_bytes: size_t,
@@ -1527,7 +1527,7 @@ pub unsafe fn dc_write_file(
     return success;
 }
 pub unsafe fn dc_read_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
     mut buf: *mut *mut libc::c_void,
     mut buf_bytes: *mut size_t,
@@ -1579,7 +1579,7 @@ pub unsafe fn dc_read_file(
     return success;
 }
 pub unsafe fn dc_get_fine_pathNfilename(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut pathNfolder: *const libc::c_char,
     mut desired_filenameNsuffix__: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -1635,7 +1635,7 @@ pub unsafe fn dc_get_fine_pathNfilename(
     return ret;
 }
 pub unsafe fn dc_is_blobdir_path(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut path: *const libc::c_char,
 ) -> libc::c_int {
     if strncmp(path, (*context).blobdir, strlen((*context).blobdir)) == 0i32
@@ -1645,7 +1645,7 @@ pub unsafe fn dc_is_blobdir_path(
     }
     return 0i32;
 }
-pub unsafe fn dc_make_rel_path(mut context: *mut dc_context_t, mut path: *mut *mut libc::c_char) {
+pub unsafe fn dc_make_rel_path(mut context: &dc_context_t, mut path: *mut *mut libc::c_char) {
     if context.is_null() || path.is_null() || (*path).is_null() {
         return;
     }
@@ -1658,7 +1658,7 @@ pub unsafe fn dc_make_rel_path(mut context: *mut dc_context_t, mut path: *mut *m
     };
 }
 pub unsafe fn dc_make_rel_and_copy(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut path: *mut *mut libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;

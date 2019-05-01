@@ -42,7 +42,7 @@ pub struct dc_kml_t {
 
 // location streaming
 pub unsafe fn dc_send_locations_to_chat(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut chat_id: uint32_t,
     mut seconds: libc::c_int,
 ) {
@@ -126,13 +126,13 @@ pub unsafe fn dc_send_locations_to_chat(
 /* ******************************************************************************
  * job to send locations out to all chats that want them
  ******************************************************************************/
-unsafe fn schedule_MAYBE_SEND_LOCATIONS(mut context: *mut dc_context_t, mut flags: libc::c_int) {
+unsafe fn schedule_MAYBE_SEND_LOCATIONS(mut context: &dc_context_t, mut flags: libc::c_int) {
     if 0 != flags & 0x1i32 || 0 == dc_job_action_exists(context, 5005i32) {
         dc_job_add(context, 5005i32, 0i32, 0 as *const libc::c_char, 60i32);
     };
 }
 pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut chat_id: uint32_t,
 ) -> libc::c_int {
     let mut is_sending_locations: libc::c_int = 0i32;
@@ -162,7 +162,7 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
     return is_sending_locations;
 }
 pub unsafe fn dc_set_location(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut latitude: libc::c_double,
     mut longitude: libc::c_double,
     mut accuracy: libc::c_double,
@@ -212,7 +212,7 @@ pub unsafe fn dc_set_location(
     return continue_streaming;
 }
 pub unsafe fn dc_get_locations(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut chat_id: uint32_t,
     mut contact_id: uint32_t,
     mut timestamp_from: time_t,
@@ -294,7 +294,7 @@ unsafe fn is_marker(mut txt: *const libc::c_char) -> libc::c_int {
     }
     return 0i32;
 }
-pub unsafe fn dc_delete_all_locations(mut context: *mut dc_context_t) {
+pub unsafe fn dc_delete_all_locations(mut context: &dc_context_t) {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
         stmt = dc_sqlite3_prepare(
@@ -312,7 +312,7 @@ pub unsafe fn dc_delete_all_locations(mut context: *mut dc_context_t) {
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_get_location_kml(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut chat_id: uint32_t,
     mut last_added_location_id: *mut uint32_t,
 ) -> *mut libc::c_char {
@@ -449,7 +449,7 @@ unsafe fn get_kml_timestamp(mut utc: time_t) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_get_message_kml(
-    context: *const dc_context_t,
+    context: &dc_context_t,
     timestamp: time_t,
     latitude: libc::c_double,
     longitude: libc::c_double,
@@ -485,7 +485,7 @@ pub unsafe fn dc_get_message_kml(
 }
 
 pub unsafe fn dc_set_kml_sent_timestamp(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut chat_id: uint32_t,
     mut timestamp: time_t,
 ) {
@@ -501,7 +501,7 @@ pub unsafe fn dc_set_kml_sent_timestamp(
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_set_msg_location_id(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut msg_id: uint32_t,
     mut location_id: uint32_t,
 ) {
@@ -516,7 +516,7 @@ pub unsafe fn dc_set_msg_location_id(
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_save_locations(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut chat_id: uint32_t,
     mut contact_id: uint32_t,
     mut locations: *const dc_array_t,
@@ -579,7 +579,7 @@ pub unsafe fn dc_save_locations(
     return newest_location_id;
 }
 pub unsafe fn dc_kml_parse(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut content: *const libc::c_char,
     mut content_bytes: size_t,
 ) -> *mut dc_kml_t {
@@ -762,10 +762,7 @@ pub unsafe fn dc_kml_unref(mut kml: *mut dc_kml_t) {
     free((*kml).addr as *mut libc::c_void);
     free(kml as *mut libc::c_void);
 }
-pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(
-    context: *mut dc_context_t,
-    _job: *mut dc_job_t,
-) {
+pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job: *mut dc_job_t) {
     let mut stmt_chats: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut stmt_locations: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut now: time_t = time(0 as *mut time_t);
@@ -845,7 +842,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
     let mut chat_id: uint32_t = (*job).foreign_id;
     let mut locations_send_begin: time_t = 0i32 as time_t;
     let mut locations_send_until: time_t = 0i32 as time_t;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut stmt: &sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut stock_str: *mut libc::c_char = 0 as *mut libc::c_char;
     stmt = dc_sqlite3_prepare(
         (*context).sql,

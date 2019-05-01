@@ -26,7 +26,7 @@ use crate::x::*;
 // param1 is a directory where the backup is written to
 // param1 is the file with the backup to import
 pub unsafe fn dc_imex(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut what: libc::c_int,
     mut param1: *const libc::c_char,
     mut param2: *const libc::c_char,
@@ -40,7 +40,7 @@ pub unsafe fn dc_imex(
     dc_param_unref(param);
 }
 pub unsafe fn dc_imex_has_backup(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut dir_name: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -117,7 +117,7 @@ pub unsafe fn dc_imex_has_backup(
     return ret;
 }
 pub unsafe fn dc_check_password(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut test_pw: *const libc::c_char,
 ) -> libc::c_int {
     /* Check if the given password matches the configured mail_pw.
@@ -145,7 +145,7 @@ pub unsafe fn dc_check_password(
     dc_loginparam_unref(loginparam);
     return success;
 }
-pub unsafe fn dc_initiate_key_transfer(mut context: *mut dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_initiate_key_transfer(mut context: &dc_context_t) -> *mut libc::c_char {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut setup_code: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -247,7 +247,7 @@ pub unsafe fn dc_initiate_key_transfer(mut context: *mut dc_context_t) -> *mut l
     return setup_code;
 }
 pub unsafe extern "C" fn dc_render_setup_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut passphrase: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -335,7 +335,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
     free(self_addr as *mut libc::c_void);
     return ret_setupfilecontent;
 }
-pub unsafe fn dc_create_setup_code(_context: *mut dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_create_setup_code(_context: &dc_context_t) -> *mut libc::c_char {
     let mut random_val: uint16_t = 0i32 as uint16_t;
     let mut i: libc::c_int = 0i32;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
@@ -370,7 +370,7 @@ pub unsafe fn dc_create_setup_code(_context: *mut dc_context_t) -> *mut libc::c_
     return ret.buf;
 }
 pub unsafe fn dc_continue_key_transfer(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut msg_id: uint32_t,
     mut setup_code: *const libc::c_char,
 ) -> libc::c_int {
@@ -449,7 +449,7 @@ pub unsafe fn dc_continue_key_transfer(
     return success;
 }
 unsafe fn set_self_key(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut armored: *const libc::c_char,
     mut set_default: libc::c_int,
 ) -> libc::c_int {
@@ -567,7 +567,7 @@ unsafe fn set_self_key(
     return success;
 }
 pub unsafe fn dc_decrypt_setup_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut passphrase: *const libc::c_char,
     mut filecontent: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -631,7 +631,7 @@ pub unsafe fn dc_decrypt_setup_file(
     return payload;
 }
 pub unsafe fn dc_normalize_setup_code(
-    _context: *mut dc_context_t,
+    _context: &dc_context_t,
     in_0: *const libc::c_char,
 ) -> *mut libc::c_char {
     if in_0.is_null() {
@@ -670,7 +670,7 @@ pub unsafe fn dc_normalize_setup_code(
     }
     return out.buf;
 }
-pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: *mut dc_context_t, mut job: *mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: &dc_context_t, mut job: *mut dc_job_t) {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut ongoing_allocated_here: libc::c_int = 0i32;
@@ -933,7 +933,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: *mut dc_context_t, mut job
  * Import backup
  ******************************************************************************/
 unsafe fn import_backup(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut backup_to_import: *const libc::c_char,
 ) -> libc::c_int {
     let mut current_block: u64;
@@ -1074,10 +1074,7 @@ unsafe fn import_backup(
  ******************************************************************************/
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
-unsafe fn export_backup(
-    mut context: *mut dc_context_t,
-    mut dir: *const libc::c_char,
-) -> libc::c_int {
+unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut closed: libc::c_int = 0i32;
@@ -1360,7 +1357,7 @@ unsafe fn import_self_keys(
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
     let mut imported_cnt: libc::c_int = 0i32;
-    let mut dir_handle: *mut DIR = 0 as *mut DIR;
+    let mut dir_handle: &DIR = 0 as *mut DIR;
     let mut dir_entry: *mut dirent = 0 as *mut dirent;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1489,7 +1486,7 @@ unsafe fn export_self_keys(
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut export_errors: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut stmt: &sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut id: libc::c_int = 0i32;
     let mut is_default: libc::c_int = 0i32;
     let mut public_key: *mut dc_key_t = dc_key_new();
@@ -1532,7 +1529,7 @@ unsafe fn export_key_to_asc_file(
     mut is_default: libc::c_int,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut file_name: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut file_name: &libc::c_char = 0 as *mut libc::c_char;
     if 0 != is_default {
         file_name = dc_mprintf(
             b"%s/%s-key-default.asc\x00" as *const u8 as *const libc::c_char,

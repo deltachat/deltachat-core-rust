@@ -33,7 +33,7 @@ pub struct dc_e2ee_helper_t {
 }
 
 pub unsafe fn dc_e2ee_encrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut recipients_addr: *const clist,
     mut force_unencrypted: libc::c_int,
     mut e2ee_guaranteed: libc::c_int,
@@ -54,7 +54,7 @@ pub unsafe fn dc_e2ee_encrypt(
     let mut plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     let mut ctext: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ctext_bytes: size_t = 0i32 as size_t;
-    let mut peerstates: *mut dc_array_t = dc_array_new(0 as *mut dc_context_t, 10i32 as size_t);
+    let mut peerstates: &dc_array_t = dc_array_new(0 as *mut dc_context_t, 10i32 as size_t);
     if !helper.is_null() {
         memset(
             helper as *mut libc::c_void,
@@ -505,7 +505,7 @@ unsafe fn new_data_part(
  * Generate Keypairs
  ******************************************************************************/
 unsafe fn load_or_generate_self_public_key(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut public_key: *mut dc_key_t,
     mut self_addr: *const libc::c_char,
     mut random_data_mime: *mut mailmime,
@@ -619,7 +619,7 @@ unsafe fn load_or_generate_self_public_key(
 }
 /* returns 1 if sth. was decrypted, 0 in other cases */
 pub unsafe fn dc_e2ee_decrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut in_out_message: *mut mailmime,
     mut helper: *mut dc_e2ee_helper_t,
 ) {
@@ -753,7 +753,7 @@ pub unsafe fn dc_e2ee_decrypt(
     free(self_addr as *mut libc::c_void);
 }
 unsafe fn update_gossip_peerstates(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut message_time: time_t,
     mut imffields: *mut mailimf_fields,
     mut gossip_headers: *const mailimf_fields,
@@ -845,7 +845,7 @@ unsafe fn update_gossip_peerstates(
     return gossipped_addr;
 }
 unsafe fn decrypt_recursive(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mime: *mut mailmime,
     mut private_keyring: *const dc_keyring_t,
     mut public_keyring_for_validate: *const dc_keyring_t,
@@ -950,7 +950,7 @@ unsafe fn decrypt_recursive(
     return 0i32;
 }
 unsafe fn decrypt_part(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mime: *mut mailmime,
     mut private_keyring: *const dc_keyring_t,
     mut public_keyring_for_validate: *const dc_keyring_t,
@@ -1192,7 +1192,7 @@ pub unsafe fn dc_e2ee_thanks(mut helper: *mut dc_e2ee_helper_t) {
     };
 }
 /* makes sure, the private key exists, needed only for exporting keys and the case no message was sent before */
-pub unsafe fn dc_ensure_secret_key_exists(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_ensure_secret_key_exists(mut context: &dc_context_t) -> libc::c_int {
     /* normally, the key is generated as soon as the first mail is send
     (this is to gain some extra-random-seed by the message content and the timespan between program start and message sending) */
     let mut success: libc::c_int = 0i32;

@@ -115,7 +115,7 @@ pub unsafe fn dc_lot_fill(
     mut msg: *const dc_msg_t,
     mut chat: *const dc_chat_t,
     mut contact: *const dc_contact_t,
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
 ) {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint || msg.is_null() {
         return;

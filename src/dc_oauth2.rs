@@ -22,7 +22,7 @@ pub struct oauth2_t {
 }
 
 pub unsafe fn dc_get_oauth2_url(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut addr: *const libc::c_char,
     mut redirect_uri: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -124,7 +124,7 @@ unsafe fn get_info(mut addr: *const libc::c_char) -> *mut oauth2_t {
 // the following function may block due http-requests;
 // must not be called from the main thread or by the ui!
 pub unsafe fn dc_get_oauth2_access_token(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut addr: *const libc::c_char,
     mut code: *const libc::c_char,
     mut flags: libc::c_int,
@@ -479,7 +479,7 @@ unsafe extern "C" fn jsoneq(
     }
     return -1i32;
 }
-unsafe fn is_expired(mut context: *mut dc_context_t) -> libc::c_int {
+unsafe fn is_expired(mut context: &dc_context_t) -> libc::c_int {
     let mut expire_timestamp: time_t = dc_sqlite3_get_config_int64(
         (*context).sql,
         b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
@@ -494,7 +494,7 @@ unsafe fn is_expired(mut context: *mut dc_context_t) -> libc::c_int {
     return 1i32;
 }
 pub unsafe fn dc_get_oauth2_addr(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut addr: *const libc::c_char,
     mut code: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -522,7 +522,7 @@ pub unsafe fn dc_get_oauth2_addr(
     return addr_out;
 }
 unsafe fn get_oauth2_addr(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut oauth2: *const oauth2_t,
     mut access_token: *const libc::c_char,
 ) -> *mut libc::c_char {

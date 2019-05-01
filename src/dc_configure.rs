@@ -58,7 +58,7 @@ pub struct outlk_autodiscover_t {
     pub redirect: *mut libc::c_char,
 }
 // connect
-pub unsafe fn dc_configure(mut context: *mut dc_context_t) {
+pub unsafe fn dc_configure(mut context: &dc_context_t) {
     if 0 != dc_has_ongoing(context) {
         dc_log_warning(
             context,
@@ -71,7 +71,7 @@ pub unsafe fn dc_configure(mut context: *mut dc_context_t) {
     dc_job_kill_action(context, 900i32);
     dc_job_add(context, 900i32, 0i32, 0 as *const libc::c_char, 0i32);
 }
-pub unsafe fn dc_has_ongoing(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0i32;
     }
@@ -81,7 +81,7 @@ pub unsafe fn dc_has_ongoing(mut context: *mut dc_context_t) -> libc::c_int {
         0i32
     };
 }
-pub unsafe fn dc_is_configured(mut context: *const dc_context_t) -> libc::c_int {
+pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0i32;
     }
@@ -96,7 +96,7 @@ pub unsafe fn dc_is_configured(mut context: *const dc_context_t) -> libc::c_int 
         0i32
     };
 }
-pub unsafe fn dc_stop_ongoing_process(mut context: *mut dc_context_t) {
+pub unsafe fn dc_stop_ongoing_process(mut context: &dc_context_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
     }
@@ -116,7 +116,7 @@ pub unsafe fn dc_stop_ongoing_process(mut context: *mut dc_context_t) {
     };
 }
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
-pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: *mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut dc_job_t) {
     let mut flags: libc::c_int = 0;
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
@@ -1323,7 +1323,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: *mut dc_context_t, _job: 
     );
 }
 
-pub unsafe fn dc_free_ongoing(mut context: *mut dc_context_t) {
+pub unsafe fn dc_free_ongoing(mut context: &dc_context_t) {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return;
     }
@@ -1331,7 +1331,7 @@ pub unsafe fn dc_free_ongoing(mut context: *mut dc_context_t) {
     (*context).shall_stop_ongoing = 1i32;
 }
 pub unsafe fn dc_configure_folders(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut imap: *mut dc_imap_t,
     mut flags: libc::c_int,
 ) {
@@ -1634,7 +1634,7 @@ unsafe fn get_folder_meaning(mut flags: *mut mailimap_mbx_list_flags) -> libc::c
     return ret_meaning;
 }
 unsafe fn moz_autoconfigure(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut url: *const libc::c_char,
     mut param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
@@ -1859,7 +1859,7 @@ unsafe fn moz_autoconfigure_starttag_cb(
     };
 }
 unsafe fn read_autoconf_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut url: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut filecontent: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1887,7 +1887,7 @@ unsafe fn read_autoconf_file(
     return filecontent;
 }
 unsafe fn outlk_autodiscover(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut url__: *const libc::c_char,
     mut param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
@@ -2071,7 +2071,7 @@ unsafe fn outlk_autodiscover_starttag_cb(
         (*outlk_ad).tag_config = 5i32
     };
 }
-pub unsafe fn dc_alloc_ongoing(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_alloc_ongoing(mut context: &dc_context_t) -> libc::c_int {
     if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
         return 0i32;
     }
@@ -2089,7 +2089,7 @@ pub unsafe fn dc_alloc_ongoing(mut context: *mut dc_context_t) -> libc::c_int {
     return 1i32;
 }
 pub unsafe fn dc_connect_to_configured_imap(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut imap: *mut dc_imap_t,
 ) -> libc::c_int {
     let mut ret_connected: libc::c_int = 0i32;

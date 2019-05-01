@@ -1042,7 +1042,7 @@ pub unsafe fn dc_receive_imf(
  * Misc. Tools
  ******************************************************************************/
 unsafe fn calc_timestamps(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut chat_id: uint32_t,
     mut from_id: uint32_t,
     mut message_timestamp: time_t,
@@ -1093,7 +1093,7 @@ which tries to create or find out the chat_id by:
 So when the function returns, the caller has the group id matching the current
 state of the group. */
 unsafe fn create_or_lookup_group(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mime_parser: *mut dc_mimeparser_t,
     mut allow_creation: libc::c_int,
     mut create_blocked: libc::c_int,
@@ -1559,7 +1559,7 @@ unsafe fn create_or_lookup_group(
  * Handle groups for received messages
  ******************************************************************************/
 unsafe fn create_or_lookup_adhoc_group(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mime_parser: *mut dc_mimeparser_t,
     mut allow_creation: libc::c_int,
     mut create_blocked: libc::c_int,
@@ -1673,7 +1673,7 @@ unsafe fn create_or_lookup_adhoc_group(
     };
 }
 unsafe fn create_group_record(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut grpid: *const libc::c_char,
     mut grpname: *const libc::c_char,
     mut create_blocked: libc::c_int,
@@ -1706,7 +1706,7 @@ unsafe fn create_group_record(
     return chat_id;
 }
 unsafe fn create_adhoc_grp_id(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut member_ids: *mut dc_array_t,
 ) -> *mut libc::c_char {
     /* algorithm:
@@ -1791,7 +1791,7 @@ unsafe fn create_adhoc_grp_id(
     return ret;
 }
 unsafe fn search_chat_ids_by_contact_ids(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut unsorted_contact_ids: *const dc_array_t,
 ) -> *mut dc_array_t {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
@@ -1859,7 +1859,7 @@ unsafe fn search_chat_ids_by_contact_ids(
     return chat_ids;
 }
 unsafe fn check_verified_properties(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mimeparser: *mut dc_mimeparser_t,
     mut from_id: uint32_t,
     mut to_ids: *const dc_array_t,
@@ -2018,7 +2018,7 @@ unsafe fn set_better_msg(
     };
 }
 unsafe fn dc_is_reply_to_known_message(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mime_parser: *mut dc_mimeparser_t,
 ) -> libc::c_int {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
@@ -2067,7 +2067,7 @@ unsafe fn dc_is_reply_to_known_message(
     return 0i32;
 }
 unsafe fn is_known_rfc724_mid_in_list(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mid_list: *const clist,
 ) -> libc::c_int {
     if !mid_list.is_null() {
@@ -2097,7 +2097,7 @@ unsafe fn is_known_rfc724_mid_in_list(
  * Check if a message is a reply to a known message (messenger or non-messenger)
  ******************************************************************************/
 unsafe fn is_known_rfc724_mid(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut rfc724_mid: *const libc::c_char,
 ) -> libc::c_int {
     let mut is_known: libc::c_int = 0i32;
@@ -2115,7 +2115,7 @@ unsafe fn is_known_rfc724_mid(
     return is_known;
 }
 unsafe fn dc_is_reply_to_messenger_message(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mime_parser: *mut dc_mimeparser_t,
 ) -> libc::c_int {
     /* function checks, if the message defined by mime_parser references a message send by us from Delta Chat.
@@ -2157,7 +2157,7 @@ unsafe fn dc_is_reply_to_messenger_message(
     return 0i32;
 }
 unsafe fn is_msgrmsg_rfc724_mid_in_list(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mid_list: *const clist,
 ) -> libc::c_int {
     if !mid_list.is_null() {
@@ -2186,7 +2186,7 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(
  * Check if a message is a reply to any messenger message
  ******************************************************************************/
 unsafe fn is_msgrmsg_rfc724_mid(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut rfc724_mid: *const libc::c_char,
 ) -> libc::c_int {
     let mut is_msgrmsg: libc::c_int = 0i32;
@@ -2205,7 +2205,7 @@ unsafe fn is_msgrmsg_rfc724_mid(
     return is_msgrmsg;
 }
 unsafe fn dc_add_or_lookup_contacts_by_address_list(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut adr_list: *const mailimf_address_list,
     mut origin: libc::c_int,
     mut ids: *mut dc_array_t,
@@ -2256,7 +2256,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
     }
 }
 unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut mb_list: *const mailimf_mailbox_list,
     mut origin: libc::c_int,
     mut ids: *mut dc_array_t,
@@ -2293,7 +2293,7 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
  * Add contacts to database on receiving messages
  ******************************************************************************/
 unsafe fn add_or_lookup_contact_by_addr(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut display_name_enc: *const libc::c_char,
     mut addr_spec: *const libc::c_char,
     mut origin: libc::c_int,

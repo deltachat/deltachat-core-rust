@@ -24,7 +24,7 @@ use crate::x::*;
 // text1=URL
 // text1=error string
 pub unsafe fn dc_check_qr(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut qr: *const libc::c_char,
 ) -> *mut dc_lot_t {
     let mut current_block: u64;

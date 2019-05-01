@@ -7,7 +7,7 @@ use crate::types::*;
 use crate::x::*;
 
 pub unsafe extern "C" fn dc_log_event(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut event_code: Event,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
@@ -23,7 +23,7 @@ usually not reported using dc_log_error() - its up to the caller to
 decide, what should be reported or done.  However, these "Normal" errors
 are usually logged by dc_log_warning(). */
 unsafe fn log_vprintf(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut event: Event,
     mut data1: libc::c_int,
     mut msg_format: *const libc::c_char,
@@ -52,7 +52,7 @@ unsafe fn log_vprintf(
     free(msg as *mut libc::c_void);
 }
 pub unsafe extern "C" fn dc_log_event_seq(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut event_code: Event,
     mut sequence_start: *mut libc::c_int,
     mut msg: *const libc::c_char,
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn dc_log_event_seq(
     *sequence_start = 0i32;
 }
 pub unsafe extern "C" fn dc_log_error(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
     mut va_1: ...
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn dc_log_error(
     log_vprintf(context, Event::ERROR, data1, msg, va_1);
 }
 pub unsafe extern "C" fn dc_log_warning(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
     mut va_2: ...
@@ -84,7 +84,7 @@ pub unsafe extern "C" fn dc_log_warning(
     log_vprintf(context, Event::WARNING, data1, msg, va_2);
 }
 pub unsafe extern "C" fn dc_log_info(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
     mut va_3: ...

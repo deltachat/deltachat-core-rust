@@ -7,7 +7,7 @@ use crate::dc_sqlite3::*;
 use crate::types::*;
 
 pub unsafe fn dc_do_heuristics_moves(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut folder: *const libc::c_char,
     mut msg_id: uint32_t,
 ) {

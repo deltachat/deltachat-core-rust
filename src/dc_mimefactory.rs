@@ -47,10 +47,7 @@ pub const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
 pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;
 pub const DC_MF_NOTHING_LOADED: dc_mimefactory_loaded_t = 0;
 
-pub unsafe fn dc_mimefactory_init(
-    mut factory: *mut dc_mimefactory_t,
-    mut context: *mut dc_context_t,
-) {
+pub unsafe fn dc_mimefactory_init(mut factory: *mut dc_mimefactory_t, mut context: &dc_context_t) {
     if factory.is_null() || context.is_null() {
         return;
     }
@@ -128,7 +125,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 clist_insert_after(
                     (*factory).recipients_names,
                     (*(*factory).recipients_names).last,
-                    dc_strdup_keep_null((*factory).from_displayname) as *mut libc::c_void,
+                    dc_strdup_keep_null((*factory).from_displayname) as &libc::c_void,
                 );
                 clist_insert_after(
                     (*factory).recipients_addr,
@@ -1060,7 +1057,7 @@ unsafe fn get_subject(
     let mut context: *mut dc_context_t = if !chat.is_null() {
         (*chat).context
     } else {
-        0 as *mut dc_context_t
+        std::ptr::null_mut()
     };
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut raw_subject: *mut libc::c_char =

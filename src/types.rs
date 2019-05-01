@@ -1211,7 +1211,7 @@ pub type dc_get_config_t = Option<
 #[repr(C)]
 pub struct _dc_sqlite3 {
     pub cobj: *mut sqlite3,
-    pub context: *mut dc_context_t,
+    pub context: &dc_context_t,
 }
 
 #[inline]
@@ -1254,7 +1254,7 @@ pub unsafe fn carray_get(mut array: *mut carray, mut indx: libc::c_uint) -> *mut
  * @return return 0 unless stated otherwise in the event parameter documentation
  */
 pub type dc_callback_t =
-    unsafe extern "C" fn(_: *mut dc_context_t, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
+    unsafe extern "C" fn(_: &dc_context_t, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
 
 pub const DC_MOVE_STATE_MOVING: libc::c_uint = 3;
 pub const DC_MOVE_STATE_STAY: libc::c_uint = 2;

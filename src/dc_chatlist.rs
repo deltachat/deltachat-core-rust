@@ -17,14 +17,14 @@ use crate::x::*;
 #[repr(C)]
 pub struct dc_chatlist_t {
     pub magic: uint32_t,
-    pub context: *mut dc_context_t,
+    pub context: &dc_context_t,
     pub cnt: size_t,
     pub chatNlastmsg_ids: *mut dc_array_t,
 }
 
 // handle chatlists
 pub unsafe fn dc_get_chatlist(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut listflags: libc::c_int,
     mut query_str: *const libc::c_char,
     mut query_id: uint32_t,
@@ -81,7 +81,7 @@ pub unsafe fn dc_get_chatlist(
  * Rendering the deaddrop in the described way
  * would not add extra work in the UI then.
  */
-pub unsafe fn dc_chatlist_new(mut context: *mut dc_context_t) -> *mut dc_chatlist_t {
+pub unsafe fn dc_chatlist_new(mut context: &dc_context_t) -> *mut dc_chatlist_t {
     let mut chatlist: *mut dc_chatlist_t = 0 as *mut dc_chatlist_t;
     chatlist = calloc(1, ::std::mem::size_of::<dc_chatlist_t>()) as *mut dc_chatlist_t;
     if chatlist.is_null() {
@@ -221,7 +221,7 @@ unsafe fn dc_chatlist_load_from_db(
     return success;
 }
 // Context functions to work with chatlist
-pub unsafe fn dc_get_archived_cnt(mut context: *mut dc_context_t) -> libc::c_int {
+pub unsafe fn dc_get_archived_cnt(mut context: &dc_context_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         (*context).sql,
@@ -234,7 +234,7 @@ pub unsafe fn dc_get_archived_cnt(mut context: *mut dc_context_t) -> libc::c_int
     sqlite3_finalize(stmt);
     return ret;
 }
-unsafe fn get_last_deaddrop_fresh_msg(mut context: *mut dc_context_t) -> uint32_t {
+unsafe fn get_last_deaddrop_fresh_msg(mut context: &dc_context_t) -> uint32_t {
     let mut ret: uint32_t = 0i32 as uint32_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     stmt =
@@ -355,7 +355,7 @@ pub unsafe fn dc_chatlist_get_summary(
     dc_chat_unref(chat_to_delete);
     return ret;
 }
-pub unsafe fn dc_chatlist_get_context(mut chatlist: *mut dc_chatlist_t) -> *mut dc_context_t {
+pub unsafe fn dc_chatlist_get_context(mut chatlist: *mut dc_chatlist_t) -> &dc_context_t {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return 0 as *mut dc_context_t;
     }

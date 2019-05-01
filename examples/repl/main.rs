@@ -81,7 +81,7 @@ use self::stress::*;
 static mut s_do_log_info: libc::c_int = 1i32;
 
 unsafe extern "C" fn receive_event(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut event: Event,
     mut data1: uintptr_t,
     mut data2: uintptr_t,
@@ -276,7 +276,7 @@ static mut run_threads: libc::c_int = 0i32;
 unsafe extern "C" fn inbox_thread_entry_point(
     mut entry_arg: *mut libc::c_void,
 ) -> *mut libc::c_void {
-    let mut context: *mut dc_context_t = entry_arg as *mut dc_context_t;
+    let mut context: &dc_context_t = entry_arg as *mut dc_context_t;
     while 0 != run_threads {
         dc_perform_imap_jobs(context);
         dc_perform_imap_fetch(context);
@@ -290,7 +290,7 @@ static mut mvbox_thread: pthread_t = 0 as pthread_t;
 unsafe extern "C" fn mvbox_thread_entry_point(
     mut entry_arg: *mut libc::c_void,
 ) -> *mut libc::c_void {
-    let mut context: *mut dc_context_t = entry_arg as *mut dc_context_t;
+    let mut context: &dc_context_t = entry_arg as *mut dc_context_t;
     while 0 != run_threads {
         dc_perform_mvbox_fetch(context);
         if 0 != run_threads {
@@ -303,7 +303,7 @@ static mut sentbox_thread: pthread_t = 0 as pthread_t;
 unsafe extern "C" fn sentbox_thread_entry_point(
     mut entry_arg: *mut libc::c_void,
 ) -> *mut libc::c_void {
-    let mut context: *mut dc_context_t = entry_arg as *mut dc_context_t;
+    let mut context: &dc_context_t = entry_arg as *mut dc_context_t;
     while 0 != run_threads {
         dc_perform_sentbox_fetch(context);
         if 0 != run_threads {
@@ -316,7 +316,7 @@ static mut smtp_thread: pthread_t = 0 as pthread_t;
 unsafe extern "C" fn smtp_thread_entry_point(
     mut entry_arg: *mut libc::c_void,
 ) -> *mut libc::c_void {
-    let mut context: *mut dc_context_t = entry_arg as *mut dc_context_t;
+    let mut context: &dc_context_t = entry_arg as *mut dc_context_t;
     while 0 != run_threads {
         dc_perform_smtp_jobs(context);
         if 0 != run_threads {
@@ -325,7 +325,7 @@ unsafe extern "C" fn smtp_thread_entry_point(
     }
     return 0 as *mut libc::c_void;
 }
-unsafe extern "C" fn start_threads(mut context: *mut dc_context_t) {
+unsafe extern "C" fn start_threads(mut context: &dc_context_t) {
     run_threads = 1i32;
     if inbox_thread == 0 {
         pthread_create(
@@ -360,7 +360,7 @@ unsafe extern "C" fn start_threads(mut context: *mut dc_context_t) {
         );
     };
 }
-unsafe extern "C" fn stop_threads(mut context: *mut dc_context_t) {
+unsafe extern "C" fn stop_threads(mut context: &dc_context_t) {
     run_threads = 0i32;
     dc_interrupt_imap_idle(context);
     dc_interrupt_mvbox_idle(context);
@@ -390,7 +390,7 @@ fn read_cmd() -> String {
 #[cfg(not(target_os = "android"))]
 unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> libc::c_int {
     let mut cmd: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut context: *mut dc_context_t = dc_context_new(
+    let mut context: &dc_context_t = dc_context_new(
         receive_event,
         0 as *mut libc::c_void,
         b"CLI\x00" as *const u8 as *const libc::c_char,
@@ -534,7 +534,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
     stop_threads(context);
     dc_close(context);
     dc_context_unref(context);
-    context = 0 as *mut dc_context_t;
+    context = 0 as &dc_context_t;
     return 0i32;
 }
 
