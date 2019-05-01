@@ -6,7 +6,7 @@
 #include "misc.h"
 
 
-char* dc_strdup(const char* s) /* strdup(NULL) is undefined, save_strdup(NULL) returns an empty string in this case */
+static char* dc_strdup(const char* s) /* strdup(NULL) is undefined, save_strdup(NULL) returns an empty string in this case */
 {
 	char* ret = NULL;
 	if (s) {
@@ -66,7 +66,7 @@ char* dc_mprintf(const char* format, ...)
  *     pointer is equal to dc_strbuilder_t::buf.
  *     If the given text is NULL, NULL is returned and the string-builder-object is not modified.
  */
-char* dc_strbuilder_cat(dc_strbuilder_t* strbuilder, const char* text)
+static char* dc_strbuilder_cat(dc_strbuilder_t* strbuilder, const char* text)
 {
 	// this function MUST NOT call logging functions as it is used to output the log
 	if (strbuilder==NULL || text==NULL) {
