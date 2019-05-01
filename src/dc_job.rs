@@ -216,7 +216,7 @@ unsafe fn dc_job_perform(
                                 job.added_timestamp + time_offset -
                                     time(0 as *mut time_t));
                 if thread == 5000i32 && tries_0 < 17i32 - 1i32 {
-                    *context
+                    context
                         .smtp_state
                         .clone()
                         .0
@@ -284,10 +284,10 @@ unsafe fn dc_job_update(mut context: &dc_context_t, mut job: *const dc_job_t) {
     sqlite3_finalize(stmt);
 }
 unsafe fn dc_suspend_smtp_thread(mut context: &dc_context_t, mut suspend: libc::c_int) {
-    *context.smtp_suspended.clone().write().unwrap() = suspend;
+    context.smtp_state.clone().0.lock().unwrap().suspended = suspend;
     if 0 != suspend {
         loop {
-            if *context.smtp_doing_jobs.clone().read().unwrap() == 0 {
+            if context.smtp_state.clone().0.lock().unwrap().doing_jobs == 0 {
                 return;
             }
             usleep((300i32 * 1000i32) as libc::useconds_t);
@@ -932,16 +932,11 @@ pub unsafe fn dc_interrupt_smtp_idle(mut context: &dc_context_t) {
         b"Interrupting SMTP-idle...\x00" as *const u8 as *const libc::c_char,
     );
 
-    let &(ref lock, ref cvar) = &*context.smtpidle.clone();
+    let &(ref lock, ref cvar) = &*context.smtp_state.clone();
+    let state = lock.lock().unwrap();
 
-    // (*context).perform_smtp_jobs_needed = 1i32;
-    *context.perform_smtp_jobs_needed.clone().write().unwrap() = 1;
-
-    // pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-    let mut started = lock.lock().unwrap();
-    // (*context).smtpidle_condflag = 1i32;
-    *started = 1;
-    // pthread_cond_signal(&mut (*context).smtpidle_cond);
+    state.perform_jobs_needed = 1;
+    state.idle = true;
     cvar.notify_one();
 }
 
@@ -951,11 +946,11 @@ pub unsafe fn dc_interrupt_imap_idle(mut context: &dc_context_t) {
         0i32,
         b"Interrupting IMAP-IDLE...\x00" as *const u8 as *const libc::c_char,
     );
-    let l = context.inboxidle_condmutex.lock().unwrap();
-    context.perform_inbox_jobs_needed = 1i32;
-    drop(l);
+
+    *context.perform_inbox_jobs_needed.clone().write().unwrap() = 1;
     dc_imap_interrupt_idle(&mut context.inbox.clone().lock().unwrap());
 }
+
 unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(mut context: &dc_context_t, mut job: *mut dc_job_t) {
     let mut current_block: u64;
     let mut delete_from_server: libc::c_int = 1i32;
@@ -991,6 +986,7 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(mut context: &dc_context_t, mut jo
                 8913536887710889399 => {}
                 _ => {
                     if 0 == dc_imap_delete_msg(
+                        context,
                         &mut context.inbox.clone().lock().unwrap(),
                         (*msg).rfc724_mid,
                         (*msg).server_folder,
@@ -1015,9 +1011,10 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(mut context: &dc_context_t, mut jo
     }
     dc_msg_unref(msg);
 }
+
 /* delete all pending jobs with the given action */
 pub unsafe fn dc_job_kill_action(mut context: &dc_context_t, mut action: libc::c_int) {
-    let mut stmt: &sqlite3_stmt = dc_sqlite3_prepare(
+    let mut stmt = dc_sqlite3_prepare(
         &mut context.sql.clone().lock().unwrap(),
         b"DELETE FROM jobs WHERE action=?;\x00" as *const u8 as *const libc::c_char,
     );
@@ -1025,6 +1022,7 @@ pub unsafe fn dc_job_kill_action(mut context: &dc_context_t, mut action: libc::c
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
+
 pub unsafe fn dc_perform_imap_fetch(mut context: &dc_context_t) {
     let mut start: libc::clock_t = clock();
     if 0 == connect_to_inbox(context) {
