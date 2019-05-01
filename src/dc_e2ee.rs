@@ -54,7 +54,7 @@ pub unsafe fn dc_e2ee_encrypt(
     let mut plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     let mut ctext: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ctext_bytes: size_t = 0i32 as size_t;
-    let mut peerstates: &dc_array_t = dc_array_new(0 as *mut dc_context_t, 10i32 as size_t);
+    let mut peerstates = dc_array_new(10i32 as size_t);
     if !helper.is_null() {
         memset(
             helper as *mut libc::c_void,
@@ -62,9 +62,7 @@ pub unsafe fn dc_e2ee_encrypt(
             ::std::mem::size_of::<dc_e2ee_helper_t>(),
         );
     }
-    if !(context.is_null()
-        || (*context).magic != 0x11a11807i32 as libc::c_uint
-        || recipients_addr.is_null()
+    if !(recipients_addr.is_null()
         || in_out_message.is_null()
         || !(*in_out_message).mm_parent.is_null()
         || autocryptheader.is_null()
@@ -76,14 +74,14 @@ pub unsafe fn dc_e2ee_encrypt(
         /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
         (*autocryptheader).prefer_encrypt = 0i32;
         if 0 != dc_sqlite3_get_config_int(
-            (*context).sql,
+            &mut context.sql.clone().lock().unwrap(),
             b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
             1i32,
         ) {
             (*autocryptheader).prefer_encrypt = 1i32
         }
         (*autocryptheader).addr = dc_sqlite3_get_config(
-            (*context).sql,
+            &mut context.sql.clone().lock().unwrap(),
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
         );
@@ -113,7 +111,7 @@ pub unsafe fn dc_e2ee_encrypt(
                         if !(strcasecmp(recipient_addr, (*autocryptheader).addr) == 0i32) {
                             if 0 != dc_apeerstate_load_by_addr(
                                 peerstate,
-                                (*context).sql,
+                                &mut context.sql.clone().lock().unwrap(),
                                 recipient_addr,
                             ) && {
                                 key_to_use = dc_apeerstate_peek_key(peerstate, min_verified);
@@ -141,7 +139,7 @@ pub unsafe fn dc_e2ee_encrypt(
                     if 0 == dc_key_load_self_private(
                         sign_key,
                         (*autocryptheader).addr,
-                        (*context).sql,
+                        &mut context.sql.clone().lock().unwrap(),
                     ) {
                         do_encrypt = 0i32
                     }
@@ -516,11 +514,12 @@ unsafe fn load_or_generate_self_public_key(
     let mut key_created: libc::c_int = 0i32;
     let mut success: libc::c_int = 0i32;
     let mut key_creation_here: libc::c_int = 0i32;
-    if !(context.is_null()
-        || (*context).magic != 0x11a11807i32 as libc::c_uint
-        || public_key.is_null())
-    {
-        if 0 == dc_key_load_self_public(public_key, self_addr, (*context).sql) {
+    if !public_key.is_null() {
+        if 0 == dc_key_load_self_public(
+            public_key,
+            self_addr,
+            &mut context.sql.clone().lock().unwrap(),
+        ) {
             /* create the keypair - this may take a moment, however, as this is in a thread, this is no big deal */
             if 0 != s_in_key_creation {
                 current_block = 10496152961502316708;
@@ -579,7 +578,7 @@ unsafe fn load_or_generate_self_public_key(
                                 private_key,
                                 self_addr,
                                 1i32,
-                                (*context).sql,
+                                &mut context.sql.clone().lock().unwrap(),
                             )
                         {
                             /*set default*/
@@ -643,12 +642,7 @@ pub unsafe fn dc_e2ee_decrypt(
             ::std::mem::size_of::<dc_e2ee_helper_t>(),
         );
     }
-    if !(context.is_null()
-        || (*context).magic != 0x11a11807i32 as libc::c_uint
-        || in_out_message.is_null()
-        || helper.is_null()
-        || imffields.is_null())
-    {
+    if !(in_out_message.is_null() || helper.is_null() || imffields.is_null()) {
         if !imffields.is_null() {
             let mut field: *mut mailimf_field =
                 mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
@@ -676,24 +670,36 @@ pub unsafe fn dc_e2ee_decrypt(
             }
         }
         if message_time > 0i32 as libc::c_long && !from.is_null() {
-            if 0 != dc_apeerstate_load_by_addr(peerstate, (*context).sql, from) {
+            if 0 != dc_apeerstate_load_by_addr(
+                peerstate,
+                &mut context.sql.clone().lock().unwrap(),
+                from,
+            ) {
                 if !autocryptheader.is_null() {
                     dc_apeerstate_apply_header(peerstate, autocryptheader, message_time);
-                    dc_apeerstate_save_to_db(peerstate, (*context).sql, 0i32);
+                    dc_apeerstate_save_to_db(
+                        peerstate,
+                        &mut context.sql.clone().lock().unwrap(),
+                        0i32,
+                    );
                 } else if message_time > (*peerstate).last_seen_autocrypt
                     && 0 == contains_report(in_out_message)
                 {
                     dc_apeerstate_degrade_encryption(peerstate, message_time);
-                    dc_apeerstate_save_to_db(peerstate, (*context).sql, 0i32);
+                    dc_apeerstate_save_to_db(
+                        peerstate,
+                        &mut context.sql.clone().lock().unwrap(),
+                        0i32,
+                    );
                 }
             } else if !autocryptheader.is_null() {
                 dc_apeerstate_init_from_header(peerstate, autocryptheader, message_time);
-                dc_apeerstate_save_to_db(peerstate, (*context).sql, 1i32);
+                dc_apeerstate_save_to_db(peerstate, &mut context.sql.clone().lock().unwrap(), 1i32);
             }
         }
         /* load private key for decryption */
         self_addr = dc_sqlite3_get_config(
-            (*context).sql,
+            &mut context.sql.clone().lock().unwrap(),
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
         );
@@ -702,11 +708,15 @@ pub unsafe fn dc_e2ee_decrypt(
                 == dc_keyring_load_self_private_for_decrypting(
                     private_keyring,
                     self_addr,
-                    (*context).sql,
+                    &mut context.sql.clone().lock().unwrap(),
                 ))
             {
                 if (*peerstate).last_seen == 0i32 as libc::c_long {
-                    dc_apeerstate_load_by_addr(peerstate, (*context).sql, from);
+                    dc_apeerstate_load_by_addr(
+                        peerstate,
+                        &mut context.sql.clone().lock().unwrap(),
+                        from,
+                    );
                 }
                 if 0 != (*peerstate).degrade_event {
                     dc_handle_degrade_event(context, peerstate);
@@ -795,14 +805,22 @@ unsafe fn update_gossip_peerstates(
                         let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
                         if 0 == dc_apeerstate_load_by_addr(
                             peerstate,
-                            (*context).sql,
+                            &mut context.sql.clone().lock().unwrap(),
                             (*gossip_header).addr,
                         ) {
                             dc_apeerstate_init_from_gossip(peerstate, gossip_header, message_time);
-                            dc_apeerstate_save_to_db(peerstate, (*context).sql, 1i32);
+                            dc_apeerstate_save_to_db(
+                                peerstate,
+                                &mut context.sql.clone().lock().unwrap(),
+                                1i32,
+                            );
                         } else {
                             dc_apeerstate_apply_gossip(peerstate, gossip_header, message_time);
-                            dc_apeerstate_save_to_db(peerstate, (*context).sql, 0i32);
+                            dc_apeerstate_save_to_db(
+                                peerstate,
+                                &mut context.sql.clone().lock().unwrap(),
+                                0i32,
+                            );
                         }
                         if 0 != (*peerstate).degrade_event {
                             dc_handle_degrade_event(context, peerstate);
@@ -855,7 +873,7 @@ unsafe fn decrypt_recursive(
 ) -> libc::c_int {
     let mut ct: *mut mailmime_content = 0 as *mut mailmime_content;
     let mut cur: *mut clistiter = 0 as *mut clistiter;
-    if context.is_null() || mime.is_null() {
+    if mime.is_null() {
         return 0i32;
     }
     if (*mime).mm_type == MAILMIME_MULTIPLE as libc::c_int {
@@ -1198,12 +1216,9 @@ pub unsafe fn dc_ensure_secret_key_exists(mut context: &dc_context_t) -> libc::c
     let mut success: libc::c_int = 0i32;
     let mut public_key: *mut dc_key_t = dc_key_new();
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(context.is_null()
-        || (*context).magic != 0x11a11807i32 as libc::c_uint
-        || public_key.is_null())
-    {
+    if !public_key.is_null() {
         self_addr = dc_sqlite3_get_config(
-            (*context).sql,
+            &mut context.sql.clone().lock().unwrap(),
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
         );

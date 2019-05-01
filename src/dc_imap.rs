@@ -38,8 +38,6 @@ pub struct dc_imap_t {
     pub set_config: dc_set_config_t,
     pub precheck_imf: dc_precheck_imf_t,
     pub receive_imf: dc_receive_imf_t,
-    // TODO: remove
-    pub context: *mut dc_context_t,
     pub log_connect_errors: i32,
     pub skip_log_capabilities: i32,
 }
@@ -75,8 +73,6 @@ pub unsafe fn dc_imap_new(
         set_config,
         precheck_imf,
         receive_imf,
-        // TODO: remove
-        context: std::ptr::null_mut(),
         log_connect_errors: 1,
         skip_log_capabilities: 0,
     };
@@ -107,8 +103,8 @@ pub unsafe fn dc_imap_new(
     imap
 }
 
-pub unsafe fn dc_imap_unref(imap: &mut dc_imap_t) {
-    dc_imap_disconnect(imap);
+pub unsafe fn dc_imap_unref(context: &dc_context_t, imap: &mut dc_imap_t) {
+    dc_imap_disconnect(context, imap);
     free(imap.watch_folder as *mut libc::c_void);
     free(imap.selected_folder as *mut libc::c_void);
     if !imap.fetch_type_prefetch.is_null() {
@@ -122,9 +118,9 @@ pub unsafe fn dc_imap_unref(imap: &mut dc_imap_t) {
     }
 }
 
-pub unsafe fn dc_imap_disconnect(imap: &mut dc_imap_t) {
+pub unsafe fn dc_imap_disconnect(context: &dc_context_t, imap: &mut dc_imap_t) {
     if 0 != imap.connected {
-        unsetup_handle(imap);
+        unsetup_handle(context, imap);
         free_connect_param(imap);
         imap.connected = 0
     };
@@ -150,7 +146,7 @@ unsafe fn free_connect_param(imap: &mut dc_imap_t) {
     imap.has_xlist = 0;
 }
 
-unsafe fn unsetup_handle(imap: &mut dc_imap_t) {
+unsafe fn unsetup_handle(context: &dc_context_t, imap: &mut dc_imap_t) {
     if !imap.etpan.is_null() {
         if 0 != imap.idle_set_up {
             mailstream_unsetup_idle((*imap.etpan).imap_stream);
@@ -163,7 +159,7 @@ unsafe fn unsetup_handle(imap: &mut dc_imap_t) {
         mailimap_free(imap.etpan);
         imap.etpan = 0 as *mut mailimap;
         dc_log_info(
-            imap.context,
+            context,
             0,
             b"IMAP disconnected.\x00" as *const u8 as *const libc::c_char,
         );
@@ -171,7 +167,11 @@ unsafe fn unsetup_handle(imap: &mut dc_imap_t) {
     *imap.selected_folder.offset(0isize) = 0 as libc::c_char;
 }
 
-pub unsafe fn dc_imap_connect(imap: &mut dc_imap_t, lp: *const dc_loginparam_t) -> libc::c_int {
+pub unsafe fn dc_imap_connect(
+    context: &dc_context_t,
+    imap: &mut dc_imap_t,
+    lp: *const dc_loginparam_t,
+) -> libc::c_int {
     let mut success: libc::c_int = 0;
     if lp.is_null()
         || (*lp).mail_server.is_null()
@@ -189,7 +189,7 @@ pub unsafe fn dc_imap_connect(imap: &mut dc_imap_t, lp: *const dc_loginparam_t) 
         imap.imap_user = dc_strdup((*lp).mail_user);
         imap.imap_pw = dc_strdup((*lp).mail_pw);
         imap.server_flags = (*lp).server_flags;
-        if !(0 == setup_handle_if_needed(imap)) {
+        if !(0 == setup_handle_if_needed(context, imap)) {
             imap.can_idle = mailimap_has_idle(imap.etpan);
             imap.has_xlist = mailimap_has_xlist(imap.etpan);
             imap.can_idle = 0;
@@ -236,7 +236,7 @@ pub unsafe fn dc_imap_connect(imap: &mut dc_imap_t, lp: *const dc_loginparam_t) 
                     }
                 }
                 dc_log_info(
-                    imap.context,
+                    context,
                     0,
                     b"IMAP-capabilities:%s\x00" as *const u8 as *const libc::c_char,
                     capinfostr.buf,
@@ -248,19 +248,19 @@ pub unsafe fn dc_imap_connect(imap: &mut dc_imap_t, lp: *const dc_loginparam_t) 
         }
     }
     if success == 0 {
-        unsetup_handle(imap);
+        unsetup_handle(context, imap);
         free_connect_param(imap);
     }
     success
 }
 
-unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
+unsafe fn setup_handle_if_needed(context: &dc_context_t, imap: &mut dc_imap_t) -> libc::c_int {
     let mut current_block: u64;
     let mut r: libc::c_int = 0;
     let mut success: libc::c_int = 0;
     if !(imap.imap_server.is_null()) {
         if 0 != imap.should_reconnect {
-            unsetup_handle(imap);
+            unsetup_handle(context, imap);
         }
         if !imap.etpan.is_null() {
             success = 1
@@ -273,9 +273,9 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                     imap.imap_server,
                     imap.imap_port as uint16_t,
                 );
-                if 0 != dc_imap_is_error(imap, r) {
+                if 0 != dc_imap_is_error(context, imap, r) {
                     dc_log_event_seq(
-                        imap.context,
+                        context,
                         Event::ERROR_NETWORK,
                         &mut imap.log_connect_errors as *mut libc::c_int,
                         b"Could not connect to IMAP-server %s:%i. (Error #%i)\x00" as *const u8
@@ -287,8 +287,8 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                     current_block = 15811161807000851472;
                 } else if 0 != imap.server_flags & 0x100 {
                     r = mailimap_socket_starttls(imap.etpan);
-                    if 0 != dc_imap_is_error(imap, r) {
-                        dc_log_event_seq(imap.context, Event::ERROR_NETWORK,
+                    if 0 != dc_imap_is_error(context, imap, r) {
+                        dc_log_event_seq(context, Event::ERROR_NETWORK,
                                          &mut imap.log_connect_errors as
                                              *mut libc::c_int,
                                          b"Could not connect to IMAP-server %s:%i using STARTTLS. (Error #%i)\x00"
@@ -300,7 +300,7 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                         current_block = 15811161807000851472;
                     } else {
                         dc_log_info(
-                            imap.context,
+                            context,
                             0,
                             b"IMAP-server %s:%i STARTTLS-connected.\x00" as *const u8
                                 as *const libc::c_char,
@@ -311,7 +311,7 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                     }
                 } else {
                     dc_log_info(
-                        imap.context,
+                        context,
                         0,
                         b"IMAP-server %s:%i connected.\x00" as *const u8 as *const libc::c_char,
                         imap.imap_server,
@@ -321,9 +321,9 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                 }
             } else {
                 r = mailimap_ssl_connect(imap.etpan, imap.imap_server, imap.imap_port as uint16_t);
-                if 0 != dc_imap_is_error(imap, r) {
+                if 0 != dc_imap_is_error(context, imap, r) {
                     dc_log_event_seq(
-                        imap.context,
+                        context,
                         Event::ERROR_NETWORK,
                         &mut imap.log_connect_errors as *mut libc::c_int,
                         b"Could not connect to IMAP-server %s:%i using SSL. (Error #%i)\x00"
@@ -335,7 +335,7 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                     current_block = 15811161807000851472;
                 } else {
                     dc_log_info(
-                        imap.context,
+                        context,
                         0,
                         b"IMAP-server %s:%i SSL-connected.\x00" as *const u8 as *const libc::c_char,
                         imap.imap_server,
@@ -349,21 +349,17 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                 _ => {
                     if 0 != imap.server_flags & 0x2 {
                         dc_log_info(
-                            imap.context,
+                            context,
                             0,
                             b"IMAP-OAuth2 connect...\x00" as *const u8 as *const libc::c_char,
                         );
                         let mut access_token: *mut libc::c_char =
-                            dc_get_oauth2_access_token(imap.context, imap.addr, imap.imap_pw, 0);
+                            dc_get_oauth2_access_token(context, imap.addr, imap.imap_pw, 0);
                         r = mailimap_oauth2_authenticate(imap.etpan, imap.imap_user, access_token);
-                        if 0 != dc_imap_is_error(imap, r) {
+                        if 0 != dc_imap_is_error(context, imap, r) {
                             free(access_token as *mut libc::c_void);
-                            access_token = dc_get_oauth2_access_token(
-                                imap.context,
-                                imap.addr,
-                                imap.imap_pw,
-                                0x1,
-                            );
+                            access_token =
+                                dc_get_oauth2_access_token(context, imap.addr, imap.imap_pw, 0x1);
                             r = mailimap_oauth2_authenticate(
                                 imap.etpan,
                                 imap.imap_user,
@@ -374,14 +370,15 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                     } else {
                         r = mailimap_login(imap.etpan, imap.imap_user, imap.imap_pw)
                     }
-                    if 0 != dc_imap_is_error(imap, r) {
+                    if 0 != dc_imap_is_error(context, imap, r) {
                         let mut msg: *mut libc::c_char = get_error_msg(
+                            context,
                             imap,
                             b"Cannot login\x00" as *const u8 as *const libc::c_char,
                             r,
                         );
                         dc_log_event_seq(
-                            imap.context,
+                            context,
                             Event::ERROR_NETWORK,
                             &mut imap.log_connect_errors as *mut libc::c_int,
                             b"%s\x00" as *const u8 as *const libc::c_char,
@@ -390,7 +387,7 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
                         free(msg as *mut libc::c_void);
                     } else {
                         dc_log_event(
-                            imap.context,
+                            context,
                             Event::IMAP_CONNECTED,
                             0,
                             b"IMAP-login as %s ok.\x00" as *const u8 as *const libc::c_char,
@@ -403,13 +400,14 @@ unsafe fn setup_handle_if_needed(imap: &mut dc_imap_t) -> libc::c_int {
         }
     }
     if success == 0 {
-        unsetup_handle(imap);
+        unsetup_handle(context, imap);
     }
     imap.should_reconnect = 0;
     success
 }
 
 unsafe fn get_error_msg(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     what_failed: *const libc::c_char,
     code: libc::c_int,
@@ -424,7 +422,7 @@ unsafe fn get_error_msg(
     dc_strbuilder_init(&mut msg, 1000);
     match code {
         28 => {
-            stock = dc_stock_str_repl_string(imap.context, 60, imap.imap_user);
+            stock = dc_stock_str_repl_string(context, 60, imap.imap_user);
             dc_strbuilder_cat(&mut msg, stock);
         }
         _ => {
@@ -440,12 +438,8 @@ unsafe fn get_error_msg(
     stock = 0 as *mut libc::c_char;
     if !(*imap.etpan).imap_response.is_null() {
         dc_strbuilder_cat(&mut msg, b"\n\n\x00" as *const u8 as *const libc::c_char);
-        stock = dc_stock_str_repl_string2(
-            imap.context,
-            61,
-            imap.imap_server,
-            (*imap.etpan).imap_response,
-        );
+        stock =
+            dc_stock_str_repl_string2(context, 61, imap.imap_server, (*imap.etpan).imap_response);
         dc_strbuilder_cat(&mut msg, stock);
     }
     free(stock as *mut libc::c_void);
@@ -453,7 +447,11 @@ unsafe fn get_error_msg(
     msg.buf
 }
 
-pub unsafe fn dc_imap_is_error(imap: &mut dc_imap_t, code: libc::c_int) -> libc::c_int {
+pub unsafe fn dc_imap_is_error(
+    context: &dc_context_t,
+    imap: &mut dc_imap_t,
+    code: libc::c_int,
+) -> libc::c_int {
     if code == MAILIMAP_NO_ERROR as libc::c_int
         || code == MAILIMAP_NO_ERROR_AUTHENTICATED as libc::c_int
         || code == MAILIMAP_NO_ERROR_NON_AUTHENTICATED as libc::c_int
@@ -462,7 +460,7 @@ pub unsafe fn dc_imap_is_error(imap: &mut dc_imap_t, code: libc::c_int) -> libc:
     }
     if code == MAILIMAP_ERROR_STREAM as libc::c_int || code == MAILIMAP_ERROR_PARSE as libc::c_int {
         dc_log_info(
-            imap.context,
+            context,
             0,
             b"IMAP stream lost; we\'ll reconnect soon.\x00" as *const u8 as *const libc::c_char,
         );
@@ -482,21 +480,22 @@ pub unsafe extern "C" fn dc_imap_set_watch_folder(
     imap.watch_folder = dc_strdup(watch_folder);
 }
 
-pub unsafe fn dc_imap_is_connected(imap: *const dc_imap_t) -> libc::c_int {
+pub unsafe fn dc_imap_is_connected(imap: &dc_imap_t) -> libc::c_int {
     (0 != imap.connected) as libc::c_int
 }
 
-pub unsafe fn dc_imap_fetch(imap: &mut dc_imap_t) -> libc::c_int {
+pub unsafe fn dc_imap_fetch(context: &dc_context_t, imap: &mut dc_imap_t) -> libc::c_int {
     let mut success: libc::c_int = 0;
-    if !(imap.is_null() || 0 == imap.connected) {
-        setup_handle_if_needed(imap);
-        while fetch_from_single_folder(imap, imap.watch_folder) > 0 {}
+    if !0 == imap.connected {
+        setup_handle_if_needed(context, imap);
+        while fetch_from_single_folder(context, imap, imap.watch_folder) > 0 {}
         success = 1;
     }
     success
 }
 
 unsafe fn fetch_from_single_folder(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     folder: *const libc::c_char,
 ) -> libc::c_int {
@@ -512,25 +511,25 @@ unsafe fn fetch_from_single_folder(
     let mut set: *mut mailimap_set = 0 as *mut mailimap_set;
     if imap.etpan.is_null() {
         dc_log_info(
-            imap.context,
+            context,
             0,
             b"Cannot fetch from \"%s\" - not connected.\x00" as *const u8 as *const libc::c_char,
             folder,
         );
-    } else if select_folder(imap, folder) == 0 {
+    } else if select_folder(context, imap, folder) == 0 {
         dc_log_warning(
-            imap.context,
+            context,
             0,
             b"Cannot select folder %s for fetching.\x00" as *const u8 as *const libc::c_char,
             folder,
         );
     } else {
-        get_config_lastseenuid(imap, folder, &mut uidvalidity, &mut lastseenuid);
+        get_config_lastseenuid(context, imap, folder, &mut uidvalidity, &mut lastseenuid);
         if uidvalidity != (*(*imap.etpan).imap_selection_info).sel_uidvalidity {
             /* first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config */
             if (*(*imap.etpan).imap_selection_info).sel_uidvalidity <= 0 as libc::c_uint {
                 dc_log_error(
-                    imap.context,
+                    context,
                     0,
                     b"Cannot get UIDVALIDITY for folder \"%s\".\x00" as *const u8
                         as *const libc::c_char,
@@ -541,13 +540,14 @@ unsafe fn fetch_from_single_folder(
                 if 0 != (*(*imap.etpan).imap_selection_info).sel_has_exists() {
                     if (*(*imap.etpan).imap_selection_info).sel_exists <= 0 as libc::c_uint {
                         dc_log_info(
-                            imap.context,
+                            context,
                             0,
                             b"Folder \"%s\" is empty.\x00" as *const u8 as *const libc::c_char,
                             folder,
                         );
                         if (*(*imap.etpan).imap_selection_info).sel_exists == 0 as libc::c_uint {
                             set_config_lastseenuid(
+                                context,
                                 imap,
                                 folder,
                                 (*(*imap.etpan).imap_selection_info).sel_uidvalidity,
@@ -563,7 +563,7 @@ unsafe fn fetch_from_single_folder(
                     }
                 } else {
                     dc_log_info(
-                        imap.context,
+                        context,
                         0,
                         b"EXISTS is missing for folder \"%s\", using fallback.\x00" as *const u8
                             as *const libc::c_char,
@@ -585,10 +585,10 @@ unsafe fn fetch_from_single_folder(
                             mailimap_set_free(set);
                             set = 0 as *mut mailimap_set
                         }
-                        if 0 != dc_imap_is_error(imap, r) || fetch_result.is_null() {
+                        if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
                             fetch_result = 0 as *mut clist;
                             dc_log_info(
-                                imap.context,
+                                context,
                                 0,
                                 b"No result returned for folder \"%s\".\x00" as *const u8
                                     as *const libc::c_char,
@@ -600,7 +600,7 @@ unsafe fn fetch_from_single_folder(
                             cur = (*fetch_result).first;
                             if cur.is_null() {
                                 dc_log_info(
-                                    imap.context,
+                                    context,
                                     0,
                                     b"Empty result returned for folder \"%s\".\x00" as *const u8
                                         as *const libc::c_char,
@@ -622,7 +622,7 @@ unsafe fn fetch_from_single_folder(
                                 }
                                 if lastseenuid <= 0 as libc::c_uint {
                                     dc_log_error(
-                                        imap.context,
+                                        context,
                                         0,
                                         b"Cannot get largest UID for folder \"%s\"\x00" as *const u8
                                             as *const libc::c_char,
@@ -640,9 +640,15 @@ unsafe fn fetch_from_single_folder(
                                     }
                                     uidvalidity =
                                         (*(*imap.etpan).imap_selection_info).sel_uidvalidity;
-                                    set_config_lastseenuid(imap, folder, uidvalidity, lastseenuid);
+                                    set_config_lastseenuid(
+                                        context,
+                                        imap,
+                                        folder,
+                                        uidvalidity,
+                                        lastseenuid,
+                                    );
                                     dc_log_info(
-                                        imap.context,
+                                        context,
                                         0,
                                         b"lastseenuid initialized to %i for %s@%i\x00" as *const u8
                                             as *const libc::c_char,
@@ -677,11 +683,11 @@ unsafe fn fetch_from_single_folder(
                     mailimap_set_free(set);
                     set = 0 as *mut mailimap_set
                 }
-                if 0 != dc_imap_is_error(imap, r) || fetch_result.is_null() {
+                if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
                     fetch_result = 0 as *mut clist;
                     if r == MAILIMAP_ERROR_PROTOCOL as libc::c_int {
                         dc_log_info(
-                            imap.context,
+                            context,
                             0,
                             b"Folder \"%s\" is empty\x00" as *const u8 as *const libc::c_char,
                             folder,
@@ -689,7 +695,7 @@ unsafe fn fetch_from_single_folder(
                     } else {
                         /* the folder is simply empty, this is no error */
                         dc_log_warning(
-                            imap.context,
+                            context,
                             0,
                             b"Cannot fetch message list from folder \"%s\".\x00" as *const u8
                                 as *const libc::c_char,
@@ -711,10 +717,10 @@ unsafe fn fetch_from_single_folder(
                                 unquote_rfc724_mid(peek_rfc724_mid(msg_att_0));
                             read_cnt = read_cnt.wrapping_add(1);
                             if 0 == imap.precheck_imf.expect("non-null function pointer")(
-                                imap, rfc724_mid, folder, cur_uid,
+                                context, rfc724_mid, folder, cur_uid,
                             ) {
-                                if fetch_single_msg(imap, folder, cur_uid) == 0 {
-                                    dc_log_info(imap.context, 0,
+                                if fetch_single_msg(context, imap, folder, cur_uid) == 0 {
+                                    dc_log_info(context, 0,
                                                 b"Read error for message %s from \"%s\", trying over later.\x00"
                                                 as *const u8 as
                                                 *const libc::c_char,
@@ -723,7 +729,7 @@ unsafe fn fetch_from_single_folder(
                                 }
                             } else {
                                 dc_log_info(
-                                    imap.context,
+                                    context,
                                     0,
                                     b"Skipping message %s from \"%s\" by precheck.\x00" as *const u8
                                         as *const libc::c_char,
@@ -743,7 +749,7 @@ unsafe fn fetch_from_single_folder(
                         }
                     }
                     if 0 == read_errors && new_lastseenuid > 0 as libc::c_uint {
-                        set_config_lastseenuid(imap, folder, uidvalidity, new_lastseenuid);
+                        set_config_lastseenuid(context, imap, folder, uidvalidity, new_lastseenuid);
                     }
                 }
             }
@@ -753,7 +759,7 @@ unsafe fn fetch_from_single_folder(
     /* done */
     if 0 != read_errors {
         dc_log_warning(
-            imap.context,
+            context,
             0,
             b"%i mails read from \"%s\" with %i errors.\x00" as *const u8 as *const libc::c_char,
             read_cnt as libc::c_int,
@@ -762,7 +768,7 @@ unsafe fn fetch_from_single_folder(
         );
     } else {
         dc_log_info(
-            imap.context,
+            context,
             0i32,
             b"%i mails read from \"%s\".\x00" as *const u8 as *const libc::c_char,
             read_cnt as libc::c_int,
@@ -777,6 +783,7 @@ unsafe fn fetch_from_single_folder(
 }
 
 unsafe fn set_config_lastseenuid(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     folder: *const libc::c_char,
     uidvalidity: uint32_t,
@@ -791,7 +798,7 @@ unsafe fn set_config_lastseenuid(
         uidvalidity,
         lastseenuid,
     );
-    imap.set_config.expect("non-null function pointer")(imap, key, val);
+    imap.set_config.expect("non-null function pointer")(context, key, val);
     free(val as *mut libc::c_void);
     free(key as *mut libc::c_void);
 }
@@ -878,6 +885,7 @@ unsafe fn peek_uid(msg_att: *mut mailimap_msg_att) -> uint32_t {
 }
 
 unsafe fn fetch_single_msg(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     folder: *const libc::c_char,
     server_uid: uint32_t,
@@ -901,10 +909,10 @@ unsafe fn fetch_single_msg(
             mailimap_set_free(set);
             set = 0 as *mut mailimap_set
         }
-        if 0 != dc_imap_is_error(imap, r) || fetch_result.is_null() {
+        if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
             fetch_result = 0 as *mut clist;
             dc_log_warning(
-                imap.context,
+                context,
                 0,
                 b"Error #%i on fetching message #%i from folder \"%s\"; retry=%i.\x00" as *const u8
                     as *const libc::c_char,
@@ -921,7 +929,7 @@ unsafe fn fetch_single_msg(
             cur = (*fetch_result).first;
             if cur.is_null() {
                 dc_log_warning(
-                    imap.context,
+                    context,
                     0,
                     b"Message #%i does not exist in folder \"%s\".\x00" as *const u8
                         as *const libc::c_char,
@@ -945,7 +953,7 @@ unsafe fn fetch_single_msg(
                 if !(msg_content.is_null() || msg_bytes <= 0 || 0 != deleted) {
                     /* dc_log_warning(imap->context, 0, "Message #%i in folder \"%s\" is empty or deleted.", (int)server_uid, folder); -- this is a quite usual situation, do not print a warning */
                     imap.receive_imf.expect("non-null function pointer")(
-                        imap,
+                        context,
                         msg_content,
                         msg_bytes,
                         folder,
@@ -1038,6 +1046,7 @@ unsafe fn peek_body(
 }
 
 unsafe fn get_config_lastseenuid(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     folder: *const libc::c_char,
     uidvalidity: *mut uint32_t,
@@ -1050,7 +1059,7 @@ unsafe fn get_config_lastseenuid(
         folder,
     );
     let mut val1: *mut libc::c_char =
-        imap.get_config.expect("non-null function pointer")(imap, key, 0 as *const libc::c_char);
+        imap.get_config.expect("non-null function pointer")(context, key, 0 as *const libc::c_char);
     let mut val2: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut val3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !val1.is_null() {
@@ -1074,7 +1083,11 @@ unsafe fn get_config_lastseenuid(
  * Handle folders
  ******************************************************************************/
 
-unsafe fn select_folder(imap: &mut dc_imap_t, folder: *const libc::c_char) -> libc::c_int {
+unsafe fn select_folder(
+    context: &dc_context_t,
+    imap: &mut dc_imap_t,
+    folder: *const libc::c_char,
+) -> libc::c_int {
     if imap.etpan.is_null() {
         *imap.selected_folder.offset(0isize) = 0 as libc::c_char;
         imap.selected_folder_needs_expunge = 0;
@@ -1089,7 +1102,7 @@ unsafe fn select_folder(imap: &mut dc_imap_t, folder: *const libc::c_char) -> li
     if 0 != imap.selected_folder_needs_expunge {
         if 0 != *imap.selected_folder.offset(0isize) {
             dc_log_info(
-                imap.context,
+                context,
                 0,
                 b"Expunge messages in \"%s\".\x00" as *const u8 as *const libc::c_char,
                 imap.selected_folder,
@@ -1100,9 +1113,9 @@ unsafe fn select_folder(imap: &mut dc_imap_t, folder: *const libc::c_char) -> li
     }
     if !folder.is_null() {
         let mut r: libc::c_int = mailimap_select(imap.etpan, folder);
-        if 0 != dc_imap_is_error(imap, r) || (*imap.etpan).imap_selection_info.is_null() {
+        if 0 != dc_imap_is_error(context, imap, r) || (*imap.etpan).imap_selection_info.is_null() {
             dc_log_info(
-                imap.context,
+                context,
                 0,
                 b"Cannot select folder; code=%i, imap_response=%s\x00" as *const u8
                     as *const libc::c_char,
@@ -1122,22 +1135,21 @@ unsafe fn select_folder(imap: &mut dc_imap_t, folder: *const libc::c_char) -> li
     1
 }
 
-pub unsafe fn dc_imap_idle(imap: &mut dc_imap_t) {
+pub unsafe fn dc_imap_idle(context: &dc_context_t, imap: &mut dc_imap_t) {
     let mut current_block: u64;
     let mut r: libc::c_int = 0;
     let mut r2: libc::c_int = 0;
     if 0 != imap.can_idle {
-        setup_handle_if_needed(imap);
-        if imap.idle_set_up == 0 && !imap.etpan.is_null() && !(*imap.etpan).imap_stream.is_null()
-        {
+        setup_handle_if_needed(context, imap);
+        if imap.idle_set_up == 0 && !imap.etpan.is_null() && !(*imap.etpan).imap_stream.is_null() {
             r = mailstream_setup_idle((*imap.etpan).imap_stream);
-            if 0 != dc_imap_is_error(imap, r) {
+            if 0 != dc_imap_is_error(context, imap, r) {
                 dc_log_warning(
-                    imap.context,
+                    context,
                     0,
                     b"IMAP-IDLE: Cannot setup.\x00" as *const u8 as *const libc::c_char,
                 );
-                fake_idle(imap);
+                fake_idle(context, imap);
                 current_block = 14832935472441733737;
             } else {
                 imap.idle_set_up = 1;
@@ -1149,22 +1161,22 @@ pub unsafe fn dc_imap_idle(imap: &mut dc_imap_t) {
         match current_block {
             14832935472441733737 => {}
             _ => {
-                if 0 == imap.idle_set_up || 0 == select_folder(imap, imap.watch_folder) {
+                if 0 == imap.idle_set_up || 0 == select_folder(context, imap, imap.watch_folder) {
                     dc_log_warning(
-                        imap.context,
+                        context,
                         0,
                         b"IMAP-IDLE not setup.\x00" as *const u8 as *const libc::c_char,
                     );
-                    fake_idle(imap);
+                    fake_idle(context, imap);
                 } else {
                     r = mailimap_idle(imap.etpan);
-                    if 0 != dc_imap_is_error(imap, r) {
+                    if 0 != dc_imap_is_error(context, imap, r) {
                         dc_log_warning(
-                            imap.context,
+                            context,
                             0,
                             b"IMAP-IDLE: Cannot start.\x00" as *const u8 as *const libc::c_char,
                         );
-                        fake_idle(imap);
+                        fake_idle(context, imap);
                     } else {
                         r = mailstream_wait_idle((*imap.etpan).imap_stream, 23 * 60);
                         r2 = mailimap_idle_done(imap.etpan);
@@ -1172,7 +1184,7 @@ pub unsafe fn dc_imap_idle(imap: &mut dc_imap_t) {
                             || r == MAILSTREAM_IDLE_CANCELLED as libc::c_int
                         {
                             dc_log_info(
-                                imap.context,
+                                context,
                                 0,
                                 b"IMAP-IDLE wait cancelled, r=%i, r2=%i; we\'ll reconnect soon.\x00"
                                     as *const u8
@@ -1183,25 +1195,25 @@ pub unsafe fn dc_imap_idle(imap: &mut dc_imap_t) {
                             imap.should_reconnect = 1
                         } else if r == MAILSTREAM_IDLE_INTERRUPTED as libc::c_int {
                             dc_log_info(
-                                imap.context,
+                                context,
                                 0,
                                 b"IMAP-IDLE interrupted.\x00" as *const u8 as *const libc::c_char,
                             );
                         } else if r == MAILSTREAM_IDLE_HASDATA as libc::c_int {
                             dc_log_info(
-                                imap.context,
+                                context,
                                 0,
                                 b"IMAP-IDLE has data.\x00" as *const u8 as *const libc::c_char,
                             );
                         } else if r == MAILSTREAM_IDLE_TIMEOUT as libc::c_int {
                             dc_log_info(
-                                imap.context,
+                                context,
                                 0,
                                 b"IMAP-IDLE timeout.\x00" as *const u8 as *const libc::c_char,
                             );
                         } else {
                             dc_log_warning(
-                                imap.context,
+                                context,
                                 0,
                                 b"IMAP-IDLE returns unknown value r=%i, r2=%i.\x00" as *const u8
                                     as *const libc::c_char,
@@ -1214,17 +1226,17 @@ pub unsafe fn dc_imap_idle(imap: &mut dc_imap_t) {
             }
         }
     } else {
-        fake_idle(imap);
+        fake_idle(context, imap);
     }
 }
 
-unsafe fn fake_idle(imap: &mut dc_imap_t) {
+unsafe fn fake_idle(context: &dc_context_t, imap: &mut dc_imap_t) {
     /* Idle using timeouts. This is also needed if we're not yet configured -
     in this case, we're waiting for a configure job */
     let mut fake_idle_start_time: time_t = time(0 as *mut time_t);
     let mut seconds_to_wait: time_t = 0 as time_t;
     dc_log_info(
-        imap.context,
+        context,
         0,
         b"IMAP-fake-IDLEing...\x00" as *const u8 as *const libc::c_char,
     );
@@ -1236,7 +1248,8 @@ unsafe fn fake_idle(imap: &mut dc_imap_t) {
             } else {
                 60
             }) as time_t;
-        pthread_mutex_lock(&mut imap.watch_condmutex);
+        // FIXME
+        // pthread_mutex_lock(&mut imap.watch_condmutex);
         let mut r: libc::c_int = 0;
         let mut wakeup_at: timespec = timespec {
             tv_sec: 0,
@@ -1248,23 +1261,24 @@ unsafe fn fake_idle(imap: &mut dc_imap_t) {
             ::std::mem::size_of::<timespec>(),
         );
         wakeup_at.tv_sec = time(0 as *mut time_t) + seconds_to_wait;
-        while imap.watch_condflag == 0 && r == 0 {
-            r = pthread_cond_timedwait(
-                &mut imap.watch_cond,
-                &mut imap.watch_condmutex,
-                &mut wakeup_at,
-            );
-            if 0 != imap.watch_condflag {
-                do_fake_idle = 0
-            }
-        }
-        imap.watch_condflag = 0;
-        pthread_mutex_unlock(&mut imap.watch_condmutex);
+        // FIXME
+        // while imap.watch_condflag == 0 && r == 0 {
+        //     r = pthread_cond_timedwait(
+        //         &mut imap.watch_cond,
+        //         &mut imap.watch_condmutex,
+        //         &mut wakeup_at,
+        //     );
+        //     if 0 != imap.watch_condflag {
+        //         do_fake_idle = 0
+        //     }
+        // }
+        // imap.watch_condflag = 0;
+        // pthread_mutex_unlock(&mut imap.watch_condmutex);
         if do_fake_idle == 0 {
             return;
         }
-        if 0 != setup_handle_if_needed(imap) {
-            if 0 != fetch_from_single_folder(imap, imap.watch_folder) {
+        if 0 != setup_handle_if_needed(context, imap) {
+            if 0 != fetch_from_single_folder(context, imap, imap.watch_folder) {
                 do_fake_idle = 0
             }
         } else {
@@ -1279,17 +1293,19 @@ pub unsafe fn dc_imap_interrupt_idle(imap: &mut dc_imap_t) {
             mailstream_interrupt_idle((*imap.etpan).imap_stream);
         }
     }
-    pthread_mutex_lock(&mut imap.watch_condmutex);
-    imap.watch_condflag = 1;
-    pthread_cond_signal(&mut imap.watch_cond);
-    pthread_mutex_unlock(&mut imap.watch_condmutex);
+    // FIXME
+    // pthread_mutex_lock(&mut imap.watch_condmutex);
+    // imap.watch_condflag = 1;
+    // pthread_cond_signal(&mut imap.watch_cond);
+    // pthread_mutex_unlock(&mut imap.watch_condmutex);
 }
 
 pub unsafe fn dc_imap_move(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     folder: *const libc::c_char,
     uid: uint32_t,
-    _folder: *const libc::c_char,
+    dest_folder: *const libc::c_char,
     dest_uid: *mut uint32_t,
 ) -> dc_imap_res {
     let mut current_block: u64;
@@ -1308,7 +1324,7 @@ pub unsafe fn dc_imap_move(
         res = DC_FAILED
     } else if strcasecmp(folder, dest_folder) == 0 {
         dc_log_info(
-            imap.context,
+            context,
             0,
             b"Skip moving message; message %s/%i is already in %s...\x00" as *const u8
                 as *const libc::c_char,
@@ -1319,16 +1335,16 @@ pub unsafe fn dc_imap_move(
         res = DC_ALREADY_DONE
     } else {
         dc_log_info(
-            imap.context,
+            context,
             0,
             b"Moving message %s/%i to %s...\x00" as *const u8 as *const libc::c_char,
             folder,
             uid as libc::c_int,
             dest_folder,
         );
-        if select_folder(imap, folder) == 0 {
+        if select_folder(context, imap, folder) == 0 {
             dc_log_warning(
-                imap.context,
+                context,
                 0,
                 b"Cannot select folder %s for moving message.\x00" as *const u8
                     as *const libc::c_char,
@@ -1343,7 +1359,7 @@ pub unsafe fn dc_imap_move(
                 &mut res_setsrc,
                 &mut res_setdest,
             );
-            if 0 != dc_imap_is_error(imap, r) {
+            if 0 != dc_imap_is_error(context, imap, r) {
                 if !res_setsrc.is_null() {
                     mailimap_set_free(res_setsrc);
                     res_setsrc = 0 as *mut mailimap_set
@@ -1353,7 +1369,7 @@ pub unsafe fn dc_imap_move(
                     res_setdest = 0 as *mut mailimap_set
                 }
                 dc_log_info(
-                    imap.context,
+                    context,
                     0,
                     b"Cannot move message, fallback to COPY/DELETE %s/%i to %s...\x00" as *const u8
                         as *const libc::c_char,
@@ -1369,9 +1385,9 @@ pub unsafe fn dc_imap_move(
                     &mut res_setsrc,
                     &mut res_setdest,
                 );
-                if 0 != dc_imap_is_error(imap, r) {
+                if 0 != dc_imap_is_error(context, imap, r) {
                     dc_log_info(
-                        imap.context,
+                        context,
                         0,
                         b"Cannot copy message.\x00" as *const u8 as *const libc::c_char,
                     );
@@ -1379,7 +1395,7 @@ pub unsafe fn dc_imap_move(
                 } else {
                     if add_flag(imap, uid, mailimap_flag_new_deleted()) == 0 {
                         dc_log_warning(
-                            imap.context,
+                            context,
                             0,
                             b"Cannot mark message as \"Deleted\".\x00" as *const u8
                                 as *const libc::c_char,
@@ -1463,6 +1479,7 @@ unsafe fn add_flag(
 }
 
 pub unsafe fn dc_imap_set_seen(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     folder: *const libc::c_char,
     uid: uint32_t,
@@ -1472,15 +1489,15 @@ pub unsafe fn dc_imap_set_seen(
         res = DC_FAILED
     } else if !imap.etpan.is_null() {
         dc_log_info(
-            imap.context,
+            context,
             0,
             b"Marking message %s/%i as seen...\x00" as *const u8 as *const libc::c_char,
             folder,
             uid as libc::c_int,
         );
-        if select_folder(imap, folder) == 0 {
+        if select_folder(context, imap, folder) == 0 {
             dc_log_warning(
-                imap.context,
+                context,
                 0,
                 b"Cannot select folder %s for setting SEEN flag.\x00" as *const u8
                     as *const libc::c_char,
@@ -1488,7 +1505,7 @@ pub unsafe fn dc_imap_set_seen(
             );
         } else if add_flag(imap, uid, mailimap_flag_new_seen()) == 0 {
             dc_log_warning(
-                imap.context,
+                context,
                 0,
                 b"Cannot mark message as seen.\x00" as *const u8 as *const libc::c_char,
             );
@@ -1508,6 +1525,7 @@ pub unsafe fn dc_imap_set_seen(
 }
 
 pub unsafe fn dc_imap_set_mdnsent(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     folder: *const libc::c_char,
     uid: uint32_t,
@@ -1522,15 +1540,15 @@ pub unsafe fn dc_imap_set_mdnsent(
         res = DC_FAILED
     } else if !imap.etpan.is_null() {
         dc_log_info(
-            imap.context,
+            context,
             0,
             b"Marking message %s/%i as $MDNSent...\x00" as *const u8 as *const libc::c_char,
             folder,
             uid as libc::c_int,
         );
-        if select_folder(imap, folder) == 0 {
+        if select_folder(context, imap, folder) == 0 {
             dc_log_warning(
-                imap.context,
+                context,
                 0,
                 b"Cannot select folder %s for setting $MDNSent flag.\x00" as *const u8
                     as *const libc::c_char,
@@ -1584,7 +1602,7 @@ pub unsafe fn dc_imap_set_mdnsent(
             if 0 != can_create_flag {
                 let mut r: libc::c_int =
                     mailimap_uid_fetch(imap.etpan, set, imap.fetch_type_flags, &mut fetch_result);
-                if 0 != dc_imap_is_error(imap, r) || fetch_result.is_null() {
+                if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
                     fetch_result = 0 as *mut clist
                 } else {
                     let mut cur: *mut clistiter = (*fetch_result).first;
@@ -1616,7 +1634,7 @@ pub unsafe fn dc_imap_set_mdnsent(
                             17044610252497760460 => {}
                             _ => {
                                 dc_log_info(
-                                    imap.context,
+                                    context,
                                     0,
                                     if res as libc::c_uint
                                         == DC_SUCCESS as libc::c_int as libc::c_uint
@@ -1636,7 +1654,7 @@ pub unsafe fn dc_imap_set_mdnsent(
             } else {
                 res = DC_SUCCESS;
                 dc_log_info(
-                    imap.context,
+                    context,
                     0,
                     b"Cannot store $MDNSent flags, risk sending duplicate MDN.\x00" as *const u8
                         as *const libc::c_char,
@@ -1724,6 +1742,7 @@ unsafe fn peek_flag_keyword(
 
 /* only returns 0 on connection problems; we should try later again in this case */
 pub unsafe fn dc_imap_delete_msg(
+    context: &dc_context_t,
     imap: &mut dc_imap_t,
     rfc724_mid: *const libc::c_char,
     folder: *const libc::c_char,
@@ -1742,7 +1761,7 @@ pub unsafe fn dc_imap_delete_msg(
         success = 1
     } else {
         dc_log_info(
-            imap.context,
+            context,
             0,
             b"Marking message \"%s\", %s/%i for deletion...\x00" as *const u8
                 as *const libc::c_char,
@@ -1750,9 +1769,9 @@ pub unsafe fn dc_imap_delete_msg(
             folder,
             server_uid as libc::c_int,
         );
-        if select_folder(imap, folder) == 0 {
+        if select_folder(context, imap, folder) == 0 {
             dc_log_warning(
-                imap.context,
+                context,
                 0,
                 b"Cannot select folder %s for deleting message.\x00" as *const u8
                     as *const libc::c_char,
@@ -1767,10 +1786,10 @@ pub unsafe fn dc_imap_delete_msg(
                 mailimap_set_free(set);
                 set = 0 as *mut mailimap_set
             }
-            if 0 != dc_imap_is_error(imap, r) || fetch_result.is_null() {
+            if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
                 fetch_result = 0 as *mut clist;
                 dc_log_warning(
-                    imap.context,
+                    context,
                     0,
                     b"Cannot delete on IMAP, %s/%i not found.\x00" as *const u8
                         as *const libc::c_char,
@@ -1798,7 +1817,7 @@ pub unsafe fn dc_imap_delete_msg(
                 || strcmp(is_rfc724_mid, rfc724_mid) != 0
             {
                 dc_log_warning(
-                    imap.context,
+                    context,
                     0,
                     b"Cannot delete on IMAP, %s/%i does not match %s.\x00" as *const u8
                         as *const libc::c_char,
@@ -1811,7 +1830,7 @@ pub unsafe fn dc_imap_delete_msg(
             /* mark the message for deletion */
             if add_flag(imap, server_uid, mailimap_flag_new_deleted()) == 0 {
                 dc_log_warning(
-                    imap.context,
+                    context,
                     0,
                     b"Cannot mark message as \"Deleted\".\x00" as *const u8 as *const libc::c_char,
                 );
@@ -1828,7 +1847,7 @@ pub unsafe fn dc_imap_delete_msg(
     free(is_rfc724_mid as *mut libc::c_void);
     free(new_folder as *mut libc::c_void);
 
-    0 != success {
+    if 0 != success {
         1
     } else {
         dc_imap_is_connected(imap)

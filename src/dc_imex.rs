@@ -1347,7 +1347,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
  * Classic key import
  ******************************************************************************/
 unsafe fn import_self_keys(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut dir_name: *const libc::c_char,
 ) -> libc::c_int {
     /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
@@ -1481,7 +1481,7 @@ unsafe fn import_self_keys(
     return imported_cnt;
 }
 unsafe fn export_self_keys(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut dir: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
@@ -1522,7 +1522,7 @@ unsafe fn export_self_keys(
  * Classic key export
  ******************************************************************************/
 unsafe fn export_key_to_asc_file(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut dir: *const libc::c_char,
     mut id: libc::c_int,
     mut key: *const dc_key_t,

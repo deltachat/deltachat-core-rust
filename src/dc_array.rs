@@ -268,7 +268,7 @@ pub unsafe fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
 pub unsafe extern "C" fn dc_array_new_typed(
     mut type_0: libc::c_int,
     mut initsize: size_t,
-) -> &dc_array_t {
+) -> *mut dc_array_t {
     let mut array: *mut dc_array_t = 0 as *mut dc_array_t;
     array = calloc(1, ::std::mem::size_of::<dc_array_t>()) as *mut dc_array_t;
     if array.is_null() {
@@ -286,8 +286,9 @@ pub unsafe extern "C" fn dc_array_new_typed(
     if (*array).array.is_null() {
         exit(48i32);
     }
-    return array;
+    array
 }
+
 pub unsafe fn dc_array_empty(mut array: *mut dc_array_t) {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint {
         return;

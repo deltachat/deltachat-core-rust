@@ -3,7 +3,6 @@ use libc;
 
 use crate::constants::Event;
 use crate::dc_context::dc_context_t;
-use crate::dc_imap::dc_imap_t;
 use crate::x::*;
 
 pub use libc::{
@@ -1173,7 +1172,7 @@ pub type nlink_t = __uint16_t;
 
 pub type dc_receive_imf_t = Option<
     unsafe fn(
-        _: *mut dc_imap_t,
+        _: &dc_context_t,
         _: *const libc::c_char,
         _: size_t,
         _: *const libc::c_char,
@@ -1181,38 +1180,28 @@ pub type dc_receive_imf_t = Option<
         _: uint32_t,
     ) -> (),
 >;
+
 /* Purpose: Reading from IMAP servers with no dependencies to the database.
 dc_context_t is only used for logging and to get information about
 the online state. */
 
 pub type dc_precheck_imf_t = Option<
     unsafe fn(
-        _: *mut dc_imap_t,
+        _: &dc_context_t,
         _: *const libc::c_char,
         _: *const libc::c_char,
         _: uint32_t,
     ) -> libc::c_int,
 >;
 pub type dc_set_config_t =
-    Option<unsafe fn(_: *mut dc_imap_t, _: *const libc::c_char, _: *const libc::c_char) -> ()>;
+    Option<unsafe fn(_: &dc_context_t, _: *const libc::c_char, _: *const libc::c_char) -> ()>;
 pub type dc_get_config_t = Option<
     unsafe fn(
-        _: *mut dc_imap_t,
+        _: &dc_context_t,
         _: *const libc::c_char,
         _: *const libc::c_char,
     ) -> *mut libc::c_char,
 >;
-/* ** library-private **********************************************************/
-
-/* *
- * Library-internal.
- */
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct _dc_sqlite3 {
-    pub cobj: *mut sqlite3,
-    pub context: &dc_context_t,
-}
 
 #[inline]
 pub unsafe fn isascii(mut _c: libc::c_int) -> libc::c_int {

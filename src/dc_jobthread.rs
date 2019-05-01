@@ -1,4 +1,4 @@
-use std::sync::{Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 use libc;
 
@@ -18,7 +18,7 @@ pub struct dc_jobthread_t {
     pub context: *mut dc_context_t,
     pub name: *mut libc::c_char,
     pub folder_config_name: *mut libc::c_char,
-    pub imap: *mut dc_imap_t,
+    pub imap: Arc<Mutex<dc_imap_t>>,
     pub idle: (Mutex<bool>, Condvar),
     pub jobs_needed: libc::c_int,
     pub suspended: libc::c_int,
@@ -28,13 +28,13 @@ pub struct dc_jobthread_t {
 pub unsafe fn dc_jobthread_init(
     name: *const libc::c_char,
     folder_config_name: *const libc::c_char,
-    imap: *mut dc_imap_t,
+    imap: dc_imap_t,
 ) -> dc_jobthread_t {
     dc_jobthread_t {
         context: std::ptr::null_mut(),
         name: dc_strdup(name),
         folder_config_name: dc_strdup(folder_config_name),
-        imap,
+        imap: Arc::new(Mutex::New(imap)),
         idle: (Mutex::new(false), Condvar::new()),
         jobs_needed: 0i32,
         suspended: 0i32,

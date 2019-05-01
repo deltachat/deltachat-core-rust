@@ -1034,7 +1034,7 @@ unsafe fn encrypted_and_signed(
     return 1i32;
 }
 pub unsafe fn dc_handle_degrade_event(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut peerstate: *mut dc_apeerstate_t,
 ) {
     let mut stmt: &sqlite3_stmt = 0 as *mut sqlite3_stmt;

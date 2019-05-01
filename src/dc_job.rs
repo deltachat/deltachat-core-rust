@@ -1001,7 +1001,7 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(mut context: &dc_context_t, mut jo
     dc_msg_unref(msg);
 }
 /* delete all pending jobs with the given action */
-pub unsafe fn dc_job_kill_action(mut context: *mut dc_context_t, mut action: libc::c_int) {
+pub unsafe fn dc_job_kill_action(mut context: &dc_context_t, mut action: libc::c_int) {
     if context.is_null() {
         return;
     }
@@ -1013,7 +1013,7 @@ pub unsafe fn dc_job_kill_action(mut context: *mut dc_context_t, mut action: lib
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-pub unsafe fn dc_perform_imap_fetch(mut context: *mut dc_context_t) {
+pub unsafe fn dc_perform_imap_fetch(mut context: &dc_context_t) {
     let mut start: libc::clock_t = clock();
     if 0 == connect_to_inbox(context) {
         return;
@@ -1228,7 +1228,7 @@ pub unsafe fn dc_perform_smtp_idle(mut context: &dc_context_t) {
         b"SMTP-idle ended.\x00" as *const u8 as *const libc::c_char,
     );
 }
-unsafe fn get_next_wakeup_time(mut context: *mut dc_context_t, mut thread: libc::c_int) -> time_t {
+unsafe fn get_next_wakeup_time(mut context: &dc_context_t, mut thread: libc::c_int) -> time_t {
     let mut wakeup_time: time_t = 0i32 as time_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
@@ -1246,7 +1246,7 @@ unsafe fn get_next_wakeup_time(mut context: *mut dc_context_t, mut thread: libc:
     sqlite3_finalize(stmt);
     return wakeup_time;
 }
-pub unsafe fn dc_maybe_network(mut context: *mut dc_context_t) {
+pub unsafe fn dc_maybe_network(mut context: &dc_context_t) {
     pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
     (*context).probe_smtp_network = 1i32;
     pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
@@ -1274,7 +1274,7 @@ pub unsafe fn dc_job_action_exists(
     return job_exists;
 }
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
-pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32_t) -> libc::c_int {
+pub unsafe fn dc_job_send_msg(mut context: &dc_context_t, mut msg_id: uint32_t) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut mimefactory: dc_mimefactory_t = dc_mimefactory_t {
         from_addr: 0 as &libc::c_char,
@@ -1296,7 +1296,7 @@ pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32
         out_gossiped: 0,
         out_last_added_location_id: 0,
         error: 0 as *mut libc::c_char,
-        context: 0 as *mut dc_context_t,
+        context: std::ptr::null_mut(),
     };
     dc_mimefactory_init(&mut mimefactory, context);
     /* load message data */
@@ -1381,7 +1381,6 @@ pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32
                     dc_strdup(mimefactory.from_addr) as *mut libc::c_void,
                 );
             }
-            dc_sqlite3_begin_transaction((*context).sql);
             if 0 != mimefactory.out_gossiped {
                 dc_set_gossiped_timestamp(
                     context,
@@ -1416,7 +1415,6 @@ pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32
                 0 as *const libc::c_char,
                 0 as *const libc::c_char,
             );
-            dc_sqlite3_commit((*context).sql);
             success = dc_add_smtp_job(context, 5901i32, &mut mimefactory)
         }
     }

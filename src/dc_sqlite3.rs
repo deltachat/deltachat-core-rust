@@ -1,6 +1,5 @@
 use libc;
 
-use crate::constants::*;
 use crate::dc_apeerstate::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
@@ -9,6 +8,9 @@ use crate::dc_param::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
+
+const DC_OPEN_READONLY: usize = 0x01;
+const DC_HOUSEKEEPING_DELAY_SEC: usize = 10;
 
 /// A simple wrapper around the underlying Sqlite3 object.
 #[repr(C)]
@@ -42,7 +44,7 @@ pub unsafe fn dc_sqlite3_close(context: &dc_context_t, sql: &mut dc_sqlite3_t) {
 }
 
 pub unsafe fn dc_sqlite3_open(
-    context: &context,
+    context: &dc_context_t,
     sql: &mut dc_sqlite3_t,
     dbfile: *const libc::c_char,
     flags: libc::c_int,
@@ -71,7 +73,7 @@ pub unsafe fn dc_sqlite3_open(
             dbfile,
             &mut sql.cobj,
             SQLITE_OPEN_FULLMUTEX
-                | (if (flags & DC_OPEN_READONLY) {
+                | (if flags & DC_OPEN_READONLY {
                     SQLITE_OPEN_READONLY
                 } else {
                     SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
@@ -928,7 +930,7 @@ pub unsafe fn dc_sqlite3_open(
 
 // handle configurations, private
 pub unsafe fn dc_sqlite3_set_config(
-    context: &context,
+    context: &dc_context_t,
     sql: &mut dc_sqlite3_t,
     key: *const libc::c_char,
     value: *const libc::c_char,
@@ -1039,7 +1041,7 @@ pub unsafe fn dc_sqlite3_prepare(
 }
 
 pub unsafe extern "C" fn dc_sqlite3_log_error(
-    context: &context,
+    context: &dc_context_t,
     sql: &dc_sqlite3_t,
     msg_format: *const libc::c_char,
     va: ...
@@ -1159,6 +1161,7 @@ pub unsafe fn dc_sqlite3_get_config_int(
 }
 
 pub unsafe fn dc_sqlite3_table_exists(
+    context: &dc_context_t,
     sql: &mut dc_sqlite3_t,
     name: *const libc::c_char,
 ) -> libc::c_int {
@@ -1197,7 +1200,7 @@ pub unsafe fn dc_sqlite3_table_exists(
 }
 
 pub unsafe fn dc_sqlite3_set_config_int64(
-    sql: &mutdc_sqlite3_t,
+    sql: &mut dc_sqlite3_t,
     key: *const libc::c_char,
     value: int64_t,
 ) -> libc::c_int {

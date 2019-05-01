@@ -107,7 +107,6 @@ pub unsafe fn dc_receive_imf(
                     sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
                 }
             }
-            dc_sqlite3_begin_transaction((*context).sql);
             transaction_pending = 1i32;
             field = dc_mimeparser_lookup_field(
                 mime_parser,
@@ -226,7 +225,6 @@ pub unsafe fn dc_receive_imf(
                             if strcmp(old_server_folder, server_folder) != 0i32
                                 || old_server_uid != server_uid
                             {
-                                dc_sqlite3_rollback((*context).sql);
                                 transaction_pending = 0i32;
                                 dc_update_server_uid(
                                     context,
@@ -282,7 +280,6 @@ pub unsafe fn dc_receive_imf(
                                     msgrmsg = 1i32;
                                     chat_id = 0i32 as uint32_t;
                                     allow_creation = 1i32;
-                                    dc_sqlite3_commit((*context).sql);
                                     let mut handshake: libc::c_int = dc_handle_securejoin_handshake(
                                         context,
                                         mime_parser,
@@ -293,7 +290,6 @@ pub unsafe fn dc_receive_imf(
                                         add_delete_job = handshake & 0x4i32;
                                         state = 16i32
                                     }
-                                    dc_sqlite3_begin_transaction((*context).sql);
                                 }
                                 let mut test_normal_chat_id: uint32_t = 0i32 as uint32_t;
                                 let mut test_normal_chat_id_blocked: libc::c_int = 0i32;
@@ -988,14 +984,10 @@ pub unsafe fn dc_receive_imf(
                             0i32,
                         );
                     }
-                    dc_sqlite3_commit((*context).sql);
                     transaction_pending = 0i32
                 }
             }
         }
-    }
-    if 0 != transaction_pending {
-        dc_sqlite3_rollback((*context).sql);
     }
     dc_mimeparser_unref(mime_parser);
     free(rfc724_mid as *mut libc::c_void);

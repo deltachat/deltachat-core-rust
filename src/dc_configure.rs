@@ -72,9 +72,6 @@ pub unsafe fn dc_configure(mut context: &dc_context_t) {
     dc_job_add(context, 900i32, 0i32, 0 as *const libc::c_char, 0i32);
 }
 pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return 0i32;
-    }
     return if 0 != (*context).ongoing_running || (*context).shall_stop_ongoing == 0i32 {
         1i32
     } else {
@@ -82,12 +79,9 @@ pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
     };
 }
 pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return 0i32;
-    }
     return if 0
         != dc_sqlite3_get_config_int(
-            (*context).sql,
+            &mut context.sql.lock().unwrap(),
             b"configured\x00" as *const u8 as *const libc::c_char,
             0i32,
         ) {
@@ -97,9 +91,6 @@ pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
     };
 }
 pub unsafe fn dc_stop_ongoing_process(mut context: &dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
     if 0 != (*context).ongoing_running && (*context).shall_stop_ongoing == 0i32 {
         dc_log_info(
             context,
@@ -129,1159 +120,1154 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
     let mut param_domain: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param_addr_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param_autoconfig: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
-        if !(0 == dc_alloc_ongoing(context)) {
-            ongoing_allocated_here = 1i32;
-            if 0 == dc_sqlite3_is_open((*context).sql) {
-                dc_log_error(
+
+    if !(0 == dc_alloc_ongoing(context)) {
+        ongoing_allocated_here = 1i32;
+        if 0 == dc_sqlite3_is_open(&mut context.sql.lock().unwrap()) {
+            dc_log_error(
+                context,
+                0i32,
+                b"Cannot configure, database not opened.\x00" as *const u8 as *const libc::c_char,
+            );
+        } else {
+            dc_imap_disconnect(context, &mut context.inbox.clone().lock().unwrap());
+            dc_imap_disconnect(
+                context,
+                &mut context.sentbox_thread.imap.clone().lock().unwrap(),
+            );
+            dc_imap_disconnect(
+                context,
+                &mut context.mvbox_thread.imap.clone().lock().unwrap(),
+            );
+            dc_smtp_disconnect(&mut context.smtp.clone().lock().unwrap());
+            context.smtp.clone().lock().unwrap().log_connect_errors = 1i32;
+            context.inbox.clone().lock().unwrap().log_connect_errors = 1i32;
+            context
+                .sentbox_thread
+                .imap
+                .clone()
+                .lock()
+                .unwrap()
+                .log_connect_errors = 1i32;
+            context
+                .mvbox_thread
+                .imap
+                .clone()
+                .lock()
+                .unwrap()
+                .log_connect_errors = 1i32;
+            dc_log_info(
+                context,
+                0i32,
+                b"Configure ...\x00" as *const u8 as *const libc::c_char,
+            );
+            if !(0 != context.shall_stop_ongoing) {
+                (context.cb)(
                     context,
-                    0i32,
-                    b"Cannot configure, database not opened.\x00" as *const u8
-                        as *const libc::c_char,
-                );
-            } else {
-                dc_imap_disconnect((*context).inbox);
-                dc_imap_disconnect((*context).sentbox_thread.imap);
-                dc_imap_disconnect((*context).mvbox_thread.imap);
-                dc_smtp_disconnect((*context).smtp);
-                (*(*context).smtp).log_connect_errors = 1i32;
-                (*(*context).inbox).log_connect_errors = 1i32;
-                (*(*context).sentbox_thread.imap).log_connect_errors = 1i32;
-                (*(*context).mvbox_thread.imap).log_connect_errors = 1i32;
-                dc_log_info(
-                    context,
-                    0i32,
-                    b"Configure ...\x00" as *const u8 as *const libc::c_char,
-                );
-                if !(0 != (*context).shall_stop_ongoing) {
-                    ((*context).cb)(
-                        context,
-                        Event::CONFIGURE_PROGRESS,
-                        (if 0i32 < 1i32 {
-                            1i32
-                        } else if 0i32 > 999i32 {
-                            999i32
-                        } else {
-                            0i32
-                        }) as uintptr_t,
-                        0i32 as uintptr_t,
-                    );
-                    param = dc_loginparam_new();
-                    dc_loginparam_read(
-                        param,
-                        (*context).sql,
-                        b"\x00" as *const u8 as *const libc::c_char,
-                    );
-                    if (*param).addr.is_null() {
-                        dc_log_error(
-                            context,
-                            0i32,
-                            b"Please enter the email address.\x00" as *const u8
-                                as *const libc::c_char,
-                        );
+                    Event::CONFIGURE_PROGRESS,
+                    (if 0i32 < 1i32 {
+                        1i32
+                    } else if 0i32 > 999i32 {
+                        999i32
                     } else {
-                        dc_trim((*param).addr);
-                        if 0 != (*param).server_flags & 0x2i32 {
-                            // the used oauth2 addr may differ, check this.
-                            // if dc_get_oauth2_addr() is not available in the oauth2 implementation,
-                            // just use the given one.
-                            if 0 != (*context).shall_stop_ongoing {
+                        0i32
+                    }) as uintptr_t,
+                    0i32 as uintptr_t,
+                );
+                param = dc_loginparam_new();
+                dc_loginparam_read(
+                    param,
+                    &mut context.sql.lock().unwrap(),
+                    b"\x00" as *const u8 as *const libc::c_char,
+                );
+                if (*param).addr.is_null() {
+                    dc_log_error(
+                        context,
+                        0i32,
+                        b"Please enter the email address.\x00" as *const u8 as *const libc::c_char,
+                    );
+                } else {
+                    dc_trim((*param).addr);
+                    if 0 != (*param).server_flags & 0x2i32 {
+                        // the used oauth2 addr may differ, check this.
+                        // if dc_get_oauth2_addr() is not available in the oauth2 implementation,
+                        // just use the given one.
+                        if 0 != context.shall_stop_ongoing {
+                            current_block = 2927484062889439186;
+                        } else {
+                            (context.cb)(
+                                context,
+                                Event::CONFIGURE_PROGRESS,
+                                (if 10i32 < 1i32 {
+                                    1i32
+                                } else if 10i32 > 999i32 {
+                                    999i32
+                                } else {
+                                    10i32
+                                }) as uintptr_t,
+                                0i32 as uintptr_t,
+                            );
+                            let mut oauth2_addr: *mut libc::c_char =
+                                dc_get_oauth2_addr(context, (*param).addr, (*param).mail_pw);
+                            if !oauth2_addr.is_null() {
+                                free((*param).addr as *mut libc::c_void);
+                                (*param).addr = oauth2_addr;
+                                dc_sqlite3_set_config(
+                                    context,
+                                    &mut context.sql.lock().unwrap(),
+                                    b"addr\x00" as *const u8 as *const libc::c_char,
+                                    (*param).addr,
+                                );
+                            }
+                            if 0 != context.shall_stop_ongoing {
                                 current_block = 2927484062889439186;
                             } else {
-                                ((*context).cb)(
+                                (context.cb)(
                                     context,
                                     Event::CONFIGURE_PROGRESS,
-                                    (if 10i32 < 1i32 {
+                                    (if 20i32 < 1i32 {
                                         1i32
-                                    } else if 10i32 > 999i32 {
+                                    } else if 20i32 > 999i32 {
                                         999i32
                                     } else {
-                                        10i32
+                                        20i32
                                     }) as uintptr_t,
                                     0i32 as uintptr_t,
                                 );
-                                let mut oauth2_addr: *mut libc::c_char =
-                                    dc_get_oauth2_addr(context, (*param).addr, (*param).mail_pw);
-                                if !oauth2_addr.is_null() {
-                                    free((*param).addr as *mut libc::c_void);
-                                    (*param).addr = oauth2_addr;
-                                    dc_sqlite3_set_config(
-                                        (*context).sql,
-                                        b"addr\x00" as *const u8 as *const libc::c_char,
-                                        (*param).addr,
-                                    );
+                                current_block = 7746103178988627676;
+                            }
+                        }
+                    } else {
+                        current_block = 7746103178988627676;
+                    }
+                    match current_block {
+                        2927484062889439186 => {}
+                        _ => {
+                            param_domain = strchr((*param).addr, '@' as i32);
+                            if param_domain.is_null()
+                                || *param_domain.offset(0isize) as libc::c_int == 0i32
+                            {
+                                dc_log_error(
+                                    context,
+                                    0i32,
+                                    b"Bad email-address.\x00" as *const u8 as *const libc::c_char,
+                                );
+                            } else {
+                                param_domain = param_domain.offset(1isize);
+                                param_addr_urlencoded = dc_urlencode((*param).addr);
+                                if (*param).mail_pw.is_null() {
+                                    (*param).mail_pw = dc_strdup(0 as *const libc::c_char)
                                 }
-                                if 0 != (*context).shall_stop_ongoing {
-                                    current_block = 2927484062889439186;
-                                } else {
-                                    ((*context).cb)(
+                                if !(0 != context.shall_stop_ongoing) {
+                                    (context.cb)(
                                         context,
                                         Event::CONFIGURE_PROGRESS,
-                                        (if 20i32 < 1i32 {
+                                        (if 200i32 < 1i32 {
                                             1i32
-                                        } else if 20i32 > 999i32 {
+                                        } else if 200i32 > 999i32 {
                                             999i32
                                         } else {
-                                            20i32
+                                            200i32
                                         }) as uintptr_t,
                                         0i32 as uintptr_t,
                                     );
-                                    current_block = 7746103178988627676;
-                                }
-                            }
-                        } else {
-                            current_block = 7746103178988627676;
-                        }
-                        match current_block {
-                            2927484062889439186 => {}
-                            _ => {
-                                param_domain = strchr((*param).addr, '@' as i32);
-                                if param_domain.is_null()
-                                    || *param_domain.offset(0isize) as libc::c_int == 0i32
-                                {
-                                    dc_log_error(
-                                        context,
-                                        0i32,
-                                        b"Bad email-address.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
-                                } else {
-                                    param_domain = param_domain.offset(1isize);
-                                    param_addr_urlencoded = dc_urlencode((*param).addr);
-                                    if (*param).mail_pw.is_null() {
-                                        (*param).mail_pw = dc_strdup(0 as *const libc::c_char)
-                                    }
-                                    if !(0 != (*context).shall_stop_ongoing) {
-                                        ((*context).cb)(
-                                            context,
-                                            Event::CONFIGURE_PROGRESS,
-                                            (if 200i32 < 1i32 {
-                                                1i32
-                                            } else if 200i32 > 999i32 {
-                                                999i32
+                                    /* 2.  Autoconfig
+                                     **************************************************************************/
+                                    if (*param).mail_server.is_null()
+                                        && (*param).mail_port == 0i32
+                                        && (*param).send_server.is_null()
+                                        && (*param).send_port == 0i32
+                                        && (*param).send_user.is_null()
+                                        && (*param).server_flags & !0x2i32 == 0i32
+                                    {
+                                        /*&&param->mail_user   ==NULL -- the user can enter a loginname which is used by autoconfig then */
+                                        /*&&param->send_pw     ==NULL -- the password cannot be auto-configured and is no criterion for autoconfig or not */
+                                        /* flags but OAuth2 avoid autoconfig */
+                                        let mut keep_flags: libc::c_int =
+                                            (*param).server_flags & 0x2i32;
+                                        /* A.  Search configurations from the domain used in the email-address, prefer encrypted */
+                                        if param_autoconfig.is_null() {
+                                            let mut url:
+                                            *mut libc::c_char =
+                                                dc_mprintf(b"https://autoconfig.%s/mail/config-v1.1.xml?emailaddress=%s\x00"
+                                                           as
+                                                           *const u8
+                                                           as
+                                                           *const libc::c_char,
+                                                           param_domain,
+                                                           param_addr_urlencoded);
+                                            param_autoconfig =
+                                                moz_autoconfigure(context, url, param);
+                                            free(url as *mut libc::c_void);
+                                            if 0 != context.shall_stop_ongoing {
+                                                current_block = 2927484062889439186;
                                             } else {
-                                                200i32
-                                            })
-                                                as uintptr_t,
-                                            0i32 as uintptr_t,
-                                        );
-                                        /* 2.  Autoconfig
-                                         **************************************************************************/
-                                        if (*param).mail_server.is_null()
-                                            && (*param).mail_port == 0i32
-                                            && (*param).send_server.is_null()
-                                            && (*param).send_port == 0i32
-                                            && (*param).send_user.is_null()
-                                            && (*param).server_flags & !0x2i32 == 0i32
-                                        {
-                                            /*&&param->mail_user   ==NULL -- the user can enter a loginname which is used by autoconfig then */
-                                            /*&&param->send_pw     ==NULL -- the password cannot be auto-configured and is no criterion for autoconfig or not */
-                                            /* flags but OAuth2 avoid autoconfig */
-                                            let mut keep_flags: libc::c_int =
-                                                (*param).server_flags & 0x2i32;
-                                            /* A.  Search configurations from the domain used in the email-address, prefer encrypted */
-                                            if param_autoconfig.is_null() {
-                                                let mut url:
-                                                *mut libc::c_char =
-                                                    dc_mprintf(b"https://autoconfig.%s/mail/config-v1.1.xml?emailaddress=%s\x00"
-                                                               as
-                                                               *const u8
-                                                               as
-                                                               *const libc::c_char,
-                                                               param_domain,
-                                                               param_addr_urlencoded);
-                                                param_autoconfig =
-                                                    moz_autoconfigure(context, url, param);
-                                                free(url as *mut libc::c_void);
-                                                if 0 != (*context).shall_stop_ongoing {
-                                                    current_block = 2927484062889439186;
-                                                } else {
-                                                    ((*context).cb)(
-                                                        context,
-                                                        Event::CONFIGURE_PROGRESS,
-                                                        (if 300i32 < 1i32 {
-                                                            1i32
-                                                        } else if 300i32 > 999i32 {
-                                                            999i32
-                                                        } else {
-                                                            300i32
-                                                        })
-                                                            as uintptr_t,
-                                                        0i32 as uintptr_t,
-                                                    );
-                                                    current_block = 13325891313334703151;
-                                                }
-                                            } else {
+                                                (context.cb)(
+                                                    context,
+                                                    Event::CONFIGURE_PROGRESS,
+                                                    (if 300i32 < 1i32 {
+                                                        1i32
+                                                    } else if 300i32 > 999i32 {
+                                                        999i32
+                                                    } else {
+                                                        300i32
+                                                    })
+                                                        as uintptr_t,
+                                                    0i32 as uintptr_t,
+                                                );
                                                 current_block = 13325891313334703151;
                                             }
-                                            match current_block {
-                                                2927484062889439186 => {}
-                                                _ => {
-                                                    if param_autoconfig.is_null() {
-                                                        // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
-                                                        let mut url_0:
-                                                        *mut libc::c_char =
-                                                            dc_mprintf(b"https://%s/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress=%s\x00"
-                                                                       as
-                                                                       *const u8
-                                                                       as
-                                                                       *const libc::c_char,
-                                                                       param_domain,
-                                                                       param_addr_urlencoded);
-                                                        param_autoconfig = moz_autoconfigure(
-                                                            context, url_0, param,
-                                                        );
-                                                        free(url_0 as *mut libc::c_void);
-                                                        if 0 != (*context).shall_stop_ongoing {
-                                                            current_block = 2927484062889439186;
-                                                        } else {
-                                                            ((*context).cb)(
-                                                                context,
-                                                                Event::CONFIGURE_PROGRESS,
-                                                                (if 310i32 < 1i32 {
-                                                                    1i32
-                                                                } else if 310i32 > 999i32 {
-                                                                    999i32
-                                                                } else {
-                                                                    310i32
-                                                                })
-                                                                    as uintptr_t,
-                                                                0i32 as uintptr_t,
-                                                            );
-                                                            current_block = 5597585068398118923;
-                                                        }
-                                                    } else {
-                                                        current_block = 5597585068398118923;
-                                                    }
-                                                    match current_block {
-                                                        2927484062889439186 => {}
-                                                        _ => {
-                                                            let mut i: libc::c_int = 0i32;
-                                                            loop {
-                                                                if !(i <= 1i32) {
-                                                                    current_block =
-                                                                        12961834331865314435;
-                                                                    break;
-                                                                }
-                                                                if param_autoconfig.is_null() {
-                                                                    /* Outlook uses always SSL but different domains */
-                                                                    let mut url_1:
-                                                                    *mut libc::c_char =
-                                                                        dc_mprintf(b"https://%s%s/autodiscover/autodiscover.xml\x00"
-                                                                                   as
-                                                                                   *const u8
-                                                                                   as
-                                                                                   *const libc::c_char,
-                                                                                   if i
-                                                                                   ==
-                                                                                   0i32
-                                                                                   {
-                                                                                       b"\x00"
-                                                                                           as
-                                                                                           *const u8
-                                                                                           as
-                                                                                           *const libc::c_char
-                                                                                   } else {
-                                                                                       b"autodiscover.\x00"
-                                                                                           as
-                                                                                           *const u8
-                                                                                           as
-                                                                                           *const libc::c_char
-                                                                                   },
-                                                                                   param_domain);
-                                                                    param_autoconfig =
-                                                                        outlk_autodiscover(
-                                                                            context, url_1, param,
-                                                                        );
-                                                                    free(
-                                                                        url_1 as *mut libc::c_void,
-                                                                    );
-                                                                    if 0 != (*context)
-                                                                        .shall_stop_ongoing
-                                                                    {
-                                                                        current_block =
-                                                                            2927484062889439186;
-                                                                        break;
-                                                                    }
-                                                                    ((*context).cb)(
-                                                                        context,
-                                                                        Event::CONFIGURE_PROGRESS,
-                                                                        (if 320i32 + i * 10i32
-                                                                            < 1i32
-                                                                        {
-                                                                            1i32
-                                                                        } else if 320i32 + i * 10i32
-                                                                            > 999i32
-                                                                        {
-                                                                            999i32
-                                                                        } else {
-                                                                            320i32 + i * 10i32
-                                                                        })
-                                                                            as uintptr_t,
-                                                                        0i32 as uintptr_t,
-                                                                    );
-                                                                }
-                                                                i += 1
-                                                            }
-                                                            match current_block {
-                                                                2927484062889439186 => {}
-                                                                _ => {
-                                                                    if param_autoconfig.is_null() {
-                                                                        let mut url_2:
-                                                                        *mut libc::c_char =
-                                                                            dc_mprintf(b"http://autoconfig.%s/mail/config-v1.1.xml?emailaddress=%s\x00"
-                                                                                       as
-                                                                                       *const u8
-                                                                                       as
-                                                                                       *const libc::c_char,
-                                                                                       param_domain,
-                                                                                       param_addr_urlencoded);
-                                                                        param_autoconfig =
-                                                                            moz_autoconfigure(
-                                                                                context, url_2,
-                                                                                param,
-                                                                            );
-                                                                        free(url_2
-                                                                             as
-                                                                             *mut libc::c_void);
-                                                                        if 0 != (*context)
-                                                                            .shall_stop_ongoing
-                                                                        {
-                                                                            current_block =
-                                                                                2927484062889439186;
-                                                                        } else {
-                                                                            ((*context).cb)(
-                                                                                context,
-                                                                                Event::CONFIGURE_PROGRESS,
-                                                                                (if 340i32
-                                                                                 <
-                                                                                 1i32
-                                                                                 {
-                                                                                     1i32
-                                                                                 } else if 340i32
-                                                                                 >
-                                                                                 999i32
-                                                                                 {
-                                                                                     999i32
-                                                                                 } else {
-                                                                                     340i32
-                                                                                 })
-                                                                                    as
-                                                                                    uintptr_t,
-                                                                                0i32
-                                                                                    as
-                                                                                    uintptr_t
-                                                                            );
-                                                                            current_block
-                                                                                =
-                                                                                10778260831612459202;
-                                                                        }
-                                                                    } else {
-                                                                        current_block =
-                                                                            10778260831612459202;
-                                                                    }
-                                                                    match current_block {
-                                                                        2927484062889439186 => {}
-                                                                        _ => {
-                                                                            if param_autoconfig
-                                                                                .is_null()
-                                                                            {
-                                                                                // do not transfer the email-address unencrypted
-                                                                                let mut url_3:
-                                                                                *mut libc::c_char =
-                                                                                    dc_mprintf(b"http://%s/.well-known/autoconfig/mail/config-v1.1.xml\x00"
-                                                                                               as
-                                                                                               *const u8
-                                                                                               as
-                                                                                               *const libc::c_char,
-                                                                                               param_domain);
-                                                                                param_autoconfig
-                                                                                    =
-                                                                                    moz_autoconfigure(context,
-                                                                                                      url_3,
-                                                                                                      param);
-                                                                                free(url_3
-                                                                                     as
-                                                                                     *mut libc::c_void);
-                                                                                if 0
-                                                                                    !=
-                                                                                    (*context).shall_stop_ongoing
-                                                                                {
-                                                                                    current_block
-                                                                                        =
-                                                                                        2927484062889439186;
-                                                                                } else {
-                                                                                    ((*context).cb)(context,
-                                                                                                                                      Event::CONFIGURE_PROGRESS,
-                                                                                                                                      (if 350i32
-                                                                                                                                       <
-                                                                                                                                       1i32
-                                                                                                                                       {
-                                                                                                                                           1i32
-                                                                                                                                       } else if 350i32
-                                                                                                                                       >
-                                                                                                                                       999i32
-                                                                                                                                       {
-                                                                                                                                           999i32
-                                                                                                                                       } else {
-                                                                                                                                           350i32
-                                                                                                                                       })
-                                                                                                                                      as
-                                                                                                                                      uintptr_t,
-                                                                                                                                      0i32
-                                                                                                                                      as
-                                                                                                                                      uintptr_t);
-                                                                                    current_block
-                                                                                        =
-                                                                                        5207889489643863322;
-                                                                                }
-                                                                            } else {
-                                                                                current_block
-                                                                                    =
-                                                                                    5207889489643863322;
-                                                                            }
-                                                                            match current_block
-                                                                            {
-                                                                                2927484062889439186
-                                                                                    =>
-                                                                                {
-                                                                                }
-                                                                                _
-                                                                                    =>
-                                                                                {
-                                                                                    /* B.  If we have no configuration yet, search configuration in Thunderbird's centeral database */
-                                                                                    if param_autoconfig.is_null()
-                                                                                    {
-                                                                                        /* always SSL for Thunderbird's database */
-                                                                                        let mut url_4:
-                                                                                        *mut libc::c_char =
-                                                                                            dc_mprintf(b"https://autoconfig.thunderbird.net/v1.1/%s\x00"
-                                                                                                       as
-                                                                                                       *const u8
-                                                                                                       as
-                                                                                                       *const libc::c_char,
-                                                                                                       param_domain);
-                                                                                        param_autoconfig
-                                                                                            =
-                                                                                            moz_autoconfigure(context,
-                                                                                                              url_4,
-                                                                                                              param);
-                                                                                        free(url_4
-                                                                                             as
-                                                                                             *mut libc::c_void);
-                                                                                        if 0
-                                                                                            !=
-                                                                                            (*context).shall_stop_ongoing
-                                                                                        {
-                                                                                            current_block
-                                                                                                =
-                                                                                                2927484062889439186;
-                                                                                        } else {
-                                                                                            ((*context).cb)(context,
-                                                                                                                                              Event::CONFIGURE_PROGRESS,
-                                                                                                                                              (if 500i32
-                                                                                                                                               <
-                                                                                                                                               1i32
-                                                                                                                                               {
-                                                                                                                                                   1i32
-                                                                                                                                               } else if 500i32
-                                                                                                                                               >
-                                                                                                                                               999i32
-                                                                                                                                               {
-                                                                                                                                                   999i32
-                                                                                                                                               } else {
-                                                                                                                                                   500i32
-                                                                                                                                               })
-                                                                                                                                              as
-                                                                                                                                              uintptr_t,
-                                                                                                                                              0i32
-                                                                                                                                              as
-                                                                                                                                              uintptr_t);
-                                                                                            current_block
-                                                                                                =
-                                                                                                2798392256336243897;
-                                                                                        }
-                                                                                    } else {
-                                                                                        current_block
-                                                                                            =
-                                                                                            2798392256336243897;
-                                                                                    }
-                                                                                    match current_block
-                                                                                    {
-                                                                                        2927484062889439186
-                                                                                            =>
-                                                                                        {
-                                                                                        }
-                                                                                        _
-                                                                                            =>
-                                                                                        {
-                                                                                            if !param_autoconfig.is_null()
-                                                                                            {
-                                                                                                let mut r:
-                                                                                                *mut libc::c_char =
-                                                                                                    dc_loginparam_get_readable(param_autoconfig);
-                                                                                                dc_log_info(context,
-                                                                                                            0i32,
-                                                                                                            b"Got autoconfig: %s\x00"
-                                                                                                            as
-                                                                                                            *const u8
-                                                                                                            as
-                                                                                                            *const libc::c_char,
-                                                                                                            r);
-                                                                                                free(r
-                                                                                                     as
-                                                                                                     *mut libc::c_void);
-                                                                                                if !(*param_autoconfig).mail_user.is_null()
-                                                                                                {
-                                                                                                    free((*param).mail_user
-                                                                                                         as
-                                                                                                         *mut libc::c_void);
-                                                                                                    (*param).mail_user
-                                                                                                        =
-                                                                                                        dc_strdup_keep_null((*param_autoconfig).mail_user)
-                                                                                                }
-                                                                                                (*param).mail_server
-                                                                                                    =
-                                                                                                    dc_strdup_keep_null((*param_autoconfig).mail_server);
-                                                                                                (*param).mail_port
-                                                                                                    =
-                                                                                                    (*param_autoconfig).mail_port;
-                                                                                                (*param).send_server
-                                                                                                    =
-                                                                                                    dc_strdup_keep_null((*param_autoconfig).send_server);
-                                                                                                (*param).send_port
-                                                                                                    =
-                                                                                                    (*param_autoconfig).send_port;
-                                                                                                (*param).send_user
-                                                                                                    =
-                                                                                                    dc_strdup_keep_null((*param_autoconfig).send_user);
-                                                                                                (*param).server_flags
-                                                                                                    =
-                                                                                                    (*param_autoconfig).server_flags
-                                                                                            }
-                                                                                            (*param).server_flags
-                                                                                                |=
-                                                                                                keep_flags;
-                                                                                            current_block
-                                                                                                =
-                                                                                                3024367268842933116;
-                                                                                        }
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
                                         } else {
-                                            current_block = 3024367268842933116;
+                                            current_block = 13325891313334703151;
                                         }
                                         match current_block {
                                             2927484062889439186 => {}
                                             _ => {
-                                                if (*param).mail_server.is_null() {
-                                                    (*param).mail_server = dc_mprintf(
-                                                        b"imap.%s\x00" as *const u8
-                                                            as *const libc::c_char,
-                                                        param_domain,
-                                                    )
-                                                }
-                                                if (*param).mail_port == 0i32 {
-                                                    (*param).mail_port = if 0
-                                                        != (*param).server_flags
-                                                            & (0x100i32 | 0x400i32)
-                                                    {
-                                                        143i32
+                                                if param_autoconfig.is_null() {
+                                                    // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
+                                                    let mut url_0:
+                                                    *mut libc::c_char =
+                                                        dc_mprintf(b"https://%s/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress=%s\x00"
+                                                                   as
+                                                                   *const u8
+                                                                   as
+                                                                   *const libc::c_char,
+                                                                   param_domain,
+                                                                   param_addr_urlencoded);
+                                                    param_autoconfig =
+                                                        moz_autoconfigure(context, url_0, param);
+                                                    free(url_0 as *mut libc::c_void);
+                                                    if 0 != context.shall_stop_ongoing {
+                                                        current_block = 2927484062889439186;
                                                     } else {
-                                                        993i32
-                                                    }
-                                                }
-                                                if (*param).mail_user.is_null() {
-                                                    (*param).mail_user = dc_strdup((*param).addr)
-                                                }
-                                                if (*param).send_server.is_null()
-                                                    && !(*param).mail_server.is_null()
-                                                {
-                                                    (*param).send_server =
-                                                        dc_strdup((*param).mail_server);
-                                                    if strncmp(
-                                                        (*param).send_server,
-                                                        b"imap.\x00" as *const u8
-                                                            as *const libc::c_char,
-                                                        5,
-                                                    ) == 0i32
-                                                    {
-                                                        memcpy(
-                                                            (*param).send_server
-                                                                as *mut libc::c_void,
-                                                            b"smtp\x00" as *const u8
-                                                                as *const libc::c_char
-                                                                as *const libc::c_void,
-                                                            4,
-                                                        );
-                                                    }
-                                                }
-                                                if (*param).send_port == 0i32 {
-                                                    (*param).send_port =
-                                                        if 0 != (*param).server_flags & 0x10000i32 {
-                                                            587i32
-                                                        } else if 0
-                                                            != (*param).server_flags & 0x40000i32
-                                                        {
-                                                            25i32
-                                                        } else {
-                                                            465i32
-                                                        }
-                                                }
-                                                if (*param).send_user.is_null()
-                                                    && !(*param).mail_user.is_null()
-                                                {
-                                                    (*param).send_user =
-                                                        dc_strdup((*param).mail_user)
-                                                }
-                                                if (*param).send_pw.is_null()
-                                                    && !(*param).mail_pw.is_null()
-                                                {
-                                                    (*param).send_pw = dc_strdup((*param).mail_pw)
-                                                }
-                                                if 0 == dc_exactly_one_bit_set(
-                                                    (*param).server_flags & (0x2i32 | 0x4i32),
-                                                ) {
-                                                    (*param).server_flags &= !(0x2i32 | 0x4i32);
-                                                    (*param).server_flags |= 0x4i32
-                                                }
-                                                if 0 == dc_exactly_one_bit_set(
-                                                    (*param).server_flags
-                                                        & (0x100i32 | 0x200i32 | 0x400i32),
-                                                ) {
-                                                    (*param).server_flags &=
-                                                        !(0x100i32 | 0x200i32 | 0x400i32);
-                                                    (*param).server_flags |=
-                                                        if (*param).send_port == 143i32 {
-                                                            0x100i32
-                                                        } else {
-                                                            0x200i32
-                                                        }
-                                                }
-                                                if 0 == dc_exactly_one_bit_set(
-                                                    (*param).server_flags
-                                                        & (0x10000i32 | 0x20000i32 | 0x40000i32),
-                                                ) {
-                                                    (*param).server_flags &=
-                                                        !(0x10000i32 | 0x20000i32 | 0x40000i32);
-                                                    (*param).server_flags |=
-                                                        if (*param).send_port == 587i32 {
-                                                            0x10000i32
-                                                        } else if (*param).send_port == 25i32 {
-                                                            0x40000i32
-                                                        } else {
-                                                            0x20000i32
-                                                        }
-                                                }
-                                                /* do we have a complete configuration? */
-                                                if (*param).addr.is_null()
-                                                    || (*param).mail_server.is_null()
-                                                    || (*param).mail_port == 0i32
-                                                    || (*param).mail_user.is_null()
-                                                    || (*param).mail_pw.is_null()
-                                                    || (*param).send_server.is_null()
-                                                    || (*param).send_port == 0i32
-                                                    || (*param).send_user.is_null()
-                                                    || (*param).send_pw.is_null()
-                                                    || (*param).server_flags == 0i32
-                                                {
-                                                    dc_log_error(
-                                                        context,
-                                                        0i32,
-                                                        b"Account settings incomplete.\x00"
-                                                            as *const u8
-                                                            as *const libc::c_char,
-                                                    );
-                                                } else if !(0 != (*context).shall_stop_ongoing) {
-                                                    ((*context).cb)(
-                                                        context,
-                                                        Event::CONFIGURE_PROGRESS,
-                                                        (if 600i32 < 1i32 {
-                                                            1i32
-                                                        } else if 600i32 > 999i32 {
-                                                            999i32
-                                                        } else {
-                                                            600i32
-                                                        })
-                                                            as uintptr_t,
-                                                        0i32 as uintptr_t,
-                                                    );
-                                                    /* try to connect to IMAP - if we did not got an autoconfig,
-                                                    do some further tries with different settings and username variations */
-                                                    let mut username_variation: libc::c_int = 0i32;
-                                                    loop {
-                                                        if !(username_variation <= 1i32) {
-                                                            current_block = 14187386403465544025;
-                                                            break;
-                                                        }
-                                                        let mut r_0: *mut libc::c_char =
-                                                            dc_loginparam_get_readable(param);
-                                                        dc_log_info(
-                                                            context,
-                                                            0i32,
-                                                            b"Trying: %s\x00" as *const u8
-                                                                as *const libc::c_char,
-                                                            r_0,
-                                                        );
-                                                        free(r_0 as *mut libc::c_void);
-                                                        if 0 != dc_imap_connect(
-                                                            (*context).inbox,
-                                                            param,
-                                                        ) {
-                                                            current_block = 14187386403465544025;
-                                                            break;
-                                                        }
-                                                        if !param_autoconfig.is_null() {
-                                                            current_block = 2927484062889439186;
-                                                            break;
-                                                        }
-                                                        // probe STARTTLS/993
-                                                        if 0 != (*context).shall_stop_ongoing {
-                                                            current_block = 2927484062889439186;
-                                                            break;
-                                                        }
-                                                        ((*context).cb)(
+                                                        (context.cb)(
                                                             context,
                                                             Event::CONFIGURE_PROGRESS,
-                                                            (if 650i32 + username_variation * 30i32
-                                                                < 1i32
-                                                            {
+                                                            (if 310i32 < 1i32 {
                                                                 1i32
-                                                            } else if 650i32
-                                                                + username_variation * 30i32
-                                                                > 999i32
-                                                            {
+                                                            } else if 310i32 > 999i32 {
                                                                 999i32
                                                             } else {
-                                                                650i32 + username_variation * 30i32
+                                                                310i32
                                                             })
                                                                 as uintptr_t,
                                                             0i32 as uintptr_t,
                                                         );
-                                                        (*param).server_flags &=
-                                                            !(0x100i32 | 0x200i32 | 0x400i32);
-                                                        (*param).server_flags |= 0x100i32;
-                                                        let mut r_1: *mut libc::c_char =
-                                                            dc_loginparam_get_readable(param);
-                                                        dc_log_info(
-                                                            context,
-                                                            0i32,
-                                                            b"Trying: %s\x00" as *const u8
-                                                                as *const libc::c_char,
-                                                            r_1,
-                                                        );
-                                                        free(r_1 as *mut libc::c_void);
-                                                        if 0 != dc_imap_connect(
-                                                            (*context).inbox,
-                                                            param,
-                                                        ) {
-                                                            current_block = 14187386403465544025;
-                                                            break;
-                                                        }
-                                                        // probe STARTTLS/143
-                                                        if 0 != (*context).shall_stop_ongoing {
-                                                            current_block = 2927484062889439186;
-                                                            break;
-                                                        }
-                                                        ((*context).cb)(
-                                                            context,
-                                                            Event::CONFIGURE_PROGRESS,
-                                                            (if 660i32 + username_variation * 30i32
-                                                                < 1i32
-                                                            {
-                                                                1i32
-                                                            } else if 660i32
-                                                                + username_variation * 30i32
-                                                                > 999i32
-                                                            {
-                                                                999i32
-                                                            } else {
-                                                                660i32 + username_variation * 30i32
-                                                            })
-                                                                as uintptr_t,
-                                                            0i32 as uintptr_t,
-                                                        );
-                                                        (*param).mail_port = 143i32;
-                                                        let mut r_2: *mut libc::c_char =
-                                                            dc_loginparam_get_readable(param);
-                                                        dc_log_info(
-                                                            context,
-                                                            0i32,
-                                                            b"Trying: %s\x00" as *const u8
-                                                                as *const libc::c_char,
-                                                            r_2,
-                                                        );
-                                                        free(r_2 as *mut libc::c_void);
-                                                        if 0 != dc_imap_connect(
-                                                            (*context).inbox,
-                                                            param,
-                                                        ) {
-                                                            current_block = 14187386403465544025;
-                                                            break;
-                                                        }
-                                                        if 0 != username_variation {
-                                                            current_block = 2927484062889439186;
-                                                            break;
-                                                        }
-                                                        // next probe round with only the localpart of the email-address as the loginname
-                                                        if 0 != (*context).shall_stop_ongoing {
-                                                            current_block = 2927484062889439186;
-                                                            break;
-                                                        }
-                                                        ((*context).cb)(
-                                                            context,
-                                                            Event::CONFIGURE_PROGRESS,
-                                                            (if 670i32 + username_variation * 30i32
-                                                                < 1i32
-                                                            {
-                                                                1i32
-                                                            } else if 670i32
-                                                                + username_variation * 30i32
-                                                                > 999i32
-                                                            {
-                                                                999i32
-                                                            } else {
-                                                                670i32 + username_variation * 30i32
-                                                            })
-                                                                as uintptr_t,
-                                                            0i32 as uintptr_t,
-                                                        );
-                                                        (*param).server_flags &=
-                                                            !(0x100i32 | 0x200i32 | 0x400i32);
-                                                        (*param).server_flags |= 0x200i32;
-                                                        (*param).mail_port = 993i32;
-                                                        let mut at: *mut libc::c_char =
-                                                            strchr((*param).mail_user, '@' as i32);
-                                                        if !at.is_null() {
-                                                            *at = 0i32 as libc::c_char
-                                                        }
-                                                        at = strchr((*param).send_user, '@' as i32);
-                                                        if !at.is_null() {
-                                                            *at = 0i32 as libc::c_char
-                                                        }
-                                                        username_variation += 1
+                                                        current_block = 5597585068398118923;
                                                     }
-                                                    match current_block {
-                                                        2927484062889439186 => {}
-                                                        _ => {
-                                                            imap_connected_here = 1i32;
-                                                            if !(0 != (*context).shall_stop_ongoing)
-                                                            {
-                                                                ((*context).cb)(
+                                                } else {
+                                                    current_block = 5597585068398118923;
+                                                }
+                                                match current_block {
+                                                    2927484062889439186 => {}
+                                                    _ => {
+                                                        let mut i: libc::c_int = 0i32;
+                                                        loop {
+                                                            if !(i <= 1i32) {
+                                                                current_block =
+                                                                    12961834331865314435;
+                                                                break;
+                                                            }
+                                                            if param_autoconfig.is_null() {
+                                                                /* Outlook uses always SSL but different domains */
+                                                                let mut url_1:
+                                                                *mut libc::c_char =
+                                                                    dc_mprintf(b"https://%s%s/autodiscover/autodiscover.xml\x00"
+                                                                               as
+                                                                               *const u8
+                                                                               as
+                                                                               *const libc::c_char,
+                                                                               if i
+                                                                               ==
+                                                                               0i32
+                                                                               {
+                                                                                   b"\x00"
+                                                                                       as
+                                                                                       *const u8
+                                                                                       as
+                                                                                       *const libc::c_char
+                                                                               } else {
+                                                                                   b"autodiscover.\x00"
+                                                                                       as
+                                                                                       *const u8
+                                                                                       as
+                                                                                       *const libc::c_char
+                                                                               },
+                                                                               param_domain);
+                                                                param_autoconfig =
+                                                                    outlk_autodiscover(
+                                                                        context, url_1, param,
+                                                                    );
+                                                                free(url_1 as *mut libc::c_void);
+                                                                if 0 != context.shall_stop_ongoing {
+                                                                    current_block =
+                                                                        2927484062889439186;
+                                                                    break;
+                                                                }
+                                                                (context.cb)(
                                                                     context,
                                                                     Event::CONFIGURE_PROGRESS,
-                                                                    (if 800i32 < 1i32 {
+                                                                    (if 320i32 + i * 10i32 < 1i32 {
                                                                         1i32
-                                                                    } else if 800i32 > 999i32 {
+                                                                    } else if 320i32 + i * 10i32
+                                                                        > 999i32
+                                                                    {
                                                                         999i32
                                                                     } else {
-                                                                        800i32
+                                                                        320i32 + i * 10i32
                                                                     })
                                                                         as uintptr_t,
                                                                     0i32 as uintptr_t,
                                                                 );
-                                                                /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
-                                                                if 0 == dc_smtp_connect(
-                                                                    (*context).smtp,
-                                                                    param,
-                                                                ) {
-                                                                    if !param_autoconfig.is_null() {
-                                                                        current_block =
-                                                                            2927484062889439186;
-                                                                    } else if 0
-                                                                        != (*context)
-                                                                            .shall_stop_ongoing
+                                                            }
+                                                            i += 1
+                                                        }
+                                                        match current_block {
+                                                            2927484062889439186 => {}
+                                                            _ => {
+                                                                if param_autoconfig.is_null() {
+                                                                    let mut url_2:
+                                                                    *mut libc::c_char =
+                                                                        dc_mprintf(b"http://autoconfig.%s/mail/config-v1.1.xml?emailaddress=%s\x00"
+                                                                                   as
+                                                                                   *const u8
+                                                                                   as
+                                                                                   *const libc::c_char,
+                                                                                   param_domain,
+                                                                                   param_addr_urlencoded);
+                                                                    param_autoconfig =
+                                                                        moz_autoconfigure(
+                                                                            context, url_2, param,
+                                                                        );
+                                                                    free(
+                                                                        url_2 as *mut libc::c_void,
+                                                                    );
+                                                                    if 0 != context
+                                                                        .shall_stop_ongoing
                                                                     {
                                                                         current_block =
                                                                             2927484062889439186;
                                                                     } else {
-                                                                        ((*context).cb)(context,
-                                                                                                                          Event::CONFIGURE_PROGRESS,
-                                                                                                                          (if 850i32
-                                                                                                                           <
-                                                                                                                           1i32
-                                                                                                                           {
-                                                                                                                               1i32
-                                                                                                                           } else if 850i32
-                                                                                                                           >
-                                                                                                                           999i32
-                                                                                                                           {
-                                                                                                                               999i32
-                                                                                                                           } else {
-                                                                                                                               850i32
-                                                                                                                           })
-                                                                                                                          as
-                                                                                                                          uintptr_t,
-                                                                                                                          0i32
-                                                                                                                          as
-                                                                                                                          uintptr_t);
-                                                                        (*param).server_flags &=
-                                                                            !(0x10000i32
-                                                                                | 0x20000i32
-                                                                                | 0x40000i32);
-                                                                        (*param).server_flags |=
-                                                                            0x10000i32;
-                                                                        (*param).send_port = 587i32;
-                                                                        let mut r_3:
-                                                                        *mut libc::c_char =
-                                                                            dc_loginparam_get_readable(param);
-                                                                        dc_log_info(context,
-                                                                                    0i32,
-                                                                                    b"Trying: %s\x00"
-                                                                                    as
-                                                                                    *const u8
-                                                                                    as
-                                                                                    *const libc::c_char,
-                                                                                    r_3);
-                                                                        free(r_3
-                                                                             as
-                                                                             *mut libc::c_void);
-                                                                        if 0 == dc_smtp_connect(
-                                                                            (*context).smtp,
-                                                                            param,
-                                                                        ) {
-                                                                            if 0 != (*context)
+                                                                        (context.cb)(
+                                                                            context,
+                                                                            Event::CONFIGURE_PROGRESS,
+                                                                            (if 340i32
+                                                                             <
+                                                                             1i32
+                                                                             {
+                                                                                 1i32
+                                                                             } else if 340i32
+                                                                             >
+                                                                             999i32
+                                                                             {
+                                                                                 999i32
+                                                                             } else {
+                                                                                 340i32
+                                                                             })
+                                                                                as
+                                                                                uintptr_t,
+                                                                            0i32
+                                                                                as
+                                                                                uintptr_t
+                                                                        );
+                                                                        current_block =
+                                                                            10778260831612459202;
+                                                                    }
+                                                                } else {
+                                                                    current_block =
+                                                                        10778260831612459202;
+                                                                }
+                                                                match current_block {
+                                                                    2927484062889439186 => {}
+                                                                    _ => {
+                                                                        if param_autoconfig
+                                                                            .is_null()
+                                                                        {
+                                                                            // do not transfer the email-address unencrypted
+                                                                            let mut url_3:
+                                                                            *mut libc::c_char =
+                                                                                dc_mprintf(b"http://%s/.well-known/autoconfig/mail/config-v1.1.xml\x00"
+                                                                                           as
+                                                                                           *const u8
+                                                                                           as
+                                                                                           *const libc::c_char,
+                                                                                           param_domain);
+                                                                            param_autoconfig =
+                                                                                moz_autoconfigure(
+                                                                                    context, url_3,
+                                                                                    param,
+                                                                                );
+                                                                            free(url_3
+                                                                                 as
+                                                                                 *mut libc::c_void);
+                                                                            if 0 != context
                                                                                 .shall_stop_ongoing
                                                                             {
                                                                                 current_block
                                                                                     =
                                                                                     2927484062889439186;
                                                                             } else {
-                                                                                ((*context).cb)(context,
-                                                                                                                                  Event::CONFIGURE_PROGRESS,
-                                                                                                                                  (if 860i32
-                                                                                                                                   <
-                                                                                                                                   1i32
-                                                                                                                                   {
-                                                                                                                                       1i32
-                                                                                                                                   } else if 860i32
-                                                                                                                                   >
-                                                                                                                                   999i32
-                                                                                                                                   {
-                                                                                                                                       999i32
-                                                                                                                                   } else {
-                                                                                                                                       860i32
-                                                                                                                                   })
-                                                                                                                                  as
-                                                                                                                                  uintptr_t,
-                                                                                                                                  0i32
-                                                                                                                                  as
-                                                                                                                                  uintptr_t);
-                                                                                (*param).server_flags
-                                                                                    &=
-                                                                                    !(0x10000i32
-                                                                                      |
-                                                                                      0x20000i32
-                                                                                      |
-                                                                                      0x40000i32);
-                                                                                (*param).server_flags
-                                                                                    |=
-                                                                                    0x10000i32;
-                                                                                (*param)
-                                                                                    .send_port =
-                                                                                    25i32;
-                                                                                let mut r_4:
-                                                                                *mut libc::c_char =
-                                                                                    dc_loginparam_get_readable(param);
-                                                                                dc_log_info(context,
-                                                                                            0i32,
-                                                                                            b"Trying: %s\x00"
-                                                                                            as
-                                                                                            *const u8
-                                                                                            as
-                                                                                            *const libc::c_char,
-                                                                                            r_4);
-                                                                                free(r_4
-                                                                                     as
-                                                                                     *mut libc::c_void);
-                                                                                if 0
-                                                                                    ==
-                                                                                    dc_smtp_connect((*context).smtp,
-                                                                                                    param)
-                                                                                {
-                                                                                    current_block
-                                                                                        =
-                                                                                        2927484062889439186;
-                                                                                } else {
-                                                                                    current_block
-                                                                                        =
-                                                                                        5083741289379115417;
-                                                                                }
+                                                                                (context.cb)(context,
+                                                                                                Event::CONFIGURE_PROGRESS,
+                                                                                                (if 350i32
+                                                                                                 <
+                                                                                                 1i32
+                                                                                                 {
+                                                                                                     1i32
+                                                                                                 } else if 350i32
+                                                                                                 >
+                                                                                                 999i32
+                                                                                                 {
+                                                                                                     999i32
+                                                                                                 } else {
+                                                                                                     350i32
+                                                                                                 })
+                                                                                                as
+                                                                                                uintptr_t,
+                                                                                                0i32
+                                                                                                as
+                                                                                                uintptr_t);
+                                                                                current_block
+                                                                                    =
+                                                                                    5207889489643863322;
                                                                             }
                                                                         } else {
                                                                             current_block =
-                                                                                5083741289379115417;
+                                                                                5207889489643863322;
+                                                                        }
+                                                                        match current_block {
+                                                                            2927484062889439186 => {
+                                                                            }
+                                                                            _ => {
+                                                                                /* B.  If we have no configuration yet, search configuration in Thunderbird's centeral database */
+                                                                                if param_autoconfig
+                                                                                    .is_null()
+                                                                                {
+                                                                                    /* always SSL for Thunderbird's database */
+                                                                                    let mut url_4:
+                                                                                    *mut libc::c_char =
+                                                                                        dc_mprintf(b"https://autoconfig.thunderbird.net/v1.1/%s\x00"
+                                                                                                   as
+                                                                                                   *const u8
+                                                                                                   as
+                                                                                                   *const libc::c_char,
+                                                                                                   param_domain);
+                                                                                    param_autoconfig
+                                                                                        =
+                                                                                        moz_autoconfigure(context,
+                                                                                                          url_4,
+                                                                                                          param);
+                                                                                    free(url_4
+                                                                                         as
+                                                                                         *mut libc::c_void);
+                                                                                    if 0
+                                                                                        !=
+                                                                                        context.shall_stop_ongoing
+                                                                                    {
+                                                                                        current_block
+                                                                                            =
+                                                                                            2927484062889439186;
+                                                                                    } else {
+                                                                                        (context.cb)(context,
+                                                                                                        Event::CONFIGURE_PROGRESS,
+                                                                                                        (if 500i32
+                                                                                                         <
+                                                                                                         1i32
+                                                                                                         {
+                                                                                                             1i32
+                                                                                                         } else if 500i32
+                                                                                                         >
+                                                                                                         999i32
+                                                                                                         {
+                                                                                                             999i32
+                                                                                                         } else {
+                                                                                                             500i32
+                                                                                                         })
+                                                                                                        as
+                                                                                                        uintptr_t,
+                                                                                                        0i32
+                                                                                                        as
+                                                                                                        uintptr_t);
+                                                                                        current_block
+                                                                                            =
+                                                                                            2798392256336243897;
+                                                                                    }
+                                                                                } else {
+                                                                                    current_block
+                                                                                        =
+                                                                                        2798392256336243897;
+                                                                                }
+                                                                                match current_block
+                                                                                {
+                                                                                    2927484062889439186
+                                                                                        =>
+                                                                                    {
+                                                                                    }
+                                                                                    _
+                                                                                        =>
+                                                                                    {
+                                                                                        if !param_autoconfig.is_null()
+                                                                                        {
+                                                                                            let mut r:
+                                                                                            *mut libc::c_char =
+                                                                                                dc_loginparam_get_readable(param_autoconfig);
+                                                                                            dc_log_info(context,
+                                                                                                        0i32,
+                                                                                                        b"Got autoconfig: %s\x00"
+                                                                                                        as
+                                                                                                        *const u8
+                                                                                                        as
+                                                                                                        *const libc::c_char,
+                                                                                                        r);
+                                                                                            free(r
+                                                                                                 as
+                                                                                                 *mut libc::c_void);
+                                                                                            if !(*param_autoconfig).mail_user.is_null()
+                                                                                            {
+                                                                                                free((*param).mail_user
+                                                                                                     as
+                                                                                                     *mut libc::c_void);
+                                                                                                (*param).mail_user
+                                                                                                    =
+                                                                                                    dc_strdup_keep_null((*param_autoconfig).mail_user)
+                                                                                            }
+                                                                                            (*param).mail_server
+                                                                                                =
+                                                                                                dc_strdup_keep_null((*param_autoconfig).mail_server);
+                                                                                            (*param).mail_port
+                                                                                                =
+                                                                                                (*param_autoconfig).mail_port;
+                                                                                            (*param).send_server
+                                                                                                =
+                                                                                                dc_strdup_keep_null((*param_autoconfig).send_server);
+                                                                                            (*param).send_port
+                                                                                                =
+                                                                                                (*param_autoconfig).send_port;
+                                                                                            (*param).send_user
+                                                                                                =
+                                                                                                dc_strdup_keep_null((*param_autoconfig).send_user);
+                                                                                            (*param).server_flags
+                                                                                                =
+                                                                                                (*param_autoconfig).server_flags
+                                                                                        }
+                                                                                        (*param).server_flags
+                                                                                            |=
+                                                                                            keep_flags;
+                                                                                        current_block
+                                                                                            =
+                                                                                            3024367268842933116;
+                                                                                    }
+                                                                                }
+                                                                            }
                                                                         }
                                                                     }
-                                                                } else {
-                                                                    current_block =
-                                                                        5083741289379115417;
                                                                 }
-                                                                match current_block {
-                                                                    2927484062889439186 => {}
-                                                                    _ => {
-                                                                        smtp_connected_here = 1i32;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        current_block = 3024367268842933116;
+                                    }
+                                    match current_block {
+                                        2927484062889439186 => {}
+                                        _ => {
+                                            if (*param).mail_server.is_null() {
+                                                (*param).mail_server = dc_mprintf(
+                                                    b"imap.%s\x00" as *const u8
+                                                        as *const libc::c_char,
+                                                    param_domain,
+                                                )
+                                            }
+                                            if (*param).mail_port == 0i32 {
+                                                (*param).mail_port = if 0
+                                                    != (*param).server_flags & (0x100i32 | 0x400i32)
+                                                {
+                                                    143i32
+                                                } else {
+                                                    993i32
+                                                }
+                                            }
+                                            if (*param).mail_user.is_null() {
+                                                (*param).mail_user = dc_strdup((*param).addr)
+                                            }
+                                            if (*param).send_server.is_null()
+                                                && !(*param).mail_server.is_null()
+                                            {
+                                                (*param).send_server =
+                                                    dc_strdup((*param).mail_server);
+                                                if strncmp(
+                                                    (*param).send_server,
+                                                    b"imap.\x00" as *const u8
+                                                        as *const libc::c_char,
+                                                    5,
+                                                ) == 0i32
+                                                {
+                                                    memcpy(
+                                                        (*param).send_server as *mut libc::c_void,
+                                                        b"smtp\x00" as *const u8
+                                                            as *const libc::c_char
+                                                            as *const libc::c_void,
+                                                        4,
+                                                    );
+                                                }
+                                            }
+                                            if (*param).send_port == 0i32 {
+                                                (*param).send_port = if 0
+                                                    != (*param).server_flags & 0x10000i32
+                                                {
+                                                    587i32
+                                                } else if 0 != (*param).server_flags & 0x40000i32 {
+                                                    25i32
+                                                } else {
+                                                    465i32
+                                                }
+                                            }
+                                            if (*param).send_user.is_null()
+                                                && !(*param).mail_user.is_null()
+                                            {
+                                                (*param).send_user = dc_strdup((*param).mail_user)
+                                            }
+                                            if (*param).send_pw.is_null()
+                                                && !(*param).mail_pw.is_null()
+                                            {
+                                                (*param).send_pw = dc_strdup((*param).mail_pw)
+                                            }
+                                            if 0 == dc_exactly_one_bit_set(
+                                                (*param).server_flags & (0x2i32 | 0x4i32),
+                                            ) {
+                                                (*param).server_flags &= !(0x2i32 | 0x4i32);
+                                                (*param).server_flags |= 0x4i32
+                                            }
+                                            if 0 == dc_exactly_one_bit_set(
+                                                (*param).server_flags
+                                                    & (0x100i32 | 0x200i32 | 0x400i32),
+                                            ) {
+                                                (*param).server_flags &=
+                                                    !(0x100i32 | 0x200i32 | 0x400i32);
+                                                (*param).server_flags |=
+                                                    if (*param).send_port == 143i32 {
+                                                        0x100i32
+                                                    } else {
+                                                        0x200i32
+                                                    }
+                                            }
+                                            if 0 == dc_exactly_one_bit_set(
+                                                (*param).server_flags
+                                                    & (0x10000i32 | 0x20000i32 | 0x40000i32),
+                                            ) {
+                                                (*param).server_flags &=
+                                                    !(0x10000i32 | 0x20000i32 | 0x40000i32);
+                                                (*param).server_flags |=
+                                                    if (*param).send_port == 587i32 {
+                                                        0x10000i32
+                                                    } else if (*param).send_port == 25i32 {
+                                                        0x40000i32
+                                                    } else {
+                                                        0x20000i32
+                                                    }
+                                            }
+                                            /* do we have a complete configuration? */
+                                            if (*param).addr.is_null()
+                                                || (*param).mail_server.is_null()
+                                                || (*param).mail_port == 0i32
+                                                || (*param).mail_user.is_null()
+                                                || (*param).mail_pw.is_null()
+                                                || (*param).send_server.is_null()
+                                                || (*param).send_port == 0i32
+                                                || (*param).send_user.is_null()
+                                                || (*param).send_pw.is_null()
+                                                || (*param).server_flags == 0i32
+                                            {
+                                                dc_log_error(
+                                                    context,
+                                                    0i32,
+                                                    b"Account settings incomplete.\x00" as *const u8
+                                                        as *const libc::c_char,
+                                                );
+                                            } else if !(0 != context.shall_stop_ongoing) {
+                                                (context.cb)(
+                                                    context,
+                                                    Event::CONFIGURE_PROGRESS,
+                                                    (if 600i32 < 1i32 {
+                                                        1i32
+                                                    } else if 600i32 > 999i32 {
+                                                        999i32
+                                                    } else {
+                                                        600i32
+                                                    })
+                                                        as uintptr_t,
+                                                    0i32 as uintptr_t,
+                                                );
+                                                /* try to connect to IMAP - if we did not got an autoconfig,
+                                                do some further tries with different settings and username variations */
+                                                let mut username_variation: libc::c_int = 0i32;
+                                                loop {
+                                                    if !(username_variation <= 1i32) {
+                                                        current_block = 14187386403465544025;
+                                                        break;
+                                                    }
+                                                    let mut r_0: *mut libc::c_char =
+                                                        dc_loginparam_get_readable(param);
+                                                    dc_log_info(
+                                                        context,
+                                                        0i32,
+                                                        b"Trying: %s\x00" as *const u8
+                                                            as *const libc::c_char,
+                                                        r_0,
+                                                    );
+                                                    free(r_0 as *mut libc::c_void);
+                                                    if 0 != dc_imap_connect(
+                                                        context,
+                                                        &mut context.inbox.clone().lock().unwrap(),
+                                                        param,
+                                                    ) {
+                                                        current_block = 14187386403465544025;
+                                                        break;
+                                                    }
+                                                    if !param_autoconfig.is_null() {
+                                                        current_block = 2927484062889439186;
+                                                        break;
+                                                    }
+                                                    // probe STARTTLS/993
+                                                    if 0 != context.shall_stop_ongoing {
+                                                        current_block = 2927484062889439186;
+                                                        break;
+                                                    }
+                                                    (context.cb)(
+                                                        context,
+                                                        Event::CONFIGURE_PROGRESS,
+                                                        (if 650i32 + username_variation * 30i32
+                                                            < 1i32
+                                                        {
+                                                            1i32
+                                                        } else if 650i32
+                                                            + username_variation * 30i32
+                                                            > 999i32
+                                                        {
+                                                            999i32
+                                                        } else {
+                                                            650i32 + username_variation * 30i32
+                                                        })
+                                                            as uintptr_t,
+                                                        0i32 as uintptr_t,
+                                                    );
+                                                    (*param).server_flags &=
+                                                        !(0x100i32 | 0x200i32 | 0x400i32);
+                                                    (*param).server_flags |= 0x100i32;
+                                                    let mut r_1: *mut libc::c_char =
+                                                        dc_loginparam_get_readable(param);
+                                                    dc_log_info(
+                                                        context,
+                                                        0i32,
+                                                        b"Trying: %s\x00" as *const u8
+                                                            as *const libc::c_char,
+                                                        r_1,
+                                                    );
+                                                    free(r_1 as *mut libc::c_void);
+                                                    if 0 != dc_imap_connect(
+                                                        context,
+                                                        &mut context.inbox.clone().lock().unwrap(),
+                                                        param,
+                                                    ) {
+                                                        current_block = 14187386403465544025;
+                                                        break;
+                                                    }
+                                                    // probe STARTTLS/143
+                                                    if 0 != context.shall_stop_ongoing {
+                                                        current_block = 2927484062889439186;
+                                                        break;
+                                                    }
+                                                    (context.cb)(
+                                                        context,
+                                                        Event::CONFIGURE_PROGRESS,
+                                                        (if 660i32 + username_variation * 30i32
+                                                            < 1i32
+                                                        {
+                                                            1i32
+                                                        } else if 660i32
+                                                            + username_variation * 30i32
+                                                            > 999i32
+                                                        {
+                                                            999i32
+                                                        } else {
+                                                            660i32 + username_variation * 30i32
+                                                        })
+                                                            as uintptr_t,
+                                                        0i32 as uintptr_t,
+                                                    );
+                                                    (*param).mail_port = 143i32;
+                                                    let mut r_2: *mut libc::c_char =
+                                                        dc_loginparam_get_readable(param);
+                                                    dc_log_info(
+                                                        context,
+                                                        0i32,
+                                                        b"Trying: %s\x00" as *const u8
+                                                            as *const libc::c_char,
+                                                        r_2,
+                                                    );
+                                                    free(r_2 as *mut libc::c_void);
+                                                    if 0 != dc_imap_connect(
+                                                        context,
+                                                        &mut context.inbox.clone().lock().unwrap(),
+                                                        param,
+                                                    ) {
+                                                        current_block = 14187386403465544025;
+                                                        break;
+                                                    }
+                                                    if 0 != username_variation {
+                                                        current_block = 2927484062889439186;
+                                                        break;
+                                                    }
+                                                    // next probe round with only the localpart of the email-address as the loginname
+                                                    if 0 != context.shall_stop_ongoing {
+                                                        current_block = 2927484062889439186;
+                                                        break;
+                                                    }
+                                                    (context.cb)(
+                                                        context,
+                                                        Event::CONFIGURE_PROGRESS,
+                                                        (if 670i32 + username_variation * 30i32
+                                                            < 1i32
+                                                        {
+                                                            1i32
+                                                        } else if 670i32
+                                                            + username_variation * 30i32
+                                                            > 999i32
+                                                        {
+                                                            999i32
+                                                        } else {
+                                                            670i32 + username_variation * 30i32
+                                                        })
+                                                            as uintptr_t,
+                                                        0i32 as uintptr_t,
+                                                    );
+                                                    (*param).server_flags &=
+                                                        !(0x100i32 | 0x200i32 | 0x400i32);
+                                                    (*param).server_flags |= 0x200i32;
+                                                    (*param).mail_port = 993i32;
+                                                    let mut at: *mut libc::c_char =
+                                                        strchr((*param).mail_user, '@' as i32);
+                                                    if !at.is_null() {
+                                                        *at = 0i32 as libc::c_char
+                                                    }
+                                                    at = strchr((*param).send_user, '@' as i32);
+                                                    if !at.is_null() {
+                                                        *at = 0i32 as libc::c_char
+                                                    }
+                                                    username_variation += 1
+                                                }
+                                                match current_block {
+                                                    2927484062889439186 => {}
+                                                    _ => {
+                                                        imap_connected_here = 1i32;
+                                                        if !(0 != context.shall_stop_ongoing) {
+                                                            (context.cb)(
+                                                                context,
+                                                                Event::CONFIGURE_PROGRESS,
+                                                                (if 800i32 < 1i32 {
+                                                                    1i32
+                                                                } else if 800i32 > 999i32 {
+                                                                    999i32
+                                                                } else {
+                                                                    800i32
+                                                                })
+                                                                    as uintptr_t,
+                                                                0i32 as uintptr_t,
+                                                            );
+                                                            /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
+                                                            if 0 == dc_smtp_connect(
+                                                                &mut context
+                                                                    .smtp
+                                                                    .clone()
+                                                                    .lock()
+                                                                    .unwrap(),
+                                                                param,
+                                                            ) {
+                                                                if !param_autoconfig.is_null() {
+                                                                    current_block =
+                                                                        2927484062889439186;
+                                                                } else if 0
+                                                                    != context.shall_stop_ongoing
+                                                                {
+                                                                    current_block =
+                                                                        2927484062889439186;
+                                                                } else {
+                                                                    (context.cb)(
+                                                                        context,
+                                                                        Event::CONFIGURE_PROGRESS,
+                                                                        (if 850i32 < 1i32 {
+                                                                            1i32
+                                                                        } else if 850i32 > 999i32 {
+                                                                            999i32
+                                                                        } else {
+                                                                            850i32
+                                                                        })
+                                                                            as uintptr_t,
+                                                                        0i32 as uintptr_t,
+                                                                    );
+                                                                    (*param).server_flags &=
+                                                                        !(0x10000i32
+                                                                            | 0x20000i32
+                                                                            | 0x40000i32);
+                                                                    (*param).server_flags |=
+                                                                        0x10000i32;
+                                                                    (*param).send_port = 587i32;
+                                                                    let mut r_3: *mut libc::c_char =
+                                                                        dc_loginparam_get_readable(
+                                                                            param,
+                                                                        );
+                                                                    dc_log_info(
+                                                                        context,
+                                                                        0i32,
+                                                                        b"Trying: %s\x00"
+                                                                            as *const u8
+                                                                            as *const libc::c_char,
+                                                                        r_3,
+                                                                    );
+                                                                    free(r_3 as *mut libc::c_void);
+                                                                    if 0 == dc_smtp_connect(
+                                                                        &mut context
+                                                                            .smtp
+                                                                            .clone()
+                                                                            .lock()
+                                                                            .unwrap(),
+                                                                        param,
+                                                                    ) {
+                                                                        if 0 != context
+                                                                            .shall_stop_ongoing
+                                                                        {
+                                                                            current_block =
+                                                                                2927484062889439186;
+                                                                        } else {
+                                                                            (context.cb)(context,
+                                                                                            Event::CONFIGURE_PROGRESS,
+                                                                                            (if 860i32
+                                                                                             <
+                                                                                             1i32
+                                                                                             {
+                                                                                                 1i32
+                                                                                             } else if 860i32
+                                                                                             >
+                                                                                             999i32
+                                                                                             {
+                                                                                                 999i32
+                                                                                             } else {
+                                                                                                 860i32
+                                                                                             })
+                                                                                            as
+                                                                                            uintptr_t,
+                                                                                            0i32
+                                                                                            as
+                                                                                            uintptr_t);
+                                                                            (*param)
+                                                                                .server_flags &=
+                                                                                !(0x10000i32
+                                                                                    | 0x20000i32
+                                                                                    | 0x40000i32);
+                                                                            (*param)
+                                                                                .server_flags |=
+                                                                                0x10000i32;
+                                                                            (*param).send_port =
+                                                                                25i32;
+                                                                            let mut r_4:
+                                                                            *mut libc::c_char =
+                                                                                dc_loginparam_get_readable(param);
+                                                                            dc_log_info(context,
+                                                                                        0i32,
+                                                                                        b"Trying: %s\x00"
+                                                                                        as
+                                                                                        *const u8
+                                                                                        as
+                                                                                        *const libc::c_char,
+                                                                                        r_4);
+                                                                            free(r_4
+                                                                                 as
+                                                                                 *mut libc::c_void);
+                                                                            if 0 == dc_smtp_connect(
+                                                                                &mut context
+                                                                                    .smtp
+                                                                                    .clone()
+                                                                                    .lock()
+                                                                                    .unwrap(),
+                                                                                param,
+                                                                            ) {
+                                                                                current_block
+                                                                                    =
+                                                                                    2927484062889439186;
+                                                                            } else {
+                                                                                current_block
+                                                                                    =
+                                                                                    5083741289379115417;
+                                                                            }
+                                                                        }
+                                                                    } else {
+                                                                        current_block =
+                                                                            5083741289379115417;
+                                                                    }
+                                                                }
+                                                            } else {
+                                                                current_block = 5083741289379115417;
+                                                            }
+                                                            match current_block {
+                                                                2927484062889439186 => {}
+                                                                _ => {
+                                                                    smtp_connected_here = 1i32;
+                                                                    if !(0
+                                                                        != context
+                                                                            .shall_stop_ongoing)
+                                                                    {
+                                                                        (context.cb)(context,
+                                                                                        Event::CONFIGURE_PROGRESS,
+                                                                                        (if 900i32
+                                                                                         <
+                                                                                         1i32
+                                                                                         {
+                                                                                             1i32
+                                                                                         } else if 900i32
+                                                                                         >
+                                                                                         999i32
+                                                                                         {
+                                                                                             999i32
+                                                                                         } else {
+                                                                                             900i32
+                                                                                         })
+                                                                                        as
+                                                                                        uintptr_t,
+                                                                                        0i32
+                                                                                        as
+                                                                                        uintptr_t);
+                                                                        flags
+                                                                            =
+                                                                            if 0
+                                                                            !=
+                                                                            dc_sqlite3_get_config_int(&mut context.sql.lock().unwrap(),
+                                                                                                      b"mvbox_watch\x00"
+                                                                                                      as
+                                                                                                      *const u8
+                                                                                                      as
+                                                                                                      *const libc::c_char,
+                                                                                                      1i32)
+                                                                            ||
+                                                                            0
+                                                                            !=
+                                                                            dc_sqlite3_get_config_int(&mut context.sql.lock().unwrap(),
+                                                                                                      b"mvbox_move\x00"
+                                                                                                      as
+                                                                                                      *const u8
+                                                                                                      as
+                                                                                                      *const libc::c_char,
+                                                                                                      1i32)
+                                                                        {
+                                                                            0x1i32
+                                                                        } else {
+                                                                            0i32
+                                                                        };
+                                                                        dc_configure_folders(
+                                                                            context,
+                                                                            &mut context
+                                                                                .inbox
+                                                                                .clone()
+                                                                                .lock()
+                                                                                .unwrap(),
+                                                                            flags,
+                                                                        );
                                                                         if !(0
-                                                                            != (*context)
+                                                                            != context
                                                                                 .shall_stop_ongoing)
                                                                         {
-                                                                            ((*context).cb)(context,
-                                                                                                                              Event::CONFIGURE_PROGRESS,
-                                                                                                                              (if 900i32
-                                                                                                                               <
-                                                                                                                               1i32
-                                                                                                                               {
-                                                                                                                                   1i32
-                                                                                                                               } else if 900i32
-                                                                                                                               >
-                                                                                                                               999i32
-                                                                                                                               {
-                                                                                                                                   999i32
-                                                                                                                               } else {
-                                                                                                                                   900i32
-                                                                                                                               })
-                                                                                                                              as
-                                                                                                                              uintptr_t,
-                                                                                                                              0i32
-                                                                                                                              as
-                                                                                                                              uintptr_t);
-                                                                            flags
-                                                                                =
-                                                                                if 0
-                                                                                !=
-                                                                                dc_sqlite3_get_config_int((*context).sql,
-                                                                                                          b"mvbox_watch\x00"
-                                                                                                          as
-                                                                                                          *const u8
-                                                                                                          as
-                                                                                                          *const libc::c_char,
-                                                                                                          1i32)
-                                                                                ||
-                                                                                0
-                                                                                !=
-                                                                                dc_sqlite3_get_config_int((*context).sql,
-                                                                                                          b"mvbox_move\x00"
-                                                                                                          as
-                                                                                                          *const u8
-                                                                                                          as
-                                                                                                          *const libc::c_char,
-                                                                                                          1i32)
-                                                                            {
-                                                                                0x1i32
-                                                                            } else {
-                                                                                0i32
-                                                                            };
-                                                                            dc_configure_folders(
-                                                                                context,
-                                                                                (*context).inbox,
-                                                                                flags,
-                                                                            );
-                                                                            if !(0 != (*context)
-                                                                                .shall_stop_ongoing)
-                                                                            {
-                                                                                ((*context).cb)(context,
-                                                                                                                                  Event::CONFIGURE_PROGRESS,
-                                                                                                                                  (if 910i32
-                                                                                                                                   <
-                                                                                                                                   1i32
-                                                                                                                                   {
-                                                                                                                                       1i32
-                                                                                                                                   } else if 910i32
-                                                                                                                                   >
-                                                                                                                                   999i32
-                                                                                                                                   {
-                                                                                                                                       999i32
-                                                                                                                                   } else {
-                                                                                                                                       910i32
-                                                                                                                                   })
-                                                                                                                                  as
-                                                                                                                                  uintptr_t,
-                                                                                                                                  0i32
-                                                                                                                                  as
-                                                                                                                                  uintptr_t);
-                                                                                dc_loginparam_write(param,
-                                                                                                    (*context).sql,
-                                                                                                    b"configured_\x00"
-                                                                                                    as
-                                                                                                    *const u8
-                                                                                                    as
-                                                                                                    *const libc::c_char);
-                                                                                dc_sqlite3_set_config_int((*context).sql,
-                                                                                                          b"configured\x00"
-                                                                                                          as
-                                                                                                          *const u8
-                                                                                                          as
-                                                                                                          *const libc::c_char,
-                                                                                                          1i32);
-                                                                                if !(0
-                                                                                     !=
-                                                                                     (*context).shall_stop_ongoing)
-                                                                                {
-                                                                                    ((*context).cb)(context,
-                                                                                                                                      Event::CONFIGURE_PROGRESS,
-                                                                                                                                      (if 920i32
-                                                                                                                                       <
-                                                                                                                                       1i32
-                                                                                                                                       {
-                                                                                                                                           1i32
-                                                                                                                                       } else if 920i32
-                                                                                                                                       >
-                                                                                                                                       999i32
-                                                                                                                                       {
-                                                                                                                                           999i32
-                                                                                                                                       } else {
-                                                                                                                                           920i32
-                                                                                                                                       })
-                                                                                                                                      as
-                                                                                                                                      uintptr_t,
-                                                                                                                                      0i32
-                                                                                                                                      as
-                                                                                                                                      uintptr_t);
-                                                                                    dc_ensure_secret_key_exists(context);
-                                                                                    success
-                                                                                        =
-                                                                                        1i32;
-                                                                                    dc_log_info(context,
-                                                                                                0i32,
-                                                                                                b"Configure completed.\x00"
+                                                                            (context.cb)(context,
+                                                                                            Event::CONFIGURE_PROGRESS,
+                                                                                            (if 910i32
+                                                                                             <
+                                                                                             1i32
+                                                                                             {
+                                                                                                 1i32
+                                                                                             } else if 910i32
+                                                                                             >
+                                                                                             999i32
+                                                                                             {
+                                                                                                 999i32
+                                                                                             } else {
+                                                                                                 910i32
+                                                                                             })
+                                                                                            as
+                                                                                            uintptr_t,
+                                                                                            0i32
+                                                                                            as
+                                                                                            uintptr_t);
+                                                                            dc_loginparam_write(param,
+                                                                                                &mut context.sql.lock().unwrap(),
+                                                                                                b"configured_\x00"
                                                                                                 as
                                                                                                 *const u8
                                                                                                 as
                                                                                                 *const libc::c_char);
-                                                                                    if !(0
-                                                                                         !=
-                                                                                         (*context).shall_stop_ongoing)
-                                                                                    {
-                                                                                        ((*context).cb)(context,
-                                                                                                                                          Event::CONFIGURE_PROGRESS,
-                                                                                                                                          (if 940i32
-                                                                                                                                           <
-                                                                                                                                           1i32
-                                                                                                                                           {
-                                                                                                                                               1i32
-                                                                                                                                           } else if 940i32
-                                                                                                                                           >
-                                                                                                                                           999i32
-                                                                                                                                           {
-                                                                                                                                               999i32
-                                                                                                                                           } else {
-                                                                                                                                               940i32
-                                                                                                                                           })
-                                                                                                                                          as
-                                                                                                                                          uintptr_t,
-                                                                                                                                          0i32
-                                                                                                                                          as
-                                                                                                                                          uintptr_t);
-                                                                                    }
+                                                                            dc_sqlite3_set_config_int(&mut context.sql.lock().unwrap(),
+                                                                                                      b"configured\x00"
+                                                                                                      as
+                                                                                                      *const u8
+                                                                                                      as
+                                                                                                      *const libc::c_char,
+                                                                                                      1i32);
+                                                                            if !(0 != context
+                                                                                .shall_stop_ongoing)
+                                                                            {
+                                                                                (context.cb)(context,
+                                                                                                Event::CONFIGURE_PROGRESS,
+                                                                                                (if 920i32
+                                                                                                 <
+                                                                                                 1i32
+                                                                                                 {
+                                                                                                     1i32
+                                                                                                 } else if 920i32
+                                                                                                 >
+                                                                                                 999i32
+                                                                                                 {
+                                                                                                     999i32
+                                                                                                 } else {
+                                                                                                     920i32
+                                                                                                 })
+                                                                                                as
+                                                                                                uintptr_t,
+                                                                                                0i32
+                                                                                                as
+                                                                                                uintptr_t);
+                                                                                dc_ensure_secret_key_exists(context);
+                                                                                success = 1i32;
+                                                                                dc_log_info(context,
+                                                                                            0i32,
+                                                                                            b"Configure completed.\x00"
+                                                                                            as
+                                                                                            *const u8
+                                                                                            as
+                                                                                            *const libc::c_char);
+                                                                                if !(0
+                                                                                     !=
+                                                                                     context.shall_stop_ongoing)
+                                                                                {
+                                                                                    (context.cb)(context,
+                                                                                                    Event::CONFIGURE_PROGRESS,
+                                                                                                    (if 940i32
+                                                                                                     <
+                                                                                                     1i32
+                                                                                                     {
+                                                                                                         1i32
+                                                                                                     } else if 940i32
+                                                                                                     >
+                                                                                                     999i32
+                                                                                                     {
+                                                                                                         999i32
+                                                                                                     } else {
+                                                                                                         940i32
+                                                                                                     })
+                                                                                                    as
+                                                                                                    uintptr_t,
+                                                                                                    0i32
+                                                                                                    as
+                                                                                                    uintptr_t);
                                                                                 }
                                                                             }
                                                                         }
@@ -1302,11 +1288,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
             }
         }
     }
+
     if 0 != imap_connected_here {
-        dc_imap_disconnect((*context).inbox);
+        dc_imap_disconnect(context, &mut context.inbox.clone().lock().unwrap());
     }
     if 0 != smtp_connected_here {
-        dc_smtp_disconnect((*context).smtp);
+        dc_smtp_disconnect(&mut context.smtp.clone().lock().unwrap());
     }
     dc_loginparam_unref(param);
     dc_loginparam_unref(param_autoconfig);
@@ -1315,7 +1302,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
         dc_free_ongoing(context);
     }
     free(mvbox_folder as *mut libc::c_void);
-    ((*context).cb)(
+    (context.cb)(
         context,
         Event::CONFIGURE_PROGRESS,
         (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
@@ -1324,29 +1311,26 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
 }
 
 pub unsafe fn dc_free_ongoing(mut context: &dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
-    (*context).ongoing_running = 0i32;
-    (*context).shall_stop_ongoing = 1i32;
+    context.ongoing_running = 0i32;
+    context.shall_stop_ongoing = 1i32;
 }
 pub unsafe fn dc_configure_folders(
-    mut context: &dc_context_t,
-    mut imap: *mut dc_imap_t,
-    mut flags: libc::c_int,
+    context: &dc_context_t,
+    imap: &mut dc_imap_t,
+    flags: libc::c_int,
 ) {
     let mut folder_list: *mut clist = 0 as *mut clist;
     let mut iter: *mut clistiter = 0 as *mut clistiter;
     let mut mvbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut sentbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut fallback_folder: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(imap.is_null() || (*imap).etpan.is_null()) {
+    if !(*imap).etpan.is_null() {
         dc_log_info(
             context,
             0i32,
             b"Configuring IMAP-folders.\x00" as *const u8 as *const libc::c_char,
         );
-        folder_list = list_folders(imap);
+        folder_list = list_folders(context, imap);
         fallback_folder = dc_mprintf(
             b"INBOX%c%s\x00" as *const u8 as *const libc::c_char,
             (*imap).imap_delimiter as libc::c_int,
@@ -1391,7 +1375,7 @@ pub unsafe fn dc_configure_folders(
                 (*imap).etpan,
                 b"DeltaChat\x00" as *const u8 as *const libc::c_char,
             );
-            if 0 != dc_imap_is_error(imap, r) {
+            if 0 != dc_imap_is_error(context, imap, r) {
                 dc_log_warning(
                     context,
                     0i32,
@@ -1399,7 +1383,7 @@ pub unsafe fn dc_configure_folders(
                         as *const libc::c_char,
                 );
                 r = mailimap_create((*imap).etpan, fallback_folder);
-                if 0 != dc_imap_is_error(imap, r) {
+                if 0 != dc_imap_is_error(context, imap, r) {
                     dc_log_warning(
                         context,
                         0i32,
@@ -1425,17 +1409,19 @@ pub unsafe fn dc_configure_folders(
             mailimap_subscribe((*imap).etpan, mvbox_folder);
         }
         dc_sqlite3_set_config_int(
-            (*context).sql,
+            &mut context.sql.lock().unwrap(),
             b"folders_configured\x00" as *const u8 as *const libc::c_char,
             3i32,
         );
         dc_sqlite3_set_config(
-            (*context).sql,
+            context,
+            &mut context.sql.lock().unwrap(),
             b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
             mvbox_folder,
         );
         dc_sqlite3_set_config(
-            (*context).sql,
+            context,
+            &mut context.sql.lock().unwrap(),
             b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
             sentbox_folder,
         );
@@ -1466,13 +1452,13 @@ unsafe fn free_folders(mut folders: *mut clist) {
         clist_free(folders);
     };
 }
-unsafe fn list_folders(mut imap: *mut dc_imap_t) -> *mut clist {
+unsafe fn list_folders(context: &dc_context_t, imap: &mut dc_imap_t) -> *mut clist {
     let mut imap_list: *mut clist = 0 as *mut clist;
     let mut iter1: *mut clistiter = 0 as *mut clistiter;
     let mut ret_list: *mut clist = clist_new();
     let mut r: libc::c_int = 0i32;
     let mut xlist_works: libc::c_int = 0i32;
-    if !(imap.is_null() || (*imap).etpan.is_null()) {
+    if !(*imap).etpan.is_null() {
         if 0 != (*imap).has_xlist {
             r = mailimap_xlist(
                 (*imap).etpan,
@@ -1488,16 +1474,16 @@ unsafe fn list_folders(mut imap: *mut dc_imap_t) -> *mut clist {
                 &mut imap_list,
             )
         }
-        if 0 != dc_imap_is_error(imap, r) || imap_list.is_null() {
+        if 0 != dc_imap_is_error(context, imap, r) || imap_list.is_null() {
             imap_list = 0 as *mut clist;
             dc_log_warning(
-                (*imap).context,
+                context,
                 0i32,
                 b"Cannot get folder list.\x00" as *const u8 as *const libc::c_char,
             );
         } else if (*imap_list).count <= 0i32 {
             dc_log_warning(
-                (*imap).context,
+                context,
                 0i32,
                 b"Folder list is empty.\x00" as *const u8 as *const libc::c_char,
             );
@@ -1869,7 +1855,7 @@ unsafe fn read_autoconf_file(
         b"Testing %s ...\x00" as *const u8 as *const libc::c_char,
         url,
     );
-    filecontent = ((*context).cb)(
+    filecontent = (context.cb)(
         context,
         Event::HTTP_GET,
         url as uintptr_t,
@@ -1887,9 +1873,9 @@ unsafe fn read_autoconf_file(
     return filecontent;
 }
 unsafe fn outlk_autodiscover(
-    mut context: &dc_context_t,
-    mut url__: *const libc::c_char,
-    mut param_in: *const dc_loginparam_t,
+    context: &dc_context_t,
+    url__: *const libc::c_char,
+    param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
     let mut current_block: u64;
     let mut xml_raw: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -2071,10 +2057,7 @@ unsafe fn outlk_autodiscover_starttag_cb(
         (*outlk_ad).tag_config = 5i32
     };
 }
-pub unsafe fn dc_alloc_ongoing(mut context: &dc_context_t) -> libc::c_int {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return 0i32;
-    }
+pub unsafe fn dc_alloc_ongoing(context: &dc_context_t) -> libc::c_int {
     if 0 != dc_has_ongoing(context) {
         dc_log_warning(
             context,
@@ -2084,43 +2067,37 @@ pub unsafe fn dc_alloc_ongoing(mut context: &dc_context_t) -> libc::c_int {
         );
         return 0i32;
     }
-    (*context).ongoing_running = 1i32;
-    (*context).shall_stop_ongoing = 0i32;
+    context.ongoing_running = 1i32;
+    context.shall_stop_ongoing = 0i32;
     return 1i32;
 }
 pub unsafe fn dc_connect_to_configured_imap(
-    mut context: &dc_context_t,
-    mut imap: *mut dc_imap_t,
+    context: &dc_context_t,
+    imap: &mut dc_imap_t,
 ) -> libc::c_int {
     let mut ret_connected: libc::c_int = 0i32;
     let mut param: *mut dc_loginparam_t = dc_loginparam_new();
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint || imap.is_null() {
-        dc_log_warning(
-            (*imap).context,
-            0i32,
-            b"Cannot connect to IMAP: Bad parameters.\x00" as *const u8 as *const libc::c_char,
-        );
-    } else if 0 != dc_imap_is_connected(imap) {
+    if 0 != dc_imap_is_connected(imap) {
         ret_connected = 1i32
     } else if dc_sqlite3_get_config_int(
-        (*(*imap).context).sql,
+        &mut context.sql.clone().lock().unwrap(),
         b"configured\x00" as *const u8 as *const libc::c_char,
         0i32,
     ) == 0i32
     {
         dc_log_warning(
-            (*imap).context,
+            context,
             0i32,
             b"Not configured, cannot connect.\x00" as *const u8 as *const libc::c_char,
         );
     } else {
         dc_loginparam_read(
             param,
-            (*(*imap).context).sql,
+            &mut context.sql.clone().lock().unwrap(),
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
         /*the trailing underscore is correct*/
-        if !(0 == dc_imap_connect(imap, param)) {
+        if !(0 == dc_imap_connect(context, imap, param)) {
             ret_connected = 2i32
         }
     }

@@ -20,7 +20,7 @@ use crate::x::*;
 /* * the structure behind dc_msg_t */
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct dc_msg_t {
+pub struct dc_msg_t<'a> {
     pub magic: uint32_t,
     pub id: uint32_t,
     pub from_id: uint32_t,
@@ -34,7 +34,7 @@ pub struct dc_msg_t {
     pub timestamp_sent: time_t,
     pub timestamp_rcvd: time_t,
     pub text: *mut libc::c_char,
-    pub context: *mut dc_context_t,
+    pub context: &'a dc_context_t,
     pub rfc724_mid: *mut libc::c_char,
     pub in_reply_to: *mut libc::c_char,
     pub server_folder: *mut libc::c_char,
@@ -292,9 +292,10 @@ pub unsafe fn dc_get_msg_info(
     free(rawtxt as *mut libc::c_void);
     return ret.buf;
 }
-pub unsafe fn dc_msg_new_untyped(mut context: &dc_context_t) -> *mut dc_msg_t {
-    return dc_msg_new(context, 0i32);
+pub unsafe fn dc_msg_new_untyped<'a>(context: &'a dc_context_t) -> *mut dc_msg_t<'a> {
+    dc_msg_new(context, 0i32)
 }
+
 /* *
  * @class dc_msg_t
  *
@@ -305,7 +306,10 @@ pub unsafe fn dc_msg_new_untyped(mut context: &dc_context_t) -> *mut dc_msg_t {
 // to check if a mail was sent, use dc_msg_is_sent()
 // approx. max. lenght returned by dc_msg_get_text()
 // approx. max. lenght returned by dc_get_msg_info()
-pub unsafe fn dc_msg_new(mut context: &dc_context_t, mut viewtype: libc::c_int) -> *mut dc_msg_t {
+pub unsafe fn dc_msg_new<'a>(
+    mut context: &'a dc_context_t,
+    mut viewtype: libc::c_int,
+) -> *mut dc_msg_t<'a> {
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     msg = calloc(1, ::std::mem::size_of::<dc_msg_t>()) as *mut dc_msg_t;
     if msg.is_null() {
@@ -501,7 +505,7 @@ pub unsafe fn dc_msg_get_timestamp(mut msg: *const dc_msg_t) -> time_t {
 }
 pub unsafe fn dc_msg_load_from_db(
     mut msg: *mut dc_msg_t,
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut id: uint32_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
@@ -605,7 +609,7 @@ unsafe fn dc_msg_set_from_stmt(
     return 1i32;
 }
 pub unsafe fn dc_get_mime_headers(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut msg_id: uint32_t,
 ) -> *mut libc::c_char {
     let mut eml: &libc::c_char = 0 as *mut libc::c_char;
@@ -624,7 +628,7 @@ pub unsafe fn dc_get_mime_headers(
     return eml;
 }
 pub unsafe fn dc_delete_msgs(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut msg_ids: *const uint32_t,
     mut msg_cnt: libc::c_int,
 ) {
@@ -635,7 +639,6 @@ pub unsafe fn dc_delete_msgs(
     {
         return;
     }
-    dc_sqlite3_begin_transaction((*context).sql);
     let mut i: libc::c_int = 0i32;
     while i < msg_cnt {
         dc_update_msg_chat_id(context, *msg_ids.offset(i as isize), 3i32 as uint32_t);
@@ -648,7 +651,7 @@ pub unsafe fn dc_delete_msgs(
         );
         i += 1
     }
-    dc_sqlite3_commit((*context).sql);
+
     if 0 != msg_cnt {
         ((*context).cb)(
             context,
@@ -675,7 +678,7 @@ pub unsafe fn dc_update_msg_chat_id(
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_markseen_msgs(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut msg_ids: *const uint32_t,
     mut msg_cnt: libc::c_int,
 ) {
@@ -690,7 +693,6 @@ pub unsafe fn dc_markseen_msgs(
         || msg_ids.is_null()
         || msg_cnt <= 0i32)
     {
-        dc_sqlite3_begin_transaction((*context).sql);
         transaction_pending = 1i32;
         stmt =
             dc_sqlite3_prepare((*context).sql,
@@ -728,7 +730,6 @@ pub unsafe fn dc_markseen_msgs(
             }
             i += 1
         }
-        dc_sqlite3_commit((*context).sql);
         transaction_pending = 0i32;
         if 0 != send_event {
             ((*context).cb)(
@@ -739,18 +740,15 @@ pub unsafe fn dc_markseen_msgs(
             );
         }
     }
-    if 0 != transaction_pending {
-        dc_sqlite3_rollback((*context).sql);
-    }
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_update_msg_state(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut msg_id: uint32_t,
     mut state: libc::c_int,
 ) {
     let mut stmt: &sqlite3_stmt = dc_sqlite3_prepare(
-        (*context).sql,
+        &mut context.sql.lock().unwrap(),
         b"UPDATE msgs SET state=? WHERE id=?;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_bind_int(stmt, 1i32, state);
@@ -759,7 +757,7 @@ pub unsafe fn dc_update_msg_state(
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_star_msgs(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut msg_ids: *const uint32_t,
     mut msg_cnt: libc::c_int,
     mut star: libc::c_int,
@@ -772,7 +770,6 @@ pub unsafe fn dc_star_msgs(
     {
         return;
     }
-    dc_sqlite3_begin_transaction((*context).sql);
     let mut stmt: &sqlite3_stmt = dc_sqlite3_prepare(
         (*context).sql,
         b"UPDATE msgs SET starred=? WHERE id=?;\x00" as *const u8 as *const libc::c_char,
@@ -786,23 +783,21 @@ pub unsafe fn dc_star_msgs(
         i += 1
     }
     sqlite3_finalize(stmt);
-    dc_sqlite3_commit((*context).sql);
 }
-pub unsafe fn dc_get_msg(mut context: *mut dc_context_t, mut msg_id: uint32_t) -> *mut dc_msg_t {
+pub unsafe fn dc_get_msg<'a>(context: &'a dc_context_t, msg_id: uint32_t) -> *mut dc_msg_t<'a> {
     let mut success: libc::c_int = 0i32;
     let mut obj: *mut dc_msg_t = dc_msg_new_untyped(context);
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
-        if !(0 == dc_msg_load_from_db(obj, context, msg_id)) {
-            success = 1i32
-        }
+    if !(0 == dc_msg_load_from_db(obj, context, msg_id)) {
+        success = 1i32
     }
     if 0 != success {
-        return obj;
+        obj
     } else {
         dc_msg_unref(obj);
-        return 0 as &dc_msg_t;
-    };
+        0 as &dc_msg_t
+    }
 }
+
 pub unsafe fn dc_msg_get_id(mut msg: *const dc_msg_t) -> uint32_t {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32 as uint32_t;
@@ -970,7 +965,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
     mut text: *const libc::c_char,
     mut param: *mut dc_param_t,
     mut approx_characters: libc::c_int,
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
 ) -> *mut libc::c_char {
     /* get a summary text, result must be free()'d, never returns NULL. */
     let mut ret: &libc::c_char = 0 as *mut libc::c_char;
@@ -1219,15 +1214,16 @@ pub unsafe fn dc_msg_save_param_to_disk(mut msg: *mut dc_msg_t) {
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-pub unsafe fn dc_msg_new_load(
-    mut context: *mut dc_context_t,
-    mut msg_id: uint32_t,
-) -> *mut dc_msg_t {
+pub unsafe fn dc_msg_new_load<'a>(
+    context: &'a dc_context_t,
+    msg_id: uint32_t,
+) -> *mut dc_msg_t<'a> {
     let mut msg: &dc_msg_t = dc_msg_new_untyped(context);
     dc_msg_load_from_db(msg, context, msg_id);
-    return msg;
+    msg
 }
-pub unsafe fn dc_delete_msg_from_db(mut context: *mut dc_context_t, mut msg_id: uint32_t) {
+
+pub unsafe fn dc_delete_msg_from_db(context: &dc_context_t, mut msg_id: uint32_t) {
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(0 == dc_msg_load_from_db(msg, context, msg_id)) {
@@ -1256,7 +1252,7 @@ Do not use too long subjects - we add a tag after the subject which gets truncat
 It should also be very clear, the subject is _not_ the whole message.
 The value is also used for CC:-summaries */
 // Context functions to work with messages
-pub unsafe fn dc_msg_exists(mut context: *mut dc_context_t, mut msg_id: uint32_t) -> libc::c_int {
+pub unsafe fn dc_msg_exists(mut context: &dc_context_t, mut msg_id: uint32_t) -> libc::c_int {
     let mut msg_exists: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(context.is_null()
@@ -1295,7 +1291,7 @@ pub unsafe fn dc_update_msg_move_state(
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_set_msg_failed(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut msg_id: uint32_t,
     mut error: *const libc::c_char,
 ) {
@@ -1334,7 +1330,7 @@ pub unsafe fn dc_set_msg_failed(
 }
 /* returns 1 if an event should be send */
 pub unsafe fn dc_mdn_from_ext(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut from_id: uint32_t,
     mut rfc724_mid: *const libc::c_char,
     mut timestamp_sent: time_t,
@@ -1443,7 +1439,7 @@ pub unsafe fn dc_mdn_from_ext(
     return read_by_all;
 }
 /* the number of messages assigned to real chat (!=deaddrop, !=trash) */
-pub unsafe fn dc_get_real_msg_cnt(mut context: *mut dc_context_t) -> size_t {
+pub unsafe fn dc_get_real_msg_cnt(mut context: &dc_context_t) -> size_t {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut ret: size_t = 0i32 as size_t;
     if !(*(*context).sql).cobj.is_null() {
@@ -1506,7 +1502,7 @@ pub unsafe fn dc_rfc724_mid_cnt(
     return ret;
 }
 pub unsafe fn dc_rfc724_mid_exists(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut rfc724_mid: *const libc::c_char,
     mut ret_server_folder: *mut *mut libc::c_char,
     mut ret_server_uid: &uint32_t,
@@ -1544,7 +1540,7 @@ pub unsafe fn dc_rfc724_mid_exists(
     return ret;
 }
 pub unsafe fn dc_update_server_uid(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut rfc724_mid: *const libc::c_char,
     mut server_folder: *const libc::c_char,
     mut server_uid: uint32_t,

@@ -597,10 +597,7 @@ unsafe extern "C" fn chat_prefix(mut chat: *const dc_chat_t) -> *const libc::c_c
     };
 }
 #[no_mangle]
-pub unsafe extern "C" fn dc_cmdline(
-    mut context: *mut dc_context_t,
-    cmdline: &str,
-) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_char {
     let mut cmd: &libc::c_char = 0 as *mut libc::c_char;
     let mut arg1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: *mut libc::c_char = 1i32 as *mut libc::c_char;

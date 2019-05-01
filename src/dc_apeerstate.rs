@@ -17,8 +17,8 @@ use crate::x::*;
  */
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct dc_apeerstate_t {
-    pub context: &dc_context_t,
+pub struct dc_apeerstate_t<'a> {
+    pub context: &'a dc_context_t,
     pub addr: *mut libc::c_char,
     pub last_seen: time_t,
     pub last_seen_autocrypt: time_t,
@@ -35,13 +35,14 @@ pub struct dc_apeerstate_t {
 }
 
 /* the returned pointer is ref'd and must be unref'd after usage */
-pub unsafe fn dc_apeerstate_new(mut context: &dc_context_t) -> *mut dc_apeerstate_t {
+pub unsafe fn dc_apeerstate_new<'a>(context: &'a dc_context_t) -> *mut dc_apeerstate_t<'a> {
     let mut peerstate: *mut dc_apeerstate_t = 0 as *mut dc_apeerstate_t;
     peerstate = calloc(1, ::std::mem::size_of::<dc_apeerstate_t>()) as *mut dc_apeerstate_t;
     if peerstate.is_null() {
         exit(43i32);
     }
     (*peerstate).context = context;
+
     return peerstate;
 }
 pub unsafe fn dc_apeerstate_unref(mut peerstate: *mut dc_apeerstate_t) {
@@ -311,12 +312,12 @@ pub unsafe fn dc_apeerstate_set_verified(
 }
 pub unsafe fn dc_apeerstate_load_by_addr(
     mut peerstate: *mut dc_apeerstate_t,
-    mut sql: *mut dc_sqlite3_t,
+    mut sql: &mut dc_sqlite3_t,
     mut addr: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(peerstate.is_null() || sql.is_null() || addr.is_null()) {
+    if !(peerstate.is_null() || addr.is_null()) {
         dc_apeerstate_empty(peerstate);
         stmt =
             dc_sqlite3_prepare(sql,
@@ -361,12 +362,12 @@ unsafe fn dc_apeerstate_set_from_stmt(
 }
 pub unsafe fn dc_apeerstate_load_by_fingerprint(
     mut peerstate: *mut dc_apeerstate_t,
-    mut sql: *mut dc_sqlite3_t,
+    mut sql: &mut dc_sqlite3_t,
     mut fingerprint: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(peerstate.is_null() || sql.is_null() || fingerprint.is_null()) {
+    if !(peerstate.is_null() || fingerprint.is_null()) {
         dc_apeerstate_empty(peerstate);
         stmt =
             dc_sqlite3_prepare(sql,
@@ -385,13 +386,13 @@ pub unsafe fn dc_apeerstate_load_by_fingerprint(
 }
 pub unsafe fn dc_apeerstate_save_to_db(
     mut peerstate: *const dc_apeerstate_t,
-    mut sql: *mut dc_sqlite3_t,
+    mut sql: &mut dc_sqlite3_t,
     mut create: libc::c_int,
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if peerstate.is_null() || sql.is_null() || (*peerstate).addr.is_null() {
+    if peerstate.is_null() || (*peerstate).addr.is_null() {
         return 0i32;
     }
     if 0 != create {

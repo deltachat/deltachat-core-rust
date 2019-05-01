@@ -19,7 +19,7 @@ use crate::x::*;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct dc_mimefactory_t {
+pub struct dc_mimefactory_t<'a> {
     pub from_addr: *mut libc::c_char,
     pub from_displayname: *mut libc::c_char,
     pub selfstatus: *mut libc::c_char,
@@ -28,8 +28,8 @@ pub struct dc_mimefactory_t {
     pub timestamp: time_t,
     pub rfc724_mid: *mut libc::c_char,
     pub loaded: dc_mimefactory_loaded_t,
-    pub msg: *mut dc_msg_t,
-    pub chat: *mut dc_chat_t,
+    pub msg: *mut dc_msg_t<'a>,
+    pub chat: *mut dc_chat_t<'a>,
     pub increation: libc::c_int,
     pub in_reply_to: *mut libc::c_char,
     pub references: *mut libc::c_char,
@@ -39,7 +39,7 @@ pub struct dc_mimefactory_t {
     pub out_gossiped: libc::c_int,
     pub out_last_added_location_id: uint32_t,
     pub error: *mut libc::c_char,
-    pub context: *mut dc_context_t,
+    pub context: &'a dc_context_t,
 }
 
 pub type dc_mimefactory_loaded_t = libc::c_uint;
@@ -47,7 +47,10 @@ pub const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
 pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;
 pub const DC_MF_NOTHING_LOADED: dc_mimefactory_loaded_t = 0;
 
-pub unsafe fn dc_mimefactory_init(mut factory: *mut dc_mimefactory_t, mut context: &dc_context_t) {
+pub unsafe fn dc_mimefactory_init<'a>(
+    factory: *mut dc_mimefactory_t<'a>,
+    context: &'a dc_context_t,
+) {
     if factory.is_null() || context.is_null() {
         return;
     }
