@@ -5,10 +5,7 @@ use crate::constants::Event;
 use crate::dc_context::dc_context_t;
 use crate::x::*;
 
-pub use libc::{
-    dirent, pthread_attr_t, pthread_cond_t, pthread_condattr_t, pthread_mutex_t,
-    pthread_mutexattr_t, pthread_t, tm, DIR, FILE,
-};
+pub use libc::{dirent, tm, DIR, FILE};
 pub use libsqlite3_sys::*;
 
 extern "C" {

@@ -281,7 +281,6 @@ unsafe fn start_threads(
     std::thread::JoinHandle<()>,
     std::thread::JoinHandle<()>,
 ) {
-    println!("staring thread");
     run_threads = 1;
     let context = c.clone();
     let h1 = std::thread::spawn(move || {
@@ -519,7 +518,6 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
                 break;
             }
             if !(*cmd.offset(0isize) as libc::c_int == 0i32) {
-                let ctx = ctx.clone();
                 let mut execute_result: *mut libc::c_char = dc_cmdline(ctx, &cmdline);
                 if !execute_result.is_null() {
                     printf(

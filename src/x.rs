@@ -505,33 +505,6 @@ extern "C" {
 
     pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
-
-    // -- Pthread
-
-    pub fn pthread_create(
-        _: *mut pthread_t,
-        _: *const pthread_attr_t,
-        _: Option<unsafe extern "C" fn(_: *mut libc::c_void) -> *mut libc::c_void>,
-        _: *mut libc::c_void,
-    ) -> libc::c_int;
-    pub fn pthread_join(_: pthread_t, _: *mut *mut libc::c_void) -> libc::c_int;
-    pub fn pthread_cond_signal(_: *mut pthread_cond_t) -> libc::c_int;
-    pub fn pthread_cond_timedwait(
-        _: *mut pthread_cond_t,
-        _: *mut pthread_mutex_t,
-        _: *const timespec,
-    ) -> libc::c_int;
-    pub fn pthread_mutex_lock(_: *mut pthread_mutex_t) -> libc::c_int;
-    pub fn pthread_mutex_unlock(_: *mut pthread_mutex_t) -> libc::c_int;
-    pub fn pthread_cond_destroy(_: *mut pthread_cond_t) -> libc::c_int;
-    pub fn pthread_cond_init(_: *mut pthread_cond_t, _: *const pthread_condattr_t) -> libc::c_int;
-    pub fn pthread_cond_wait(_: *mut pthread_cond_t, _: *mut pthread_mutex_t) -> libc::c_int;
-    pub fn pthread_mutex_destroy(_: *mut pthread_mutex_t) -> libc::c_int;
-    pub fn pthread_mutex_init(
-        _: *mut pthread_mutex_t,
-        _: *const pthread_mutexattr_t,
-    ) -> libc::c_int;
-    pub fn pthread_self() -> pthread_t;
 }
 
 #[cfg(not(target_os = "macos"))]
