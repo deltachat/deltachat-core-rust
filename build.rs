@@ -18,9 +18,7 @@ fn add_search_path(p: &str) {
 
 fn build_tools() {
     let mut config = cc::Build::new();
-    config.file("misc.h");
-    config.file("misc.c");
-    config.compile("libtools.a");
+    config.file("misc.c").compile("libtools.a");
 
     println!("rerun-if-changed=build.rs");
     println!("rerun-if-changed=misc.h");

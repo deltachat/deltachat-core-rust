@@ -6,7 +6,7 @@
 #include "misc.h"
 
 
-char* dc_strdup(const char* s) /* strdup(NULL) is undefined, save_strdup(NULL) returns an empty string in this case */
+static char* internal_dc_strdup(const char* s) /* strdup(NULL) is undefined, save_strdup(NULL) returns an empty string in this case */
 {
 	char* ret = NULL;
 	if (s) {
@@ -37,13 +37,13 @@ char* dc_mprintf(const char* format, ...)
 	va_end(argp);
 	if (char_cnt_without_zero < 0) {
 		va_end(argp_copy);
-		return dc_strdup("ErrFmt");
+		return internal_dc_strdup("ErrFmt");
 	}
 
 	buf = malloc(char_cnt_without_zero+2 /* +1 would be enough, however, protect against off-by-one-errors */);
 	if (buf==NULL) {
 		va_end(argp_copy);
-		return dc_strdup("ErrMem");
+		return internal_dc_strdup("ErrMem");
 	}
 
 	vsnprintf(buf, char_cnt_without_zero+1, format, argp_copy);
@@ -66,7 +66,7 @@ char* dc_mprintf(const char* format, ...)
  *     pointer is equal to dc_strbuilder_t::buf.
  *     If the given text is NULL, NULL is returned and the string-builder-object is not modified.
  */
-char* dc_strbuilder_cat(dc_strbuilder_t* strbuilder, const char* text)
+static char* internal_dc_strbuilder_cat(dc_strbuilder_t* strbuilder, const char* text)
 {
 	// this function MUST NOT call logging functions as it is used to output the log
 	if (strbuilder==NULL || text==NULL) {
@@ -126,20 +126,20 @@ void dc_strbuilder_catf(dc_strbuilder_t* strbuilder, const char* format, ...)
 	va_end(argp);
 	if (char_cnt_without_zero < 0) {
 		va_end(argp_copy);
-		dc_strbuilder_cat(strbuilder, "ErrFmt");
+		internal_dc_strbuilder_cat(strbuilder, "ErrFmt");
 		return;
 	}
 
 	buf = malloc(char_cnt_without_zero+2 /* +1 would be enough, however, protect against off-by-one-errors */);
 	if (buf==NULL) {
 		va_end(argp_copy);
-		dc_strbuilder_cat(strbuilder, "ErrMem");
+		internal_dc_strbuilder_cat(strbuilder, "ErrMem");
 		return;
 	}
 
 	vsnprintf(buf, char_cnt_without_zero+1, format, argp_copy);
 	va_end(argp_copy);
 
-	dc_strbuilder_cat(strbuilder, buf);
+	internal_dc_strbuilder_cat(strbuilder, buf);
 	free(buf);
 }

@@ -17,8 +17,6 @@ extern "C" {
 
     pub type _telldir;
     pub type mailstream_cancel;
-    #[cfg(not(target_os = "android"))]
-    pub static mut __stdinp: *mut FILE;
 }
 
 pub type sqlite_int64 = libc::int64_t;
