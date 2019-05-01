@@ -1,6 +1,10 @@
 # Delta Chat Rust
 
-Current commit on deltachat/deltachate-core: `12ef73c8e76185f9b78e844ea673025f56a959ab`.
+> Project porting deltachat-core to rust
+
+[![CircleCI](https://circleci.com/gh/deltachat/deltachat-core-rust.svg?style=svg)](https://circleci.com/gh/deltachat/deltachat-core-rust)
+
+Current commit on deltachat/deltachat-core: `12ef73c8e76185f9b78e844ea673025f56a959ab`.
 
 ## Development
 
