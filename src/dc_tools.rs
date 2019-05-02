@@ -110,6 +110,7 @@ pub unsafe fn dc_str_replace(
     }
     return replacements;
 }
+
 pub unsafe fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
     // hack around printf(%f) that may return `,` as decimal point on mac
     let mut test: *mut libc::c_char =
@@ -124,6 +125,7 @@ pub unsafe fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
     free(test as *mut libc::c_void);
     return str;
 }
+
 pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
     let mut len: size_t = 0i32 as size_t;
     let mut cur: *const libc::c_uchar = 0 as *const libc::c_uchar;
@@ -143,6 +145,25 @@ pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
         }
     };
 }
+
+#[test]
+fn test_dc_ltrim() {
+    use std::ffi::{CStr};
+    unsafe {
+        let mut html: *const libc::c_char =
+            b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
+        let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
+        out = strndup(html, strlen(html) as libc::c_ulong);
+
+        dc_ltrim(out);
+
+        assert_eq!(
+            CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
+            "line1<br>\r\n\r\n\r\rline2\n\r"
+        );
+    }
+}
+
 pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
     let mut len: size_t = 0i32 as size_t;
     let mut cur: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
@@ -164,10 +185,48 @@ pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
         ) = '\u{0}' as i32 as libc::c_uchar
     };
 }
+
+#[test]
+fn test_dc_rtrim() {
+    use std::ffi::{CStr};
+    unsafe {
+        let mut html: *const libc::c_char =
+            b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
+        let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
+        out = strndup(html, strlen(html) as libc::c_ulong);
+
+        dc_rtrim(out);
+
+        assert_eq!(
+            CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
+            "\r\r\nline1<br>\r\n\r\n\r\rline2"
+        );
+    }
+}
+
 pub unsafe fn dc_trim(mut buf: *mut libc::c_char) {
     dc_ltrim(buf);
     dc_rtrim(buf);
 }
+
+#[test]
+fn test_dc_trim() {
+    use std::ffi::{CStr};
+    unsafe {
+        let mut html: *const libc::c_char =
+            b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
+        let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
+        out = strndup(html, strlen(html) as libc::c_ulong);
+
+        dc_trim(out);
+
+        assert_eq!(
+            CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
+            "line1<br>\r\n\r\n\r\rline2"
+        );
+    }
+}
+
 /* the result must be free()'d */
 pub unsafe fn dc_strlower(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     let mut out: *mut libc::c_char = dc_strdup(in_0);
