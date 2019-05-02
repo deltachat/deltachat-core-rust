@@ -1,6 +1,6 @@
 use libc;
 use rand::{thread_rng, Rng};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use crate::constants::Event;
 use crate::dc_chat::*;
@@ -1249,9 +1249,7 @@ pub unsafe fn dc_perform_smtp_idle(mut context: &dc_context_t) {
                     as *const libc::c_char,
             );
         } else {
-            // FIXME: correct time based on
-            // get_next_wakeup_time(context, 5000) + 1;
-            let dur = Duration::from_millis(5000);
+            let dur = get_next_wakeup_time(context, 5000);
 
             loop {
                 let res = cvar.wait_timeout(state, dur).unwrap();
@@ -1273,24 +1271,29 @@ pub unsafe fn dc_perform_smtp_idle(mut context: &dc_context_t) {
     );
 }
 
-unsafe fn get_next_wakeup_time(context: &dc_context_t, thread: libc::c_int) -> time_t {
-    let mut wakeup_time: time_t = 0i32 as time_t;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    stmt = dc_sqlite3_prepare(
+unsafe fn get_next_wakeup_time(context: &dc_context_t, thread: libc::c_int) -> Duration {
+    let stmt = dc_sqlite3_prepare(
         context,
         &mut context.sql.clone().lock().unwrap(),
         b"SELECT MIN(desired_timestamp) FROM jobs WHERE thread=?;\x00" as *const u8
             as *const libc::c_char,
     );
-    sqlite3_bind_int(stmt, 1i32, thread);
-    if sqlite3_step(stmt) == 100i32 {
-        wakeup_time = sqlite3_column_int(stmt, 0i32) as time_t
+    sqlite3_bind_int(stmt, 1, thread);
+
+    let mut wakeup_time = Duration::new(10 * 60, 0);
+
+    if sqlite3_step(stmt) == 100 {
+        let t = sqlite3_column_int(stmt, 0) as u64;
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap();
+        if t > 0 {
+            wakeup_time = Duration::new(t, 0) - now;
+        }
     }
-    if wakeup_time == 0i32 as libc::c_long {
-        wakeup_time = time(0 as *mut time_t) + (10i32 * 60i32) as libc::c_long
-    }
+
     sqlite3_finalize(stmt);
-    return wakeup_time;
+    wakeup_time
 }
 
 pub unsafe fn dc_maybe_network(mut context: &dc_context_t) {

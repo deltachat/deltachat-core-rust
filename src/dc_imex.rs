@@ -165,11 +165,23 @@ pub unsafe fn dc_initiate_key_transfer(mut context: &dc_context_t) -> *mut libc:
     setup_code = dc_create_setup_code(context);
     if !setup_code.is_null() {
         /* this may require a keypair to be created. this may take a second ... */
-        if !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
+        if !context
+            .running_state
+            .clone()
+            .read()
+            .unwrap()
+            .shall_stop_ongoing
+        {
             setup_file_content = dc_render_setup_file(context, setup_code);
             if !setup_file_content.is_null() {
                 /* encrypting may also take a while ... */
-                if !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
+                if !context
+                    .running_state
+                    .clone()
+                    .read()
+                    .unwrap()
+                    .shall_stop_ongoing
+                {
                     setup_file_name = dc_get_fine_pathNfilename(
                         context,
                         b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
@@ -196,7 +208,13 @@ pub unsafe fn dc_initiate_key_transfer(mut context: &dc_context_t) -> *mut libc:
                             );
                             dc_param_set_int((*msg).param, 'S' as i32, 6i32);
                             dc_param_set_int((*msg).param, 'u' as i32, 2i32);
-                            if !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
+                            if !context
+                                .running_state
+                                .clone()
+                                .read()
+                                .unwrap()
+                                .shall_stop_ongoing
+                            {
                                 msg_id = dc_send_msg(context, chat_id, msg);
                                 if !(msg_id == 0i32 as libc::c_uint) {
                                     dc_msg_unref(msg);
@@ -208,7 +226,12 @@ pub unsafe fn dc_initiate_key_transfer(mut context: &dc_context_t) -> *mut libc:
                                             as *const libc::c_char,
                                     );
                                     loop {
-                                        if 0 != *context.shall_stop_ongoing.clone().read().unwrap()
+                                        if context
+                                            .running_state
+                                            .clone()
+                                            .read()
+                                            .unwrap()
+                                            .shall_stop_ongoing
                                         {
                                             current_block = 6116957410927263949;
                                             break;
@@ -1005,7 +1028,13 @@ unsafe fn import_backup(
                         current_block = 10891380440665537214;
                         break;
                     }
-                    if 0 != *context.shall_stop_ongoing.clone().read().unwrap() {
+                    if context
+                        .running_state
+                        .clone()
+                        .read()
+                        .unwrap()
+                        .shall_stop_ongoing
+                    {
                         current_block = 8648553629232744886;
                         break;
                     }
@@ -1223,7 +1252,12 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
                                             current_block = 2631791190359682872;
                                             break;
                                         }
-                                        if 0 != *context.shall_stop_ongoing.clone().read().unwrap()
+                                        if context
+                                            .running_state
+                                            .clone()
+                                            .read()
+                                            .unwrap()
+                                            .shall_stop_ongoing
                                         {
                                             delete_dest_file = 1i32;
                                             current_block = 11487273724841241105;

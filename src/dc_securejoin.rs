@@ -208,7 +208,13 @@ pub unsafe fn dc_join_securejoin(
                     0i32,
                     b"Unknown contact.\x00" as *const u8 as *const libc::c_char,
                 );
-            } else if !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
+            } else if !(context
+                .running_state
+                .clone()
+                .read()
+                .unwrap()
+                .shall_stop_ongoing)
+            {
                 join_vg = ((*qr_scan).state == 202i32) as libc::c_int;
                 let bob_a = context.bob.clone();
                 let mut bob = bob_a.write().unwrap();
@@ -262,7 +268,13 @@ pub unsafe fn dc_join_securejoin(
                     );
                 }
                 // Bob -> Alice
-                while !(0 != *context.shall_stop_ongoing.clone().read().unwrap()) {
+                while !(context
+                    .running_state
+                    .clone()
+                    .read()
+                    .unwrap()
+                    .shall_stop_ongoing)
+                {
                     usleep((300i32 * 1000i32) as useconds_t);
                 }
             }

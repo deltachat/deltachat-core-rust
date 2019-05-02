@@ -42,12 +42,26 @@ pub struct dc_context_t {
     pub cmdline_sel_chat_id: u32,
     pub bob: Arc<RwLock<BobStatus>>,
     pub last_smeared_timestamp: Arc<RwLock<time_t>>,
-    pub ongoing_running: i32,
-    pub shall_stop_ongoing: Arc<RwLock<i32>>,
+    pub running_state: Arc<RwLock<RunningState>>,
 }
 
 unsafe impl std::marker::Send for dc_context_t {}
 unsafe impl std::marker::Sync for dc_context_t {}
+
+#[derive(Debug)]
+pub struct RunningState {
+    pub ongoing_running: bool,
+    pub shall_stop_ongoing: bool,
+}
+
+impl Default for RunningState {
+    fn default() -> Self {
+        RunningState {
+            ongoing_running: false,
+            shall_stop_ongoing: true,
+        }
+    }
+}
 
 #[derive(Debug)]
 pub struct BobStatus {
@@ -111,8 +125,7 @@ pub fn dc_context_new(
         userdata,
         cb,
         os_name: unsafe { dc_strdup_keep_null(os_name) },
-        ongoing_running: 0,
-        shall_stop_ongoing: Arc::new(RwLock::new(1)),
+        running_state: Arc::new(RwLock::new(Default::default())),
         sql: Arc::new(Mutex::new(dc_sqlite3_new())),
         smtp: Arc::new(Mutex::new(dc_smtp_new())),
         smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
