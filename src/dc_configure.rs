@@ -9,7 +9,6 @@ use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_oauth2::*;
 use crate::dc_saxparser::*;
-use crate::dc_smtp::*;
 use crate::dc_sqlite3::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
@@ -162,8 +161,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                     .lock()
                     .unwrap(),
             );
-            dc_smtp_disconnect(&mut context.smtp.clone().lock().unwrap());
-            context.smtp.clone().lock().unwrap().log_connect_errors = 1i32;
+            context.smtp.clone().lock().unwrap().disconnect();
             context.inbox.clone().lock().unwrap().log_connect_errors = 1i32;
             context
                 .sentbox_thread
@@ -1007,15 +1005,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                 0i32 as uintptr_t,
                                                             );
                                                             /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
-                                                            if 0 == dc_smtp_connect(
-                                                                context,
-                                                                &mut context
-                                                                    .smtp
-                                                                    .clone()
-                                                                    .lock()
-                                                                    .unwrap(),
-                                                                param,
-                                                            ) {
+                                                            if 0 == context
+                                                                .smtp
+                                                                .clone()
+                                                                .lock()
+                                                                .unwrap()
+                                                                .connect(context, param)
+                                                            {
                                                                 if !param_autoconfig.is_null() {
                                                                     current_block =
                                                                         2927484062889439186;
@@ -1056,15 +1052,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                         r_3,
                                                                     );
                                                                     free(r_3 as *mut libc::c_void);
-                                                                    if 0 == dc_smtp_connect(
-                                                                        context,
-                                                                        &mut context
-                                                                            .smtp
-                                                                            .clone()
-                                                                            .lock()
-                                                                            .unwrap(),
-                                                                        param,
-                                                                    ) {
+                                                                    if 0 == context
+                                                                        .smtp
+                                                                        .clone()
+                                                                        .lock()
+                                                                        .unwrap()
+                                                                        .connect(context, param)
+                                                                    {
                                                                         if s.shall_stop_ongoing {
                                                                             current_block =
                                                                                 2927484062889439186;
@@ -1113,15 +1107,15 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             free(r_4
                                                                                  as
                                                                                  *mut libc::c_void);
-                                                                            if 0 == dc_smtp_connect(
-                                                                                context,
-                                                                                &mut context
-                                                                                    .smtp
-                                                                                    .clone()
-                                                                                    .lock()
-                                                                                    .unwrap(),
-                                                                                param,
-                                                                            ) {
+                                                                            if 0 == context
+                                                                                .smtp
+                                                                                .clone()
+                                                                                .lock()
+                                                                                .unwrap()
+                                                                                .connect(
+                                                                                    context, param,
+                                                                                )
+                                                                            {
                                                                                 current_block
                                                                                     =
                                                                                     2927484062889439186;
@@ -1312,7 +1306,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
         dc_imap_disconnect(context, &mut context.inbox.clone().lock().unwrap());
     }
     if 0 != smtp_connected_here {
-        dc_smtp_disconnect(&mut context.smtp.clone().lock().unwrap());
+        context.smtp.clone().lock().unwrap().disconnect();
     }
     dc_loginparam_unref(param);
     dc_loginparam_unref(param_autoconfig);

@@ -16,7 +16,6 @@ use crate::dc_loginparam::*;
 use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_smtp::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
@@ -322,10 +321,9 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: &dc_context_t, mut job: 
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut buf_bytes: size_t = 0i32 as size_t;
     let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut recipients_list: *mut clist = 0 as *mut clist;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     /* connect to SMTP server, if not yet done */
-    if 0 == dc_smtp_is_connected(&context.smtp.clone().lock().unwrap()) {
+    if !context.smtp.clone().lock().unwrap().is_connected() {
         let mut loginparam: *mut dc_loginparam_t = dc_loginparam_new();
         dc_loginparam_read(
             context,
@@ -333,11 +331,12 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: &dc_context_t, mut job: 
             &mut context.sql.clone().lock().unwrap(),
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
-        let mut connected: libc::c_int = dc_smtp_connect(
-            context,
-            &mut context.smtp.clone().lock().unwrap(),
-            loginparam,
-        );
+        let mut connected = context
+            .smtp
+            .clone()
+            .lock()
+            .unwrap()
+            .connect(context, loginparam);
         dc_loginparam_unref(loginparam);
         if 0 == connected {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
@@ -368,10 +367,18 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: &dc_context_t, mut job: 
                         (*job).job_id,
                     );
                 } else {
-                    recipients_list = dc_str_to_clist(
-                        recipients,
-                        b"\x1e\x00" as *const u8 as *const libc::c_char,
-                    );
+                    let recipients_list = std::ffi::CStr::from_ptr(recipients)
+                        .to_str()
+                        .unwrap()
+                        .split("\x1e")
+                        .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
+                            Ok(addr) => Some(addr),
+                            Err(err) => {
+                                eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
                     /* if there is a msg-id and it does not exist in the db, cancel sending.
                     this happends if dc_delete_msgs() was called
                     before the generated mime was sent out */
@@ -396,33 +403,19 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: &dc_context_t, mut job: 
                         14216916617354591294 => {}
                         _ => {
                             /* send message */
-                            if 0 == dc_smtp_send_msg(
+                            let body =
+                                std::slice::from_raw_parts(buf as *const u8, buf_bytes).to_vec();
+                            if 0 == context.smtp.clone().lock().unwrap().send(
                                 context,
-                                &mut context.smtp.clone().lock().unwrap(),
                                 recipients_list,
-                                buf as *const libc::c_char,
-                                buf_bytes,
+                                body,
                             ) {
-                                if 0 != (*job).foreign_id
-                                    && (MAILSMTP_ERROR_EXCEED_STORAGE_ALLOCATION as libc::c_int
-                                        == (*&mut context.smtp.clone().lock().unwrap()).error_etpan
-                                        || MAILSMTP_ERROR_INSUFFICIENT_SYSTEM_STORAGE
-                                            as libc::c_int
-                                            == (*context.smtp.clone().lock().unwrap()).error_etpan)
-                                {
-                                    dc_set_msg_failed(
-                                        context,
-                                        (*job).foreign_id,
-                                        (*&mut context.smtp.clone().lock().unwrap()).error,
-                                    );
-                                } else {
-                                    dc_smtp_disconnect(&mut context.smtp.clone().lock().unwrap());
-                                    dc_job_try_again_later(
-                                        job,
-                                        -1i32,
-                                        (*&mut context.smtp.clone().lock().unwrap()).error,
-                                    );
-                                }
+                                context.smtp.clone().lock().unwrap().disconnect();
+                                dc_job_try_again_later(
+                                    job,
+                                    -1i32,
+                                    (*&mut context.smtp.clone().lock().unwrap()).error,
+                                );
                             } else {
                                 dc_delete_file(context, filename);
                                 if 0 != (*job).foreign_id {
@@ -455,10 +448,6 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: &dc_context_t, mut job: 
         _ => {}
     }
     sqlite3_finalize(stmt);
-    if !recipients_list.is_null() {
-        clist_free_content(recipients_list);
-        clist_free(recipients_list);
-    }
     free(recipients as *mut libc::c_void);
     free(buf);
     free(filename as *mut libc::c_void);

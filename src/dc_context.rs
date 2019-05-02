@@ -34,7 +34,7 @@ pub struct dc_context_t {
     pub probe_imap_network: Arc<RwLock<i32>>,
     pub sentbox_thread: Arc<Mutex<dc_jobthread_t>>,
     pub mvbox_thread: Arc<Mutex<dc_jobthread_t>>,
-    pub smtp: Arc<Mutex<dc_smtp_t>>,
+    pub smtp: Arc<Mutex<Smtp>>,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
     pub cb: dc_callback_t,
@@ -127,7 +127,7 @@ pub fn dc_context_new(
         os_name: unsafe { dc_strdup_keep_null(os_name) },
         running_state: Arc::new(RwLock::new(Default::default())),
         sql: Arc::new(Mutex::new(dc_sqlite3_new())),
-        smtp: Arc::new(Mutex::new(dc_smtp_new())),
+        smtp: Arc::new(Mutex::new(Smtp::new())),
         smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
         oauth2_critical: Arc::new(Mutex::new(())),
         bob: Arc::new(RwLock::new(Default::default())),
@@ -291,7 +291,7 @@ pub unsafe fn dc_context_unref(context: &mut dc_context_t) {
             .lock()
             .unwrap(),
     );
-    dc_smtp_unref(&mut context.smtp.clone().lock().unwrap());
+
     dc_sqlite3_unref(context, &mut context.sql.clone().lock().unwrap());
 
     dc_jobthread_exit(&mut context.sentbox_thread.clone().lock().unwrap());
@@ -326,7 +326,7 @@ pub unsafe fn dc_close(context: &mut dc_context_t) {
             .lock()
             .unwrap(),
     );
-    dc_smtp_disconnect(&mut context.smtp.clone().lock().unwrap());
+    context.smtp.clone().lock().unwrap().disconnect();
 
     if 0 != dc_sqlite3_is_open(&mut context.sql.clone().lock().unwrap()) {
         dc_sqlite3_close(context, &mut context.sql.clone().lock().unwrap());

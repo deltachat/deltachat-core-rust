@@ -513,7 +513,6 @@ unsafe fn prepare_msg_common<'a>(
     match current_block {
         17281240262373992796 => {
             dc_unarchive_chat(context, chat_id);
-            context.smtp.lock().unwrap().log_connect_errors = 1i32;
             chat = dc_chat_new(context);
             if 0 != dc_chat_load_from_db(chat, chat_id) {
                 if (*msg).state != 18i32 {
@@ -2134,7 +2133,6 @@ pub unsafe fn dc_forward_msgs(
     let mut original_param: *mut dc_param_t = dc_param_new();
     if !(msg_ids.is_null() || msg_cnt <= 0i32 || chat_id <= 9i32 as libc::c_uint) {
         dc_unarchive_chat(context, chat_id);
-        context.smtp.lock().unwrap().log_connect_errors = 1i32;
         if !(0 == dc_chat_load_from_db(chat, chat_id)) {
             curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
             idsstr = dc_arr_to_string(msg_ids, msg_cnt);
