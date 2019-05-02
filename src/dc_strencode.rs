@@ -348,10 +348,7 @@ pub unsafe fn dc_decode_header_words(mut in_0: *const libc::c_char) -> *mut libc
         &mut out,
     );
     if r != MAILIMF_NO_ERROR as libc::c_int {
-        println!(
-            "dc_decode_header_words: mailmime_encoded_phrase_parse failed 1 {}",
-            r
-        );
+        println!("dc_decode_header_words: mailmime_encoded_phrase_parse failed 1 {}", r);
     }
     if out.is_null() {
         println!("dc_decode_header_words: mailmime_encoded_phrase_parse failed 2");
