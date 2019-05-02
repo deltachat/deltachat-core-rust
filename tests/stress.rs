@@ -1,6 +1,7 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
+use tempfile::tempdir;
 
 use deltachat::constants::*;
 use deltachat::dc_aheader::*;
@@ -4741,7 +4742,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     };
 }
 
-unsafe extern "C" fn dummy_event_handler(
+unsafe extern "C" fn cb(
     _context: &dc_context_t,
     _event: Event,
     _data1: uintptr_t,
@@ -4752,10 +4753,19 @@ unsafe extern "C" fn dummy_event_handler(
 
 #[test]
 fn run_stress_tests() {
-    let context = dc_context_new(
-        dummy_event_handler,
-        0 as *mut libc::c_void,
-        b"CLI\x00" as *const u8 as *const libc::c_char,
-    );
-    unsafe { stress_functions(&context) };
+    unsafe {
+        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
+        let dir = tempdir().unwrap();
+        let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+        assert_eq!(
+            dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
+            1,
+            "Failed to open {}",
+            CStr::from_ptr(dbfile.as_ptr() as *const libc::c_char)
+                .to_str()
+                .unwrap()
+        );
+
+        stress_functions(&ctx)
+    }
 }
