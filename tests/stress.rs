@@ -64,13 +64,12 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
 
     // FIXME
-    // assert_eq!(
-    //     strcmp(plain, b"line1\nline2\x00" as *const u8 as *const libc::c_char),
-    //     0,
-    //     "{:?}",
-    //     std::ffi::CStr::from_ptr(plain),
-    // );
-    // free(plain as *mut libc::c_void);
+    assert_eq!(
+        CStr::from_ptr(plain as *const libc::c_char).to_str().unwrap(),
+        "line1\nline2",
+    );
+    free(plain as *mut libc::c_void);
+
     html = b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
     plain = dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
     if 0 != !(strcmp(
