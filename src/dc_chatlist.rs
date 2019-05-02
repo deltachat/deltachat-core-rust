@@ -366,8 +366,3 @@ pub unsafe fn dc_chatlist_get_summary<'a>(
     dc_chat_unref(chat_to_delete);
     return ret;
 }
-
-pub unsafe fn dc_chatlist_get_context<'a>(chatlist: *mut dc_chatlist_t<'a>) -> &'a dc_context_t {
-    assert!(!chatlist.is_null());
-    (*chatlist).context
-}
