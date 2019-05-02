@@ -58,7 +58,7 @@ jobs:
           command: |
             export PATH=~/.cargo/bin:$PATH
             export RUST_BACKTRACE=1
-            cargo test --release
+            cargo test
 
 workflows:
   version: 2.1
