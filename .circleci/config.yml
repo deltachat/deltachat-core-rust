@@ -35,6 +35,13 @@ jobs:
             export RUST_BACKTRACE=1
             cargo test
 
+      - run:
+          name: Build deltachat-ffi
+          command: |
+            export PATH=~/.cargo/bin:$PATH
+            export RUST_BACKTRACE=1
+            cargo build --release -p deltachat_ffi
+
 workflows:
   version: 2.1
   build:
