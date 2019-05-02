@@ -267,40 +267,30 @@ pub unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     };
     dc_kml_unref(kml);
     if 0 != dc_is_open(context) {
-        if 0 != dc_file_exist(
-            context,
-            b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-        ) || 0
-            != dc_file_exist(
-                context,
-                b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            )
-            || 0 != dc_file_exist(
-                context,
-                b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
-            )
-            || 0 != dc_file_exist(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )
+        if 0 != dc_file_exist(context, b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char)
         {
             dc_delete_file(
                 context,
                 b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
             );
+        }
+
+        if 0 != dc_file_exist(context, b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char)
+        {
             dc_delete_file(
                 context,
                 b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
             );
+        }
+
+        if 0 != dc_file_exist(context, b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char)
+        {
             dc_delete_file(
                 context,
                 b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
             );
-            dc_delete_file(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            );
         }
+
         dc_write_file(
             context,
             b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
@@ -492,54 +482,6 @@ pub unsafe extern "C" fn stress_functions(context: &dc_context_t) {
                 b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
                 259i32,
                 b"dc_delete_file(context, \"$BLOBDIR/dada\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_create_folder(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                261i32,
-                b"dc_create_folder(context, \"$BLOBDIR/foobar-folder\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_file_exist(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                262i32,
-                b"dc_file_exist(context, \"$BLOBDIR/foobar-folder\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_delete_file(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                263i32,
-                b"dc_delete_file(context, \"$BLOBDIR/foobar-folder\")\x00" as *const u8
                     as *const libc::c_char,
             );
         } else {
