@@ -71,15 +71,12 @@ use deltachat::x::*;
 use libc;
 
 mod cmdline;
-mod stress;
 
 use self::cmdline::*;
-use self::stress::*;
 
 /* ******************************************************************************
  * Event Handler
  ******************************************************************************/
-static mut s_do_log_info: libc::c_int = 1i32;
 
 unsafe extern "C" fn receive_event(
     context: &dc_context_t,
@@ -91,12 +88,10 @@ unsafe extern "C" fn receive_event(
         2091 => {}
         100 => {
             /* do not show the event as this would fill the screen */
-            if 0 != s_do_log_info {
-                printf(
-                    b"%s\n\x00" as *const u8 as *const libc::c_char,
-                    data2 as *mut libc::c_char,
-                );
-            }
+            printf(
+                b"%s\n\x00" as *const u8 as *const libc::c_char,
+                data2 as *mut libc::c_char,
+            );
         }
         101 => {
             printf(
@@ -375,16 +370,11 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
         0 as *mut libc::c_void,
         b"CLI\x00" as *const u8 as *const libc::c_char,
     );
-    let mut stresstest_only: libc::c_int = 0i32;
+
     dc_cmdline_skip_auth();
+
     if argc == 2i32 {
-        if strcmp(
-            *argv.offset(1isize),
-            b"--stress\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32
-        {
-            stresstest_only = 1i32
-        } else if 0 == dc_open(&mut context, *argv.offset(1isize), 0 as *const libc::c_char) {
+        if 0 == dc_open(&mut context, *argv.offset(1isize), 0 as *const libc::c_char) {
             printf(
                 b"ERROR: Cannot open %s.\n\x00" as *const u8 as *const libc::c_char,
                 *argv.offset(1isize),
@@ -393,13 +383,9 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
     } else if argc != 1i32 {
         printf(b"ERROR: Bad arguments\n\x00" as *const u8 as *const libc::c_char);
     }
-    s_do_log_info = 0i32;
-    stress_functions(&context);
-    s_do_log_info = 1i32;
-    if 0 != stresstest_only {
-        return 0i32;
-    }
+
     printf(b"Delta Chat Core is awaiting your commands.\n\x00" as *const u8 as *const libc::c_char);
+
     let mut handles = None;
 
     let ctx = Arc::new(RwLock::new(context));
