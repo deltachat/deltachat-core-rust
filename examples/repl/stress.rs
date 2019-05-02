@@ -459,7 +459,7 @@ pub unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
         assert_eq!(buf_bytes, 7);
         assert_eq!(
-            CStr::from_ptr(buf as *const libc::c_char).to_str().unwrap(),
+            std::str::from_utf8(std::slice::from_raw_parts(buf as *const u8, buf_bytes)).unwrap(),
             "content"
         );
 

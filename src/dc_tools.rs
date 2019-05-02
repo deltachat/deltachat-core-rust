@@ -1324,8 +1324,8 @@ pub unsafe fn dc_file_exist(
 }
 
 pub unsafe fn dc_get_filebytes(
-    mut context: &dc_context_t,
-    mut pathNfilename: *const libc::c_char,
+    context: &dc_context_t,
+    pathNfilename: *const libc::c_char,
 ) -> uint64_t {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     if pathNfilename_abs.is_null() {
@@ -1344,19 +1344,27 @@ pub unsafe fn dc_get_filebytes(
 }
 
 pub unsafe fn dc_delete_file(
-    mut context: &dc_context_t,
-    mut pathNfilename: *const libc::c_char,
+    context: &dc_context_t,
+    pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     if pathNfilename_abs.is_null() {
         return 0;
     }
-    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
-        .to_str()
-        .unwrap();
+    let p = std::path::Path::new(
+        std::ffi::CStr::from_ptr(pathNfilename_abs)
+            .to_str()
+            .unwrap(),
+    );
 
-    match fs::remove_file(p) {
+    let res = if p.is_file() {
+        fs::remove_file(p)
+    } else {
+        fs::remove_dir_all(p)
+    };
+
+    match res {
         Ok(_) => {
             success = 1;
         }
@@ -1506,8 +1514,10 @@ pub unsafe fn dc_read_file(
 
     match fs::read(p) {
         Ok(mut bytes) => {
-            *buf = bytes.as_mut_ptr() as *mut libc::c_void;
+            *buf = &mut bytes[..] as *mut _ as *mut libc::c_void;
             *buf_bytes = bytes.len();
+            std::mem::forget(bytes);
+
             success = 1;
         }
         Err(_err) => {
