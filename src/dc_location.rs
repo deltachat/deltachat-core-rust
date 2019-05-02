@@ -775,8 +775,8 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job
     stmt_chats = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
-        b"SELECT id, locations_send_begin, locations_last_sent\
-              FROM chats\
+        b"SELECT id, locations_send_begin, locations_last_sent \
+              FROM chats \
               WHERE locations_send_until>?;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_bind_int64(stmt_chats, 1i32, now as sqlite3_int64);
