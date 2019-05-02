@@ -77,7 +77,6 @@ use self::cmdline::*;
 /* ******************************************************************************
  * Event Handler
  ******************************************************************************/
-static mut s_do_log_info: libc::c_int = 1i32;
 
 unsafe extern "C" fn receive_event(
     context: &dc_context_t,
@@ -89,12 +88,10 @@ unsafe extern "C" fn receive_event(
         2091 => {}
         100 => {
             /* do not show the event as this would fill the screen */
-            if 0 != s_do_log_info {
-                printf(
-                    b"%s\n\x00" as *const u8 as *const libc::c_char,
-                    data2 as *mut libc::c_char,
-                );
-            }
+            printf(
+                b"%s\n\x00" as *const u8 as *const libc::c_char,
+                data2 as *mut libc::c_char,
+            );
         }
         101 => {
             printf(
@@ -386,9 +383,6 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
     } else if argc != 1i32 {
         printf(b"ERROR: Bad arguments\n\x00" as *const u8 as *const libc::c_char);
     }
-
-    s_do_log_info = 0i32;
-    s_do_log_info = 1i32;
 
     printf(b"Delta Chat Core is awaiting your commands.\n\x00" as *const u8 as *const libc::c_char);
 
