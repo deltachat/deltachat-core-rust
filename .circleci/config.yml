@@ -1,6 +1,4 @@
 # copied from http://koushiro.me/2019/04/30/Building-and-Testing-Rust-projects-on-CircleCI/
-# TODO remove things that aren't needed for apt
-# TODO might want to create our own docker image for this and get rid of apt stuff
 
 version: 2.1
 jobs:
@@ -14,25 +12,14 @@ jobs:
       - checkout
 
       - run:
-          name: Setup build environment (TODO move this to custom docker container)
+          name: Setup build environment
           command: |
             apt update
-            apt install -y sudo curl build-essential git pkg-config zlib1g-dev python libssl-dev autoconf libtool libetpan-dev
+            apt install -y curl build-essential autoconf libtool git python pkg-config zlib1g-dev libssl-dev libetpan-dev libsasl2-dev
             # this will pick default toolchain from `rust-toolchain` file
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path --default-toolchain none -y;
             source $HOME/.cargo/env
           no_output_timeout: 1800s
-
-      - run:
-           name: build sasl2 (TODO move this to custom docker container)
-           command: |
-             curl -O https://www.cyrusimap.org/releases/cyrus-sasl-2.1.27.tar.gz
-             tar zxf cyrus-sasl-2.1.27.tar.gz
-             cd cyrus-sasl-2.1.27
-             ./configure --enable-shared --disable-cmulocal --disable-sample --disable-obsolete_cram_attr --disable-obsolete_digest_attr --disable-alwaystrue --enable-checkapop --enable-cram --enable-digest --enable-scram --enable-plain --enable-anon --enable-login
-             make -j $(nproc)
-             sudo make install
-             sudo ldconfig -v
 
       - run:
           name: Format
