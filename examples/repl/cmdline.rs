@@ -605,7 +605,7 @@ unsafe extern "C" fn chat_prefix(mut chat: *const dc_chat_t) -> *const libc::c_c
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_cmdline(
-    ctx: Arc<RwLock<dc_context_t>>,
+    context: &mut dc_context_t,
     cmdline: &str,
 ) -> *mut libc::c_char {
     let mut cmd = 0 as *mut libc::c_char;
@@ -613,11 +613,6 @@ pub unsafe extern "C" fn dc_cmdline(
     let mut ret: *mut libc::c_char = 1i32 as *mut libc::c_char;
     let mut sel_chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
 
-    let ctx_a = ctx.clone();
-    let context = ctx_a.read().unwrap();
-    if 0 != context.cmdline_sel_chat_id {
-        sel_chat = dc_get_chat(&context, context.cmdline_sel_chat_id)
-    }
     cmd = dc_strdup(CString::new(cmdline).unwrap().as_ptr());
     arg1 = strchr(cmd, ' ' as i32);
     if !arg1.is_null() {
@@ -657,10 +652,8 @@ pub unsafe extern "C" fn dc_cmdline(
         ret = dc_strdup(b"Already authorized.\x00" as *const u8 as *const libc::c_char)
     } else if strcmp(cmd, b"open\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_null() {
-            let ctx_a = ctx.clone();
-            let mut context = ctx_a.write().unwrap();
-            dc_close(&mut context);
-            ret = if 0 != dc_open(&mut context, arg1, 0 as *const libc::c_char) {
+            dc_close(context);
+            ret = if 0 != dc_open(context, arg1, 0 as *const libc::c_char) {
                 2i32 as *mut libc::c_char
             } else {
                 1i32 as *mut libc::c_char
@@ -671,9 +664,7 @@ pub unsafe extern "C" fn dc_cmdline(
             )
         }
     } else if strcmp(cmd, b"close\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        let ctx_a = ctx.clone();
-        let mut context = ctx_a.write().unwrap();
-        dc_close(&mut context);
+        dc_close(context);
         ret = 2i32 as *mut libc::c_char
     } else if strcmp(
         cmd,
@@ -876,6 +867,7 @@ pub unsafe extern "C" fn dc_cmdline(
             } else {
                 0i32
             };
+
         let mut chatlist: *mut dc_chatlist_t =
             dc_get_chatlist(&context, listflags, arg1, 0i32 as uint32_t);
         if !chatlist.is_null() {
@@ -886,6 +878,7 @@ pub unsafe extern "C" fn dc_cmdline(
                                 b"================================================================================\x00"
                                     as *const u8 as *const libc::c_char);
                 i = cnt - 1i32;
+
                 while i >= 0i32 {
                     let mut chat: *mut dc_chat_t =
                         dc_get_chat(&context, dc_chatlist_get_chat_id(chatlist, i as size_t));
@@ -986,11 +979,14 @@ pub unsafe extern "C" fn dc_cmdline(
                 dc_chat_unref(sel_chat);
                 sel_chat = 0 as *mut dc_chat_t
             }
-            ctx.clone().write().unwrap().cmdline_sel_chat_id = atoi(arg1) as uint32_t;
+
+            context.cmdline_sel_chat_id = if sel_chat.is_null() {
+                0
+            } else {
+                atoi(arg1) as uint32_t
+            };
+
             sel_chat = dc_get_chat(&context, context.cmdline_sel_chat_id);
-            if sel_chat.is_null() {
-                ctx.clone().write().unwrap().cmdline_sel_chat_id = 0i32 as uint32_t
-            }
         }
         if !sel_chat.is_null() {
             let mut msglist: *mut dc_array_t = dc_get_chat_msgs(
@@ -1589,6 +1585,7 @@ pub unsafe extern "C" fn dc_cmdline(
         if !arg1.is_null() {
             arg2_4 = strrchr(arg1, ' ' as i32)
         }
+
         if !arg1.is_null() && !arg2_4.is_null() {
             *arg2_4 = 0i32 as libc::c_char;
             arg2_4 = arg2_4.offset(1isize);
@@ -1621,6 +1618,7 @@ pub unsafe extern "C" fn dc_cmdline(
                 free: 0,
                 eos: 0 as *mut libc::c_char,
             };
+
             dc_strbuilder_init(&mut strbuilder, 0i32);
             let mut contact: *mut dc_contact_t = dc_get_contact(&context, contact_id_3 as uint32_t);
             let mut nameNaddr: *mut libc::c_char = dc_contact_get_name_n_addr(contact);
@@ -1752,6 +1750,7 @@ pub unsafe extern "C" fn dc_cmdline(
             let mut buf_bytes: size_t = 0;
             let mut w: uint32_t = 0;
             let mut h: uint32_t = 0;
+
             if 0 != dc_read_file(
                 &context,
                 arg1,

@@ -518,7 +518,8 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
                 break;
             }
             if !(*cmd.offset(0isize) as libc::c_int == 0i32) {
-                let mut execute_result: *mut libc::c_char = dc_cmdline(ctx, &cmdline);
+                let mut execute_result: *mut libc::c_char =
+                    dc_cmdline(&mut ctx.clone().write().unwrap(), &cmdline);
                 if !execute_result.is_null() {
                     printf(
                         b"%s\n\x00" as *const u8 as *const libc::c_char,
