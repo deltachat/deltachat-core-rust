@@ -17,7 +17,7 @@ jobs:
           name: Setup build environment (TODO move this to custom docker container)
           command: |
             apt update
-            apt install -y sudo curl build-essential git pkg-config zlib1g-dev python libssl-dev autoconf libtool libetpan-dev libsasl2-dev
+            apt install -y curl build-essential git pkg-config zlib1g-dev python libssl-dev autoconf libtool libetpan-dev libsasl2-dev
             # this will pick default toolchain from `rust-toolchain` file
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path --default-toolchain none -y;
             source $HOME/.cargo/env
