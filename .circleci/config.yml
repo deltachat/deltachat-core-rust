@@ -17,23 +17,11 @@ jobs:
           name: Setup build environment (TODO move this to custom docker container)
           command: |
             apt update
-            apt install -y sudo curl build-essential git pkg-config zlib1g-dev python libssl-dev autoconf libtool
+            apt install -y sudo curl build-essential git pkg-config zlib1g-dev python libssl-dev autoconf libtool libetpan-dev
             # this will pick default toolchain from `rust-toolchain` file
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path --default-toolchain none -y;
             source $HOME/.cargo/env
           no_output_timeout: 1800s
-
-      - run:
-           name: build etpan (TODO move this to custom docker container)
-           command: |
-             curl -L -o libetpan-1.9.1.tar.gz https://github.com/dinhviethoa/libetpan/archive/1.9.1.tar.gz
-             tar xzf libetpan-1.9.1.tar.gz
-             cd libetpan-1.9.1
-             ./autogen.sh
-             ./configure --disable-silent-rules --enable-ipv6 --enable-iconv --disable-db --with-openssl --with-sasl --with-zlib --without-curl --without-expat
-             make -j $(nproc)
-             sudo make install
-             sudo ldconfig -v
 
       - run:
            name: build sasl2 (TODO move this to custom docker container)
