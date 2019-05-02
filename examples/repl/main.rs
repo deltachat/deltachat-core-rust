@@ -403,8 +403,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             arg1 = arg1.offset(1isize)
         }
         if strcmp(cmd, b"connect\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            let ctx = ctx.clone();
-            handles = Some(start_threads(ctx));
+            handles = Some(start_threads(ctx.clone()));
         } else if strcmp(cmd, b"disconnect\x00" as *const u8 as *const libc::c_char) == 0i32 {
             stop_threads(&ctx.read().unwrap(), handles);
             handles = None;

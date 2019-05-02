@@ -134,7 +134,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 stmt =
                     dc_sqlite3_prepare(
                         context,
-                        &mut context.sql.clone().lock().unwrap(),
+                        &context.sql.clone().read().unwrap(),
                         b"SELECT c.authname, c.addr  FROM chats_contacts cc  LEFT JOIN contacts c ON cc.contact_id=c.id  WHERE cc.chat_id=? AND cc.contact_id>9;\x00"
                             as *const u8 as
                             *const libc::c_char);
@@ -174,7 +174,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                     );
                     let mut self_addr: *mut libc::c_char = dc_sqlite3_get_config(
                         context,
-                        &mut context.sql.clone().lock().unwrap(),
+                        &context.sql.clone().read().unwrap(),
                         b"configured_addr\x00" as *const u8 as *const libc::c_char,
                         b"\x00" as *const u8 as *const libc::c_char,
                     );
@@ -201,7 +201,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                     && command != 7i32
                     && 0 != dc_sqlite3_get_config_int(
                         context,
-                        &mut context.sql.clone().lock().unwrap(),
+                        &context.sql.clone().read().unwrap(),
                         b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                         1i32,
                     )
@@ -211,7 +211,7 @@ pub unsafe fn dc_mimefactory_load_msg(
             }
             stmt = dc_sqlite3_prepare(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?\x00" as *const u8
                     as *const libc::c_char,
             );
@@ -239,19 +239,19 @@ pub unsafe fn dc_mimefactory_load_msg(
 unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     (*factory).from_addr = dc_sqlite3_get_config(
         (*factory).context,
-        &mut (*factory).context.sql.clone().lock().unwrap(),
+        &mut (*factory).context.sql.clone().read().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
     (*factory).from_displayname = dc_sqlite3_get_config(
         (*factory).context,
-        &mut (*factory).context.sql.clone().lock().unwrap(),
+        &mut (*factory).context.sql.clone().read().unwrap(),
         b"displayname\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
     (*factory).selfstatus = dc_sqlite3_get_config(
         (*factory).context,
-        &mut (*factory).context.sql.clone().lock().unwrap(),
+        &mut (*factory).context.sql.clone().read().unwrap(),
         b"selfstatus\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
@@ -272,7 +272,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
         if !(0
             == dc_sqlite3_get_config_int(
                 (*factory).context,
-                &mut (*factory).context.sql.clone().lock().unwrap(),
+                &mut (*factory).context.sql.clone().read().unwrap(),
                 b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                 1i32,
             ))
@@ -282,7 +282,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
             if !(0 == dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
                 || 0 == dc_contact_load_from_db(
                     contact,
-                    &mut (*factory).context.sql.clone().lock().unwrap(),
+                    &mut (*factory).context.sql.clone().read().unwrap(),
                     (*(*factory).msg).from_id,
                 ))
             {

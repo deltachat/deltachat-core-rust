@@ -63,7 +63,7 @@ pub unsafe fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
 pub unsafe fn dc_loginparam_read(
     context: &dc_context_t,
     loginparam: *mut dc_loginparam_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     prefix: *const libc::c_char,
 ) {
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -143,7 +143,7 @@ pub unsafe fn dc_loginparam_read(
 pub unsafe fn dc_loginparam_write(
     context: &dc_context_t,
     loginparam: *const dc_loginparam_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     prefix: *const libc::c_char,
 ) {
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;

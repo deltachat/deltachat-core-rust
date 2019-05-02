@@ -133,7 +133,7 @@ pub unsafe fn dc_check_password(
     dc_loginparam_read(
         context,
         loginparam,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"configured_\x00" as *const u8 as *const libc::c_char,
     );
     if ((*loginparam).mail_pw.is_null()
@@ -292,7 +292,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
         if !(0 == dc_ensure_secret_key_exists(context)) {
             self_addr = dc_sqlite3_get_config(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"configured_addr\x00" as *const u8 as *const libc::c_char,
                 0 as *const libc::c_char,
             );
@@ -300,11 +300,11 @@ pub unsafe extern "C" fn dc_render_setup_file(
                 context,
                 curr_private_key,
                 self_addr,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
             );
             let mut e2ee_enabled: libc::c_int = dc_sqlite3_get_config_int(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
                 1i32,
             );
@@ -522,7 +522,7 @@ unsafe fn set_self_key(
     } else {
         stmt = dc_sqlite3_prepare(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM keypairs WHERE public_key=? OR private_key=?;\x00" as *const u8
                 as *const libc::c_char,
         );
@@ -540,13 +540,13 @@ unsafe fn set_self_key(
         if 0 != set_default {
             dc_sqlite3_execute(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"UPDATE keypairs SET is_default=0;\x00" as *const u8 as *const libc::c_char,
             );
         }
         self_addr = dc_sqlite3_get_config(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
         );
@@ -556,7 +556,7 @@ unsafe fn set_self_key(
             private_key,
             self_addr,
             set_default,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
         ) {
             dc_log_error(
                 context,
@@ -572,7 +572,7 @@ unsafe fn set_self_key(
                 {
                     dc_sqlite3_set_config_int(
                         context,
-                        &mut context.sql.clone().lock().unwrap(),
+                        &context.sql.clone().read().unwrap(),
                         b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
                         0i32,
                     );
@@ -583,7 +583,7 @@ unsafe fn set_self_key(
                 {
                     dc_sqlite3_set_config_int(
                         context,
-                        &mut context.sql.clone().lock().unwrap(),
+                        &context.sql.clone().read().unwrap(),
                         b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
                         1i32,
                     );
@@ -733,7 +733,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: &dc_context_t, mut job: *m
                 10i32 as uintptr_t,
                 0i32 as uintptr_t,
             );
-            if 0 == dc_sqlite3_is_open(&mut context.sql.clone().lock().unwrap()) {
+            if 0 == dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
                 dc_log_error(
                     context,
                     0i32,
@@ -986,8 +986,8 @@ unsafe fn import_backup(
             b"Cannot import backups to accounts in use.\x00" as *const u8 as *const libc::c_char,
         );
     } else {
-        if 0 != dc_sqlite3_is_open(&mut context.sql.clone().lock().unwrap()) {
-            dc_sqlite3_close(context, &mut context.sql.clone().lock().unwrap());
+        if 0 != dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
+            dc_sqlite3_close(context, &mut context.sql.clone().write().unwrap());
         }
         dc_delete_file(context, context.dbfile);
         if 0 != dc_file_exist(context, context.dbfile) {
@@ -1003,14 +1003,14 @@ unsafe fn import_backup(
             if !(0
                 == dc_sqlite3_open(
                     context,
-                    &mut context.sql.clone().lock().unwrap(),
+                    &mut context.sql.clone().write().unwrap(),
                     context.dbfile,
                     0i32,
                 ))
             {
                 stmt = dc_sqlite3_prepare(
                     context,
-                    &mut context.sql.clone().lock().unwrap(),
+                    &context.sql.clone().read().unwrap(),
                     b"SELECT COUNT(*) FROM backup_blobs;\x00" as *const u8 as *const libc::c_char,
                 );
                 sqlite3_step(stmt);
@@ -1019,7 +1019,7 @@ unsafe fn import_backup(
                 stmt = 0 as *mut sqlite3_stmt;
                 stmt = dc_sqlite3_prepare(
                     context,
-                    &mut context.sql.clone().lock().unwrap(),
+                    &context.sql.clone().read().unwrap(),
                     b"SELECT file_name, file_content FROM backup_blobs ORDER BY id;\x00"
                         as *const u8 as *const libc::c_char,
                 );
@@ -1094,12 +1094,12 @@ unsafe fn import_backup(
                         stmt = 0 as *mut sqlite3_stmt;
                         dc_sqlite3_execute(
                             context,
-                            &mut context.sql.clone().lock().unwrap(),
+                            &context.sql.clone().read().unwrap(),
                             b"DROP TABLE backup_blobs;\x00" as *const u8 as *const libc::c_char,
                         );
                         dc_sqlite3_try_execute(
                             context,
-                            &mut context.sql.clone().lock().unwrap(),
+                            &context.sql.clone().read().unwrap(),
                             b"VACUUM;\x00" as *const u8 as *const libc::c_char,
                         );
                         success = 1i32
@@ -1159,10 +1159,10 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
         dc_housekeeping(context);
         dc_sqlite3_try_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"VACUUM;\x00" as *const u8 as *const libc::c_char,
         );
-        dc_sqlite3_close(context, &mut context.sql.clone().lock().unwrap());
+        dc_sqlite3_close(context, &mut context.sql.clone().write().unwrap());
         closed = 1i32;
         dc_log_info(
             context,
@@ -1175,7 +1175,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
             /* error already logged */
             dc_sqlite3_open(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &mut context.sql.clone().write().unwrap(),
                 context.dbfile,
                 0i32,
             );
@@ -1394,7 +1394,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
     if 0 != closed {
         dc_sqlite3_open(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &mut context.sql.clone().write().unwrap(),
             context.dbfile,
             0i32,
         );
@@ -1558,7 +1558,7 @@ unsafe fn export_self_keys(
     let mut private_key: *mut dc_key_t = dc_key_new();
     let stmt = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"SELECT id, public_key, private_key, is_default FROM keypairs;\x00" as *const u8
             as *const libc::c_char,
     );

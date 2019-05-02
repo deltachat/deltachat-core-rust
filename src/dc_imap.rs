@@ -487,8 +487,8 @@ pub unsafe fn dc_imap_is_connected(imap: &dc_imap_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_imap_fetch(context: &dc_context_t, imap: &mut dc_imap_t) -> libc::c_int {
-    let mut success: libc::c_int = 0;
-    if !0 == imap.connected {
+    let mut success = 0;
+    if 0 != imap.connected {
         setup_handle_if_needed(context, imap);
         while fetch_from_single_folder(context, imap, imap.watch_folder) > 0 {}
         success = 1;
@@ -781,6 +781,7 @@ unsafe fn fetch_from_single_folder(
         mailimap_fetch_list_free(fetch_result);
         fetch_result = 0 as *mut clist
     }
+
     read_cnt as libc::c_int
 }
 

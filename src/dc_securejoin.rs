@@ -58,7 +58,7 @@ pub unsafe fn dc_get_securejoin_qr(
     }
     self_addr = dc_sqlite3_get_config(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
@@ -71,7 +71,7 @@ pub unsafe fn dc_get_securejoin_qr(
     } else {
         self_name = dc_sqlite3_get_config(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"displayname\x00" as *const u8 as *const libc::c_char,
             b"\x00" as *const u8 as *const libc::c_char,
         );
@@ -153,7 +153,7 @@ unsafe fn get_self_fingerprint(mut context: &dc_context_t) -> *mut libc::c_char 
     let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     self_addr = dc_sqlite3_get_config(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
@@ -162,7 +162,7 @@ unsafe fn get_self_fingerprint(mut context: &dc_context_t) -> *mut libc::c_char 
             context,
             self_key,
             self_addr,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
         ))
     {
         fingerprint = dc_key_get_fingerprint(context, self_key);
@@ -367,12 +367,12 @@ unsafe fn fingerprint_equals_sender(
         if !(0
             == dc_contact_load_from_db(
                 contact,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 dc_array_get_id(contacts, 0i32 as size_t),
             )
             || 0 == dc_apeerstate_load_by_addr(
                 peerstate,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 (*contact).addr,
             ))
         {
@@ -978,14 +978,14 @@ unsafe fn mark_peer_as_verified(
     if !(0
         == dc_apeerstate_load_by_fingerprint(
             peerstate,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             fingerprint,
         ))
     {
         if !(0 == dc_apeerstate_set_verified(peerstate, 1i32, fingerprint, 2i32)) {
             (*peerstate).prefer_encrypt = 1i32;
             (*peerstate).to_save |= 0x2i32;
-            dc_apeerstate_save_to_db(peerstate, &mut context.sql.clone().lock().unwrap(), 0i32);
+            dc_apeerstate_save_to_db(peerstate, &context.sql.clone().read().unwrap(), 0i32);
             success = 1i32
         }
     }
@@ -1057,7 +1057,7 @@ pub unsafe fn dc_handle_degrade_event(
         if 0 != (*peerstate).degrade_event & 0x2i32 {
             stmt = dc_sqlite3_prepare(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"SELECT id FROM contacts WHERE addr=?;\x00" as *const u8 as *const libc::c_char,
             );
             sqlite3_bind_text(stmt, 1i32, (*peerstate).addr, -1i32, None);

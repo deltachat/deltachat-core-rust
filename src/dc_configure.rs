@@ -84,7 +84,7 @@ pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
     return if 0
         != dc_sqlite3_get_config_int(
             context,
-            &mut context.sql.lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"configured\x00" as *const u8 as *const libc::c_char,
             0i32,
         ) {
@@ -129,7 +129,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
 
     if !(0 == dc_alloc_ongoing(context)) {
         ongoing_allocated_here = 1i32;
-        if 0 == dc_sqlite3_is_open(&mut context.sql.lock().unwrap()) {
+        if 0 == dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
             dc_log_error(
                 context,
                 0i32,
@@ -208,7 +208,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                 dc_loginparam_read(
                     context,
                     param,
-                    &mut context.sql.lock().unwrap(),
+                    &context.sql.clone().read().unwrap(),
                     b"\x00" as *const u8 as *const libc::c_char,
                 );
                 if (*param).addr.is_null() {
@@ -245,7 +245,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                 (*param).addr = oauth2_addr;
                                 dc_sqlite3_set_config(
                                     context,
-                                    &mut context.sql.lock().unwrap(),
+                                    &context.sql.clone().read().unwrap(),
                                     b"addr\x00" as *const u8 as *const libc::c_char,
                                     (*param).addr,
                                 );
@@ -1162,7 +1162,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             =
                                                                             if 0
                                                                             !=
-                                                                            dc_sqlite3_get_config_int(context, &mut context.sql.lock().unwrap(),
+                                                                            dc_sqlite3_get_config_int(context, &context.sql.clone().read().unwrap(),
                                                                                                       b"mvbox_watch\x00"
                                                                                                       as
                                                                                                       *const u8
@@ -1172,7 +1172,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             ||
                                                                             0
                                                                             !=
-                                                                            dc_sqlite3_get_config_int(context, &mut context.sql.lock().unwrap(),
+                                                                            dc_sqlite3_get_config_int(context, &context.sql.clone().read().unwrap(),
                                                                                                       b"mvbox_move\x00"
                                                                                                       as
                                                                                                       *const u8
@@ -1215,13 +1215,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                                             as
                                                                                             uintptr_t);
                                                                             dc_loginparam_write(context, param,
-                                                                                                &mut context.sql.lock().unwrap(),
+                                                                                                &context.sql.clone().read().unwrap(),
                                                                                                 b"configured_\x00"
                                                                                                 as
                                                                                                 *const u8
                                                                                                 as
                                                                                                 *const libc::c_char);
-                                                                            dc_sqlite3_set_config_int(context, &mut context.sql.lock().unwrap(),
+                                                                            dc_sqlite3_set_config_int(context, &context.sql.clone().read().unwrap(),
                                                                                                       b"configured\x00"
                                                                                                       as
                                                                                                       *const u8
@@ -1427,19 +1427,19 @@ pub unsafe fn dc_configure_folders(
         }
         dc_sqlite3_set_config_int(
             context,
-            &mut context.sql.lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"folders_configured\x00" as *const u8 as *const libc::c_char,
             3i32,
         );
         dc_sqlite3_set_config(
             context,
-            &mut context.sql.lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
             mvbox_folder,
         );
         dc_sqlite3_set_config(
             context,
-            &mut context.sql.lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
             sentbox_folder,
         );
@@ -2104,7 +2104,7 @@ pub unsafe fn dc_connect_to_configured_imap(
         ret_connected = 1i32
     } else if dc_sqlite3_get_config_int(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"configured\x00" as *const u8 as *const libc::c_char,
         0i32,
     ) == 0i32
@@ -2118,7 +2118,7 @@ pub unsafe fn dc_connect_to_configured_imap(
         dc_loginparam_read(
             context,
             param,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
         /*the trailing underscore is correct*/

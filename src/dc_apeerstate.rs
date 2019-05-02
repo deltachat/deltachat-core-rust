@@ -314,7 +314,7 @@ pub unsafe fn dc_apeerstate_set_verified(
 }
 pub unsafe fn dc_apeerstate_load_by_addr(
     mut peerstate: *mut dc_apeerstate_t,
-    mut sql: &mut dc_sqlite3_t,
+    mut sql: &dc_sqlite3_t,
     mut addr: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
@@ -366,7 +366,7 @@ unsafe fn dc_apeerstate_set_from_stmt(
 }
 pub unsafe fn dc_apeerstate_load_by_fingerprint(
     mut peerstate: *mut dc_apeerstate_t,
-    mut sql: &mut dc_sqlite3_t,
+    mut sql: &dc_sqlite3_t,
     mut fingerprint: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
@@ -392,7 +392,7 @@ pub unsafe fn dc_apeerstate_load_by_fingerprint(
 }
 pub unsafe fn dc_apeerstate_save_to_db(
     mut peerstate: *const dc_apeerstate_t,
-    mut sql: &mut dc_sqlite3_t,
+    mut sql: &dc_sqlite3_t,
     mut create: libc::c_int,
 ) -> libc::c_int {
     let mut current_block: u64;

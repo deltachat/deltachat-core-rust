@@ -70,7 +70,7 @@ pub unsafe extern "C" fn dc_reset_tables(
     if 0 != bits & 1i32 {
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM jobs;\x00" as *const u8 as *const libc::c_char,
         );
         dc_log_info(
@@ -82,7 +82,7 @@ pub unsafe extern "C" fn dc_reset_tables(
     if 0 != bits & 2i32 {
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM acpeerstates;\x00" as *const u8 as *const libc::c_char,
         );
         dc_log_info(
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn dc_reset_tables(
     if 0 != bits & 4i32 {
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM keypairs;\x00" as *const u8 as *const libc::c_char,
         );
         dc_log_info(
@@ -106,33 +106,33 @@ pub unsafe extern "C" fn dc_reset_tables(
     if 0 != bits & 8i32 {
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM contacts WHERE id>9;\x00" as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM chats WHERE id>9;\x00" as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM chats_contacts;\x00" as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM msgs WHERE id>9;\x00" as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM config WHERE keyname LIKE \'imap.%\' OR keyname LIKE \'configured%\';\x00"
                 as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"DELETE FROM leftgrps;\x00" as *const u8 as *const libc::c_char,
         );
         dc_log_info(
@@ -165,7 +165,7 @@ unsafe extern "C" fn dc_cleanup_contacts(mut context: &dc_context_t) -> libc::c_
         0i32,
         b"Cleaning up contacts ...\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_execute(context, &mut context.sql.clone().lock().unwrap(),
+    dc_sqlite3_execute(context, &context.sql.clone().read().unwrap(),
                        b"DELETE FROM contacts WHERE id>9 AND blocked=0 AND NOT EXISTS (SELECT contact_id FROM chats_contacts where contacts.id = chats_contacts.contact_id) AND NOT EXISTS (select from_id from msgs WHERE msgs.from_id = contacts.id);\x00"
                            as *const u8 as *const libc::c_char);
     return 1i32;
@@ -223,14 +223,14 @@ unsafe extern "C" fn poke_public_key(
         } else {
             if 0 != dc_apeerstate_load_by_addr(
                 peerstate,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 addr,
             ) {
                 dc_apeerstate_apply_header(peerstate, header, time(0 as *mut time_t));
-                dc_apeerstate_save_to_db(peerstate, &mut context.sql.clone().lock().unwrap(), 0i32);
+                dc_apeerstate_save_to_db(peerstate, &context.sql.clone().read().unwrap(), 0i32);
             } else {
                 dc_apeerstate_init_from_header(peerstate, header, time(0 as *mut time_t));
-                dc_apeerstate_save_to_db(peerstate, &mut context.sql.clone().lock().unwrap(), 1i32);
+                dc_apeerstate_save_to_db(peerstate, &context.sql.clone().read().unwrap(), 1i32);
             }
             success = 1i32
         }
@@ -261,7 +261,7 @@ unsafe extern "C" fn poke_spec(
     let mut dir_entry: *mut dirent = 0 as *mut dirent;
     let mut read_cnt: libc::c_int = 0i32;
     let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
-    if 0 == dc_sqlite3_is_open(&mut context.sql.clone().lock().unwrap()) {
+    if 0 == dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
         dc_log_error(
             context,
             0i32,
@@ -273,7 +273,7 @@ unsafe extern "C" fn poke_spec(
             real_spec = dc_strdup(spec);
             dc_sqlite3_set_config(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"import_spec\x00" as *const u8 as *const libc::c_char,
                 real_spec,
             );
@@ -281,7 +281,7 @@ unsafe extern "C" fn poke_spec(
         } else {
             real_spec = dc_sqlite3_get_config(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"import_spec\x00" as *const u8 as *const libc::c_char,
                 0 as *const libc::c_char,
             );
@@ -543,11 +543,8 @@ unsafe extern "C" fn log_contactlist(mut context: &dc_context_t, mut contacts: *
                     b"addr unset\x00" as *const u8 as *const libc::c_char
                 },
             );
-            let mut peerstate_ok: libc::c_int = dc_apeerstate_load_by_addr(
-                peerstate,
-                &mut context.sql.clone().lock().unwrap(),
-                addr,
-            );
+            let mut peerstate_ok: libc::c_int =
+                dc_apeerstate_load_by_addr(peerstate, &context.sql.clone().read().unwrap(), addr);
             if 0 != peerstate_ok && contact_id != 1i32 as libc::c_uint {
                 let mut pe: *mut libc::c_char = 0 as *mut libc::c_char;
                 match (*peerstate).prefer_encrypt {

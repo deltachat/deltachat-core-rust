@@ -56,7 +56,7 @@ pub unsafe fn dc_send_locations_to_chat(
         stmt =
             dc_sqlite3_prepare(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"UPDATE chats    SET locations_send_begin=?,        locations_send_until=?  WHERE id=?\x00"
                     as *const u8 as *const libc::c_char);
         sqlite3_bind_int64(
@@ -138,7 +138,7 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
 
     stmt = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"SELECT id  FROM chats  WHERE (? OR id=?)   AND locations_send_until>?;\x00" as *const u8
             as *const libc::c_char,
     );
@@ -174,7 +174,7 @@ pub unsafe fn dc_set_location(
     } else {
         stmt_chats = dc_sqlite3_prepare(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"SELECT id FROM chats WHERE locations_send_until>?;\x00" as *const u8
                 as *const libc::c_char,
         );
@@ -184,7 +184,7 @@ pub unsafe fn dc_set_location(
             stmt_insert =
                 dc_sqlite3_prepare(
                     context,
-                    &mut context.sql.clone().lock().unwrap(),
+                    &context.sql.clone().read().unwrap(),
                     b"INSERT INTO locations  (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);\x00"
                         as *const u8 as *const libc::c_char);
             sqlite3_bind_double(stmt_insert, 1i32, latitude);
@@ -225,7 +225,7 @@ pub unsafe fn dc_get_locations(
     }
     stmt = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp, l.independent \
               m.id, l.from_id, l.chat_id, m.txt \
               FROM locations l  LEFT JOIN msgs m ON l.id=m.location_id  WHERE (? OR l.chat_id=?) \
@@ -299,7 +299,7 @@ pub unsafe fn dc_delete_all_locations(mut context: &dc_context_t) {
 
     stmt = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"DELETE FROM locations;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_step(stmt);
@@ -335,14 +335,14 @@ pub unsafe fn dc_get_location_kml(
 
     self_addr = dc_sqlite3_get_config(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         b"\x00" as *const u8 as *const libc::c_char,
     );
     stmt =
         dc_sqlite3_prepare(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;\x00"
                 as *const u8 as *const libc::c_char);
     sqlite3_bind_int(stmt, 1i32, chat_id as libc::c_int);
@@ -359,7 +359,7 @@ pub unsafe fn dc_get_location_kml(
                                    self_addr);
             stmt = dc_sqlite3_prepare(
                 context,
-                    &mut context.sql.clone().lock().unwrap(),
+                    &context.sql.clone().read().unwrap(),
                     b"SELECT id, latitude, longitude, accuracy, timestamp\
                           FROM locations  WHERE from_id=? \
                           AND timestamp>=? \
@@ -489,7 +489,7 @@ pub unsafe fn dc_set_kml_sent_timestamp(
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"UPDATE chats SET locations_last_sent=? WHERE id=?;\x00" as *const u8
             as *const libc::c_char,
     );
@@ -506,7 +506,7 @@ pub unsafe fn dc_set_msg_location_id(
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"UPDATE msgs SET location_id=? WHERE id=?;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_bind_int64(stmt, 1i32, location_id as sqlite3_int64);
@@ -528,13 +528,13 @@ pub unsafe fn dc_save_locations(
     if !(chat_id <= 9i32 as libc::c_uint || locations.is_null()) {
         stmt_test = dc_sqlite3_prepare(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"SELECT id FROM locations WHERE timestamp=? AND from_id=?\x00" as *const u8
                 as *const libc::c_char,
         );
         stmt_insert = dc_sqlite3_prepare(
             context,
-            &mut context.sql.clone().lock().unwrap(),
+            &context.sql.clone().read().unwrap(),
             b"INSERT INTO locations\
                   (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
                   VALUES (?,?,?,?,?,?,?);\x00" as *const u8 as *const libc::c_char,
@@ -561,7 +561,7 @@ pub unsafe fn dc_save_locations(
                 newest_timestamp = (*location).timestamp;
                 newest_location_id = dc_sqlite3_get_rowid2(
                     context,
-                    &mut context.sql.clone().lock().unwrap(),
+                    &context.sql.clone().read().unwrap(),
                     b"locations\x00" as *const u8 as *const libc::c_char,
                     b"timestamp\x00" as *const u8 as *const libc::c_char,
                     (*location).timestamp as uint64_t,
@@ -774,7 +774,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job
     );
     stmt_chats = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"SELECT id, locations_send_begin, locations_last_sent\
               FROM chats\
               WHERE locations_send_until>?;\x00" as *const u8 as *const libc::c_char,
@@ -792,7 +792,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job
         if stmt_locations.is_null() {
             stmt_locations = dc_sqlite3_prepare(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"SELECT id \
                   FROM locations \
                   WHERE from_id=? \
@@ -847,7 +847,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
     let mut stock_str: *mut libc::c_char = 0 as *mut libc::c_char;
     stmt = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?\x00"
             as *const u8 as *const libc::c_char,
     );
@@ -870,7 +870,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
                 stmt =
                     dc_sqlite3_prepare(
                         context,
-                        &mut context.sql.clone().lock().unwrap(),
+                        &context.sql.clone().read().unwrap(),
                         b"UPDATE chats    SET locations_send_begin=0, locations_send_until=0  WHERE id=?\x00"
                             as *const u8 as
                             *const libc::c_char);

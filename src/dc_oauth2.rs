@@ -33,7 +33,7 @@ pub unsafe fn dc_get_oauth2_url(
         if !oauth2.is_null() {
             dc_sqlite3_set_config(
                 context,
-                &mut context.sql.clone().lock().unwrap(),
+                &context.sql.clone().read().unwrap(),
                 b"oauth2_pending_redirect_uri\x00" as *const u8 as *const libc::c_char,
                 redirect_uri,
             );
@@ -173,7 +173,7 @@ pub unsafe fn dc_get_oauth2_access_token(
             if 0 == flags & 0x1i32 && 0 == is_expired(context) {
                 access_token = dc_sqlite3_get_config(
                     context,
-                    &mut context.sql.clone().lock().unwrap(),
+                    &context.sql.clone().read().unwrap(),
                     b"oauth2_access_token\x00" as *const u8 as *const libc::c_char,
                     0 as *const libc::c_char,
                 );
@@ -191,13 +191,13 @@ pub unsafe fn dc_get_oauth2_access_token(
                 _ => {
                     refresh_token = dc_sqlite3_get_config(
                         context,
-                        &mut context.sql.clone().lock().unwrap(),
+                        &context.sql.clone().read().unwrap(),
                         b"oauth2_refresh_token\x00" as *const u8 as *const libc::c_char,
                         0 as *const libc::c_char,
                     );
                     refresh_token_for = dc_sqlite3_get_config(
                         context,
-                        &mut context.sql.clone().lock().unwrap(),
+                        &context.sql.clone().read().unwrap(),
                         b"oauth2_refresh_token_for\x00" as *const u8 as *const libc::c_char,
                         b"unset\x00" as *const u8 as *const libc::c_char,
                     );
@@ -210,7 +210,7 @@ pub unsafe fn dc_get_oauth2_access_token(
                         );
                         redirect_uri = dc_sqlite3_get_config(
                             context,
-                            &mut context.sql.clone().lock().unwrap(),
+                            &context.sql.clone().read().unwrap(),
                             b"oauth2_pending_redirect_uri\x00" as *const u8 as *const libc::c_char,
                             b"unset\x00" as *const u8 as *const libc::c_char,
                         );
@@ -225,7 +225,7 @@ pub unsafe fn dc_get_oauth2_access_token(
                         );
                         redirect_uri = dc_sqlite3_get_config(
                             context,
-                            &mut context.sql.clone().lock().unwrap(),
+                            &context.sql.clone().read().unwrap(),
                             b"oauth2_redirect_uri\x00" as *const u8 as *const libc::c_char,
                             b"unset\x00" as *const u8 as *const libc::c_char,
                         );
@@ -380,13 +380,13 @@ pub unsafe fn dc_get_oauth2_access_token(
                             {
                                 dc_sqlite3_set_config(
                                     context,
-                                    &mut context.sql.clone().lock().unwrap(),
+                                    &context.sql.clone().read().unwrap(),
                                     b"oauth2_refresh_token\x00" as *const u8 as *const libc::c_char,
                                     refresh_token,
                                 );
                                 dc_sqlite3_set_config(
                                     context,
-                                    &mut context.sql.clone().lock().unwrap(),
+                                    &context.sql.clone().read().unwrap(),
                                     b"oauth2_refresh_token_for\x00" as *const u8
                                         as *const libc::c_char,
                                     code,
@@ -406,13 +406,13 @@ pub unsafe fn dc_get_oauth2_access_token(
                             } else {
                                 dc_sqlite3_set_config(
                                     context,
-                                    &mut context.sql.clone().lock().unwrap(),
+                                    &context.sql.clone().read().unwrap(),
                                     b"oauth2_access_token\x00" as *const u8 as *const libc::c_char,
                                     access_token,
                                 );
                                 dc_sqlite3_set_config_int64(
                                     context,
-                                    &mut context.sql.clone().lock().unwrap(),
+                                    &context.sql.clone().read().unwrap(),
                                     b"oauth2_timestamp_expires\x00" as *const u8
                                         as *const libc::c_char,
                                     (if 0 != expires_in {
@@ -424,7 +424,7 @@ pub unsafe fn dc_get_oauth2_access_token(
                                 if 0 != update_redirect_uri_on_success {
                                     dc_sqlite3_set_config(
                                         context,
-                                        &mut context.sql.clone().lock().unwrap(),
+                                        &context.sql.clone().read().unwrap(),
                                         b"oauth2_redirect_uri\x00" as *const u8
                                             as *const libc::c_char,
                                         redirect_uri,
@@ -483,7 +483,7 @@ unsafe extern "C" fn jsoneq(
 unsafe fn is_expired(mut context: &dc_context_t) -> libc::c_int {
     let mut expire_timestamp: time_t = dc_sqlite3_get_config_int64(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
         0i32 as int64_t,
     ) as time_t;

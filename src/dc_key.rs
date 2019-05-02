@@ -257,7 +257,7 @@ pub unsafe fn dc_key_save_self_keypair(
     private_key: *const dc_key_t,
     addr: *const libc::c_char,
     is_default: libc::c_int,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -295,7 +295,7 @@ pub unsafe fn dc_key_load_self_public(
     context: &dc_context_t,
     key: *mut dc_key_t,
     self_addr: *const libc::c_char,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -320,7 +320,7 @@ pub unsafe fn dc_key_load_self_private(
     context: &dc_context_t,
     key: *mut dc_key_t,
     self_addr: *const libc::c_char,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;

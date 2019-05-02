@@ -247,7 +247,7 @@ pub unsafe fn dc_check_qr(
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if 0 != dc_apeerstate_load_by_fingerprint(
                                             peerstate,
-                                            &mut context.sql.clone().lock().unwrap(),
+                                            &context.sql.clone().read().unwrap(),
                                             fingerprint,
                                         ) {
                                             (*qr_parsed).state = 210i32;

@@ -58,7 +58,7 @@ pub unsafe fn dc_keyring_load_self_private_for_decrypting(
     context: &dc_context_t,
     keyring: *mut dc_keyring_t,
     self_addr: *const libc::c_char,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
 ) -> libc::c_int {
     if keyring.is_null() || self_addr.is_null() {
         return 0i32;

@@ -1014,7 +1014,7 @@ pub unsafe fn dc_sqlite3_open(
 // handle configurations, private
 pub unsafe fn dc_sqlite3_set_config(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     value: *const libc::c_char,
 ) -> libc::c_int {
@@ -1103,7 +1103,7 @@ pub unsafe fn dc_sqlite3_set_config(
 /* the result mus be freed using sqlite3_finalize() */
 pub unsafe fn dc_sqlite3_prepare(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     querystr: *const libc::c_char,
 ) -> *mut sqlite3_stmt {
     let mut stmt = 0 as *mut sqlite3_stmt;
@@ -1170,7 +1170,7 @@ pub unsafe fn dc_sqlite3_is_open(sql: &dc_sqlite3_t) -> libc::c_int {
 /* the returned string must be free()'d, returns NULL on errors */
 pub unsafe fn dc_sqlite3_get_config(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     def: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -1198,7 +1198,7 @@ pub unsafe fn dc_sqlite3_get_config(
 
 pub unsafe fn dc_sqlite3_execute(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     querystr: *const libc::c_char,
 ) -> libc::c_int {
     let mut success = 0;
@@ -1223,7 +1223,7 @@ pub unsafe fn dc_sqlite3_execute(
 
 pub unsafe fn dc_sqlite3_set_config_int(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     value: int32_t,
 ) -> libc::c_int {
@@ -1242,7 +1242,7 @@ pub unsafe fn dc_sqlite3_set_config_int(
 
 pub unsafe fn dc_sqlite3_get_config_int(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     def: int32_t,
 ) -> int32_t {
@@ -1257,7 +1257,7 @@ pub unsafe fn dc_sqlite3_get_config_int(
 
 pub unsafe fn dc_sqlite3_table_exists(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     name: *const libc::c_char,
 ) -> libc::c_int {
     let mut ret = 0;
@@ -1296,7 +1296,7 @@ pub unsafe fn dc_sqlite3_table_exists(
 
 pub unsafe fn dc_sqlite3_set_config_int64(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     value: int64_t,
 ) -> libc::c_int {
@@ -1314,7 +1314,7 @@ pub unsafe fn dc_sqlite3_set_config_int64(
 
 pub unsafe fn dc_sqlite3_get_config_int64(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     def: int64_t,
 ) -> int64_t {
@@ -1334,7 +1334,7 @@ pub unsafe fn dc_sqlite3_get_config_int64(
 
 pub unsafe fn dc_sqlite3_try_execute(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     querystr: *const libc::c_char,
 ) -> libc::c_int {
     // same as dc_sqlite3_execute() but does not pass error to ui
@@ -1361,7 +1361,7 @@ pub unsafe fn dc_sqlite3_try_execute(
 
 pub unsafe fn dc_sqlite3_get_rowid(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     table: *const libc::c_char,
     field: *const libc::c_char,
     value: *const libc::c_char,
@@ -1387,7 +1387,7 @@ pub unsafe fn dc_sqlite3_get_rowid(
 
 pub unsafe fn dc_sqlite3_get_rowid2(
     context: &dc_context_t,
-    sql: &mut dc_sqlite3_t,
+    sql: &dc_sqlite3_t,
     table: *const libc::c_char,
     field: *const libc::c_char,
     value: uint64_t,
@@ -1462,7 +1462,7 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
     );
     stmt = dc_sqlite3_prepare(
         context,
-        &mut context.sql.clone().lock().unwrap(),
+        &context.sql.clone().read().unwrap(),
         b"SELECT value FROM config;\x00" as *const u8 as *const libc::c_char,
     );
     while sqlite3_step(stmt) == 100 {
@@ -1626,7 +1626,7 @@ unsafe fn maybe_add_from_param(
     param_id: libc::c_int,
 ) {
     let mut param = dc_param_new();
-    let mut stmt = dc_sqlite3_prepare(context, &mut context.sql.clone().lock().unwrap(), query);
+    let mut stmt = dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(), query);
     while sqlite3_step(stmt) == 100 {
         dc_param_set_packed(param, sqlite3_column_text(stmt, 0) as *const libc::c_char);
         let mut file = dc_param_get(param, param_id, 0 as *const libc::c_char);
