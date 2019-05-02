@@ -1888,7 +1888,6 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     buf1 = dc_decode_header_words(
         b"=?utf-8?B?dGVzdMOkw7bDvC50eHQ=?=\x00" as *const u8 as *const libc::c_char,
     );
-    println!("dc_decode_header_words {}", CStr::from_ptr(buf1 as *const libc::c_char).to_str().unwrap());
     if 0 != !(strcmp(
         buf1,
         b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\x00" as *const u8 as *const libc::c_char,
