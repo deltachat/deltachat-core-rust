@@ -334,7 +334,6 @@ unsafe fn to_be_quoted(mut word: *const libc::c_char, mut size: size_t) -> libc:
 }
 pub unsafe fn dc_decode_header_words(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
-        println!("dc_decode_header_words: in_0 is null");
         return 0 as *mut libc::c_char;
     }
     let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -347,12 +346,6 @@ pub unsafe fn dc_decode_header_words(mut in_0: *const libc::c_char) -> *mut libc
         b"utf-8\x00" as *const u8 as *const libc::c_char,
         &mut out,
     );
-    if r != MAILIMF_NO_ERROR as libc::c_int {
-        println!("dc_decode_header_words: mailmime_encoded_phrase_parse failed 1");
-    }
-    if out.is_null() {
-        println!("dc_decode_header_words: mailmime_encoded_phrase_parse failed 2");
-    }
     if r != MAILIMF_NO_ERROR as libc::c_int || out.is_null() {
         out = dc_strdup(in_0)
     }
