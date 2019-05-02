@@ -1,5 +1,7 @@
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, SystemTime};
+
 use libc;
-use std::sync::{Condvar, Mutex};
 
 use crate::constants::Event;
 use crate::dc_context::dc_context_t;
@@ -30,7 +32,7 @@ pub struct dc_imap_t {
     pub has_xlist: i32,
     pub imap_delimiter: libc::c_char,
     pub watch_folder: *mut libc::c_char,
-    pub watch: (Mutex<bool>, Condvar),
+    pub watch: Arc<(Mutex<bool>, Condvar)>,
     pub fetch_type_prefetch: *mut mailimap_fetch_type,
     pub fetch_type_body: *mut mailimap_fetch_type,
     pub fetch_type_flags: *mut mailimap_fetch_type,
@@ -65,7 +67,7 @@ pub unsafe fn dc_imap_new(
         has_xlist: 0,
         imap_delimiter: 0 as libc::c_char,
         watch_folder: calloc(1, 1) as *mut libc::c_char,
-        watch: (Mutex::new(false), Condvar::new()),
+        watch: Arc::new((Mutex::new(false), Condvar::new())),
         fetch_type_prefetch: mailimap_fetch_type_new_fetch_att_list_empty(),
         fetch_type_body: mailimap_fetch_type_new_fetch_att_list_empty(),
         fetch_type_flags: mailimap_fetch_type_new_fetch_att_list_empty(),
@@ -1233,8 +1235,8 @@ pub unsafe fn dc_imap_idle(context: &dc_context_t, imap: &mut dc_imap_t) {
 unsafe fn fake_idle(context: &dc_context_t, imap: &mut dc_imap_t) {
     /* Idle using timeouts. This is also needed if we're not yet configured -
     in this case, we're waiting for a configure job */
-    let mut fake_idle_start_time: time_t = time(0 as *mut time_t);
-    let mut seconds_to_wait: time_t = 0 as time_t;
+    let mut fake_idle_start_time = SystemTime::now();
+
     dc_log_info(
         context,
         0,
@@ -1242,46 +1244,36 @@ unsafe fn fake_idle(context: &dc_context_t, imap: &mut dc_imap_t) {
     );
     let mut do_fake_idle: libc::c_int = 1;
     while 0 != do_fake_idle {
-        seconds_to_wait =
-            (if time(0 as *mut time_t) - fake_idle_start_time < (3 * 60) as libc::c_long {
-                5
-            } else {
-                60
-            }) as time_t;
-        // FIXME
-        // pthread_mutex_lock(&mut imap.watch_condmutex);
-        let mut wakeup_at: timespec = timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
+        let seconds_to_wait = if fake_idle_start_time.elapsed().unwrap() < Duration::new(3 * 60, 0)
+        {
+            Duration::new(5, 0)
+        } else {
+            Duration::new(60, 0)
         };
-        memset(
-            &mut wakeup_at as *mut timespec as *mut libc::c_void,
-            0,
-            ::std::mem::size_of::<timespec>(),
-        );
-        wakeup_at.tv_sec = time(0 as *mut time_t) + seconds_to_wait;
-        // FIXME
-        // while imap.watch_condflag == 0 && r == 0 {
-        //     r = pthread_cond_timedwait(
-        //         &mut imap.watch_cond,
-        //         &mut imap.watch_condmutex,
-        //         &mut wakeup_at,
-        //     );
-        //     if 0 != imap.watch_condflag {
-        //         do_fake_idle = 0
-        //     }
-        // }
-        // imap.watch_condflag = 0;
-        // pthread_mutex_unlock(&mut imap.watch_condmutex);
+
+        let &(ref lock, ref cvar) = &*imap.watch.clone();
+
+        let mut watch = lock.lock().unwrap();
+
+        loop {
+            let res = cvar.wait_timeout(watch, seconds_to_wait).unwrap();
+            watch = res.0;
+            if *watch {
+                do_fake_idle = 0;
+            }
+            if *watch || res.1.timed_out() {
+                break;
+            }
+        }
+
+        *watch = false;
         if do_fake_idle == 0 {
             return;
         }
         if 0 != setup_handle_if_needed(context, imap) {
             if 0 != fetch_from_single_folder(context, imap, imap.watch_folder) {
-                do_fake_idle = 0
+                do_fake_idle = 0;
             }
-        } else {
-            fake_idle_start_time = 0 as time_t
         }
     }
 }
@@ -1292,11 +1284,12 @@ pub unsafe fn dc_imap_interrupt_idle(imap: &mut dc_imap_t) {
             mailstream_interrupt_idle((*imap.etpan).imap_stream);
         }
     }
-    // FIXME
-    // pthread_mutex_lock(&mut imap.watch_condmutex);
-    // imap.watch_condflag = 1;
-    // pthread_cond_signal(&mut imap.watch_cond);
-    // pthread_mutex_unlock(&mut imap.watch_condmutex);
+
+    let &(ref lock, ref cvar) = &*imap.watch.clone();
+    let mut watch = lock.lock().unwrap();
+
+    *watch = true;
+    cvar.notify_one();
 }
 
 pub unsafe fn dc_imap_move(
