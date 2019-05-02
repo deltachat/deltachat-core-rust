@@ -1,3 +1,5 @@
+use std::fs;
+
 use libc;
 use rand::{thread_rng, Rng};
 
@@ -1303,6 +1305,10 @@ pub unsafe fn dc_file_exist(
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+    if pathNfilename_abs.is_null() {
+        return 0;
+    }
+
     let exist = {
         let p = std::path::Path::new(
             std::ffi::CStr::from_ptr(pathNfilename_abs)
@@ -1322,12 +1328,15 @@ pub unsafe fn dc_get_filebytes(
     mut pathNfilename: *const libc::c_char,
 ) -> uint64_t {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+    if pathNfilename_abs.is_null() {
+        return 0;
+    }
 
     let filebytes = {
         let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
             .to_str()
             .unwrap();
-        std::fs::metadata(p).unwrap().len()
+        fs::metadata(p).unwrap().len()
     };
 
     free(pathNfilename_abs as *mut libc::c_void);
@@ -1339,119 +1348,69 @@ pub unsafe fn dc_delete_file(
     mut pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if !pathNfilename_abs.is_null() {
-        if remove(pathNfilename_abs) != 0i32 {
+    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+    if pathNfilename_abs.is_null() {
+        return 0;
+    }
+    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
+        .to_str()
+        .unwrap();
+
+    match fs::remove_file(p) {
+        Ok(_) => {
+            success = 1;
+        }
+        Err(_err) => {
             dc_log_warning(
                 context,
                 0i32,
                 b"Cannot delete \"%s\".\x00" as *const u8 as *const libc::c_char,
                 pathNfilename,
             );
-        } else {
-            success = 1i32
         }
     }
+
     free(pathNfilename_abs as *mut libc::c_void);
-    return success;
+    success
 }
+
 pub unsafe fn dc_copy_file(
-    mut context: &dc_context_t,
-    mut src: *const libc::c_char,
-    mut dest: *const libc::c_char,
+    context: &dc_context_t,
+    src: *const libc::c_char,
+    dest: *const libc::c_char,
 ) -> libc::c_int {
-    let mut current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut src_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut dest_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut fd_src: libc::c_int = -1i32;
-    let mut fd_dest: libc::c_int = -1i32;
-    let mut buf: [libc::c_char; 4096] = [0; 4096];
-    let mut bytes_read = 0;
-    let mut anything_copied: libc::c_int = 0i32;
-    src_abs = dc_get_abs_path(context, src);
-    if !(src_abs.is_null() || {
-        dest_abs = dc_get_abs_path(context, dest);
-        dest_abs.is_null()
-    }) {
-        fd_src = open(src_abs, 0i32);
-        if fd_src < 0i32 {
+    let mut success = 0;
+
+    let src_abs = dc_get_abs_path(context, src);
+    let dest_abs = dc_get_abs_path(context, dest);
+
+    if src_abs.is_null() || dest_abs.is_null() {
+        return 0;
+    }
+
+    let src_p = std::ffi::CStr::from_ptr(src_abs).to_str().unwrap();
+    let dest_p = std::ffi::CStr::from_ptr(dest_abs).to_str().unwrap();
+
+    match fs::copy(src_p, dest_p) {
+        Ok(_) => {
+            success = 1;
+        }
+        Err(_) => {
             dc_log_error(
                 context,
-                0i32,
-                b"Cannot open source file \"%s\".\x00" as *const u8 as *const libc::c_char,
+                0,
+                b"Cannot copy \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
                 src,
+                dest,
             );
-        } else {
-            fd_dest = open(dest_abs, 0x1i32 | 0x200i32 | 0x800i32, 0o666i32);
-            if fd_dest < 0i32 {
-                dc_log_error(
-                    context,
-                    0i32,
-                    b"Cannot open destination file \"%s\".\x00" as *const u8 as *const libc::c_char,
-                    dest,
-                );
-            } else {
-                loop {
-                    bytes_read = read(
-                        fd_src,
-                        buf.as_mut_ptr() as *mut libc::c_void,
-                        4096i32 as size_t,
-                    ) as size_t;
-                    if !(bytes_read > 0) {
-                        break;
-                    }
-                    if write(fd_dest, buf.as_mut_ptr() as *const libc::c_void, bytes_read)
-                        != bytes_read as isize
-                    {
-                        dc_log_error(
-                            context,
-                            0i32,
-                            b"Cannot write %i bytes to \"%s\".\x00" as *const u8
-                                as *const libc::c_char,
-                            bytes_read,
-                            dest,
-                        );
-                    }
-                    anything_copied = 1i32
-                }
-                if 0 == anything_copied {
-                    close(fd_src);
-                    fd_src = -1i32;
-                    if dc_get_filebytes(context, src) != 0 {
-                        dc_log_error(
-                            context,
-                            0i32,
-                            b"Different size information for \"%s\".\x00" as *const u8
-                                as *const libc::c_char,
-                            bytes_read,
-                            dest,
-                        );
-                        current_block = 610040589300051390;
-                    } else {
-                        current_block = 5634871135123216486;
-                    }
-                } else {
-                    current_block = 5634871135123216486;
-                }
-                match current_block {
-                    610040589300051390 => {}
-                    _ => success = 1i32,
-                }
-            }
         }
     }
-    if fd_src >= 0i32 {
-        close(fd_src);
-    }
-    if fd_dest >= 0i32 {
-        close(fd_dest);
-    }
+
     free(src_abs as *mut libc::c_void);
     free(dest_abs as *mut libc::c_void);
-    return success;
+    success
 }
+
 pub unsafe fn dc_create_folder(
     mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
@@ -1485,97 +1444,86 @@ pub unsafe fn dc_create_folder(
 }
 
 pub unsafe fn dc_write_file(
-    mut context: &dc_context_t,
-    mut pathNfilename: *const libc::c_char,
-    mut buf: *const libc::c_void,
-    mut buf_bytes: size_t,
+    context: &dc_context_t,
+    pathNfilename: *const libc::c_char,
+    buf: *const libc::c_void,
+    buf_bytes: size_t,
 ) -> libc::c_int {
-    let mut f: *mut libc::FILE = 0 as *mut libc::FILE;
-    let mut success: libc::c_int = 0i32;
-    let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if !pathNfilename_abs.is_null() {
-        f = fopen(
-            pathNfilename_abs,
-            b"wb\x00" as *const u8 as *const libc::c_char,
-        );
-        if !f.is_null() {
-            if fwrite(buf, 1, buf_bytes, f) == buf_bytes {
-                success = 1i32
-            } else {
-                dc_log_warning(
-                    context,
-                    0i32,
-                    b"Cannot write %lu bytes to \"%s\".\x00" as *const u8 as *const libc::c_char,
-                    buf_bytes as libc::c_ulong,
-                    pathNfilename,
-                );
-            }
-            fclose(f);
-        } else {
+    let mut success = 0;
+    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+    if pathNfilename_abs.is_null() {
+        return 0;
+    }
+
+    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
+        .to_str()
+        .unwrap();
+
+    let bytes = std::slice::from_raw_parts(buf as *const u8, buf_bytes);
+
+    match fs::write(p, bytes) {
+        Ok(_) => {
+            success = 1;
+        }
+        Err(_err) => {
             dc_log_warning(
                 context,
                 0i32,
-                b"Cannot open \"%s\" for writing.\x00" as *const u8 as *const libc::c_char,
+                b"Cannot write %lu bytes to \"%s\".\x00" as *const u8 as *const libc::c_char,
+                buf_bytes as libc::c_ulong,
                 pathNfilename,
             );
         }
     }
+
     free(pathNfilename_abs as *mut libc::c_void);
-    return success;
+    success
 }
+
 pub unsafe fn dc_read_file(
-    mut context: &dc_context_t,
-    mut pathNfilename: *const libc::c_char,
-    mut buf: *mut *mut libc::c_void,
-    mut buf_bytes: *mut size_t,
+    context: &dc_context_t,
+    pathNfilename: *const libc::c_char,
+    buf: *mut *mut libc::c_void,
+    buf_bytes: *mut size_t,
 ) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
-    let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut f: *mut libc::FILE = 0 as *mut libc::FILE;
+    let mut success = 0;
+
     if pathNfilename.is_null() || buf.is_null() || buf_bytes.is_null() {
-        return 0i32;
+        return 0;
     }
+
     *buf = 0 as *mut libc::c_void;
     *buf_bytes = 0i32 as size_t;
-    pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if !pathNfilename_abs.is_null() {
-        f = fopen(
-            pathNfilename_abs,
-            b"rb\x00" as *const u8 as *const libc::c_char,
-        );
-        if !f.is_null() {
-            fseek(f, 0, 2i32);
-            *buf_bytes = ftell(f) as size_t;
-            fseek(f, 0, 0i32);
-            if !(*buf_bytes <= 0) {
-                *buf = malloc((*buf_bytes).wrapping_add(1));
-                if !(*buf).is_null() {
-                    *(*buf as *mut libc::c_char).offset(*buf_bytes as isize) = 0i32 as libc::c_char;
-                    if !(fread(*buf, 1, *buf_bytes, f) != *buf_bytes) {
-                        success = 1i32
-                    }
-                }
-            }
+
+    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+    if pathNfilename_abs.is_null() {
+        return 0;
+    }
+
+    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
+        .to_str()
+        .unwrap();
+
+    match fs::read(p) {
+        Ok(mut bytes) => {
+            *buf = bytes.as_mut_ptr() as *mut libc::c_void;
+            *buf_bytes = bytes.len();
+            success = 1;
+        }
+        Err(_err) => {
+            dc_log_warning(
+                context,
+                0,
+                b"Cannot read \"%s\" or file is empty.\x00" as *const u8 as *const libc::c_char,
+                pathNfilename,
+            );
         }
     }
-    if !f.is_null() {
-        fclose(f);
-    }
-    if success == 0i32 {
-        free(*buf);
-        *buf = 0 as *mut libc::c_void;
-        *buf_bytes = 0i32 as size_t;
-        dc_log_warning(
-            context,
-            0i32,
-            b"Cannot read \"%s\" or file is empty.\x00" as *const u8 as *const libc::c_char,
-            pathNfilename,
-        );
-    }
+
     free(pathNfilename_abs as *mut libc::c_void);
-    return success;
+    success
 }
+
 pub unsafe fn dc_get_fine_pathNfilename(
     mut context: &dc_context_t,
     mut pathNfolder: *const libc::c_char,
@@ -1632,6 +1580,7 @@ pub unsafe fn dc_get_fine_pathNfilename(
     free(pathNfolder_wo_slash as *mut libc::c_void);
     return ret;
 }
+
 pub unsafe fn dc_is_blobdir_path(
     mut context: &dc_context_t,
     mut path: *const libc::c_char,
@@ -1643,6 +1592,7 @@ pub unsafe fn dc_is_blobdir_path(
     }
     return 0i32;
 }
+
 pub unsafe fn dc_make_rel_path(mut context: &dc_context_t, mut path: *mut *mut libc::c_char) {
     if path.is_null() || (*path).is_null() {
         return;
@@ -1655,6 +1605,7 @@ pub unsafe fn dc_make_rel_path(mut context: &dc_context_t, mut path: *mut *mut l
         );
     };
 }
+
 pub unsafe fn dc_make_rel_and_copy(
     mut context: &dc_context_t,
     mut path: *mut *mut libc::c_char,
