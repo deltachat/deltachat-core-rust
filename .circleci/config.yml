@@ -1,6 +1,4 @@
 # copied from http://koushiro.me/2019/04/30/Building-and-Testing-Rust-projects-on-CircleCI/
-# TODO remove things that aren't needed for apt
-# TODO might want to create our own docker image for this and get rid of apt stuff
 
 version: 2.1
 jobs:
