@@ -132,7 +132,7 @@ pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
     if !buf.is_null() && 0 != *buf as libc::c_int {
         len = strlen(buf);
         cur = buf as *const libc::c_uchar;
-        while 0 != *cur as libc::c_int && 0 != isspace(*cur as libc::c_int) {
+        while 0 != *cur as libc::c_int && 0 != libc::isspace(*cur as libc::c_int) {
             cur = cur.offset(1isize);
             len = len.wrapping_sub(1)
         }
@@ -172,12 +172,12 @@ pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
         cur = (buf as *mut libc::c_uchar)
             .offset(len as isize)
             .offset(-1isize);
-        while cur != buf as *mut libc::c_uchar && 0 != isspace(*cur as libc::c_int) {
+        while cur != buf as *mut libc::c_uchar && 0 != libc::isspace(*cur as libc::c_int) {
             cur = cur.offset(-1isize);
             len = len.wrapping_sub(1)
         }
         *cur.offset(
-            (if 0 != isspace(*cur as libc::c_int) {
+            (if 0 != libc::isspace(*cur as libc::c_int) {
                 0i32
             } else {
                 1i32

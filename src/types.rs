@@ -1206,11 +1206,6 @@ pub unsafe fn isascii(mut _c: libc::c_int) -> libc::c_int {
 }
 
 #[inline]
-pub unsafe fn isspace(mut _c: libc::c_int) -> libc::c_int {
-    libc::isspace(_c)
-}
-
-#[inline]
 pub unsafe fn tolower(mut _c: libc::c_int) -> libc::c_int {
     return __tolower(_c);
 }
