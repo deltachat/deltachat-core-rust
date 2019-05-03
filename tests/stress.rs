@@ -3445,21 +3445,17 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(base64, b"data\x00" as *const u8 as *const libc::c_char) == 0i32)
-    //     as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         823i32,
-    //         b"base64 && strcmp(base64, \"data\") == 0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "data",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     buf_0 =
         strdup(b"-----BEGIN PGP MESSAGE-----\n\ndat1\n-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n\ndat2\n-----END PGP MESSAGE-----\x00"
                    as *const u8 as *const libc::c_char);
@@ -3497,21 +3493,16 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
 
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(base64, b"dat1\x00" as *const u8 as *const libc::c_char) == 0i32)
-    //     as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         830i32,
-    //         b"base64 && strcmp(base64, \"dat1\") == 0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "dat1",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     buf_0 = strdup(
         b"foo \n -----BEGIN PGP MESSAGE----- \n base64-123 \n  -----END PGP MESSAGE-----\x00"
             as *const u8 as *const libc::c_char,
@@ -3560,23 +3551,16 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
 
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(
-    //         base64,
-    //         b"base64-123\x00" as *const u8 as *const libc::c_char,
-    //     ) == 0i32) as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         838i32,
-    //         b"base64 && strcmp(base64, \"base64-123\")==0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "base64-123",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     buf_0 = strdup(b"foo-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char);
     ok = dc_split_armored_data(
         buf_0,
@@ -3649,24 +3633,16 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
 
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(
-    //         base64,
-    //         b"base64-567 \n abc\x00" as *const u8 as *const libc::c_char,
-    //     ) == 0i32) as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         851i32,
-    //         b"base64 && strcmp(base64, \"base64-567 \\n abc\")==0\x00" as *const u8
-    //             as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "base64-567 \n abc",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     buf_0 =
         strdup(b"-----BEGIN PGP PRIVATE KEY BLOCK-----\n Autocrypt-Prefer-Encrypt :  mutual \n\nbase64\n-----END PGP PRIVATE KEY BLOCK-----\x00"
                    as *const u8 as *const libc::c_char);
@@ -3720,21 +3696,16 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
 
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(base64, b"base64\x00" as *const u8 as *const libc::c_char) == 0i32)
-    //     as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         859i32,
-    //         b"base64 && strcmp(base64, \"base64\")==0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "base64",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     let mut norm: *mut libc::c_char = dc_normalize_setup_code(
         context,
         b"123422343234423452346234723482349234\x00" as *const u8 as *const libc::c_char,
