@@ -521,7 +521,6 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
         let mut ctx = ctx.write().unwrap();
         free(cmd as *mut libc::c_void);
         stop_threads(&ctx, handles);
-        handles = None;
         dc_close(&mut ctx);
         dc_context_unref(&mut ctx);
     }
