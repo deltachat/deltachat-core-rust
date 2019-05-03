@@ -18,10 +18,11 @@ no references to dc_context_t and other "larger" classes here. */
 pub unsafe fn dc_exactly_one_bit_set(mut v: libc::c_int) -> libc::c_int {
     return (0 != v && 0 == v & v - 1i32) as libc::c_int;
 }
+
 /* string tools */
 /* dc_strdup() returns empty string if NULL is given, never returns NULL (exits on errors) */
 pub unsafe fn dc_strdup(mut s: *const libc::c_char) -> *mut libc::c_char {
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut ret: *mut libc::c_char;
     if !s.is_null() {
         ret = strdup(s);
         if ret.is_null() {
@@ -33,8 +34,10 @@ pub unsafe fn dc_strdup(mut s: *const libc::c_char) -> *mut libc::c_char {
             exit(17i32);
         }
     }
-    return ret;
+
+    ret
 }
+
 /* strdup(NULL) is undefined, safe_strdup_keep_null(NULL) returns NULL in this case */
 pub unsafe fn dc_strdup_keep_null(mut s: *const libc::c_char) -> *mut libc::c_char {
     return if !s.is_null() {
@@ -43,9 +46,11 @@ pub unsafe fn dc_strdup_keep_null(mut s: *const libc::c_char) -> *mut libc::c_ch
         0 as *mut libc::c_char
     };
 }
+
 pub unsafe fn dc_atoi_null_is_0(mut s: *const libc::c_char) -> libc::c_int {
     return if !s.is_null() { atoi(s) } else { 0i32 };
 }
+
 pub unsafe fn dc_atof(mut str: *const libc::c_char) -> libc::c_double {
     // hack around atof() that may accept only `,` as decimal point on mac
     let mut test: *mut libc::c_char =
@@ -60,8 +65,10 @@ pub unsafe fn dc_atof(mut str: *const libc::c_char) -> libc::c_double {
     let mut f: libc::c_double = atof(str_locale);
     free(test as *mut libc::c_void);
     free(str_locale as *mut libc::c_void);
-    return f;
+
+    f
 }
+
 pub unsafe fn dc_str_replace(
     mut haystack: *mut *mut libc::c_char,
     mut needle: *const libc::c_char,
@@ -69,8 +76,8 @@ pub unsafe fn dc_str_replace(
 ) -> libc::c_int {
     let mut replacements: libc::c_int = 0i32;
     let mut start_search_pos: libc::c_int = 0i32;
-    let mut needle_len: libc::c_int = 0i32;
-    let mut replacement_len: libc::c_int = 0i32;
+    let mut needle_len: libc::c_int;
+    let mut replacement_len: libc::c_int;
     if haystack.is_null()
         || (*haystack).is_null()
         || needle.is_null()
@@ -108,7 +115,8 @@ pub unsafe fn dc_str_replace(
         *haystack = new_string;
         replacements += 1
     }
-    return replacements;
+
+    replacements
 }
 
 pub unsafe fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
@@ -123,12 +131,13 @@ pub unsafe fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
         b".\x00" as *const u8 as *const libc::c_char,
     );
     free(test as *mut libc::c_void);
-    return str;
+
+    str
 }
 
 pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
-    let mut len: size_t = 0i32 as size_t;
-    let mut cur: *const libc::c_uchar = 0 as *const libc::c_uchar;
+    let mut len: size_t;
+    let mut cur: *const libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
         len = strlen(buf);
         cur = buf as *const libc::c_uchar;
@@ -147,8 +156,8 @@ pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
 }
 
 pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
-    let mut len: size_t = 0i32 as size_t;
-    let mut cur: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
+    let mut len: size_t;
+    let mut cur: *mut libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
         len = strlen(buf);
         cur = (buf as *mut libc::c_uchar)
@@ -181,8 +190,10 @@ pub unsafe fn dc_strlower(mut in_0: *const libc::c_char) -> *mut libc::c_char {
         *p = tolower(*p as libc::c_int) as libc::c_char;
         p = p.offset(1isize)
     }
-    return out;
+
+    out
 }
+
 pub unsafe fn dc_strlower_in_place(mut in_0: *mut libc::c_char) {
     let mut p: *mut libc::c_char = in_0;
     while 0 != *p {
@@ -190,6 +201,7 @@ pub unsafe fn dc_strlower_in_place(mut in_0: *mut libc::c_char) {
         p = p.offset(1isize)
     }
 }
+
 pub unsafe fn dc_str_contains(
     mut haystack: *const libc::c_char,
     mut needle: *const libc::c_char,
@@ -209,8 +221,10 @@ pub unsafe fn dc_str_contains(
     };
     free(haystack_lower as *mut libc::c_void);
     free(needle_lower as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
 /* the result must be free()'d */
 pub unsafe fn dc_null_terminate(
     mut in_0: *const libc::c_char,
@@ -224,11 +238,13 @@ pub unsafe fn dc_null_terminate(
         strncpy(out, in_0, bytes as usize);
     }
     *out.offset(bytes as isize) = 0i32 as libc::c_char;
-    return out;
+
+    out
 }
+
 pub unsafe fn dc_binary_to_uc_hex(mut buf: *const uint8_t, mut bytes: size_t) -> *mut libc::c_char {
     let mut hex: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut i = 0;
+    let mut i;
     if !(buf.is_null() || bytes <= 0) {
         hex = calloc(
             ::std::mem::size_of::<libc::c_char>(),
@@ -247,8 +263,10 @@ pub unsafe fn dc_binary_to_uc_hex(mut buf: *const uint8_t, mut bytes: size_t) ->
             }
         }
     }
-    return hex;
+
+    hex
 }
+
 /* remove all \r characters from string */
 pub unsafe extern "C" fn dc_remove_cr_chars(mut buf: *mut libc::c_char) {
     /* search for first `\r` */
@@ -270,9 +288,11 @@ pub unsafe extern "C" fn dc_remove_cr_chars(mut buf: *mut libc::c_char) {
     }
     *p2 = 0i32 as libc::c_char;
 }
+
 pub unsafe fn dc_unify_lineends(mut buf: *mut libc::c_char) {
     dc_remove_cr_chars(buf);
 }
+
 /* replace bad UTF-8 characters by sequences of `_` (to avoid problems in filenames, we do not use eg. `?`) the function is useful if strings are unexpectingly encoded eg. as ISO-8859-1 */
 pub unsafe fn dc_replace_bad_utf8_chars(mut buf: *mut libc::c_char) {
     let mut current_block: u64;
@@ -282,11 +302,11 @@ pub unsafe fn dc_replace_bad_utf8_chars(mut buf: *mut libc::c_char) {
     /* force unsigned - otherwise the `> ' '` comparison will fail */
     let mut p1: *mut libc::c_uchar = buf as *mut libc::c_uchar;
     let mut p1len: libc::c_int = strlen(buf) as libc::c_int;
-    let mut c: libc::c_int = 0i32;
-    let mut i: libc::c_int = 0i32;
-    let mut ix: libc::c_int = 0i32;
-    let mut n: libc::c_int = 0i32;
-    let mut j: libc::c_int = 0i32;
+    let mut c: libc::c_int;
+    let mut i: libc::c_int;
+    let mut ix: libc::c_int;
+    let mut n: libc::c_int;
+    let mut j: libc::c_int;
     i = 0i32;
     ix = p1len;
     's_36: loop {
@@ -341,6 +361,7 @@ pub unsafe fn dc_replace_bad_utf8_chars(mut buf: *mut libc::c_char) {
         }
     };
 }
+
 pub unsafe fn dc_utf8_strlen(mut s: *const libc::c_char) -> size_t {
     if s.is_null() {
         return 0i32 as size_t;
@@ -353,8 +374,10 @@ pub unsafe fn dc_utf8_strlen(mut s: *const libc::c_char) -> size_t {
         }
         i = i.wrapping_add(1)
     }
-    return j;
+
+    j
 }
+
 pub unsafe fn dc_truncate_str(mut buf: *mut libc::c_char, mut approx_chars: libc::c_int) {
     if approx_chars > 0
         && strlen(buf)
@@ -375,6 +398,7 @@ pub unsafe fn dc_truncate_str(mut buf: *mut libc::c_char, mut approx_chars: libc
         strcat(p, b"[...]\x00" as *const u8 as *const libc::c_char);
     };
 }
+
 pub unsafe fn dc_truncate_n_unwrap_str(
     mut buf: *mut libc::c_char,
     mut approx_characters: libc::c_int,
@@ -418,6 +442,7 @@ pub unsafe fn dc_truncate_n_unwrap_str(
         dc_remove_cr_chars(buf);
     };
 }
+
 unsafe fn dc_utf8_strnlen(mut s: *const libc::c_char, mut n: size_t) -> size_t {
     if s.is_null() {
         return 0i32 as size_t;
@@ -430,8 +455,10 @@ unsafe fn dc_utf8_strnlen(mut s: *const libc::c_char, mut n: size_t) -> size_t {
         }
         i = i.wrapping_add(1)
     }
-    return j;
+
+    j
 }
+
 /* split string into lines*/
 pub unsafe fn dc_split_into_lines(mut buf_terminated: *const libc::c_char) -> *mut carray {
     let mut lines: *mut carray = carray_new(1024i32 as libc::c_uint);
@@ -459,11 +486,13 @@ pub unsafe fn dc_split_into_lines(mut buf_terminated: *const libc::c_char) -> *m
         strndup(line_start, line_chars) as *mut libc::c_void,
         &mut l_indx,
     );
-    return lines;
+
+    lines
 }
+
 pub unsafe fn dc_free_splitted_lines(mut lines: *mut carray) {
     if !lines.is_null() {
-        let mut i: libc::c_int = 0;
+        let mut i: libc::c_int;
         let mut cnt: libc::c_int = carray_count(lines) as libc::c_int;
         i = 0i32;
         while i < cnt {
@@ -473,6 +502,7 @@ pub unsafe fn dc_free_splitted_lines(mut lines: *mut carray) {
         carray_free(lines);
     };
 }
+
 /* insert a break every n characters, the return must be free()'d */
 pub unsafe fn dc_insert_breaks(
     mut in_0: *const libc::c_char,
@@ -506,8 +536,10 @@ pub unsafe fn dc_insert_breaks(
         }
     }
     *o = 0i32 as libc::c_char;
-    return out;
+
+    out
 }
+
 pub unsafe fn dc_str_from_clist(
     mut list: *const clist,
     mut delimiter: *const libc::c_char,
@@ -540,8 +572,10 @@ pub unsafe fn dc_str_from_clist(
             }
         }
     }
-    return str.buf;
+
+    str.buf
 }
+
 pub unsafe fn dc_str_to_clist(
     mut str: *const libc::c_char,
     mut delimiter: *const libc::c_char,
@@ -570,8 +604,10 @@ pub unsafe fn dc_str_to_clist(
             }
         }
     }
-    return list;
+
+    list
 }
+
 pub unsafe fn dc_str_to_color(mut str: *const libc::c_char) -> libc::c_int {
     let mut str_lower: *mut libc::c_char = dc_strlower(str);
     /* the colors must fulfill some criterions as:
@@ -611,8 +647,10 @@ pub unsafe fn dc_str_to_color(mut str: *const libc::c_char) -> libc::c_int {
             .wrapping_div(::std::mem::size_of::<uint32_t>() as libc::c_ulong),
     ) as libc::c_int;
     free(str_lower as *mut libc::c_void);
-    return colors[color_index as usize] as libc::c_int;
+
+    colors[color_index as usize] as libc::c_int
 }
+
 /* clist tools */
 /* calls free() for each item content */
 pub unsafe fn clist_free_content(mut haystack: *const clist) {
@@ -627,6 +665,7 @@ pub unsafe fn clist_free_content(mut haystack: *const clist) {
         }
     }
 }
+
 pub unsafe fn clist_search_string_nocase(
     mut haystack: *const clist,
     mut needle: *const libc::c_char,
@@ -642,8 +681,10 @@ pub unsafe fn clist_search_string_nocase(
             0 as *mut clistcell_s
         }
     }
-    return 0i32;
+
+    0
 }
+
 /* date/time tools */
 /* the result is UTC or DC_INVALID_TIMESTAMP */
 pub unsafe fn dc_timestamp_from_date(mut date_time: *mut mailimf_date_time) -> time_t {
@@ -660,9 +701,9 @@ pub unsafe fn dc_timestamp_from_date(mut date_time: *mut mailimf_date_time) -> t
         tm_gmtoff: 0,
         tm_zone: 0 as *mut libc::c_char,
     };
-    let mut timeval: time_t = 0i32 as time_t;
-    let mut zone_min: libc::c_int = 0i32;
-    let mut zone_hour: libc::c_int = 0i32;
+    let mut timeval: time_t;
+    let mut zone_min: libc::c_int;
+    let mut zone_hour: libc::c_int;
     memset(
         &mut tmval as *mut tm as *mut libc::c_void,
         0,
@@ -687,26 +728,16 @@ pub unsafe fn dc_timestamp_from_date(mut date_time: *mut mailimf_date_time) -> t
         zone_min = -(-(*date_time).dt_zone % 100i32)
     }
     timeval -= (zone_hour * 3600i32 + zone_min * 60i32) as libc::c_long;
-    return timeval;
+
+    timeval
 }
+
 pub unsafe fn mkgmtime(mut tmp: *mut tm) -> time_t {
-    let mut dir: libc::c_int = 0i32;
-    let mut bits: libc::c_int = 0i32;
-    let mut saved_seconds: libc::c_int = 0i32;
-    let mut t: time_t = 0i32 as time_t;
-    let mut yourtm: tm = tm {
-        tm_sec: 0,
-        tm_min: 0,
-        tm_hour: 0,
-        tm_mday: 0,
-        tm_mon: 0,
-        tm_year: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_gmtoff: 0,
-        tm_zone: 0 as *mut libc::c_char,
-    };
+    let mut dir: libc::c_int;
+    let mut bits: libc::c_int;
+    let mut saved_seconds: libc::c_int;
+    let mut t: time_t;
+    let mut yourtm: tm;
     let mut mytm: tm = tm {
         tm_sec: 0,
         tm_min: 0,
@@ -757,13 +788,15 @@ pub unsafe fn mkgmtime(mut tmp: *mut tm) -> time_t {
         }
     }
     t += saved_seconds as libc::c_long;
-    return t;
+
+    t
 }
+
 /* ******************************************************************************
  * date/time tools
  ******************************************************************************/
 unsafe fn tmcomp(mut atmp: *mut tm, mut btmp: *mut tm) -> libc::c_int {
-    let mut result: libc::c_int = 0i32;
+    let mut result: libc::c_int;
     result = (*atmp).tm_year - (*btmp).tm_year;
     if result == 0i32
         && {
@@ -785,8 +818,10 @@ unsafe fn tmcomp(mut atmp: *mut tm, mut btmp: *mut tm) -> libc::c_int {
     {
         result = (*atmp).tm_sec - (*btmp).tm_sec
     }
-    return result;
+
+    result
 }
+
 /* the return value must be free()'d */
 pub unsafe fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c_char {
     let mut wanted_struct: tm = tm {
@@ -817,6 +852,7 @@ pub unsafe fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c_char {
         wanted_struct.tm_sec as libc::c_int,
     );
 }
+
 pub unsafe fn dc_timestamp_to_mailimap_date_time(mut timeval: time_t) -> *mut mailimap_date_time {
     let mut gmt: tm = tm {
         tm_sec: 0,
@@ -844,11 +880,11 @@ pub unsafe fn dc_timestamp_to_mailimap_date_time(mut timeval: time_t) -> *mut ma
         tm_gmtoff: 0,
         tm_zone: 0 as *mut libc::c_char,
     };
-    let mut off: libc::c_int = 0i32;
-    let mut date_time: *mut mailimap_date_time = 0 as *mut mailimap_date_time;
-    let mut sign: libc::c_int = 0i32;
-    let mut hour: libc::c_int = 0i32;
-    let mut min: libc::c_int = 0i32;
+    let mut off: libc::c_int;
+    let mut date_time: *mut mailimap_date_time;
+    let mut sign: libc::c_int;
+    let mut hour: libc::c_int;
+    let mut min: libc::c_int;
     gmtime_r(&mut timeval, &mut gmt);
     localtime_r(&mut timeval, &mut lt);
     off = ((mkgmtime(&mut lt) - mkgmtime(&mut gmt)) / 60i32 as libc::c_long) as libc::c_int;
@@ -871,8 +907,10 @@ pub unsafe fn dc_timestamp_to_mailimap_date_time(mut timeval: time_t) -> *mut ma
         lt.tm_sec,
         off,
     );
-    return date_time;
+
+    date_time
 }
+
 pub unsafe fn dc_gm2local_offset() -> libc::c_long {
     /* returns the offset that must be _added_ to an UTC/GMT-time to create the localtime.
     the function may return nagative values. */
@@ -891,8 +929,10 @@ pub unsafe fn dc_gm2local_offset() -> libc::c_long {
         tm_zone: 0 as *mut libc::c_char,
     };
     localtime_r(&mut gmtime, &mut timeinfo);
-    return timeinfo.tm_gmtoff;
+
+    timeinfo.tm_gmtoff
 }
+
 /* timesmearing */
 pub unsafe fn dc_smeared_time(mut context: &dc_context_t) -> time_t {
     /* function returns a corrected time(NULL) */
@@ -901,6 +941,7 @@ pub unsafe fn dc_smeared_time(mut context: &dc_context_t) -> time_t {
     if ts >= now {
         now = ts + 1;
     }
+
     now
 }
 
@@ -915,7 +956,7 @@ pub unsafe fn dc_create_smeared_timestamp(mut context: &dc_context_t) -> time_t 
             ret = now + 5
         }
     }
-    ts = ret;
+
     ret
 }
 
@@ -930,7 +971,7 @@ pub unsafe fn dc_create_smeared_timestamps(
 
     let mut ts = *context.last_smeared_timestamp.clone().write().unwrap();
     start = if ts + 1 > start { ts + 1 } else { start };
-    ts = start + ((count - 1) as time_t);
+
     start
 }
 
@@ -949,8 +990,10 @@ pub unsafe fn dc_create_id() -> *mut libc::c_char {
 
     let mut rng = thread_rng();
     let mut buf: [uint32_t; 3] = [rng.gen(), rng.gen(), rng.gen()];
-    return encode_66bits_as_base64(buf[0usize], buf[1usize], buf[2usize]);
+
+    encode_66bits_as_base64(buf[0usize], buf[1usize], buf[2usize])
 }
+
 /* ******************************************************************************
  * generate Message-IDs
  ******************************************************************************/
@@ -987,8 +1030,10 @@ unsafe fn encode_66bits_as_base64(
     *ret.offset(10isize) =
         chars[(v2 << 2i32 & 0x3ci32 as libc::c_uint | fill & 0x3i32 as libc::c_uint) as usize];
     *ret.offset(11isize) = 0i32 as libc::c_char;
-    return ret;
+
+    ret
 }
+
 pub unsafe fn dc_create_incoming_rfc724_mid(
     mut message_timestamp: time_t,
     mut contact_id_from: uint32_t,
@@ -1001,7 +1046,6 @@ pub unsafe fn dc_create_incoming_rfc724_mid(
     let mut i: size_t = 0i32 as size_t;
     let mut icnt: size_t = dc_array_get_cnt(contact_ids_to);
     let mut largest_id_to: uint32_t = 0i32 as uint32_t;
-    i = 0i32 as size_t;
     while i < icnt {
         let mut cur_id: uint32_t = dc_array_get_id(contact_ids_to, i);
         if cur_id > largest_id_to {
@@ -1009,13 +1053,15 @@ pub unsafe fn dc_create_incoming_rfc724_mid(
         }
         i = i.wrapping_add(1)
     }
-    return dc_mprintf(
+
+    dc_mprintf(
         b"%lu-%lu-%lu@stub\x00" as *const u8 as *const libc::c_char,
         message_timestamp as libc::c_ulong,
         contact_id_from as libc::c_ulong,
         largest_id_to as libc::c_ulong,
-    );
+    )
 }
+
 pub unsafe fn dc_create_outgoing_rfc724_mid(
     mut grpid: *const libc::c_char,
     mut from_addr: *const libc::c_char,
@@ -1026,7 +1072,7 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     - do not add a counter or any private data as as this may give unneeded information to the receiver	*/
     let mut rand1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut rand2: *mut libc::c_char = dc_create_id();
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut ret: *mut libc::c_char;
     let mut at_hostname: *const libc::c_char = strchr(from_addr, '@' as i32);
     if at_hostname.is_null() {
         at_hostname = b"@nohost\x00" as *const u8 as *const libc::c_char
@@ -1049,14 +1095,16 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     }
     free(rand1 as *mut libc::c_void);
     free(rand2 as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
 pub unsafe fn dc_extract_grpid_from_rfc724_mid(mut mid: *const libc::c_char) -> *mut libc::c_char {
     /* extract our group ID from Message-IDs as `Gr.12345678901.morerandom@domain.de`; "12345678901" is the wanted ID in this example. */
     let mut success: libc::c_int = 0i32;
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut p1: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut grpid_len: libc::c_int = 0i32;
+    let mut p1: *mut libc::c_char;
+    let mut grpid_len: libc::c_int;
     if !(mid.is_null()
         || strlen(mid) < 8
         || *mid.offset(0isize) as libc::c_int != 'G' as i32
@@ -1084,6 +1132,7 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid(mut mid: *const libc::c_char) -> 
         0 as *mut libc::c_char
     };
 }
+
 pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(mut list: *const clist) -> *mut libc::c_char {
     if !list.is_null() {
         let mut cur: *mut clistiter = (*list).first;
@@ -1104,8 +1153,10 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(mut list: *const clist) -> *
             }
         }
     }
-    return 0 as *mut libc::c_char;
+
+    0 as *mut libc::c_char
 }
+
 /* file tools */
 pub unsafe fn dc_ensure_no_slash(mut pathNfilename: *mut libc::c_char) {
     let mut path_len: libc::c_int = strlen(pathNfilename) as libc::c_int;
@@ -1117,6 +1168,7 @@ pub unsafe fn dc_ensure_no_slash(mut pathNfilename: *mut libc::c_char) {
         }
     };
 }
+
 pub unsafe fn dc_validate_filename(mut filename: *mut libc::c_char) {
     /* function modifies the given buffer and replaces all characters not valid in filenames by a "-" */
     let mut p1: *mut libc::c_char = filename;
@@ -1130,6 +1182,7 @@ pub unsafe fn dc_validate_filename(mut filename: *mut libc::c_char) {
         p1 = p1.offset(1isize)
     }
 }
+
 pub unsafe fn dc_get_filename(mut pathNfilename: *const libc::c_char) -> *mut libc::c_char {
     let mut p: *const libc::c_char = strrchr(pathNfilename, '/' as i32);
     if p.is_null() {
@@ -1142,6 +1195,7 @@ pub unsafe fn dc_get_filename(mut pathNfilename: *const libc::c_char) -> *mut li
         return dc_strdup(pathNfilename);
     };
 }
+
 // the case of the suffix is preserved
 pub unsafe fn dc_split_filename(
     mut pathNfilename: *const libc::c_char,
@@ -1154,7 +1208,7 @@ pub unsafe fn dc_split_filename(
     - if there is no suffix, the returned suffix string is empty, eg. "/path/foobar" is split into "foobar" and ""
     - the case of the returned suffix is preserved; this is to allow reconstruction of (similar) names */
     let mut basename: *mut libc::c_char = dc_get_filename(pathNfilename);
-    let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut suffix: *mut libc::c_char;
     let mut p1: *mut libc::c_char = strrchr(basename, '.' as i32);
     if !p1.is_null() {
         suffix = dc_strdup(p1);
@@ -1173,6 +1227,7 @@ pub unsafe fn dc_split_filename(
         free(suffix as *mut libc::c_void);
     };
 }
+
 // the returned suffix is lower-case
 pub unsafe fn dc_get_filesuffix_lc(mut pathNfilename: *const libc::c_char) -> *mut libc::c_char {
     if !pathNfilename.is_null() {
@@ -1182,8 +1237,10 @@ pub unsafe fn dc_get_filesuffix_lc(mut pathNfilename: *const libc::c_char) -> *m
             return dc_strlower(p);
         }
     }
-    return 0 as *mut libc::c_char;
+
+    0 as *mut libc::c_char
 }
+
 pub unsafe fn dc_get_filemeta(
     mut buf_start: *const libc::c_void,
     mut buf_bytes: size_t,
@@ -1264,8 +1321,10 @@ pub unsafe fn dc_get_filemeta(
             + ((*buf.offset(23isize) as libc::c_int) << 0i32)) as uint32_t;
         return 1i32;
     }
-    return 0i32;
+
+    0
 }
+
 pub unsafe fn dc_get_abs_path(
     mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
@@ -1303,8 +1362,10 @@ pub unsafe fn dc_get_abs_path(
         free(pathNfilename_abs as *mut libc::c_void);
         pathNfilename_abs = 0 as *mut libc::c_char
     }
-    return pathNfilename_abs;
+
+    pathNfilename_abs
 }
+
 pub unsafe fn dc_file_exist(
     mut context: &dc_context_t,
     mut pathNfilename: *const libc::c_char,
@@ -1324,7 +1385,6 @@ pub unsafe fn dc_file_exist(
     };
 
     free(pathNfilename_abs as *mut libc::c_void);
-
     exist as libc::c_int
 }
 
@@ -1545,8 +1605,8 @@ pub unsafe fn dc_get_fine_pathNfilename(
     mut desired_filenameNsuffix__: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut pathNfolder_wo_slash: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut filenameNsuffix: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut pathNfolder_wo_slash: *mut libc::c_char;
+    let mut filenameNsuffix: *mut libc::c_char;
     let mut basename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut dotNSuffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut now: time_t = time(0 as *mut time_t);
@@ -1556,7 +1616,6 @@ pub unsafe fn dc_get_fine_pathNfilename(
     filenameNsuffix = dc_strdup(desired_filenameNsuffix__);
     dc_validate_filename(filenameNsuffix);
     dc_split_filename(filenameNsuffix, &mut basename, &mut dotNSuffix);
-    i = 0i32;
     while i < 1000i32 {
         /*no deadlocks, please*/
         if 0 != i {
@@ -1593,9 +1652,11 @@ pub unsafe fn dc_get_fine_pathNfilename(
     free(basename as *mut libc::c_void);
     free(dotNSuffix as *mut libc::c_void);
     free(pathNfolder_wo_slash as *mut libc::c_void);
-    return ret;
+
+    ret
 }
 
+// TODO should return bool /rtn
 pub unsafe fn dc_is_blobdir_path(
     mut context: &dc_context_t,
     mut path: *const libc::c_char,
@@ -1605,7 +1666,8 @@ pub unsafe fn dc_is_blobdir_path(
     {
         return 1i32;
     }
-    return 0i32;
+
+    0
 }
 
 pub unsafe fn dc_make_rel_path(mut context: &dc_context_t, mut path: *mut *mut libc::c_char) {
@@ -1621,6 +1683,7 @@ pub unsafe fn dc_make_rel_path(mut context: &dc_context_t, mut path: *mut *mut l
     };
 }
 
+// TODO should return bool /rtn
 pub unsafe fn dc_make_rel_and_copy(
     mut context: &dc_context_t,
     mut path: *mut *mut libc::c_char,
@@ -1655,7 +1718,8 @@ pub unsafe fn dc_make_rel_and_copy(
     }
     free(blobdir_path as *mut libc::c_void);
     free(filename as *mut libc::c_void);
-    return success;
+
+    success
 }
 
 #[cfg(test)]
@@ -1668,8 +1732,7 @@ mod tests {
         unsafe {
             let mut html: *const libc::c_char =
                 b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-            let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
-            out = strndup(html, strlen(html) as libc::c_ulong);
+            let mut out: *mut libc::c_char = strndup(html, strlen(html) as libc::c_ulong);
 
             dc_ltrim(out);
 
@@ -1685,8 +1748,7 @@ mod tests {
         unsafe {
             let mut html: *const libc::c_char =
                 b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-            let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
-            out = strndup(html, strlen(html) as libc::c_ulong);
+            let mut out: *mut libc::c_char = strndup(html, strlen(html) as libc::c_ulong);
 
             dc_rtrim(out);
 
@@ -1702,8 +1764,7 @@ mod tests {
         unsafe {
             let mut html: *const libc::c_char =
                 b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-            let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
-            out = strndup(html, strlen(html) as libc::c_ulong);
+            let mut out: *mut libc::c_char = strndup(html, strlen(html) as libc::c_ulong);
 
             dc_trim(out);
 
