@@ -57,7 +57,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         b"<tag attr=\"val\"=\x00" as *const u8 as *const libc::c_char,
     );
 
-    let mut simplify: *mut dc_simplify_t = dc_simplify_new();
+    let simplify: *mut dc_simplify_t = dc_simplify_new();
     let mut html: *const libc::c_char =
         b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
     let mut plain: *mut libc::c_char =
@@ -125,10 +125,10 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else { };
     free(plain as *mut libc::c_void);
     dc_simplify_unref(simplify);
-    let mut xml: *const libc::c_char =
+    let xml: *const libc::c_char =
         b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</wHeN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></Placemark>\n</Document>\n</kml>\x00"
             as *const u8 as *const libc::c_char;
-    let mut kml: *mut dc_kml_t = dc_kml_parse(context, xml, strlen(xml));
+    let kml: *mut dc_kml_t = dc_kml_parse(context, xml, strlen(xml));
     if 0 != !(!(*kml).addr.is_null()
         && strcmp(
             (*kml).addr,
@@ -336,7 +336,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
             );
         } else {
         };
-        let mut abs_path: *mut libc::c_char = dc_mprintf(
+        let abs_path: *mut libc::c_char = dc_mprintf(
             b"%s/%s\x00" as *const u8 as *const libc::c_char,
             (*context).blobdir,
             b"foobar\x00" as *const u8 as *const libc::c_char,
@@ -526,7 +526,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
             );
         } else {
         };
-        let mut fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
+        let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
@@ -562,7 +562,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
             b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
             7i32 as size_t,
         );
-        let mut fn1: *mut libc::c_char = dc_get_fine_pathNfilename(
+        let fn1: *mut libc::c_char = dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
@@ -605,7 +605,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-    let mut txt: *const libc::c_char =
+    let txt: *const libc::c_char =
         b"FieldA: ValueA\nFieldB: ValueB\n\x00" as *const u8 as *const libc::c_char;
     let mut mime: *mut mailmime = 0 as *mut mailmime;
     let mut dummy: size_t = 0i32 as size_t;
@@ -632,7 +632,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    let mut fields: *mut mailimf_fields = mailmime_find_mailimf_fields(mime);
+    let fields: *mut mailimf_fields = mailmime_find_mailimf_fields(mime);
     if 0 != fields.is_null() as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -722,7 +722,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    let mut of_b: *mut mailimf_optional_field =
+    let of_b: *mut mailimf_optional_field =
         mailimf_find_optional_field(fields, b"FieldB\x00" as *const u8 as *const libc::c_char);
     if 0 != !(!of_b.is_null() && !(*of_b).fld_value.is_null()) as libc::c_int as libc::c_long {
         __assert_rtn(
@@ -749,8 +749,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     mailmime_free(mime);
-    let mut mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new((*context).blobdir, context);
-    let mut raw: *const libc::c_char =
+    let mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new((*context).blobdir, context);
+    let raw: *const libc::c_char =
         b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00"
             as *const u8 as *const libc::c_char;
     dc_mimeparser_parse(mimeparser, raw, strlen(raw));
@@ -902,7 +902,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    let mut f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
+    let f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
     if 0 != !(f > 1.22f64 && f < 1.24f64) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -913,7 +913,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    let mut s: *mut libc::c_char = dc_ftoa(1.23f64);
+    let s: *mut libc::c_char = dc_ftoa(1.23f64);
     if 0 != !(dc_atof(s) > 1.22f64 && dc_atof(s) < 1.24f64) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1080,7 +1080,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     let mut str: *mut libc::c_char = strdup(b"aaa\x00" as *const u8 as *const libc::c_char);
-    let mut replacements: libc::c_int = dc_str_replace(
+    let replacements: libc::c_int = dc_str_replace(
         &mut str,
         b"a\x00" as *const u8 as *const libc::c_char,
         b"ab\x00" as *const u8 as *const libc::c_char,
@@ -2404,7 +2404,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    let mut arr = dc_array_new(7i32 as size_t);
+    let arr = dc_array_new(7i32 as size_t);
     if 0 != !(dc_array_get_cnt(arr) == 0) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -2416,7 +2416,6 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     let mut i: libc::c_int = 0;
-    i = 0i32;
     while i < 1000i32 {
         dc_array_add_id(arr, (i + 1i32 * 2i32) as uint32_t);
         i += 1
@@ -2632,7 +2631,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     dc_array_unref(arr);
-    let mut p1: *mut dc_param_t = dc_param_new();
+    let p1: *mut dc_param_t = dc_param_new();
     dc_param_set_packed(
         p1,
         b"\r\n\r\na=1\nb=2\n\nc = 3 \x00" as *const u8 as *const libc::c_char,
@@ -3171,9 +3170,9 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     free(keys as *mut libc::c_void);
-    let mut ah: *mut dc_aheader_t = dc_aheader_new();
-    let mut rendered: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut ah_ok: libc::c_int = 0;
+    let ah: *mut dc_aheader_t = dc_aheader_new();
+    let rendered: *mut libc::c_char;
+    let mut ah_ok: libc::c_int;
     ah_ok = dc_aheader_set_from_string(
         ah,
         b"addr=a@b.example.org; prefer-encrypt=mutual; keydata=RGVsdGEgQ2hhdA==\x00" as *const u8
@@ -3402,8 +3401,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     };
     dc_aheader_unref(ah);
     free(rendered as *mut libc::c_void);
-    let mut ok: libc::c_int = 0;
-    let mut buf_0: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut ok: libc::c_int;
+    let mut buf_0: *mut libc::c_char;
     let mut headerline: *const libc::c_char = 0 as *const libc::c_char;
     let mut setupcodebegin: *const libc::c_char = 0 as *const libc::c_char;
     let mut preferencrypt: *const libc::c_char = 0 as *const libc::c_char;
@@ -3767,7 +3766,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     free(norm as *mut libc::c_void);
-    let mut buf_1: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut buf_1: *mut libc::c_char;
     let mut headerline_0: *const libc::c_char = 0 as *const libc::c_char;
     let mut setupcodebegin_0: *const libc::c_char = 0 as *const libc::c_char;
     let mut preferencrypt_0: *const libc::c_char = 0 as *const libc::c_char;
@@ -3906,8 +3905,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     };
     free(buf_1 as *mut libc::c_void);
     if 0 != dc_is_configured(context) {
-        let mut setupcode: *mut libc::c_char = 0 as *mut libc::c_char;
-        let mut setupfile: *mut libc::c_char = 0 as *mut libc::c_char;
+        let setupcode: *mut libc::c_char;
+        let setupfile: *mut libc::c_char;
         setupcode = dc_create_setup_code(context);
         if 0 != setupcode.is_null() as libc::c_int as libc::c_long {
             __assert_rtn(
@@ -3960,7 +3959,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
             );
         } else {
         };
-        let mut buf_2: *mut libc::c_char = dc_strdup(setupfile);
+        let buf_2: *mut libc::c_char = dc_strdup(setupfile);
         let mut headerline_1: *const libc::c_char = 0 as *const libc::c_char;
         let mut setupcodebegin_1: *const libc::c_char = 0 as *const libc::c_char;
         if 0 != (0
@@ -4012,7 +4011,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         } else {
         };
         free(buf_2 as *mut libc::c_void);
-        let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
+        let payload: *mut libc::c_char;
         let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
         payload = dc_decrypt_setup_file(context, setupcode, setupfile);
         if 0 != payload.is_null() as libc::c_int as libc::c_long {
@@ -4063,7 +4062,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         free(setupfile as *mut libc::c_void);
         free(setupcode as *mut libc::c_void);
     }
-    let mut bad_key: *mut dc_key_t = dc_key_new();
+    let bad_key: *mut dc_key_t = dc_key_new();
     let mut bad_data: [libc::c_uchar; 4096] = [0; 4096];
     let mut i_0: libc::c_int = 0i32;
     while i_0 < 4096i32 {
@@ -4092,8 +4091,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         j += 1
     }
     dc_key_unref(bad_key);
-    let mut public_key: *mut dc_key_t = dc_key_new();
-    let mut private_key: *mut dc_key_t = dc_key_new();
+    let public_key: *mut dc_key_t = dc_key_new();
+    let private_key: *mut dc_key_t = dc_key_new();
     dc_pgp_create_keypair(
         context,
         b"foo@bar.de\x00" as *const u8 as *const libc::c_char,
@@ -4120,7 +4119,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    let mut test_key: *mut dc_key_t = dc_key_new();
+    let test_key: *mut dc_key_t = dc_key_new();
     if 0 != (0 == dc_pgp_split_key(context, private_key, test_key)) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -4133,8 +4132,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     dc_key_unref(test_key);
-    let mut public_key2: *mut dc_key_t = dc_key_new();
-    let mut private_key2: *mut dc_key_t = dc_key_new();
+    let public_key2: *mut dc_key_t = dc_key_new();
+    let private_key2: *mut dc_key_t = dc_key_new();
     dc_pgp_create_keypair(
         context,
         b"two@zwo.de\x00" as *const u8 as *const libc::c_char,
@@ -4151,14 +4150,14 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    let mut original_text: *const libc::c_char =
+    let original_text: *const libc::c_char =
         b"This is a test\x00" as *const u8 as *const libc::c_char;
     let mut ctext_signed: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut ctext_unsigned: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut ctext_signed_bytes: size_t = 0i32 as size_t;
     let mut ctext_unsigned_bytes: size_t = 0;
     let mut plain_bytes: size_t = 0i32 as size_t;
-    let mut keyring: *mut dc_keyring_t = dc_keyring_new();
+    let keyring: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(keyring, public_key);
     dc_keyring_add(keyring, public_key2);
     let mut ok_0: libc::c_int = dc_pgp_pk_encrypt(
@@ -4263,11 +4262,11 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     dc_keyring_unref(keyring);
-    let mut keyring_0: *mut dc_keyring_t = dc_keyring_new();
+    let keyring_0: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(keyring_0, private_key);
-    let mut public_keyring: *mut dc_keyring_t = dc_keyring_new();
+    let public_keyring: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(public_keyring, public_key);
-    let mut public_keyring2: *mut dc_keyring_t = dc_keyring_new();
+    let public_keyring2: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(public_keyring2, public_key2);
     let mut plain_0: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut valid_signatures: dc_hash_t = dc_hash_t {
@@ -4279,7 +4278,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         ht: 0 as *mut _ht,
     };
     dc_hash_init(&mut valid_signatures, 3i32, 1i32);
-    let mut ok_1: libc::c_int = 0;
+    let mut ok_1: libc::c_int;
     ok_1 = dc_pgp_pk_decrypt(
         context,
         ctext_signed,
@@ -4519,17 +4518,16 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     free(plain_0);
-    plain_0 = 0 as *mut libc::c_void;
     dc_hash_clear(&mut valid_signatures);
     dc_keyring_unref(keyring_0);
     dc_keyring_unref(public_keyring);
     dc_keyring_unref(public_keyring2);
-    let mut keyring_1: *mut dc_keyring_t = dc_keyring_new();
+    let keyring_1: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(keyring_1, private_key2);
-    let mut public_keyring_0: *mut dc_keyring_t = dc_keyring_new();
+    let public_keyring_0: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(public_keyring_0, public_key);
     let mut plain_1: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut ok_2: libc::c_int = dc_pgp_pk_decrypt(
+    let ok_2: libc::c_int = dc_pgp_pk_decrypt(
         context,
         ctext_signed,
         ctext_signed_bytes,
@@ -4582,7 +4580,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     dc_key_unref(private_key2);
     dc_key_unref(public_key);
     dc_key_unref(private_key);
-    let mut fingerprint: *mut libc::c_char = dc_normalize_fingerprint(
+    let fingerprint: *mut libc::c_char = dc_normalize_fingerprint(
         b" 1234  567890 \n AbcD abcdef ABCDEF \x00" as *const u8 as *const libc::c_char,
     );
     if 0 != fingerprint.is_null() as libc::c_int as libc::c_long {
@@ -4704,21 +4702,26 @@ unsafe extern "C" fn cb(
     0
 }
 
-#[test]
-fn run_stress_tests() {
-    unsafe {
-        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
-        let dir = tempdir().unwrap();
-        let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
-        assert_eq!(
-            dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
-            1,
-            "Failed to open {}",
-            CStr::from_ptr(dbfile.as_ptr() as *const libc::c_char)
-                .to_str()
-                .unwrap()
-        );
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-        stress_functions(&ctx)
+    #[test]
+    fn run_stress_tests() {
+        unsafe {
+            let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
+            let dir = tempdir().unwrap();
+            let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+            assert_eq!(
+                dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
+                1,
+                "Failed to open {}",
+                CStr::from_ptr(dbfile.as_ptr() as *const libc::c_char)
+                    .to_str()
+                    .unwrap()
+            );
+
+            stress_functions(&ctx)
+        }
     }
 }

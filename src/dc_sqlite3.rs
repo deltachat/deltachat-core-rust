@@ -10,7 +10,6 @@ use crate::types::*;
 use crate::x::*;
 
 const DC_OPEN_READONLY: usize = 0x01;
-const DC_HOUSEKEEPING_DELAY_SEC: usize = 10;
 
 /// A simple wrapper around the underlying Sqlite3 object.
 #[repr(C)]
