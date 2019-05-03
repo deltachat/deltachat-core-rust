@@ -15,7 +15,7 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-/* ******************************************************************************
+/*******************************************************************************
  * Configure folders
  ******************************************************************************/
 #[derive(Copy, Clone)]
@@ -25,7 +25,8 @@ pub struct dc_imapfolder_t {
     pub name_utf8: *mut libc::c_char,
     pub meaning: libc::c_int,
 }
-/* ******************************************************************************
+
+/*******************************************************************************
  * Thunderbird's Autoconfigure
  ******************************************************************************/
 /* documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
@@ -42,7 +43,7 @@ pub struct moz_autoconfigure_t {
     pub tag_config: libc::c_int,
 }
 
-/* ******************************************************************************
+/*******************************************************************************
  * Outlook's Autodiscover
  ******************************************************************************/
 #[derive(Copy, Clone)]
@@ -56,6 +57,7 @@ pub struct outlk_autodiscover_t {
     pub config: [*mut libc::c_char; 6],
     pub redirect: *mut libc::c_char,
 }
+
 // connect
 pub unsafe fn dc_configure(mut context: &dc_context_t) {
     if 0 != dc_has_ongoing(context) {
@@ -70,6 +72,8 @@ pub unsafe fn dc_configure(mut context: &dc_context_t) {
     dc_job_kill_action(context, 900i32);
     dc_job_add(context, 900i32, 0i32, 0 as *const libc::c_char, 0i32);
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
     let s_a = context.running_state.clone();
     let s = s_a.read().unwrap();
@@ -80,6 +84,8 @@ pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
         0
     }
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
     return if 0
         != dc_sqlite3_get_config_int(
@@ -93,6 +99,7 @@ pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
         0i32
     };
 }
+
 pub unsafe fn dc_stop_ongoing_process(context: &dc_context_t) {
     let s_a = context.running_state.clone();
     let mut s = s_a.write().unwrap();
@@ -112,9 +119,12 @@ pub unsafe fn dc_stop_ongoing_process(context: &dc_context_t) {
         );
     };
 }
+
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
+// TODO should return bool /rtn
+// TODO here be dragons! -> a lot of complexity -> should be broken down /rtn
 pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut dc_job_t) {
-    let mut flags: libc::c_int = 0;
+    let mut flags: libc::c_int;
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut imap_connected_here: libc::c_int = 0i32;
@@ -123,7 +133,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
     let mut mvbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
     /* just a pointer inside param, must not be freed! */
-    let mut param_domain: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut param_domain: *mut libc::c_char;
     let mut param_addr_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param_autoconfig: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
 
@@ -1337,7 +1347,7 @@ pub unsafe fn dc_configure_folders(
     flags: libc::c_int,
 ) {
     let mut folder_list: *mut clist = 0 as *mut clist;
-    let mut iter: *mut clistiter = 0 as *mut clistiter;
+    let mut iter: *mut clistiter;
     let mut mvbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut sentbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut fallback_folder: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1448,9 +1458,10 @@ pub unsafe fn dc_configure_folders(
     free(mvbox_folder as *mut libc::c_void);
     free(fallback_folder as *mut libc::c_void);
 }
+
 unsafe fn free_folders(mut folders: *mut clist) {
     if !folders.is_null() {
-        let mut iter1: *mut clistiter = 0 as *mut clistiter;
+        let mut iter1: *mut clistiter;
         iter1 = (*folders).first;
         while !iter1.is_null() {
             let mut ret_folder: *mut dc_imapfolder_t = (if !iter1.is_null() {
@@ -1470,11 +1481,12 @@ unsafe fn free_folders(mut folders: *mut clist) {
         clist_free(folders);
     };
 }
+
 unsafe fn list_folders(context: &dc_context_t, imap: &mut dc_imap_t) -> *mut clist {
     let mut imap_list: *mut clist = 0 as *mut clist;
-    let mut iter1: *mut clistiter = 0 as *mut clistiter;
+    let mut iter1: *mut clistiter;
     let mut ret_list: *mut clist = clist_new();
-    let mut r: libc::c_int = 0i32;
+    let mut r: libc::c_int;
     let mut xlist_works: libc::c_int = 0i32;
     if !(*imap).etpan.is_null() {
         if 0 != (*imap).has_xlist {
@@ -1564,8 +1576,9 @@ unsafe fn list_folders(context: &dc_context_t, imap: &mut dc_imap_t) -> *mut cli
     if !imap_list.is_null() {
         mailimap_list_result_free(imap_list);
     }
-    return ret_list;
+    ret_list
 }
+
 unsafe fn get_folder_meaning_by_name(mut folder_name: *const libc::c_char) -> libc::c_int {
     // try to get the folder meaning by the name of the folder.
     // only used if the server does not support XLIST.
@@ -1584,12 +1597,13 @@ unsafe fn get_folder_meaning_by_name(mut folder_name: *const libc::c_char) -> li
         ret_meaning = 1i32
     }
     free(lower as *mut libc::c_void);
-    return ret_meaning;
+    ret_meaning
 }
+
 unsafe fn get_folder_meaning(mut flags: *mut mailimap_mbx_list_flags) -> libc::c_int {
     let mut ret_meaning: libc::c_int = 0i32;
     if !flags.is_null() {
-        let mut iter2: *mut clistiter = 0 as *mut clistiter;
+        let mut iter2: *mut clistiter;
         iter2 = (*(*flags).mbf_oflags).first;
         while !iter2.is_null() {
             let mut oflag: *mut mailimap_mbx_list_oflag = (if !iter2.is_null() {
@@ -1635,21 +1649,17 @@ unsafe fn get_folder_meaning(mut flags: *mut mailimap_mbx_list_flags) -> libc::c
             }
         }
     }
-    return ret_meaning;
+    ret_meaning
 }
+
 unsafe fn moz_autoconfigure(
     mut context: &dc_context_t,
     mut url: *const libc::c_char,
     mut param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
-    let mut p: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut saxparser: dc_saxparser_t = dc_saxparser_t {
-        starttag_cb: None,
-        endtag_cb: None,
-        text_cb: None,
-        userdata: 0 as *mut libc::c_void,
-    };
-    let mut xml_raw: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut p: *mut libc::c_char;
+    let mut saxparser: dc_saxparser_t;
+    let mut xml_raw: *mut libc::c_char;
     let mut moz_ac: moz_autoconfigure_t = moz_autoconfigure_t {
         in_0: 0 as *const dc_loginparam_t,
         in_emaildomain: 0 as *mut libc::c_char,
@@ -1712,8 +1722,9 @@ unsafe fn moz_autoconfigure(
     free(xml_raw as *mut libc::c_void);
     free(moz_ac.in_emaildomain as *mut libc::c_void);
     free(moz_ac.in_emaillocalpart as *mut libc::c_void);
-    return moz_ac.out;
+    moz_ac.out
 }
+
 unsafe fn moz_autoconfigure_text_cb(
     userdata: *mut libc::c_void,
     text: *const libc::c_char,
@@ -1792,6 +1803,7 @@ unsafe fn moz_autoconfigure_text_cb(
     }
     free(val as *mut libc::c_void);
 }
+
 unsafe fn moz_autoconfigure_endtag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
@@ -1817,6 +1829,7 @@ unsafe fn moz_autoconfigure_endtag_cb(
         (*moz_ac).tag_config = 0i32
     };
 }
+
 unsafe fn moz_autoconfigure_starttag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
@@ -1862,11 +1875,12 @@ unsafe fn moz_autoconfigure_starttag_cb(
         (*moz_ac).tag_config = 12i32
     };
 }
+
 unsafe fn read_autoconf_file(
     mut context: &dc_context_t,
     mut url: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut filecontent: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut filecontent: *mut libc::c_char;
     dc_log_info(
         context,
         0i32,
@@ -1888,8 +1902,9 @@ unsafe fn read_autoconf_file(
         );
         return 0 as *mut libc::c_char;
     }
-    return filecontent;
+    filecontent
 }
+
 unsafe fn outlk_autodiscover(
     context: &dc_context_t,
     url__: *const libc::c_char,
@@ -1908,7 +1923,6 @@ unsafe fn outlk_autodiscover(
         redirect: 0 as *mut libc::c_char,
     };
     let mut i: libc::c_int = 0;
-    i = 0i32;
     loop {
         if !(i < 10i32) {
             current_block = 11584701595673473500;
@@ -1981,17 +1995,18 @@ unsafe fn outlk_autodiscover(
     free(url as *mut libc::c_void);
     free(xml_raw as *mut libc::c_void);
     outlk_clean_config(&mut outlk_ad);
-    return outlk_ad.out;
+    outlk_ad.out
 }
+
 unsafe fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
     let mut i: libc::c_int = 0;
-    i = 0i32;
     while i < 6i32 {
         free((*outlk_ad).config[i as usize] as *mut libc::c_void);
         (*outlk_ad).config[i as usize] = 0 as *mut libc::c_char;
         i += 1
     }
 }
+
 unsafe fn outlk_autodiscover_text_cb(
     userdata: *mut libc::c_void,
     text: *const libc::c_char,
@@ -2003,6 +2018,7 @@ unsafe fn outlk_autodiscover_text_cb(
     free((*outlk_ad).config[(*outlk_ad).tag_config as usize] as *mut libc::c_void);
     (*outlk_ad).config[(*outlk_ad).tag_config as usize] = val;
 }
+
 unsafe fn outlk_autodiscover_endtag_cb(
     mut userdata: *mut libc::c_void,
     mut tag: *const libc::c_char,
@@ -2055,6 +2071,7 @@ unsafe fn outlk_autodiscover_endtag_cb(
     }
     (*outlk_ad).tag_config = 0i32;
 }
+
 unsafe fn outlk_autodiscover_starttag_cb(
     userdata: *mut libc::c_void,
     tag: *const libc::c_char,
@@ -2075,6 +2092,7 @@ unsafe fn outlk_autodiscover_starttag_cb(
         (*outlk_ad).tag_config = 5i32
     };
 }
+
 pub unsafe fn dc_alloc_ongoing(context: &dc_context_t) -> libc::c_int {
     if 0 != dc_has_ongoing(context) {
         dc_log_warning(
@@ -2127,5 +2145,5 @@ pub unsafe fn dc_connect_to_configured_imap(
         }
     }
     dc_loginparam_unref(param);
-    return ret_connected;
+    ret_connected
 }
