@@ -149,27 +149,6 @@ pub unsafe extern "C" fn dc_reset_tables(
     );
     return 1i32;
 }
-/*
- * Clean up the contacts table. This function is called from Core cmdline.
- *
- * All contacts not involved in a chat, not blocked and not being a deaddrop
- * are removed.
- *
- * Deleted contacts from the OS address book normally stay in the contacts
- * database. With this cleanup, they are also removed, as well as all
- * auto-added contacts, unless they are used in a chat or for blocking purpose.
- */
-unsafe extern "C" fn dc_cleanup_contacts(mut context: &dc_context_t) -> libc::c_int {
-    dc_log_info(
-        context,
-        0i32,
-        b"Cleaning up contacts ...\x00" as *const u8 as *const libc::c_char,
-    );
-    dc_sqlite3_execute(context, &context.sql.clone().read().unwrap(),
-                       b"DELETE FROM contacts WHERE id>9 AND blocked=0 AND NOT EXISTS (SELECT contact_id FROM chats_contacts where contacts.id = chats_contacts.contact_id) AND NOT EXISTS (select from_id from msgs WHERE msgs.from_id = contacts.id);\x00"
-                           as *const u8 as *const libc::c_char);
-    return 1i32;
-}
 unsafe extern "C" fn dc_poke_eml_file(
     mut context: &dc_context_t,
     mut filename: *const libc::c_char,
@@ -1620,16 +1599,6 @@ pub unsafe extern "C" fn dc_cmdline(
             ret = dc_strdup(
                 b"ERROR: Argument <contact-id> missing.\x00" as *const u8 as *const libc::c_char,
             )
-        }
-    } else if strcmp(
-        cmd,
-        b"cleanupcontacts\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32
-    {
-        ret = if 0 != dc_cleanup_contacts(&context) {
-            2i32 as *mut libc::c_char
-        } else {
-            1i32 as *mut libc::c_char
         }
     } else if strcmp(cmd, b"getqr\x00" as *const u8 as *const libc::c_char) == 0i32 {
         ret = dc_get_securejoin_qr(
