@@ -15,13 +15,15 @@ pub struct dc_keyring_t {
 }
 
 pub unsafe fn dc_keyring_new() -> *mut dc_keyring_t {
-    let mut keyring: *mut dc_keyring_t = 0 as *mut dc_keyring_t;
+    let mut keyring: *mut dc_keyring_t;
     keyring = calloc(1, ::std::mem::size_of::<dc_keyring_t>()) as *mut dc_keyring_t;
     if keyring.is_null() {
         exit(42i32);
     }
-    return keyring;
+
+    keyring
 }
+
 pub unsafe fn dc_keyring_unref(mut keyring: *mut dc_keyring_t) {
     if keyring.is_null() {
         return;
@@ -34,6 +36,7 @@ pub unsafe fn dc_keyring_unref(mut keyring: *mut dc_keyring_t) {
     free((*keyring).keys as *mut libc::c_void);
     free(keyring as *mut libc::c_void);
 }
+
 /* the reference counter of the key is increased by one */
 pub unsafe fn dc_keyring_add(mut keyring: *mut dc_keyring_t, mut to_add: *mut dc_key_t) {
     if keyring.is_null() || to_add.is_null() {
@@ -54,12 +57,15 @@ pub unsafe fn dc_keyring_add(mut keyring: *mut dc_keyring_t, mut to_add: *mut dc
     *fresh0 = dc_key_ref(to_add);
     (*keyring).count += 1;
 }
+
+// TODO should return bool? /rtn
 pub unsafe fn dc_keyring_load_self_private_for_decrypting(
     context: &dc_context_t,
     keyring: *mut dc_keyring_t,
     self_addr: *const libc::c_char,
     sql: &dc_sqlite3_t,
 ) -> libc::c_int {
+    // Can we prevent keyring and self_addr to be null?
     if keyring.is_null() || self_addr.is_null() {
         return 0i32;
     }
@@ -78,5 +84,6 @@ pub unsafe fn dc_keyring_load_self_private_for_decrypting(
         dc_key_unref(key);
     }
     sqlite3_finalize(stmt);
-    return 1i32;
+
+    1
 }
