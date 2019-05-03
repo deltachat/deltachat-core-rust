@@ -58,13 +58,15 @@ pub struct dc_mimeparser_t<'a> {
 pub unsafe fn dc_no_compound_msgs() {
     s_generate_compound_msgs = 0i32;
 }
+
 // deprecated: flag to switch generation of compound messages on and off.
 static mut s_generate_compound_msgs: libc::c_int = 1i32;
+
 pub unsafe fn dc_mimeparser_new(
     blobdir: *const libc::c_char,
     context: &dc_context_t,
 ) -> *mut dc_mimeparser_t {
-    let mut mimeparser: *mut dc_mimeparser_t = 0 as *mut dc_mimeparser_t;
+    let mut mimeparser: *mut dc_mimeparser_t;
     mimeparser = calloc(1, ::std::mem::size_of::<dc_mimeparser_t>()) as *mut dc_mimeparser_t;
     if mimeparser.is_null() {
         exit(30i32);
@@ -76,8 +78,10 @@ pub unsafe fn dc_mimeparser_new(
     (*mimeparser).e2ee_helper =
         calloc(1, ::std::mem::size_of::<dc_e2ee_helper_t>()) as *mut dc_e2ee_helper_t;
     dc_hash_init(&mut (*mimeparser).header, 3i32, 0i32);
-    return mimeparser;
+
+    mimeparser
 }
+
 pub unsafe fn dc_mimeparser_unref(mut mimeparser: *mut dc_mimeparser_t) {
     if mimeparser.is_null() {
         return;
@@ -98,7 +102,7 @@ pub unsafe fn dc_mimeparser_empty(mut mimeparser: *mut dc_mimeparser_t) {
         return;
     }
     if !(*mimeparser).parts.is_null() {
-        let mut i: libc::c_int = 0;
+        let mut i: libc::c_int;
         let mut cnt: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
         i = 0i32;
         while i < cnt {
@@ -150,14 +154,15 @@ unsafe fn dc_mimepart_unref(mut mimepart: *mut dc_mimepart_t) {
     dc_param_unref((*mimepart).param);
     free(mimepart as *mut libc::c_void);
 }
+
 pub unsafe fn dc_mimeparser_parse(
     mut mimeparser: *mut dc_mimeparser_t,
     mut body_not_terminated: *const libc::c_char,
     mut body_bytes: size_t,
 ) {
-    let mut r: libc::c_int = 0i32;
+    let mut r: libc::c_int;
     let mut index: size_t = 0i32 as size_t;
-    let mut optional_field: *mut mailimf_optional_field = 0 as *mut mailimf_optional_field;
+    let mut optional_field: *mut mailimf_optional_field;
     dc_mimeparser_empty(mimeparser);
     r = mailmime_parse(
         body_not_terminated,
@@ -194,7 +199,7 @@ pub unsafe fn dc_mimeparser_parse(
         )
         .is_null()
         {
-            let mut i: libc::c_int = 0;
+            let mut i: libc::c_int;
             let mut has_setup_file: libc::c_int = 0i32;
             i = 0i32;
             while (i as libc::c_uint) < carray_count((*mimeparser).parts) {
@@ -303,7 +308,7 @@ pub unsafe fn dc_mimeparser_parse(
                 }
                 dc_trim(subj);
                 if 0 != *subj.offset(0isize) {
-                    let mut i_0: libc::c_int = 0;
+                    let mut i_0: libc::c_int;
                     let mut icnt: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
                     i_0 = 0i32;
                     while i_0 < icnt {
@@ -328,7 +333,7 @@ pub unsafe fn dc_mimeparser_parse(
             }
         }
         if 0 != (*mimeparser).is_forwarded {
-            let mut i_1: libc::c_int = 0;
+            let mut i_1: libc::c_int;
             let mut icnt_0: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
             i_1 = 0i32;
             while i_1 < icnt_0 {
@@ -430,24 +435,26 @@ pub unsafe fn dc_mimeparser_parse(
         );
     };
 }
-/* ******************************************************************************
+
+/*******************************************************************************
  * a MIME part
  ******************************************************************************/
 unsafe fn dc_mimepart_new() -> *mut dc_mimepart_t {
-    let mut mimepart: *mut dc_mimepart_t = 0 as *mut dc_mimepart_t;
+    let mut mimepart: *mut dc_mimepart_t;
     mimepart = calloc(1, ::std::mem::size_of::<dc_mimepart_t>()) as *mut dc_mimepart_t;
     if mimepart.is_null() {
         exit(33i32);
     }
     (*mimepart).type_0 = 0i32;
     (*mimepart).param = dc_param_new();
-    return mimepart;
+    mimepart
 }
+
 pub unsafe fn dc_mimeparser_get_last_nonmeta(
     mut mimeparser: *mut dc_mimeparser_t,
 ) -> *mut dc_mimepart_t {
     if !mimeparser.is_null() && !(*mimeparser).parts.is_null() {
-        let mut i: libc::c_int = 0;
+        let mut i: libc::c_int;
         let mut icnt: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
         i = icnt - 1i32;
         while i >= 0i32 {
@@ -459,8 +466,10 @@ pub unsafe fn dc_mimeparser_get_last_nonmeta(
             i -= 1
         }
     }
-    return 0 as *mut dc_mimepart_t;
+
+    0 as *mut dc_mimepart_t
 }
+
 /*the result must be freed*/
 pub unsafe fn mailimf_find_first_addr(
     mut mb_list: *const mailimf_mailbox_list,
@@ -484,19 +493,22 @@ pub unsafe fn mailimf_find_first_addr(
             0 as *mut clistcell_s
         }
     }
-    return 0 as *mut libc::c_char;
+
+    0 as *mut libc::c_char
 }
+
 /* the following functions can be used only after a call to dc_mimeparser_parse() */
 pub unsafe fn dc_mimeparser_lookup_field(
     mut mimeparser: *mut dc_mimeparser_t,
     mut field_name: *const libc::c_char,
 ) -> *mut mailimf_field {
-    return dc_hash_find(
+    dc_hash_find(
         &mut (*mimeparser).header,
         field_name as *const libc::c_void,
         strlen(field_name) as libc::c_int,
-    ) as *mut mailimf_field;
+    ) as *mut mailimf_field
 }
+
 pub unsafe fn dc_mimeparser_lookup_optional_field(
     mut mimeparser: *mut dc_mimeparser_t,
     mut field_name: *const libc::c_char,
@@ -509,14 +521,16 @@ pub unsafe fn dc_mimeparser_lookup_optional_field(
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
         return (*field).fld_data.fld_optional_field;
     }
-    return 0 as *mut mailimf_optional_field;
+
+    0 as *mut mailimf_optional_field
 }
+
 unsafe fn dc_mimeparser_parse_mime_recursive(
     mut mimeparser: *mut dc_mimeparser_t,
     mut mime: *mut mailmime,
 ) -> libc::c_int {
     let mut any_part_added: libc::c_int = 0i32;
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
+    let mut cur: *mut clistiter;
     if mimeparser.is_null() || mime.is_null() {
         return 0i32;
     }
@@ -577,6 +591,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
         }
     }
     match (*mime).mm_type {
+        // TODO match on enums /rtn
         1 => any_part_added = dc_mimeparser_add_single_part_if_known(mimeparser, mime),
         2 => {
             match mailmime_get_mime_type(mime, 0 as *mut libc::c_int, 0 as *mut *mut libc::c_char) {
@@ -812,8 +827,10 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
         }
         _ => {}
     }
-    return any_part_added;
+
+    any_part_added
 }
+
 unsafe fn hash_header(out: *mut dc_hash_t, in_0: *const mailimf_fields, _context: &dc_context_t) {
     if in_0.is_null() {
         return;
@@ -826,6 +843,7 @@ unsafe fn hash_header(out: *mut dc_hash_t, in_0: *const mailimf_fields, _context
             0 as *mut libc::c_void
         }) as *mut mailimf_field;
         let mut key: *const libc::c_char = 0 as *const libc::c_char;
+        // TODO match on enums /rtn
         match (*field).fld_type {
             1 => key = b"Return-Path\x00" as *const u8 as *const libc::c_char,
             9 => key = b"Date\x00" as *const u8 as *const libc::c_char,
@@ -879,6 +897,7 @@ unsafe fn hash_header(out: *mut dc_hash_t, in_0: *const mailimf_fields, _context
         }
     }
 }
+
 unsafe fn mailmime_get_mime_type(
     mut mime: *mut mailmime,
     mut msg_type: *mut libc::c_int,
@@ -893,6 +912,7 @@ unsafe fn mailmime_get_mime_type(
     if c.is_null() || (*c).ct_type.is_null() {
         return 0i32;
     }
+    // TODO match on enums /rtn
     match (*(*c).ct_type).tp_type {
         1 => match (*(*(*c).ct_type).tp_data.tp_discrete_type).dt_type {
             1 => {
@@ -1047,8 +1067,10 @@ unsafe fn mailmime_get_mime_type(
         }
         _ => {}
     }
-    return 0i32;
+
+    0
 }
+
 unsafe fn reconcat_mime(
     mut raw_mime: *mut *mut libc::c_char,
     mut type_0: *const libc::c_char,
@@ -1070,6 +1092,7 @@ unsafe fn reconcat_mime(
         )
     };
 }
+
 unsafe fn mailmime_is_attachment_disposition(mut mime: *mut mailmime) -> libc::c_int {
     if !(*mime).mm_mime_fields.is_null() {
         let mut cur: *mut clistiter = (*(*(*mime).mm_mime_fields).fld_list).first;
@@ -1097,8 +1120,10 @@ unsafe fn mailmime_is_attachment_disposition(mut mime: *mut mailmime) -> libc::c
             }
         }
     }
-    return 0i32;
+
+    0
 }
+
 /* low-level-tools for working with mailmime structures directly */
 pub unsafe fn mailmime_find_ct_parameter(
     mut mime: *mut mailmime,
@@ -1111,7 +1136,7 @@ pub unsafe fn mailmime_find_ct_parameter(
     {
         return 0 as *mut mailmime_parameter;
     }
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
+    let mut cur: *mut clistiter;
     cur = (*(*(*mime).mm_content_type).ct_parameters).first;
     while !cur.is_null() {
         let mut param: *mut mailmime_parameter = (if !cur.is_null() {
@@ -1130,8 +1155,10 @@ pub unsafe fn mailmime_find_ct_parameter(
             0 as *mut clistcell_s
         }
     }
-    return 0 as *mut mailmime_parameter;
+
+    0 as *mut mailmime_parameter
 }
+
 unsafe fn dc_mimeparser_add_single_part_if_known(
     mut mimeparser: *mut dc_mimeparser_t,
     mut mime: *mut mailmime,
@@ -1139,8 +1166,8 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     let mut current_block: u64;
     let mut part: *mut dc_mimepart_t = 0 as *mut dc_mimepart_t;
     let mut old_part_count: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
-    let mut mime_type: libc::c_int = 0;
-    let mut mime_data: *mut mailmime_data = 0 as *mut mailmime_data;
+    let mut mime_type: libc::c_int;
+    let mut mime_data: *mut mailmime_data;
     let mut file_suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut desired_filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut msg_type: libc::c_int = 0i32;
@@ -1183,6 +1210,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                         } else {
                             current_block = 13797916685926291137;
                         }
+                        // TODO match on enums /rtn
                         match current_block {
                             8795901732489102124 => {}
                             _ => {
@@ -1474,6 +1502,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
         0i32
     };
 }
+
 unsafe fn do_add_single_file_part(
     mut parser: *mut dc_mimeparser_t,
     mut msg_type: libc::c_int,
@@ -1484,7 +1513,7 @@ unsafe fn do_add_single_file_part(
     mut desired_filename: *const libc::c_char,
 ) {
     let mut part: *mut dc_mimepart_t = 0 as *mut dc_mimepart_t;
-    let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut pathNfilename: *mut libc::c_char;
     /* create a free file name to use */
     pathNfilename = dc_get_fine_pathNfilename(
         (*parser).context,
@@ -1526,6 +1555,7 @@ unsafe fn do_add_single_file_part(
     free(pathNfilename as *mut libc::c_void);
     dc_mimepart_unref(part);
 }
+
 unsafe fn do_add_single_part(mut parser: *mut dc_mimeparser_t, mut part: *mut dc_mimepart_t) {
     if 0 != (*(*parser).e2ee_helper).encrypted
         && (*(*(*parser).e2ee_helper).signatures).count > 0i32
@@ -1540,6 +1570,8 @@ unsafe fn do_add_single_part(mut parser: *mut dc_mimeparser_t, mut part: *mut dc
         0 as *mut libc::c_uint,
     );
 }
+
+// TODO should return bool /rtn
 pub unsafe fn mailmime_transfer_decode(
     mut mime: *mut mailmime,
     mut ret_decoded_data: *mut *const libc::c_char,
@@ -1547,9 +1579,9 @@ pub unsafe fn mailmime_transfer_decode(
     mut ret_to_mmap_string_unref: *mut *mut libc::c_char,
 ) -> libc::c_int {
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
-    let mut mime_data: *mut mailmime_data = 0 as *mut mailmime_data;
+    let mut mime_data: *mut mailmime_data;
     /* must not be free()'d */
-    let mut decoded_data: *const libc::c_char = 0 as *const libc::c_char;
+    let mut decoded_data: *const libc::c_char;
     let mut decoded_data_bytes: size_t = 0i32 as size_t;
     /* mmap_string_unref()'d if set */
     let mut transfer_decoding_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1565,7 +1597,7 @@ pub unsafe fn mailmime_transfer_decode(
     }
     mime_data = (*mime).mm_data.mm_single;
     if !(*mime).mm_mime_fields.is_null() {
-        let mut cur: *mut clistiter = 0 as *mut clistiter;
+        let mut cur: *mut clistiter;
         cur = (*(*(*mime).mm_mime_fields).fld_list).first;
         while !cur.is_null() {
             let mut field: *mut mailmime_field = (if !cur.is_null() {
@@ -1598,7 +1630,7 @@ pub unsafe fn mailmime_transfer_decode(
             return 0i32;
         }
     } else {
-        let mut r: libc::c_int = 0;
+        let mut r: libc::c_int;
         let mut current_index: size_t = 0i32 as size_t;
         r = mailmime_part_parse(
             (*mime_data).dt_data.dt_text.dt_data,
@@ -1619,8 +1651,11 @@ pub unsafe fn mailmime_transfer_decode(
     *ret_decoded_data = decoded_data;
     *ret_decoded_data_bytes = decoded_data_bytes;
     *ret_to_mmap_string_unref = transfer_decoding_buffer;
-    return 1i32;
+
+    1
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_mimeparser_is_mailinglist_message(
     mut mimeparser: *mut dc_mimeparser_t,
 ) -> libc::c_int {
@@ -1652,15 +1687,17 @@ pub unsafe fn dc_mimeparser_is_mailinglist_message(
             return 1i32;
         }
     }
-    return 0i32;
+
+    0
 }
+
 pub unsafe fn dc_mimeparser_sender_equals_recipient(
     mut mimeparser: *mut dc_mimeparser_t,
 ) -> libc::c_int {
     let mut sender_equals_recipient: libc::c_int = 0i32;
-    let mut fld: *const mailimf_field = 0 as *const mailimf_field;
+    let mut fld: *const mailimf_field;
     let mut fld_from: *const mailimf_from = 0 as *const mailimf_from;
-    let mut mb: *mut mailimf_mailbox = 0 as *mut mailimf_mailbox;
+    let mut mb: *mut mailimf_mailbox;
     let mut from_addr_norm: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut recipients: *mut dc_hash_t = 0 as *mut dc_hash_t;
     if !(mimeparser.is_null() || (*mimeparser).header_root.is_null()) {
@@ -1700,14 +1737,16 @@ pub unsafe fn dc_mimeparser_sender_equals_recipient(
     dc_hash_clear(recipients);
     free(recipients as *mut libc::c_void);
     free(from_addr_norm as *mut libc::c_void);
-    return sender_equals_recipient;
+
+    sender_equals_recipient
 }
+
 pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut dc_hash_t {
     /* the returned value must be dc_hash_clear()'d and free()'d. returned addresses are normalized. */
     let mut recipients: *mut dc_hash_t =
         malloc(::std::mem::size_of::<dc_hash_t>()) as *mut dc_hash_t;
     dc_hash_init(recipients, 3i32, 1i32);
-    let mut cur1: *mut clistiter = 0 as *mut clistiter;
+    let mut cur1: *mut clistiter;
     cur1 = (*(*imffields).fld_list).first;
     while !cur1.is_null() {
         let mut fld: *mut mailimf_field = (if !cur1.is_null() {
@@ -1715,9 +1754,10 @@ pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut
         } else {
             0 as *mut libc::c_void
         }) as *mut mailimf_field;
-        let mut fld_to: *mut mailimf_to = 0 as *mut mailimf_to;
-        let mut fld_cc: *mut mailimf_cc = 0 as *mut mailimf_cc;
+        let mut fld_to: *mut mailimf_to;
+        let mut fld_cc: *mut mailimf_cc;
         let mut addr_list: *mut mailimf_address_list = 0 as *mut mailimf_address_list;
+        // TODO match on enums /rtn
         match (*fld).fld_type {
             13 => {
                 fld_to = (*fld).fld_data.fld_to;
@@ -1734,7 +1774,7 @@ pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut
             _ => {}
         }
         if !addr_list.is_null() {
-            let mut cur2: *mut clistiter = 0 as *mut clistiter;
+            let mut cur2: *mut clistiter;
             cur2 = (*(*addr_list).ad_list).first;
             while !cur2.is_null() {
                 let mut adr: *mut mailimf_address = (if !cur2.is_null() {
@@ -1748,7 +1788,7 @@ pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut
                     } else if (*adr).ad_type == MAILIMF_ADDRESS_GROUP as libc::c_int {
                         let mut group: *mut mailimf_group = (*adr).ad_data.ad_group;
                         if !group.is_null() && !(*group).grp_mb_list.is_null() {
-                            let mut cur3: *mut clistiter = 0 as *mut clistiter;
+                            let mut cur3: *mut clistiter;
                             cur3 = (*(*(*group).grp_mb_list).mb_list).first;
                             while !cur3.is_null() {
                                 mailimf_get_recipients__add_addr(
@@ -1781,8 +1821,10 @@ pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut
             0 as *mut clistcell_s
         }
     }
-    return recipients;
+
+    recipients
 }
+
 /* ******************************************************************************
  * debug output
  ******************************************************************************/
@@ -1805,6 +1847,7 @@ unsafe fn mailimf_get_recipients__add_addr(
         free(addr_norm as *mut libc::c_void);
     };
 }
+
 /*the result is a pointer to mime, must not be freed*/
 pub unsafe fn mailimf_find_field(
     mut header: *mut mailimf_fields,
@@ -1831,14 +1874,16 @@ pub unsafe fn mailimf_find_field(
             0 as *mut clistcell_s
         }
     }
-    return 0 as *mut mailimf_field;
+
+    0 as *mut mailimf_field
 }
+
 pub unsafe fn dc_mimeparser_repl_msg_by_error(
     mut mimeparser: *mut dc_mimeparser_t,
     mut error_msg: *const libc::c_char,
 ) {
-    let mut part: *mut dc_mimepart_t = 0 as *mut dc_mimepart_t;
-    let mut i: libc::c_int = 0i32;
+    let mut part: *mut dc_mimepart_t;
+    let mut i: libc::c_int;
     if mimeparser.is_null()
         || (*mimeparser).parts.is_null()
         || carray_count((*mimeparser).parts) <= 0i32 as libc::c_uint
@@ -1859,11 +1904,13 @@ pub unsafe fn dc_mimeparser_repl_msg_by_error(
     }
     carray_set_size((*mimeparser).parts, 1i32 as libc::c_uint);
 }
+
 /*the result is a pointer to mime, must not be freed*/
 pub unsafe fn mailmime_find_mailimf_fields(mut mime: *mut mailmime) -> *mut mailimf_fields {
     if mime.is_null() {
         return 0 as *mut mailimf_fields;
     }
+    // TODO match on enums
     match (*mime).mm_type {
         2 => {
             let mut cur: *mut clistiter = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
@@ -1888,8 +1935,10 @@ pub unsafe fn mailmime_find_mailimf_fields(mut mime: *mut mailmime) -> *mut mail
         3 => return (*mime).mm_data.mm_message.mm_fields,
         _ => {}
     }
-    return 0 as *mut mailimf_fields;
+
+    0 as *mut mailimf_fields
 }
+
 pub unsafe fn mailimf_find_optional_field(
     mut header: *mut mailimf_fields,
     mut wanted_fld_name: *const libc::c_char,
@@ -1921,5 +1970,6 @@ pub unsafe fn mailimf_find_optional_field(
             0 as *mut clistcell_s
         }
     }
-    return 0 as *mut mailimf_optional_field;
+
+    0 as *mut mailimf_optional_field
 }
