@@ -34,7 +34,7 @@ pub unsafe fn dc_aheader_new_from_imffields(
     mut wanted_from: *const libc::c_char,
     mut header: *const mailimf_fields,
 ) -> *mut dc_aheader_t {
-    let mut cur = 0 as *mut clistiter;
+    let mut cur;
     let mut fine_header = 0 as *mut dc_aheader_t;
 
     if wanted_from.is_null() || header.is_null() {
@@ -105,10 +105,10 @@ pub unsafe fn dc_aheader_set_from_string(
     (b) for the key, non-base64-characters are ignored and
     (c) for parsing, we ignore `\r\n` as well as tabs for spaces */
     let mut header_str = 0 as *mut libc::c_char;
-    let mut p = 0 as *mut libc::c_char;
-    let mut beg_attr_name = 0 as *mut libc::c_char;
-    let mut after_attr_name = 0 as *mut libc::c_char;
-    let mut beg_attr_value = 0 as *mut libc::c_char;
+    let mut p;
+    let mut beg_attr_name;
+    let mut after_attr_name;
+    let mut beg_attr_value;
     let mut success: libc::c_int = 0;
 
     dc_aheader_empty(aheader);
