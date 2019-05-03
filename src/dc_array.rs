@@ -220,9 +220,7 @@ pub unsafe fn dc_array_get_marker(
     {
         return 0 as *mut libc::c_char;
     }
-    dc_strdup_keep_null(
-        (*(*(*array).array.offset(index as isize) as *mut _dc_location)).marker,
-    )
+    dc_strdup_keep_null((*(*(*array).array.offset(index as isize) as *mut _dc_location)).marker)
 }
 
 /**
