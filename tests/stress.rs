@@ -2711,40 +2711,28 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
+
     dc_param_set(p1, 'b' as i32, 0 as *const libc::c_char);
-    // FIXME
-    // if 0 != !(strcmp(
-    //     (*p1).packed,
-    //     b"a=foo\nd=4\x00" as *const u8 as *const libc::c_char,
-    // ) == 0i32) as libc::c_int as libc::c_long
-    // {
-    //     println!("{:?}", std::ffi::CStr::from_ptr((*p1).packed));
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         706i32,
-    //         b"strcmp(p1->packed, \"a=foo\\nd=4\")==0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+
+    assert_eq!(
+        CStr::from_ptr((*p1).packed as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "a=foo\nd=4",
+    );
+
     dc_param_set(p1, 'a' as i32, 0 as *const libc::c_char);
     dc_param_set(p1, 'd' as i32, 0 as *const libc::c_char);
 
-    // FIXME
-    // if 0 != !(strcmp((*p1).packed, b"\x00" as *const u8 as *const libc::c_char) == 0i32)
-    //     as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         710i32,
-    //         b"strcmp(p1->packed, \"\")==0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert_eq!(
+        CStr::from_ptr((*p1).packed as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "",
+    );
+
     dc_param_unref(p1);
+
     let mut keys: *mut libc::c_char = dc_get_config(
         context,
         b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
