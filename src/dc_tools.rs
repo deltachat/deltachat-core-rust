@@ -148,7 +148,7 @@ pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
 
 #[test]
 fn test_dc_ltrim() {
-    use std::ffi::{CStr};
+    use std::ffi::CStr;
     unsafe {
         let mut html: *const libc::c_char =
             b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
@@ -188,7 +188,7 @@ pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
 
 #[test]
 fn test_dc_rtrim() {
-    use std::ffi::{CStr};
+    use std::ffi::CStr;
     unsafe {
         let mut html: *const libc::c_char =
             b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
@@ -211,7 +211,7 @@ pub unsafe fn dc_trim(mut buf: *mut libc::c_char) {
 
 #[test]
 fn test_dc_trim() {
-    use std::ffi::{CStr};
+    use std::ffi::CStr;
     unsafe {
         let mut html: *const libc::c_char =
             b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;

@@ -64,7 +64,9 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
 
     assert_eq!(
-        CStr::from_ptr(plain as *const libc::c_char).to_str().unwrap(),
+        CStr::from_ptr(plain as *const libc::c_char)
+            .to_str()
+            .unwrap(),
         "line1\nline2",
     );
     free(plain as *mut libc::c_void);
