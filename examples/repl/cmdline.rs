@@ -149,27 +149,6 @@ pub unsafe extern "C" fn dc_reset_tables(
     );
     return 1i32;
 }
-/*
- * Clean up the contacts table. This function is called from Core cmdline.
- *
- * All contacts not involved in a chat, not blocked and not being a deaddrop
- * are removed.
- *
- * Deleted contacts from the OS address book normally stay in the contacts
- * database. With this cleanup, they are also removed, as well as all
- * auto-added contacts, unless they are used in a chat or for blocking purpose.
- */
-unsafe extern "C" fn dc_cleanup_contacts(mut context: &dc_context_t) -> libc::c_int {
-    dc_log_info(
-        context,
-        0i32,
-        b"Cleaning up contacts ...\x00" as *const u8 as *const libc::c_char,
-    );
-    dc_sqlite3_execute(context, &context.sql.clone().read().unwrap(),
-                       b"DELETE FROM contacts WHERE id>9 AND blocked=0 AND NOT EXISTS (SELECT contact_id FROM chats_contacts where contacts.id = chats_contacts.contact_id) AND NOT EXISTS (select from_id from msgs WHERE msgs.from_id = contacts.id);\x00"
-                           as *const u8 as *const libc::c_char);
-    return 1i32;
-}
 unsafe extern "C" fn dc_poke_eml_file(
     mut context: &dc_context_t,
     mut filename: *const libc::c_char,
@@ -196,47 +175,6 @@ unsafe extern "C" fn dc_poke_eml_file(
         success = 1i32
     }
     free(data as *mut libc::c_void);
-    return success;
-}
-unsafe extern "C" fn poke_public_key(
-    mut context: &dc_context_t,
-    mut addr: *const libc::c_char,
-    mut public_key_file: *const libc::c_char,
-) -> libc::c_int {
-    /* mainly for testing: if the partner does not support Autocrypt,
-    encryption is disabled as soon as the first messages comes from the partner */
-    let mut header: *mut dc_aheader_t = dc_aheader_new();
-    let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
-    let mut success: libc::c_int = 0i32;
-    if !(addr.is_null() || public_key_file.is_null() || peerstate.is_null() || header.is_null()) {
-        (*header).addr = dc_strdup(addr);
-        (*header).prefer_encrypt = 1i32;
-        if 0 == dc_key_set_from_file((*header).public_key, public_key_file, context)
-            || 0 == dc_pgp_is_valid_key(context, (*header).public_key)
-        {
-            dc_log_warning(
-                context,
-                0i32,
-                b"No valid key found in \"%s\".\x00" as *const u8 as *const libc::c_char,
-                public_key_file,
-            );
-        } else {
-            if 0 != dc_apeerstate_load_by_addr(
-                peerstate,
-                &context.sql.clone().read().unwrap(),
-                addr,
-            ) {
-                dc_apeerstate_apply_header(peerstate, header, time(0 as *mut time_t));
-                dc_apeerstate_save_to_db(peerstate, &context.sql.clone().read().unwrap(), 0i32);
-            } else {
-                dc_apeerstate_init_from_header(peerstate, header, time(0 as *mut time_t));
-                dc_apeerstate_save_to_db(peerstate, &context.sql.clone().read().unwrap(), 1i32);
-            }
-            success = 1i32
-        }
-    }
-    dc_apeerstate_unref(peerstate);
-    dc_aheader_unref(header);
     return success;
 }
 /* *
@@ -307,28 +245,6 @@ unsafe extern "C" fn poke_spec(
                         read_cnt += 1
                     }
                     current_block = 1622411330066726685;
-                } else if !suffix.is_null()
-                    && (strcmp(suffix, b"pem\x00" as *const u8 as *const libc::c_char) == 0i32
-                        || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) == 0i32)
-                {
-                    /* import a publix key */
-                    let mut separator: *mut libc::c_char = strchr(real_spec, ' ' as i32);
-                    if separator.is_null() {
-                        dc_log_error(
-                            context,
-                            0i32,
-                            b"Import: Key files must be specified as \"<addr> <key-file>\".\x00"
-                                as *const u8 as *const libc::c_char,
-                        );
-                        current_block = 8522321847195001863;
-                    } else {
-                        *separator = 0i32 as libc::c_char;
-                        if 0 != poke_public_key(context, real_spec, separator.offset(1isize)) {
-                            read_cnt += 1
-                        }
-                        *separator = ' ' as i32 as libc::c_char;
-                        current_block = 1622411330066726685;
-                    }
                 } else {
                     /* import a directory */
                     dir = opendir(real_spec);
@@ -1683,16 +1599,6 @@ pub unsafe extern "C" fn dc_cmdline(
             ret = dc_strdup(
                 b"ERROR: Argument <contact-id> missing.\x00" as *const u8 as *const libc::c_char,
             )
-        }
-    } else if strcmp(
-        cmd,
-        b"cleanupcontacts\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32
-    {
-        ret = if 0 != dc_cleanup_contacts(&context) {
-            2i32 as *mut libc::c_char
-        } else {
-            1i32 as *mut libc::c_char
         }
     } else if strcmp(cmd, b"getqr\x00" as *const u8 as *const libc::c_char) == 0i32 {
         ret = dc_get_securejoin_qr(
