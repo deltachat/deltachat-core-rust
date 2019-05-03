@@ -39,14 +39,15 @@ pub unsafe fn dc_imex(
     dc_job_add(context, 910i32, 0i32, (*param).packed, 0i32);
     dc_param_unref(param);
 }
+
 pub unsafe fn dc_imex_has_backup(
     mut context: &dc_context_t,
     mut dir_name: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret_backup_time: time_t = 0i32 as time_t;
-    let mut dir_handle: *mut DIR = 0 as *mut DIR;
-    let mut dir_entry: *mut dirent = 0 as *mut dirent;
+    let mut dir_handle: *mut DIR;
+    let mut dir_entry: *mut dirent;
     let mut prefix_len = strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char);
     let mut suffix_len = strlen(b"bak\x00" as *const u8 as *const libc::c_char);
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -148,17 +149,19 @@ pub unsafe fn dc_check_password(
     }
 
     dc_loginparam_unref(loginparam);
-    return success;
+
+    success
 }
+
 pub unsafe fn dc_initiate_key_transfer(mut context: &dc_context_t) -> *mut libc::c_char {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
-    let mut setup_code: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut setup_code: *mut libc::c_char;
     let mut setup_file_content: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut setup_file_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut chat_id: uint32_t = 0i32 as uint32_t;
+    let mut chat_id: uint32_t;
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
-    let mut msg_id: uint32_t = 0i32 as uint32_t;
+    let mut msg_id: uint32_t;
     if 0 == dc_alloc_ongoing(context) {
         return 0 as *mut libc::c_char;
     }
@@ -273,8 +276,10 @@ pub unsafe fn dc_initiate_key_transfer(mut context: &dc_context_t) -> *mut libc:
     free(setup_file_content as *mut libc::c_void);
     dc_msg_unref(msg);
     dc_free_ongoing(context);
-    return setup_code;
+
+    setup_code
 }
+
 pub unsafe extern "C" fn dc_render_setup_file(
     mut context: &dc_context_t,
     mut passphrase: *const libc::c_char,
@@ -364,11 +369,13 @@ pub unsafe extern "C" fn dc_render_setup_file(
     dc_key_unref(curr_private_key);
     free(encr_string as *mut libc::c_void);
     free(self_addr as *mut libc::c_void);
-    return ret_setupfilecontent;
+
+    ret_setupfilecontent
 }
+
 pub unsafe fn dc_create_setup_code(_context: &dc_context_t) -> *mut libc::c_char {
-    let mut random_val: uint16_t = 0i32 as uint16_t;
-    let mut i: libc::c_int = 0i32;
+    let mut random_val: uint16_t;
+    let mut i: libc::c_int;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,
@@ -398,8 +405,11 @@ pub unsafe fn dc_create_setup_code(_context: &dc_context_t) -> *mut libc::c_char
         );
         i += 1
     }
-    return ret.buf;
+
+    ret.buf
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_continue_key_transfer(
     mut context: &dc_context_t,
     mut msg_id: uint32_t,
@@ -473,15 +483,18 @@ pub unsafe fn dc_continue_key_transfer(
     free(filename as *mut libc::c_void);
     dc_msg_unref(msg);
     free(norm_sc as *mut libc::c_void);
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 unsafe fn set_self_key(
     mut context: &dc_context_t,
     mut armored: *const libc::c_char,
     mut set_default: libc::c_int,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut buf: *mut libc::c_char;
     // pointer inside buf, MUST NOT be free()'d
     let mut buf_headerline: *const libc::c_char = 0 as *const libc::c_char;
     //   - " -
@@ -597,14 +610,16 @@ unsafe fn set_self_key(
     free(self_addr as *mut libc::c_void);
     dc_key_unref(private_key);
     dc_key_unref(public_key);
-    return success;
+
+    success
 }
+
 pub unsafe fn dc_decrypt_setup_file(
     mut context: &dc_context_t,
     mut passphrase: *const libc::c_char,
     mut filecontent: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut fc_buf: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut fc_buf: *mut libc::c_char;
     let mut fc_headerline: *const libc::c_char = 0 as *const libc::c_char;
     let mut fc_base64: *const libc::c_char = 0 as *const libc::c_char;
     let mut binary: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -661,8 +676,10 @@ pub unsafe fn dc_decrypt_setup_file(
     if !binary.is_null() {
         mmap_string_unref(binary);
     }
-    return payload;
+
+    payload
 }
+
 pub unsafe fn dc_normalize_setup_code(
     _context: &dc_context_t,
     in_0: *const libc::c_char,
@@ -677,7 +694,7 @@ pub unsafe fn dc_normalize_setup_code(
         eos: 0 as *mut libc::c_char,
     };
     dc_strbuilder_init(&mut out, 0i32);
-    let mut outlen: libc::c_int = 0i32;
+    let mut outlen: libc::c_int;
     let mut p1: *const libc::c_char = in_0;
     while 0 != *p1 {
         if *p1 as libc::c_int >= '0' as i32 && *p1 as libc::c_int <= '9' as i32 {
@@ -701,13 +718,15 @@ pub unsafe fn dc_normalize_setup_code(
         }
         p1 = p1.offset(1isize)
     }
-    return out.buf;
+
+    out.buf
 }
+
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: &dc_context_t, mut job: *mut dc_job_t) {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut ongoing_allocated_here: libc::c_int = 0i32;
-    let mut what: libc::c_int = 0i32;
+    let mut what: libc::c_int;
     let mut param1: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param2: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(0 == dc_alloc_ongoing(context)) {
@@ -957,9 +976,12 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(mut context: &dc_context_t, mut job: *m
         0i32 as uintptr_t,
     );
 }
-/* ******************************************************************************
+
+/*******************************************************************************
  * Import backup
  ******************************************************************************/
+
+// TODO should return bool /rtn
 unsafe fn import_backup(
     mut context: &dc_context_t,
     mut backup_to_import: *const libc::c_char,
@@ -967,7 +989,7 @@ unsafe fn import_backup(
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut processed_files_cnt: libc::c_int = 0i32;
-    let mut total_files_cnt: libc::c_int = 0i32;
+    let mut total_files_cnt: libc::c_int;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut repl_from: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1016,7 +1038,6 @@ unsafe fn import_backup(
                 sqlite3_step(stmt);
                 total_files_cnt = sqlite3_column_int(stmt, 0i32);
                 sqlite3_finalize(stmt);
-                stmt = 0 as *mut sqlite3_stmt;
                 stmt = dc_sqlite3_prepare(
                     context,
                     &context.sql.clone().read().unwrap(),
@@ -1112,34 +1133,37 @@ unsafe fn import_backup(
     free(repl_from as *mut libc::c_void);
     free(repl_to as *mut libc::c_void);
     sqlite3_finalize(stmt);
-    return success;
+
+    success
 }
-/* ******************************************************************************
+
+/*******************************************************************************
  * Export backup
  ******************************************************************************/
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
+// TODO should return bool /rtn
 unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut closed: libc::c_int = 0i32;
-    let mut dest_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut dest_pathNfilename: *mut libc::c_char;
     let mut now = time(0 as *mut time_t);
     let mut dir_handle: *mut DIR = 0 as *mut DIR;
-    let mut dir_entry: *mut dirent = 0 as *mut dirent;
+    let mut dir_entry: *mut dirent;
     let mut prefix_len = strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char);
     let mut suffix_len = strlen(b"bak\x00" as *const u8 as *const libc::c_char);
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut buf_bytes: size_t = 0i32 as size_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut total_files_cnt: libc::c_int = 0i32;
+    let mut total_files_cnt: libc::c_int;
     let mut processed_files_cnt: libc::c_int = 0i32;
     let mut delete_dest_file: libc::c_int = 0i32;
     let mut dest_sql: Option<dc_sqlite3_t> = None;
     /* get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete. however, currently it is not clear it the import exists in the long run (may be replaced by a restore-from-imap)*/
-    let mut timeinfo: *mut tm = 0 as *mut tm;
+    let mut timeinfo: *mut tm;
     let mut buffer: [libc::c_char; 256] = [0; 256];
     timeinfo = localtime(&mut now);
     strftime(
@@ -1410,9 +1434,11 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
     free(dest_pathNfilename as *mut libc::c_void);
     free(curr_pathNfilename as *mut libc::c_void);
     free(buf);
-    return success;
+
+    success
 }
-/* ******************************************************************************
+
+/*******************************************************************************
  * Classic key import
  ******************************************************************************/
 unsafe fn import_self_keys(
@@ -1427,14 +1453,14 @@ unsafe fn import_self_keys(
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
     let mut imported_cnt: libc::c_int = 0i32;
     let mut dir_handle = 0 as *mut DIR;
-    let mut dir_entry: *mut dirent = 0 as *mut dirent;
+    let mut dir_entry: *mut dirent;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut set_default: libc::c_int = 0i32;
+    let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf_bytes: size_t = 0i32 as size_t;
     // a pointer inside buf, MUST NOT be free()'d
-    let mut private_key: *const libc::c_char = 0 as *const libc::c_char;
+    let mut private_key: *const libc::c_char;
     let mut buf2: *mut libc::c_char = 0 as *mut libc::c_char;
     // a pointer inside buf2, MUST NOT be free()'d
     let mut buf2_headerline: *const libc::c_char = 0 as *const libc::c_char;
@@ -1544,16 +1570,19 @@ unsafe fn import_self_keys(
     free(path_plus_name as *mut libc::c_void);
     free(buf as *mut libc::c_void);
     free(buf2 as *mut libc::c_void);
-    return imported_cnt;
+
+    imported_cnt
 }
+
+// TODO should return bool /rtn
 unsafe fn export_self_keys(
     mut context: &dc_context_t,
     mut dir: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut export_errors: libc::c_int = 0i32;
-    let mut id: libc::c_int = 0i32;
-    let mut is_default: libc::c_int = 0i32;
+    let mut id: libc::c_int;
+    let mut is_default: libc::c_int;
     let mut public_key: *mut dc_key_t = dc_key_new();
     let mut private_key: *mut dc_key_t = dc_key_new();
     let stmt = dc_sqlite3_prepare(
@@ -1582,11 +1611,14 @@ unsafe fn export_self_keys(
     sqlite3_finalize(stmt);
     dc_key_unref(public_key);
     dc_key_unref(private_key);
-    return success;
+
+    success
 }
-/* ******************************************************************************
+
+/*******************************************************************************
  * Classic key export
  ******************************************************************************/
+// TODO should return bool /rtn
 unsafe fn export_key_to_asc_file(
     mut context: &dc_context_t,
     mut dir: *const libc::c_char,
@@ -1595,7 +1627,7 @@ unsafe fn export_key_to_asc_file(
     mut is_default: libc::c_int,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut file_name = 0 as *mut libc::c_char;
+    let mut file_name;
     if 0 != is_default {
         file_name = dc_mprintf(
             b"%s/%s-key-default.asc\x00" as *const u8 as *const libc::c_char,
@@ -1642,5 +1674,6 @@ unsafe fn export_key_to_asc_file(
         success = 1i32
     }
     free(file_name as *mut libc::c_void);
-    return success;
+
+    success
 }
