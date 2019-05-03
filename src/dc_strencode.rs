@@ -719,4 +719,3 @@ mod tests {
         assert_eq!(isalnum('Q' as libc::c_int), 1);
     }
 }
-

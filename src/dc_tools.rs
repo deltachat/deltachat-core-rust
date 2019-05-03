@@ -1660,8 +1660,8 @@ pub unsafe fn dc_make_rel_and_copy(
 
 #[cfg(test)]
 mod tests {
-    use std::ffi::CStr;
     use super::*;
+    use std::ffi::CStr;
 
     #[test]
     fn test_dc_ltrim() {
