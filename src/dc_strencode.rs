@@ -22,14 +22,6 @@ pub fn isalnum(mut _c: libc::c_int) -> libc::c_int {
     }
 }
 
-#[cfg(test)]
-#[test]
-fn test_isalnum() {
-    assert_eq!(isalnum(0), 0);
-    assert_eq!(isalnum('5' as libc::c_int), 1);
-    assert_eq!(isalnum('Q' as libc::c_int), 1);
-}
-
 #[inline]
 pub fn isdigit(mut _c: libc::c_int) -> libc::c_int {
     if _c < std::u8::MAX as libc::c_int {
@@ -715,3 +707,16 @@ pub unsafe fn dc_decode_ext_header(mut to_decode: *const libc::c_char) -> *mut l
         dc_strdup(to_decode)
     };
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_isalnum() {
+        assert_eq!(isalnum(0), 0);
+        assert_eq!(isalnum('5' as libc::c_int), 1);
+        assert_eq!(isalnum('Q' as libc::c_int), 1);
+    }
+}
+
