@@ -63,7 +63,6 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     let mut plain: *mut libc::c_char =
         dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
 
-    // FIXME
     assert_eq!(
         CStr::from_ptr(plain as *const libc::c_char).to_str().unwrap(),
         "line1\nline2",
