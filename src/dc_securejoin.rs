@@ -34,13 +34,13 @@ pub unsafe fn dc_get_securejoin_qr(
     ====   Step 1 in "Setup verified contact" protocol   ====
     ========================================================= */
     let mut qr: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut self_addr: *mut libc::c_char;
     let mut self_addr_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut self_name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut self_name_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut invitenumber: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut invitenumber: *mut libc::c_char;
+    let mut auth: *mut libc::c_char;
     let mut chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
     let mut group_name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut group_name_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -148,7 +148,7 @@ pub unsafe fn dc_get_securejoin_qr(
 }
 
 unsafe fn get_self_fingerprint(mut context: &dc_context_t) -> *mut libc::c_char {
-    let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut self_addr: *mut libc::c_char;
     let mut self_key: *mut dc_key_t = dc_key_new();
     let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     self_addr = dc_sqlite3_get_config(
@@ -170,8 +170,10 @@ unsafe fn get_self_fingerprint(mut context: &dc_context_t) -> *mut libc::c_char 
     }
     free(self_addr as *mut libc::c_void);
     dc_key_unref(self_key);
-    return fingerprint;
+
+    fingerprint
 }
+
 pub unsafe fn dc_join_securejoin(
     mut context: &dc_context_t,
     mut qr: *const libc::c_char,
@@ -181,7 +183,7 @@ pub unsafe fn dc_join_securejoin(
     ====   Step 2 in "Setup verified contact" protocol   =====
     ========================================================== */
     let mut ret_chat_id: libc::c_int = 0i32;
-    let mut ongoing_allocated: libc::c_int = 0i32;
+    let mut ongoing_allocated: libc::c_int;
     let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
     let mut join_vg: libc::c_int = 0i32;
     let mut qr_scan: *mut dc_lot_t = 0 as *mut dc_lot_t;
@@ -341,6 +343,7 @@ unsafe fn send_handshake_msg(
     dc_send_msg(context, contact_chat_id, msg);
     dc_msg_unref(msg);
 }
+
 unsafe fn chat_id_2_contact_id(
     mut context: &dc_context_t,
     mut contact_chat_id: uint32_t,
@@ -351,8 +354,10 @@ unsafe fn chat_id_2_contact_id(
         contact_id = dc_array_get_id(contacts, 0i32 as size_t)
     }
     dc_array_unref(contacts);
-    return contact_id;
+
+    contact_id
 }
+
 unsafe fn fingerprint_equals_sender(
     mut context: &dc_context_t,
     mut fingerprint: *const libc::c_char,
@@ -385,8 +390,10 @@ unsafe fn fingerprint_equals_sender(
     free(fingerprint_normalized as *mut libc::c_void);
     dc_contact_unref(contact);
     dc_array_unref(contacts);
-    return fingerprint_equal;
+
+    fingerprint_equal
 }
+
 /* library private: secure-join */
 pub unsafe fn dc_handle_securejoin_handshake(
     context: &dc_context_t,
@@ -394,8 +401,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
     contact_id: uint32_t,
 ) -> libc::c_int {
     let mut current_block: u64;
-    let mut step: *const libc::c_char = 0 as *const libc::c_char;
-    let mut join_vg: libc::c_int = 0i32;
+    let mut step: *const libc::c_char;
+    let mut join_vg: libc::c_int;
     let mut scanned_fingerprint_of_alice: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut own_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -441,7 +448,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
                 // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
                 // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
-                let mut invitenumber: *const libc::c_char = 0 as *const libc::c_char;
+                let mut invitenumber: *const libc::c_char;
                 invitenumber = lookup_field(
                     mimeparser,
                     b"Secure-Join-Invitenumber\x00" as *const u8 as *const libc::c_char,
@@ -588,7 +595,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 ====  Step 6 in "Out-of-band verified groups" protocol  ====
                 ============================================================ */
                 // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-                let mut fingerprint: *const libc::c_char = 0 as *const libc::c_char;
+                let mut fingerprint: *const libc::c_char;
                 fingerprint = lookup_field(
                     mimeparser,
                     b"Secure-Join-Fingerprint\x00" as *const u8 as *const libc::c_char,
@@ -622,7 +629,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         b"Fingerprint verified.\x00" as *const u8 as *const libc::c_char,
                     );
                     // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-                    let mut auth_0: *const libc::c_char = 0 as *const libc::c_char;
+                    let mut auth_0: *const libc::c_char;
                     auth_0 = lookup_field(
                         mimeparser,
                         b"Secure-Join-Auth\x00" as *const u8 as *const libc::c_char,
@@ -896,12 +903,15 @@ pub unsafe fn dc_handle_securejoin_handshake(
     free(auth as *mut libc::c_void);
     free(own_fingerprint as *mut libc::c_void);
     free(grpid as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
 unsafe fn end_bobs_joining(context: &dc_context_t, status: libc::c_int) {
     context.bob.clone().write().unwrap().status = status;
     dc_stop_ongoing_process(context);
 }
+
 unsafe fn secure_connection_established(mut context: &dc_context_t, mut contact_chat_id: uint32_t) {
     let mut contact_id: uint32_t = chat_id_2_contact_id(context, contact_chat_id);
     let mut contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
@@ -924,6 +934,7 @@ unsafe fn secure_connection_established(mut context: &dc_context_t, mut contact_
     free(msg as *mut libc::c_void);
     dc_contact_unref(contact);
 }
+
 unsafe fn lookup_field(
     mut mimeparser: *mut dc_mimeparser_t,
     mut key: *const libc::c_char,
@@ -940,8 +951,10 @@ unsafe fn lookup_field(
     {
         return 0 as *const libc::c_char;
     }
-    return value;
+
+    value
 }
+
 unsafe fn could_not_establish_secure_connection(
     context: &dc_context_t,
     contact_chat_id: uint32_t,
@@ -969,6 +982,7 @@ unsafe fn could_not_establish_secure_connection(
     free(msg as *mut libc::c_void);
     dc_contact_unref(contact);
 }
+
 unsafe fn mark_peer_as_verified(
     context: &dc_context_t,
     fingerprint: *const libc::c_char,
@@ -990,11 +1004,15 @@ unsafe fn mark_peer_as_verified(
         }
     }
     dc_apeerstate_unref(peerstate);
-    return success;
+
+    success
 }
+
 /* ******************************************************************************
  * Tools: Misc.
  ******************************************************************************/
+
+// TODO should return bool
 unsafe fn encrypted_and_signed(
     mut mimeparser: *mut dc_mimeparser_t,
     mut expected_fingerprint: *const libc::c_char,
@@ -1039,14 +1057,16 @@ unsafe fn encrypted_and_signed(
         );
         return 0i32;
     }
-    return 1i32;
+
+    1
 }
+
 pub unsafe fn dc_handle_degrade_event(
     mut context: &dc_context_t,
     mut peerstate: *mut dc_apeerstate_t,
 ) {
-    let mut stmt = 0 as *mut sqlite3_stmt;
-    let mut contact_id: uint32_t = 0i32 as uint32_t;
+    let mut stmt;
+    let mut contact_id: uint32_t;
     let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
     if !peerstate.is_null() {
         // - we do not issue an warning for DC_DE_ENCRYPTION_PAUSED as this is quite normal
