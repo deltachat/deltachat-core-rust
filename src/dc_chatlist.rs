@@ -43,7 +43,8 @@ pub unsafe fn dc_get_chatlist<'a>(
         return 0 as *mut dc_chatlist_t;
     };
 }
-/* *
+
+/**
  * @class dc_chatlist_t
  *
  * An object representing a single chatlist in memory.
@@ -82,7 +83,7 @@ pub unsafe fn dc_get_chatlist<'a>(
  * would not add extra work in the UI then.
  */
 pub unsafe fn dc_chatlist_new(mut context: &dc_context_t) -> *mut dc_chatlist_t {
-    let mut chatlist: *mut dc_chatlist_t = 0 as *mut dc_chatlist_t;
+    let mut chatlist: *mut dc_chatlist_t;
     chatlist = calloc(1, ::std::mem::size_of::<dc_chatlist_t>()) as *mut dc_chatlist_t;
     if chatlist.is_null() {
         exit(20i32);
@@ -93,8 +94,9 @@ pub unsafe fn dc_chatlist_new(mut context: &dc_context_t) -> *mut dc_chatlist_t 
     if (*chatlist).chatNlastmsg_ids.is_null() {
         exit(32i32);
     }
-    return chatlist;
+    chatlist
 }
+
 pub unsafe fn dc_chatlist_unref(mut chatlist: *mut dc_chatlist_t) {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return;
@@ -104,6 +106,7 @@ pub unsafe fn dc_chatlist_unref(mut chatlist: *mut dc_chatlist_t) {
     (*chatlist).magic = 0i32 as uint32_t;
     free(chatlist as *mut libc::c_void);
 }
+
 pub unsafe fn dc_chatlist_empty(mut chatlist: *mut dc_chatlist_t) {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return;
@@ -111,11 +114,13 @@ pub unsafe fn dc_chatlist_empty(mut chatlist: *mut dc_chatlist_t) {
     (*chatlist).cnt = 0i32 as size_t;
     dc_array_empty((*chatlist).chatNlastmsg_ids);
 }
-/* *
+
+/**
  * Load a chatlist from the database to the chatlist object.
  *
  * @private @memberof dc_chatlist_t
  */
+// TODO should return bool /rtn
 unsafe fn dc_chatlist_load_from_db(
     mut chatlist: *mut dc_chatlist_t,
     mut listflags: libc::c_int,
@@ -226,8 +231,9 @@ unsafe fn dc_chatlist_load_from_db(
     sqlite3_finalize(stmt);
     free(query as *mut libc::c_void);
     free(strLikeCmd as *mut libc::c_void);
-    return success;
+    success
 }
+
 // Context functions to work with chatlist
 pub unsafe fn dc_get_archived_cnt(mut context: &dc_context_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
@@ -241,11 +247,12 @@ pub unsafe fn dc_get_archived_cnt(mut context: &dc_context_t) -> libc::c_int {
         ret = sqlite3_column_int(stmt, 0i32)
     }
     sqlite3_finalize(stmt);
-    return ret;
+    ret
 }
+
 unsafe fn get_last_deaddrop_fresh_msg(mut context: &dc_context_t) -> uint32_t {
     let mut ret: uint32_t = 0i32 as uint32_t;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut stmt: *mut sqlite3_stmt;
     stmt =
         dc_sqlite3_prepare(
             context,
@@ -257,14 +264,16 @@ unsafe fn get_last_deaddrop_fresh_msg(mut context: &dc_context_t) -> uint32_t {
         ret = sqlite3_column_int(stmt, 0i32) as uint32_t
     }
     sqlite3_finalize(stmt);
-    return ret;
+    ret
 }
+
 pub unsafe fn dc_chatlist_get_cnt(mut chatlist: *const dc_chatlist_t) -> size_t {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return 0i32 as size_t;
     }
-    return (*chatlist).cnt;
+    (*chatlist).cnt
 }
+
 pub unsafe fn dc_chatlist_get_chat_id(
     mut chatlist: *const dc_chatlist_t,
     mut index: size_t,
@@ -276,8 +285,9 @@ pub unsafe fn dc_chatlist_get_chat_id(
     {
         return 0i32 as uint32_t;
     }
-    return dc_array_get_id((*chatlist).chatNlastmsg_ids, index.wrapping_mul(2));
+    dc_array_get_id((*chatlist).chatNlastmsg_ids, index.wrapping_mul(2))
 }
+
 pub unsafe fn dc_chatlist_get_msg_id(
     mut chatlist: *const dc_chatlist_t,
     mut index: size_t,
@@ -289,11 +299,12 @@ pub unsafe fn dc_chatlist_get_msg_id(
     {
         return 0i32 as uint32_t;
     }
-    return dc_array_get_id(
+    dc_array_get_id(
         (*chatlist).chatNlastmsg_ids,
         index.wrapping_mul(2).wrapping_add(1),
-    );
+    )
 }
+
 pub unsafe fn dc_chatlist_get_summary<'a>(
     mut chatlist: *const dc_chatlist_t<'a>,
     mut index: size_t,
@@ -307,7 +318,7 @@ pub unsafe fn dc_chatlist_get_summary<'a>(
     message. */
     /* the function never returns NULL */
     let mut ret: *mut dc_lot_t = dc_lot_new();
-    let mut lastmsg_id: uint32_t = 0i32 as uint32_t;
+    let mut lastmsg_id: uint32_t;
     let mut lastmsg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let mut lastcontact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut chat_to_delete: *mut dc_chat_t = 0 as *mut dc_chat_t;
@@ -364,5 +375,5 @@ pub unsafe fn dc_chatlist_get_summary<'a>(
     dc_msg_unref(lastmsg);
     dc_contact_unref(lastcontact);
     dc_chat_unref(chat_to_delete);
-    return ret;
+    ret
 }
