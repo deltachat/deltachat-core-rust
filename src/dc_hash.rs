@@ -21,13 +21,16 @@ pub struct dc_hash_t {
     pub htsize: libc::c_int,
     pub ht: *mut _ht,
 }
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct _ht {
     pub count: libc::c_int,
     pub chain: *mut dc_hashelem_t,
 }
+
 pub type dc_hashelem_t = _dc_hashelem;
+
 /* Each element in the hash table is an instance of the following
  * structure.  All elements are stored on a single doubly-linked list.
  *
@@ -43,6 +46,7 @@ pub struct _dc_hashelem {
     pub pKey: *mut libc::c_void,
     pub nKey: libc::c_int,
 }
+
 /*
  * There are 4 different modes of operation for a hash table:
  *
@@ -102,6 +106,7 @@ pub unsafe fn dc_hash_init(
     (*pNew).htsize = 0i32;
     (*pNew).ht = 0 as *mut _ht;
 }
+
 pub unsafe fn dc_hash_insert(
     mut pH: *mut dc_hash_t,
     mut pKey: *const libc::c_void,
@@ -109,15 +114,15 @@ pub unsafe fn dc_hash_insert(
     mut data: *mut libc::c_void,
 ) -> *mut libc::c_void {
     /* Raw hash value of the key */
-    let mut hraw: libc::c_int = 0;
+    let mut hraw: libc::c_int;
     /* the hash of the key modulo hash table size */
-    let mut h: libc::c_int = 0;
+    let mut h: libc::c_int;
     /* Used to loop thru the element list */
-    let mut elem: *mut dc_hashelem_t = 0 as *mut dc_hashelem_t;
+    let mut elem: *mut dc_hashelem_t;
     /* New element added to the pH */
-    let mut new_elem: *mut dc_hashelem_t = 0 as *mut dc_hashelem_t;
+    let mut new_elem: *mut dc_hashelem_t;
     /* The hash function */
-    let mut xHash: Option<unsafe fn(_: *const libc::c_void, _: libc::c_int) -> libc::c_int> = None;
+    let mut xHash: Option<unsafe fn(_: *const libc::c_void, _: libc::c_int) -> libc::c_int>;
     if 0 != pH.is_null() as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 15], &[libc::c_char; 15]>(b"dc_hash_insert\x00"))
@@ -215,8 +220,10 @@ pub unsafe fn dc_hash_insert(
     h = hraw & (*pH).htsize - 1i32;
     insertElement(pH, &mut *(*pH).ht.offset(h as isize), new_elem);
     (*new_elem).data = data;
-    return 0 as *mut libc::c_void;
+
+    0 as *mut libc::c_void
 }
+
 /* Link an element into the hash table
  */
 unsafe extern "C" fn insertElement(
@@ -225,7 +232,7 @@ unsafe extern "C" fn insertElement(
     mut pNew: *mut dc_hashelem_t,
 ) {
     /* First element already in pEntry */
-    let mut pHead: *mut dc_hashelem_t = 0 as *mut dc_hashelem_t;
+    let mut pHead: *mut dc_hashelem_t;
     pHead = (*pEntry).chain;
     if !pHead.is_null() {
         (*pNew).next = pHead;
@@ -247,18 +254,19 @@ unsafe extern "C" fn insertElement(
     (*pEntry).count += 1;
     (*pEntry).chain = pNew;
 }
+
 /* Resize the hash table so that it cantains "new_size" buckets.
  * "new_size" must be a power of 2.  The hash table might fail
  * to resize if sjhashMalloc() fails.
  */
 unsafe fn rehash(mut pH: *mut dc_hash_t, mut new_size: libc::c_int) {
     /* The new hash table */
-    let mut new_ht: *mut _ht = 0 as *mut _ht;
+    let mut new_ht: *mut _ht;
     /* For looping over existing elements */
-    let mut elem: *mut dc_hashelem_t = 0 as *mut dc_hashelem_t;
-    let mut next_elem: *mut dc_hashelem_t = 0 as *mut dc_hashelem_t;
+    let mut elem: *mut dc_hashelem_t;
+    let mut next_elem: *mut dc_hashelem_t;
     /* The hash function */
-    let mut xHash: Option<unsafe fn(_: *const libc::c_void, _: libc::c_int) -> libc::c_int> = None;
+    let mut xHash: Option<unsafe fn(_: *const libc::c_void, _: libc::c_int) -> libc::c_int>;
     if 0 != !(new_size & new_size - 1i32 == 0i32) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 7], &[libc::c_char; 7]>(b"rehash\x00")).as_ptr(),
@@ -290,6 +298,7 @@ unsafe fn rehash(mut pH: *mut dc_hash_t, mut new_size: libc::c_int) {
         elem = next_elem
     }
 }
+
 /* Return a pointer to the appropriate hash function given the key class.
  *
  * About the syntax:
@@ -309,8 +318,10 @@ unsafe fn hashFunction(
         4 => return Some(binHash),
         _ => {}
     }
-    return None;
+
+    None
 }
+
 /* Hash and comparison functions when the mode is SJHASH_BINARY
  */
 unsafe fn binHash(mut pKey: *const libc::c_void, mut nKey: libc::c_int) -> libc::c_int {
@@ -326,13 +337,16 @@ unsafe fn binHash(mut pKey: *const libc::c_void, mut nKey: libc::c_int) -> libc:
         z = z.offset(1);
         h = h << 3i32 ^ h ^ *fresh1 as libc::c_int
     }
-    return h & 0x7fffffffi32;
+
+    h & 0x7fffffffi32
 }
+
 /* Hash and comparison functions when the mode is SJHASH_STRING
  */
 unsafe fn strHash(mut pKey: *const libc::c_void, mut nKey: libc::c_int) -> libc::c_int {
-    return sjhashNoCase(pKey as *const libc::c_char, nKey);
+    sjhashNoCase(pKey as *const libc::c_char, nKey)
 }
+
 /* This function computes a hash on the name of a keyword.
  * Case is not significant.
  */
@@ -347,8 +361,10 @@ unsafe fn sjhashNoCase(mut z: *const libc::c_char, mut n: libc::c_int) -> libc::
         h = h << 3i32 ^ h ^ sjhashUpperToLower[*fresh2 as libc::c_uchar as usize] as libc::c_int;
         n -= 1
     }
-    return h & 0x7fffffffi32;
+
+    h & 0x7fffffffi32
 }
+
 /* An array to map all upper-case characters into their corresponding
  * lower-case character.
  */
@@ -610,17 +626,20 @@ static mut sjhashUpperToLower: [libc::c_uchar; 256] = [
     254i32 as libc::c_uchar,
     255i32 as libc::c_uchar,
 ];
+
 /* Hash and comparison functions when the mode is SJHASH_POINTER
  */
 unsafe fn ptrHash(pKey: *const libc::c_void, _nKey: libc::c_int) -> libc::c_int {
     let mut x: uintptr_t = pKey as uintptr_t;
-    return (x ^ x << 8i32 ^ x >> 8i32) as libc::c_int;
+    (x ^ x << 8i32 ^ x >> 8i32) as libc::c_int
 }
+
 /* Hash and comparison functions when the mode is SJHASH_INT
  */
 unsafe fn intHash(_pKey: *const libc::c_void, mut nKey: libc::c_int) -> libc::c_int {
-    return nKey ^ nKey << 8i32 ^ nKey >> 8i32;
+    nKey ^ nKey << 8i32 ^ nKey >> 8i32
 }
+
 /*
 ** Based upon hash.c from sqlite which author disclaims copyright to this source code. In place of
 ** a legal notice, here is a blessing:
@@ -636,6 +655,7 @@ unsafe fn sjhashMalloc(mut bytes: libc::c_int) -> *mut libc::c_void {
     }
     p
 }
+
 /* Remove a single entry from the hash table given a pointer to that
  * element and a hash on the element's key.
  */
@@ -644,7 +664,7 @@ unsafe fn removeElementGivenHash(
     mut elem: *mut dc_hashelem_t,
     mut h: libc::c_int,
 ) {
-    let mut pEntry: *mut _ht = 0 as *mut _ht;
+    let mut pEntry: *mut _ht;
     if !(*elem).prev.is_null() {
         (*(*elem).prev).next = (*elem).next
     } else {
@@ -667,6 +687,7 @@ unsafe fn removeElementGivenHash(
     free(elem as *mut libc::c_void);
     (*pH).count -= 1;
 }
+
 /* This function (for internal use only) locates an element in an
  * hash table that matches the given key.  The hash for this key has
  * already been computed and is passed as the 4th parameter.
@@ -678,9 +699,9 @@ unsafe fn findElementGivenHash(
     mut h: libc::c_int,
 ) -> *mut dc_hashelem_t {
     /* Used to loop thru the element list */
-    let mut elem: *mut dc_hashelem_t = 0 as *mut dc_hashelem_t;
+    let mut elem: *mut dc_hashelem_t;
     /* Number of elements left to test */
-    let mut count: libc::c_int = 0;
+    let mut count: libc::c_int;
     /* comparison function */
     let mut xCompare: Option<
         unsafe fn(
@@ -689,7 +710,7 @@ unsafe fn findElementGivenHash(
             _: *const libc::c_void,
             _: libc::c_int,
         ) -> libc::c_int,
-    > = None;
+    >;
     if !(*pH).ht.is_null() {
         let mut pEntry: *mut _ht = &mut *(*pH).ht.offset(h as isize) as *mut _ht;
         elem = (*pEntry).chain;
@@ -709,8 +730,10 @@ unsafe fn findElementGivenHash(
             elem = (*elem).next
         }
     }
-    return 0 as *mut dc_hashelem_t;
+
+    0 as *mut dc_hashelem_t
 }
+
 /* Return a pointer to the appropriate hash function given the key class.
  */
 unsafe fn compareFunction(
@@ -730,8 +753,9 @@ unsafe fn compareFunction(
         4 => return Some(binCompare),
         _ => {}
     }
-    return None;
+    None
 }
+
 unsafe fn binCompare(
     mut pKey1: *const libc::c_void,
     mut n1: libc::c_int,
@@ -741,8 +765,9 @@ unsafe fn binCompare(
     if n1 != n2 {
         return 1i32;
     }
-    return memcmp(pKey1, pKey2, n1 as libc::size_t);
+    memcmp(pKey1, pKey2, n1 as libc::size_t)
 }
+
 unsafe fn strCompare(
     mut pKey1: *const libc::c_void,
     mut n1: libc::c_int,
@@ -752,12 +777,13 @@ unsafe fn strCompare(
     if n1 != n2 {
         return 1i32;
     }
-    return sjhashStrNICmp(
+    sjhashStrNICmp(
         pKey1 as *const libc::c_char,
         pKey2 as *const libc::c_char,
         n1,
-    );
+    )
 }
+
 /* Some systems have stricmp().  Others have strcasecmp().  Because
  * there is no consistency, we will define our own.
  */
@@ -766,8 +792,8 @@ unsafe fn sjhashStrNICmp(
     mut zRight: *const libc::c_char,
     mut N: libc::c_int,
 ) -> libc::c_int {
-    let mut a: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
-    let mut b: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
+    let mut a: *mut libc::c_uchar;
+    let mut b: *mut libc::c_uchar;
     a = zLeft as *mut libc::c_uchar;
     b = zRight as *mut libc::c_uchar;
     loop {
@@ -790,6 +816,7 @@ unsafe fn sjhashStrNICmp(
             - sjhashUpperToLower[*b as usize] as libc::c_int
     };
 }
+
 unsafe fn ptrCompare(
     pKey1: *const libc::c_void,
     _n1: libc::c_int,
@@ -820,11 +847,11 @@ pub unsafe fn dc_hash_find(
     mut nKey: libc::c_int,
 ) -> *mut libc::c_void {
     /* A hash on key */
-    let mut h: libc::c_int = 0;
+    let mut h: libc::c_int;
     /* The element that matches key */
-    let mut elem: *mut dc_hashelem_t = 0 as *mut dc_hashelem_t;
+    let mut elem: *mut dc_hashelem_t;
     /* The hash function */
-    let mut xHash: Option<unsafe fn(_: *const libc::c_void, _: libc::c_int) -> libc::c_int> = None;
+    let mut xHash: Option<unsafe fn(_: *const libc::c_void, _: libc::c_int) -> libc::c_int>;
     if pH.is_null() || (*pH).ht.is_null() {
         return 0 as *mut libc::c_void;
     }
@@ -857,9 +884,10 @@ pub unsafe fn dc_hash_find(
         0 as *mut libc::c_void
     };
 }
+
 pub unsafe fn dc_hash_clear(mut pH: *mut dc_hash_t) {
     /* For looping over all elements of the table */
-    let mut elem: *mut dc_hashelem_t = 0 as *mut dc_hashelem_t;
+    let mut elem: *mut dc_hashelem_t;
     if pH.is_null() {
         return;
     }
