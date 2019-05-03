@@ -205,7 +205,7 @@ unsafe fn cb_precheck_imf(
     server_uid: uint32_t,
 ) -> libc::c_int {
     let mut rfc724_mid_exists: libc::c_int = 0i32;
-    let mut msg_id: uint32_t = 0i32 as uint32_t;
+    let mut msg_id: uint32_t;
     let mut old_server_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut old_server_uid: uint32_t = 0i32 as uint32_t;
     let mut mark_seen: libc::c_int = 0i32;
@@ -253,6 +253,7 @@ unsafe fn cb_precheck_imf(
     free(old_server_folder as *mut libc::c_void);
     return rfc724_mid_exists;
 }
+
 unsafe fn cb_set_config(
     context: &dc_context_t,
     key: *const libc::c_char,
@@ -260,6 +261,7 @@ unsafe fn cb_set_config(
 ) {
     dc_sqlite3_set_config(context, &context.sql.clone().read().unwrap(), key, value);
 }
+
 /* *
  * The following three callback are given to dc_imap_new() to read/write configuration
  * and to handle received messages. As the imap-functions are typically used in
@@ -615,30 +617,30 @@ unsafe fn get_config_keys_str() -> *mut libc::c_char {
 
 pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
     let mut unset = b"0\x00" as *const u8 as *const libc::c_char;
-    let mut displayname = 0 as *mut libc::c_char;
-    let mut temp = 0 as *mut libc::c_char;
-    let mut l_readable_str = 0 as *mut libc::c_char;
-    let mut l2_readable_str = 0 as *mut libc::c_char;
-    let mut fingerprint_str = 0 as *mut libc::c_char;
-    let mut l = 0 as *mut dc_loginparam_t;
-    let mut l2 = 0 as *mut dc_loginparam_t;
-    let mut inbox_watch = 0;
-    let mut sentbox_watch = 0;
-    let mut mvbox_watch = 0;
-    let mut mvbox_move = 0;
-    let mut folders_configured = 0;
-    let mut configured_sentbox_folder = 0 as *mut libc::c_char;
-    let mut configured_mvbox_folder = 0 as *mut libc::c_char;
-    let mut contacts = 0;
-    let mut chats = 0;
-    let mut real_msgs = 0;
-    let mut deaddrop_msgs = 0;
-    let mut is_configured = 0;
-    let mut dbversion = 0;
-    let mut mdns_enabled = 0;
-    let mut e2ee_enabled = 0;
-    let mut prv_key_cnt = 0;
-    let mut pub_key_cnt = 0;
+    let mut displayname;
+    let mut temp;
+    let mut l_readable_str;
+    let mut l2_readable_str;
+    let mut fingerprint_str;
+    let mut l;
+    let mut l2;
+    let mut inbox_watch;
+    let mut sentbox_watch;
+    let mut mvbox_watch;
+    let mut mvbox_move;
+    let mut folders_configured;
+    let mut configured_sentbox_folder;
+    let mut configured_mvbox_folder;
+    let mut contacts;
+    let mut chats;
+    let mut real_msgs;
+    let mut deaddrop_msgs;
+    let mut is_configured;
+    let mut dbversion;
+    let mut mdns_enabled;
+    let mut e2ee_enabled;
+    let mut prv_key_cnt;
+    let mut pub_key_cnt;
     let mut self_public = dc_key_new();
     let mut rpgp_enabled = 1;
 
