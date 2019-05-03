@@ -205,7 +205,7 @@ pub unsafe fn dc_saxparser_parse(
                     if p != beg_tag_name_0 {
                         let mut after_tag_name: *mut libc::c_char = p;
                         let mut attr_index: libc::c_int = 0i32;
-                        while 0 != isspace(*p as libc::c_int) {
+                        while 0 != libc::isspace(*p as libc::c_int) {
                             p = p.offset(1isize)
                         }
                         while 0 != *p as libc::c_int
@@ -301,7 +301,7 @@ pub unsafe fn dc_saxparser_parse(
                                         attr_index += 2i32
                                     }
                                 }
-                                while 0 != isspace(*p as libc::c_int) {
+                                while 0 != libc::isspace(*p as libc::c_int) {
                                     p = p.offset(1isize)
                                 }
                             }
@@ -444,7 +444,7 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
     loop {
         while 0 != *s as libc::c_int
             && *s as libc::c_int != '&' as i32
-            && 0 == isspace(*s as libc::c_int)
+            && 0 == libc::isspace(*s as libc::c_int)
         {
             s = s.offset(1isize)
         }
@@ -539,7 +539,7 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
             } else {
                 s = s.offset(1isize)
             }
-        } else if type_0 as libc::c_int == ' ' as i32 && 0 != isspace(*s as libc::c_int) {
+        } else if type_0 as libc::c_int == ' ' as i32 && 0 != libc::isspace(*s as libc::c_int) {
             let fresh6 = s;
             s = s.offset(1);
             *fresh6 = ' ' as i32 as libc::c_char

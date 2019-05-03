@@ -110,6 +110,7 @@ pub unsafe fn dc_str_replace(
     }
     return replacements;
 }
+
 pub unsafe fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
     // hack around printf(%f) that may return `,` as decimal point on mac
     let mut test: *mut libc::c_char =
@@ -124,13 +125,14 @@ pub unsafe fn dc_ftoa(mut f: libc::c_double) -> *mut libc::c_char {
     free(test as *mut libc::c_void);
     return str;
 }
+
 pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
     let mut len: size_t = 0i32 as size_t;
     let mut cur: *const libc::c_uchar = 0 as *const libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
         len = strlen(buf);
         cur = buf as *const libc::c_uchar;
-        while 0 != *cur as libc::c_int && 0 != isspace(*cur as libc::c_int) {
+        while 0 != *cur as libc::c_int && 0 != libc::isspace(*cur as libc::c_int) {
             cur = cur.offset(1isize);
             len = len.wrapping_sub(1)
         }
@@ -143,6 +145,7 @@ pub unsafe fn dc_ltrim(mut buf: *mut libc::c_char) {
         }
     };
 }
+
 pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
     let mut len: size_t = 0i32 as size_t;
     let mut cur: *mut libc::c_uchar = 0 as *mut libc::c_uchar;
@@ -151,12 +154,12 @@ pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
         cur = (buf as *mut libc::c_uchar)
             .offset(len as isize)
             .offset(-1isize);
-        while cur != buf as *mut libc::c_uchar && 0 != isspace(*cur as libc::c_int) {
+        while cur != buf as *mut libc::c_uchar && 0 != libc::isspace(*cur as libc::c_int) {
             cur = cur.offset(-1isize);
             len = len.wrapping_sub(1)
         }
         *cur.offset(
-            (if 0 != isspace(*cur as libc::c_int) {
+            (if 0 != libc::isspace(*cur as libc::c_int) {
                 0i32
             } else {
                 1i32
@@ -164,10 +167,12 @@ pub unsafe fn dc_rtrim(mut buf: *mut libc::c_char) {
         ) = '\u{0}' as i32 as libc::c_uchar
     };
 }
+
 pub unsafe fn dc_trim(mut buf: *mut libc::c_char) {
     dc_ltrim(buf);
     dc_rtrim(buf);
 }
+
 /* the result must be free()'d */
 pub unsafe fn dc_strlower(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     let mut out: *mut libc::c_char = dc_strdup(in_0);
@@ -1651,4 +1656,61 @@ pub unsafe fn dc_make_rel_and_copy(
     free(blobdir_path as *mut libc::c_void);
     free(filename as *mut libc::c_void);
     return success;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn test_dc_ltrim() {
+        unsafe {
+            let mut html: *const libc::c_char =
+                b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
+            let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
+            out = strndup(html, strlen(html) as libc::c_ulong);
+
+            dc_ltrim(out);
+
+            assert_eq!(
+                CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
+                "line1<br>\r\n\r\n\r\rline2\n\r"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dc_rtrim() {
+        unsafe {
+            let mut html: *const libc::c_char =
+                b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
+            let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
+            out = strndup(html, strlen(html) as libc::c_ulong);
+
+            dc_rtrim(out);
+
+            assert_eq!(
+                CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
+                "\r\r\nline1<br>\r\n\r\n\r\rline2"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dc_trim() {
+        unsafe {
+            let mut html: *const libc::c_char =
+                b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
+            let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
+            out = strndup(html, strlen(html) as libc::c_ulong);
+
+            dc_trim(out);
+
+            assert_eq!(
+                CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
+                "line1<br>\r\n\r\n\r\rline2"
+            );
+        }
+    }
 }

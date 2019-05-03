@@ -1206,15 +1206,6 @@ pub unsafe fn isascii(mut _c: libc::c_int) -> libc::c_int {
 }
 
 #[inline]
-pub unsafe fn isspace(mut _c: libc::c_int) -> libc::c_int {
-    if _c < std::u8::MAX as libc::c_int {
-        ((_c as u8 as char) == ' ') as libc::c_int
-    } else {
-        0
-    }
-}
-
-#[inline]
 pub unsafe fn tolower(mut _c: libc::c_int) -> libc::c_int {
     return __tolower(_c);
 }
