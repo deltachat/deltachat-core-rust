@@ -26,10 +26,10 @@ use crate::x::*;
 #[repr(C)]
 pub struct dc_context_t {
     pub userdata: *mut libc::c_void,
-    pub dbfile: *mut libc::c_char,
-    pub blobdir: *mut libc::c_char,
+    pub dbfile: Arc<RwLock<*mut libc::c_char>>,
+    pub blobdir: Arc<RwLock<*mut libc::c_char>>,
     pub sql: Arc<RwLock<dc_sqlite3_t>>,
-    pub inbox: Arc<Mutex<dc_imap_t>>,
+    pub inbox: Arc<RwLock<dc_imap_t>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<i32>>,
     pub probe_imap_network: Arc<RwLock<i32>>,
     pub sentbox_thread: Arc<Mutex<dc_jobthread_t>>,
@@ -52,6 +52,24 @@ unsafe impl std::marker::Sync for dc_context_t {}
 pub struct RunningState {
     pub ongoing_running: bool,
     pub shall_stop_ongoing: bool,
+}
+
+impl dc_context_t {
+    pub fn has_dbfile(&self) -> bool {
+        !self.get_dbfile().is_null()
+    }
+
+    pub fn has_blobdir(&self) -> bool {
+        !self.get_blobdir().is_null()
+    }
+
+    pub fn get_dbfile(&self) -> *const libc::c_char {
+        *self.dbfile.clone().read().unwrap()
+    }
+
+    pub fn get_blobdir(&self) -> *const libc::c_char {
+        *self.blobdir.clone().read().unwrap()
+    }
 }
 
 impl Default for RunningState {
@@ -112,9 +130,9 @@ pub fn dc_context_new(
     os_name: *const libc::c_char,
 ) -> dc_context_t {
     dc_context_t {
-        blobdir: std::ptr::null_mut(),
-        dbfile: std::ptr::null_mut(),
-        inbox: Arc::new(Mutex::new(unsafe {
+        blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
+        dbfile: Arc::new(RwLock::new(std::ptr::null_mut())),
+        inbox: Arc::new(RwLock::new({
             dc_imap_new(
                 Some(cb_get_config),
                 Some(cb_set_config),
@@ -261,32 +279,6 @@ pub unsafe fn dc_context_unref(context: &mut dc_context_t) {
     if 0 != dc_is_open(context) {
         dc_close(context);
     }
-    dc_imap_unref(context, &mut context.inbox.clone().lock().unwrap());
-    dc_imap_unref(
-        context,
-        &mut context
-            .sentbox_thread
-            .clone()
-            .lock()
-            .unwrap()
-            .imap
-            .clone()
-            .lock()
-            .unwrap(),
-    );
-    dc_imap_unref(
-        context,
-        &mut context
-            .mvbox_thread
-            .clone()
-            .lock()
-            .unwrap()
-            .imap
-            .clone()
-            .lock()
-            .unwrap(),
-    );
-
     dc_sqlite3_unref(context, &mut context.sql.clone().write().unwrap());
 
     dc_jobthread_exit(&mut context.sentbox_thread.clone().lock().unwrap());
@@ -295,41 +287,36 @@ pub unsafe fn dc_context_unref(context: &mut dc_context_t) {
     free(context.os_name as *mut libc::c_void);
 }
 
-pub unsafe fn dc_close(context: &mut dc_context_t) {
-    dc_imap_disconnect(context, &mut context.inbox.clone().lock().unwrap());
-    dc_imap_disconnect(
-        context,
-        &mut context
-            .sentbox_thread
-            .clone()
-            .lock()
-            .unwrap()
-            .imap
-            .clone()
-            .lock()
-            .unwrap(),
-    );
-    dc_imap_disconnect(
-        context,
-        &mut context
-            .mvbox_thread
-            .clone()
-            .lock()
-            .unwrap()
-            .imap
-            .clone()
-            .lock()
-            .unwrap(),
-    );
+pub unsafe fn dc_close(context: &dc_context_t) {
+    context.inbox.read().unwrap().disconnect(context);
+    context
+        .sentbox_thread
+        .lock()
+        .unwrap()
+        .imap
+        .lock()
+        .unwrap()
+        .disconnect(context);
+    context
+        .mvbox_thread
+        .lock()
+        .unwrap()
+        .imap
+        .lock()
+        .unwrap()
+        .disconnect(context);
+
     context.smtp.clone().lock().unwrap().disconnect();
 
     if 0 != dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
         dc_sqlite3_close(context, &mut context.sql.clone().write().unwrap());
     }
-    free(context.dbfile as *mut libc::c_void);
-    context.dbfile = 0 as *mut libc::c_char;
-    free(context.blobdir as *mut libc::c_void);
-    context.blobdir = 0 as *mut libc::c_char;
+    let mut dbfile = context.dbfile.write().unwrap();
+    free(*dbfile as *mut libc::c_void);
+    *dbfile = 0 as *mut libc::c_char;
+    let mut blobdir = context.blobdir.write().unwrap();
+    free(*blobdir as *mut libc::c_void);
+    *blobdir = 0 as *mut libc::c_char;
 }
 
 pub unsafe fn dc_is_open(context: &dc_context_t) -> libc::c_int {
@@ -341,7 +328,7 @@ pub unsafe fn dc_get_userdata(context: &mut dc_context_t) -> *mut libc::c_void {
 }
 
 pub unsafe fn dc_open(
-    context: &mut dc_context_t,
+    context: &dc_context_t,
     dbfile: *const libc::c_char,
     blobdir: *const libc::c_char,
 ) -> libc::c_int {
@@ -350,24 +337,18 @@ pub unsafe fn dc_open(
         return 0;
     }
     if !dbfile.is_null() {
-        context.dbfile = dc_strdup(dbfile);
+        *context.dbfile.write().unwrap() = dc_strdup(dbfile);
         if !blobdir.is_null() && 0 != *blobdir.offset(0isize) as libc::c_int {
-            context.blobdir = dc_strdup(blobdir);
-            dc_ensure_no_slash(context.blobdir);
+            let dir = dc_strdup(blobdir);
+            dc_ensure_no_slash(dir);
+            *context.blobdir.write().unwrap() = dir;
         } else {
-            context.blobdir =
-                dc_mprintf(b"%s-blobs\x00" as *const u8 as *const libc::c_char, dbfile);
-            dc_create_folder(context, context.blobdir);
+            let dir = dc_mprintf(b"%s-blobs\x00" as *const u8 as *const libc::c_char, dbfile);
+            dc_create_folder(context, dir);
+            *context.blobdir.write().unwrap() = dir;
         }
         // Create/open sqlite database, this may already use the blobdir
-        if !(0
-            == dc_sqlite3_open(
-                context,
-                &mut context.sql.clone().write().unwrap(),
-                dbfile,
-                0i32,
-            ))
-        {
+        if !(0 == dc_sqlite3_open(context, &mut context.sql.write().unwrap(), dbfile, 0i32)) {
             success = 1i32
         }
     }
@@ -378,7 +359,7 @@ pub unsafe fn dc_open(
 }
 
 pub unsafe fn dc_get_blobdir(context: &dc_context_t) -> *mut libc::c_char {
-    dc_strdup((*context).blobdir)
+    dc_strdup(*context.blobdir.clone().read().unwrap())
 }
 
 pub unsafe fn dc_set_config(
@@ -836,14 +817,14 @@ pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
         real_msgs,
         deaddrop_msgs,
         contacts,
-        if !context.dbfile.is_null() {
-            context.dbfile
+        if context.has_dbfile() {
+            context.get_dbfile()
         } else {
             unset
         },
         dbversion,
-        if !context.blobdir.is_null() {
-            context.blobdir
+        if context.has_blobdir() {
+            context.get_blobdir()
         } else {
             unset
         },

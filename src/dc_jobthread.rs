@@ -104,7 +104,8 @@ pub unsafe extern "C" fn dc_jobthread_interrupt_idle(
         jobthread.name,
     );
 
-    dc_imap_interrupt_idle(&mut jobthread.imap.clone().lock().unwrap());
+    println!("jobthread interrupt, waiting for lock");
+    jobthread.imap.lock().unwrap().interrupt_idle();
 
     let &(ref lock, ref cvar) = &*jobthread.state.clone();
     let mut state = lock.lock().unwrap();
@@ -140,16 +141,16 @@ pub unsafe fn dc_jobthread_fetch(
                 b"%s-fetch started...\x00" as *const u8 as *const libc::c_char,
                 jobthread.name,
             );
-            dc_imap_fetch(context, &mut jobthread.imap.clone().lock().unwrap());
+            jobthread.imap.lock().unwrap().fetch(context);
 
-            if 0 != jobthread.imap.clone().lock().unwrap().should_reconnect {
+            if jobthread.imap.lock().unwrap().should_reconnect() {
                 dc_log_info(
                     context,
                     0i32,
                     b"%s-fetch aborted, starting over...\x00" as *const u8 as *const libc::c_char,
                     jobthread.name,
                 );
-                dc_imap_fetch(context, &mut jobthread.imap.clone().lock().unwrap());
+                jobthread.imap.lock().unwrap().fetch(context);
             }
             dc_log_info(
                 context,
@@ -173,7 +174,7 @@ unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t
     let mut ret_connected: libc::c_int = 0i32;
     let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
 
-    if 0 != dc_imap_is_connected(&mut jobthread.imap.clone().lock().unwrap()) {
+    if jobthread.imap.lock().unwrap().is_connected() {
         ret_connected = 1
     } else {
         ret_connected =
@@ -186,7 +187,11 @@ unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t
                 0,
             ) < 3
             {
-                dc_configure_folders(context, &mut jobthread.imap.clone().lock().unwrap(), 0x1);
+                jobthread
+                    .imap
+                    .lock()
+                    .unwrap()
+                    .configure_folders(context, 0x1);
             }
             mvbox_name = dc_sqlite3_get_config(
                 context,
@@ -195,10 +200,10 @@ unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t
                 0 as *const libc::c_char,
             );
             if mvbox_name.is_null() {
-                dc_imap_disconnect(context, &mut jobthread.imap.clone().lock().unwrap());
+                jobthread.imap.lock().unwrap().disconnect(context);
                 ret_connected = 0;
             } else {
-                dc_imap_set_watch_folder(&mut jobthread.imap.clone().lock().unwrap(), mvbox_name);
+                jobthread.imap.lock().unwrap().set_watch_folder(mvbox_name);
             }
         }
     }
@@ -256,7 +261,7 @@ pub unsafe fn dc_jobthread_idle(
         b"%s-IDLE started...\x00" as *const u8 as *const libc::c_char,
         jobthread.name,
     );
-    dc_imap_idle(context, &mut jobthread.imap.clone().lock().unwrap());
+    jobthread.imap.lock().unwrap().idle(context);
     dc_log_info(
         context,
         0i32,

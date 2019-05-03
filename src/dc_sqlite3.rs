@@ -936,7 +936,7 @@ pub unsafe fn dc_sqlite3_open(
                                 context,
                                 sql,
                                 b"backup_for\x00" as *const u8 as *const libc::c_char,
-                                context.blobdir,
+                                context.get_blobdir(),
                             );
                             dc_ensure_no_slash(repl_from);
                             if 0 != !('f' as i32 == 'f' as i32) as libc::c_int as libc::c_long {
@@ -1478,13 +1478,13 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
         files_in_use.count as libc::c_int,
     );
     /* go through directory and delete unused files */
-    dir_handle = opendir(context.blobdir);
+    dir_handle = opendir(context.get_blobdir());
     if dir_handle.is_null() {
         dc_log_warning(
             context,
             0,
             b"Housekeeping: Cannot open %s.\x00" as *const u8 as *const libc::c_char,
-            context.blobdir,
+            context.get_blobdir(),
         );
     } else {
         /* avoid deletion of files that are just created to build a message object */
@@ -1529,7 +1529,7 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
             free(path as *mut libc::c_void);
             path = dc_mprintf(
                 b"%s/%s\x00" as *const u8 as *const libc::c_char,
-                context.blobdir,
+                context.get_blobdir(),
                 name,
             );
 

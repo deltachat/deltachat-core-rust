@@ -648,7 +648,7 @@ pub unsafe extern "C" fn dc_cmdline(
             )
         }
     } else if strcmp(cmd, b"has-backup\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        ret = dc_imex_has_backup(&context, context.blobdir);
+        ret = dc_imex_has_backup(&context, context.get_blobdir());
         if ret.is_null() {
             ret = dc_strdup(b"No backup found.\x00" as *const u8 as *const libc::c_char)
         }
@@ -657,7 +657,12 @@ pub unsafe extern "C" fn dc_cmdline(
         b"export-backup\x00" as *const u8 as *const libc::c_char,
     ) == 0i32
     {
-        dc_imex(&context, 11i32, context.blobdir, 0 as *const libc::c_char);
+        dc_imex(
+            &context,
+            11i32,
+            context.get_blobdir(),
+            0 as *const libc::c_char,
+        );
         ret = 2i32 as *mut libc::c_char
     } else if strcmp(
         cmd,
@@ -673,16 +678,26 @@ pub unsafe extern "C" fn dc_cmdline(
             )
         }
     } else if strcmp(cmd, b"export-keys\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        dc_imex(&context, 1i32, context.blobdir, 0 as *const libc::c_char);
+        dc_imex(
+            &context,
+            1i32,
+            context.get_blobdir(),
+            0 as *const libc::c_char,
+        );
         ret = 2i32 as *mut libc::c_char
     } else if strcmp(cmd, b"import-keys\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        dc_imex(&context, 2i32, context.blobdir, 0 as *const libc::c_char);
+        dc_imex(
+            &context,
+            2i32,
+            context.get_blobdir(),
+            0 as *const libc::c_char,
+        );
         ret = 2i32 as *mut libc::c_char
     } else if strcmp(cmd, b"export-setup\x00" as *const u8 as *const libc::c_char) == 0i32 {
         let mut setup_code_0: *mut libc::c_char = dc_create_setup_code(&context);
         let mut file_name: *mut libc::c_char = dc_mprintf(
             b"%s/autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
-            context.blobdir,
+            context.get_blobdir(),
         );
         let mut file_content: *mut libc::c_char = 0 as *mut libc::c_char;
         file_content = dc_render_setup_file(&context, setup_code_0);

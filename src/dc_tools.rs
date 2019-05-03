@@ -1281,13 +1281,13 @@ pub unsafe fn dc_get_abs_path(
             8,
         ) == 0i32
         {
-            if context.blobdir.is_null() {
+            if !context.has_blobdir() {
                 current_block = 3805228753452640762;
             } else {
                 dc_str_replace(
                     &mut pathNfilename_abs,
                     b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-                    context.blobdir,
+                    context.get_blobdir(),
                 );
                 current_block = 6937071982253665452;
             }
@@ -1600,7 +1600,7 @@ pub unsafe fn dc_is_blobdir_path(
     mut context: &dc_context_t,
     mut path: *const libc::c_char,
 ) -> libc::c_int {
-    if strncmp(path, context.blobdir, strlen(context.blobdir)) == 0i32
+    if strncmp(path, context.get_blobdir(), strlen(context.get_blobdir())) == 0i32
         || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0i32
     {
         return 1i32;
@@ -1612,10 +1612,10 @@ pub unsafe fn dc_make_rel_path(mut context: &dc_context_t, mut path: *mut *mut l
     if path.is_null() || (*path).is_null() {
         return;
     }
-    if strncmp(*path, context.blobdir, strlen(context.blobdir)) == 0i32 {
+    if strncmp(*path, context.get_blobdir(), strlen(context.get_blobdir())) == 0i32 {
         dc_str_replace(
             path,
-            context.blobdir,
+            context.get_blobdir(),
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
         );
     };

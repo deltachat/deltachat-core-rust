@@ -338,7 +338,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         };
         let mut abs_path: *mut libc::c_char = dc_mprintf(
             b"%s/%s\x00" as *const u8 as *const libc::c_char,
-            (*context).blobdir,
+            context.get_blobdir(),
             b"foobar\x00" as *const u8 as *const libc::c_char,
         );
         if 0 != (0 == dc_is_blobdir_path(context, abs_path)) as libc::c_int as libc::c_long {
@@ -749,7 +749,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     mailmime_free(mime);
-    let mut mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new((*context).blobdir, context);
+    let mut mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new(context.get_blobdir(), context);
     let mut raw: *const libc::c_char =
         b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00"
             as *const u8 as *const libc::c_char;

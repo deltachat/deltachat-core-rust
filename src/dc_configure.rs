@@ -136,62 +136,37 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                 b"Cannot configure, database not opened.\x00" as *const u8 as *const libc::c_char,
             );
         } else {
-            dc_imap_disconnect(context, &mut context.inbox.clone().lock().unwrap());
-            dc_imap_disconnect(
-                context,
-                &mut context
-                    .sentbox_thread
-                    .clone()
-                    .lock()
-                    .unwrap()
-                    .imap
-                    .clone()
-                    .lock()
-                    .unwrap(),
-            );
-            dc_imap_disconnect(
-                context,
-                &mut context
-                    .mvbox_thread
-                    .clone()
-                    .lock()
-                    .unwrap()
-                    .imap
-                    .clone()
-                    .lock()
-                    .unwrap(),
-            );
-            context.smtp.clone().lock().unwrap().disconnect();
-            context.inbox.clone().lock().unwrap().log_connect_errors = 1i32;
+            context.inbox.read().unwrap().disconnect(context);
             context
                 .sentbox_thread
-                .clone()
                 .lock()
                 .unwrap()
                 .imap
-                .clone()
                 .lock()
                 .unwrap()
-                .log_connect_errors = 1i32;
+                .disconnect(context);
             context
                 .mvbox_thread
-                .clone()
                 .lock()
                 .unwrap()
                 .imap
-                .clone()
                 .lock()
                 .unwrap()
-                .log_connect_errors = 1i32;
+                .disconnect(context);
+            context.smtp.clone().lock().unwrap().disconnect();
             dc_log_info(
                 context,
                 0i32,
                 b"Configure ...\x00" as *const u8 as *const libc::c_char,
             );
+
+            println!("configure lock");
             let s_a = context.running_state.clone();
             let s = s_a.read().unwrap();
 
-            if s.shall_stop_ongoing {
+            println!("ongoing: {:?}", s);
+            if !s.shall_stop_ongoing {
+                println!("configure progress");
                 (context.cb)(
                     context,
                     Event::CONFIGURE_PROGRESS,
@@ -205,12 +180,15 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                     0i32 as uintptr_t,
                 );
                 param = dc_loginparam_new();
+                println!("reading params");
                 dc_loginparam_read(
                     context,
                     param,
                     &context.sql.clone().read().unwrap(),
                     b"\x00" as *const u8 as *const libc::c_char,
                 );
+                println!("got params");
+
                 if (*param).addr.is_null() {
                     dc_log_error(
                         context,
@@ -846,11 +824,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                         r_0,
                                                     );
                                                     free(r_0 as *mut libc::c_void);
-                                                    if 0 != dc_imap_connect(
-                                                        context,
-                                                        &mut context.inbox.clone().lock().unwrap(),
-                                                        param,
-                                                    ) {
+                                                    if 0 != context
+                                                        .inbox
+                                                        .read()
+                                                        .unwrap()
+                                                        .connect(context, param)
+                                                    {
                                                         current_block = 14187386403465544025;
                                                         break;
                                                     }
@@ -894,11 +873,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                         r_1,
                                                     );
                                                     free(r_1 as *mut libc::c_void);
-                                                    if 0 != dc_imap_connect(
-                                                        context,
-                                                        &mut context.inbox.clone().lock().unwrap(),
-                                                        param,
-                                                    ) {
+                                                    if 0 != context
+                                                        .inbox
+                                                        .read()
+                                                        .unwrap()
+                                                        .connect(context, param)
+                                                    {
                                                         current_block = 14187386403465544025;
                                                         break;
                                                     }
@@ -936,11 +916,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                         r_2,
                                                     );
                                                     free(r_2 as *mut libc::c_void);
-                                                    if 0 != dc_imap_connect(
-                                                        context,
-                                                        &mut context.inbox.clone().lock().unwrap(),
-                                                        param,
-                                                    ) {
+                                                    if 0 != context
+                                                        .inbox
+                                                        .read()
+                                                        .unwrap()
+                                                        .connect(context, param)
+                                                    {
                                                         current_block = 14187386403465544025;
                                                         break;
                                                     }
@@ -1184,15 +1165,14 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                         } else {
                                                                             0i32
                                                                         };
-                                                                        dc_configure_folders(
-                                                                            context,
-                                                                            &mut context
-                                                                                .inbox
-                                                                                .clone()
-                                                                                .lock()
-                                                                                .unwrap(),
-                                                                            flags,
-                                                                        );
+
+                                                                        context
+                                                                            .inbox
+                                                                            .read()
+                                                                            .unwrap()
+                                                                            .configure_folders(
+                                                                                context, flags,
+                                                                            );
                                                                         if !s.shall_stop_ongoing {
                                                                             (context.cb)(context,
                                                                                             Event::CONFIGURE_PROGRESS,
@@ -1303,7 +1283,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
     }
 
     if 0 != imap_connected_here {
-        dc_imap_disconnect(context, &mut context.inbox.clone().lock().unwrap());
+        context.inbox.read().unwrap().disconnect(context);
     }
     if 0 != smtp_connected_here {
         context.smtp.clone().lock().unwrap().disconnect();
@@ -1331,123 +1311,6 @@ pub unsafe fn dc_free_ongoing(context: &dc_context_t) {
     s.shall_stop_ongoing = true;
 }
 
-pub unsafe fn dc_configure_folders(
-    context: &dc_context_t,
-    imap: &mut dc_imap_t,
-    flags: libc::c_int,
-) {
-    let mut folder_list: *mut clist = 0 as *mut clist;
-    let mut iter: *mut clistiter = 0 as *mut clistiter;
-    let mut mvbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut sentbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut fallback_folder: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(*imap).etpan.is_null() {
-        dc_log_info(
-            context,
-            0i32,
-            b"Configuring IMAP-folders.\x00" as *const u8 as *const libc::c_char,
-        );
-        folder_list = list_folders(context, imap);
-        fallback_folder = dc_mprintf(
-            b"INBOX%c%s\x00" as *const u8 as *const libc::c_char,
-            (*imap).imap_delimiter as libc::c_int,
-            b"DeltaChat\x00" as *const u8 as *const libc::c_char,
-        );
-        iter = (*folder_list).first;
-        while !iter.is_null() {
-            let mut folder: *mut dc_imapfolder_t = (if !iter.is_null() {
-                (*iter).data
-            } else {
-                0 as *mut libc::c_void
-            }) as *mut dc_imapfolder_t;
-            if strcmp(
-                (*folder).name_utf8,
-                b"DeltaChat\x00" as *const u8 as *const libc::c_char,
-            ) == 0i32
-                || strcmp((*folder).name_utf8, fallback_folder) == 0i32
-            {
-                if mvbox_folder.is_null() {
-                    mvbox_folder = dc_strdup((*folder).name_to_select)
-                }
-            }
-            if (*folder).meaning == 1i32 {
-                if sentbox_folder.is_null() {
-                    sentbox_folder = dc_strdup((*folder).name_to_select)
-                }
-            }
-            iter = if !iter.is_null() {
-                (*iter).next
-            } else {
-                0 as *mut clistcell_s
-            }
-        }
-        if mvbox_folder.is_null() && 0 != flags & 0x1i32 {
-            dc_log_info(
-                context,
-                0i32,
-                b"Creating MVBOX-folder \"%s\"...\x00" as *const u8 as *const libc::c_char,
-                b"DeltaChat\x00" as *const u8 as *const libc::c_char,
-            );
-            let mut r: libc::c_int = mailimap_create(
-                (*imap).etpan,
-                b"DeltaChat\x00" as *const u8 as *const libc::c_char,
-            );
-            if 0 != dc_imap_is_error(context, imap, r) {
-                dc_log_warning(
-                    context,
-                    0i32,
-                    b"Cannot create MVBOX-folder, using trying INBOX subfolder.\x00" as *const u8
-                        as *const libc::c_char,
-                );
-                r = mailimap_create((*imap).etpan, fallback_folder);
-                if 0 != dc_imap_is_error(context, imap, r) {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"Cannot create MVBOX-folder.\x00" as *const u8 as *const libc::c_char,
-                    );
-                } else {
-                    mvbox_folder = dc_strdup(fallback_folder);
-                    dc_log_info(
-                        context,
-                        0i32,
-                        b"MVBOX-folder created as INBOX subfolder.\x00" as *const u8
-                            as *const libc::c_char,
-                    );
-                }
-            } else {
-                mvbox_folder = dc_strdup(b"DeltaChat\x00" as *const u8 as *const libc::c_char);
-                dc_log_info(
-                    context,
-                    0i32,
-                    b"MVBOX-folder created.\x00" as *const u8 as *const libc::c_char,
-                );
-            }
-            mailimap_subscribe((*imap).etpan, mvbox_folder);
-        }
-        dc_sqlite3_set_config_int(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"folders_configured\x00" as *const u8 as *const libc::c_char,
-            3i32,
-        );
-        dc_sqlite3_set_config(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
-            mvbox_folder,
-        );
-        dc_sqlite3_set_config(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
-            sentbox_folder,
-        );
-    }
-    free_folders(folder_list);
-    free(mvbox_folder as *mut libc::c_void);
-    free(fallback_folder as *mut libc::c_void);
-}
 unsafe fn free_folders(mut folders: *mut clist) {
     if !folders.is_null() {
         let mut iter1: *mut clistiter = 0 as *mut clistiter;
@@ -1470,173 +1333,7 @@ unsafe fn free_folders(mut folders: *mut clist) {
         clist_free(folders);
     };
 }
-unsafe fn list_folders(context: &dc_context_t, imap: &mut dc_imap_t) -> *mut clist {
-    let mut imap_list: *mut clist = 0 as *mut clist;
-    let mut iter1: *mut clistiter = 0 as *mut clistiter;
-    let mut ret_list: *mut clist = clist_new();
-    let mut r: libc::c_int = 0i32;
-    let mut xlist_works: libc::c_int = 0i32;
-    if !(*imap).etpan.is_null() {
-        if 0 != (*imap).has_xlist {
-            r = mailimap_xlist(
-                (*imap).etpan,
-                b"\x00" as *const u8 as *const libc::c_char,
-                b"*\x00" as *const u8 as *const libc::c_char,
-                &mut imap_list,
-            )
-        } else {
-            r = mailimap_list(
-                (*imap).etpan,
-                b"\x00" as *const u8 as *const libc::c_char,
-                b"*\x00" as *const u8 as *const libc::c_char,
-                &mut imap_list,
-            )
-        }
-        if 0 != dc_imap_is_error(context, imap, r) || imap_list.is_null() {
-            imap_list = 0 as *mut clist;
-            dc_log_warning(
-                context,
-                0i32,
-                b"Cannot get folder list.\x00" as *const u8 as *const libc::c_char,
-            );
-        } else if (*imap_list).count <= 0i32 {
-            dc_log_warning(
-                context,
-                0i32,
-                b"Folder list is empty.\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-            (*imap).imap_delimiter = '.' as i32 as libc::c_char;
-            iter1 = (*imap_list).first;
-            while !iter1.is_null() {
-                let mut imap_folder: *mut mailimap_mailbox_list = (if !iter1.is_null() {
-                    (*iter1).data
-                } else {
-                    0 as *mut libc::c_void
-                })
-                    as *mut mailimap_mailbox_list;
-                if 0 != (*imap_folder).mb_delimiter {
-                    (*imap).imap_delimiter = (*imap_folder).mb_delimiter
-                }
-                let mut ret_folder: *mut dc_imapfolder_t =
-                    calloc(1, ::std::mem::size_of::<dc_imapfolder_t>()) as *mut dc_imapfolder_t;
-                if strcasecmp(
-                    (*imap_folder).mb_name,
-                    b"INBOX\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
-                {
-                    (*ret_folder).name_to_select =
-                        dc_strdup(b"INBOX\x00" as *const u8 as *const libc::c_char)
-                } else {
-                    (*ret_folder).name_to_select = dc_strdup((*imap_folder).mb_name)
-                }
-                (*ret_folder).name_utf8 = dc_decode_modified_utf7((*imap_folder).mb_name, 0i32);
-                (*ret_folder).meaning = get_folder_meaning((*imap_folder).mb_flag);
-                if (*ret_folder).meaning == 2i32 || (*ret_folder).meaning == 1i32 {
-                    xlist_works = 1i32
-                }
-                clist_insert_after(ret_list, (*ret_list).last, ret_folder as *mut libc::c_void);
-                iter1 = if !iter1.is_null() {
-                    (*iter1).next
-                } else {
-                    0 as *mut clistcell_s
-                }
-            }
-            if 0 == xlist_works {
-                iter1 = (*ret_list).first;
-                while !iter1.is_null() {
-                    let mut ret_folder_0: *mut dc_imapfolder_t = (if !iter1.is_null() {
-                        (*iter1).data
-                    } else {
-                        0 as *mut libc::c_void
-                    })
-                        as *mut dc_imapfolder_t;
-                    (*ret_folder_0).meaning = get_folder_meaning_by_name((*ret_folder_0).name_utf8);
-                    iter1 = if !iter1.is_null() {
-                        (*iter1).next
-                    } else {
-                        0 as *mut clistcell_s
-                    }
-                }
-            }
-        }
-    }
-    if !imap_list.is_null() {
-        mailimap_list_result_free(imap_list);
-    }
-    return ret_list;
-}
-unsafe fn get_folder_meaning_by_name(mut folder_name: *const libc::c_char) -> libc::c_int {
-    // try to get the folder meaning by the name of the folder.
-    // only used if the server does not support XLIST.
-    let mut ret_meaning: libc::c_int = 0i32;
-    // TODO: lots languages missing - maybe there is a list somewhere on other MUAs?
-    // however, if we fail to find out the sent-folder,
-    // only watching this folder is not working. at least, this is no show stopper.
-    // CAVE: if possible, take care not to add a name here that is "sent" in one language
-    // but sth. different in others - a hard job.
-    static mut sent_names: *const libc::c_char =
-        b",sent,sent objects,gesendet,\x00" as *const u8 as *const libc::c_char;
-    let mut lower: *mut libc::c_char =
-        dc_mprintf(b",%s,\x00" as *const u8 as *const libc::c_char, folder_name);
-    dc_strlower_in_place(lower);
-    if !strstr(sent_names, lower).is_null() {
-        ret_meaning = 1i32
-    }
-    free(lower as *mut libc::c_void);
-    return ret_meaning;
-}
-unsafe fn get_folder_meaning(mut flags: *mut mailimap_mbx_list_flags) -> libc::c_int {
-    let mut ret_meaning: libc::c_int = 0i32;
-    if !flags.is_null() {
-        let mut iter2: *mut clistiter = 0 as *mut clistiter;
-        iter2 = (*(*flags).mbf_oflags).first;
-        while !iter2.is_null() {
-            let mut oflag: *mut mailimap_mbx_list_oflag = (if !iter2.is_null() {
-                (*iter2).data
-            } else {
-                0 as *mut libc::c_void
-            })
-                as *mut mailimap_mbx_list_oflag;
-            match (*oflag).of_type {
-                2 => {
-                    if strcasecmp(
-                        (*oflag).of_flag_ext,
-                        b"spam\x00" as *const u8 as *const libc::c_char,
-                    ) == 0i32
-                        || strcasecmp(
-                            (*oflag).of_flag_ext,
-                            b"trash\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        || strcasecmp(
-                            (*oflag).of_flag_ext,
-                            b"drafts\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        || strcasecmp(
-                            (*oflag).of_flag_ext,
-                            b"junk\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                    {
-                        ret_meaning = 2i32
-                    } else if strcasecmp(
-                        (*oflag).of_flag_ext,
-                        b"sent\x00" as *const u8 as *const libc::c_char,
-                    ) == 0i32
-                    {
-                        ret_meaning = 1i32
-                    }
-                }
-                _ => {}
-            }
-            iter2 = if !iter2.is_null() {
-                (*iter2).next
-            } else {
-                0 as *mut clistcell_s
-            }
-        }
-    }
-    return ret_meaning;
-}
+
 unsafe fn moz_autoconfigure(
     mut context: &dc_context_t,
     mut url: *const libc::c_char,
@@ -1714,6 +1411,7 @@ unsafe fn moz_autoconfigure(
     free(moz_ac.in_emaillocalpart as *mut libc::c_void);
     return moz_ac.out;
 }
+
 unsafe fn moz_autoconfigure_text_cb(
     userdata: *mut libc::c_void,
     text: *const libc::c_char,
@@ -2096,11 +1794,12 @@ pub unsafe fn dc_alloc_ongoing(context: &dc_context_t) -> libc::c_int {
 
 pub unsafe fn dc_connect_to_configured_imap(
     context: &dc_context_t,
-    imap: &mut dc_imap_t,
+    imap: &dc_imap_t,
 ) -> libc::c_int {
+    println!("connect to imap");
     let mut ret_connected: libc::c_int = 0i32;
     let mut param: *mut dc_loginparam_t = dc_loginparam_new();
-    if 0 != dc_imap_is_connected(imap) {
+    if imap.is_connected() {
         ret_connected = 1i32
     } else if dc_sqlite3_get_config_int(
         context,
@@ -2122,10 +1821,11 @@ pub unsafe fn dc_connect_to_configured_imap(
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
         /*the trailing underscore is correct*/
-        if !(0 == dc_imap_connect(context, imap, param)) {
+        if !(0 == imap.connect(context, param)) {
             ret_connected = 2i32
         }
     }
     dc_loginparam_unref(param);
-    return ret_connected;
+    println!("done, {}", ret_connected);
+    ret_connected
 }

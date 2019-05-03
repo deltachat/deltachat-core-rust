@@ -415,8 +415,8 @@ extern "C" {
     ) -> libc::c_int;
     pub fn mailimap_idle(session: *mut mailimap) -> libc::c_int;
     pub fn mailimap_idle_done(session: *mut mailimap) -> libc::c_int;
-    pub fn mailimap_has_idle(session: *mut mailimap) -> libc::c_int;
-    pub fn mailimap_has_xlist(session: *mut mailimap) -> libc::c_int;
+    pub fn mailimap_has_idle(session: *const mailimap) -> libc::c_int;
+    pub fn mailimap_has_xlist(session: *const mailimap) -> libc::c_int;
     pub fn mailimap_oauth2_authenticate(
         session: *mut mailimap,
         auth_user: *const libc::c_char,

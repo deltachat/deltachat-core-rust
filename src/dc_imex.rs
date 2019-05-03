@@ -977,7 +977,7 @@ unsafe fn import_backup(
         0i32,
         b"Import \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
         backup_to_import,
-        context.dbfile,
+        context.get_dbfile(),
     );
     if 0 != dc_is_configured(context) {
         dc_log_error(
@@ -989,22 +989,22 @@ unsafe fn import_backup(
         if 0 != dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
             dc_sqlite3_close(context, &mut context.sql.clone().write().unwrap());
         }
-        dc_delete_file(context, context.dbfile);
-        if 0 != dc_file_exist(context, context.dbfile) {
+        dc_delete_file(context, context.get_dbfile());
+        if 0 != dc_file_exist(context, context.get_dbfile()) {
             dc_log_error(
                 context,
                 0i32,
                 b"Cannot import backups: Cannot delete the old file.\x00" as *const u8
                     as *const libc::c_char,
             );
-        } else if !(0 == dc_copy_file(context, backup_to_import, context.dbfile)) {
+        } else if !(0 == dc_copy_file(context, backup_to_import, context.get_dbfile())) {
             /* error already logged */
             /* re-open copied database file */
             if !(0
                 == dc_sqlite3_open(
                     context,
                     &mut context.sql.clone().write().unwrap(),
-                    context.dbfile,
+                    context.get_dbfile(),
                     0i32,
                 ))
             {
@@ -1062,7 +1062,7 @@ unsafe fn import_backup(
                     free(pathNfilename as *mut libc::c_void);
                     pathNfilename = dc_mprintf(
                         b"%s/%s\x00" as *const u8 as *const libc::c_char,
-                        context.blobdir,
+                        context.get_blobdir(),
                         file_name,
                     );
                     if !(0
@@ -1168,15 +1168,15 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
             context,
             0i32,
             b"Backup \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
-            context.dbfile,
+            context.get_dbfile(),
             dest_pathNfilename,
         );
-        if !(0 == dc_copy_file(context, context.dbfile, dest_pathNfilename)) {
+        if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
             /* error already logged */
             dc_sqlite3_open(
                 context,
                 &mut context.sql.clone().write().unwrap(),
-                context.dbfile,
+                context.get_dbfile(),
                 0i32,
             );
             closed = 0i32;
@@ -1205,7 +1205,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
                     11487273724841241105 => {}
                     _ => {
                         total_files_cnt = 0i32;
-                        dir_handle = opendir(context.blobdir);
+                        dir_handle = opendir(context.get_blobdir());
                         if dir_handle.is_null() {
                             dc_log_error(
                                 context,
@@ -1213,7 +1213,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
                                 b"Backup: Cannot get info for blob-directory \"%s\".\x00"
                                     as *const u8
                                     as *const libc::c_char,
-                                context.blobdir,
+                                context.get_blobdir(),
                             );
                         } else {
                             loop {
@@ -1227,7 +1227,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
                             dir_handle = 0 as *mut DIR;
                             if total_files_cnt > 0i32 {
                                 /* scan directory, pass 2: copy files */
-                                dir_handle = opendir(context.blobdir);
+                                dir_handle = opendir(context.get_blobdir());
                                 if dir_handle.is_null() {
                                     dc_log_error(
                                         context,
@@ -1235,7 +1235,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
                                         b"Backup: Cannot copy from blob-directory \"%s\".\x00"
                                             as *const u8
                                             as *const libc::c_char,
-                                        context.blobdir,
+                                        context.get_blobdir(),
                                     );
                                     current_block = 11487273724841241105;
                                 } else {
@@ -1312,7 +1312,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
                                                 curr_pathNfilename = dc_mprintf(
                                                     b"%s/%s\x00" as *const u8
                                                         as *const libc::c_char,
-                                                    context.blobdir,
+                                                    context.get_blobdir(),
                                                     name,
                                                 );
                                                 free(buf);
@@ -1359,7 +1359,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
                                     0i32,
                                     b"Backup: No files to copy.\x00" as *const u8
                                         as *const libc::c_char,
-                                    context.blobdir,
+                                    context.get_blobdir(),
                                 );
                                 current_block = 2631791190359682872;
                             }
@@ -1395,7 +1395,7 @@ unsafe fn export_backup(mut context: &dc_context_t, mut dir: *const libc::c_char
         dc_sqlite3_open(
             context,
             &mut context.sql.clone().write().unwrap(),
-            context.dbfile,
+            context.get_dbfile(),
             0i32,
         );
     }
