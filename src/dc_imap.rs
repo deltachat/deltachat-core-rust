@@ -212,7 +212,7 @@ pub unsafe fn dc_imap_connect(
                 let mut list: *mut clist =
                     (*(*(*imap.etpan).imap_connection_info).imap_capability).cap_list;
                 if !list.is_null() {
-                    let mut cur: *mut clistiter = 0 as *mut clistiter;
+                    let mut cur: *mut clistiter;
                     cur = (*list).first;
                     while !cur.is_null() {
                         let mut cap: *mut mailimap_capability = (if !cur.is_null() {
@@ -258,7 +258,7 @@ pub unsafe fn dc_imap_connect(
 
 unsafe fn setup_handle_if_needed(context: &dc_context_t, imap: &mut dc_imap_t) -> libc::c_int {
     let mut current_block: u64;
-    let mut r: libc::c_int = 0;
+    let mut r: libc::c_int;
     let mut success: libc::c_int = 0;
     if !(imap.imap_server.is_null()) {
         if 0 != imap.should_reconnect {
@@ -445,7 +445,6 @@ unsafe fn get_error_msg(
         dc_strbuilder_cat(&mut msg, stock);
     }
     free(stock as *mut libc::c_void);
-    stock = 0 as *mut libc::c_char;
     msg.buf
 }
 
@@ -502,14 +501,14 @@ unsafe fn fetch_from_single_folder(
     folder: *const libc::c_char,
 ) -> libc::c_int {
     let mut current_block: u64;
-    let mut r: libc::c_int = 0;
+    let mut r: libc::c_int;
     let mut uidvalidity: uint32_t = 0 as uint32_t;
     let mut lastseenuid: uint32_t = 0 as uint32_t;
     let mut new_lastseenuid: uint32_t = 0 as uint32_t;
     let mut fetch_result: *mut clist = 0 as *mut clist;
     let mut read_cnt: size_t = 0 as size_t;
     let mut read_errors: size_t = 0 as size_t;
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
+    let mut cur: *mut clistiter;
     let mut set: *mut mailimap_set = 0 as *mut mailimap_set;
     if imap.etpan.is_null() {
         dc_log_info(
@@ -585,7 +584,6 @@ unsafe fn fetch_from_single_folder(
                         );
                         if !set.is_null() {
                             mailimap_set_free(set);
-                            set = 0 as *mut mailimap_set
                         }
                         if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
                             fetch_result = 0 as *mut clist;
@@ -683,7 +681,6 @@ unsafe fn fetch_from_single_folder(
                 );
                 if !set.is_null() {
                     mailimap_set_free(set);
-                    set = 0 as *mut mailimap_set
                 }
                 if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
                     fetch_result = 0 as *mut clist;
@@ -779,7 +776,6 @@ unsafe fn fetch_from_single_folder(
     }
     if !fetch_result.is_null() {
         mailimap_fetch_list_free(fetch_result);
-        fetch_result = 0 as *mut clist
     }
 
     read_cnt as libc::c_int
@@ -811,7 +807,7 @@ unsafe fn peek_rfc724_mid(msg_att: *mut mailimap_msg_att) -> *const libc::c_char
         return 0 as *const libc::c_char;
     }
     /* search the UID in a list of attributes returned by a FETCH command */
-    let mut iter1: *mut clistiter = 0 as *mut clistiter;
+    let mut iter1: *mut clistiter;
     iter1 = (*(*msg_att).att_list).first;
     while !iter1.is_null() {
         let mut item: *mut mailimap_msg_att_item = (if !iter1.is_null() {
@@ -863,7 +859,7 @@ unsafe fn unquote_rfc724_mid(in_0: *const libc::c_char) -> *mut libc::c_char {
 
 unsafe fn peek_uid(msg_att: *mut mailimap_msg_att) -> uint32_t {
     /* search the UID in a list of attributes returned by a FETCH command */
-    let mut iter1: *mut clistiter = 0 as *mut clistiter;
+    let mut iter1: *mut clistiter;
     iter1 = (*(*msg_att).att_list).first;
     while !iter1.is_null() {
         let mut item: *mut mailimap_msg_att_item = (if !iter1.is_null() {
@@ -893,24 +889,23 @@ unsafe fn fetch_single_msg(
     folder: *const libc::c_char,
     server_uid: uint32_t,
 ) -> libc::c_int {
-    let mut msg_att: *mut mailimap_msg_att = 0 as *mut mailimap_msg_att;
+    let mut msg_att: *mut mailimap_msg_att;
     /* the function returns:
         0  the caller should try over again later
     or  1  if the messages should be treated as received, the caller should not try to read the message again (even if no database entries are returned) */
     let mut msg_content: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut msg_bytes: size_t = 0 as size_t;
-    let mut r: libc::c_int = 0;
+    let mut r: libc::c_int;
     let mut retry_later: libc::c_int = 0;
     let mut deleted: libc::c_int = 0;
     let mut flags: uint32_t = 0 as uint32_t;
     let mut fetch_result: *mut clist = 0 as *mut clist;
-    let mut cur: *mut clistiter = 0 as *mut clistiter;
+    let mut cur: *mut clistiter;
     if !imap.etpan.is_null() {
         let mut set: *mut mailimap_set = mailimap_set_new_single(server_uid);
         r = mailimap_uid_fetch(imap.etpan, set, imap.fetch_type_body, &mut fetch_result);
         if !set.is_null() {
             mailimap_set_free(set);
-            set = 0 as *mut mailimap_set
         }
         if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
             fetch_result = 0 as *mut clist;
@@ -970,7 +965,6 @@ unsafe fn fetch_single_msg(
 
     if !fetch_result.is_null() {
         mailimap_fetch_list_free(fetch_result);
-        fetch_result = 0 as *mut clist
     }
     if 0 != retry_later {
         0
@@ -990,8 +984,8 @@ unsafe fn peek_body(
         return;
     }
     /* search body & Co. in a list of attributes returned by a FETCH command */
-    let mut iter1: *mut clistiter = 0 as *mut clistiter;
-    let mut iter2: *mut clistiter = 0 as *mut clistiter;
+    let mut iter1: *mut clistiter;
+    let mut iter2: *mut clistiter;
     iter1 = (*(*msg_att).att_list).first;
     while !iter1.is_null() {
         let mut item: *mut mailimap_msg_att_item = (if !iter1.is_null() {
@@ -1063,8 +1057,8 @@ unsafe fn get_config_lastseenuid(
     );
     let mut val1: *mut libc::c_char =
         imap.get_config.expect("non-null function pointer")(context, key, 0 as *const libc::c_char);
-    let mut val2: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut val3: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut val2: *mut libc::c_char;
+    let mut val3: *mut libc::c_char;
     if !val1.is_null() {
         val2 = strchr(val1, ':' as i32);
         if !val2.is_null() {
@@ -1086,6 +1080,7 @@ unsafe fn get_config_lastseenuid(
  * Handle folders
  ******************************************************************************/
 
+// TODO should return bool /rtn
 unsafe fn select_folder(
     context: &dc_context_t,
     imap: &mut dc_imap_t,
@@ -1140,8 +1135,8 @@ unsafe fn select_folder(
 
 pub unsafe fn dc_imap_idle(context: &dc_context_t, imap: &mut dc_imap_t) {
     let mut current_block: u64;
-    let mut r: libc::c_int = 0;
-    let mut r2: libc::c_int = 0;
+    let mut r: libc::c_int;
+    let mut r2: libc::c_int;
     if 0 != imap.can_idle {
         setup_handle_if_needed(context, imap);
         if imap.idle_set_up == 0 && !imap.etpan.is_null() && !(*imap.etpan).imap_stream.is_null() {
@@ -1303,7 +1298,7 @@ pub unsafe fn dc_imap_move(
 ) -> dc_imap_res {
     let mut current_block: u64;
     let mut res: dc_imap_res = DC_RETRY_LATER;
-    let mut r: libc::c_int = 0;
+    let mut r: libc::c_int;
     let mut set: *mut mailimap_set = mailimap_set_new_single(uid);
     let mut res_uid: uint32_t = 0 as uint32_t;
     let mut res_setsrc: *mut mailimap_set = 0 as *mut mailimap_set;
@@ -1406,7 +1401,7 @@ pub unsafe fn dc_imap_move(
                     if !res_setdest.is_null() {
                         let mut cur: *mut clistiter = (*(*res_setdest).set_list).first;
                         if !cur.is_null() {
-                            let mut item: *mut mailimap_set_item = 0 as *mut mailimap_set_item;
+                            let mut item: *mut mailimap_set_item;
                             item = (if !cur.is_null() {
                                 (*cur).data
                             } else {
@@ -1422,15 +1417,12 @@ pub unsafe fn dc_imap_move(
     }
     if !set.is_null() {
         mailimap_set_free(set);
-        set = 0 as *mut mailimap_set
     }
     if !res_setsrc.is_null() {
         mailimap_set_free(res_setsrc);
-        res_setsrc = 0 as *mut mailimap_set
     }
     if !res_setdest.is_null() {
         mailimap_set_free(res_setdest);
-        res_setdest = 0 as *mut mailimap_set
     }
     return (if res as libc::c_uint == DC_RETRY_LATER as libc::c_int as libc::c_uint {
         (if 0 != imap.should_reconnect {
@@ -1448,7 +1440,7 @@ unsafe fn add_flag(
     server_uid: uint32_t,
     flag: *mut mailimap_flag,
 ) -> libc::c_int {
-    let mut flag_list: *mut mailimap_flag_list = 0 as *mut mailimap_flag_list;
+    let mut flag_list: *mut mailimap_flag_list;
     let mut store_att_flags: *mut mailimap_store_att_flags = 0 as *mut mailimap_store_att_flags;
     let mut set: *mut mailimap_set = mailimap_set_new_single(server_uid);
     if !(imap.etpan.is_null()) {
@@ -1462,7 +1454,6 @@ unsafe fn add_flag(
     }
     if !set.is_null() {
         mailimap_set_free(set);
-        set = 0 as *mut mailimap_set
     }
     if 0 != imap.should_reconnect {
         0
@@ -1523,7 +1514,7 @@ pub unsafe fn dc_imap_set_mdnsent(
     folder: *const libc::c_char,
     uid: uint32_t,
 ) -> dc_imap_res {
-    let mut can_create_flag: libc::c_int = 0;
+    let mut can_create_flag: libc::c_int;
     let mut current_block: u64;
     // returns 0=job should be retried later, 1=job done, 2=job done and flag just set
     let mut res: dc_imap_res = DC_RETRY_LATER;
@@ -1556,7 +1547,7 @@ pub unsafe fn dc_imap_set_mdnsent(
                     .sel_perm_flags
                     .is_null()
             {
-                let mut iter: *mut clistiter = 0 as *mut clistiter;
+                let mut iter: *mut clistiter;
                 iter = (*(*(*imap.etpan).imap_selection_info).sel_perm_flags).first;
                 while !iter.is_null() {
                     let mut fp: *mut mailimap_flag_perm = (if !iter.is_null() {
@@ -1657,11 +1648,9 @@ pub unsafe fn dc_imap_set_mdnsent(
     }
     if !set.is_null() {
         mailimap_set_free(set);
-        set = 0 as *mut mailimap_set
     }
     if !fetch_result.is_null() {
         mailimap_fetch_list_free(fetch_result);
-        fetch_result = 0 as *mut clist
     }
 
     (if res as libc::c_uint == DC_RETRY_LATER as libc::c_int as libc::c_uint {
@@ -1682,8 +1671,8 @@ unsafe fn peek_flag_keyword(
     if msg_att.is_null() || (*msg_att).att_list.is_null() || flag_keyword.is_null() {
         return 0;
     }
-    let mut iter1: *mut clistiter = 0 as *mut clistiter;
-    let mut iter2: *mut clistiter = 0 as *mut clistiter;
+    let mut iter1: *mut clistiter;
+    let mut iter2: *mut clistiter;
     iter1 = (*(*msg_att).att_list).first;
     while !iter1.is_null() {
         let mut item: *mut mailimap_msg_att_item = (if !iter1.is_null() {
@@ -1742,7 +1731,7 @@ pub unsafe fn dc_imap_delete_msg(
     mut server_uid: uint32_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0;
-    let mut r: libc::c_int = 0;
+    let mut r: libc::c_int;
     let mut fetch_result: *mut clist = 0 as *mut clist;
     let mut is_rfc724_mid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut new_folder: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1771,13 +1760,12 @@ pub unsafe fn dc_imap_delete_msg(
                 folder,
             );
         } else {
-            let mut cur: *mut clistiter = 0 as *mut clistiter;
+            let mut cur: *mut clistiter;
             let mut is_quoted_rfc724_mid: *const libc::c_char = 0 as *const libc::c_char;
             let mut set: *mut mailimap_set = mailimap_set_new_single(server_uid);
             r = mailimap_uid_fetch(imap.etpan, set, imap.fetch_type_prefetch, &mut fetch_result);
             if !set.is_null() {
                 mailimap_set_free(set);
-                set = 0 as *mut mailimap_set
             }
             if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
                 fetch_result = 0 as *mut clist;
@@ -1835,7 +1823,6 @@ pub unsafe fn dc_imap_delete_msg(
     }
     if !fetch_result.is_null() {
         mailimap_fetch_list_free(fetch_result);
-        fetch_result = 0 as *mut clist
     }
     free(is_rfc724_mid as *mut libc::c_void);
     free(new_folder as *mut libc::c_void);
