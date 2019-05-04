@@ -88,6 +88,8 @@ pub const DC_TEXT1_DRAFT: usize = 1;
 pub const DC_TEXT1_USERNAME: usize = 2;
 pub const DC_TEXT1_SELF: usize = 3;
 
+pub const DC_CREATE_MVBOX: usize = 1;
+
 /// Text message.
 /// The text of the message is set using dc_msg_set_text()
 /// and retrieved with dc_msg_get_text().

@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, SystemTime};
 
@@ -8,6 +8,7 @@ use crate::constants::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
+use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
@@ -105,6 +106,37 @@ impl Session {
             Session::Insecure(i) => i.list(reference_name, mailbox_pattern),
         }
     }
+
+    pub fn create<S: AsRef<str>>(&mut self, mailbox_name: S) -> imap::error::Result<()> {
+        match self {
+            Session::Secure(i) => i.subscribe(mailbox_name),
+            Session::Insecure(i) => i.subscribe(mailbox_name),
+        }
+    }
+
+    pub fn subscribe<S: AsRef<str>>(&mut self, mailbox: S) -> imap::error::Result<()> {
+        match self {
+            Session::Secure(i) => i.subscribe(mailbox),
+            Session::Insecure(i) => i.subscribe(mailbox),
+        }
+    }
+
+    pub fn close(&mut self) -> imap::error::Result<()> {
+        match self {
+            Session::Secure(i) => i.close(),
+            Session::Insecure(i) => i.close(),
+        }
+    }
+
+    pub fn select<S: AsRef<str>>(
+        &mut self,
+        mailbox_name: S,
+    ) -> imap::error::Result<imap::types::Mailbox> {
+        match self {
+            Session::Secure(i) => i.select(mailbox_name),
+            Session::Insecure(i) => i.select(mailbox_name),
+        }
+    }
 }
 
 pub struct ImapConfig {
@@ -116,13 +148,13 @@ pub struct ImapConfig {
     pub server_flags: Option<usize>,
     pub connected: i32,
     pub idle_set_up: i32,
-    pub selected_folder: *mut libc::c_char,
-    pub selected_folder_needs_expunge: i32,
+    pub selected_folder: Option<String>,
+    pub selected_folder_needs_expunge: bool,
     pub should_reconnect: i32,
     pub can_idle: i32,
     pub has_xlist: i32,
-    pub imap_delimiter: libc::c_char,
-    pub watch_folder: *mut libc::c_char,
+    pub imap_delimiter: char,
+    pub watch_folder: Option<String>,
     pub fetch_type_prefetch: *mut mailimap_fetch_type,
     pub fetch_type_body: *mut mailimap_fetch_type,
     pub fetch_type_flags: *mut mailimap_fetch_type,
@@ -141,13 +173,13 @@ impl Default for ImapConfig {
             server_flags: None,
             connected: 0,
             idle_set_up: 0,
-            selected_folder: unsafe { calloc(1, 1) as *mut libc::c_char },
-            selected_folder_needs_expunge: 0,
+            selected_folder: None,
+            selected_folder_needs_expunge: false,
             should_reconnect: 0,
             can_idle: 0,
             has_xlist: 0,
-            imap_delimiter: 0 as libc::c_char,
-            watch_folder: unsafe { calloc(1, 1) as *mut libc::c_char },
+            imap_delimiter: '.',
+            watch_folder: None,
             fetch_type_prefetch: unsafe { mailimap_fetch_type_new_fetch_att_list_empty() },
             fetch_type_body: unsafe { mailimap_fetch_type_new_fetch_att_list_empty() },
             fetch_type_flags: unsafe { mailimap_fetch_type_new_fetch_att_list_empty() },
@@ -406,357 +438,436 @@ impl dc_imap_t {
     // }
 
     pub fn set_watch_folder(&self, watch_folder: *const libc::c_char) {
-        unimplemented!()
+        self.config.write().unwrap().watch_folder = Some(to_string(watch_folder));
     }
-
-    // pub unsafe extern "C" fn dc_imap_set_watch_folder(
-    //     imap: &dc_imap_t,
-    //     watch_folder: *const libc::c_char,
-    // ) {
-    //     if watch_folder.is_null() {
-    //         return;
-    //     }
-    //     free(imap.watch_folder as *mut libc::c_void);
-    //     imap.watch_folder = dc_strdup(watch_folder);
-    // }
-
-    // pub unsafe fn dc_imap_is_connected(imap: &dc_imap_t) -> libc::c_int {
-    //     (0 != imap.connected) as libc::c_int
-    // }
 
     pub fn fetch(&self, context: &dc_context_t) -> libc::c_int {
-        unimplemented!()
+        println!("dc_imap_fetch");
+        let mut success = 0;
+
+        let watch_folder = self.config.read().unwrap().watch_folder.to_owned();
+        if self.is_connected() && watch_folder.is_some() {
+            let watch_folder = watch_folder.unwrap();
+            loop {
+                let cnt = self.fetch_from_single_folder(context, &watch_folder);
+                if cnt == 0 {
+                    break;
+                }
+            }
+            success = 1;
+        }
+
+        println!("dc_imap_fetch done {}", success);
+        success
     }
 
-    // pub unsafe fn dc_imap_fetch(context: &dc_context_t, imap: &dc_imap_t) -> libc::c_int {
-    //     println!("dc_imap_fetch");
-    //     let mut success = 0;
-    //     if 0 != imap.connected {
-    //         setup_handle_if_needed(context, imap);
-    //         let mut cnt = fetch_from_single_folder(context, imap, imap.watch_folder);
-    //         while cnt > 0 {
-    //             println!("  -- fetching {}", cnt);
-    //             cnt = fetch_from_single_folder(context, imap, imap.watch_folder);
-    //         }
-    //         success = 1;
-    //     }
+    fn select_folder<S: AsRef<str>>(&self, context: &dc_context_t, folder: Option<S>) -> usize {
+        if !self.is_connected() {
+            let mut cfg = self.config.write().unwrap();
+            cfg.selected_folder = None;
+            cfg.selected_folder_needs_expunge = false;
+            return 0;
+        }
 
-    //     println!("dc_imap_fetch done {}", success);
-    //     success
-    // }
+        // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
+        // if there is _no_ new folder, we continue as we might want to expunge below.
+        if let Some(ref folder) = folder {
+            if let Some(ref selected_folder) = self.config.read().unwrap().selected_folder {
+                if folder.as_ref() == selected_folder {
+                    return 1;
+                }
+            }
+        }
 
-    pub fn fetch_from_single_folder(
+        // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
+        if self.config.read().unwrap().selected_folder_needs_expunge {
+            if let Some(ref folder) = self.config.read().unwrap().selected_folder {
+                unsafe {
+                    dc_log_info(
+                        context,
+                        0,
+                        b"Expunge messages in \"%s\".\x00" as *const u8 as *const libc::c_char,
+                        CString::new(folder.to_owned()).unwrap().as_ptr(),
+                    )
+                };
+
+                // a CLOSE-SELECT is considerably faster than an EXPUNGE-SELECT, see https://tools.ietf.org/html/rfc3501#section-6.4.2
+                if let Some(ref mut session) = *self.session.lock().unwrap() {
+                    session.close().expect("failed to expunge");
+                } else {
+                    return 0;
+                }
+            }
+        }
+
+        // select new folder
+        if let Some(folder) = folder {
+            if let Some(ref mut session) = *self.session.lock().unwrap() {
+                match session.select(folder) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("select error: {:?}", err);
+                        unsafe {
+                            dc_log_info(
+                                context,
+                                0,
+                                b"Cannot select folder.\x00" as *const u8 as *const libc::c_char,
+                            )
+                        };
+                        self.config.write().unwrap().selected_folder = None;
+                    }
+                }
+            } else {
+                return 0;
+            }
+        }
+
+        1
+    }
+
+    fn get_config_last_seen_uid<S: AsRef<str>>(
         &self,
         context: &dc_context_t,
-        folder: *const libc::c_char,
-    ) -> libc::c_int {
-        unimplemented!()
+        folder: S,
+    ) -> (usize, usize) {
+        let key = format!("imap.mailbox.{}", folder.as_ref());
+        let val1 = unsafe {
+            self.get_config.expect("non-null function pointer")(
+                context,
+                CString::new(key).unwrap().as_ptr(),
+                0 as *const libc::c_char,
+            )
+        };
+        if val1.is_null() {
+            return (0, 0);
+        }
+        let entry = to_str(val1);
+
+        // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
+        let mut parts = entry.split(':');
+        (
+            parts.next().unwrap().parse().unwrap_or_else(|_| 0),
+            parts.next().unwrap().parse().unwrap_or_else(|_| 0),
+        )
     }
 
-    // unsafe fn fetch_from_single_folder(
-    //     context: &dc_context_t,
-    //     imap: &dc_imap_t,
-    //     folder: *const libc::c_char,
-    // ) -> libc::c_int {
-    //     let mut current_block: u64;
-    //     let mut r: libc::c_int = 0;
-    //     let mut uidvalidity: uint32_t = 0 as uint32_t;
-    //     let mut lastseenuid: uint32_t = 0 as uint32_t;
-    //     let mut new_lastseenuid: uint32_t = 0 as uint32_t;
-    //     let mut fetch_result: *mut clist = 0 as *mut clist;
-    //     let mut read_cnt: size_t = 0 as size_t;
-    //     let mut read_errors: size_t = 0 as size_t;
-    //     let mut cur: *mut clistiter = 0 as *mut clistiter;
-    //     let mut set: *mut mailimap_set = 0 as *mut mailimap_set;
-    //     if imap.etpan.is_null() {
-    //         dc_log_info(
-    //             context,
-    //             0,
-    //             b"Cannot fetch from \"%s\" - not connected.\x00" as *const u8
-    //                 as *const libc::c_char,
-    //             folder,
-    //         );
-    //     } else if select_folder(context, imap, folder) == 0 {
-    //         dc_log_warning(
-    //             context,
-    //             0,
-    //             b"Cannot select folder %s for fetching.\x00" as *const u8 as *const libc::c_char,
-    //             folder,
-    //         );
-    //     } else {
-    //         println!(
-    //             "fetching from folder {}",
-    //             std::ffi::CStr::from_ptr(folder).to_str().unwrap()
-    //         );
-    //         get_config_lastseenuid(context, imap, folder, &mut uidvalidity, &mut lastseenuid);
-    //         if uidvalidity != (*(*imap.etpan).imap_selection_info).sel_uidvalidity {
-    //             /* first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config */
-    //             if (*(*imap.etpan).imap_selection_info).sel_uidvalidity <= 0 as libc::c_uint {
-    //                 dc_log_error(
-    //                     context,
-    //                     0,
-    //                     b"Cannot get UIDVALIDITY for folder \"%s\".\x00" as *const u8
-    //                         as *const libc::c_char,
-    //                     folder,
-    //                 );
-    //                 current_block = 17288151659885296046;
-    //             } else {
-    //                 if 0 != (*(*imap.etpan).imap_selection_info).sel_has_exists() {
-    //                     if (*(*imap.etpan).imap_selection_info).sel_exists <= 0 as libc::c_uint {
-    //                         dc_log_info(
-    //                             context,
-    //                             0,
-    //                             b"Folder \"%s\" is empty.\x00" as *const u8 as *const libc::c_char,
-    //                             folder,
-    //                         );
-    //                         if (*(*imap.etpan).imap_selection_info).sel_exists == 0 as libc::c_uint
-    //                         {
-    //                             set_config_lastseenuid(
-    //                                 context,
-    //                                 imap,
-    //                                 folder,
-    //                                 (*(*imap.etpan).imap_selection_info).sel_uidvalidity,
-    //                                 0 as uint32_t,
-    //                             );
-    //                         }
-    //                         current_block = 17288151659885296046;
-    //                     } else {
-    //                         set = mailimap_set_new_single(
-    //                             (*(*imap.etpan).imap_selection_info).sel_exists,
-    //                         );
-    //                         current_block = 11057878835866523405;
-    //                     }
-    //                 } else {
-    //                     dc_log_info(
-    //                         context,
-    //                         0,
-    //                         b"EXISTS is missing for folder \"%s\", using fallback.\x00" as *const u8
-    //                             as *const libc::c_char,
-    //                         folder,
-    //                     );
-    //                     set = mailimap_set_new_single(0 as uint32_t);
-    //                     current_block = 11057878835866523405;
-    //                 }
-    //                 match current_block {
-    //                     17288151659885296046 => {}
-    //                     _ => {
-    //                         r = mailimap_fetch(
-    //                             imap.etpan,
-    //                             set,
-    //                             imap.fetch_type_prefetch,
-    //                             &mut fetch_result,
-    //                         );
-    //                         if !set.is_null() {
-    //                             mailimap_set_free(set);
-    //                             set = 0 as *mut mailimap_set
-    //                         }
-    //                         if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
-    //                             fetch_result = 0 as *mut clist;
-    //                             dc_log_info(
-    //                                 context,
-    //                                 0,
-    //                                 b"No result returned for folder \"%s\".\x00" as *const u8
-    //                                     as *const libc::c_char,
-    //                                 folder,
-    //                             );
-    //                             /* this might happen if the mailbox is empty an EXISTS does not work */
-    //                             current_block = 17288151659885296046;
-    //                         } else {
-    //                             cur = (*fetch_result).first;
-    //                             if cur.is_null() {
-    //                                 dc_log_info(
-    //                                     context,
-    //                                     0,
-    //                                     b"Empty result returned for folder \"%s\".\x00" as *const u8
-    //                                         as *const libc::c_char,
-    //                                     folder,
-    //                                 );
-    //                                 /* this might happen if the mailbox is empty an EXISTS does not work */
-    //                                 current_block = 17288151659885296046;
-    //                             } else {
-    //                                 let mut msg_att: *mut mailimap_msg_att = (if !cur.is_null() {
-    //                                     (*cur).data
-    //                                 } else {
-    //                                     0 as *mut libc::c_void
-    //                                 })
-    //                                     as *mut mailimap_msg_att;
-    //                                 lastseenuid = peek_uid(msg_att);
-    //                                 if !fetch_result.is_null() {
-    //                                     mailimap_fetch_list_free(fetch_result);
-    //                                     fetch_result = 0 as *mut clist
-    //                                 }
-    //                                 if lastseenuid <= 0 as libc::c_uint {
-    //                                     dc_log_error(
-    //                                         context,
-    //                                         0,
-    //                                         b"Cannot get largest UID for folder \"%s\"\x00"
-    //                                             as *const u8
-    //                                             as *const libc::c_char,
-    //                                         folder,
-    //                                     );
-    //                                     current_block = 17288151659885296046;
-    //                                 } else {
-    //                                     if uidvalidity > 0 as libc::c_uint
-    //                                         && lastseenuid > 1 as libc::c_uint
-    //                                     {
-    //                                         lastseenuid = (lastseenuid as libc::c_uint)
-    //                                             .wrapping_sub(1 as libc::c_uint)
-    //                                             as uint32_t
-    //                                             as uint32_t
-    //                                     }
-    //                                     uidvalidity =
-    //                                         (*(*imap.etpan).imap_selection_info).sel_uidvalidity;
-    //                                     set_config_lastseenuid(
-    //                                         context,
-    //                                         imap,
-    //                                         folder,
-    //                                         uidvalidity,
-    //                                         lastseenuid,
-    //                                     );
-    //                                     dc_log_info(
-    //                                         context,
-    //                                         0,
-    //                                         b"lastseenuid initialized to %i for %s@%i\x00"
-    //                                             as *const u8
-    //                                             as *const libc::c_char,
-    //                                         lastseenuid as libc::c_int,
-    //                                         folder,
-    //                                         uidvalidity as libc::c_int,
-    //                                     );
-    //                                     current_block = 2516253395664191498;
-    //                                 }
-    //                             }
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         } else {
-    //             current_block = 2516253395664191498;
-    //         }
-    //         match current_block {
-    //             17288151659885296046 => {}
-    //             _ => {
-    //                 set = mailimap_set_new_interval(
-    //                     lastseenuid.wrapping_add(1 as libc::c_uint),
-    //                     0 as uint32_t,
-    //                 );
-    //                 r = mailimap_uid_fetch(
-    //                     imap.etpan,
-    //                     set,
-    //                     imap.fetch_type_prefetch,
-    //                     &mut fetch_result,
-    //                 );
-    //                 if !set.is_null() {
-    //                     mailimap_set_free(set);
-    //                     set = 0 as *mut mailimap_set
-    //                 }
-    //                 if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
-    //                     fetch_result = 0 as *mut clist;
-    //                     if r == MAILIMAP_ERROR_PROTOCOL as libc::c_int {
-    //                         dc_log_info(
-    //                             context,
-    //                             0,
-    //                             b"Folder \"%s\" is empty\x00" as *const u8 as *const libc::c_char,
-    //                             folder,
-    //                         );
-    //                     } else {
-    //                         /* the folder is simply empty, this is no error */
-    //                         dc_log_warning(
-    //                             context,
-    //                             0,
-    //                             b"Cannot fetch message list from folder \"%s\".\x00" as *const u8
-    //                                 as *const libc::c_char,
-    //                             folder,
-    //                         );
-    //                     }
-    //                 } else {
-    //                     cur = (*fetch_result).first;
-    //                     while !cur.is_null() {
-    //                         let mut msg_att_0: *mut mailimap_msg_att = (if !cur.is_null() {
-    //                             (*cur).data
-    //                         } else {
-    //                             0 as *mut libc::c_void
-    //                         })
-    //                             as *mut mailimap_msg_att;
-    //                         let mut cur_uid: uint32_t = peek_uid(msg_att_0);
-    //                         if cur_uid > lastseenuid {
-    //                             let mut rfc724_mid: *mut libc::c_char =
-    //                                 unquote_rfc724_mid(peek_rfc724_mid(msg_att_0));
-    //                             read_cnt = read_cnt.wrapping_add(1);
-    //                             if 0 == imap.precheck_imf.expect("non-null function pointer")(
-    //                                 context, rfc724_mid, folder, cur_uid,
-    //                             ) {
-    //                                 if fetch_single_msg(context, imap, folder, cur_uid) == 0 {
-    //                                     dc_log_info(context, 0,
-    //                                             b"Read error for message %s from \"%s\", trying over later.\x00"
-    //                                             as *const u8 as
-    //                                             *const libc::c_char,
-    //                                             rfc724_mid, folder);
-    //                                     read_errors = read_errors.wrapping_add(1)
-    //                                 }
-    //                             } else {
-    //                                 dc_log_info(
-    //                                     context,
-    //                                     0,
-    //                                     b"Skipping message %s from \"%s\" by precheck.\x00"
-    //                                         as *const u8
-    //                                         as *const libc::c_char,
-    //                                     rfc724_mid,
-    //                                     folder,
-    //                                 );
-    //                             }
-    //                             if cur_uid > new_lastseenuid {
-    //                                 new_lastseenuid = cur_uid
-    //                             }
-    //                             free(rfc724_mid as *mut libc::c_void);
-    //                         }
-    //                         cur = if !cur.is_null() {
-    //                             (*cur).next
-    //                         } else {
-    //                             0 as *mut clistcell_s
-    //                         }
-    //                     }
-    //                     if 0 == read_errors && new_lastseenuid > 0 as libc::c_uint {
-    //                         set_config_lastseenuid(
-    //                             context,
-    //                             imap,
-    //                             folder,
-    //                             uidvalidity,
-    //                             new_lastseenuid,
-    //                         );
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //     }
+    fn fetch_from_single_folder<S: AsRef<str>>(&self, context: &dc_context_t, folder: S) -> usize {
+        println!("fetching from single folder");
+        if !self.is_connected() {
+            unsafe {
+                dc_log_info(
+                    context,
+                    0,
+                    b"Cannot fetch from \"%s\" - not connected.\x00" as *const u8
+                        as *const libc::c_char,
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                )
+            };
 
-    //     /* done */
-    //     if 0 != read_errors {
-    //         dc_log_warning(
-    //             context,
-    //             0,
-    //             b"%i mails read from \"%s\" with %i errors.\x00" as *const u8
-    //                 as *const libc::c_char,
-    //             read_cnt as libc::c_int,
-    //             folder,
-    //             read_errors as libc::c_int,
-    //         );
-    //     } else {
-    //         dc_log_info(
-    //             context,
-    //             0i32,
-    //             b"%i mails read from \"%s\".\x00" as *const u8 as *const libc::c_char,
-    //             read_cnt as libc::c_int,
-    //             folder,
-    //         );
-    //     }
-    //     if !fetch_result.is_null() {
-    //         mailimap_fetch_list_free(fetch_result);
-    //         fetch_result = 0 as *mut clist
-    //     }
+            return 0;
+        }
 
-    //     read_cnt as libc::c_int
-    // }
+        if self.select_folder(context, Some(&folder)) == 0 {
+            unsafe {
+                dc_log_info(
+                    context,
+                    0,
+                    b"Cannot select folder \"%s\" for fetching.\x00" as *const u8
+                        as *const libc::c_char,
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                )
+            };
+            return 0;
+        }
+
+        println!("selected folder {}", folder.as_ref());
+
+        let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
+
+        println!("got validity: {} - {}", uid_validity, last_seen_uid);
+
+        0
+        //     } else if select_folder(context, imap, folder) == 0 {
+        //         dc_log_warning(
+        //             context,
+        //             0,
+        //             b"Cannot select folder %s for fetching.\x00" as *const u8 as *const libc::c_char,
+        //             folder,
+        //         );
+        //     } else {
+        //         println!(
+        //             "fetching from folder {}",
+        //             std::ffi::CStr::from_ptr(folder).to_str().unwrap()
+        //         );
+        //         get_config_lastseenuid(context, imap, folder, &mut uidvalidity, &mut lastseenuid);
+        //         if uidvalidity != (*(*imap.etpan).imap_selection_info).sel_uidvalidity {
+        //             /* first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config */
+        //             if (*(*imap.etpan).imap_selection_info).sel_uidvalidity <= 0 as libc::c_uint {
+        //                 dc_log_error(
+        //                     context,
+        //                     0,
+        //                     b"Cannot get UIDVALIDITY for folder \"%s\".\x00" as *const u8
+        //                         as *const libc::c_char,
+        //                     folder,
+        //                 );
+        //                 current_block = 17288151659885296046;
+        //             } else {
+        //                 if 0 != (*(*imap.etpan).imap_selection_info).sel_has_exists() {
+        //                     if (*(*imap.etpan).imap_selection_info).sel_exists <= 0 as libc::c_uint {
+        //                         dc_log_info(
+        //                             context,
+        //                             0,
+        //                             b"Folder \"%s\" is empty.\x00" as *const u8 as *const libc::c_char,
+        //                             folder,
+        //                         );
+        //                         if (*(*imap.etpan).imap_selection_info).sel_exists == 0 as libc::c_uint
+        //                         {
+        //                             set_config_lastseenuid(
+        //                                 context,
+        //                                 imap,
+        //                                 folder,
+        //                                 (*(*imap.etpan).imap_selection_info).sel_uidvalidity,
+        //                                 0 as uint32_t,
+        //                             );
+        //                         }
+        //                         current_block = 17288151659885296046;
+        //                     } else {
+        //                         set = mailimap_set_new_single(
+        //                             (*(*imap.etpan).imap_selection_info).sel_exists,
+        //                         );
+        //                         current_block = 11057878835866523405;
+        //                     }
+        //                 } else {
+        //                     dc_log_info(
+        //                         context,
+        //                         0,
+        //                         b"EXISTS is missing for folder \"%s\", using fallback.\x00" as *const u8
+        //                             as *const libc::c_char,
+        //                         folder,
+        //                     );
+        //                     set = mailimap_set_new_single(0 as uint32_t);
+        //                     current_block = 11057878835866523405;
+        //                 }
+        //                 match current_block {
+        //                     17288151659885296046 => {}
+        //                     _ => {
+        //                         r = mailimap_fetch(
+        //                             imap.etpan,
+        //                             set,
+        //                             imap.fetch_type_prefetch,
+        //                             &mut fetch_result,
+        //                         );
+        //                         if !set.is_null() {
+        //                             mailimap_set_free(set);
+        //                             set = 0 as *mut mailimap_set
+        //                         }
+        //                         if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
+        //                             fetch_result = 0 as *mut clist;
+        //                             dc_log_info(
+        //                                 context,
+        //                                 0,
+        //                                 b"No result returned for folder \"%s\".\x00" as *const u8
+        //                                     as *const libc::c_char,
+        //                                 folder,
+        //                             );
+        //                             /* this might happen if the mailbox is empty an EXISTS does not work */
+        //                             current_block = 17288151659885296046;
+        //                         } else {
+        //                             cur = (*fetch_result).first;
+        //                             if cur.is_null() {
+        //                                 dc_log_info(
+        //                                     context,
+        //                                     0,
+        //                                     b"Empty result returned for folder \"%s\".\x00" as *const u8
+        //                                         as *const libc::c_char,
+        //                                     folder,
+        //                                 );
+        //                                 /* this might happen if the mailbox is empty an EXISTS does not work */
+        //                                 current_block = 17288151659885296046;
+        //                             } else {
+        //                                 let mut msg_att: *mut mailimap_msg_att = (if !cur.is_null() {
+        //                                     (*cur).data
+        //                                 } else {
+        //                                     0 as *mut libc::c_void
+        //                                 })
+        //                                     as *mut mailimap_msg_att;
+        //                                 lastseenuid = peek_uid(msg_att);
+        //                                 if !fetch_result.is_null() {
+        //                                     mailimap_fetch_list_free(fetch_result);
+        //                                     fetch_result = 0 as *mut clist
+        //                                 }
+        //                                 if lastseenuid <= 0 as libc::c_uint {
+        //                                     dc_log_error(
+        //                                         context,
+        //                                         0,
+        //                                         b"Cannot get largest UID for folder \"%s\"\x00"
+        //                                             as *const u8
+        //                                             as *const libc::c_char,
+        //                                         folder,
+        //                                     );
+        //                                     current_block = 17288151659885296046;
+        //                                 } else {
+        //                                     if uidvalidity > 0 as libc::c_uint
+        //                                         && lastseenuid > 1 as libc::c_uint
+        //                                     {
+        //                                         lastseenuid = (lastseenuid as libc::c_uint)
+        //                                             .wrapping_sub(1 as libc::c_uint)
+        //                                             as uint32_t
+        //                                             as uint32_t
+        //                                     }
+        //                                     uidvalidity =
+        //                                         (*(*imap.etpan).imap_selection_info).sel_uidvalidity;
+        //                                     set_config_lastseenuid(
+        //                                         context,
+        //                                         imap,
+        //                                         folder,
+        //                                         uidvalidity,
+        //                                         lastseenuid,
+        //                                     );
+        //                                     dc_log_info(
+        //                                         context,
+        //                                         0,
+        //                                         b"lastseenuid initialized to %i for %s@%i\x00"
+        //                                             as *const u8
+        //                                             as *const libc::c_char,
+        //                                         lastseenuid as libc::c_int,
+        //                                         folder,
+        //                                         uidvalidity as libc::c_int,
+        //                                     );
+        //                                     current_block = 2516253395664191498;
+        //                                 }
+        //                             }
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         } else {
+        //             current_block = 2516253395664191498;
+        //         }
+        //         match current_block {
+        //             17288151659885296046 => {}
+        //             _ => {
+        //                 set = mailimap_set_new_interval(
+        //                     lastseenuid.wrapping_add(1 as libc::c_uint),
+        //                     0 as uint32_t,
+        //                 );
+        //                 r = mailimap_uid_fetch(
+        //                     imap.etpan,
+        //                     set,
+        //                     imap.fetch_type_prefetch,
+        //                     &mut fetch_result,
+        //                 );
+        //                 if !set.is_null() {
+        //                     mailimap_set_free(set);
+        //                     set = 0 as *mut mailimap_set
+        //                 }
+        //                 if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
+        //                     fetch_result = 0 as *mut clist;
+        //                     if r == MAILIMAP_ERROR_PROTOCOL as libc::c_int {
+        //                         dc_log_info(
+        //                             context,
+        //                             0,
+        //                             b"Folder \"%s\" is empty\x00" as *const u8 as *const libc::c_char,
+        //                             folder,
+        //                         );
+        //                     } else {
+        //                         /* the folder is simply empty, this is no error */
+        //                         dc_log_warning(
+        //                             context,
+        //                             0,
+        //                             b"Cannot fetch message list from folder \"%s\".\x00" as *const u8
+        //                                 as *const libc::c_char,
+        //                             folder,
+        //                         );
+        //                     }
+        //                 } else {
+        //                     cur = (*fetch_result).first;
+        //                     while !cur.is_null() {
+        //                         let mut msg_att_0: *mut mailimap_msg_att = (if !cur.is_null() {
+        //                             (*cur).data
+        //                         } else {
+        //                             0 as *mut libc::c_void
+        //                         })
+        //                             as *mut mailimap_msg_att;
+        //                         let mut cur_uid: uint32_t = peek_uid(msg_att_0);
+        //                         if cur_uid > lastseenuid {
+        //                             let mut rfc724_mid: *mut libc::c_char =
+        //                                 unquote_rfc724_mid(peek_rfc724_mid(msg_att_0));
+        //                             read_cnt = read_cnt.wrapping_add(1);
+        //                             if 0 == imap.precheck_imf.expect("non-null function pointer")(
+        //                                 context, rfc724_mid, folder, cur_uid,
+        //                             ) {
+        //                                 if fetch_single_msg(context, imap, folder, cur_uid) == 0 {
+        //                                     dc_log_info(context, 0,
+        //                                             b"Read error for message %s from \"%s\", trying over later.\x00"
+        //                                             as *const u8 as
+        //                                             *const libc::c_char,
+        //                                             rfc724_mid, folder);
+        //                                     read_errors = read_errors.wrapping_add(1)
+        //                                 }
+        //                             } else {
+        //                                 dc_log_info(
+        //                                     context,
+        //                                     0,
+        //                                     b"Skipping message %s from \"%s\" by precheck.\x00"
+        //                                         as *const u8
+        //                                         as *const libc::c_char,
+        //                                     rfc724_mid,
+        //                                     folder,
+        //                                 );
+        //                             }
+        //                             if cur_uid > new_lastseenuid {
+        //                                 new_lastseenuid = cur_uid
+        //                             }
+        //                             free(rfc724_mid as *mut libc::c_void);
+        //                         }
+        //                         cur = if !cur.is_null() {
+        //                             (*cur).next
+        //                         } else {
+        //                             0 as *mut clistcell_s
+        //                         }
+        //                     }
+        //                     if 0 == read_errors && new_lastseenuid > 0 as libc::c_uint {
+        //                         set_config_lastseenuid(
+        //                             context,
+        //                             imap,
+        //                             folder,
+        //                             uidvalidity,
+        //                             new_lastseenuid,
+        //                         );
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+
+        //     /* done */
+        //     if 0 != read_errors {
+        //         dc_log_warning(
+        //             context,
+        //             0,
+        //             b"%i mails read from \"%s\" with %i errors.\x00" as *const u8
+        //                 as *const libc::c_char,
+        //             read_cnt as libc::c_int,
+        //             folder,
+        //             read_errors as libc::c_int,
+        //         );
+        //     } else {
+        //         dc_log_info(
+        //             context,
+        //             0i32,
+        //             b"%i mails read from \"%s\".\x00" as *const u8 as *const libc::c_char,
+        //             read_cnt as libc::c_int,
+        //             folder,
+        //         );
+        //     }
+        //     if !fetch_result.is_null() {
+        //         mailimap_fetch_list_free(fetch_result);
+        //         fetch_result = 0 as *mut clist
+        //     }
+
+        //     read_cnt as libc::c_int
+    }
 
     // unsafe fn set_config_lastseenuid(
     //     context: &dc_context_t,
@@ -1022,100 +1133,6 @@ impl dc_imap_t {
     //             0 as *mut clistcell_s
     //         };
     //     }
-    // }
-
-    // unsafe fn get_config_lastseenuid(
-    //     context: &dc_context_t,
-    //     imap: &dc_imap_t,
-    //     folder: *const libc::c_char,
-    //     uidvalidity: *mut uint32_t,
-    //     lastseenuid: *mut uint32_t,
-    // ) {
-    //     *uidvalidity = 0 as uint32_t;
-    //     *lastseenuid = 0 as uint32_t;
-    //     let mut key: *mut libc::c_char = dc_mprintf(
-    //         b"imap.mailbox.%s\x00" as *const u8 as *const libc::c_char,
-    //         folder,
-    //     );
-    //     let mut val1: *mut libc::c_char = imap.get_config.expect("non-null function pointer")(
-    //         context,
-    //         key,
-    //         0 as *const libc::c_char,
-    //     );
-    //     let mut val2: *mut libc::c_char = 0 as *mut libc::c_char;
-    //     let mut val3: *mut libc::c_char = 0 as *mut libc::c_char;
-    //     if !val1.is_null() {
-    //         val2 = strchr(val1, ':' as i32);
-    //         if !val2.is_null() {
-    //             *val2 = 0 as libc::c_char;
-    //             val2 = val2.offset(1isize);
-    //             val3 = strchr(val2, ':' as i32);
-    //             if !val3.is_null() {
-    //                 *val3 = 0 as libc::c_char
-    //             }
-    //             *uidvalidity = atol(val1) as uint32_t;
-    //             *lastseenuid = atol(val2) as uint32_t
-    //         }
-    //     }
-    //     free(val1 as *mut libc::c_void);
-    //     free(key as *mut libc::c_void);
-    // }
-
-    // /* ******************************************************************************
-    //  * Handle folders
-    //  ******************************************************************************/
-    // unsafe fn select_folder(
-    //     context: &dc_context_t,
-    //     imap: &dc_imap_t,
-    //     folder: *const libc::c_char,
-    // ) -> libc::c_int {
-    //     if imap.etpan.is_null() {
-    //         *imap.selected_folder.offset(0isize) = 0 as libc::c_char;
-    //         imap.selected_folder_needs_expunge = 0;
-    //         return 0;
-    //     }
-    //     if !folder.is_null()
-    //         && 0 != *folder.offset(0isize) as libc::c_int
-    //         && strcmp(imap.selected_folder, folder) == 0
-    //     {
-    //         return 1;
-    //     }
-    //     if 0 != imap.selected_folder_needs_expunge {
-    //         if 0 != *imap.selected_folder.offset(0isize) {
-    //             dc_log_info(
-    //                 context,
-    //                 0,
-    //                 b"Expunge messages in \"%s\".\x00" as *const u8 as *const libc::c_char,
-    //                 imap.selected_folder,
-    //             );
-    //             mailimap_close(imap.etpan);
-    //         }
-    //         imap.selected_folder_needs_expunge = 0
-    //     }
-    //     if !folder.is_null() {
-    //         let mut r: libc::c_int = mailimap_select(imap.etpan, folder);
-    //         if 0 != dc_imap_is_error(context, imap, r)
-    //             || (*imap.etpan).imap_selection_info.is_null()
-    //         {
-    //             dc_log_info(
-    //                 context,
-    //                 0,
-    //                 b"Cannot select folder; code=%i, imap_response=%s\x00" as *const u8
-    //                     as *const libc::c_char,
-    //                 r,
-    //                 if !(*imap.etpan).imap_response.is_null() {
-    //                     (*imap.etpan).imap_response
-    //                 } else {
-    //                     b"<none>\x00" as *const u8 as *const libc::c_char
-    //                 },
-    //             );
-    //             *imap.selected_folder.offset(0isize) = 0 as libc::c_char;
-    //             return 0;
-    //         }
-    //     }
-    //     free(imap.selected_folder as *mut libc::c_void);
-    //     imap.selected_folder = dc_strdup(folder);
-    //     1
     // }
 
     pub fn idle(&self, context: &dc_context_t) {
@@ -1880,100 +1897,115 @@ impl dc_imap_t {
         let delimiter = self.config.read().unwrap().imap_delimiter;
         let fallback_folder = format!("INBOX{}DeltaChat", delimiter);
 
-        for folder in folders.iter() {
-            let meaning = get_folder_meaning(folder);
-            println!("{} - {:?}", folder.name(), meaning);
+        let mut mvbox_folder = folders
+            .iter()
+            .find(|folder| folder.name() == "DeltaChat" || folder.name() == fallback_folder)
+            .map(|n| n.name().to_string());
+
+        let mut sentbox_folder = folders
+            .iter()
+            .find(|folder| match get_folder_meaning(folder) {
+                FolderMeaning::SentObjects => true,
+                _ => false,
+            });
+
+        println!("folders: {:?} - {:?}", mvbox_folder, sentbox_folder);
+
+        if mvbox_folder.is_none() && 0 != (flags as usize & DC_CREATE_MVBOX) {
+            unsafe {
+                dc_log_info(
+                    context,
+                    0i32,
+                    b"Creating MVBOX-folder \"%s\"...\x00" as *const u8 as *const libc::c_char,
+                    b"DeltaChat\x00" as *const u8 as *const libc::c_char,
+                )
+            };
+
+            if let Some(ref mut session) = *self.session.lock().unwrap() {
+                match session.create("DeltaChat") {
+                    Ok(_) => {
+                        mvbox_folder = Some("DeltaChat".into());
+
+                        unsafe {
+                            dc_log_info(
+                                context,
+                                0i32,
+                                b"MVBOX-folder created.\x00" as *const u8 as *const libc::c_char,
+                            )
+                        };
+                    }
+                    Err(err) => {
+                        eprintln!("create error: {:?}", err);
+                        unsafe {
+                            dc_log_warning(
+                                context,
+                                0,
+                                b"Cannot create MVBOX-folder, using trying INBOX subfolder.\x00"
+                                    as *const u8
+                                    as *const libc::c_char,
+                            )
+                        };
+
+                        match session.create(&fallback_folder) {
+                            Ok(_) => {
+                                mvbox_folder = Some(fallback_folder);
+                                unsafe {
+                                    dc_log_info(
+                                        context,
+                                        0,
+                                        b"MVBOX-folder created as INBOX subfolder.\x00" as *const u8
+                                            as *const libc::c_char,
+                                    )
+                                };
+                            }
+                            Err(err) => {
+                                eprintln!("create error: {:?}", err);
+                                unsafe {
+                                    dc_log_warning(
+                                        context,
+                                        0i32,
+                                        b"Cannot create MVBOX-folder.\x00" as *const u8
+                                            as *const libc::c_char,
+                                    )
+                                };
+                            }
+                        }
+                    }
+                }
+                // SUBSCRIBE is needed to make the folder visible to the LSUB command
+                // that may be used by other MUAs to list folders.
+                // for the LIST command, the folder is always visible.
+                if let Some(ref mvbox) = mvbox_folder {
+                    // TODO: better error handling
+                    session.subscribe(mvbox).expect("failed to subscribe");
+                }
+            }
         }
-        // let iter = (*folder_list).first;
-        // while !iter.is_null() {
-        //     let mut folder: *mut dc_imapfolder_t = (if !iter.is_null() {
-        //         (*iter).data
-        //     } else {
-        //         0 as *mut libc::c_void
-        //     }) as *mut dc_imapfolder_t;
-        //     if strcmp(
-        //         (*folder).name_utf8,
-        //         b"DeltaChat\x00" as *const u8 as *const libc::c_char,
-        //     ) == 0i32
-        //         || strcmp((*folder).name_utf8, fallback_folder) == 0i32
-        //     {
-        //         if mvbox_folder.is_null() {
-        //             mvbox_folder = dc_strdup((*folder).name_to_select)
-        //         }
-        //     }
-        //     if (*folder).meaning == 1i32 {
-        //         if sentbox_folder.is_null() {
-        //             sentbox_folder = dc_strdup((*folder).name_to_select)
-        //         }
-        //     }
-        //     iter = if !iter.is_null() {
-        //         (*iter).next
-        //     } else {
-        //         0 as *mut clistcell_s
-        //     }
-        // }
-        // if mvbox_folder.is_null() && 0 != flags & 0x1i32 {
-        //     dc_log_info(
-        //         context,
-        //         0i32,
-        //         b"Creating MVBOX-folder \"%s\"...\x00" as *const u8 as *const libc::c_char,
-        //         b"DeltaChat\x00" as *const u8 as *const libc::c_char,
-        //     );
-        //     let mut r: libc::c_int = mailimap_create(
-        //         (*imap).etpan,
-        //         b"DeltaChat\x00" as *const u8 as *const libc::c_char,
-        //     );
-        //     if 0 != dc_imap_is_error(context, imap, r) {
-        //         dc_log_warning(
-        //             context,
-        //             0i32,
-        //             b"Cannot create MVBOX-folder, using trying INBOX subfolder.\x00" as *const u8
-        //                 as *const libc::c_char,
-        //         );
-        //         r = mailimap_create((*imap).etpan, fallback_folder);
-        //         if 0 != dc_imap_is_error(context, imap, r) {
-        //             dc_log_warning(
-        //                 context,
-        //                 0i32,
-        //                 b"Cannot create MVBOX-folder.\x00" as *const u8 as *const libc::c_char,
-        //             );
-        //         } else {
-        //             mvbox_folder = dc_strdup(fallback_folder);
-        //             dc_log_info(
-        //                 context,
-        //                 0i32,
-        //                 b"MVBOX-folder created as INBOX subfolder.\x00" as *const u8
-        //                     as *const libc::c_char,
-        //             );
-        //         }
-        //     } else {
-        //         mvbox_folder = dc_strdup(b"DeltaChat\x00" as *const u8 as *const libc::c_char);
-        //         dc_log_info(
-        //             context,
-        //             0i32,
-        //             b"MVBOX-folder created.\x00" as *const u8 as *const libc::c_char,
-        //         );
-        //     }
-        //     mailimap_subscribe((*imap).etpan, mvbox_folder);
-        // }
-        // dc_sqlite3_set_config_int(
-        //     context,
-        //     &context.sql.clone().read().unwrap(),
-        //     b"folders_configured\x00" as *const u8 as *const libc::c_char,
-        //     3i32,
-        // );
-        // dc_sqlite3_set_config(
-        //     context,
-        //     &context.sql.clone().read().unwrap(),
-        //     b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
-        //     mvbox_folder,
-        // );
-        // dc_sqlite3_set_config(
-        //     context,
-        //     &context.sql.clone().read().unwrap(),
-        //     b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
-        //     sentbox_folder,
-        // );
+
+        unsafe {
+            dc_sqlite3_set_config_int(
+                context,
+                &context.sql.read().unwrap(),
+                b"folders_configured\x00" as *const u8 as *const libc::c_char,
+                3,
+            );
+            if let Some(ref mvbox_folder) = mvbox_folder {
+                dc_sqlite3_set_config(
+                    context,
+                    &context.sql.read().unwrap(),
+                    b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
+                    CString::new(mvbox_folder.clone()).unwrap().as_ptr(),
+                );
+            }
+            if let Some(ref sentbox_folder) = sentbox_folder {
+                dc_sqlite3_set_config(
+                    context,
+                    &context.sql.read().unwrap(),
+                    b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
+                    CString::new(sentbox_folder.name()).unwrap().as_ptr(),
+                );
+            }
+        }
     }
 
     fn list_folders(
@@ -2047,7 +2079,6 @@ fn get_folder_meaning(folder_name: &imap::types::Name) -> FolderMeaning {
     let special_names = vec!["\\Spam", "\\Trash", "\\Drafts", "\\Junk"];
 
     for attr in folder_name.attributes() {
-        println!("attr: {:?} - {}", attr, folder_name.name());
         match attr {
             imap::types::NameAttribute::Custom(ref label) => {
                 if special_names.iter().find(|s| *s == label).is_some() {
