@@ -1167,38 +1167,32 @@ pub type blkcnt_t = libc::blkcnt_t;
 pub type blksize_t = libc::blksize_t;
 pub type nlink_t = __uint16_t;
 
-pub type dc_receive_imf_t = Option<
-    unsafe fn(
-        _: &dc_context_t,
-        _: *const libc::c_char,
-        _: size_t,
-        _: *const libc::c_char,
-        _: uint32_t,
-        _: uint32_t,
-    ) -> (),
->;
+pub type dc_receive_imf_t = unsafe fn(
+    _: &dc_context_t,
+    _: *const libc::c_char,
+    _: size_t,
+    _: *const libc::c_char,
+    _: uint32_t,
+    _: uint32_t,
+) -> ();
 
 /* Purpose: Reading from IMAP servers with no dependencies to the database.
 dc_context_t is only used for logging and to get information about
 the online state. */
 
-pub type dc_precheck_imf_t = Option<
-    unsafe fn(
-        _: &dc_context_t,
-        _: *const libc::c_char,
-        _: *const libc::c_char,
-        _: uint32_t,
-    ) -> libc::c_int,
->;
+pub type dc_precheck_imf_t = unsafe fn(
+    _: &dc_context_t,
+    _: *const libc::c_char,
+    _: *const libc::c_char,
+    _: u32,
+) -> libc::c_int;
 pub type dc_set_config_t =
-    Option<unsafe fn(_: &dc_context_t, _: *const libc::c_char, _: *const libc::c_char) -> ()>;
-pub type dc_get_config_t = Option<
-    unsafe fn(
-        _: &dc_context_t,
-        _: *const libc::c_char,
-        _: *const libc::c_char,
-    ) -> *mut libc::c_char,
->;
+    unsafe fn(_: &dc_context_t, _: *const libc::c_char, _: *const libc::c_char) -> ();
+pub type dc_get_config_t = unsafe fn(
+    _: &dc_context_t,
+    _: *const libc::c_char,
+    _: *const libc::c_char,
+) -> *mut libc::c_char;
 
 #[inline]
 pub unsafe fn isascii(mut _c: libc::c_int) -> libc::c_int {

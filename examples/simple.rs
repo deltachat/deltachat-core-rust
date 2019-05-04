@@ -72,8 +72,8 @@ fn main() {
 
         let ctx1 = ctx.clone();
         let t2 = std::thread::spawn(move || loop {
-            // dc_perform_smtp_jobs(&ctx1);
-            // dc_perform_smtp_idle(&ctx1);
+            dc_perform_smtp_jobs(&ctx1);
+            dc_perform_smtp_idle(&ctx1);
         });
 
         let dir = tempdir().unwrap();

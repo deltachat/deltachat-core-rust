@@ -134,10 +134,10 @@ pub fn dc_context_new(
         dbfile: Arc::new(RwLock::new(std::ptr::null_mut())),
         inbox: Arc::new(RwLock::new({
             dc_imap_new(
-                Some(cb_get_config),
-                Some(cb_set_config),
-                Some(cb_precheck_imf),
-                Some(cb_receive_imf),
+                cb_get_config,
+                cb_set_config,
+                cb_precheck_imf,
+                cb_receive_imf,
             )
         })),
         userdata,
@@ -156,10 +156,10 @@ pub fn dc_context_new(
                 b"SENTBOX\x00" as *const u8 as *const libc::c_char,
                 b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
                 dc_imap_new(
-                    Some(cb_get_config),
-                    Some(cb_set_config),
-                    Some(cb_precheck_imf),
-                    Some(cb_receive_imf),
+                    cb_get_config,
+                    cb_set_config,
+                    cb_precheck_imf,
+                    cb_receive_imf,
                 ),
             )
         })),
@@ -168,10 +168,10 @@ pub fn dc_context_new(
                 b"MVBOX\x00" as *const u8 as *const libc::c_char,
                 b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
                 dc_imap_new(
-                    Some(cb_get_config),
-                    Some(cb_set_config),
-                    Some(cb_precheck_imf),
-                    Some(cb_receive_imf),
+                    cb_get_config,
+                    cb_set_config,
+                    cb_precheck_imf,
+                    cb_receive_imf,
                 ),
             )
         })),

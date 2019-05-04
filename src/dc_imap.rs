@@ -152,6 +152,21 @@ impl Session {
             Session::Insecure(i) => i.fetch(sequence_set, query),
         }
     }
+
+    pub fn uid_fetch<S1, S2>(
+        &mut self,
+        uid_set: S1,
+        query: S2,
+    ) -> imap::error::Result<imap::types::ZeroCopy<Vec<imap::types::Fetch>>>
+    where
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+    {
+        match self {
+            Session::Secure(i) => i.uid_fetch(uid_set, query),
+            Session::Insecure(i) => i.uid_fetch(uid_set, query),
+        }
+    }
 }
 
 pub struct ImapConfig {
@@ -238,7 +253,8 @@ impl dc_imap_t {
     }
 
     pub fn should_reconnect(&self) -> bool {
-        unimplemented!();
+        // TODO: figuer out proper handling
+        false
     }
 
     pub fn connect(&self, context: &dc_context_t, lp: *const dc_loginparam_t) -> libc::c_int {
@@ -455,7 +471,7 @@ impl dc_imap_t {
     ) -> (u32, u32) {
         let key = format!("imap.mailbox.{}", folder.as_ref());
         let val1 = unsafe {
-            self.get_config.expect("non-null function pointer")(
+            (self.get_config)(
                 context,
                 CString::new(key).unwrap().as_ptr(),
                 0 as *const libc::c_char,
@@ -542,8 +558,7 @@ impl dc_imap_t {
                 // id we do not do this here, we'll miss the first message
                 // as we will get in here again and fetch from lastseenuid+1 then
 
-                // TODO.
-                // self.set_config_last_seen_uid(context, &folder, mailbox.exists, 0);
+                self.set_config_last_seen_uid(context, &folder, mailbox.uid_validity.unwrap(), 0);
                 return 0;
             }
 
@@ -593,124 +608,117 @@ impl dc_imap_t {
                                 CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
                             )
                         };
+                        return 0;
                     }
                 }
             }
         }
 
         let mut read_cnt = 0;
+        let mut read_errors = 0;
+        let mut new_last_seen_uid = 0;
 
-        //         match current_block {
-        //             17288151659885296046 => {}
-        //             _ => {
-        //                 set = mailimap_set_new_interval(
-        //                     lastseenuid.wrapping_add(1 as libc::c_uint),
-        //                     0 as uint32_t,
-        //                 );
-        //                 r = mailimap_uid_fetch(
-        //                     imap.etpan,
-        //                     set,
-        //                     imap.fetch_type_prefetch,
-        //                     &mut fetch_result,
-        //                 );
-        //                 if !set.is_null() {
-        //                     mailimap_set_free(set);
-        //                     set = 0 as *mut mailimap_set
-        //                 }
-        //                 if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
-        //                     fetch_result = 0 as *mut clist;
-        //                     if r == MAILIMAP_ERROR_PROTOCOL as libc::c_int {
-        //                         dc_log_info(
-        //                             context,
-        //                             0,
-        //                             b"Folder \"%s\" is empty\x00" as *const u8 as *const libc::c_char,
-        //                             folder,
-        //                         );
-        //                     } else {
-        //                         /* the folder is simply empty, this is no error */
-        //                         dc_log_warning(
-        //                             context,
-        //                             0,
-        //                             b"Cannot fetch message list from folder \"%s\".\x00" as *const u8
-        //                                 as *const libc::c_char,
-        //                             folder,
-        //                         );
-        //                     }
-        //                 } else {
-        //                     cur = (*fetch_result).first;
-        //                     while !cur.is_null() {
-        //                         let mut msg_att_0: *mut mailimap_msg_att = (if !cur.is_null() {
-        //                             (*cur).data
-        //                         } else {
-        //                             0 as *mut libc::c_void
-        //                         })
-        //                             as *mut mailimap_msg_att;
-        //                         let mut cur_uid: uint32_t = peek_uid(msg_att_0);
-        //                         if cur_uid > lastseenuid {
-        //                             let mut rfc724_mid: *mut libc::c_char =
-        //                                 unquote_rfc724_mid(peek_rfc724_mid(msg_att_0));
-        //                             read_cnt = read_cnt.wrapping_add(1);
-        //                             if 0 == imap.precheck_imf.expect("non-null function pointer")(
-        //                                 context, rfc724_mid, folder, cur_uid,
-        //                             ) {
-        //                                 if fetch_single_msg(context, imap, folder, cur_uid) == 0 {
-        //                                     dc_log_info(context, 0,
-        //                                             b"Read error for message %s from \"%s\", trying over later.\x00"
-        //                                             as *const u8 as
-        //                                             *const libc::c_char,
-        //                                             rfc724_mid, folder);
-        //                                     read_errors = read_errors.wrapping_add(1)
-        //                                 }
-        //                             } else {
-        //                                 dc_log_info(
-        //                                     context,
-        //                                     0,
-        //                                     b"Skipping message %s from \"%s\" by precheck.\x00"
-        //                                         as *const u8
-        //                                         as *const libc::c_char,
-        //                                     rfc724_mid,
-        //                                     folder,
-        //                                 );
-        //                             }
-        //                             if cur_uid > new_lastseenuid {
-        //                                 new_lastseenuid = cur_uid
-        //                             }
-        //                             free(rfc724_mid as *mut libc::c_void);
-        //                         }
-        //                         cur = if !cur.is_null() {
-        //                             (*cur).next
-        //                         } else {
-        //                             0 as *mut clistcell_s
-        //                         }
-        //                     }
-        //                     if 0 == read_errors && new_lastseenuid > 0 as libc::c_uint {
-        //                         set_config_lastseenuid(
-        //                             context,
-        //                             imap,
-        //                             folder,
-        //                             uidvalidity,
-        //                             new_lastseenuid,
-        //                         );
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
+        if let Some(ref mut session) = *self.session.lock().unwrap() {
+            // fetch messages with larger UID than the last one seen
+            // (`UID FETCH lastseenuid+1:*)`, see RFC 4549
+            let set = format!("{}:*", last_seen_uid + 1);
+            let query = "(UID ENVELOPE)";
+            println!("fetching: {} {}", set, query);
+            let list = match session.uid_fetch(set, query) {
+                Ok(list) => list,
+                Err(err) => {
+                    eprintln!("fetch err: {:?}", err);
+                    return 0;
+                }
+            };
+            println!("fetched {} messages", list.len());
+            // go through all mails in folder (this is typically _fast_ as we already have the whole list)
 
-        unsafe {
-            dc_log_info(
-                context,
-                0i32,
-                b"%i mails read from \"%s\".\x00" as *const u8 as *const libc::c_char,
-                read_cnt as libc::c_int,
-                folder,
-            )
-        };
-        //     }
-        //     if !fetch_result.is_null() {
-        //         mailimap_fetch_list_free(fetch_result);
-        //         fetch_result = 0 as *mut clist
-        //     }
+            for msg in &list {
+                let cur_uid = msg.uid.unwrap_or_else(|| 0);
+                if cur_uid > last_seen_uid {
+                    read_cnt += 1;
+
+                    let message_id = msg
+                        .envelope()
+                        .expect("missing envelope")
+                        .message_id
+                        .expect("missing message id");
+
+                    let message_id_c = CString::new(message_id).unwrap();
+                    let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
+                    if 0 == unsafe {
+                        (self.precheck_imf)(
+                            context,
+                            message_id_c.as_ptr(),
+                            folder_c.as_ptr(),
+                            cur_uid,
+                        )
+                    } {
+                        // check passed, go fetch the rest
+                        if self.fetch_single_msg(context, &folder, cur_uid) == 0 {
+                            unsafe {
+                                dc_log_info(
+                                    context,
+                                    0,
+                                    b"Read error for message %s from \"%s\", trying over later.\x00"
+                                        as *const u8
+                                        as *const libc::c_char,
+                                    message_id_c.as_ptr(),
+                                    folder_c.as_ptr(),
+                                )
+                            };
+                            read_errors += 1;
+                        }
+                    } else {
+                        // check failed
+                        unsafe {
+                            dc_log_info(
+                                context,
+                                0,
+                                b"Skipping message %s from \"%s\" by precheck.\x00" as *const u8
+                                    as *const libc::c_char,
+                                message_id_c.as_ptr(),
+                                folder_c.as_ptr(),
+                            )
+                        };
+                    }
+                    if cur_uid > new_last_seen_uid {
+                        new_last_seen_uid = cur_uid
+                    }
+                }
+            }
+        }
+
+        if 0 == read_errors && new_last_seen_uid > 0 {
+            // TODO: it might be better to increase the lastseenuid also on partial errors.
+            // however, this requires to sort the list before going through it above.
+            self.set_config_last_seen_uid(context, &folder, uid_validity, new_last_seen_uid);
+        }
+
+        if read_errors > 0 {
+            unsafe {
+                dc_log_warning(
+                    context,
+                    0i32,
+                    b"%i mails read from \"%s\" with %i errors.\x00" as *const u8
+                        as *const libc::c_char,
+                    read_cnt as libc::c_int,
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    read_errors as libc::c_int,
+                )
+            };
+        } else {
+            unsafe {
+                dc_log_info(
+                    context,
+                    0i32,
+                    b"%i mails read from \"%s\".\x00" as *const u8 as *const libc::c_char,
+                    read_cnt as libc::c_int,
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                )
+            };
+        }
 
         read_cnt
     }
@@ -722,27 +730,23 @@ impl dc_imap_t {
         uidvalidity: u32,
         lastseenuid: u32,
     ) {
-        unimplemented!()
-    }
-    //     let mut key: *mut libc::c_char = dc_mprintf(
-    //         b"imap.mailbox.%s\x00" as *const u8 as *const libc::c_char,
-    //         folder,
-    //     );
-    //     let mut val: *mut libc::c_char = dc_mprintf(
-    //         b"%lu:%lu\x00" as *const u8 as *const libc::c_char,
-    //         uidvalidity,
-    //         lastseenuid,
-    //     );
-    //     imap.set_config.expect("non-null function pointer")(context, key, val);
-    //     free(val as *mut libc::c_void);
-    //     free(key as *mut libc::c_void);
-    // }
+        let key = format!("imap.mailbox.{}", folder.as_ref());
+        let val = format!("{}:{}", uidvalidity, lastseenuid);
 
-    fn fetch_single_msg(
+        unsafe {
+            (self.set_config)(
+                context,
+                CString::new(key).unwrap().as_ptr(),
+                CString::new(val).unwrap().as_ptr(),
+            )
+        };
+    }
+
+    fn fetch_single_msg<S: AsRef<str>>(
         &self,
         context: &dc_context_t,
-        folder: *const libc::c_char,
-        server_uid: uint32_t,
+        folder: S,
+        server_uid: u32,
     ) -> usize {
         unimplemented!();
     }
