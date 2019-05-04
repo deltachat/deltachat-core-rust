@@ -368,75 +368,6 @@ impl dc_imap_t {
         println!("disconnecting");
     }
 
-    // unsafe fn get_error_msg(
-    //     context: &dc_context_t,
-    //     imap: &dc_imap_t,
-    //     what_failed: *const libc::c_char,
-    //     code: libc::c_int,
-    // ) -> *mut libc::c_char {
-    //     let mut stock: *mut libc::c_char = 0 as *mut libc::c_char;
-    //     let mut msg: dc_strbuilder_t = dc_strbuilder_t {
-    //         buf: 0 as *mut libc::c_char,
-    //         allocated: 0,
-    //         free: 0,
-    //         eos: 0 as *mut libc::c_char,
-    //     };
-    //     dc_strbuilder_init(&mut msg, 1000);
-    //     match code {
-    //         28 => {
-    //             stock = dc_stock_str_repl_string(context, 60, imap.imap_user);
-    //             dc_strbuilder_cat(&mut msg, stock);
-    //         }
-    //         _ => {
-    //             dc_strbuilder_catf(
-    //                 &mut msg as *mut dc_strbuilder_t,
-    //                 b"%s, IMAP-error #%i\x00" as *const u8 as *const libc::c_char,
-    //                 what_failed,
-    //                 code,
-    //             );
-    //         }
-    //     }
-    //     free(stock as *mut libc::c_void);
-    //     stock = 0 as *mut libc::c_char;
-    //     if !(*imap.etpan).imap_response.is_null() {
-    //         dc_strbuilder_cat(&mut msg, b"\n\n\x00" as *const u8 as *const libc::c_char);
-    //         stock = dc_stock_str_repl_string2(
-    //             context,
-    //             61,
-    //             imap.imap_server,
-    //             (*imap.etpan).imap_response,
-    //         );
-    //         dc_strbuilder_cat(&mut msg, stock);
-    //     }
-    //     free(stock as *mut libc::c_void);
-    //     stock = 0 as *mut libc::c_char;
-    //     msg.buf
-    // }
-
-    // pub unsafe fn dc_imap_is_error(
-    //     context: &dc_context_t,
-    //     imap: &dc_imap_t,
-    //     code: libc::c_int,
-    // ) -> libc::c_int {
-    //     if code == MAILIMAP_NO_ERROR as libc::c_int
-    //         || code == MAILIMAP_NO_ERROR_AUTHENTICATED as libc::c_int
-    //         || code == MAILIMAP_NO_ERROR_NON_AUTHENTICATED as libc::c_int
-    //     {
-    //         return 0;
-    //     }
-    //     if code == MAILIMAP_ERROR_STREAM as libc::c_int
-    //         || code == MAILIMAP_ERROR_PARSE as libc::c_int
-    //     {
-    //         dc_log_info(
-    //             context,
-    //             0,
-    //             b"IMAP stream lost; we\'ll reconnect soon.\x00" as *const u8 as *const libc::c_char,
-    //         );
-    //         imap.should_reconnect = 1
-    //     }
-    //     1
-    // }
-
     pub fn set_watch_folder(&self, watch_folder: *const libc::c_char) {
         self.config.write().unwrap().watch_folder = Some(to_string(watch_folder));
     }
@@ -869,13 +800,15 @@ impl dc_imap_t {
         //     read_cnt as libc::c_int
     }
 
-    // unsafe fn set_config_lastseenuid(
-    //     context: &dc_context_t,
-    //     imap: &dc_imap_t,
-    //     folder: *const libc::c_char,
-    //     uidvalidity: uint32_t,
-    //     lastseenuid: uint32_t,
-    // ) {
+    fn set_config_lastseenuid(
+        &self,
+        context: &dc_context_t,
+        folder: *const libc::c_char,
+        uidvalidity: uint32_t,
+        lastseenuid: uint32_t,
+    ) {
+        unimplemented!()
+    }
     //     let mut key: *mut libc::c_char = dc_mprintf(
     //         b"imap.mailbox.%s\x00" as *const u8 as *const libc::c_char,
     //         folder,
@@ -890,94 +823,14 @@ impl dc_imap_t {
     //     free(key as *mut libc::c_void);
     // }
 
-    // unsafe fn peek_rfc724_mid(msg_att: *mut mailimap_msg_att) -> *const libc::c_char {
-    //     if msg_att.is_null() {
-    //         return 0 as *const libc::c_char;
-    //     }
-    //     /* search the UID in a list of attributes returned by a FETCH command */
-    //     let mut iter1: *mut clistiter = 0 as *mut clistiter;
-    //     iter1 = (*(*msg_att).att_list).first;
-    //     while !iter1.is_null() {
-    //         let mut item: *mut mailimap_msg_att_item = (if !iter1.is_null() {
-    //             (*iter1).data
-    //         } else {
-    //             0 as *mut libc::c_void
-    //         }) as *mut mailimap_msg_att_item;
-    //         if !item.is_null() {
-    //             if (*item).att_type == MAILIMAP_MSG_ATT_ITEM_STATIC as libc::c_int {
-    //                 if (*(*item).att_data.att_static).att_type
-    //                     == MAILIMAP_MSG_ATT_ENVELOPE as libc::c_int
-    //                 {
-    //                     let mut env: *mut mailimap_envelope =
-    //                         (*(*item).att_data.att_static).att_data.att_env;
-    //                     if !env.is_null() && !(*env).env_message_id.is_null() {
-    //                         return (*env).env_message_id;
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         iter1 = if !iter1.is_null() {
-    //             (*iter1).next
-    //         } else {
-    //             0 as *mut clistcell_s
-    //         }
-    //     }
-    //     return 0 as *const libc::c_char;
-    // }
-
-    // unsafe fn unquote_rfc724_mid(in_0: *const libc::c_char) -> *mut libc::c_char {
-    //     /* remove < and > from the given message id */
-    //     let mut out: *mut libc::c_char = dc_strdup(in_0);
-    //     let mut out_len: libc::c_int = strlen(out) as libc::c_int;
-    //     if out_len > 2 {
-    //         if *out.offset(0isize) as libc::c_int == '<' as i32 {
-    //             *out.offset(0isize) = ' ' as i32 as libc::c_char
-    //         }
-    //         if *out.offset((out_len - 1) as isize) as libc::c_int == '>' as i32 {
-    //             *out.offset((out_len - 1) as isize) = ' ' as i32 as libc::c_char
-    //         }
-    //         dc_trim(out);
-    //     }
-    //     out
-    // }
-
-    // /* ******************************************************************************
-    //  * Fetch Messages
-    //  ******************************************************************************/
-    // unsafe fn peek_uid(msg_att: *mut mailimap_msg_att) -> uint32_t {
-    //     /* search the UID in a list of attributes returned by a FETCH command */
-    //     let mut iter1: *mut clistiter = 0 as *mut clistiter;
-    //     iter1 = (*(*msg_att).att_list).first;
-    //     while !iter1.is_null() {
-    //         let mut item: *mut mailimap_msg_att_item = (if !iter1.is_null() {
-    //             (*iter1).data
-    //         } else {
-    //             0 as *mut libc::c_void
-    //         }) as *mut mailimap_msg_att_item;
-    //         if !item.is_null() {
-    //             if (*item).att_type == MAILIMAP_MSG_ATT_ITEM_STATIC as libc::c_int {
-    //                 if (*(*item).att_data.att_static).att_type
-    //                     == MAILIMAP_MSG_ATT_UID as libc::c_int
-    //                 {
-    //                     return (*(*item).att_data.att_static).att_data.att_uid;
-    //                 }
-    //             }
-    //         }
-    //         iter1 = if !iter1.is_null() {
-    //             (*iter1).next
-    //         } else {
-    //             0 as *mut clistcell_s
-    //         }
-    //     }
-    //     0 as uint32_t
-    // }
-
-    // unsafe fn fetch_single_msg(
-    //     context: &dc_context_t,
-    //     imap: &dc_imap_t,
-    //     folder: *const libc::c_char,
-    //     server_uid: uint32_t,
-    // ) -> libc::c_int {
+    fn fetch_single_msg(
+        &self,
+        context: &dc_context_t,
+        folder: *const libc::c_char,
+        server_uid: uint32_t,
+    ) -> usize {
+        unimplemented!();
+    }
     //     let mut msg_att: *mut mailimap_msg_att = 0 as *mut mailimap_msg_att;
     //     /* the function returns:
     //         0  the caller should try over again later
@@ -1061,77 +914,6 @@ impl dc_imap_t {
     //         0
     //     } else {
     //         1
-    //     }
-    // }
-
-    // unsafe fn peek_body(
-    //     msg_att: *mut mailimap_msg_att,
-    //     p_msg: *mut *mut libc::c_char,
-    //     p_msg_bytes: *mut size_t,
-    //     flags: *mut uint32_t,
-    //     deleted: *mut libc::c_int,
-    // ) {
-    //     if msg_att.is_null() {
-    //         return;
-    //     }
-    //     /* search body & Co. in a list of attributes returned by a FETCH command */
-    //     let mut iter1: *mut clistiter = 0 as *mut clistiter;
-    //     let mut iter2: *mut clistiter = 0 as *mut clistiter;
-    //     iter1 = (*(*msg_att).att_list).first;
-    //     while !iter1.is_null() {
-    //         let mut item: *mut mailimap_msg_att_item = (if !iter1.is_null() {
-    //             (*iter1).data
-    //         } else {
-    //             0 as *mut libc::c_void
-    //         }) as *mut mailimap_msg_att_item;
-    //         if !item.is_null() {
-    //             if (*item).att_type == MAILIMAP_MSG_ATT_ITEM_DYNAMIC as libc::c_int {
-    //                 if !(*(*item).att_data.att_dyn).att_list.is_null() {
-    //                     iter2 = (*(*(*item).att_data.att_dyn).att_list).first;
-    //                     while !iter2.is_null() {
-    //                         let mut flag_fetch: *mut mailimap_flag_fetch = (if !iter2.is_null() {
-    //                             (*iter2).data
-    //                         } else {
-    //                             0 as *mut libc::c_void
-    //                         })
-    //                             as *mut mailimap_flag_fetch;
-    //                         if !flag_fetch.is_null()
-    //                             && (*flag_fetch).fl_type == MAILIMAP_FLAG_FETCH_OTHER as libc::c_int
-    //                         {
-    //                             let mut flag: *mut mailimap_flag = (*flag_fetch).fl_flag;
-    //                             if !flag.is_null() {
-    //                                 if (*flag).fl_type == MAILIMAP_FLAG_SEEN as libc::c_int {
-    //                                     *flags = (*flags as libc::c_long | 0x1) as uint32_t
-    //                                 } else if (*flag).fl_type
-    //                                     == MAILIMAP_FLAG_DELETED as libc::c_int
-    //                                 {
-    //                                     *deleted = 1
-    //                                 }
-    //                             }
-    //                         }
-    //                         iter2 = if !iter2.is_null() {
-    //                             (*iter2).next
-    //                         } else {
-    //                             0 as *mut clistcell_s
-    //                         }
-    //                     }
-    //                 }
-    //             } else if (*item).att_type == MAILIMAP_MSG_ATT_ITEM_STATIC as libc::c_int {
-    //                 if (*(*item).att_data.att_static).att_type
-    //                     == MAILIMAP_MSG_ATT_BODY_SECTION as libc::c_int
-    //                 {
-    //                     *p_msg = (*(*(*item).att_data.att_static).att_data.att_body_section)
-    //                         .sec_body_part;
-    //                     *p_msg_bytes =
-    //                         (*(*(*item).att_data.att_static).att_data.att_body_section).sec_length;
-    //                 }
-    //             }
-    //         }
-    //         iter1 = if !iter1.is_null() {
-    //             (*iter1).next
-    //         } else {
-    //             0 as *mut clistcell_s
-    //         };
     //     }
     // }
 
@@ -1238,7 +1020,9 @@ impl dc_imap_t {
     //     }
     // }
 
-    // unsafe fn fake_idle(context: &dc_context_t, imap: &dc_imap_t) {
+    fn fake_idle(&self, context: &dc_context_t) {
+        unimplemented!();
+    }
     //     /* Idle using timeouts. This is also needed if we're not yet configured -
     //     in this case, we're waiting for a configure job */
     //     let mut fake_idle_start_time = SystemTime::now();
@@ -1457,11 +1241,9 @@ impl dc_imap_t {
     //     }) as dc_imap_res;
     // }
 
-    // unsafe fn add_flag(
-    //     imap: &dc_imap_t,
-    //     server_uid: uint32_t,
-    //     flag: *mut mailimap_flag,
-    // ) -> libc::c_int {
+    fn add_flag(&self, server_uid: uint32_t, flag: *mut mailimap_flag) -> usize {
+        unimplemented!()
+    }
     //     let mut flag_list: *mut mailimap_flag_list = 0 as *mut mailimap_flag_list;
     //     let mut store_att_flags: *mut mailimap_store_att_flags = 0 as *mut mailimap_store_att_flags;
     //     let mut set: *mut mailimap_set = mailimap_set_new_single(server_uid);
@@ -1700,66 +1482,8 @@ impl dc_imap_t {
     //     }) as dc_imap_res
     // }
 
-    // unsafe fn peek_flag_keyword(
-    //     msg_att: *mut mailimap_msg_att,
-    //     flag_keyword: *const libc::c_char,
-    // ) -> libc::c_int {
-    //     if msg_att.is_null() || (*msg_att).att_list.is_null() || flag_keyword.is_null() {
-    //         return 0;
-    //     }
-    //     let mut iter1: *mut clistiter = 0 as *mut clistiter;
-    //     let mut iter2: *mut clistiter = 0 as *mut clistiter;
-    //     iter1 = (*(*msg_att).att_list).first;
-    //     while !iter1.is_null() {
-    //         let mut item: *mut mailimap_msg_att_item = (if !iter1.is_null() {
-    //             (*iter1).data
-    //         } else {
-    //             0 as *mut libc::c_void
-    //         }) as *mut mailimap_msg_att_item;
-    //         if !item.is_null() {
-    //             if (*item).att_type == MAILIMAP_MSG_ATT_ITEM_DYNAMIC as libc::c_int {
-    //                 if !(*(*item).att_data.att_dyn).att_list.is_null() {
-    //                     iter2 = (*(*(*item).att_data.att_dyn).att_list).first;
-    //                     while !iter2.is_null() {
-    //                         let mut flag_fetch: *mut mailimap_flag_fetch = (if !iter2.is_null() {
-    //                             (*iter2).data
-    //                         } else {
-    //                             0 as *mut libc::c_void
-    //                         })
-    //                             as *mut mailimap_flag_fetch;
-    //                         if !flag_fetch.is_null()
-    //                             && (*flag_fetch).fl_type == MAILIMAP_FLAG_FETCH_OTHER as libc::c_int
-    //                         {
-    //                             let mut flag: *mut mailimap_flag = (*flag_fetch).fl_flag;
-    //                             if !flag.is_null() {
-    //                                 if (*flag).fl_type == MAILIMAP_FLAG_KEYWORD as libc::c_int
-    //                                     && !(*flag).fl_data.fl_keyword.is_null()
-    //                                     && strcmp((*flag).fl_data.fl_keyword, flag_keyword) == 0
-    //                                 {
-    //                                     return 1;
-    //                                 }
-    //                             }
-    //                         }
-    //                         iter2 = if !iter2.is_null() {
-    //                             (*iter2).next
-    //                         } else {
-    //                             0 as *mut clistcell_s
-    //                         }
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         iter1 = if !iter1.is_null() {
-    //             (*iter1).next
-    //         } else {
-    //             0 as *mut clistcell_s
-    //         }
-    //     }
-    //     0
-    // }
-
     // only returns 0 on connection problems; we should try later again in this case *
-    pub unsafe fn delete_msg(
+    pub fn delete_msg(
         &self,
         context: &dc_context_t,
         rfc724_mid: *const libc::c_char,
