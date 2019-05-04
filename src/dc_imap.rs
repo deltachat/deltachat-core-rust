@@ -137,6 +137,21 @@ impl Session {
             Session::Insecure(i) => i.select(mailbox_name),
         }
     }
+
+    pub fn fetch<S1, S2>(
+        &mut self,
+        sequence_set: S1,
+        query: S2,
+    ) -> imap::error::Result<imap::types::ZeroCopy<Vec<imap::types::Fetch>>>
+    where
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+    {
+        match self {
+            Session::Secure(i) => i.fetch(sequence_set, query),
+            Session::Insecure(i) => i.fetch(sequence_set, query),
+        }
+    }
 }
 
 pub struct ImapConfig {
@@ -149,15 +164,13 @@ pub struct ImapConfig {
     pub connected: i32,
     pub idle_set_up: i32,
     pub selected_folder: Option<String>,
+    pub selected_mailbox: Option<imap::types::Mailbox>,
     pub selected_folder_needs_expunge: bool,
     pub should_reconnect: i32,
     pub can_idle: i32,
     pub has_xlist: i32,
     pub imap_delimiter: char,
     pub watch_folder: Option<String>,
-    pub fetch_type_prefetch: *mut mailimap_fetch_type,
-    pub fetch_type_body: *mut mailimap_fetch_type,
-    pub fetch_type_flags: *mut mailimap_fetch_type,
     pub log_connect_errors: i32,
     pub skip_log_capabilities: i32,
 }
@@ -174,44 +187,21 @@ impl Default for ImapConfig {
             connected: 0,
             idle_set_up: 0,
             selected_folder: None,
+            selected_mailbox: None,
             selected_folder_needs_expunge: false,
             should_reconnect: 0,
             can_idle: 0,
             has_xlist: 0,
             imap_delimiter: '.',
             watch_folder: None,
-            fetch_type_prefetch: unsafe { mailimap_fetch_type_new_fetch_att_list_empty() },
-            fetch_type_body: unsafe { mailimap_fetch_type_new_fetch_att_list_empty() },
-            fetch_type_flags: unsafe { mailimap_fetch_type_new_fetch_att_list_empty() },
             log_connect_errors: 1,
             skip_log_capabilities: 0,
         };
 
-        unsafe {
-            mailimap_fetch_type_new_fetch_att_list_add(
-                cfg.fetch_type_prefetch,
-                mailimap_fetch_att_new_uid(),
-            );
-            mailimap_fetch_type_new_fetch_att_list_add(
-                cfg.fetch_type_prefetch,
-                mailimap_fetch_att_new_envelope(),
-            );
+        // prefetch: UID, Envelope,
+        // new: body, body_peek_section
+        // flags: flags
 
-            mailimap_fetch_type_new_fetch_att_list_add(
-                cfg.fetch_type_body,
-                mailimap_fetch_att_new_flags(),
-            );
-            mailimap_fetch_type_new_fetch_att_list_add(
-                cfg.fetch_type_body,
-                mailimap_fetch_att_new_body_peek_section(mailimap_section_new(
-                    0 as *mut mailimap_section_spec,
-                )),
-            );
-            mailimap_fetch_type_new_fetch_att_list_add(
-                cfg.fetch_type_flags,
-                mailimap_fetch_att_new_flags(),
-            );
-        }
         cfg
     }
 }
@@ -435,7 +425,9 @@ impl dc_imap_t {
         if let Some(folder) = folder {
             if let Some(ref mut session) = *self.session.lock().unwrap() {
                 match session.select(folder) {
-                    Ok(_) => {}
+                    Ok(mailbox) => {
+                        self.config.write().unwrap().selected_mailbox = Some(mailbox);
+                    }
                     Err(err) => {
                         eprintln!("select error: {:?}", err);
                         unsafe {
@@ -460,7 +452,7 @@ impl dc_imap_t {
         &self,
         context: &dc_context_t,
         folder: S,
-    ) -> (usize, usize) {
+    ) -> (u32, u32) {
         let key = format!("imap.mailbox.{}", folder.as_ref());
         let val1 = unsafe {
             self.get_config.expect("non-null function pointer")(
@@ -513,168 +505,101 @@ impl dc_imap_t {
 
         println!("selected folder {}", folder.as_ref());
 
-        let (uid_validity, last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
+        let (mut uid_validity, mut last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
 
         println!("got validity: {} - {}", uid_validity, last_seen_uid);
 
-        0
-        //     } else if select_folder(context, imap, folder) == 0 {
-        //         dc_log_warning(
-        //             context,
-        //             0,
-        //             b"Cannot select folder %s for fetching.\x00" as *const u8 as *const libc::c_char,
-        //             folder,
-        //         );
-        //     } else {
-        //         println!(
-        //             "fetching from folder {}",
-        //             std::ffi::CStr::from_ptr(folder).to_str().unwrap()
-        //         );
-        //         get_config_lastseenuid(context, imap, folder, &mut uidvalidity, &mut lastseenuid);
-        //         if uidvalidity != (*(*imap.etpan).imap_selection_info).sel_uidvalidity {
-        //             /* first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config */
-        //             if (*(*imap.etpan).imap_selection_info).sel_uidvalidity <= 0 as libc::c_uint {
-        //                 dc_log_error(
-        //                     context,
-        //                     0,
-        //                     b"Cannot get UIDVALIDITY for folder \"%s\".\x00" as *const u8
-        //                         as *const libc::c_char,
-        //                     folder,
-        //                 );
-        //                 current_block = 17288151659885296046;
-        //             } else {
-        //                 if 0 != (*(*imap.etpan).imap_selection_info).sel_has_exists() {
-        //                     if (*(*imap.etpan).imap_selection_info).sel_exists <= 0 as libc::c_uint {
-        //                         dc_log_info(
-        //                             context,
-        //                             0,
-        //                             b"Folder \"%s\" is empty.\x00" as *const u8 as *const libc::c_char,
-        //                             folder,
-        //                         );
-        //                         if (*(*imap.etpan).imap_selection_info).sel_exists == 0 as libc::c_uint
-        //                         {
-        //                             set_config_lastseenuid(
-        //                                 context,
-        //                                 imap,
-        //                                 folder,
-        //                                 (*(*imap.etpan).imap_selection_info).sel_uidvalidity,
-        //                                 0 as uint32_t,
-        //                             );
-        //                         }
-        //                         current_block = 17288151659885296046;
-        //                     } else {
-        //                         set = mailimap_set_new_single(
-        //                             (*(*imap.etpan).imap_selection_info).sel_exists,
-        //                         );
-        //                         current_block = 11057878835866523405;
-        //                     }
-        //                 } else {
-        //                     dc_log_info(
-        //                         context,
-        //                         0,
-        //                         b"EXISTS is missing for folder \"%s\", using fallback.\x00" as *const u8
-        //                             as *const libc::c_char,
-        //                         folder,
-        //                     );
-        //                     set = mailimap_set_new_single(0 as uint32_t);
-        //                     current_block = 11057878835866523405;
-        //                 }
-        //                 match current_block {
-        //                     17288151659885296046 => {}
-        //                     _ => {
-        //                         r = mailimap_fetch(
-        //                             imap.etpan,
-        //                             set,
-        //                             imap.fetch_type_prefetch,
-        //                             &mut fetch_result,
-        //                         );
-        //                         if !set.is_null() {
-        //                             mailimap_set_free(set);
-        //                             set = 0 as *mut mailimap_set
-        //                         }
-        //                         if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
-        //                             fetch_result = 0 as *mut clist;
-        //                             dc_log_info(
-        //                                 context,
-        //                                 0,
-        //                                 b"No result returned for folder \"%s\".\x00" as *const u8
-        //                                     as *const libc::c_char,
-        //                                 folder,
-        //                             );
-        //                             /* this might happen if the mailbox is empty an EXISTS does not work */
-        //                             current_block = 17288151659885296046;
-        //                         } else {
-        //                             cur = (*fetch_result).first;
-        //                             if cur.is_null() {
-        //                                 dc_log_info(
-        //                                     context,
-        //                                     0,
-        //                                     b"Empty result returned for folder \"%s\".\x00" as *const u8
-        //                                         as *const libc::c_char,
-        //                                     folder,
-        //                                 );
-        //                                 /* this might happen if the mailbox is empty an EXISTS does not work */
-        //                                 current_block = 17288151659885296046;
-        //                             } else {
-        //                                 let mut msg_att: *mut mailimap_msg_att = (if !cur.is_null() {
-        //                                     (*cur).data
-        //                                 } else {
-        //                                     0 as *mut libc::c_void
-        //                                 })
-        //                                     as *mut mailimap_msg_att;
-        //                                 lastseenuid = peek_uid(msg_att);
-        //                                 if !fetch_result.is_null() {
-        //                                     mailimap_fetch_list_free(fetch_result);
-        //                                     fetch_result = 0 as *mut clist
-        //                                 }
-        //                                 if lastseenuid <= 0 as libc::c_uint {
-        //                                     dc_log_error(
-        //                                         context,
-        //                                         0,
-        //                                         b"Cannot get largest UID for folder \"%s\"\x00"
-        //                                             as *const u8
-        //                                             as *const libc::c_char,
-        //                                         folder,
-        //                                     );
-        //                                     current_block = 17288151659885296046;
-        //                                 } else {
-        //                                     if uidvalidity > 0 as libc::c_uint
-        //                                         && lastseenuid > 1 as libc::c_uint
-        //                                     {
-        //                                         lastseenuid = (lastseenuid as libc::c_uint)
-        //                                             .wrapping_sub(1 as libc::c_uint)
-        //                                             as uint32_t
-        //                                             as uint32_t
-        //                                     }
-        //                                     uidvalidity =
-        //                                         (*(*imap.etpan).imap_selection_info).sel_uidvalidity;
-        //                                     set_config_lastseenuid(
-        //                                         context,
-        //                                         imap,
-        //                                         folder,
-        //                                         uidvalidity,
-        //                                         lastseenuid,
-        //                                     );
-        //                                     dc_log_info(
-        //                                         context,
-        //                                         0,
-        //                                         b"lastseenuid initialized to %i for %s@%i\x00"
-        //                                             as *const u8
-        //                                             as *const libc::c_char,
-        //                                         lastseenuid as libc::c_int,
-        //                                         folder,
-        //                                         uidvalidity as libc::c_int,
-        //                                     );
-        //                                     current_block = 2516253395664191498;
-        //                                 }
-        //                             }
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //         } else {
-        //             current_block = 2516253395664191498;
-        //         }
+        let config = self.config.read().unwrap();
+        let mailbox = config.selected_mailbox.as_ref().expect("just selected");
+
+        if mailbox.uid_validity.is_none() {
+            unsafe {
+                dc_log_error(
+                    context,
+                    0,
+                    b"Cannot get UIDVALIDITY for folder \"%s\".\x00" as *const u8
+                        as *const libc::c_char,
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                )
+            };
+            return 0;
+        }
+
+        if mailbox.uid_validity.unwrap() != uid_validity {
+            // first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config
+
+            if mailbox.exists == 0 {
+                unsafe {
+                    dc_log_info(
+                        context,
+                        0,
+                        b"Folder \"%s\" is empty.\x00" as *const u8 as *const libc::c_char,
+                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    )
+                };
+
+                // set lastseenuid=0 for empty folders.
+                // id we do not do this here, we'll miss the first message
+                // as we will get in here again and fetch from lastseenuid+1 then
+
+                // TODO.
+                // self.set_config_last_seen_uid(context, &folder, mailbox.exists, 0);
+                return 0;
+            }
+
+            if let Some(ref mut session) = *self.session.lock().unwrap() {
+                // `FETCH <message sequence number> (UID)`
+                let set = format!("{}", mailbox.exists);
+                let query = "(UID ENVELOPE)";
+                println!("fetching: {} {}", set, query);
+                match session.fetch(set, query) {
+                    Ok(list) => {
+                        println!("fetched {} messages", list.len());
+
+                        last_seen_uid = list[0].uid.unwrap_or_else(|| 0);
+
+                        // if the UIDVALIDITY has _changed_, decrease lastseenuid by one to avoid gaps (well add 1 below
+                        if uid_validity > 0 && last_seen_uid > 1 {
+                            last_seen_uid -= 1;
+                        }
+
+                        uid_validity = mailbox.uid_validity.unwrap();
+                        self.set_config_last_seen_uid(
+                            context,
+                            &folder,
+                            uid_validity,
+                            last_seen_uid,
+                        );
+                        unsafe {
+                            dc_log_info(
+                                context,
+                                0,
+                                b"lastseenuid initialized to %i for %s@%i\x00" as *const u8
+                                    as *const libc::c_char,
+                                last_seen_uid as libc::c_int,
+                                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                                uid_validity as libc::c_int,
+                            );
+                        }
+                    }
+                    Err(err) => {
+                        eprintln!("fetch error: {:?}", err);
+                        unsafe {
+                            dc_log_info(
+                                context,
+                                0,
+                                b"No result returned for folder \"%s\".\x00" as *const u8
+                                    as *const libc::c_char,
+                                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                            )
+                        };
+                    }
+                }
+            }
+        }
+
+        let mut read_cnt = 0;
+
         //         match current_block {
         //             17288151659885296046 => {}
         //             _ => {
@@ -772,40 +697,30 @@ impl dc_imap_t {
         //         }
         //     }
 
-        //     /* done */
-        //     if 0 != read_errors {
-        //         dc_log_warning(
-        //             context,
-        //             0,
-        //             b"%i mails read from \"%s\" with %i errors.\x00" as *const u8
-        //                 as *const libc::c_char,
-        //             read_cnt as libc::c_int,
-        //             folder,
-        //             read_errors as libc::c_int,
-        //         );
-        //     } else {
-        //         dc_log_info(
-        //             context,
-        //             0i32,
-        //             b"%i mails read from \"%s\".\x00" as *const u8 as *const libc::c_char,
-        //             read_cnt as libc::c_int,
-        //             folder,
-        //         );
+        unsafe {
+            dc_log_info(
+                context,
+                0i32,
+                b"%i mails read from \"%s\".\x00" as *const u8 as *const libc::c_char,
+                read_cnt as libc::c_int,
+                folder,
+            )
+        };
         //     }
         //     if !fetch_result.is_null() {
         //         mailimap_fetch_list_free(fetch_result);
         //         fetch_result = 0 as *mut clist
         //     }
 
-        //     read_cnt as libc::c_int
+        read_cnt
     }
 
-    fn set_config_lastseenuid(
+    fn set_config_last_seen_uid<S: AsRef<str>>(
         &self,
         context: &dc_context_t,
-        folder: *const libc::c_char,
-        uidvalidity: uint32_t,
-        lastseenuid: uint32_t,
+        folder: S,
+        uidvalidity: u32,
+        lastseenuid: u32,
     ) {
         unimplemented!()
     }

@@ -84,6 +84,7 @@ fn main() {
         dc_open(&ctx, dbfile.as_ptr(), std::ptr::null());
 
         println!("configuring");
+        let pw = std::env::args().collect::<Vec<String>>()[1].clone();
         dc_set_config(
             &ctx,
             CString::new("addr").unwrap().as_ptr(),
@@ -92,7 +93,7 @@ fn main() {
         dc_set_config(
             &ctx,
             CString::new("mail_pw").unwrap().as_ptr(),
-            CString::new("***").unwrap().as_ptr(),
+            CString::new(pw).unwrap().as_ptr(),
         );
         dc_configure(&ctx);
 
