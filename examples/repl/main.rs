@@ -293,7 +293,7 @@ unsafe fn start_threads(
         }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h2 = std::thread::spawn(move || {
         // let ctx = context.clone();
         // let context = ctx.read().unwrap();
@@ -305,7 +305,7 @@ unsafe fn start_threads(
         // }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h3 = std::thread::spawn(move || {
         // let ctx = context.clone();
         // let context = ctx.read().unwrap();
@@ -317,7 +317,7 @@ unsafe fn start_threads(
         // }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h4 = std::thread::spawn(move || {
         // let ctx = context.clone();
         // let context = ctx.read().unwrap();
