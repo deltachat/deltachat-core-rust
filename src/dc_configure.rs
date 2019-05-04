@@ -114,7 +114,7 @@ pub unsafe fn dc_stop_ongoing_process(context: &dc_context_t) {
 }
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
 pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut dc_job_t) {
-    let mut flags: libc::c_int = 0;
+    let mut flags: libc::c_int;
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut imap_connected_here: libc::c_int = 0i32;
@@ -123,7 +123,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
     let mut mvbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
     /* just a pointer inside param, must not be freed! */
-    let mut param_domain: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut param_domain: *mut libc::c_char;
     let mut param_addr_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param_autoconfig: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
 
@@ -1313,7 +1313,7 @@ pub unsafe fn dc_free_ongoing(context: &dc_context_t) {
 
 unsafe fn free_folders(mut folders: *mut clist) {
     if !folders.is_null() {
-        let mut iter1: *mut clistiter = 0 as *mut clistiter;
+        let mut iter1: *mut clistiter;
         iter1 = (*folders).first;
         while !iter1.is_null() {
             let mut ret_folder: *mut dc_imapfolder_t = (if !iter1.is_null() {
@@ -1339,14 +1339,9 @@ unsafe fn moz_autoconfigure(
     mut url: *const libc::c_char,
     mut param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
-    let mut p: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut saxparser: dc_saxparser_t = dc_saxparser_t {
-        starttag_cb: None,
-        endtag_cb: None,
-        text_cb: None,
-        userdata: 0 as *mut libc::c_void,
-    };
-    let mut xml_raw: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut p: *mut libc::c_char;
+    let mut saxparser: dc_saxparser_t;
+    let mut xml_raw: *mut libc::c_char;
     let mut moz_ac: moz_autoconfigure_t = moz_autoconfigure_t {
         in_0: 0 as *const dc_loginparam_t,
         in_emaildomain: 0 as *mut libc::c_char,
@@ -1564,7 +1559,7 @@ unsafe fn read_autoconf_file(
     mut context: &dc_context_t,
     mut url: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut filecontent: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut filecontent: *mut libc::c_char;
     dc_log_info(
         context,
         0i32,
@@ -1606,7 +1601,6 @@ unsafe fn outlk_autodiscover(
         redirect: 0 as *mut libc::c_char,
     };
     let mut i: libc::c_int = 0;
-    i = 0i32;
     loop {
         if !(i < 10i32) {
             current_block = 11584701595673473500;
@@ -1683,7 +1677,6 @@ unsafe fn outlk_autodiscover(
 }
 unsafe fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
     let mut i: libc::c_int = 0;
-    i = 0i32;
     while i < 6i32 {
         free((*outlk_ad).config[i as usize] as *mut libc::c_void);
         (*outlk_ad).config[i as usize] = 0 as *mut libc::c_char;
