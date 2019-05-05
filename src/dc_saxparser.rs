@@ -31,6 +31,7 @@ pub unsafe extern "C" fn dc_saxparser_init(
     (*saxparser).endtag_cb = Some(def_endtag_cb);
     (*saxparser).text_cb = Some(def_text_cb);
 }
+
 unsafe fn def_text_cb(_userdata: *mut libc::c_void, _text: *const libc::c_char, _len: libc::c_int) {
 }
 
@@ -65,6 +66,7 @@ pub unsafe fn dc_saxparser_set_tag_handler(
         Some(def_endtag_cb)
     };
 }
+
 pub unsafe fn dc_saxparser_set_text_handler(
     mut saxparser: *mut dc_saxparser_t,
     mut text_cb: dc_saxparser_text_cb_t,
@@ -78,15 +80,16 @@ pub unsafe fn dc_saxparser_set_text_handler(
         Some(def_text_cb)
     };
 }
+
 pub unsafe fn dc_saxparser_parse(
     mut saxparser: *mut dc_saxparser_t,
     mut buf_start__: *const libc::c_char,
 ) {
     let mut current_block: u64;
-    let mut bak: libc::c_char = 0i32 as libc::c_char;
-    let mut buf_start: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut last_text_start: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut p: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut bak: libc::c_char;
+    let mut buf_start: *mut libc::c_char;
+    let mut last_text_start: *mut libc::c_char;
+    let mut p: *mut libc::c_char;
     /* attributes per tag - a fixed border here is a security feature, not a limit */
     /* attributes as key/value pairs, +1 for terminating the list */
     let mut attr: [*mut libc::c_char; 202] = [0 as *mut libc::c_char; 202];
@@ -214,7 +217,7 @@ pub unsafe fn dc_saxparser_parse(
                         {
                             let mut beg_attr_name: *mut libc::c_char = p;
                             let mut beg_attr_value: *mut libc::c_char = 0 as *mut libc::c_char;
-                            let mut beg_attr_value_new: *mut libc::c_char = 0 as *mut libc::c_char;
+                            let mut beg_attr_value_new: *mut libc::c_char;
                             if '=' as i32 == *beg_attr_name as libc::c_int {
                                 p = p.offset(1isize)
                             } else {
@@ -356,6 +359,7 @@ pub unsafe fn dc_saxparser_parse(
     do_free_attr(attr.as_mut_ptr(), free_attr.as_mut_ptr());
     free(buf_start as *mut libc::c_void);
 }
+
 unsafe fn do_free_attr(mut attr: *mut *mut libc::c_char, mut free_attr: *mut libc::c_int) {
     /* "attr" are key/value pairs; the function frees the data if the corresponding bit in "free_attr" is set.
     (we need this as we try to use the strings from the "main" document instead of allocating small strings) */
@@ -376,6 +380,7 @@ unsafe fn do_free_attr(mut attr: *mut *mut libc::c_char, mut free_attr: *mut lib
     let ref mut fresh0 = *attr.offset(0isize);
     *fresh0 = 0 as *mut libc::c_char;
 }
+
 unsafe fn call_text_cb(
     mut saxparser: *mut dc_saxparser_t,
     mut text: *mut libc::c_char,
@@ -384,7 +389,7 @@ unsafe fn call_text_cb(
 ) {
     if !text.is_null() && 0 != len {
         let mut bak: libc::c_char = *text.offset(len as isize);
-        let mut text_new: *mut libc::c_char = 0 as *mut libc::c_char;
+        let mut text_new: *mut libc::c_char;
         *text.offset(len as isize) = '\u{0}' as i32 as libc::c_char;
         text_new = xml_decode(text, type_0);
         (*saxparser).text_cb.expect("non-null function pointer")(
@@ -398,6 +403,7 @@ unsafe fn call_text_cb(
         *text.offset(len as isize) = bak
     };
 }
+
 /* Convert entities as &auml; to UTF-8 characters.
 
 - The first strings MUST NOT start with `&` and MUST end with `;`.
@@ -421,10 +427,10 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
     let mut e: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut r: *mut libc::c_char = s;
     let mut original_buf: *const libc::c_char = s;
-    let mut b = 0;
-    let mut c: isize = 0;
-    let mut d: isize = 0;
-    let mut l: isize = 0;
+    let mut b;
+    let mut c: isize;
+    let mut d: isize;
+    let mut l: isize;
     while 0 != *s {
         while *s as libc::c_int == '\r' as i32 {
             let fresh1 = s;
@@ -547,8 +553,10 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
             s = s.offset(1isize)
         }
     }
-    return r;
+
+    r
 }
+
 /* dc_saxparser_t parses XML and HTML files that may not be wellformed
 and spits out all text and tags found.
 
@@ -1077,6 +1085,7 @@ static mut s_ent: [*const libc::c_char; 508] = [
     0 as *const libc::c_char,
     0 as *const libc::c_char,
 ];
+
 pub unsafe fn dc_attr_find(
     mut attr: *mut *mut libc::c_char,
     mut key: *const libc::c_char,
@@ -1090,5 +1099,6 @@ pub unsafe fn dc_attr_find(
             return *attr.offset((i + 1i32) as isize);
         }
     }
-    return 0 as *const libc::c_char;
+
+    0 as *const libc::c_char
 }

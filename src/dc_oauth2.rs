@@ -51,8 +51,10 @@ pub unsafe fn dc_get_oauth2_url(
         }
     }
     free(oauth2 as *mut libc::c_void);
-    return oauth2_url;
+
+    oauth2_url
 }
+
 unsafe fn replace_in_uri(
     mut uri: *mut *mut libc::c_char,
     mut key: *const libc::c_char,
@@ -64,10 +66,11 @@ unsafe fn replace_in_uri(
         free(value_urlencoded as *mut libc::c_void);
     };
 }
+
 unsafe fn get_info(mut addr: *const libc::c_char) -> *mut oauth2_t {
     let mut oauth2: *mut oauth2_t = 0 as *mut oauth2_t;
-    let mut addr_normalized: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut domain: *const libc::c_char = 0 as *const libc::c_char;
+    let mut addr_normalized: *mut libc::c_char;
+    let mut domain: *const libc::c_char;
     addr_normalized = dc_addr_normalize(addr);
     domain = strchr(addr_normalized, '@' as i32);
     if !(domain.is_null() || *domain.offset(0isize) as libc::c_int == 0i32) {
@@ -116,8 +119,10 @@ unsafe fn get_info(mut addr: *const libc::c_char) -> *mut oauth2_t {
         }
     }
     free(addr_normalized as *mut libc::c_void);
-    return oauth2;
+
+    oauth2
 }
+
 // the following function may block due http-requests;
 // must not be called from the main thread or by the ui!
 pub unsafe fn dc_get_oauth2_access_token(
@@ -150,7 +155,7 @@ pub unsafe fn dc_get_oauth2_access_token(
         end: 0,
         size: 0,
     }; 128];
-    let mut tok_cnt: libc::c_int = 0i32;
+    let mut tok_cnt: libc::c_int;
     if code.is_null() || *code.offset(0isize) as libc::c_int == 0i32 {
         dc_log_warning(
             context,
@@ -452,6 +457,7 @@ pub unsafe fn dc_get_oauth2_access_token(
         dc_strdup(0 as *const libc::c_char)
     };
 }
+
 unsafe fn jsondup(mut json: *const libc::c_char, mut tok: *mut jsmntok_t) -> *mut libc::c_char {
     if (*tok).type_0 as libc::c_uint == JSMN_STRING as libc::c_int as libc::c_uint
         || (*tok).type_0 as libc::c_uint == JSMN_PRIMITIVE as libc::c_int as libc::c_uint
@@ -461,8 +467,10 @@ unsafe fn jsondup(mut json: *const libc::c_char, mut tok: *mut jsmntok_t) -> *mu
             ((*tok).end - (*tok).start) as libc::c_ulong,
         );
     }
-    return strdup(b"\x00" as *const u8 as *const libc::c_char);
+
+    strdup(b"\x00" as *const u8 as *const libc::c_char)
 }
+
 unsafe extern "C" fn jsoneq(
     mut json: *const libc::c_char,
     mut tok: *mut jsmntok_t,
@@ -478,8 +486,11 @@ unsafe extern "C" fn jsoneq(
     {
         return 0i32;
     }
-    return -1i32;
+
+    -1
 }
+
+// TODO should return bool /rtn
 unsafe fn is_expired(mut context: &dc_context_t) -> libc::c_int {
     let mut expire_timestamp: time_t = dc_sqlite3_get_config_int64(
         context,
@@ -493,8 +504,10 @@ unsafe fn is_expired(mut context: &dc_context_t) -> libc::c_int {
     if expire_timestamp > time(0 as *mut time_t) {
         return 0i32;
     }
-    return 1i32;
+
+    1
 }
+
 pub unsafe fn dc_get_oauth2_addr(
     mut context: &dc_context_t,
     mut addr: *const libc::c_char,
@@ -502,7 +515,7 @@ pub unsafe fn dc_get_oauth2_addr(
 ) -> *mut libc::c_char {
     let mut access_token: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut addr_out: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut oauth2: *mut oauth2_t = 0 as *mut oauth2_t;
+    let mut oauth2: *mut oauth2_t;
     if !({
         oauth2 = get_info(addr);
         oauth2.is_null()
@@ -518,8 +531,10 @@ pub unsafe fn dc_get_oauth2_addr(
     }
     free(access_token as *mut libc::c_void);
     free(oauth2 as *mut libc::c_void);
-    return addr_out;
+
+    addr_out
 }
+
 unsafe fn get_oauth2_addr(
     mut context: &dc_context_t,
     mut oauth2: *const oauth2_t,
@@ -540,7 +555,7 @@ unsafe fn get_oauth2_addr(
         end: 0,
         size: 0,
     }; 128];
-    let mut tok_cnt: libc::c_int = 0i32;
+    let mut tok_cnt: libc::c_int;
     if !(access_token.is_null()
         || *access_token.offset(0isize) as libc::c_int == 0i32
         || oauth2.is_null())
@@ -608,5 +623,6 @@ unsafe fn get_oauth2_addr(
     }
     free(userinfo_url as *mut libc::c_void);
     free(json as *mut libc::c_void);
-    return addr_out;
+
+    addr_out
 }

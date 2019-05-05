@@ -119,7 +119,7 @@ pub unsafe fn dc_jobthread_fetch(
     jobthread: &mut dc_jobthread_t,
     use_network: libc::c_int,
 ) {
-    let mut start = 0;
+    let mut start;
 
     {
         let &(ref lock, _) = &*jobthread.state.clone();
@@ -171,7 +171,7 @@ pub unsafe fn dc_jobthread_fetch(
  ******************************************************************************/
 
 unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t) -> libc::c_int {
-    let mut ret_connected: libc::c_int = 0i32;
+    let mut ret_connected: libc::c_int;
     let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
 
     if jobthread.imap.lock().unwrap().is_connected() {

@@ -2,6 +2,7 @@ extern crate deltachat;
 
 use std::ffi::{CStr, CString};
 use std::sync::Arc;
+use std::{thread, time};
 use tempfile::tempdir;
 
 use deltachat::constants::Event;
@@ -58,20 +59,21 @@ fn main() {
         let ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
         let info = dc_get_info(&ctx);
         let info_s = CStr::from_ptr(info);
+        let duration = time::Duration::from_millis(4000);
         println!("info: {}", info_s.to_str().unwrap());
 
         let ctx = Arc::new(ctx);
         let ctx1 = ctx.clone();
-        let t1 = std::thread::spawn(move || loop {
+        let t1 = thread::spawn(move || loop {
             dc_perform_imap_jobs(&ctx1);
             dc_perform_imap_fetch(&ctx1);
-            std::thread::sleep_ms(1000);
+            thread::sleep(duration);
 
             // dc_perform_imap_idle(&ctx1);
         });
 
         let ctx1 = ctx.clone();
-        let t2 = std::thread::spawn(move || loop {
+        let t2 = thread::spawn(move || loop {
             dc_perform_smtp_jobs(&ctx1);
             dc_perform_smtp_idle(&ctx1);
         });
@@ -97,7 +99,7 @@ fn main() {
         );
         dc_configure(&ctx);
 
-        std::thread::sleep_ms(4000);
+        thread::sleep(duration);
 
         let email = CString::new("dignifiedquire@gmail.com").unwrap();
         println!("sending a message");

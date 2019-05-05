@@ -39,8 +39,8 @@ pub unsafe fn dc_token_lookup(
     mut namespc: dc_tokennamespc_t,
     mut foreign_id: uint32_t,
 ) -> *mut libc::c_char {
-    let mut token: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut token: *mut libc::c_char;
+    let mut stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),

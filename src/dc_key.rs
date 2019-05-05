@@ -26,21 +26,25 @@ pub unsafe fn toupper(mut _c: libc::c_int) -> libc::c_int {
 }
 
 pub unsafe fn dc_key_new() -> *mut dc_key_t {
-    let mut key: *mut dc_key_t = 0 as *mut dc_key_t;
+    let mut key: *mut dc_key_t;
     key = calloc(1, ::std::mem::size_of::<dc_key_t>()) as *mut dc_key_t;
     if key.is_null() {
         exit(44i32);
     }
     (*key)._m_heap_refcnt = 1i32;
-    return key;
+
+    key
 }
+
 pub unsafe fn dc_key_ref(mut key: *mut dc_key_t) -> *mut dc_key_t {
     if key.is_null() {
         return 0 as *mut dc_key_t;
     }
     (*key)._m_heap_refcnt += 1;
-    return key;
+
+    key
 }
+
 pub unsafe fn dc_key_unref(mut key: *mut dc_key_t) {
     if key.is_null() {
         return;
@@ -52,6 +56,7 @@ pub unsafe fn dc_key_unref(mut key: *mut dc_key_t) {
     dc_key_empty(key);
     free(key as *mut libc::c_void);
 }
+
 unsafe fn dc_key_empty(mut key: *mut dc_key_t) {
     if key.is_null() {
         return;
@@ -64,12 +69,15 @@ unsafe fn dc_key_empty(mut key: *mut dc_key_t) {
     (*key).bytes = 0i32;
     (*key).type_0 = 0i32;
 }
+
 pub unsafe fn dc_wipe_secret_mem(mut buf: *mut libc::c_void, mut buf_bytes: size_t) {
     if buf.is_null() || buf_bytes <= 0 {
         return;
     }
     memset(buf, 0i32, buf_bytes);
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_set_from_binary(
     mut key: *mut dc_key_t,
     mut data: *const libc::c_void,
@@ -87,15 +95,20 @@ pub unsafe fn dc_key_set_from_binary(
     memcpy((*key).binary, data, bytes as size_t);
     (*key).bytes = bytes;
     (*key).type_0 = type_0;
-    return 1i32;
+
+    1
 }
+
 pub unsafe fn dc_key_set_from_key(mut key: *mut dc_key_t, mut o: *const dc_key_t) -> libc::c_int {
     dc_key_empty(key);
     if key.is_null() || o.is_null() {
         return 0i32;
     }
-    return dc_key_set_from_binary(key, (*o).binary, (*o).bytes, (*o).type_0);
+
+    dc_key_set_from_binary(key, (*o).binary, (*o).bytes, (*o).type_0)
 }
+
+// TODO should return bool /rtn
 pub unsafe extern "C" fn dc_key_set_from_stmt(
     mut key: *mut dc_key_t,
     mut stmt: *mut sqlite3_stmt,
@@ -106,13 +119,16 @@ pub unsafe extern "C" fn dc_key_set_from_stmt(
     if key.is_null() || stmt.is_null() {
         return 0i32;
     }
-    return dc_key_set_from_binary(
+
+    dc_key_set_from_binary(
         key,
         sqlite3_column_blob(stmt, index) as *mut libc::c_uchar as *const libc::c_void,
         sqlite3_column_bytes(stmt, index),
         type_0,
-    );
+    )
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_set_from_base64(
     mut key: *mut dc_key_t,
     mut base64: *const libc::c_char,
@@ -144,8 +160,11 @@ pub unsafe fn dc_key_set_from_base64(
         type_0,
     );
     mmap_string_unref(result);
-    return 1i32;
+
+    1
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_equals(mut key: *const dc_key_t, mut o: *const dc_key_t) -> libc::c_int {
     if key.is_null()
         || o.is_null()
@@ -169,6 +188,8 @@ pub unsafe fn dc_key_equals(mut key: *const dc_key_t, mut o: *const dc_key_t) ->
         0
     }
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_save_self_keypair(
     context: &dc_context_t,
     public_key: *const dc_key_t,
@@ -207,8 +228,11 @@ pub unsafe fn dc_key_save_self_keypair(
         }
     }
     sqlite3_finalize(stmt);
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_load_self_public(
     context: &dc_context_t,
     key: *mut dc_key_t,
@@ -232,8 +256,11 @@ pub unsafe fn dc_key_load_self_public(
         }
     }
     sqlite3_finalize(stmt);
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_load_self_private(
     context: &dc_context_t,
     key: *mut dc_key_t,
@@ -253,12 +280,14 @@ pub unsafe fn dc_key_load_self_private(
         sqlite3_bind_text(stmt, 1i32, self_addr, -1i32, None);
         if !(sqlite3_step(stmt) != 100i32) {
             dc_key_set_from_stmt(key, stmt, 0i32, 1i32);
-            success = 1i32
+            success = 1i32;
         }
     }
     sqlite3_finalize(stmt);
-    return success;
+
+    success
 }
+
 /* the result must be freed */
 pub unsafe fn dc_render_base64(
     mut buf: *const libc::c_void,
@@ -296,9 +325,11 @@ pub unsafe fn dc_render_base64(
             }
         }
     }
-    return ret;
+
+    ret
 }
-/* ******************************************************************************
+
+/*******************************************************************************
  * Render keys
  ******************************************************************************/
 unsafe fn crc_octets(mut octets: *const libc::c_uchar, mut len: size_t) -> libc::c_long {
@@ -321,8 +352,10 @@ unsafe fn crc_octets(mut octets: *const libc::c_uchar, mut len: size_t) -> libc:
             i += 1
         }
     }
-    return crc & 0xffffff;
+
+    crc & 0xffffff
 }
+
 /* the result must be freed */
 pub unsafe fn dc_key_render_base64(
     mut key: *const dc_key_t,
@@ -333,14 +366,16 @@ pub unsafe fn dc_key_render_base64(
     if key.is_null() {
         return 0 as *mut libc::c_char;
     }
-    return dc_render_base64(
+
+    dc_render_base64(
         (*key).binary,
         (*key).bytes as size_t,
         break_every,
         break_chars,
         add_checksum,
-    );
+    )
 }
+
 /* each header line must be terminated by \r\n, the result must be freed */
 pub unsafe fn dc_key_render_asc(
     mut key: *const dc_key_t,
@@ -384,8 +419,11 @@ pub unsafe fn dc_key_render_asc(
         }
     }
     free(base64 as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_render_asc_to_file(
     mut key: *const dc_key_t,
     mut file: *const libc::c_char,
@@ -414,8 +452,10 @@ pub unsafe fn dc_key_render_asc_to_file(
         }
     }
     free(file_content as *mut libc::c_void);
-    return success;
+
+    success
 }
+
 pub unsafe fn dc_format_fingerprint(mut fingerprint: *const libc::c_char) -> *mut libc::c_char {
     let mut i: libc::c_int = 0i32;
     let mut fingerprint_len: libc::c_int = strlen(fingerprint) as libc::c_int;
@@ -441,8 +481,10 @@ pub unsafe fn dc_format_fingerprint(mut fingerprint: *const libc::c_char) -> *mu
             }
         }
     }
-    return ret.buf;
+
+    ret.buf
 }
+
 pub unsafe fn dc_normalize_fingerprint(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
         return 0 as *mut libc::c_char;
@@ -468,8 +510,10 @@ pub unsafe fn dc_normalize_fingerprint(mut in_0: *const libc::c_char) -> *mut li
         }
         p1 = p1.offset(1isize)
     }
-    return out.buf;
+
+    out.buf
 }
+
 pub unsafe fn dc_key_get_fingerprint(
     context: &dc_context_t,
     key: *const dc_key_t,
@@ -491,6 +535,7 @@ pub unsafe fn dc_key_get_fingerprint(
         dc_strdup(0 as *const libc::c_char)
     };
 }
+
 pub unsafe fn dc_key_get_formatted_fingerprint(
     context: &dc_context_t,
     key: *const dc_key_t,
@@ -498,5 +543,6 @@ pub unsafe fn dc_key_get_formatted_fingerprint(
     let mut rawhex: *mut libc::c_char = dc_key_get_fingerprint(context, key);
     let mut formatted: *mut libc::c_char = dc_format_fingerprint(rawhex);
     free(rawhex as *mut libc::c_void);
-    return formatted;
+
+    formatted
 }

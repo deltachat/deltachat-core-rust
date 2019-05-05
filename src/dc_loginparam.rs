@@ -23,13 +23,15 @@ pub struct dc_loginparam_t {
 }
 
 pub unsafe fn dc_loginparam_new() -> *mut dc_loginparam_t {
-    let mut loginparam: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
+    let mut loginparam: *mut dc_loginparam_t;
     loginparam = calloc(1, ::std::mem::size_of::<dc_loginparam_t>()) as *mut dc_loginparam_t;
     if loginparam.is_null() {
         exit(22i32);
     }
-    return loginparam;
+
+    loginparam
 }
+
 pub unsafe fn dc_loginparam_unref(mut loginparam: *mut dc_loginparam_t) {
     if loginparam.is_null() {
         return;
@@ -37,6 +39,7 @@ pub unsafe fn dc_loginparam_unref(mut loginparam: *mut dc_loginparam_t) {
     dc_loginparam_empty(loginparam);
     free(loginparam as *mut libc::c_void);
 }
+
 /* clears all data and frees its memory. All pointers are NULL after this function is called. */
 pub unsafe fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
     if loginparam.is_null() {
@@ -60,6 +63,7 @@ pub unsafe fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
     (*loginparam).send_pw = 0 as *mut libc::c_char;
     (*loginparam).server_flags = 0i32;
 }
+
 pub unsafe fn dc_loginparam_read(
     context: &dc_context_t,
     loginparam: *mut dc_loginparam_t,
@@ -140,6 +144,7 @@ pub unsafe fn dc_loginparam_read(
     (*loginparam).server_flags = dc_sqlite3_get_config_int(context, sql, key, 0i32);
     sqlite3_free(key as *mut libc::c_void);
 }
+
 pub unsafe fn dc_loginparam_write(
     context: &dc_context_t,
     loginparam: *const dc_loginparam_t,
@@ -219,6 +224,7 @@ pub unsafe fn dc_loginparam_write(
     dc_sqlite3_set_config_int(context, sql, key, (*loginparam).server_flags);
     sqlite3_free(key as *mut libc::c_void);
 }
+
 pub unsafe fn dc_loginparam_get_readable(
     mut loginparam: *const dc_loginparam_t,
 ) -> *mut libc::c_char {
@@ -270,8 +276,10 @@ pub unsafe fn dc_loginparam_get_readable(
         flags_readable,
     );
     free(flags_readable as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
 unsafe fn get_readable_flags(mut flags: libc::c_int) -> *mut libc::c_char {
     let mut strbuilder: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -358,5 +366,6 @@ unsafe fn get_readable_flags(mut flags: libc::c_int) -> *mut libc::c_char {
         );
     }
     dc_trim(strbuilder.buf);
-    return strbuilder.buf;
+
+    strbuilder.buf
 }

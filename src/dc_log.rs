@@ -15,6 +15,7 @@ pub unsafe extern "C" fn dc_log_event(
 ) {
     log_vprintf(context, event_code, data1, msg, va);
 }
+
 /* Asynchronous "Thread-errors" are reported by the dc_log_error()
 function.  These errors must be shown to the user by a bubble or so.
 
@@ -29,7 +30,7 @@ unsafe fn log_vprintf(
     mut msg_format: *const libc::c_char,
     mut va_0: ::std::ffi::VaList,
 ) {
-    let mut msg: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut msg: *mut libc::c_char;
     if !msg_format.is_null() {
         let mut tempbuf: [libc::c_char; 1025] = [0; 1025];
         vsnprintf(
@@ -48,6 +49,7 @@ unsafe fn log_vprintf(
     ((*context).cb)(context, event, data1 as uintptr_t, msg as uintptr_t);
     free(msg as *mut libc::c_void);
 }
+
 pub unsafe extern "C" fn dc_log_event_seq(
     mut context: &dc_context_t,
     mut event_code: Event,
@@ -61,6 +63,7 @@ pub unsafe extern "C" fn dc_log_event_seq(
     log_vprintf(context, event_code, *sequence_start, msg, va_0);
     *sequence_start = 0i32;
 }
+
 pub unsafe extern "C" fn dc_log_error(
     mut context: &dc_context_t,
     mut data1: libc::c_int,
@@ -69,6 +72,7 @@ pub unsafe extern "C" fn dc_log_error(
 ) {
     log_vprintf(context, Event::ERROR, data1, msg, va_1);
 }
+
 pub unsafe extern "C" fn dc_log_warning(
     mut context: &dc_context_t,
     mut data1: libc::c_int,
@@ -77,6 +81,7 @@ pub unsafe extern "C" fn dc_log_warning(
 ) {
     log_vprintf(context, Event::WARNING, data1, msg, va_2);
 }
+
 pub unsafe extern "C" fn dc_log_info(
     mut context: &dc_context_t,
     mut data1: libc::c_int,

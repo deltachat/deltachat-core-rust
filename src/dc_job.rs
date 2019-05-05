@@ -69,7 +69,7 @@ unsafe fn dc_job_perform(
     mut probe_network: libc::c_int,
 ) {
     println!("perform job");
-    let mut select_stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut select_stmt: *mut sqlite3_stmt;
     let mut job: dc_job_t = dc_job_t {
         job_id: 0,
         action: 0,
@@ -556,7 +556,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(mut context: &dc_context_t, mut job: *mut dc
  * IMAP-jobs
  ******************************************************************************/
 unsafe fn connect_to_inbox(context: &dc_context_t, inbox: &dc_imap_t) -> libc::c_int {
-    let mut ret_connected: libc::c_int = 0i32;
+    let mut ret_connected: libc::c_int;
 
     ret_connected = dc_connect_to_configured_imap(context, inbox);
     if !(0 == ret_connected) {
@@ -813,7 +813,7 @@ unsafe fn dc_add_smtp_job(
     mut action: libc::c_int,
     mut mimefactory: *mut dc_mimefactory_t,
 ) -> libc::c_int {
-    let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut pathNfilename: *mut libc::c_char;
     let mut success: libc::c_int = 0i32;
     let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param: *mut dc_param_t = dc_param_new();
@@ -880,8 +880,8 @@ pub unsafe fn dc_job_add(
     mut delay_seconds: libc::c_int,
 ) {
     let mut timestamp: time_t = time(0 as *mut time_t);
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut thread: libc::c_int = 0i32;
+    let mut stmt: *mut sqlite3_stmt;
+    let mut thread: libc::c_int;
     if action >= 100i32 && action < 100i32 + 1000i32 {
         thread = 100i32
     } else if action >= 5000i32 && action < 5000i32 + 1000i32 {
@@ -1285,8 +1285,8 @@ pub unsafe fn dc_job_action_exists(
     mut context: &dc_context_t,
     mut action: libc::c_int,
 ) -> libc::c_int {
-    let mut job_exists: libc::c_int = 0i32;
-    let mut stmt = 0 as *mut sqlite3_stmt;
+    let mut job_exists: libc::c_int;
+    let mut stmt;
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),

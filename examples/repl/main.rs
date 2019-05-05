@@ -11,7 +11,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
     unused_mut,
     unused_attributes,
     non_upper_case_globals,
@@ -294,7 +293,7 @@ unsafe fn start_threads(
         }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h2 = std::thread::spawn(move || {
         // let ctx = context.clone();
         // let context = ctx.read().unwrap();
@@ -306,7 +305,7 @@ unsafe fn start_threads(
         // }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h3 = std::thread::spawn(move || {
         // let ctx = context.clone();
         // let context = ctx.read().unwrap();
@@ -318,7 +317,7 @@ unsafe fn start_threads(
         // }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h4 = std::thread::spawn(move || {
         // let ctx = context.clone();
         // let context = ctx.read().unwrap();
@@ -515,7 +514,6 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
         let mut ctx = ctx.write().unwrap();
         free(cmd as *mut libc::c_void);
         stop_threads(&ctx, handles);
-        handles = None;
         dc_close(&mut ctx);
         dc_context_unref(&mut ctx);
     }
