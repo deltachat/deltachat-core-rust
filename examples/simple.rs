@@ -67,9 +67,7 @@ fn main() {
         let t1 = thread::spawn(move || loop {
             dc_perform_imap_jobs(&ctx1);
             dc_perform_imap_fetch(&ctx1);
-            thread::sleep(duration);
-
-            // dc_perform_imap_idle(&ctx1);
+            dc_perform_imap_idle(&ctx1);
         });
 
         let ctx1 = ctx.clone();

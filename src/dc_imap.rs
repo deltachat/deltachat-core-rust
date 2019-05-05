@@ -9,23 +9,37 @@ use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_sqlite3::*;
-use crate::dc_tools::*;
 use crate::types::*;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
 
 #[repr(C)]
 pub struct dc_imap_t {
-    pub config: Arc<RwLock<ImapConfig>>,
-    pub watch: Arc<(Mutex<bool>, Condvar)>,
+    config: Arc<RwLock<ImapConfig>>,
+    watch: Arc<(Mutex<bool>, Condvar)>,
 
-    pub get_config: dc_get_config_t,
-    pub set_config: dc_set_config_t,
-    pub precheck_imf: dc_precheck_imf_t,
-    pub receive_imf: dc_receive_imf_t,
+    get_config: dc_get_config_t,
+    set_config: dc_set_config_t,
+    precheck_imf: dc_precheck_imf_t,
+    receive_imf: dc_receive_imf_t,
 
     session: Arc<Mutex<Option<Session>>>,
+    // idle: Arc<Mutex<Option<RentSession>>>,
 }
+
+// rental! {
+//     pub mod rent {
+//         use crate::dc_imap::{Session, IdleHandle};
+
+//         #[rental_mut]
+//         pub struct RentSession {
+//             session: Box<Session>,
+//             idle: IdleHandle<'session>,
+//         }
+//     }
+// }
+
+// use rent::*;
 
 #[derive(Debug)]
 pub enum FolderMeaning {
@@ -42,6 +56,11 @@ pub enum Client {
 pub enum Session {
     Secure(imap::Session<native_tls::TlsStream<std::net::TcpStream>>),
     Insecure(imap::Session<std::net::TcpStream>),
+}
+
+pub enum IdleHandle<'a> {
+    Secure(imap::extensions::idle::Handle<'a, native_tls::TlsStream<std::net::TcpStream>>),
+    Insecure(imap::extensions::idle::Handle<'a, std::net::TcpStream>),
 }
 
 impl From<imap::Client<native_tls::TlsStream<std::net::TcpStream>>> for Client {
@@ -65,6 +84,38 @@ impl From<imap::Session<native_tls::TlsStream<std::net::TcpStream>>> for Session
 impl From<imap::Session<std::net::TcpStream>> for Session {
     fn from(session: imap::Session<std::net::TcpStream>) -> Self {
         Session::Insecure(session)
+    }
+}
+
+impl<'a> From<imap::extensions::idle::Handle<'a, native_tls::TlsStream<std::net::TcpStream>>>
+    for IdleHandle<'a>
+{
+    fn from(
+        handle: imap::extensions::idle::Handle<'a, native_tls::TlsStream<std::net::TcpStream>>,
+    ) -> Self {
+        IdleHandle::Secure(handle)
+    }
+}
+
+impl<'a> From<imap::extensions::idle::Handle<'a, std::net::TcpStream>> for IdleHandle<'a> {
+    fn from(handle: imap::extensions::idle::Handle<'a, std::net::TcpStream>) -> Self {
+        IdleHandle::Insecure(handle)
+    }
+}
+
+impl<'a> IdleHandle<'a> {
+    pub fn set_keepalive(&mut self, interval: Duration) {
+        match self {
+            IdleHandle::Secure(i) => i.set_keepalive(interval),
+            IdleHandle::Insecure(i) => i.set_keepalive(interval),
+        }
+    }
+
+    pub fn wait_keepalive(self) -> imap::error::Result<()> {
+        match self {
+            IdleHandle::Secure(i) => i.wait_keepalive(),
+            IdleHandle::Insecure(i) => i.wait_keepalive(),
+        }
     }
 }
 
@@ -168,6 +219,13 @@ impl Session {
             Session::Insecure(i) => i.uid_fetch(uid_set, query),
         }
     }
+
+    pub fn idle(&mut self) -> imap::error::Result<IdleHandle> {
+        match self {
+            Session::Secure(i) => i.idle().map(Into::into),
+            Session::Insecure(i) => i.idle().map(Into::into),
+        }
+    }
 }
 
 pub struct ImapConfig {
@@ -177,18 +235,14 @@ pub struct ImapConfig {
     pub imap_user: Option<String>,
     pub imap_pw: Option<String>,
     pub server_flags: Option<usize>,
-    pub connected: i32,
-    pub idle_set_up: i32,
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<imap::types::Mailbox>,
     pub selected_folder_needs_expunge: bool,
-    pub should_reconnect: i32,
-    pub can_idle: i32,
-    pub has_xlist: i32,
+    pub should_reconnect: bool,
+    pub can_idle: bool,
+    pub has_xlist: bool,
     pub imap_delimiter: char,
     pub watch_folder: Option<String>,
-    pub log_connect_errors: i32,
-    pub skip_log_capabilities: i32,
 }
 
 impl Default for ImapConfig {
@@ -200,18 +254,14 @@ impl Default for ImapConfig {
             imap_user: None,
             imap_pw: None,
             server_flags: None,
-            connected: 0,
-            idle_set_up: 0,
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
-            should_reconnect: 0,
-            can_idle: 0,
-            has_xlist: 0,
+            should_reconnect: false,
+            can_idle: false,
+            has_xlist: false,
             imap_delimiter: '.',
             watch_folder: None,
-            log_connect_errors: 1,
-            skip_log_capabilities: 0,
         };
 
         // prefetch: UID, ENVELOPE,
@@ -240,6 +290,7 @@ impl dc_imap_t {
     ) -> Self {
         dc_imap_t {
             session: Arc::new(Mutex::new(None)),
+            // idle: Arc::new(Mutex::new(None)),
             config: Arc::new(RwLock::new(ImapConfig::default())),
             watch: Arc::new((Mutex::new(false), Condvar::new())),
             get_config,
@@ -254,8 +305,7 @@ impl dc_imap_t {
     }
 
     pub fn should_reconnect(&self) -> bool {
-        // TODO: figuer out proper handling
-        false
+        self.config.read().unwrap().should_reconnect
     }
 
     pub fn connect(&self, context: &dc_context_t, lp: *const dc_loginparam_t) -> libc::c_int {
@@ -280,7 +330,6 @@ impl dc_imap_t {
 
         let connection_res: imap::error::Result<Client> =
             if (server_flags & (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_PLAIN)) != 0 {
-                println!("insecure");
                 imap::connect_insecure((imap_server, imap_port)).and_then(|client| {
                     if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
                         let tls = native_tls::TlsConnector::builder().build().unwrap();
@@ -290,7 +339,6 @@ impl dc_imap_t {
                     }
                 })
             } else {
-                println!("secure: {}:{} - {}", imap_server, imap_port, imap_server);
                 let tls = native_tls::TlsConnector::builder()
                     // FIXME: unfortunately this is needed to make things work on macos + testrun.org
                     .danger_accept_invalid_hostnames(true)
@@ -301,7 +349,7 @@ impl dc_imap_t {
 
         match connection_res {
             Ok(client) => {
-                println!("imap: connected - {} - {}", imap_user, imap_pw);
+                println!("imap: loggingin with user {}", imap_user);
                 // TODO: handle oauth2
                 match client.login(imap_user, imap_pw) {
                     Ok(mut session) => {
@@ -328,8 +376,14 @@ impl dc_imap_t {
                         };
 
                         let mut config = self.config.write().unwrap();
-                        config.can_idle = can_idle as i32;
-                        config.has_xlist = has_xlist as i32;
+                        config.can_idle = can_idle;
+                        config.has_xlist = has_xlist;
+                        config.addr = Some(addr.into());
+                        config.imap_server = Some(imap_server.into());
+                        config.imap_port = Some(imap_port.into());
+                        config.imap_user = Some(imap_user.into());
+                        config.imap_pw = Some(imap_pw.into());
+                        config.server_flags = Some(server_flags);
 
                         *self.session.lock().unwrap() = Some(session);
 
@@ -371,8 +425,40 @@ impl dc_imap_t {
     }
 
     pub fn disconnect(&self, context: &dc_context_t) {
-        // unimplemented!();
         println!("disconnecting");
+
+        let mut session = self.session.lock().unwrap().take();
+        if session.is_some() {
+            match session.unwrap().close() {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("failed to close connection: {:?}", err);
+                }
+            }
+        }
+
+        let mut cfg = self.config.write().unwrap();
+
+        cfg.addr = None;
+        cfg.imap_server = None;
+        cfg.imap_user = None;
+        cfg.imap_pw = None;
+        cfg.imap_port = None;
+
+        cfg.can_idle = false;
+        cfg.has_xlist = false;
+
+        cfg.watch_folder = None;
+        cfg.selected_folder = None;
+        cfg.selected_mailbox = None;
+
+        unsafe {
+            dc_log_info(
+                context,
+                0,
+                b"IMAP disconnected.\x00" as *const u8 as *const libc::c_char,
+            )
+        };
     }
 
     pub fn set_watch_folder(&self, watch_folder: *const libc::c_char) {
@@ -743,9 +829,9 @@ impl dc_imap_t {
         folder: S,
         server_uid: u32,
     ) -> usize {
-        //     /* the function returns:
-        //         0  the caller should try over again later
-        //     or  1  if the messages should be treated as received, the caller should not try to read the message again (even if no database entries are returned) */
+        // the function returns:
+        // 0  the caller should try over again later
+        // or  1  if the messages should be treated as received, the caller should not try to read the message again (even if no database entries are returned)
         if !self.is_connected() {
             return 0;
         }
@@ -838,174 +924,160 @@ impl dc_imap_t {
     }
 
     pub fn idle(&self, context: &dc_context_t) {
-        // unimplemented!()
-        println!("starting to idle");
-        //     let mut current_block: u64;
-        //     let mut r: libc::c_int = 0;
-        //     let mut r2: libc::c_int = 0;
-        //     if 0 != imap.can_idle {
-        //         setup_handle_if_needed(context, imap);
-        //         if imap.idle_set_up == 0
-        //             && !imap.etpan.is_null()
-        //             && !(*imap.etpan).imap_stream.is_null()
-        //         {
-        //             r = mailstream_setup_idle((*imap.etpan).imap_stream);
-        //             if 0 != dc_imap_is_error(context, imap, r) {
-        //                 dc_log_warning(
-        //                     context,
-        //                     0,
-        //                     b"IMAP-IDLE: Cannot setup.\x00" as *const u8 as *const libc::c_char,
-        //                 );
-        //                 fake_idle(context, imap);
-        //                 current_block = 14832935472441733737;
-        //             } else {
-        //                 imap.idle_set_up = 1;
-        //                 current_block = 17965632435239708295;
-        //             }
-        //         } else {
-        //             current_block = 17965632435239708295;
+        println!(
+            "trying idle: can_idle: {}",
+            self.config.read().unwrap().can_idle
+        );
+        if !self.config.read().unwrap().can_idle {
+            return self.fake_idle(context);
+        }
+
+        // TODO: reconnect in all methods that need it
+        if !self.is_connected() {
+            println!("can't idle, disconnected");
+            return;
+        }
+
+        let watch_folder = self.config.read().unwrap().watch_folder.clone();
+        if self.select_folder(context, watch_folder.as_ref()) == 0 {
+            unsafe {
+                dc_log_warning(
+                    context,
+                    0,
+                    b"IMAP-IDLE not setup.\x00" as *const u8 as *const libc::c_char,
+                )
+            };
+
+            return self.fake_idle(context);
+        }
+
+        // let mut session = self.session.lock().unwrap().take().unwrap();
+
+        // match RentSession::try_new(Box::new(session), |session| session.idle()) {
+        //     Ok(idle) => {
+        //         *self.idle.lock().unwrap() = Some(idle);
+        //     }
+        //     Err(err) => {
+        //         eprintln!("imap idle error: {:?}", err.0);
+        //         unsafe {
+        //             dc_log_warning(
+        //                 context,
+        //                 0,
+        //                 b"IMAP-IDLE: Cannot start.\x00" as *const u8 as *const libc::c_char,
+        //             );
         //         }
-        //         match current_block {
-        //             14832935472441733737 => {}
-        //             _ => {
-        //                 if 0 == imap.idle_set_up || 0 == select_folder(context, imap, imap.watch_folder)
-        //                 {
-        //                     dc_log_warning(
-        //                         context,
-        //                         0,
-        //                         b"IMAP-IDLE not setup.\x00" as *const u8 as *const libc::c_char,
-        //                     );
-        //                     fake_idle(context, imap);
-        //                 } else {
-        //                     r = mailimap_idle(imap.etpan);
-        //                     if 0 != dc_imap_is_error(context, imap, r) {
-        //                         dc_log_warning(
-        //                             context,
-        //                             0,
-        //                             b"IMAP-IDLE: Cannot start.\x00" as *const u8 as *const libc::c_char,
-        //                         );
-        //                         fake_idle(context, imap);
-        //                     } else {
-        //                         r = mailstream_wait_idle((*imap.etpan).imap_stream, 23 * 60);
-        //                         r2 = mailimap_idle_done(imap.etpan);
-        //                         if r == MAILSTREAM_IDLE_ERROR as libc::c_int
-        //                             || r == MAILSTREAM_IDLE_CANCELLED as libc::c_int
-        //                         {
-        //                             dc_log_info(
-        //                             context,
-        //                             0,
-        //                             b"IMAP-IDLE wait cancelled, r=%i, r2=%i; we\'ll reconnect soon.\x00"
-        //                                 as *const u8
-        //                                 as *const libc::c_char,
-        //                             r,
-        //                             r2,
-        //                         );
-        //                             imap.should_reconnect = 1
-        //                         } else if r == MAILSTREAM_IDLE_INTERRUPTED as libc::c_int {
-        //                             dc_log_info(
-        //                                 context,
-        //                                 0,
-        //                                 b"IMAP-IDLE interrupted.\x00" as *const u8
-        //                                     as *const libc::c_char,
-        //                             );
-        //                         } else if r == MAILSTREAM_IDLE_HASDATA as libc::c_int {
-        //                             dc_log_info(
-        //                                 context,
-        //                                 0,
-        //                                 b"IMAP-IDLE has data.\x00" as *const u8 as *const libc::c_char,
-        //                             );
-        //                         } else if r == MAILSTREAM_IDLE_TIMEOUT as libc::c_int {
-        //                             dc_log_info(
-        //                                 context,
-        //                                 0,
-        //                                 b"IMAP-IDLE timeout.\x00" as *const u8 as *const libc::c_char,
-        //                             );
-        //                         } else {
-        //                             dc_log_warning(
-        //                                 context,
-        //                                 0,
-        //                                 b"IMAP-IDLE returns unknown value r=%i, r2=%i.\x00" as *const u8
-        //                                     as *const libc::c_char,
-        //                                 r,
-        //                                 r2,
-        //                             );
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     } else {
-        //         fake_idle(context, imap);
+
+        //         // put session back
+        //         *self.session.lock().unwrap() = Some(*err.1);
+
+        //         return self.fake_idle(context);
         //     }
         // }
+
+        println!("setting up idle");
+        let mut session = self.session.lock().unwrap().take().unwrap();
+        let mut idle = match session.idle() {
+            Ok(idle) => idle,
+            Err(err) => {
+                eprintln!("imap idle error: {:?}", err);
+                unsafe {
+                    dc_log_warning(
+                        context,
+                        0,
+                        b"IMAP-IDLE: Cannot start.\x00" as *const u8 as *const libc::c_char,
+                    );
+                }
+
+                return self.fake_idle(context);
+            }
+        };
+
+        // most servers do not allow more than ~28 minutes; stay clearly below that.
+        // a good value that is also used by other MUAs is 23 minutes.
+        // if needed, the ui can call dc_imap_interrupt_idle() to trigger a reconnect.
+        idle.set_keepalive(Duration::from_secs(23 * 60));
+
+        println!("imap idle waiting");
+        // TODO: proper logging of different states
+        match idle.wait_keepalive() {
+            Ok(_) => {
+                println!("imap done");
+            }
+            Err(err) => {
+                eprintln!("idle error: {:?}", err);
+            }
+        }
+
+        // put session back
+        *self.session.lock().unwrap() = Some(session);
     }
 
     fn fake_idle(&self, context: &dc_context_t) {
-        unimplemented!();
-        //     /* Idle using timeouts. This is also needed if we're not yet configured -
-        //     in this case, we're waiting for a configure job */
-        //     let mut fake_idle_start_time = SystemTime::now();
+        println!("fake idle");
 
-        //     dc_log_info(
-        //         context,
-        //         0,
-        //         b"IMAP-fake-IDLEing...\x00" as *const u8 as *const libc::c_char,
-        //     );
-        //     let mut do_fake_idle: libc::c_int = 1;
-        //     while 0 != do_fake_idle {
-        //         let seconds_to_wait =
-        //             if fake_idle_start_time.elapsed().unwrap() < Duration::new(3 * 60, 0) {
-        //                 Duration::new(5, 0)
-        //             } else {
-        //                 Duration::new(60, 0)
-        //             };
+        // Idle using timeouts. This is also needed if we're not yet configured -
+        // in this case, we're waiting for a configure job
+        let mut fake_idle_start_time = SystemTime::now();
 
-        //         let &(ref lock, ref cvar) = &*imap.watch.clone();
+        unsafe {
+            dc_log_info(
+                context,
+                0,
+                b"IMAP-fake-IDLEing...\x00" as *const u8 as *const libc::c_char,
+            )
+        };
+        let mut do_fake_idle = true;
+        while do_fake_idle {
+            let seconds_to_wait =
+                if fake_idle_start_time.elapsed().unwrap() < Duration::new(3 * 60, 0) {
+                    Duration::new(5, 0)
+                } else {
+                    Duration::new(60, 0)
+                };
 
-        //         let mut watch = lock.lock().unwrap();
+            let &(ref lock, ref cvar) = &*self.watch.clone();
 
-        //         loop {
-        //             let res = cvar.wait_timeout(watch, seconds_to_wait).unwrap();
-        //             watch = res.0;
-        //             if *watch {
-        //                 do_fake_idle = 0;
-        //             }
-        //             if *watch || res.1.timed_out() {
-        //                 break;
-        //             }
-        //         }
+            let mut watch = lock.lock().unwrap();
 
-        //         *watch = false;
-        //         if do_fake_idle == 0 {
-        //             return;
-        //         }
-        //         if 0 != setup_handle_if_needed(context, imap) {
-        //             if 0 != fetch_from_single_folder(context, imap, imap.watch_folder) {
-        //                 do_fake_idle = 0;
-        //             }
-        //         }
-        //     }
-        // }
+            loop {
+                let res = cvar.wait_timeout(watch, seconds_to_wait).unwrap();
+                watch = res.0;
+                if *watch {
+                    do_fake_idle = false;
+                }
+                if *watch || res.1.timed_out() {
+                    break;
+                }
+            }
+
+            *watch = false;
+
+            if !do_fake_idle {
+                return;
+            }
+
+            // TODO: connect if needed
+            if let Some(ref watch_folder) = self.config.read().unwrap().watch_folder {
+                if 0 != self.fetch_from_single_folder(context, watch_folder) {
+                    do_fake_idle = false;
+                }
+            }
+        }
     }
 
     pub fn interrupt_idle(&self) {
-        // unimplemented!();
         println!("interrupt idle");
 
-        //     println!("imap interrupt");
-        //     if 0 != imap.can_idle {
-        //         if !imap.etpan.is_null() && !(*imap.etpan).imap_stream.is_null() {
-        //             mailstream_interrupt_idle((*imap.etpan).imap_stream);
-        //         }
-        //     }
+        // TODO: interrupt real idle
+        // ref: https://github.com/jonhoo/rust-imap/issues/121
 
-        //     println!("waiting for lock");
-        //     let &(ref lock, ref cvar) = &*imap.watch.clone();
-        //     let mut watch = lock.lock().unwrap();
+        println!("waiting for lock");
+        let &(ref lock, ref cvar) = &*self.watch.clone();
+        let mut watch = lock.lock().unwrap();
 
-        //     *watch = true;
-        //     println!("notify");
-        //     cvar.notify_one();
+        *watch = true;
+        println!("notify");
+        cvar.notify_one();
     }
 
     pub fn mv(
