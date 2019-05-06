@@ -2,6 +2,11 @@
 
 pub const VERSION: &'static [u8; 7] = b"0.43.0\x00";
 
+pub const DC_MOVE_STATE_MOVING: u32 = 3;
+pub const DC_MOVE_STATE_STAY: u32 = 2;
+pub const DC_MOVE_STATE_PENDING: u32 = 1;
+pub const DC_MOVE_STATE_UNDEFINED: u32 = 0;
+
 pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;
 pub const DC_GCL_ADD_ALLDONE_HINT: usize = 0x04;

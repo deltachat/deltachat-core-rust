@@ -1,7 +1,7 @@
 use libc;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
-use crate::constants::VERSION;
+use crate::constants::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -805,8 +805,9 @@ pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
         VERSION as *const u8 as *const libc::c_char,
         libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char,
         sqlite3_threadsafe(),
-        libetpan_get_version_major(),
-        libetpan_get_version_minor(),
+        // no libetpan
+        0,
+        0,
         // openssl (none used, so setting to 0)
         0 as libc::c_int,
         0 as libc::c_int,

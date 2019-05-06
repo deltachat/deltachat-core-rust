@@ -126,7 +126,7 @@ unsafe fn hex_2_int(mut ch: libc::c_char) -> libc::c_char {
     return (if 0 != isdigit(ch as libc::c_int) {
         ch as libc::c_int - '0' as i32
     } else {
-        tolower(ch as libc::c_int) - 'a' as i32 + 10i32
+        libc::tolower(ch as libc::c_int) - 'a' as i32 + 10i32
     }) as libc::c_char;
 }
 

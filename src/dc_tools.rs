@@ -187,7 +187,7 @@ pub unsafe fn dc_strlower(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     let mut out: *mut libc::c_char = dc_strdup(in_0);
     let mut p: *mut libc::c_char = out;
     while 0 != *p {
-        *p = tolower(*p as libc::c_int) as libc::c_char;
+        *p = libc::tolower(*p as libc::c_int) as libc::c_char;
         p = p.offset(1isize)
     }
 
@@ -197,7 +197,7 @@ pub unsafe fn dc_strlower(mut in_0: *const libc::c_char) -> *mut libc::c_char {
 pub unsafe fn dc_strlower_in_place(mut in_0: *mut libc::c_char) {
     let mut p: *mut libc::c_char = in_0;
     while 0 != *p {
-        *p = tolower(*p as libc::c_int) as libc::c_char;
+        *p = libc::tolower(*p as libc::c_int) as libc::c_char;
         p = p.offset(1isize)
     }
 }
