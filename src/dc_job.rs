@@ -505,11 +505,13 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(mut context: &dc_context_t, mut job: *mut dc
                     b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
                     0 as *const libc::c_char,
                 );
+
+                let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
                 match inbox.mv(
                     context,
-                    (*msg).server_folder,
+                    server_folder,
                     (*msg).server_uid,
-                    dest_folder,
+                    CStr::from_ptr(dest_folder).to_str().unwrap(),
                     &mut dest_uid,
                 ) as libc::c_uint
                 {
@@ -589,6 +591,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &dc_context_t, job: *mu
     }
     match current_block {
         11006700562992250127 => {
+            let folder = CStr::from_ptr(folder).to_str().unwrap();
             if inbox.set_seen(context, folder, uid) as libc::c_uint == 0i32 as libc::c_uint {
                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             }
@@ -608,6 +611,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &dc_context_t, job: *mu
                     b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
                     0 as *const libc::c_char,
                 );
+                let dest_folder = CStr::from_ptr(dest_folder).to_str().unwrap();
                 match inbox.mv(context, folder, uid, dest_folder, &mut dest_uid) as libc::c_uint {
                     1 => {
                         dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
@@ -643,9 +647,8 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
     match current_block {
         15240798224410183470 => {
             if !(0 == dc_msg_load_from_db(msg, context, (*job).foreign_id)) {
-                match inbox.set_seen(context, (*msg).server_folder, (*msg).server_uid)
-                    as libc::c_uint
-                {
+                let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                match inbox.set_seen(context, server_folder, (*msg).server_uid) as libc::c_uint {
                     0 => {}
                     1 => {
                         current_block = 12392248546350854223;

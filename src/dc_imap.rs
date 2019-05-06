@@ -1096,13 +1096,13 @@ impl dc_imap_t {
         cvar.notify_one();
     }
 
-    pub fn mv(
+    pub fn mv<S1: AsRef<str>, S2: AsRef<str>>(
         &self,
         context: &dc_context_t,
-        folder: *const libc::c_char,
-        uid: uint32_t,
-        dest_folder: *const libc::c_char,
-        dest_uid: *mut uint32_t,
+        folder: S1,
+        uid: u32,
+        dest_folder: S2,
+        dest_uid: &mut u32,
     ) -> usize {
         unimplemented!()
         //     let mut current_block: u64;
@@ -1266,51 +1266,55 @@ impl dc_imap_t {
         }
     }
 
-    pub fn set_seen(
-        &self,
-        context: &dc_context_t,
-        folder: *const libc::c_char,
-        uid: uint32_t,
-    ) -> usize {
-        unimplemented!()
-        //     let mut res: usize = DC_RETRY_LATER;
-        //     if folder.is_null() || uid == 0 as libc::c_uint {
-        //         res = DC_FAILED
-        //     } else if !imap.etpan.is_null() {
-        //         dc_log_info(
-        //             context,
-        //             0,
-        //             b"Marking message %s/%i as seen...\x00" as *const u8 as *const libc::c_char,
-        //             folder,
-        //             uid as libc::c_int,
-        //         );
-        //         if select_folder(context, imap, folder) == 0 {
-        //             dc_log_warning(
-        //                 context,
-        //                 0,
-        //                 b"Cannot select folder %s for setting SEEN flag.\x00" as *const u8
-        //                     as *const libc::c_char,
-        //                 folder,
-        //             );
-        //         } else if add_flag(imap, uid, mailimap_flag_new_seen()) == 0 {
-        //             dc_log_warning(
-        //                 context,
-        //                 0,
-        //                 b"Cannot mark message as seen.\x00" as *const u8 as *const libc::c_char,
-        //             );
-        //         } else {
-        //             res = DC_SUCCESS
-        //         }
-        //     }
-        //     return (if res as libc::c_uint == DC_RETRY_LATER as libc::c_int as libc::c_uint {
-        //         (if 0 != imap.should_reconnect {
-        //             DC_RETRY_LATER as libc::c_int
-        //         } else {
-        //             DC_FAILED as libc::c_int
-        //         }) as libc::c_uint
-        //     } else {
-        //         res as libc::c_uint
-        //     }) as usize;
+    pub fn set_seen<S: AsRef<str>>(&self, context: &dc_context_t, folder: S, uid: u32) -> usize {
+        let mut res = DC_RETRY_LATER;
+
+        if uid == 0 {
+            res = DC_FAILED
+        } else if self.is_connected() {
+            let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
+
+            unsafe {
+                dc_log_info(
+                    context,
+                    0,
+                    b"Marking message %s/%i as seen...\x00" as *const u8 as *const libc::c_char,
+                    folder_c.as_ptr(),
+                    uid as libc::c_int,
+                )
+            };
+            if self.select_folder(context, Some(folder)) == 0 {
+                unsafe {
+                    dc_log_warning(
+                        context,
+                        0,
+                        b"Cannot select folder %s for setting SEEN flag.\x00" as *const u8
+                            as *const libc::c_char,
+                        folder_c.as_ptr(),
+                    )
+                };
+            } else if self.add_flag(uid, "\\Seen") == 0 {
+                unsafe {
+                    dc_log_warning(
+                        context,
+                        0,
+                        b"Cannot mark message as seen.\x00" as *const u8 as *const libc::c_char,
+                    )
+                };
+            } else {
+                res = DC_SUCCESS
+            }
+        }
+
+        if res == DC_RETRY_LATER {
+            if self.should_reconnect() {
+                DC_RETRY_LATER
+            } else {
+                DC_FAILED
+            }
+        } else {
+            res
+        }
     }
 
     pub fn set_mdnsent<S: AsRef<str>>(&self, context: &dc_context_t, folder: S, uid: u32) -> usize {
