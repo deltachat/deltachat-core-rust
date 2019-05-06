@@ -13,6 +13,15 @@ use crate::types::*;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
 
+pub const DC_SUCCESS: usize = 3;
+pub const DC_ALREADY_DONE: usize = 2;
+pub const DC_RETRY_LATER: usize = 1;
+pub const DC_FAILED: usize = 0;
+
+const PREFETCH_FLAGS: &'static str = "(UID ENVELOPE)";
+const BODY_FLAGS: &'static str = "(FLAGS BODY.PEEK[])";
+const FETCH_FLAGS: &'static str = "(FLAGS)";
+
 #[repr(C)]
 pub struct dc_imap_t {
     config: Arc<RwLock<ImapConfig>>,
@@ -226,6 +235,21 @@ impl Session {
             Session::Insecure(i) => i.idle().map(Into::into),
         }
     }
+
+    pub fn uid_store<S1, S2>(
+        &mut self,
+        uid_set: S1,
+        query: S2,
+    ) -> imap::error::Result<imap::types::ZeroCopy<Vec<imap::types::Fetch>>>
+    where
+        S1: AsRef<str>,
+        S2: AsRef<str>,
+    {
+        match self {
+            Session::Secure(i) => i.uid_store(uid_set, query),
+            Session::Insecure(i) => i.uid_store(uid_set, query),
+        }
+    }
 }
 
 pub struct ImapConfig {
@@ -263,10 +287,6 @@ impl Default for ImapConfig {
             imap_delimiter: '.',
             watch_folder: None,
         };
-
-        // prefetch: UID, ENVELOPE,
-        // new: FLAGS BODY.PEEK[]
-        // flags: FLAGS
 
         cfg
     }
@@ -652,9 +672,7 @@ impl dc_imap_t {
             let list = if let Some(ref mut session) = *self.session.lock().unwrap() {
                 // `FETCH <message sequence number> (UID)`
                 let set = format!("{}", mailbox.exists);
-                let query = "(UID ENVELOPE)";
-                println!("fetching: {} {}", set, query);
-                match session.fetch(set, query) {
+                match session.fetch(set, PREFETCH_FLAGS) {
                     Ok(list) => list,
                     Err(err) => {
                         eprintln!("fetch error: {:?}", err);
@@ -705,9 +723,7 @@ impl dc_imap_t {
             // fetch messages with larger UID than the last one seen
             // (`UID FETCH lastseenuid+1:*)`, see RFC 4549
             let set = format!("{}:*", last_seen_uid + 1);
-            let query = "(UID ENVELOPE)";
-            println!("fetching: {} {}", set, query);
-            match session.uid_fetch(set, query) {
+            match session.uid_fetch(set, PREFETCH_FLAGS) {
                 Ok(list) => list,
                 Err(err) => {
                     eprintln!("fetch err: {:?}", err);
@@ -840,8 +856,7 @@ impl dc_imap_t {
 
         let msgs = if let Some(ref mut session) = *self.session.lock().unwrap() {
             let set = format!("{}", server_uid);
-            let query = "(FLAGS BODY.PEEK[])";
-            match session.uid_fetch(set, query) {
+            match session.uid_fetch(set, BODY_FLAGS) {
                 Ok(msgs) => msgs,
                 Err(err) => {
                     eprintln!("error fetch single: {:?}", err);
@@ -999,6 +1014,7 @@ impl dc_imap_t {
 
         println!("imap idle waiting");
         // TODO: proper logging of different states
+        // TODO: reconnect if we timed out
         match idle.wait_keepalive() {
             Ok(_) => {
                 println!("imap done");
@@ -1087,10 +1103,10 @@ impl dc_imap_t {
         uid: uint32_t,
         dest_folder: *const libc::c_char,
         dest_uid: *mut uint32_t,
-    ) -> dc_imap_res {
+    ) -> usize {
         unimplemented!()
         //     let mut current_block: u64;
-        //     let mut res: dc_imap_res = DC_RETRY_LATER;
+        //     let mut res: usize = DC_RETRY_LATER;
         //     let mut r: libc::c_int = 0;
         //     let mut set: *mut mailimap_set = mailimap_set_new_single(uid);
         //     let mut res_uid: uint32_t = 0 as uint32_t;
@@ -1228,32 +1244,26 @@ impl dc_imap_t {
         //         }) as libc::c_uint
         //     } else {
         //         res as libc::c_uint
-        //     }) as dc_imap_res;
+        //     }) as usize;
     }
 
-    fn add_flag(&self, server_uid: uint32_t, flag: *mut mailimap_flag) -> usize {
-        unimplemented!()
-        //     let mut flag_list: *mut mailimap_flag_list = 0 as *mut mailimap_flag_list;
-        //     let mut store_att_flags: *mut mailimap_store_att_flags = 0 as *mut mailimap_store_att_flags;
-        //     let mut set: *mut mailimap_set = mailimap_set_new_single(server_uid);
-        //     if !(imap.etpan.is_null()) {
-        //         flag_list = mailimap_flag_list_new_empty();
-        //         mailimap_flag_list_add(flag_list, flag);
-        //         store_att_flags = mailimap_store_att_flags_new_add_flags(flag_list);
-        //         mailimap_uid_store(imap.etpan, set, store_att_flags);
-        //     }
-        //     if !store_att_flags.is_null() {
-        //         mailimap_store_att_flags_free(store_att_flags);
-        //     }
-        //     if !set.is_null() {
-        //         mailimap_set_free(set);
-        //         set = 0 as *mut mailimap_set
-        //     }
-        //     if 0 != imap.should_reconnect {
-        //         0
-        //     } else {
-        //         1
-        //     }
+    fn add_flag<S: AsRef<str>>(&self, server_uid: u32, flag: S) -> usize {
+        if let Some(ref mut session) = *self.session.lock().unwrap() {
+            let set = format!("{}", server_uid);
+            let query = format!("+ FLAGS ({})", flag.as_ref());
+            match session.uid_store(set, query) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("imap store error {:?}", err);
+                }
+            }
+        }
+
+        if self.should_reconnect() {
+            0
+        } else {
+            1
+        }
     }
 
     pub fn set_seen(
@@ -1261,9 +1271,9 @@ impl dc_imap_t {
         context: &dc_context_t,
         folder: *const libc::c_char,
         uid: uint32_t,
-    ) -> dc_imap_res {
+    ) -> usize {
         unimplemented!()
-        //     let mut res: dc_imap_res = DC_RETRY_LATER;
+        //     let mut res: usize = DC_RETRY_LATER;
         //     if folder.is_null() || uid == 0 as libc::c_uint {
         //         res = DC_FAILED
         //     } else if !imap.etpan.is_null() {
@@ -1300,172 +1310,137 @@ impl dc_imap_t {
         //         }) as libc::c_uint
         //     } else {
         //         res as libc::c_uint
-        //     }) as dc_imap_res;
+        //     }) as usize;
     }
 
-    pub fn set_mdnsent(
-        &self,
-        context: &dc_context_t,
-        folder: *const libc::c_char,
-        uid: uint32_t,
-    ) -> dc_imap_res {
-        unimplemented!();
-        //     let mut can_create_flag: libc::c_int = 0;
-        //     let mut current_block: u64;
-        //     // returns 0=job should be retried later, 1=job done, 2=job done and flag just set
-        //     let mut res: dc_imap_res = DC_RETRY_LATER;
-        //     let mut set: *mut mailimap_set = mailimap_set_new_single(uid);
-        //     let mut fetch_result: *mut clist = 0 as *mut clist;
-        //     if folder.is_null() || uid == 0 as libc::c_uint || set.is_null() {
-        //         res = DC_FAILED
-        //     } else if !imap.etpan.is_null() {
-        //         dc_log_info(
-        //             context,
-        //             0,
-        //             b"Marking message %s/%i as $MDNSent...\x00" as *const u8 as *const libc::c_char,
-        //             folder,
-        //             uid as libc::c_int,
-        //         );
-        //         if select_folder(context, imap, folder) == 0 {
-        //             dc_log_warning(
-        //                 context,
-        //                 0,
-        //                 b"Cannot select folder %s for setting $MDNSent flag.\x00" as *const u8
-        //                     as *const libc::c_char,
-        //                 folder,
-        //             );
-        //         } else {
-        //             /* Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not set: set the flags and return this information.
-        //             If the folder cannot handle the `$MDNSent` flag, we risk duplicated MDNs; it's up to the receiving MUA to handle this then (eg. Delta Chat has no problem with this). */
-        //             can_create_flag = 0;
-        //             if !(*imap.etpan).imap_selection_info.is_null()
-        //                 && !(*(*imap.etpan).imap_selection_info)
-        //                     .sel_perm_flags
-        //                     .is_null()
-        //             {
-        //                 let mut iter: *mut clistiter = 0 as *mut clistiter;
-        //                 iter = (*(*(*imap.etpan).imap_selection_info).sel_perm_flags).first;
-        //                 while !iter.is_null() {
-        //                     let mut fp: *mut mailimap_flag_perm = (if !iter.is_null() {
-        //                         (*iter).data
-        //                     } else {
-        //                         0 as *mut libc::c_void
-        //                     })
-        //                         as *mut mailimap_flag_perm;
-        //                     if !fp.is_null() {
-        //                         if (*fp).fl_type == MAILIMAP_FLAG_PERM_ALL as libc::c_int {
-        //                             can_create_flag = 1;
-        //                             break;
-        //                         } else if (*fp).fl_type == MAILIMAP_FLAG_PERM_FLAG as libc::c_int
-        //                             && !(*fp).fl_flag.is_null()
-        //                         {
-        //                             let mut fl: *mut mailimap_flag =
-        //                                 (*fp).fl_flag as *mut mailimap_flag;
-        //                             if (*fl).fl_type == MAILIMAP_FLAG_KEYWORD as libc::c_int
-        //                                 && !(*fl).fl_data.fl_keyword.is_null()
-        //                                 && strcmp(
-        //                                     (*fl).fl_data.fl_keyword,
-        //                                     b"$MDNSent\x00" as *const u8 as *const libc::c_char,
-        //                                 ) == 0
-        //                             {
-        //                                 can_create_flag = 1;
-        //                                 break;
-        //                             }
-        //                         }
-        //                     }
-        //                     iter = if !iter.is_null() {
-        //                         (*iter).next
-        //                     } else {
-        //                         0 as *mut clistcell_s
-        //                     }
-        //                 }
-        //             }
-        //             if 0 != can_create_flag {
-        //                 let mut r: libc::c_int = mailimap_uid_fetch(
-        //                     imap.etpan,
-        //                     set,
-        //                     imap.fetch_type_flags,
-        //                     &mut fetch_result,
-        //                 );
-        //                 if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
-        //                     fetch_result = 0 as *mut clist
-        //                 } else {
-        //                     let mut cur: *mut clistiter = (*fetch_result).first;
-        //                     if !cur.is_null() {
-        //                         if 0 != peek_flag_keyword(
-        //                             (if !cur.is_null() {
-        //                                 (*cur).data
-        //                             } else {
-        //                                 0 as *mut libc::c_void
-        //                             }) as *mut mailimap_msg_att,
-        //                             b"$MDNSent\x00" as *const u8 as *const libc::c_char,
-        //                         ) {
-        //                             res = DC_ALREADY_DONE;
-        //                             current_block = 14832935472441733737;
-        //                         } else if add_flag(
-        //                             imap,
-        //                             uid,
-        //                             mailimap_flag_new_flag_keyword(dc_strdup(
-        //                                 b"$MDNSent\x00" as *const u8 as *const libc::c_char,
-        //                             )),
-        //                         ) == 0
-        //                         {
-        //                             current_block = 17044610252497760460;
-        //                         } else {
-        //                             res = DC_SUCCESS;
-        //                             current_block = 14832935472441733737;
-        //                         }
-        //                         match current_block {
-        //                             17044610252497760460 => {}
-        //                             _ => {
-        //                                 dc_log_info(
-        //                                     context,
-        //                                     0,
-        //                                     if res as libc::c_uint
-        //                                         == DC_SUCCESS as libc::c_int as libc::c_uint
-        //                                     {
-        //                                         b"$MDNSent just set and MDN will be sent.\x00"
-        //                                             as *const u8
-        //                                             as *const libc::c_char
-        //                                     } else {
-        //                                         b"$MDNSent already set and MDN already sent.\x00"
-        //                                             as *const u8
-        //                                             as *const libc::c_char
-        //                                     },
-        //                                 );
-        //                             }
-        //                         }
-        //                     }
-        //                 }
-        //             } else {
-        //                 res = DC_SUCCESS;
-        //                 dc_log_info(
-        //                     context,
-        //                     0,
-        //                     b"Cannot store $MDNSent flags, risk sending duplicate MDN.\x00" as *const u8
-        //                         as *const libc::c_char,
-        //                 );
-        //             }
-        //         }
-        //     }
-        //     if !set.is_null() {
-        //         mailimap_set_free(set);
-        //         set = 0 as *mut mailimap_set
-        //     }
-        //     if !fetch_result.is_null() {
-        //         mailimap_fetch_list_free(fetch_result);
-        //         fetch_result = 0 as *mut clist
-        //     }
+    pub fn set_mdnsent<S: AsRef<str>>(&self, context: &dc_context_t, folder: S, uid: u32) -> usize {
+        // returns 0=job should be retried later, 1=job done, 2=job done and flag just set
+        let mut res = DC_RETRY_LATER;
+        let mut set = format!("{}", uid);
 
-        //     (if res as libc::c_uint == DC_RETRY_LATER as libc::c_int as libc::c_uint {
-        //         (if 0 != imap.should_reconnect {
-        //             DC_RETRY_LATER as libc::c_int
-        //         } else {
-        //             DC_FAILED as libc::c_int
-        //         }) as libc::c_uint
-        //     } else {
-        //         res as libc::c_uint
-        //     }) as dc_imap_res
+        if uid == 0 {
+            res = DC_FAILED;
+        } else if self.is_connected() {
+            let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
+            unsafe {
+                dc_log_info(
+                    context,
+                    0,
+                    b"Marking message %s/%i as $MDNSent...\x00" as *const u8 as *const libc::c_char,
+                    folder_c.as_ptr(),
+                    uid as libc::c_int,
+                )
+            };
+
+            if self.select_folder(context, Some(folder)) == 0 {
+                unsafe {
+                    dc_log_warning(
+                        context,
+                        0,
+                        b"Cannot select folder %s for setting $MDNSent flag.\x00" as *const u8
+                            as *const libc::c_char,
+                        folder_c.as_ptr(),
+                    )
+                };
+            } else {
+                // Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not
+                // set: set the flags and return this information.
+                // If the folder cannot handle the `$MDNSent` flag, we risk duplicated MDNs; it's up
+                // to the receiving MUA to handle this then (eg. Delta Chat has no problem with this).
+
+                let can_create_flag = self
+                    .config
+                    .read()
+                    .unwrap()
+                    .selected_mailbox
+                    .as_ref()
+                    .map(|mbox| {
+                        // empty means, everything can be stored
+                        mbox.permanent_flags.is_empty()
+                            || mbox
+                                .permanent_flags
+                                .iter()
+                                .find(|flag| match flag {
+                                    imap::types::Flag::Custom(s) => s == "$MDNSent",
+                                    _ => false,
+                                })
+                                .is_some()
+                    })
+                    .expect("just selected folder");
+
+                if can_create_flag {
+                    let fetched_msgs = if let Some(ref mut session) = *self.session.lock().unwrap()
+                    {
+                        match session.uid_fetch(set, FETCH_FLAGS) {
+                            Ok(res) => Some(res),
+                            Err(err) => {
+                                eprintln!("fetch error: {:?}", err);
+                                None
+                            }
+                        }
+                    } else {
+                        unreachable!();
+                    };
+
+                    if let Some(msgs) = fetched_msgs {
+                        let flag_set = msgs
+                            .first()
+                            .map(|msg| {
+                                msg.flags()
+                                    .iter()
+                                    .find(|flag| match flag {
+                                        imap::types::Flag::Custom(s) => s == "$MDNSent",
+                                        _ => false,
+                                    })
+                                    .is_some()
+                            })
+                            .unwrap_or_else(|| false);
+
+                        res = if flag_set {
+                            DC_ALREADY_DONE
+                        } else if self.add_flag(uid, "$MDNSent") != 0 {
+                            DC_SUCCESS
+                        } else {
+                            res
+                        };
+
+                        unsafe {
+                            dc_log_info(
+                                context,
+                                0,
+                                if res == DC_SUCCESS {
+                                    b"$MDNSent just set and MDN will be sent.\x00" as *const u8
+                                        as *const libc::c_char
+                                } else {
+                                    b"$MDNSent already set and MDN already sent.\x00" as *const u8
+                                        as *const libc::c_char
+                                },
+                            )
+                        };
+                    }
+                } else {
+                    res = DC_SUCCESS;
+                    unsafe {
+                        dc_log_info(
+                            context,
+                            0,
+                            b"Cannot store $MDNSent flags, risk sending duplicate MDN.\x00"
+                                as *const u8 as *const libc::c_char,
+                        )
+                    };
+                }
+            }
+        }
+
+        if res == DC_RETRY_LATER {
+            if self.should_reconnect() {
+                DC_RETRY_LATER
+            } else {
+                DC_FAILED
+            }
+        } else {
+            res
+        }
     }
 
     // only returns 0 on connection problems; we should try later again in this case *

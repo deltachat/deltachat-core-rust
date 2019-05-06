@@ -1283,12 +1283,6 @@ pub const MAILSMTP_AUTH_CRAM_MD5: libc::c_uint = 2;
 pub const MAILSMTP_AUTH_CHECKED: libc::c_uint = 1;
 pub const MAILSMTP_AUTH_NOT_CHECKED: libc::c_uint = 0;
 
-pub type dc_imap_res = libc::c_uint;
-pub const DC_SUCCESS: dc_imap_res = 3;
-pub const DC_ALREADY_DONE: dc_imap_res = 2;
-pub const DC_RETRY_LATER: dc_imap_res = 1;
-pub const DC_FAILED: dc_imap_res = 0;
-
 pub type dc_move_state_t = libc::c_uint;
 
 #[derive(Copy, Clone)]

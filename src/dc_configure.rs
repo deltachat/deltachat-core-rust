@@ -1311,29 +1311,6 @@ pub unsafe fn dc_free_ongoing(context: &dc_context_t) {
     s.shall_stop_ongoing = true;
 }
 
-unsafe fn free_folders(mut folders: *mut clist) {
-    if !folders.is_null() {
-        let mut iter1: *mut clistiter;
-        iter1 = (*folders).first;
-        while !iter1.is_null() {
-            let mut ret_folder: *mut dc_imapfolder_t = (if !iter1.is_null() {
-                (*iter1).data
-            } else {
-                0 as *mut libc::c_void
-            }) as *mut dc_imapfolder_t;
-            free((*ret_folder).name_to_select as *mut libc::c_void);
-            free((*ret_folder).name_utf8 as *mut libc::c_void);
-            free(ret_folder as *mut libc::c_void);
-            iter1 = if !iter1.is_null() {
-                (*iter1).next
-            } else {
-                0 as *mut clistcell_s
-            }
-        }
-        clist_free(folders);
-    };
-}
-
 unsafe fn moz_autoconfigure(
     mut context: &dc_context_t,
     mut url: *const libc::c_char,

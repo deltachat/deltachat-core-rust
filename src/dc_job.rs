@@ -1,6 +1,8 @@
+use std::ffi::CStr;
+use std::time::{Duration, SystemTime};
+
 use libc;
 use rand::{thread_rng, Rng};
-use std::time::{Duration, SystemTime};
 
 use crate::constants::Event;
 use crate::dc_chat::*;
@@ -660,11 +662,10 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
                                         1i32,
                                     )
                                 {
-                                    match inbox.set_mdnsent(
-                                        context,
-                                        (*msg).server_folder,
-                                        (*msg).server_uid,
-                                    ) as libc::c_uint
+                                    let folder =
+                                        CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                                    match inbox.set_mdnsent(context, folder, (*msg).server_uid)
+                                        as libc::c_uint
                                     {
                                         1 => {
                                             current_block = 4016212065805849280;
@@ -717,11 +718,11 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
                                         1i32,
                                     )
                                 {
-                                    match inbox.set_mdnsent(
-                                        context,
-                                        (*msg).server_folder,
-                                        (*msg).server_uid,
-                                    ) as libc::c_uint
+                                    let folder =
+                                        CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+
+                                    match inbox.set_mdnsent(context, folder, (*msg).server_uid)
+                                        as libc::c_uint
                                     {
                                         1 => {
                                             current_block = 4016212065805849280;

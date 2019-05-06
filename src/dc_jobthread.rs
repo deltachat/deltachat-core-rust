@@ -5,7 +5,6 @@ use libc;
 use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_imap::dc_imap_t;
-use crate::dc_imap::*;
 use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
