@@ -991,12 +991,9 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(mut context: &dc_context_t, mut jo
             match current_block {
                 8913536887710889399 => {}
                 _ => {
-                    if 0 == inbox.delete_msg(
-                        context,
-                        (*msg).rfc724_mid,
-                        (*msg).server_folder,
-                        (*msg).server_uid,
-                    ) {
+                    let mid = CStr::from_ptr((*msg).rfc724_mid).to_str().unwrap();
+                    let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                    if 0 == inbox.delete_msg(context, mid, server_folder, &mut (*msg).server_uid) {
                         dc_job_try_again_later(job, -1i32, 0 as *const libc::c_char);
                         current_block = 8913536887710889399;
                     } else {

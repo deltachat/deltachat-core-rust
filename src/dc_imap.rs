@@ -250,6 +250,28 @@ impl Session {
             Session::Insecure(i) => i.uid_store(uid_set, query),
         }
     }
+
+    pub fn uid_mv<S1: AsRef<str>, S2: AsRef<str>>(
+        &mut self,
+        uid_set: S1,
+        mailbox_name: S2,
+    ) -> imap::error::Result<()> {
+        match self {
+            Session::Secure(i) => i.uid_mv(uid_set, mailbox_name),
+            Session::Insecure(i) => i.uid_mv(uid_set, mailbox_name),
+        }
+    }
+
+    pub fn uid_copy<S1: AsRef<str>, S2: AsRef<str>>(
+        &mut self,
+        uid_set: S1,
+        mailbox_name: S2,
+    ) -> imap::error::Result<()> {
+        match self {
+            Session::Secure(i) => i.uid_copy(uid_set, mailbox_name),
+            Session::Insecure(i) => i.uid_copy(uid_set, mailbox_name),
+        }
+    }
 }
 
 pub struct ImapConfig {
@@ -1104,147 +1126,129 @@ impl dc_imap_t {
         dest_folder: S2,
         dest_uid: &mut u32,
     ) -> usize {
-        unimplemented!()
-        //     let mut current_block: u64;
-        //     let mut res: usize = DC_RETRY_LATER;
-        //     let mut r: libc::c_int = 0;
-        //     let mut set: *mut mailimap_set = mailimap_set_new_single(uid);
-        //     let mut res_uid: uint32_t = 0 as uint32_t;
-        //     let mut res_setsrc: *mut mailimap_set = 0 as *mut mailimap_set;
-        //     let mut res_setdest: *mut mailimap_set = 0 as *mut mailimap_set;
-        //     if folder.is_null()
-        //         || uid == 0 as libc::c_uint
-        //         || dest_folder.is_null()
-        //         || dest_uid.is_null()
-        //         || set.is_null()
-        //     {
-        //         res = DC_FAILED
-        //     } else if strcasecmp(folder, dest_folder) == 0 {
-        //         dc_log_info(
-        //             context,
-        //             0,
-        //             b"Skip moving message; message %s/%i is already in %s...\x00" as *const u8
-        //                 as *const libc::c_char,
-        //             folder,
-        //             uid as libc::c_int,
-        //             dest_folder,
-        //         );
-        //         res = DC_ALREADY_DONE
-        //     } else {
-        //         dc_log_info(
-        //             context,
-        //             0,
-        //             b"Moving message %s/%i to %s...\x00" as *const u8 as *const libc::c_char,
-        //             folder,
-        //             uid as libc::c_int,
-        //             dest_folder,
-        //         );
-        //         if select_folder(context, imap, folder) == 0 {
-        //             dc_log_warning(
-        //                 context,
-        //                 0,
-        //                 b"Cannot select folder %s for moving message.\x00" as *const u8
-        //                     as *const libc::c_char,
-        //                 folder,
-        //             );
-        //         } else {
-        //             r = mailimap_uidplus_uid_move(
-        //                 imap.etpan,
-        //                 set,
-        //                 dest_folder,
-        //                 &mut res_uid,
-        //                 &mut res_setsrc,
-        //                 &mut res_setdest,
-        //             );
-        //             if 0 != dc_imap_is_error(context, imap, r) {
-        //                 if !res_setsrc.is_null() {
-        //                     mailimap_set_free(res_setsrc);
-        //                     res_setsrc = 0 as *mut mailimap_set
-        //                 }
-        //                 if !res_setdest.is_null() {
-        //                     mailimap_set_free(res_setdest);
-        //                     res_setdest = 0 as *mut mailimap_set
-        //                 }
-        //                 dc_log_info(
-        //                     context,
-        //                     0,
-        //                     b"Cannot move message, fallback to COPY/DELETE %s/%i to %s...\x00"
-        //                         as *const u8 as *const libc::c_char,
-        //                     folder,
-        //                     uid as libc::c_int,
-        //                     dest_folder,
-        //                 );
-        //                 r = mailimap_uidplus_uid_copy(
-        //                     imap.etpan,
-        //                     set,
-        //                     dest_folder,
-        //                     &mut res_uid,
-        //                     &mut res_setsrc,
-        //                     &mut res_setdest,
-        //                 );
-        //                 if 0 != dc_imap_is_error(context, imap, r) {
-        //                     dc_log_info(
-        //                         context,
-        //                         0,
-        //                         b"Cannot copy message.\x00" as *const u8 as *const libc::c_char,
-        //                     );
-        //                     current_block = 14415637129417834392;
-        //                 } else {
-        //                     if add_flag(imap, uid, mailimap_flag_new_deleted()) == 0 {
-        //                         dc_log_warning(
-        //                             context,
-        //                             0,
-        //                             b"Cannot mark message as \"Deleted\".\x00" as *const u8
-        //                                 as *const libc::c_char,
-        //                         );
-        //                     }
-        //                     imap.selected_folder_needs_expunge = 1;
-        //                     current_block = 1538046216550696469;
-        //                 }
-        //             } else {
-        //                 current_block = 1538046216550696469;
-        //             }
-        //             match current_block {
-        //                 14415637129417834392 => {}
-        //                 _ => {
-        //                     if !res_setdest.is_null() {
-        //                         let mut cur: *mut clistiter = (*(*res_setdest).set_list).first;
-        //                         if !cur.is_null() {
-        //                             let mut item: *mut mailimap_set_item = 0 as *mut mailimap_set_item;
-        //                             item = (if !cur.is_null() {
-        //                                 (*cur).data
-        //                             } else {
-        //                                 0 as *mut libc::c_void
-        //                             }) as *mut mailimap_set_item;
-        //                             *dest_uid = (*item).set_first
-        //                         }
-        //                     }
-        //                     res = DC_SUCCESS
-        //                 }
-        //             }
-        //         }
-        //     }
-        //     if !set.is_null() {
-        //         mailimap_set_free(set);
-        //         set = 0 as *mut mailimap_set
-        //     }
-        //     if !res_setsrc.is_null() {
-        //         mailimap_set_free(res_setsrc);
-        //         res_setsrc = 0 as *mut mailimap_set
-        //     }
-        //     if !res_setdest.is_null() {
-        //         mailimap_set_free(res_setdest);
-        //         res_setdest = 0 as *mut mailimap_set
-        //     }
-        //     return (if res as libc::c_uint == DC_RETRY_LATER as libc::c_int as libc::c_uint {
-        //         (if 0 != imap.should_reconnect {
-        //             DC_RETRY_LATER as libc::c_int
-        //         } else {
-        //             DC_FAILED as libc::c_int
-        //         }) as libc::c_uint
-        //     } else {
-        //         res as libc::c_uint
-        //     }) as usize;
+        let mut res = DC_RETRY_LATER;
+        let set = format!("{}", uid);
+
+        if uid == 0 {
+            res = DC_FAILED;
+        } else if folder.as_ref() == dest_folder.as_ref() {
+            unsafe {
+                dc_log_info(
+                    context,
+                    0,
+                    b"Skip moving message; message %s/%i is already in %s...\x00" as *const u8
+                        as *const libc::c_char,
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    uid as libc::c_int,
+                    CString::new(dest_folder.as_ref().to_owned())
+                        .unwrap()
+                        .as_ptr(),
+                )
+            };
+            res = DC_ALREADY_DONE;
+        } else {
+            unsafe {
+                dc_log_info(
+                    context,
+                    0,
+                    b"Moving message %s/%i to %s...\x00" as *const u8 as *const libc::c_char,
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    uid as libc::c_int,
+                    CString::new(dest_folder.as_ref().to_owned())
+                        .unwrap()
+                        .as_ptr(),
+                )
+            };
+            if self.select_folder(context, Some(folder.as_ref())) == 0 {
+                unsafe {
+                    dc_log_warning(
+                        context,
+                        0,
+                        b"Cannot select folder %s for moving message.\x00" as *const u8
+                            as *const libc::c_char,
+                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    )
+                };
+            } else {
+                let moved = if let Some(ref mut session) = *self.session.lock().unwrap() {
+                    match session.uid_mv(&set, &dest_folder) {
+                        Ok(_) => {
+                            res = DC_SUCCESS;
+                            true
+                        }
+                        Err(err) => {
+                            eprintln!("move error: {:?}", err);
+                            unsafe {
+                                dc_log_info(
+                                    context,
+                                    0,
+                                    b"Cannot move message, fallback to COPY/DELETE %s/%i to %s...\x00"
+                                        as *const u8 as *const libc::c_char,
+                                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                                    uid as libc::c_int,
+                                    CString::new(dest_folder.as_ref().to_owned()).unwrap().as_ptr(),
+                                )
+                            };
+                            false
+                        }
+                    }
+                } else {
+                    unreachable!();
+                };
+
+                if !moved {
+                    let copied = if let Some(ref mut session) = *self.session.lock().unwrap() {
+                        match session.uid_copy(&set, &dest_folder) {
+                            Ok(_) => true,
+                            Err(err) => {
+                                eprintln!("error copy: {:?}", err);
+                                unsafe {
+                                    dc_log_info(
+                                        context,
+                                        0,
+                                        b"Cannot copy message.\x00" as *const u8
+                                            as *const libc::c_char,
+                                    )
+                                };
+                                false
+                            }
+                        }
+                    } else {
+                        unreachable!();
+                    };
+
+                    if copied {
+                        if self.add_flag(uid, "\\Deleted") == 0 {
+                            unsafe {
+                                dc_log_warning(
+                                    context,
+                                    0,
+                                    b"Cannot mark message as \"Deleted\".\x00" as *const u8
+                                        as *const libc::c_char,
+                                )
+                            };
+                        }
+                        self.config.write().unwrap().selected_folder_needs_expunge = true;
+                        res = DC_SUCCESS;
+                    }
+                }
+            }
+        }
+
+        if res == DC_SUCCESS {
+            // TODO: is this correct?
+            *dest_uid = uid;
+        }
+
+        if res == DC_RETRY_LATER {
+            if self.should_reconnect() {
+                DC_RETRY_LATER
+            } else {
+                DC_FAILED
+            }
+        } else {
+            res
+        }
     }
 
     fn add_flag<S: AsRef<str>>(&self, server_uid: u32, flag: S) -> usize {
@@ -1448,124 +1452,109 @@ impl dc_imap_t {
     }
 
     // only returns 0 on connection problems; we should try later again in this case *
-    pub fn delete_msg(
+    pub fn delete_msg<S1: AsRef<str>, S2: AsRef<str>>(
         &self,
         context: &dc_context_t,
-        rfc724_mid: *const libc::c_char,
-        folder: *const libc::c_char,
-        mut server_uid: uint32_t,
-    ) -> libc::c_int {
-        unimplemented!()
-        //     let mut success: libc::c_int = 0;
-        //     let mut r: libc::c_int = 0;
-        //     let mut fetch_result: *mut clist = 0 as *mut clist;
-        //     let mut is_rfc724_mid: *mut libc::c_char = 0 as *mut libc::c_char;
-        //     let mut new_folder: *mut libc::c_char = 0 as *mut libc::c_char;
-        //     if rfc724_mid.is_null()
-        //         || folder.is_null()
-        //         || *folder.offset(0isize) as libc::c_int == 0
-        //         || server_uid == 0 as libc::c_uint
-        //     {
-        //         success = 1
-        //     } else {
-        //         dc_log_info(
-        //             context,
-        //             0,
-        //             b"Marking message \"%s\", %s/%i for deletion...\x00" as *const u8
-        //                 as *const libc::c_char,
-        //             rfc724_mid,
-        //             folder,
-        //             server_uid as libc::c_int,
-        //         );
-        //         if select_folder(context, imap, folder) == 0 {
-        //             dc_log_warning(
-        //                 context,
-        //                 0,
-        //                 b"Cannot select folder %s for deleting message.\x00" as *const u8
-        //                     as *const libc::c_char,
-        //                 folder,
-        //             );
-        //         } else {
-        //             let mut cur: *mut clistiter = 0 as *mut clistiter;
-        //             let mut is_quoted_rfc724_mid: *const libc::c_char = 0 as *const libc::c_char;
-        //             let mut set: *mut mailimap_set = mailimap_set_new_single(server_uid);
-        //             r = mailimap_uid_fetch(
-        //                 imap.etpan,
-        //                 set,
-        //                 imap.fetch_type_prefetch,
-        //                 &mut fetch_result,
-        //             );
-        //             if !set.is_null() {
-        //                 mailimap_set_free(set);
-        //                 set = 0 as *mut mailimap_set
-        //             }
-        //             if 0 != dc_imap_is_error(context, imap, r) || fetch_result.is_null() {
-        //                 fetch_result = 0 as *mut clist;
-        //                 dc_log_warning(
-        //                     context,
-        //                     0,
-        //                     b"Cannot delete on IMAP, %s/%i not found.\x00" as *const u8
-        //                         as *const libc::c_char,
-        //                     folder,
-        //                     server_uid as libc::c_int,
-        //                 );
-        //                 server_uid = 0 as uint32_t
-        //             }
-        //             cur = (*fetch_result).first;
-        //             if cur.is_null()
-        //                 || {
-        //                     is_quoted_rfc724_mid = peek_rfc724_mid(
-        //                         (if !cur.is_null() {
-        //                             (*cur).data
-        //                         } else {
-        //                             0 as *mut libc::c_void
-        //                         }) as *mut mailimap_msg_att,
-        //                     );
-        //                     is_quoted_rfc724_mid.is_null()
-        //                 }
-        //                 || {
-        //                     is_rfc724_mid = unquote_rfc724_mid(is_quoted_rfc724_mid);
-        //                     is_rfc724_mid.is_null()
-        //                 }
-        //                 || strcmp(is_rfc724_mid, rfc724_mid) != 0
-        //             {
-        //                 dc_log_warning(
-        //                     context,
-        //                     0,
-        //                     b"Cannot delete on IMAP, %s/%i does not match %s.\x00" as *const u8
-        //                         as *const libc::c_char,
-        //                     folder,
-        //                     server_uid as libc::c_int,
-        //                     rfc724_mid,
-        //                 );
-        //                 server_uid = 0 as uint32_t
-        //             }
-        //             /* mark the message for deletion */
-        //             if add_flag(imap, server_uid, mailimap_flag_new_deleted()) == 0 {
-        //                 dc_log_warning(
-        //                     context,
-        //                     0,
-        //                     b"Cannot mark message as \"Deleted\".\x00" as *const u8
-        //                         as *const libc::c_char,
-        //                 );
-        //             } else {
-        //                 imap.selected_folder_needs_expunge = 1;
-        //                 success = 1
-        //             }
-        //         }
-        //     }
-        //     if !fetch_result.is_null() {
-        //         mailimap_fetch_list_free(fetch_result);
-        //         fetch_result = 0 as *mut clist
-        //     }
-        //     free(is_rfc724_mid as *mut libc::c_void);
-        //     free(new_folder as *mut libc::c_void);
+        message_id: S1,
+        folder: S2,
+        server_uid: &mut u32,
+    ) -> usize {
+        let mut success = false;
+        if *server_uid == 0 {
+            success = true
+        } else {
+            unsafe {
+                dc_log_info(
+                    context,
+                    0,
+                    b"Marking message \"%s\", %s/%i for deletion...\x00" as *const u8
+                        as *const libc::c_char,
+                    &message_id,
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    *server_uid as libc::c_int,
+                )
+            };
 
-        //     if 0 != success {
-        //         1
-        //     } else {
-        //         dc_imap_is_connected(imap)
-        //     }
+            if self.select_folder(context, Some(&folder)) == 0 {
+                unsafe {
+                    dc_log_warning(
+                        context,
+                        0,
+                        b"Cannot select folder %s for deleting message.\x00" as *const u8
+                            as *const libc::c_char,
+                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    )
+                };
+            } else {
+                let set = format!("{}", server_uid);
+                if let Some(ref mut session) = *self.session.lock().unwrap() {
+                    match session.uid_fetch(set, PREFETCH_FLAGS) {
+                        Ok(msgs) => {
+                            if msgs.is_empty()
+                                || msgs
+                                    .first()
+                                    .unwrap()
+                                    .envelope()
+                                    .expect("missing envelope")
+                                    .message_id
+                                    .expect("missing message id")
+                                    != message_id.as_ref()
+                            {
+                                unsafe {
+                                    dc_log_warning(
+                                        context,
+                                        0,
+                                        b"Cannot delete on IMAP, %s/%i does not match %s.\x00"
+                                            as *const u8
+                                            as *const libc::c_char,
+                                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                                        *server_uid as libc::c_int,
+                                        message_id,
+                                    )
+                                };
+                                *server_uid = 0;
+                            }
+                        }
+                        Err(err) => {
+                            eprintln!("fetch error: {:?}", err);
+
+                            unsafe {
+                                dc_log_warning(
+                                    context,
+                                    0,
+                                    b"Cannot delete on IMAP, %s/%i not found.\x00" as *const u8
+                                        as *const libc::c_char,
+                                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                                    *server_uid as libc::c_int,
+                                )
+                            };
+                            *server_uid = 0;
+                        }
+                    }
+                }
+
+                // mark the message for deletion
+                if self.add_flag(*server_uid, "\\Deleted") == 0 {
+                    unsafe {
+                        dc_log_warning(
+                            context,
+                            0,
+                            b"Cannot mark message as \"Deleted\".\x00" as *const u8
+                                as *const libc::c_char,
+                        )
+                    };
+                } else {
+                    self.config.write().unwrap().selected_folder_needs_expunge = true;
+                    success = true
+                }
+            }
+        }
+
+        if success {
+            1
+        } else {
+            self.is_connected() as usize
+        }
     }
 
     pub fn configure_folders(&self, context: &dc_context_t, flags: libc::c_int) {
