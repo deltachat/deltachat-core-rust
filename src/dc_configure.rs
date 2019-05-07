@@ -154,13 +154,10 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                 b"Configure ...\x00" as *const u8 as *const libc::c_char,
             );
 
-            println!("configure lock");
             let s_a = context.running_state.clone();
             let s = s_a.read().unwrap();
 
-            println!("ongoing: {:?}", s);
             if !s.shall_stop_ongoing {
-                println!("configure progress");
                 (context.cb)(
                     context,
                     Event::CONFIGURE_PROGRESS,
@@ -174,14 +171,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                     0i32 as uintptr_t,
                 );
                 param = dc_loginparam_new();
-                println!("reading params");
                 dc_loginparam_read(
                     context,
                     param,
                     &context.sql.clone().read().unwrap(),
                     b"\x00" as *const u8 as *const libc::c_char,
                 );
-                println!("got params");
 
                 if (*param).addr.is_null() {
                     dc_log_error(
@@ -1760,7 +1755,6 @@ pub unsafe fn dc_connect_to_configured_imap(
     context: &dc_context_t,
     imap: &dc_imap_t,
 ) -> libc::c_int {
-    println!("connect to imap");
     let mut ret_connected: libc::c_int = 0i32;
     let mut param: *mut dc_loginparam_t = dc_loginparam_new();
     if imap.is_connected() {
@@ -1790,6 +1784,5 @@ pub unsafe fn dc_connect_to_configured_imap(
         }
     }
     dc_loginparam_unref(param);
-    println!("done, {}", ret_connected);
     ret_connected
 }

@@ -389,11 +389,9 @@ impl dc_imap_t {
 
         match connection_res {
             Ok(client) => {
-                println!("imap: loggingin with user {}", imap_user);
                 // TODO: handle oauth2
                 match client.login(imap_user, imap_pw) {
                     Ok(mut session) => {
-                        println!("imap: logged in");
                         // TODO: error handling
                         let caps = session.capabilities().unwrap();
                         let can_idle = caps.has("IDLE");
@@ -406,14 +404,7 @@ impl dc_imap_t {
                         });
                         let caps_list_c = std::ffi::CString::new(caps_list).unwrap();
 
-                        unsafe {
-                            dc_log_info(
-                                context,
-                                0,
-                                b"IMAP-capabilities:%s\x00" as *const u8 as *const libc::c_char,
-                                caps_list_c.as_ptr(),
-                            )
-                        };
+                        info!(context, 0, "IMAP-capabilities:%s", caps_list_c.as_ptr());
 
                         let mut config = self.config.write().unwrap();
                         config.can_idle = can_idle;
@@ -465,8 +456,6 @@ impl dc_imap_t {
     }
 
     pub fn disconnect(&self, context: &dc_context_t) {
-        println!("disconnecting");
-
         let mut session = self.session.lock().unwrap().take();
         if session.is_some() {
             match session.unwrap().close() {
@@ -491,14 +480,7 @@ impl dc_imap_t {
         cfg.watch_folder = None;
         cfg.selected_folder = None;
         cfg.selected_mailbox = None;
-
-        unsafe {
-            dc_log_info(
-                context,
-                0,
-                b"IMAP disconnected.\x00" as *const u8 as *const libc::c_char,
-            )
-        };
+        info!(context, 0, "IMAP disconnected.",);
     }
 
     pub fn set_watch_folder(&self, watch_folder: *const libc::c_char) {
@@ -506,7 +488,6 @@ impl dc_imap_t {
     }
 
     pub fn fetch(&self, context: &dc_context_t) -> libc::c_int {
-        println!("dc_imap_fetch");
         let mut success = 0;
 
         let watch_folder = self.config.read().unwrap().watch_folder.to_owned();
@@ -521,7 +502,6 @@ impl dc_imap_t {
             success = 1;
         }
 
-        println!("dc_imap_fetch done {}", success);
         success
     }
 
@@ -546,14 +526,12 @@ impl dc_imap_t {
         // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
         if self.config.read().unwrap().selected_folder_needs_expunge {
             if let Some(ref folder) = self.config.read().unwrap().selected_folder {
-                unsafe {
-                    dc_log_info(
-                        context,
-                        0,
-                        b"Expunge messages in \"%s\".\x00" as *const u8 as *const libc::c_char,
-                        CString::new(folder.to_owned()).unwrap().as_ptr(),
-                    )
-                };
+                info!(
+                    context,
+                    0,
+                    "Expunge messages in \"%s\".",
+                    CString::new(folder.to_owned()).unwrap().as_ptr()
+                );
 
                 // a CLOSE-SELECT is considerably faster than an EXPUNGE-SELECT, see https://tools.ietf.org/html/rfc3501#section-6.4.2
                 if let Some(ref mut session) = *self.session.lock().unwrap() {
@@ -573,13 +551,7 @@ impl dc_imap_t {
                     }
                     Err(err) => {
                         eprintln!("select error: {:?}", err);
-                        unsafe {
-                            dc_log_info(
-                                context,
-                                0,
-                                b"Cannot select folder.\x00" as *const u8 as *const libc::c_char,
-                            )
-                        };
+                        info!(context, 0, "Cannot select folder.");
                         self.config.write().unwrap().selected_folder = None;
                     }
                 }
@@ -618,53 +590,41 @@ impl dc_imap_t {
     }
 
     fn fetch_from_single_folder<S: AsRef<str>>(&self, context: &dc_context_t, folder: S) -> usize {
-        println!("fetching from single folder");
         if !self.is_connected() {
-            unsafe {
-                dc_log_info(
-                    context,
-                    0,
-                    b"Cannot fetch from \"%s\" - not connected.\x00" as *const u8
-                        as *const libc::c_char,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                )
-            };
+            info!(
+                context,
+                0,
+                "Cannot fetch from \"%s\" - not connected.",
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+            );
 
             return 0;
         }
 
         if self.select_folder(context, Some(&folder)) == 0 {
-            unsafe {
-                dc_log_info(
-                    context,
-                    0,
-                    b"Cannot select folder \"%s\" for fetching.\x00" as *const u8
-                        as *const libc::c_char,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                )
-            };
+            info!(
+                context,
+                0,
+                "Cannot select folder \"%s\" for fetching.",
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+            );
+
             return 0;
         }
 
-        println!("selected folder {}", folder.as_ref());
-
         let (mut uid_validity, mut last_seen_uid) = self.get_config_last_seen_uid(context, &folder);
-
-        println!("got validity: {} - {}", uid_validity, last_seen_uid);
 
         let config = self.config.read().unwrap();
         let mailbox = config.selected_mailbox.as_ref().expect("just selected");
 
         if mailbox.uid_validity.is_none() {
-            unsafe {
-                dc_log_error(
-                    context,
-                    0,
-                    b"Cannot get UIDVALIDITY for folder \"%s\".\x00" as *const u8
-                        as *const libc::c_char,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                )
-            };
+            error!(
+                context,
+                0,
+                "Cannot get UIDVALIDITY for folder \"%s\".",
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+            );
+
             return 0;
         }
 
@@ -672,14 +632,12 @@ impl dc_imap_t {
             // first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config
 
             if mailbox.exists == 0 {
-                unsafe {
-                    dc_log_info(
-                        context,
-                        0,
-                        b"Folder \"%s\" is empty.\x00" as *const u8 as *const libc::c_char,
-                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                    )
-                };
+                info!(
+                    context,
+                    0,
+                    "Folder \"%s\" is empty.",
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr()
+                );
 
                 // set lastseenuid=0 for empty folders.
                 // id we do not do this here, we'll miss the first message
@@ -696,22 +654,19 @@ impl dc_imap_t {
                     Ok(list) => list,
                     Err(err) => {
                         eprintln!("fetch error: {:?}", err);
-                        unsafe {
-                            dc_log_info(
-                                context,
-                                0,
-                                b"No result returned for folder \"%s\".\x00" as *const u8
-                                    as *const libc::c_char,
-                                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                            )
-                        };
+                        info!(
+                            context,
+                            0,
+                            "No result returned for folder \"%s\".",
+                            CString::new(folder.as_ref().to_owned()).unwrap().as_ptr()
+                        );
+
                         return 0;
                     }
                 }
             } else {
                 return 0;
             };
-            println!("fetched {} messages", list.len());
 
             last_seen_uid = list[0].uid.unwrap_or_else(|| 0);
 
@@ -722,17 +677,14 @@ impl dc_imap_t {
 
             uid_validity = mailbox.uid_validity.unwrap();
             self.set_config_last_seen_uid(context, &folder, uid_validity, last_seen_uid);
-            unsafe {
-                dc_log_info(
-                    context,
-                    0,
-                    b"lastseenuid initialized to %i for %s@%i\x00" as *const u8
-                        as *const libc::c_char,
-                    last_seen_uid as libc::c_int,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                    uid_validity as libc::c_int,
-                );
-            }
+            info!(
+                context,
+                0,
+                "lastseenuid initialized to %i for %s@%i",
+                last_seen_uid as libc::c_int,
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                uid_validity as libc::c_int
+            );
         }
 
         let mut read_cnt = 0;
@@ -754,7 +706,6 @@ impl dc_imap_t {
             return 0;
         };
 
-        println!("fetched {} messages", list.len());
         // go through all mails in folder (this is typically _fast_ as we already have the whole list)
 
         for msg in &list {
@@ -775,31 +726,25 @@ impl dc_imap_t {
                 } {
                     // check passed, go fetch the rest
                     if self.fetch_single_msg(context, &folder, cur_uid) == 0 {
-                        unsafe {
-                            dc_log_info(
-                                context,
-                                0,
-                                b"Read error for message %s from \"%s\", trying over later.\x00"
-                                    as *const u8
-                                    as *const libc::c_char,
-                                message_id_c.as_ptr(),
-                                folder_c.as_ptr(),
-                            )
-                        };
+                        info!(
+                            context,
+                            0,
+                            "Read error for message %s from \"%s\", trying over later.",
+                            message_id_c.as_ptr(),
+                            folder_c.as_ptr()
+                        );
+
                         read_errors += 1;
                     }
                 } else {
                     // check failed
-                    unsafe {
-                        dc_log_info(
-                            context,
-                            0,
-                            b"Skipping message %s from \"%s\" by precheck.\x00" as *const u8
-                                as *const libc::c_char,
-                            message_id_c.as_ptr(),
-                            folder_c.as_ptr(),
-                        )
-                    };
+                    info!(
+                        context,
+                        0,
+                        "Skipping message %s from \"%s\" by precheck.",
+                        message_id_c.as_ptr(),
+                        folder_c.as_ptr()
+                    );
                 }
                 if cur_uid > new_last_seen_uid {
                     new_last_seen_uid = cur_uid
@@ -814,27 +759,22 @@ impl dc_imap_t {
         }
 
         if read_errors > 0 {
-            unsafe {
-                dc_log_warning(
-                    context,
-                    0i32,
-                    b"%i mails read from \"%s\" with %i errors.\x00" as *const u8
-                        as *const libc::c_char,
-                    read_cnt as libc::c_int,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                    read_errors as libc::c_int,
-                )
-            };
+            warn!(
+                context,
+                0,
+                "%i mails read from \"%s\" with %i errors.",
+                read_cnt as libc::c_int,
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                read_errors as libc::c_int,
+            );
         } else {
-            unsafe {
-                dc_log_info(
-                    context,
-                    0i32,
-                    b"%i mails read from \"%s\".\x00" as *const u8 as *const libc::c_char,
-                    read_cnt as libc::c_int,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                )
-            };
+            info!(
+                context,
+                0,
+                "%i mails read from \"%s\".",
+                read_cnt as libc::c_int,
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr()
+            );
         }
 
         read_cnt
@@ -880,17 +820,14 @@ impl dc_imap_t {
                 Ok(msgs) => msgs,
                 Err(err) => {
                     eprintln!("error fetch single: {:?}", err);
-                    unsafe {
-                        dc_log_warning(
-                            context,
-                            0,
-                            b"Error on fetching message #%i from folder \"%s\"; retry=%i.\x00"
-                                as *const u8 as *const libc::c_char,
-                            server_uid as libc::c_int,
-                            CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                            self.should_reconnect() as libc::c_int,
-                        )
-                    };
+                    warn!(
+                        context,
+                        0,
+                        "Error on fetching message #%i from folder \"%s\"; retry=%i.",
+                        server_uid as libc::c_int,
+                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                        self.should_reconnect() as libc::c_int,
+                    );
 
                     if self.should_reconnect() {
                         retry_later = true;
@@ -904,16 +841,13 @@ impl dc_imap_t {
         };
 
         if msgs.is_empty() {
-            unsafe {
-                dc_log_warning(
-                    context,
-                    0,
-                    b"Message #%i does not exist in folder \"%s\".\x00" as *const u8
-                        as *const libc::c_char,
-                    server_uid as libc::c_int,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                )
-            };
+            warn!(
+                context,
+                0,
+                "Message #%i does not exist in folder \"%s\".",
+                server_uid as libc::c_int,
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+            );
         } else {
             let msg = &msgs[0];
 
@@ -959,29 +893,18 @@ impl dc_imap_t {
     }
 
     pub fn idle(&self, context: &dc_context_t) {
-        println!(
-            "trying idle: can_idle: {}",
-            self.config.read().unwrap().can_idle
-        );
         if !self.config.read().unwrap().can_idle {
             return self.fake_idle(context);
         }
 
         // TODO: reconnect in all methods that need it
         if !self.is_connected() {
-            println!("can't idle, disconnected");
             return;
         }
 
         let watch_folder = self.config.read().unwrap().watch_folder.clone();
         if self.select_folder(context, watch_folder.as_ref()) == 0 {
-            unsafe {
-                dc_log_warning(
-                    context,
-                    0,
-                    b"IMAP-IDLE not setup.\x00" as *const u8 as *const libc::c_char,
-                )
-            };
+            warn!(context, 0, "IMAP-IDLE not setup.",);
 
             return self.fake_idle(context);
         }
@@ -1009,19 +932,12 @@ impl dc_imap_t {
         //     }
         // }
 
-        println!("setting up idle");
         let mut session = self.session.lock().unwrap().take().unwrap();
         let mut idle = match session.idle() {
             Ok(idle) => idle,
             Err(err) => {
                 eprintln!("imap idle error: {:?}", err);
-                unsafe {
-                    dc_log_warning(
-                        context,
-                        0,
-                        b"IMAP-IDLE: Cannot start.\x00" as *const u8 as *const libc::c_char,
-                    );
-                }
+                warn!(context, 0, "IMAP-IDLE: Cannot start.",);
 
                 return self.fake_idle(context);
             }
@@ -1032,13 +948,10 @@ impl dc_imap_t {
         // if needed, the ui can call dc_imap_interrupt_idle() to trigger a reconnect.
         idle.set_keepalive(Duration::from_secs(23 * 60));
 
-        println!("imap idle waiting");
         // TODO: proper logging of different states
         // TODO: reconnect if we timed out
         match idle.wait_keepalive() {
-            Ok(_) => {
-                println!("imap done");
-            }
+            Ok(_) => {}
             Err(err) => {
                 eprintln!("idle error: {:?}", err);
             }
@@ -1049,19 +962,12 @@ impl dc_imap_t {
     }
 
     fn fake_idle(&self, context: &dc_context_t) {
-        println!("fake idle");
-
         // Idle using timeouts. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job
         let mut fake_idle_start_time = SystemTime::now();
 
-        unsafe {
-            dc_log_info(
-                context,
-                0,
-                b"IMAP-fake-IDLEing...\x00" as *const u8 as *const libc::c_char,
-            )
-        };
+        info!(context, 0, "IMAP-fake-IDLEing...");
+
         let mut do_fake_idle = true;
         while do_fake_idle {
             let seconds_to_wait =
@@ -1102,17 +1008,13 @@ impl dc_imap_t {
     }
 
     pub fn interrupt_idle(&self) {
-        println!("interrupt idle");
-
         // TODO: interrupt real idle
         // ref: https://github.com/jonhoo/rust-imap/issues/121
 
-        println!("waiting for lock");
         let &(ref lock, ref cvar) = &*self.watch.clone();
         let mut watch = lock.lock().unwrap();
 
         *watch = true;
-        println!("notify");
         cvar.notify_one();
     }
 
@@ -1130,43 +1032,37 @@ impl dc_imap_t {
         if uid == 0 {
             res = DC_FAILED;
         } else if folder.as_ref() == dest_folder.as_ref() {
-            unsafe {
-                dc_log_info(
-                    context,
-                    0,
-                    b"Skip moving message; message %s/%i is already in %s...\x00" as *const u8
-                        as *const libc::c_char,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                    uid as libc::c_int,
-                    CString::new(dest_folder.as_ref().to_owned())
-                        .unwrap()
-                        .as_ptr(),
-                )
-            };
+            info!(
+                context,
+                0,
+                "Skip moving message; message %s/%i is already in %s...",
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                uid as libc::c_int,
+                CString::new(dest_folder.as_ref().to_owned())
+                    .unwrap()
+                    .as_ptr()
+            );
+
             res = DC_ALREADY_DONE;
         } else {
-            unsafe {
-                dc_log_info(
+            info!(
+                context,
+                0,
+                "Moving message %s/%i to %s...",
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                uid as libc::c_int,
+                CString::new(dest_folder.as_ref().to_owned())
+                    .unwrap()
+                    .as_ptr()
+            );
+
+            if self.select_folder(context, Some(folder.as_ref())) == 0 {
+                warn!(
                     context,
                     0,
-                    b"Moving message %s/%i to %s...\x00" as *const u8 as *const libc::c_char,
+                    "Cannot select folder %s for moving message.",
                     CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                    uid as libc::c_int,
-                    CString::new(dest_folder.as_ref().to_owned())
-                        .unwrap()
-                        .as_ptr(),
-                )
-            };
-            if self.select_folder(context, Some(folder.as_ref())) == 0 {
-                unsafe {
-                    dc_log_warning(
-                        context,
-                        0,
-                        b"Cannot select folder %s for moving message.\x00" as *const u8
-                            as *const libc::c_char,
-                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                    )
-                };
+                );
             } else {
                 let moved = if let Some(ref mut session) = *self.session.lock().unwrap() {
                     match session.uid_mv(&set, &dest_folder) {
@@ -1176,17 +1072,17 @@ impl dc_imap_t {
                         }
                         Err(err) => {
                             eprintln!("move error: {:?}", err);
-                            unsafe {
-                                dc_log_info(
-                                    context,
-                                    0,
-                                    b"Cannot move message, fallback to COPY/DELETE %s/%i to %s...\x00"
-                                        as *const u8 as *const libc::c_char,
-                                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                                    uid as libc::c_int,
-                                    CString::new(dest_folder.as_ref().to_owned()).unwrap().as_ptr(),
-                                )
-                            };
+                            info!(
+                                context,
+                                0,
+                                "Cannot move message, fallback to COPY/DELETE %s/%i to %s...",
+                                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                                uid as libc::c_int,
+                                CString::new(dest_folder.as_ref().to_owned())
+                                    .unwrap()
+                                    .as_ptr()
+                            );
+
                             false
                         }
                     }
@@ -1200,14 +1096,8 @@ impl dc_imap_t {
                             Ok(_) => true,
                             Err(err) => {
                                 eprintln!("error copy: {:?}", err);
-                                unsafe {
-                                    dc_log_info(
-                                        context,
-                                        0,
-                                        b"Cannot copy message.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    )
-                                };
+                                info!(context, 0, "Cannot copy message.",);
+
                                 false
                             }
                         }
@@ -1217,14 +1107,7 @@ impl dc_imap_t {
 
                     if copied {
                         if self.add_flag(uid, "\\Deleted") == 0 {
-                            unsafe {
-                                dc_log_warning(
-                                    context,
-                                    0,
-                                    b"Cannot mark message as \"Deleted\".\x00" as *const u8
-                                        as *const libc::c_char,
-                                )
-                            };
+                            warn!(context, 0, "Cannot mark message as \"Deleted\".",);
                         }
                         self.config.write().unwrap().selected_folder_needs_expunge = true;
                         res = DC_SUCCESS;
@@ -1276,33 +1159,23 @@ impl dc_imap_t {
         } else if self.is_connected() {
             let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
 
-            unsafe {
-                dc_log_info(
+            info!(
+                context,
+                0,
+                "Marking message %s/%i as seen...",
+                folder_c.as_ptr(),
+                uid as libc::c_int
+            );
+
+            if self.select_folder(context, Some(folder)) == 0 {
+                warn!(
                     context,
                     0,
-                    b"Marking message %s/%i as seen...\x00" as *const u8 as *const libc::c_char,
+                    "Cannot select folder %s for setting SEEN flag.",
                     folder_c.as_ptr(),
-                    uid as libc::c_int,
-                )
-            };
-            if self.select_folder(context, Some(folder)) == 0 {
-                unsafe {
-                    dc_log_warning(
-                        context,
-                        0,
-                        b"Cannot select folder %s for setting SEEN flag.\x00" as *const u8
-                            as *const libc::c_char,
-                        folder_c.as_ptr(),
-                    )
-                };
+                );
             } else if self.add_flag(uid, "\\Seen") == 0 {
-                unsafe {
-                    dc_log_warning(
-                        context,
-                        0,
-                        b"Cannot mark message as seen.\x00" as *const u8 as *const libc::c_char,
-                    )
-                };
+                warn!(context, 0, "Cannot mark message as seen.",);
             } else {
                 res = DC_SUCCESS
             }
@@ -1328,26 +1201,21 @@ impl dc_imap_t {
             res = DC_FAILED;
         } else if self.is_connected() {
             let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
-            unsafe {
-                dc_log_info(
-                    context,
-                    0,
-                    b"Marking message %s/%i as $MDNSent...\x00" as *const u8 as *const libc::c_char,
-                    folder_c.as_ptr(),
-                    uid as libc::c_int,
-                )
-            };
+            info!(
+                context,
+                0,
+                "Marking message %s/%i as $MDNSent...",
+                folder_c.as_ptr(),
+                uid as libc::c_int
+            );
 
             if self.select_folder(context, Some(folder)) == 0 {
-                unsafe {
-                    dc_log_warning(
-                        context,
-                        0,
-                        b"Cannot select folder %s for setting $MDNSent flag.\x00" as *const u8
-                            as *const libc::c_char,
-                        folder_c.as_ptr(),
-                    )
-                };
+                warn!(
+                    context,
+                    0,
+                    "Cannot select folder %s for setting $MDNSent flag.",
+                    folder_c.as_ptr(),
+                );
             } else {
                 // Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not
                 // set: set the flags and return this information.
@@ -1410,30 +1278,20 @@ impl dc_imap_t {
                             res
                         };
 
-                        unsafe {
-                            dc_log_info(
-                                context,
-                                0,
-                                if res == DC_SUCCESS {
-                                    b"$MDNSent just set and MDN will be sent.\x00" as *const u8
-                                        as *const libc::c_char
-                                } else {
-                                    b"$MDNSent already set and MDN already sent.\x00" as *const u8
-                                        as *const libc::c_char
-                                },
-                            )
+                        let msg = if res == DC_SUCCESS {
+                            "$MDNSent just set and MDN will be sent."
+                        } else {
+                            "$MDNSent already set and MDN already sent."
                         };
+
+                        info!(context, 0, msg);
                     }
                 } else {
                     res = DC_SUCCESS;
-                    unsafe {
-                        dc_log_info(
-                            context,
-                            0,
-                            b"Cannot store $MDNSent flags, risk sending duplicate MDN.\x00"
-                                as *const u8 as *const libc::c_char,
-                        )
-                    };
+                    info!(
+                        context,
+                        0, "Cannot store $MDNSent flags, risk sending duplicate MDN.",
+                    );
                 }
             }
         }
@@ -1461,28 +1319,22 @@ impl dc_imap_t {
         if *server_uid == 0 {
             success = true
         } else {
-            unsafe {
-                dc_log_info(
-                    context,
-                    0,
-                    b"Marking message \"%s\", %s/%i for deletion...\x00" as *const u8
-                        as *const libc::c_char,
-                    &message_id,
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                    *server_uid as libc::c_int,
-                )
-            };
+            info!(
+                context,
+                0,
+                "Marking message \"%s\", %s/%i for deletion...",
+                &message_id,
+                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                *server_uid as libc::c_int
+            );
 
             if self.select_folder(context, Some(&folder)) == 0 {
-                unsafe {
-                    dc_log_warning(
-                        context,
-                        0,
-                        b"Cannot select folder %s for deleting message.\x00" as *const u8
-                            as *const libc::c_char,
-                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                    )
-                };
+                warn!(
+                    context,
+                    0,
+                    "Cannot select folder %s for deleting message.",
+                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                );
             } else {
                 let set = format!("{}", server_uid);
                 if let Some(ref mut session) = *self.session.lock().unwrap() {
@@ -1498,34 +1350,27 @@ impl dc_imap_t {
                                     .expect("missing message id")
                                     != message_id.as_ref()
                             {
-                                unsafe {
-                                    dc_log_warning(
-                                        context,
-                                        0,
-                                        b"Cannot delete on IMAP, %s/%i does not match %s.\x00"
-                                            as *const u8
-                                            as *const libc::c_char,
-                                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                                        *server_uid as libc::c_int,
-                                        message_id,
-                                    )
-                                };
+                                warn!(
+                                    context,
+                                    0,
+                                    "Cannot delete on IMAP, %s/%i does not match %s.",
+                                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                                    *server_uid as libc::c_int,
+                                    message_id,
+                                );
                                 *server_uid = 0;
                             }
                         }
                         Err(err) => {
                             eprintln!("fetch error: {:?}", err);
 
-                            unsafe {
-                                dc_log_warning(
-                                    context,
-                                    0,
-                                    b"Cannot delete on IMAP, %s/%i not found.\x00" as *const u8
-                                        as *const libc::c_char,
-                                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                                    *server_uid as libc::c_int,
-                                )
-                            };
+                            warn!(
+                                context,
+                                0,
+                                "Cannot delete on IMAP, %s/%i not found.",
+                                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                                *server_uid as libc::c_int,
+                            );
                             *server_uid = 0;
                         }
                     }
@@ -1533,14 +1378,7 @@ impl dc_imap_t {
 
                 // mark the message for deletion
                 if self.add_flag(*server_uid, "\\Deleted") == 0 {
-                    unsafe {
-                        dc_log_warning(
-                            context,
-                            0,
-                            b"Cannot mark message as \"Deleted\".\x00" as *const u8
-                                as *const libc::c_char,
-                        )
-                    };
+                    warn!(context, 0, "Cannot mark message as \"Deleted\".");
                 } else {
                     self.config.write().unwrap().selected_folder_needs_expunge = true;
                     success = true
@@ -1560,13 +1398,7 @@ impl dc_imap_t {
             return;
         }
 
-        unsafe {
-            dc_log_info(
-                context,
-                0,
-                b"Configuring IMAP-folders.\x00" as *const u8 as *const libc::c_char,
-            )
-        };
+        info!(context, 0, "Configuring IMAP-folders.");
 
         let folders = self.list_folders(context).unwrap();
         let delimiter = self.config.read().unwrap().imap_delimiter;
@@ -1584,65 +1416,36 @@ impl dc_imap_t {
                 _ => false,
             });
 
-        println!("folders: {:?} - {:?}", mvbox_folder, sentbox_folder);
-
         if mvbox_folder.is_none() && 0 != (flags as usize & DC_CREATE_MVBOX) {
-            unsafe {
-                dc_log_info(
-                    context,
-                    0i32,
-                    b"Creating MVBOX-folder \"%s\"...\x00" as *const u8 as *const libc::c_char,
-                    b"DeltaChat\x00" as *const u8 as *const libc::c_char,
-                )
-            };
+            info!(
+                context,
+                0,
+                "Creating MVBOX-folder \"%s\"...",
+                b"DeltaChat\x00" as *const u8 as *const libc::c_char
+            );
 
             if let Some(ref mut session) = *self.session.lock().unwrap() {
                 match session.create("DeltaChat") {
                     Ok(_) => {
                         mvbox_folder = Some("DeltaChat".into());
 
-                        unsafe {
-                            dc_log_info(
-                                context,
-                                0i32,
-                                b"MVBOX-folder created.\x00" as *const u8 as *const libc::c_char,
-                            )
-                        };
+                        info!(context, 0, "MVBOX-folder created.",);
                     }
                     Err(err) => {
                         eprintln!("create error: {:?}", err);
-                        unsafe {
-                            dc_log_warning(
-                                context,
-                                0,
-                                b"Cannot create MVBOX-folder, using trying INBOX subfolder.\x00"
-                                    as *const u8
-                                    as *const libc::c_char,
-                            )
-                        };
+                        warn!(
+                            context,
+                            0, "Cannot create MVBOX-folder, using trying INBOX subfolder."
+                        );
 
                         match session.create(&fallback_folder) {
                             Ok(_) => {
                                 mvbox_folder = Some(fallback_folder);
-                                unsafe {
-                                    dc_log_info(
-                                        context,
-                                        0,
-                                        b"MVBOX-folder created as INBOX subfolder.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    )
-                                };
+                                info!(context, 0, "MVBOX-folder created as INBOX subfolder.",);
                             }
                             Err(err) => {
                                 eprintln!("create error: {:?}", err);
-                                unsafe {
-                                    dc_log_warning(
-                                        context,
-                                        0i32,
-                                        b"Cannot create MVBOX-folder.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    )
-                                };
+                                warn!(context, 0, "Cannot create MVBOX-folder.",);
                             }
                         }
                     }
@@ -1692,25 +1495,14 @@ impl dc_imap_t {
             match session.list(Some(""), Some("*")) {
                 Ok(list) => {
                     if list.is_empty() {
-                        unsafe {
-                            dc_log_warning(
-                                context,
-                                0i32,
-                                b"Folder list is empty.\x00" as *const u8 as *const libc::c_char,
-                            )
-                        };
+                        warn!(context, 0, "Folder list is empty.",);
                     }
                     Some(list)
                 }
                 Err(err) => {
                     eprintln!("list error: {:?}", err);
-                    unsafe {
-                        dc_log_warning(
-                            context,
-                            0i32,
-                            b"Cannot get folder list.\x00" as *const u8 as *const libc::c_char,
-                        )
-                    };
+                    warn!(context, 0, "Cannot get folder list.",);
+
                     None
                 }
             }

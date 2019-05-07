@@ -88,3 +88,54 @@ pub unsafe extern "C" fn dc_log_info(
 ) {
     log_vprintf(context, Event::INFO, data1, msg, va_3);
 }
+
+#[macro_export]
+macro_rules! info {
+    ($ctx:expr, $data1:expr, $msg:expr) => {
+        info!($ctx, $data1, $msg,)
+    };
+    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        unsafe {
+            dc_log_info(
+                $ctx,
+                $data1,
+                std::ffi::CString::new($msg).unwrap().as_ptr(),
+                $($args),*
+            )
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! warn {
+    ($ctx:expr, $data1:expr, $msg:expr) => {
+        warn!($ctx, $data1, $msg,)
+    };
+    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        unsafe {
+            dc_log_warning(
+                $ctx,
+                $data1,
+                std::ffi::CString::new($msg).unwrap().as_ptr(),
+                $($args),*
+            )
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! error {
+    ($ctx:expr, $data1:expr, $msg:expr) => {
+        error!($ctx, $data1, $msg,)
+    };
+    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        unsafe {
+            dc_log_error(
+                $ctx,
+                $data1,
+                std::ffi::CString::new($msg).unwrap().as_ptr(),
+                $($args),*
+            )
+        }
+    };
+}

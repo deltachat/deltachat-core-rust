@@ -520,7 +520,6 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     let arg1_c = CString::new(arg1).unwrap();
     let arg2 = args.next().unwrap_or_default();
     let arg2_c = CString::new(arg2).unwrap();
-    println!("{} -- {:?}, {}, {}", cmdline, args.clone().collect::<Vec<_>>(), arg1, arg2);
 
     if cmdline == "help" || cmdline == "?" {
         if arg1 == "imex" {
