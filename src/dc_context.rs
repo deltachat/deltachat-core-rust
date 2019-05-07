@@ -38,7 +38,7 @@ pub struct dc_context_t {
     pub oauth2_critical: Arc<Mutex<()>>,
     pub cb: dc_callback_t,
     pub os_name: *mut libc::c_char,
-    pub cmdline_sel_chat_id: u32,
+    pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
     pub bob: Arc<RwLock<BobStatus>>,
     pub last_smeared_timestamp: Arc<RwLock<time_t>>,
     pub running_state: Arc<RwLock<RunningState>>,
@@ -149,7 +149,7 @@ pub fn dc_context_new(
         oauth2_critical: Arc::new(Mutex::new(())),
         bob: Arc::new(RwLock::new(Default::default())),
         last_smeared_timestamp: Arc::new(RwLock::new(0 as time_t)),
-        cmdline_sel_chat_id: 0,
+        cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
         sentbox_thread: Arc::new(Mutex::new(unsafe {
             dc_jobthread_init(
                 b"SENTBOX\x00" as *const u8 as *const libc::c_char,

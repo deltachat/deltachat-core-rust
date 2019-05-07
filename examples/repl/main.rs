@@ -274,57 +274,50 @@ unsafe fn start_threads(
     std::thread::JoinHandle<()>,
 ) {
     run_threads = 1;
-    let context = c.clone();
-    let h1 = std::thread::spawn(move || {
-        while 0 != run_threads {
-            let ctx = context.clone();
-            let context = ctx.read().unwrap();
 
-            println!("-- imap jobs");
+    let ctx = c.clone();
+    let h1 = std::thread::spawn(move || {
+        let context = ctx.read().unwrap();
+        while 0 != run_threads {
             dc_perform_imap_jobs(&context);
-            println!("-- imap fetch");
             dc_perform_imap_fetch(&context);
             if 0 != run_threads {
-                println!("-- imap idle");
                 dc_perform_imap_idle(&context);
             }
         }
     });
 
-    let _context = c.clone();
+    let ctx = c.clone();
     let h2 = std::thread::spawn(move || {
-        // let ctx = context.clone();
-        // let context = ctx.read().unwrap();
-        // while 0 != run_threads {
-        //     dc_perform_mvbox_fetch(&context);
-        //     if 0 != run_threads {
-        //         dc_perform_mvbox_idle(&context);
-        //     }
-        // }
+        let context = ctx.read().unwrap();
+        while 0 != run_threads {
+            dc_perform_mvbox_fetch(&context);
+            if 0 != run_threads {
+                dc_perform_mvbox_idle(&context);
+            }
+        }
     });
 
-    let _context = c.clone();
+    let ctx = c.clone();
     let h3 = std::thread::spawn(move || {
-        // let ctx = context.clone();
-        // let context = ctx.read().unwrap();
-        // while 0 != run_threads {
-        //     dc_perform_sentbox_fetch(&context);
-        //     if 0 != run_threads {
-        //         dc_perform_sentbox_idle(&context);
-        //     }
-        // }
+        let context = ctx.read().unwrap();
+        while 0 != run_threads {
+            dc_perform_sentbox_fetch(&context);
+            if 0 != run_threads {
+                dc_perform_sentbox_idle(&context);
+            }
+        }
     });
 
-    let _context = c.clone();
+    let ctx = c.clone();
     let h4 = std::thread::spawn(move || {
-        // let ctx = context.clone();
-        // let context = ctx.read().unwrap();
-        // while 0 != run_threads {
-        //     dc_perform_smtp_jobs(&context);
-        //     if 0 != run_threads {
-        //         dc_perform_smtp_idle(&context);
-        //     }
-        // }
+        let context = ctx.read().unwrap();
+        while 0 != run_threads {
+            dc_perform_smtp_jobs(&context);
+            if 0 != run_threads {
+                dc_perform_smtp_idle(&context);
+            }
+        }
     });
 
     (h1, h2, h3, h4)
@@ -494,7 +487,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             }
             if !(*cmd.offset(0isize) as libc::c_int == 0i32) {
                 let mut execute_result: *mut libc::c_char =
-                    dc_cmdline(&mut ctx.clone().write().unwrap(), &cmdline);
+                    dc_cmdline(&ctx.read().unwrap(), &cmdline);
                 if !execute_result.is_null() {
                     printf(
                         b"%s\n\x00" as *const u8 as *const libc::c_char,
