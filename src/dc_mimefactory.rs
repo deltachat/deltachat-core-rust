@@ -1,5 +1,3 @@
-use libc;
-
 use crate::constants::VERSION;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -418,12 +416,12 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 iter1 = if !iter1.is_null() {
                     (*iter1).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 };
                 iter2 = if !iter2.is_null() {
                     (*iter2).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 }
             }
         }
@@ -1274,7 +1272,7 @@ unsafe fn build_body_file(
                         cur1 = if !cur1.is_null() {
                             (*cur1).next
                         } else {
-                            0 as *mut clistcell_s
+                            0 as *mut clistcell
                         }
                     }
                 }

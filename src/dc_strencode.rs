@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;

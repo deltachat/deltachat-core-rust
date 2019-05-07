@@ -1,5 +1,3 @@
-use libc;
-
 use crate::constants::Event;
 use crate::dc_chat::*;
 use crate::dc_contact::*;

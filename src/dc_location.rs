@@ -1,5 +1,3 @@
-use libc;
-
 use crate::constants::Event;
 use crate::dc_array::*;
 use crate::dc_chat::*;

@@ -1,6 +1,5 @@
 use std::fs;
 
-use libc;
 use rand::{thread_rng, Rng};
 
 use crate::dc_array::*;
@@ -568,7 +567,7 @@ pub unsafe fn dc_str_from_clist(
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell_s
+                0 as *mut clistcell
             }
         }
     }
@@ -661,7 +660,7 @@ pub unsafe fn clist_free_content(mut haystack: *const clist) {
         iter = if !iter.is_null() {
             (*iter).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 }
@@ -678,7 +677,7 @@ pub unsafe fn clist_search_string_nocase(
         iter = if !iter.is_null() {
             (*iter).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 
@@ -851,64 +850,6 @@ pub unsafe fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c_char {
         wanted_struct.tm_min as libc::c_int,
         wanted_struct.tm_sec as libc::c_int,
     );
-}
-
-pub unsafe fn dc_timestamp_to_mailimap_date_time(mut timeval: time_t) -> *mut mailimap_date_time {
-    let mut gmt: tm = tm {
-        tm_sec: 0,
-        tm_min: 0,
-        tm_hour: 0,
-        tm_mday: 0,
-        tm_mon: 0,
-        tm_year: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_gmtoff: 0,
-        tm_zone: 0 as *mut libc::c_char,
-    };
-    let mut lt: tm = tm {
-        tm_sec: 0,
-        tm_min: 0,
-        tm_hour: 0,
-        tm_mday: 0,
-        tm_mon: 0,
-        tm_year: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_gmtoff: 0,
-        tm_zone: 0 as *mut libc::c_char,
-    };
-    let mut off: libc::c_int;
-    let mut date_time: *mut mailimap_date_time;
-    let mut sign: libc::c_int;
-    let mut hour: libc::c_int;
-    let mut min: libc::c_int;
-    gmtime_r(&mut timeval, &mut gmt);
-    localtime_r(&mut timeval, &mut lt);
-    off = ((mkgmtime(&mut lt) - mkgmtime(&mut gmt)) / 60i32 as libc::c_long) as libc::c_int;
-    if off < 0i32 {
-        sign = -1i32
-    } else {
-        sign = 1i32
-    }
-    off = off * sign;
-    min = off % 60i32;
-    hour = off / 60i32;
-    off = hour * 100i32 + min;
-    off = off * sign;
-    date_time = mailimap_date_time_new(
-        lt.tm_mday,
-        lt.tm_mon + 1i32,
-        lt.tm_year + 1900i32,
-        lt.tm_hour,
-        lt.tm_min,
-        lt.tm_sec,
-        off,
-    );
-
-    date_time
 }
 
 pub unsafe fn dc_gm2local_offset() -> libc::c_long {
@@ -1149,7 +1090,7 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(mut list: *const clist) -> *
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell_s
+                0 as *mut clistcell
             }
         }
     }
@@ -1497,7 +1438,7 @@ pub unsafe fn dc_create_folder(
                 .unwrap(),
         );
         if !p.exists() {
-            if mkdir(pathNfilename_abs, 0o755i32 as mode_t) != 0i32 {
+            if mkdir(pathNfilename_abs, 0o755i32 as libc::mode_t) != 0i32 {
                 dc_log_warning(
                     context,
                     0i32,

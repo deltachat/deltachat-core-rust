@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;

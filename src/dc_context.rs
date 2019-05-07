@@ -1,4 +1,3 @@
-use libc;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use crate::constants::*;

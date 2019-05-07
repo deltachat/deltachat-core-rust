@@ -1,4 +1,3 @@
-use libc;
 use rand::{thread_rng, Rng};
 
 use crate::constants::Event;

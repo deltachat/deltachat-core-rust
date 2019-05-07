@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_aheader::*;
 use crate::dc_chat::*;
 use crate::dc_context::dc_context_t;

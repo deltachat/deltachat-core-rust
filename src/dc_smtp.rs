@@ -2,7 +2,6 @@ use std::ffi::{CStr, CString};
 
 use lettre::smtp::client::net::*;
 use lettre::*;
-use libc;
 use native_tls::TlsConnector;
 
 use crate::constants::Event;

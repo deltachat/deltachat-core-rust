@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
@@ -490,7 +488,7 @@ pub unsafe fn mailimf_find_first_addr(
         cur = if !cur.is_null() {
             (*cur).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 
@@ -617,7 +615,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                             cur = if !cur.is_null() {
                                 (*cur).next
                             } else {
-                                0 as *mut clistcell_s
+                                0 as *mut clistcell
                             }
                         }
                     }
@@ -643,7 +641,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                                 cur = if !cur.is_null() {
                                     (*cur).next
                                 } else {
-                                    0 as *mut clistcell_s
+                                    0 as *mut clistcell
                                 }
                             }
                         }
@@ -666,7 +664,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                                 cur = if !cur.is_null() {
                                     (*cur).next
                                 } else {
-                                    0 as *mut clistcell_s
+                                    0 as *mut clistcell
                                 }
                             }
                         }
@@ -777,7 +775,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                         cur = if !cur.is_null() {
                             (*cur).next
                         } else {
-                            0 as *mut clistcell_s
+                            0 as *mut clistcell
                         }
                     }
                     if plain_cnt == 1i32 && html_cnt == 1i32 {
@@ -803,7 +801,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                         cur = if !cur.is_null() {
                             (*cur).next
                         } else {
-                            0 as *mut clistcell_s
+                            0 as *mut clistcell
                         }
                     }
                 }
@@ -893,7 +891,7 @@ unsafe fn hash_header(out: *mut dc_hash_t, in_0: *const mailimf_fields, _context
         cur1 = if !cur1.is_null() {
             (*cur1).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 }
@@ -1116,7 +1114,7 @@ unsafe fn mailmime_is_attachment_disposition(mut mime: *mut mailmime) -> libc::c
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell_s
+                0 as *mut clistcell
             }
         }
     }
@@ -1152,7 +1150,7 @@ pub unsafe fn mailmime_find_ct_parameter(
         cur = if !cur.is_null() {
             (*cur).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 
@@ -1370,7 +1368,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         cur2 = if !cur2.is_null() {
                                             (*cur2).next
                                         } else {
-                                            0 as *mut clistcell_s
+                                            0 as *mut clistcell
                                         }
                                     }
                                 }
@@ -1379,7 +1377,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 cur1 = if !cur1.is_null() {
                                     (*cur1).next
                                 } else {
-                                    0 as *mut clistcell_s
+                                    0 as *mut clistcell
                                 }
                             }
                         }
@@ -1615,7 +1613,7 @@ pub unsafe fn mailmime_transfer_decode(
                 cur = if !cur.is_null() {
                     (*cur).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 }
             }
         }
@@ -1802,7 +1800,7 @@ pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut
                                 cur3 = if !cur3.is_null() {
                                     (*cur3).next
                                 } else {
-                                    0 as *mut clistcell_s
+                                    0 as *mut clistcell
                                 }
                             }
                         }
@@ -1811,14 +1809,14 @@ pub unsafe fn mailimf_get_recipients(mut imffields: *mut mailimf_fields) -> *mut
                 cur2 = if !cur2.is_null() {
                     (*cur2).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 }
             }
         }
         cur1 = if !cur1.is_null() {
             (*cur1).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 
@@ -1871,7 +1869,7 @@ pub unsafe fn mailimf_find_field(
         cur1 = if !cur1.is_null() {
             (*cur1).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 
@@ -1928,7 +1926,7 @@ pub unsafe fn mailmime_find_mailimf_fields(mut mime: *mut mailmime) -> *mut mail
                 cur = if !cur.is_null() {
                     (*cur).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 }
             }
         }
@@ -1967,7 +1965,7 @@ pub unsafe fn mailimf_find_optional_field(
         cur1 = if !cur1.is_null() {
             (*cur1).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 

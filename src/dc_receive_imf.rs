@@ -1,5 +1,3 @@
-use libc;
-
 use crate::constants::*;
 use crate::dc_apeerstate::*;
 use crate::dc_array::*;
@@ -750,7 +748,7 @@ pub unsafe fn dc_receive_imf(
                                                     .first)
                                                     .next
                                             } else {
-                                                0 as *mut clistcell_s
+                                                0 as *mut clistcell
                                             }
                                             .is_null()
                                             {
@@ -768,7 +766,7 @@ pub unsafe fn dc_receive_imf(
                                                         .first)
                                                         .next
                                                 } else {
-                                                    0 as *mut clistcell_s
+                                                    0 as *mut clistcell
                                                 })
                                                 .data
                                             } else {
@@ -2098,7 +2096,7 @@ unsafe fn is_known_rfc724_mid_in_list(
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell_s
+                0 as *mut clistcell
             }
         }
     }
@@ -2187,7 +2185,7 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell_s
+                0 as *mut clistcell
             }
         }
     }
@@ -2262,7 +2260,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
         cur = if !cur.is_null() {
             (*cur).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 }
@@ -2296,7 +2294,7 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
         cur = if !cur.is_null() {
             (*cur).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 }

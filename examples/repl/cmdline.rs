@@ -46,7 +46,6 @@ use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
 use deltachat::types::*;
 use deltachat::x::*;
-use libc;
 use num_traits::FromPrimitive;
 
 /*

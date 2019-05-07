@@ -1,7 +1,5 @@
 use std::sync::{Arc, Condvar, Mutex};
 
-use libc;
-
 use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_imap::dc_imap_t;

@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_dehtml::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;

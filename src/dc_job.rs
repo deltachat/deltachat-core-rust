@@ -1,7 +1,6 @@
 use std::ffi::CStr;
 use std::time::{Duration, SystemTime};
 
-use libc;
 use rand::{thread_rng, Rng};
 
 use crate::constants::Event;

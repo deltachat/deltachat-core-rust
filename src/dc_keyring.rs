@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_context::dc_context_t;
 use crate::dc_key::*;
 use crate::dc_sqlite3::*;

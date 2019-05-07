@@ -2,8 +2,6 @@ use std::ffi::{CStr, CString};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, SystemTime};
 
-use libc;
-
 use crate::constants::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;

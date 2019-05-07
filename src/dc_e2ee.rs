@@ -1,4 +1,6 @@
-use libc;
+use mmime::clist::*;
+use mmime::mailmime::*;
+use mmime::mailmime_types::*;
 
 use crate::dc_aheader::*;
 use crate::dc_apeerstate::*;
@@ -132,7 +134,7 @@ pub unsafe fn dc_e2ee_encrypt(
                         iter1 = if !iter1.is_null() {
                             (*iter1).next
                         } else {
-                            0 as *mut clistcell_s
+                            0 as *mut clistcell
                         }
                     }
                 }
@@ -248,7 +250,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 cur = if !cur.is_null() {
                                     (*cur).next
                                 } else {
-                                    0 as *mut clistcell_s
+                                    0 as *mut clistcell
                                 }
                             }
                         }
@@ -858,7 +860,7 @@ unsafe fn update_gossip_peerstates(
         cur1 = if !cur1.is_null() {
             (*cur1).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
     if !recipients.is_null() {
@@ -929,7 +931,7 @@ unsafe fn decrypt_recursive(
                 cur = if !cur.is_null() {
                     (*cur).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 }
             }
             *ret_has_unencrypted_parts = 1i32
@@ -954,7 +956,7 @@ unsafe fn decrypt_recursive(
                 cur = if !cur.is_null() {
                     (*cur).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 }
             }
         }
@@ -1023,7 +1025,7 @@ unsafe fn decrypt_part(
                 cur = if !cur.is_null() {
                     (*cur).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 }
             }
         }
@@ -1197,7 +1199,7 @@ unsafe fn contains_report(mut mime: *mut mailmime) -> libc::c_int {
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell_s
+                0 as *mut clistcell
             }
         }
     } else if (*mime).mm_type == MAILMIME_MESSAGE as libc::c_int {

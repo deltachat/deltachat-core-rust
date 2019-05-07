@@ -1,5 +1,3 @@
-use libc;
-
 use crate::x::*;
 
 #[derive(Copy, Clone)]

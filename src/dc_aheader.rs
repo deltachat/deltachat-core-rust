@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_contact::*;
 use crate::dc_key::*;
 use crate::dc_strbuilder::*;
@@ -78,7 +76,7 @@ pub unsafe fn dc_aheader_new_from_imffields(
         cur = if !cur.is_null() {
             (*cur).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 
