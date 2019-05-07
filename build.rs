@@ -1,9 +1,5 @@
 extern crate cc;
 
-fn link_dylib(lib: &str) {
-    println!("cargo:rustc-link-lib=dylib={}", lib);
-}
-
 fn link_static(lib: &str) {
     println!("cargo:rustc-link-lib=static={}", lib);
 }
@@ -35,13 +31,6 @@ fn main() {
         link_framework("CoreFoundation");
         link_framework("CoreServices");
         link_framework("Security");
-
-        link_dylib("pthread");
-    } else if target.contains("-android") {
-    } else if target.contains("-linux") {
-        link_dylib("pthread");
-    } else {
-        panic!("unsupported target");
     }
 
     // local tools
