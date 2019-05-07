@@ -1,3 +1,5 @@
+use mmime::mailimf_types::*;
+
 use crate::dc_contact::*;
 use crate::dc_key::*;
 use crate::dc_strbuilder::*;

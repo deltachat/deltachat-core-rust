@@ -1,3 +1,5 @@
+use mmime::mailmime_types::*;
+
 use crate::constants::VERSION;
 use crate::dc_chat::*;
 use crate::dc_contact::*;

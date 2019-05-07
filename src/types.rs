@@ -5,7 +5,6 @@ pub use libc::{dirent, tm, DIR, FILE};
 pub use libsqlite3_sys::*;
 pub use mmime::carray::*;
 pub use mmime::clist::*;
-pub use mmime::*;
 
 pub type __builtin_va_list = [__va_list_tag; 1];
 #[derive(Copy, Clone)]
