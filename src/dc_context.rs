@@ -295,16 +295,12 @@ pub unsafe fn dc_close(context: &dc_context_t) {
         .lock()
         .unwrap()
         .imap
-        .lock()
-        .unwrap()
         .disconnect(context);
     context
         .mvbox_thread
         .lock()
         .unwrap()
         .imap
-        .lock()
-        .unwrap()
         .disconnect(context);
 
     context.smtp.clone().lock().unwrap().disconnect();

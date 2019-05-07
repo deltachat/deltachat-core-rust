@@ -140,16 +140,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                 .lock()
                 .unwrap()
                 .imap
-                .lock()
-                .unwrap()
                 .disconnect(context);
             context
                 .mvbox_thread
                 .lock()
                 .unwrap()
                 .imap
-                .lock()
-                .unwrap()
                 .disconnect(context);
             context.smtp.clone().lock().unwrap().disconnect();
             dc_log_info(

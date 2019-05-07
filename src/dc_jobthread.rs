@@ -13,7 +13,7 @@ use crate::x::*;
 pub struct dc_jobthread_t {
     pub name: *mut libc::c_char,
     pub folder_config_name: *mut libc::c_char,
-    pub imap: Arc<Mutex<dc_imap_t>>,
+    pub imap: dc_imap_t,
     pub state: Arc<(Mutex<JobState>, Condvar)>,
 }
 
@@ -25,7 +25,7 @@ pub unsafe fn dc_jobthread_init(
     dc_jobthread_t {
         name: dc_strdup(name),
         folder_config_name: dc_strdup(folder_config_name),
-        imap: Arc::new(Mutex::new(imap)),
+        imap,
         state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
     }
 }
@@ -102,7 +102,7 @@ pub unsafe extern "C" fn dc_jobthread_interrupt_idle(
     );
 
     println!("jobthread interrupt, waiting for lock");
-    jobthread.imap.lock().unwrap().interrupt_idle();
+    jobthread.imap.interrupt_idle();
 
     let &(ref lock, ref cvar) = &*jobthread.state.clone();
     let mut state = lock.lock().unwrap();
@@ -138,16 +138,16 @@ pub unsafe fn dc_jobthread_fetch(
                 b"%s-fetch started...\x00" as *const u8 as *const libc::c_char,
                 jobthread.name,
             );
-            jobthread.imap.lock().unwrap().fetch(context);
+            jobthread.imap.fetch(context);
 
-            if jobthread.imap.lock().unwrap().should_reconnect() {
+            if jobthread.imap.should_reconnect() {
                 dc_log_info(
                     context,
                     0i32,
                     b"%s-fetch aborted, starting over...\x00" as *const u8 as *const libc::c_char,
                     jobthread.name,
                 );
-                jobthread.imap.lock().unwrap().fetch(context);
+                jobthread.imap.fetch(context);
             }
             dc_log_info(
                 context,
@@ -171,11 +171,10 @@ unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t
     let mut ret_connected: libc::c_int;
     let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
 
-    if jobthread.imap.lock().unwrap().is_connected() {
+    if jobthread.imap.is_connected() {
         ret_connected = 1
     } else {
-        ret_connected =
-            dc_connect_to_configured_imap(context, &mut jobthread.imap.clone().lock().unwrap());
+        ret_connected = dc_connect_to_configured_imap(context, &jobthread.imap);
         if !(0 == ret_connected) {
             if dc_sqlite3_get_config_int(
                 context,
@@ -184,11 +183,7 @@ unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t
                 0,
             ) < 3
             {
-                jobthread
-                    .imap
-                    .lock()
-                    .unwrap()
-                    .configure_folders(context, 0x1);
+                jobthread.imap.configure_folders(context, 0x1);
             }
             mvbox_name = dc_sqlite3_get_config(
                 context,
@@ -197,10 +192,10 @@ unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t
                 0 as *const libc::c_char,
             );
             if mvbox_name.is_null() {
-                jobthread.imap.lock().unwrap().disconnect(context);
+                jobthread.imap.disconnect(context);
                 ret_connected = 0;
             } else {
-                jobthread.imap.lock().unwrap().set_watch_folder(mvbox_name);
+                jobthread.imap.set_watch_folder(mvbox_name);
             }
         }
     }
@@ -258,7 +253,7 @@ pub unsafe fn dc_jobthread_idle(
         b"%s-IDLE started...\x00" as *const u8 as *const libc::c_char,
         jobthread.name,
     );
-    jobthread.imap.lock().unwrap().idle(context);
+    jobthread.imap.idle(context);
     dc_log_info(
         context,
         0i32,
