@@ -510,7 +510,13 @@ unsafe fn chat_prefix(mut chat: *const dc_chat_t) -> *const libc::c_char {
 
 pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 1i32 as *mut libc::c_char;
-    let mut sel_chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
+    let chat_id = *context.cmdline_sel_chat_id.read().unwrap();
+
+    let mut sel_chat = if chat_id > 0 {
+        dc_get_chat(context, chat_id)
+    } else {
+        std::ptr::null_mut()
+    };
 
     let mut args = cmdline.split_whitespace();
     let arg0 = args.next().unwrap_or_default();
