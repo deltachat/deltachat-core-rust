@@ -1,17 +1,10 @@
-use libc;
+use mmime::charconv::*;
+use mmime::mailmime_decode::*;
+use mmime::mmapstring::*;
+use mmime::other::*;
 
 use crate::dc_tools::*;
 use crate::types::*;
-use crate::x::*;
-
-#[inline]
-unsafe fn __isctype(mut _c: __darwin_ct_rune_t, mut _f: libc::c_ulong) -> __darwin_ct_rune_t {
-    return if _c < 0i32 || _c >= 1i32 << 8i32 {
-        0i32
-    } else {
-        (0 != _DefaultRuneLocale.__runetype[_c as usize] as libc::c_ulong & _f) as libc::c_int
-    };
-}
 
 #[inline]
 pub fn isalnum(mut _c: libc::c_int) -> libc::c_int {
@@ -70,8 +63,10 @@ pub unsafe extern "C" fn dc_urlencode(mut to_encode: *const libc::c_char) -> *mu
         pstr = pstr.offset(1isize)
     }
     *pbuf = '\u{0}' as i32 as libc::c_char;
-    return buf;
+
+    buf
 }
+
 /* ******************************************************************************
  * URL encoding and decoding, RFC 3986
  ******************************************************************************/
@@ -79,8 +74,10 @@ unsafe fn int_2_uppercase_hex(mut code: libc::c_char) -> libc::c_char {
     static mut hex: [libc::c_char; 17] = [
         48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70, 0,
     ];
-    return hex[(code as libc::c_int & 15i32) as usize];
+
+    hex[(code as libc::c_int & 15i32) as usize]
 }
+
 pub unsafe fn dc_urldecode(mut to_decode: *const libc::c_char) -> *mut libc::c_char {
     let mut pstr: *const libc::c_char = to_decode;
     if to_decode.is_null() {
@@ -114,15 +111,18 @@ pub unsafe fn dc_urldecode(mut to_decode: *const libc::c_char) -> *mut libc::c_c
         pstr = pstr.offset(1isize)
     }
     *pbuf = '\u{0}' as i32 as libc::c_char;
-    return buf;
+
+    buf
 }
+
 unsafe fn hex_2_int(mut ch: libc::c_char) -> libc::c_char {
     return (if 0 != isdigit(ch as libc::c_int) {
         ch as libc::c_int - '0' as i32
     } else {
-        tolower(ch as libc::c_int) - 'a' as i32 + 10i32
+        libc::tolower(ch as libc::c_int) - 'a' as i32 + 10i32
     }) as libc::c_char;
 }
+
 pub unsafe fn dc_encode_header_words(mut to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut current_block: u64;
     let mut ret_str: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -143,10 +143,10 @@ pub unsafe fn dc_encode_header_words(mut to_encode: *const libc::c_char) -> *mut
             }
             _ => {
                 if *cur as libc::c_int != '\u{0}' as i32 {
-                    let mut begin: *const libc::c_char = 0 as *const libc::c_char;
-                    let mut end: *const libc::c_char = 0 as *const libc::c_char;
-                    let mut do_quote: libc::c_int = 0;
-                    let mut quote_words: libc::c_int = 0;
+                    let mut begin: *const libc::c_char;
+                    let mut end: *const libc::c_char;
+                    let mut do_quote: libc::c_int;
+                    let mut quote_words: libc::c_int;
                     begin = cur;
                     end = begin;
                     quote_words = 0i32;
@@ -218,15 +218,18 @@ pub unsafe fn dc_encode_header_words(mut to_encode: *const libc::c_char) -> *mut
             }
         }
     }
-    return ret_str;
+
+    ret_str
 }
+
+// TODO return bool /rtn
 unsafe fn quote_word(
     mut display_charset: *const libc::c_char,
     mut mmapstr: *mut MMAPString,
     mut word: *const libc::c_char,
     mut size: size_t,
 ) -> libc::c_int {
-    let mut cur: *const libc::c_char = 0 as *const libc::c_char;
+    let mut cur: *const libc::c_char;
     let mut i: size_t = 0i32 as size_t;
     let mut hex: [libc::c_char; 4] = [0; 4];
     // let mut col: libc::c_int = 0i32;
@@ -241,10 +244,8 @@ unsafe fn quote_word(
     }
     // col = (*mmapstr).len as libc::c_int;
     cur = word;
-    i = 0i32 as size_t;
     while i < size {
         let mut do_quote_char: libc::c_int = 0;
-        do_quote_char = 0i32;
         match *cur as libc::c_int {
             44 | 58 | 33 | 34 | 35 | 36 | 64 | 91 | 92 | 93 | 94 | 96 | 123 | 124 | 125 | 126
             | 61 | 63 | 95 => do_quote_char = 1i32,
@@ -281,12 +282,14 @@ unsafe fn quote_word(
     if mmap_string_append(mmapstr, b"?=\x00" as *const u8 as *const libc::c_char).is_null() {
         return 0i32;
     }
-    return 1i32;
+
+    1
 }
+
 unsafe fn get_word(
     mut begin: *const libc::c_char,
     mut pend: *mut *const libc::c_char,
-    mut pto_be_quoted: *mut libc::c_int,
+    mut pto_be_quoted: *mut libc::c_int, // TODO should be bool /rtn
 ) {
     let mut cur: *const libc::c_char = begin;
     while *cur as libc::c_int != ' ' as i32
@@ -301,14 +304,16 @@ unsafe fn get_word(
     );
     *pend = cur;
 }
+
 /* ******************************************************************************
  * Encode/decode header words, RFC 2047
  ******************************************************************************/
+
 /* see comment below */
+// TODO should be bool /rtn
 unsafe fn to_be_quoted(mut word: *const libc::c_char, mut size: size_t) -> libc::c_int {
     let mut cur: *const libc::c_char = word;
     let mut i: size_t = 0i32 as size_t;
-    i = 0i32 as size_t;
     while i < size {
         match *cur as libc::c_int {
             44 | 58 | 33 | 34 | 35 | 36 | 64 | 91 | 92 | 93 | 94 | 96 | 123 | 124 | 125 | 126
@@ -322,8 +327,10 @@ unsafe fn to_be_quoted(mut word: *const libc::c_char, mut size: size_t) -> libc:
         cur = cur.offset(1isize);
         i = i.wrapping_add(1)
     }
-    return 0i32;
+
+    0
 }
+
 pub unsafe fn dc_decode_header_words(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
         return 0 as *mut libc::c_char;
@@ -341,22 +348,24 @@ pub unsafe fn dc_decode_header_words(mut in_0: *const libc::c_char) -> *mut libc
     if r != MAILIMF_NO_ERROR as libc::c_int || out.is_null() {
         out = dc_strdup(in_0)
     }
-    return out;
+
+    out
 }
+
 pub unsafe fn dc_encode_modified_utf7(
     mut to_encode: *const libc::c_char,
     mut change_spaces: libc::c_int,
 ) -> *mut libc::c_char {
-    let mut utf8pos: libc::c_uint = 0i32 as libc::c_uint;
-    let mut utf8total: libc::c_uint = 0i32 as libc::c_uint;
-    let mut c: libc::c_uint = 0i32 as libc::c_uint;
-    let mut utf7mode: libc::c_uint = 0i32 as libc::c_uint;
-    let mut bitstogo: libc::c_uint = 0i32 as libc::c_uint;
-    let mut utf16flag: libc::c_uint = 0i32 as libc::c_uint;
+    let mut utf8pos: libc::c_uint;
+    let mut utf8total: libc::c_uint;
+    let mut c: libc::c_uint;
+    let mut utf7mode: libc::c_uint;
+    let mut bitstogo: libc::c_uint;
+    let mut utf16flag: libc::c_uint;
     let mut ucs4: libc::c_ulong = 0;
     let mut bitbuf: libc::c_ulong = 0;
-    let mut dst: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut res: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut dst: *mut libc::c_char;
+    let mut res: *mut libc::c_char;
     if to_encode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
@@ -479,31 +488,35 @@ pub unsafe fn dc_encode_modified_utf7(
         *fresh16 = '-' as i32 as libc::c_char
     }
     *dst = '\u{0}' as i32 as libc::c_char;
-    return res;
+
+    res
 }
+
 /* ******************************************************************************
  * Encode/decode modified UTF-7 as needed for IMAP, see RFC 2192
  ******************************************************************************/
+
 // UTF7 modified base64 alphabet
 static mut base64chars: [libc::c_char; 65] = [
     65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88,
     89, 90, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114,
     115, 116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 43, 44, 0,
 ];
+
 pub unsafe fn dc_decode_modified_utf7(
     mut to_decode: *const libc::c_char,
     mut change_spaces: libc::c_int,
 ) -> *mut libc::c_char {
-    let mut c: libc::c_uint = 0i32 as libc::c_uint;
-    let mut i: libc::c_uint = 0i32 as libc::c_uint;
-    let mut bitcount: libc::c_uint = 0i32 as libc::c_uint;
-    let mut ucs4: libc::c_ulong = 0;
-    let mut utf16: libc::c_ulong = 0;
-    let mut bitbuf: libc::c_ulong = 0;
+    let mut c: libc::c_uint;
+    let mut i: libc::c_uint;
+    let mut bitcount: libc::c_uint;
+    let mut ucs4: libc::c_ulong;
+    let mut utf16: libc::c_ulong;
+    let mut bitbuf: libc::c_ulong;
     let mut base64: [libc::c_uchar; 256] = [0; 256];
-    let mut src: *const libc::c_char = 0 as *const libc::c_char;
-    let mut dst: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut res: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut src: *const libc::c_char;
+    let mut dst: *mut libc::c_char;
+    let mut res: *mut libc::c_char;
     if to_decode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
@@ -599,8 +612,11 @@ pub unsafe fn dc_decode_modified_utf7(
         }
     }
     *dst = '\u{0}' as i32 as libc::c_char;
-    return res;
+
+    res
 }
+
+// TODO should be bool /rtn
 pub unsafe fn dc_needs_ext_header(mut to_check: *const libc::c_char) -> libc::c_int {
     if !to_check.is_null() {
         while 0 != *to_check {
@@ -615,8 +631,10 @@ pub unsafe fn dc_needs_ext_header(mut to_check: *const libc::c_char) -> libc::c_
             to_check = to_check.offset(1isize)
         }
     }
-    return 0i32;
+
+    0
 }
+
 pub unsafe fn dc_encode_ext_header(mut to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut pstr: *const libc::c_char = to_encode;
     if to_encode.is_null() {
@@ -657,12 +675,14 @@ pub unsafe fn dc_encode_ext_header(mut to_encode: *const libc::c_char) -> *mut l
         pstr = pstr.offset(1isize)
     }
     *pbuf = '\u{0}' as i32 as libc::c_char;
-    return buf;
+
+    buf
 }
+
 pub unsafe fn dc_decode_ext_header(mut to_decode: *const libc::c_char) -> *mut libc::c_char {
     let mut decoded: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut charset: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut p2: *const libc::c_char = 0 as *const libc::c_char;
+    let mut p2: *const libc::c_char;
     if !to_decode.is_null() {
         // get char set
         p2 = strchr(to_decode, '\'' as i32);

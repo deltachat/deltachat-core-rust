@@ -1,5 +1,3 @@
-use libc;
-
 use crate::constants::Event;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
@@ -18,7 +16,7 @@ unsafe fn get_string(
     mut id: libc::c_int,
     mut qty: libc::c_int,
 ) -> *mut libc::c_char {
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut ret: *mut libc::c_char;
 
     ret = ((*context).cb)(
         context,
@@ -30,12 +28,15 @@ unsafe fn get_string(
     if ret.is_null() {
         ret = default_string(id)
     }
-    return ret;
+
+    ret
 }
+
 /* Add translated strings that are used by the messager backend.
 As the logging functions may use these strings, do not log any
 errors from here. */
 unsafe fn default_string(mut id: libc::c_int) -> *mut libc::c_char {
+    // TODO match on enum values /rtn
     match id {
         1 => {
             return dc_strdup(b"No messages.\x00" as *const u8 as
@@ -208,8 +209,10 @@ unsafe fn default_string(mut id: libc::c_int) -> *mut libc::c_char {
         }
         _ => { }
     }
-    return dc_strdup(b"ErrStr\x00" as *const u8 as *const libc::c_char);
+
+    dc_strdup(b"ErrStr\x00" as *const u8 as *const libc::c_char)
 }
+
 /* Replaces the first `%1$s` in the given String-ID by the given value.
 The result must be free()'d! */
 pub unsafe fn dc_stock_str_repl_string(
@@ -228,8 +231,10 @@ pub unsafe fn dc_stock_str_repl_string(
         b"%1$d\x00" as *const u8 as *const libc::c_char,
         to_insert,
     );
-    return ret;
+
+    ret
 }
+
 pub unsafe fn dc_stock_str_repl_int(
     mut context: &dc_context_t,
     mut id: libc::c_int,
@@ -251,8 +256,10 @@ pub unsafe fn dc_stock_str_repl_int(
         to_insert_str,
     );
     free(to_insert_str as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
 /* Replaces the first `%1$s` and `%2$s` in the given String-ID by the two given strings.
 The result must be free()'d! */
 pub unsafe fn dc_stock_str_repl_string2(
@@ -282,8 +289,10 @@ pub unsafe fn dc_stock_str_repl_string2(
         b"%2$d\x00" as *const u8 as *const libc::c_char,
         to_insert2,
     );
-    return ret;
+
+    ret
 }
+
 /* Misc. */
 pub unsafe fn dc_stock_system_msg(
     mut context: &dc_context_t,
@@ -292,7 +301,7 @@ pub unsafe fn dc_stock_system_msg(
     mut param2: *const libc::c_char,
     mut from_id: uint32_t,
 ) -> *mut libc::c_char {
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut ret: *mut libc::c_char;
     let mut mod_contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut mod_displayname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut from_contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
@@ -332,5 +341,6 @@ pub unsafe fn dc_stock_system_msg(
     free(mod_displayname as *mut libc::c_void);
     dc_contact_unref(from_contact);
     dc_contact_unref(mod_contact);
-    return ret;
+
+    ret
 }

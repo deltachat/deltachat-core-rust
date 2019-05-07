@@ -1,5 +1,4 @@
-use libc;
-
+use crate::constants::*;
 use crate::dc_apeerstate::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
@@ -10,7 +9,6 @@ use crate::types::*;
 use crate::x::*;
 
 const DC_OPEN_READONLY: usize = 0x01;
-const DC_HOUSEKEEPING_DELAY_SEC: usize = 10;
 
 /// A simple wrapper around the underlying Sqlite3 object.
 #[repr(C)]
@@ -900,7 +898,6 @@ pub unsafe fn dc_sqlite3_open(
                                 b"ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;\x00" as *const u8 as *const libc::c_char
                             );
 
-                            dbversion = 55;
                             dc_sqlite3_set_config_int(
                                 context,
                                 sql,
@@ -936,7 +933,7 @@ pub unsafe fn dc_sqlite3_open(
                                 context,
                                 sql,
                                 b"backup_for\x00" as *const u8 as *const libc::c_char,
-                                context.blobdir,
+                                context.get_blobdir(),
                             );
                             dc_ensure_no_slash(repl_from);
                             if 0 != !('f' as i32 == 'f' as i32) as libc::c_int as libc::c_long {
@@ -1018,8 +1015,8 @@ pub unsafe fn dc_sqlite3_set_config(
     key: *const libc::c_char,
     value: *const libc::c_char,
 ) -> libc::c_int {
-    let mut state = 0;
-    let mut stmt = 0 as *mut sqlite3_stmt;
+    let mut state;
+    let mut stmt;
     if key.is_null() {
         dc_log_error(
             context,
@@ -1135,7 +1132,7 @@ pub unsafe extern "C" fn dc_sqlite3_log_error(
     msg_format: *const libc::c_char,
     va: ...
 ) {
-    let mut msg = 0 as *mut libc::c_char;
+    let mut msg;
     if msg_format.is_null() {
         return;
     }
@@ -1174,7 +1171,7 @@ pub unsafe fn dc_sqlite3_get_config(
     key: *const libc::c_char,
     def: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut stmt = 0 as *mut sqlite3_stmt;
+    let mut stmt;
     if 0 == dc_sqlite3_is_open(sql) || key.is_null() {
         return dc_strdup_keep_null(def);
     }
@@ -1202,7 +1199,7 @@ pub unsafe fn dc_sqlite3_execute(
     querystr: *const libc::c_char,
 ) -> libc::c_int {
     let mut success = 0;
-    let mut sqlState = 0;
+    let mut sqlState;
     let stmt = dc_sqlite3_prepare(context, sql, querystr);
     if !stmt.is_null() {
         sqlState = sqlite3_step(stmt);
@@ -1262,7 +1259,7 @@ pub unsafe fn dc_sqlite3_table_exists(
 ) -> libc::c_int {
     let mut ret = 0;
     let mut stmt = 0 as *mut sqlite3_stmt;
-    let mut sqlState = 0;
+    let mut sqlState;
 
     let querystr = sqlite3_mprintf(
         b"PRAGMA table_info(%s)\x00" as *const u8 as *const libc::c_char,
@@ -1339,7 +1336,7 @@ pub unsafe fn dc_sqlite3_try_execute(
 ) -> libc::c_int {
     // same as dc_sqlite3_execute() but does not pass error to ui
     let mut success = 0;
-    let mut sql_state = 0;
+    let mut sql_state;
     let stmt = dc_sqlite3_prepare(context, sql, querystr);
     if !stmt.is_null() {
         sql_state = sqlite3_step(stmt);
@@ -1416,9 +1413,9 @@ pub unsafe fn dc_sqlite3_get_rowid2(
 }
 
 pub unsafe fn dc_housekeeping(context: &dc_context_t) {
-    let mut stmt = 0 as *mut sqlite3_stmt;
-    let mut dir_handle = 0 as *mut DIR;
-    let mut dir_entry = 0 as *mut dirent;
+    let mut stmt;
+    let mut dir_handle;
+    let mut dir_entry;
     let mut files_in_use = dc_hash_t {
         keyClass: 0,
         copyKey: 0,
@@ -1478,13 +1475,13 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
         files_in_use.count as libc::c_int,
     );
     /* go through directory and delete unused files */
-    dir_handle = opendir(context.blobdir);
+    dir_handle = opendir(context.get_blobdir());
     if dir_handle.is_null() {
         dc_log_warning(
             context,
             0,
             b"Housekeeping: Cannot open %s.\x00" as *const u8 as *const libc::c_char,
-            context.blobdir,
+            context.get_blobdir(),
         );
     } else {
         /* avoid deletion of files that are just created to build a message object */
@@ -1529,7 +1526,7 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
             free(path as *mut libc::c_void);
             path = dc_mprintf(
                 b"%s/%s\x00" as *const u8 as *const libc::c_char,
-                context.blobdir,
+                context.get_blobdir(),
                 name,
             );
 

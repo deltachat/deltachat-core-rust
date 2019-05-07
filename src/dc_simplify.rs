@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_dehtml::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
@@ -15,19 +13,22 @@ pub struct dc_simplify_t {
 }
 
 pub unsafe fn dc_simplify_new() -> *mut dc_simplify_t {
-    let mut simplify: *mut dc_simplify_t = 0 as *mut dc_simplify_t;
+    let mut simplify: *mut dc_simplify_t;
     simplify = calloc(1, ::std::mem::size_of::<dc_simplify_t>()) as *mut dc_simplify_t;
     if simplify.is_null() {
         exit(31i32);
     }
-    return simplify;
+
+    simplify
 }
+
 pub unsafe fn dc_simplify_unref(mut simplify: *mut dc_simplify_t) {
     if simplify.is_null() {
         return;
     }
     free(simplify as *mut libc::c_void);
 }
+
 /* Simplify and normalise text: Remove quotes, signatures, unnecessary
 lineends etc.
 The data returned from Simplify() must be free()'d when no longer used, private */
@@ -39,8 +40,8 @@ pub unsafe fn dc_simplify_simplify(
     mut is_msgrmsg: libc::c_int,
 ) -> *mut libc::c_char {
     /* create a copy of the given buffer */
-    let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut temp: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut out: *mut libc::c_char;
+    let mut temp: *mut libc::c_char;
     if simplify.is_null() || in_unterminated.is_null() || in_bytes <= 0i32 {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
@@ -68,8 +69,10 @@ pub unsafe fn dc_simplify_simplify(
         out = temp
     }
     dc_remove_cr_chars(out);
-    return out;
+
+    out
 }
+
 /* ******************************************************************************
  * Simplify Plain Text
  ******************************************************************************/
@@ -85,12 +88,12 @@ unsafe fn dc_simplify_simplify_plain_text(
     ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
     /* split the given buffer into lines */
     let mut lines: *mut carray = dc_split_into_lines(buf_terminated);
-    let mut l: libc::c_int = 0i32;
+    let mut l: libc::c_int;
     let mut l_first: libc::c_int = 0i32;
     /* if l_last is -1, there are no lines */
     let mut l_last: libc::c_int =
         carray_count(lines).wrapping_sub(1i32 as libc::c_uint) as libc::c_int;
-    let mut line: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut line: *mut libc::c_char;
     let mut footer_mark: libc::c_int = 0i32;
     l = l_first;
     while l <= l_last {
@@ -246,11 +249,14 @@ unsafe fn dc_simplify_simplify_plain_text(
         dc_strbuilder_cat(&mut ret, b" [...]\x00" as *const u8 as *const libc::c_char);
     }
     dc_free_splitted_lines(lines);
-    return ret.buf;
+
+    ret.buf
 }
+
 /* ******************************************************************************
  * Tools
  ******************************************************************************/
+// TODO should return bool /rtn
 unsafe fn is_empty_line(mut buf: *const libc::c_char) -> libc::c_int {
     /* force unsigned - otherwise the `> ' '` comparison will fail */
     let mut p1: *const libc::c_uchar = buf as *const libc::c_uchar;
@@ -260,8 +266,11 @@ unsafe fn is_empty_line(mut buf: *const libc::c_char) -> libc::c_int {
         }
         p1 = p1.offset(1isize)
     }
-    return 1i32;
+
+    1
 }
+
+// TODO should return bool /rtn
 unsafe fn is_quoted_headline(mut buf: *const libc::c_char) -> libc::c_int {
     /* This function may be called for the line _directly_ before a quote.
     The function checks if the line contains sth. like "On 01.02.2016, xy@z wrote:" in various languages.
@@ -274,11 +283,15 @@ unsafe fn is_quoted_headline(mut buf: *const libc::c_char) -> libc::c_int {
     if buf_len > 0i32 && *buf.offset((buf_len - 1i32) as isize) as libc::c_int == ':' as i32 {
         return 1i32;
     }
-    return 0i32;
+
+    0
 }
+
+// TODO should return bool /rtn
 unsafe fn is_plain_quote(mut buf: *const libc::c_char) -> libc::c_int {
     if *buf.offset(0isize) as libc::c_int == '>' as i32 {
         return 1i32;
     }
-    return 0i32;
+
+    0
 }

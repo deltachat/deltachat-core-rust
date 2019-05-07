@@ -11,7 +11,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
     unused_mut,
     unused_attributes,
     non_upper_case_globals,
@@ -68,8 +67,6 @@ use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
 use deltachat::types::*;
 use deltachat::x::*;
-use libc;
-
 mod cmdline;
 
 use self::cmdline::*;
@@ -150,7 +147,7 @@ unsafe extern "C" fn receive_event(
             let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
             let mut tempFile: *mut libc::c_char = dc_get_fine_pathNfilename(
                 context,
-                (*context).blobdir,
+                context.get_blobdir(),
                 b"curl.result\x00" as *const u8 as *const libc::c_char,
             );
             let mut cmd: *mut libc::c_char = if event == Event::HTTP_GET {
@@ -279,51 +276,55 @@ unsafe fn start_threads(
     run_threads = 1;
     let context = c.clone();
     let h1 = std::thread::spawn(move || {
-        let ctx = context.clone();
-        let context = ctx.read().unwrap();
         while 0 != run_threads {
+            let ctx = context.clone();
+            let context = ctx.read().unwrap();
+
+            println!("-- imap jobs");
             dc_perform_imap_jobs(&context);
+            println!("-- imap fetch");
             dc_perform_imap_fetch(&context);
             if 0 != run_threads {
+                println!("-- imap idle");
                 dc_perform_imap_idle(&context);
             }
         }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h2 = std::thread::spawn(move || {
-        let ctx = context.clone();
-        let context = ctx.read().unwrap();
-        while 0 != run_threads {
-            dc_perform_mvbox_fetch(&context);
-            if 0 != run_threads {
-                dc_perform_mvbox_idle(&context);
-            }
-        }
+        // let ctx = context.clone();
+        // let context = ctx.read().unwrap();
+        // while 0 != run_threads {
+        //     dc_perform_mvbox_fetch(&context);
+        //     if 0 != run_threads {
+        //         dc_perform_mvbox_idle(&context);
+        //     }
+        // }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h3 = std::thread::spawn(move || {
-        let ctx = context.clone();
-        let context = ctx.read().unwrap();
-        while 0 != run_threads {
-            dc_perform_sentbox_fetch(&context);
-            if 0 != run_threads {
-                dc_perform_sentbox_idle(&context);
-            }
-        }
+        // let ctx = context.clone();
+        // let context = ctx.read().unwrap();
+        // while 0 != run_threads {
+        //     dc_perform_sentbox_fetch(&context);
+        //     if 0 != run_threads {
+        //         dc_perform_sentbox_idle(&context);
+        //     }
+        // }
     });
 
-    let context = c.clone();
+    let _context = c.clone();
     let h4 = std::thread::spawn(move || {
-        let ctx = context.clone();
-        let context = ctx.read().unwrap();
-        while 0 != run_threads {
-            dc_perform_smtp_jobs(&context);
-            if 0 != run_threads {
-                dc_perform_smtp_idle(&context);
-            }
-        }
+        // let ctx = context.clone();
+        // let context = ctx.read().unwrap();
+        // while 0 != run_threads {
+        //     dc_perform_smtp_jobs(&context);
+        //     if 0 != run_threads {
+        //         dc_perform_smtp_idle(&context);
+        //     }
+        // }
     });
 
     (h1, h2, h3, h4)
@@ -391,8 +392,6 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
     let ctx = Arc::new(RwLock::new(context));
 
     loop {
-        let ctx = ctx.clone();
-
         /* read command */
         let cmdline = read_cmd();
         free(cmd as *mut libc::c_void);
@@ -426,10 +425,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
                 dc_perform_imap_jobs(&ctx.read().unwrap());
             }
         } else if strcmp(cmd, b"configure\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            handles = {
-                let ctx = ctx.clone();
-                Some(start_threads(ctx))
-            };
+            handles = { Some(start_threads(ctx.clone())) };
             dc_configure(&ctx.read().unwrap());
         } else if strcmp(cmd, b"oauth2\x00" as *const u8 as *const libc::c_char) == 0i32 {
             let mut addr: *mut libc::c_char = dc_get_config(
@@ -463,10 +459,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
         } else if strcmp(cmd, b"getqr\x00" as *const u8 as *const libc::c_char) == 0i32
             || strcmp(cmd, b"getbadqr\x00" as *const u8 as *const libc::c_char) == 0i32
         {
-            handles = {
-                let ctx = ctx.clone();
-                Some(start_threads(ctx))
-            };
+            handles = Some(start_threads(ctx.clone()));
             let mut qrstr: *mut libc::c_char = dc_get_securejoin_qr(
                 &ctx.read().unwrap(),
                 (if !arg1.is_null() { atoi(arg1) } else { 0i32 }) as uint32_t,
@@ -491,10 +484,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             }
             free(qrstr as *mut libc::c_void);
         } else if strcmp(cmd, b"joinqr\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            handles = {
-                let ctx = ctx.clone();
-                Some(start_threads(ctx))
-            };
+            handles = Some(start_threads(ctx.clone()));
             if !arg1.is_null() {
                 dc_join_securejoin(&ctx.read().unwrap(), arg1);
             }
@@ -522,7 +512,6 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
         let mut ctx = ctx.write().unwrap();
         free(cmd as *mut libc::c_void);
         stop_threads(&ctx, handles);
-        handles = None;
         dc_close(&mut ctx);
         dc_context_unref(&mut ctx);
     }

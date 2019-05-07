@@ -46,7 +46,6 @@ use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
 use deltachat::types::*;
 use deltachat::x::*;
-use libc;
 use num_traits::FromPrimitive;
 
 /*
@@ -196,9 +195,9 @@ unsafe extern "C" fn poke_spec(
     let mut real_spec: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut dir: *mut DIR = 0 as *mut DIR;
-    let mut dir_entry: *mut dirent = 0 as *mut dirent;
+    let mut dir_entry: *mut dirent;
     let mut read_cnt: libc::c_int = 0i32;
-    let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut name: *mut libc::c_char;
     if 0 == dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
         dc_log_error(
             context,
@@ -390,7 +389,6 @@ unsafe extern "C" fn log_msglist(mut context: &dc_context_t, mut msglist: *mut d
     let mut i: libc::c_int = 0;
     let mut cnt: libc::c_int = dc_array_get_cnt(msglist) as libc::c_int;
     let mut lines_out: libc::c_int = 0i32;
-    i = 0i32;
     while i < cnt {
         let mut msg_id: uint32_t = dc_array_get_id(msglist, i as size_t);
         if msg_id == 9i32 as libc::c_uint {
@@ -421,7 +419,7 @@ unsafe extern "C" fn log_msglist(mut context: &dc_context_t, mut msglist: *mut d
     };
 }
 unsafe extern "C" fn log_contactlist(mut context: &dc_context_t, mut contacts: *mut dc_array_t) {
-    let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
+    let mut contact: *mut dc_contact_t;
     let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
     if 0 == dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
@@ -429,7 +427,7 @@ unsafe extern "C" fn log_contactlist(mut context: &dc_context_t, mut contacts: *
     let mut i = 0;
     while i < dc_array_get_cnt(contacts) {
         let mut contact_id: uint32_t = dc_array_get_id(contacts, i as size_t);
-        let mut line: *mut libc::c_char = 0 as *mut libc::c_char;
+        let mut line: *mut libc::c_char;
         let mut line2: *mut libc::c_char = 0 as *mut libc::c_char;
         contact = dc_get_contact(context, contact_id);
         if !contact.is_null() {
@@ -462,7 +460,7 @@ unsafe extern "C" fn log_contactlist(mut context: &dc_context_t, mut contacts: *
             let mut peerstate_ok: libc::c_int =
                 dc_apeerstate_load_by_addr(peerstate, &context.sql.clone().read().unwrap(), addr);
             if 0 != peerstate_ok && contact_id != 1i32 as libc::c_uint {
-                let mut pe: *mut libc::c_char = 0 as *mut libc::c_char;
+                let mut pe: *mut libc::c_char;
                 match (*peerstate).prefer_encrypt {
                     1 => pe = dc_strdup(b"mutual\x00" as *const u8 as *const libc::c_char),
                     0 => pe = dc_strdup(b"no-preference\x00" as *const u8 as *const libc::c_char),
@@ -521,8 +519,8 @@ pub unsafe extern "C" fn dc_cmdline(
     context: &mut dc_context_t,
     cmdline: &str,
 ) -> *mut libc::c_char {
-    let mut cmd = 0 as *mut libc::c_char;
-    let mut arg1: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut cmd: *mut libc::c_char;
+    let mut arg1: *mut libc::c_char;
     let mut ret: *mut libc::c_char = 1i32 as *mut libc::c_char;
     let mut sel_chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
 
@@ -648,7 +646,7 @@ pub unsafe extern "C" fn dc_cmdline(
             )
         }
     } else if strcmp(cmd, b"has-backup\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        ret = dc_imex_has_backup(&context, context.blobdir);
+        ret = dc_imex_has_backup(&context, context.get_blobdir());
         if ret.is_null() {
             ret = dc_strdup(b"No backup found.\x00" as *const u8 as *const libc::c_char)
         }
@@ -657,7 +655,12 @@ pub unsafe extern "C" fn dc_cmdline(
         b"export-backup\x00" as *const u8 as *const libc::c_char,
     ) == 0i32
     {
-        dc_imex(&context, 11i32, context.blobdir, 0 as *const libc::c_char);
+        dc_imex(
+            &context,
+            11i32,
+            context.get_blobdir(),
+            0 as *const libc::c_char,
+        );
         ret = 2i32 as *mut libc::c_char
     } else if strcmp(
         cmd,
@@ -673,18 +676,28 @@ pub unsafe extern "C" fn dc_cmdline(
             )
         }
     } else if strcmp(cmd, b"export-keys\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        dc_imex(&context, 1i32, context.blobdir, 0 as *const libc::c_char);
+        dc_imex(
+            &context,
+            1i32,
+            context.get_blobdir(),
+            0 as *const libc::c_char,
+        );
         ret = 2i32 as *mut libc::c_char
     } else if strcmp(cmd, b"import-keys\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        dc_imex(&context, 2i32, context.blobdir, 0 as *const libc::c_char);
+        dc_imex(
+            &context,
+            2i32,
+            context.get_blobdir(),
+            0 as *const libc::c_char,
+        );
         ret = 2i32 as *mut libc::c_char
     } else if strcmp(cmd, b"export-setup\x00" as *const u8 as *const libc::c_char) == 0i32 {
         let mut setup_code_0: *mut libc::c_char = dc_create_setup_code(&context);
         let mut file_name: *mut libc::c_char = dc_mprintf(
             b"%s/autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
-            context.blobdir,
+            context.get_blobdir(),
         );
-        let mut file_content: *mut libc::c_char = 0 as *mut libc::c_char;
+        let mut file_content: *mut libc::c_char;
         file_content = dc_render_setup_file(&context, setup_code_0);
         if !file_content.is_null()
             && 0 != dc_write_file(
@@ -784,7 +797,7 @@ pub unsafe extern "C" fn dc_cmdline(
         let mut chatlist: *mut dc_chatlist_t =
             dc_get_chatlist(&context, listflags, arg1, 0i32 as uint32_t);
         if !chatlist.is_null() {
-            let mut i: libc::c_int = 0;
+            let mut i: libc::c_int;
             let mut cnt: libc::c_int = dc_chatlist_get_cnt(chatlist) as libc::c_int;
             if cnt > 0i32 {
                 dc_log_info(&context, 0i32,
@@ -1332,7 +1345,7 @@ pub unsafe extern "C" fn dc_cmdline(
         if !sel_chat.is_null() {
             let mut images: *mut dc_array_t =
                 dc_get_chat_media(&context, dc_chat_get_id(sel_chat), 20i32, 21i32, 50i32);
-            let mut i_0: libc::c_int = 0;
+            let mut i_0: libc::c_int;
             let mut icnt: libc::c_int = dc_array_get_cnt(images) as libc::c_int;
             ret = dc_mprintf(
                 b"%i images or videos: \x00" as *const u8 as *const libc::c_char,
@@ -1692,7 +1705,6 @@ pub unsafe extern "C" fn dc_cmdline(
     }
     if !sel_chat.is_null() {
         dc_chat_unref(sel_chat);
-        sel_chat = 0 as *mut dc_chat_t
     }
     free(cmd as *mut libc::c_void);
     return ret;

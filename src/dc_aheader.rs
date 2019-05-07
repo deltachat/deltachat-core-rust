@@ -1,4 +1,4 @@
-use libc;
+use mmime::mailimf_types::*;
 
 use crate::dc_contact::*;
 use crate::dc_key::*;
@@ -34,7 +34,7 @@ pub unsafe fn dc_aheader_new_from_imffields(
     mut wanted_from: *const libc::c_char,
     mut header: *const mailimf_fields,
 ) -> *mut dc_aheader_t {
-    let mut cur = 0 as *mut clistiter;
+    let mut cur;
     let mut fine_header = 0 as *mut dc_aheader_t;
 
     if wanted_from.is_null() || header.is_null() {
@@ -78,7 +78,7 @@ pub unsafe fn dc_aheader_new_from_imffields(
         cur = if !cur.is_null() {
             (*cur).next
         } else {
-            0 as *mut clistcell_s
+            0 as *mut clistcell
         }
     }
 
@@ -105,10 +105,10 @@ pub unsafe fn dc_aheader_set_from_string(
     (b) for the key, non-base64-characters are ignored and
     (c) for parsing, we ignore `\r\n` as well as tabs for spaces */
     let mut header_str = 0 as *mut libc::c_char;
-    let mut p = 0 as *mut libc::c_char;
-    let mut beg_attr_name = 0 as *mut libc::c_char;
-    let mut after_attr_name = 0 as *mut libc::c_char;
-    let mut beg_attr_value = 0 as *mut libc::c_char;
+    let mut p;
+    let mut beg_attr_name;
+    let mut after_attr_name;
+    let mut beg_attr_value;
     let mut success: libc::c_int = 0;
 
     dc_aheader_empty(aheader);
@@ -263,12 +263,8 @@ pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::
         // TODO replace 78 with enum /rtn
         /* adds a whitespace every 78 characters, this allows libEtPan to wrap the lines according to RFC 5322
         (which may insert a linebreak before every whitespace) */
-        keybase64_wrapped = dc_key_render_base64(
-            (*aheader).public_key,
-            78,
-            b" \x00" as *const u8 as *const libc::c_char,
-            0,
-        );
+        keybase64_wrapped = dc_key_render_base64((*aheader).public_key, 78);
+
         if !keybase64_wrapped.is_null() {
             /*no checksum*/
             dc_strbuilder_cat(&mut ret, keybase64_wrapped);

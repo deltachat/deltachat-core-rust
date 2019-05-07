@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
@@ -94,8 +92,8 @@ unsafe extern "C" fn find_param(
     mut key: libc::c_int,
     mut ret_p2: *mut *mut libc::c_char,
 ) -> *mut libc::c_char {
-    let mut p1: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut p1: *mut libc::c_char;
+    let mut p2: *mut libc::c_char;
     p1 = haystack;
     loop {
         if p1.is_null() || *p1 as libc::c_int == 0i32 {
@@ -115,18 +113,20 @@ unsafe extern "C" fn find_param(
         p2 = &mut *p1.offset(strlen(p1) as isize) as *mut libc::c_char
     }
     *ret_p2 = p2;
-    return p1;
+
+    p1
 }
+
 /* the value may be an empty string, "def" is returned only if the value unset.  The result must be free()'d in any case. */
 pub unsafe fn dc_param_get(
     param: *const dc_param_t,
     key: libc::c_int,
     def: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut p1: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut p1: *mut libc::c_char;
     let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut bak: libc::c_char = 0i32 as libc::c_char;
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut bak: libc::c_char;
+    let mut ret: *mut libc::c_char;
     if param.is_null() || key == 0i32 {
         return if !def.is_null() {
             dc_strdup(def)
@@ -148,8 +148,10 @@ pub unsafe fn dc_param_get(
     ret = dc_strdup(p1);
     dc_rtrim(ret);
     *p2 = bak;
-    return ret;
+
+    ret
 }
+
 pub unsafe fn dc_param_get_int(
     mut param: *const dc_param_t,
     mut key: libc::c_int,
@@ -164,7 +166,8 @@ pub unsafe fn dc_param_get_int(
     }
     let mut ret: int32_t = atol(str) as int32_t;
     free(str as *mut libc::c_void);
-    return ret;
+
+    ret
 }
 
 /**
@@ -201,16 +204,16 @@ pub unsafe fn dc_param_set(
     mut key: libc::c_int,
     mut value: *const libc::c_char,
 ) {
-    let mut old1: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut old2: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut new1: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut old1: *mut libc::c_char;
+    let mut old2: *mut libc::c_char;
+    let mut new1: *mut libc::c_char;
     if param.is_null() || key == 0i32 {
         return;
     }
     old1 = (*param).packed;
     old2 = 0 as *mut libc::c_char;
     if !old1.is_null() {
-        let mut p1: *mut libc::c_char = 0 as *mut libc::c_char;
+        let mut p1: *mut libc::c_char;
         let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
         p1 = find_param(old1, key, &mut p2);
         if !p1.is_null() {
@@ -277,6 +280,7 @@ pub unsafe fn dc_param_set(
     free((*param).packed as *mut libc::c_void);
     (*param).packed = new1;
 }
+
 pub unsafe fn dc_param_set_int(
     mut param: *mut dc_param_t,
     mut key: libc::c_int,
@@ -295,22 +299,26 @@ pub unsafe fn dc_param_set_int(
     dc_param_set(param, key, value_str);
     free(value_str as *mut libc::c_void);
 }
+
 /* library-private */
 pub unsafe fn dc_param_new() -> *mut dc_param_t {
-    let mut param: *mut dc_param_t = 0 as *mut dc_param_t;
+    let mut param: *mut dc_param_t;
     param = calloc(1, ::std::mem::size_of::<dc_param_t>()) as *mut dc_param_t;
     if param.is_null() {
         exit(28i32);
     }
     (*param).packed = calloc(1, 1) as *mut libc::c_char;
-    return param;
+
+    param
 }
+
 pub unsafe fn dc_param_empty(mut param: *mut dc_param_t) {
     if param.is_null() {
         return;
     }
     *(*param).packed.offset(0isize) = 0i32 as libc::c_char;
 }
+
 pub unsafe fn dc_param_unref(mut param: *mut dc_param_t) {
     if param.is_null() {
         return;
@@ -319,6 +327,7 @@ pub unsafe fn dc_param_unref(mut param: *mut dc_param_t) {
     free((*param).packed as *mut libc::c_void);
     free(param as *mut libc::c_void);
 }
+
 pub unsafe fn dc_param_set_packed(mut param: *mut dc_param_t, mut packed: *const libc::c_char) {
     if param.is_null() {
         return;
@@ -329,6 +338,7 @@ pub unsafe fn dc_param_set_packed(mut param: *mut dc_param_t, mut packed: *const
         (*param).packed = dc_strdup(packed)
     };
 }
+
 pub unsafe fn dc_param_set_urlencoded(
     mut param: *mut dc_param_t,
     mut urlencoded: *const libc::c_char,
