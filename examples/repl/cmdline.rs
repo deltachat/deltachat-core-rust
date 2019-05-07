@@ -55,7 +55,7 @@ use num_traits::FromPrimitive;
  *
  * e.g. bitmask 7 triggers actions definded with bits 1, 2 and 4.
  */
-pub unsafe fn dc_reset_tables(mut context: &dc_context_t, mut bits: libc::c_int) -> libc::c_int {
+pub unsafe fn dc_reset_tables(context: &dc_context_t, bits: libc::c_int) -> libc::c_int {
     dc_log_info(
         context,
         0i32,
@@ -144,10 +144,7 @@ pub unsafe fn dc_reset_tables(mut context: &dc_context_t, mut bits: libc::c_int)
     );
     return 1i32;
 }
-unsafe fn dc_poke_eml_file(
-    mut context: &dc_context_t,
-    mut filename: *const libc::c_char,
-) -> libc::c_int {
+unsafe fn dc_poke_eml_file(context: &dc_context_t, filename: *const libc::c_char) -> libc::c_int {
     /* mainly for testing, may be called by dc_import_spec() */
     let mut success: libc::c_int = 0i32;
     let mut data: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -182,7 +179,7 @@ unsafe fn dc_poke_eml_file(
  * @param spec The file or directory to import. NULL for the last command.
  * @return 1=success, 0=error.
  */
-unsafe fn poke_spec(mut context: &dc_context_t, mut spec: *const libc::c_char) -> libc::c_int {
+unsafe fn poke_spec(context: &dc_context_t, spec: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut real_spec: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -262,7 +259,7 @@ unsafe fn poke_spec(mut context: &dc_context_t, mut spec: *const libc::c_char) -
                                     b".eml\x00" as *const u8 as *const libc::c_char,
                                 ) == 0i32
                             {
-                                let mut path_plus_name: *mut libc::c_char = dc_mprintf(
+                                let path_plus_name: *mut libc::c_char = dc_mprintf(
                                     b"%s/%s\x00" as *const u8 as *const libc::c_char,
                                     real_spec,
                                     name,
@@ -314,14 +311,10 @@ unsafe fn poke_spec(mut context: &dc_context_t, mut spec: *const libc::c_char) -
     free(suffix as *mut libc::c_void);
     return success;
 }
-unsafe fn log_msg(
-    mut context: &dc_context_t,
-    mut prefix: *const libc::c_char,
-    mut msg: *mut dc_msg_t,
-) {
-    let mut contact: *mut dc_contact_t = dc_get_contact(context, dc_msg_get_from_id(msg));
-    let mut contact_name: *mut libc::c_char = dc_contact_get_name(contact);
-    let mut contact_id: libc::c_int = dc_contact_get_id(contact) as libc::c_int;
+unsafe fn log_msg(context: &dc_context_t, prefix: *const libc::c_char, msg: *mut dc_msg_t) {
+    let contact: *mut dc_contact_t = dc_get_contact(context, dc_msg_get_from_id(msg));
+    let contact_name: *mut libc::c_char = dc_contact_get_name(contact);
+    let contact_id: libc::c_int = dc_contact_get_id(contact) as libc::c_int;
     let mut statestr: *const libc::c_char = b"\x00" as *const u8 as *const libc::c_char;
     match dc_msg_get_state(msg) {
         20 => statestr = b" o\x00" as *const u8 as *const libc::c_char,
@@ -330,8 +323,8 @@ unsafe fn log_msg(
         24 => statestr = b" !!\x00" as *const u8 as *const libc::c_char,
         _ => {}
     }
-    let mut temp2: *mut libc::c_char = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
-    let mut msgtext: *mut libc::c_char = dc_msg_get_text(msg);
+    let temp2: *mut libc::c_char = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
+    let msgtext: *mut libc::c_char = dc_msg_get_text(msg);
     dc_log_info(
         context,
         0i32,
@@ -378,12 +371,13 @@ unsafe fn log_msg(
     free(contact_name as *mut libc::c_void);
     dc_contact_unref(contact);
 }
-unsafe fn log_msglist(mut context: &dc_context_t, mut msglist: *mut dc_array_t) {
+
+unsafe fn log_msglist(context: &dc_context_t, msglist: *mut dc_array_t) {
     let mut i: libc::c_int = 0;
-    let mut cnt: libc::c_int = dc_array_get_cnt(msglist) as libc::c_int;
+    let cnt: libc::c_int = dc_array_get_cnt(msglist) as libc::c_int;
     let mut lines_out: libc::c_int = 0i32;
     while i < cnt {
-        let mut msg_id: uint32_t = dc_array_get_id(msglist, i as size_t);
+        let msg_id: uint32_t = dc_array_get_id(msglist, i as size_t);
         if msg_id == 9i32 as libc::c_uint {
             dc_log_info(context, 0i32,
                         b"--------------------------------------------------------------------------------\x00"
@@ -396,7 +390,7 @@ unsafe fn log_msglist(mut context: &dc_context_t, mut msglist: *mut dc_array_t) 
                                 as *const u8 as *const libc::c_char);
                 lines_out += 1
             }
-            let mut msg: *mut dc_msg_t = dc_get_msg(context, msg_id);
+            let msg: *mut dc_msg_t = dc_get_msg(context, msg_id);
             log_msg(context, b"Msg\x00" as *const u8 as *const libc::c_char, msg);
             dc_msg_unref(msg);
         }
@@ -411,23 +405,23 @@ unsafe fn log_msglist(mut context: &dc_context_t, mut msglist: *mut dc_array_t) 
         );
     };
 }
-unsafe fn log_contactlist(mut context: &dc_context_t, mut contacts: *mut dc_array_t) {
+unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t;
-    let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+    let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
     if 0 == dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
     }
     let mut i = 0;
     while i < dc_array_get_cnt(contacts) {
-        let mut contact_id: uint32_t = dc_array_get_id(contacts, i as size_t);
-        let mut line: *mut libc::c_char;
+        let contact_id: uint32_t = dc_array_get_id(contacts, i as size_t);
+        let line: *mut libc::c_char;
         let mut line2: *mut libc::c_char = 0 as *mut libc::c_char;
         contact = dc_get_contact(context, contact_id);
         if !contact.is_null() {
-            let mut name: *mut libc::c_char = dc_contact_get_name(contact);
-            let mut addr: *mut libc::c_char = dc_contact_get_addr(contact);
-            let mut verified_state: libc::c_int = dc_contact_is_verified(contact);
-            let mut verified_str: *const libc::c_char = if 0 != verified_state {
+            let name: *mut libc::c_char = dc_contact_get_name(contact);
+            let addr: *mut libc::c_char = dc_contact_get_addr(contact);
+            let verified_state: libc::c_int = dc_contact_is_verified(contact);
+            let verified_str: *const libc::c_char = if 0 != verified_state {
                 if verified_state == 2i32 {
                     b" \xe2\x88\x9a\xe2\x88\x9a\x00" as *const u8 as *const libc::c_char
                 } else {
@@ -450,10 +444,10 @@ unsafe fn log_contactlist(mut context: &dc_context_t, mut contacts: *mut dc_arra
                     b"addr unset\x00" as *const u8 as *const libc::c_char
                 },
             );
-            let mut peerstate_ok: libc::c_int =
+            let peerstate_ok: libc::c_int =
                 dc_apeerstate_load_by_addr(peerstate, &context.sql.clone().read().unwrap(), addr);
             if 0 != peerstate_ok && contact_id != 1i32 as libc::c_uint {
-                let mut pe: *mut libc::c_char;
+                let pe: *mut libc::c_char;
                 match (*peerstate).prefer_encrypt {
                     1 => pe = dc_strdup(b"mutual\x00" as *const u8 as *const libc::c_char),
                     0 => pe = dc_strdup(b"no-preference\x00" as *const u8 as *const libc::c_char),
@@ -498,7 +492,7 @@ static mut s_is_auth: libc::c_int = 0i32;
 pub unsafe fn dc_cmdline_skip_auth() {
     s_is_auth = 1i32;
 }
-unsafe fn chat_prefix(mut chat: *const dc_chat_t) -> *const libc::c_char {
+unsafe fn chat_prefix(chat: *const dc_chat_t) -> *const libc::c_char {
     if (*chat).type_0 == 120i32 {
         return b"Group\x00" as *const u8 as *const libc::c_char;
     } else if (*chat).type_0 == 130i32 {
@@ -539,8 +533,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if 0 == s_is_auth {
         if strcmp(cmd, b"auth\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            let mut is_pw =
-                dc_get_config(context, b"mail_pw\x00" as *const u8 as *const libc::c_char);
+            let is_pw = dc_get_config(context, b"mail_pw\x00" as *const u8 as *const libc::c_char);
             if arg1 == CStr::from_ptr(is_pw).to_str().unwrap() {
                 s_is_auth = 1;
                 ret = 2i32 as *mut libc::c_char
@@ -576,7 +569,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         b"initiate-key-transfer\x00" as *const u8 as *const libc::c_char,
     ) == 0i32
     {
-        let mut setup_code: *mut libc::c_char = dc_initiate_key_transfer(context);
+        let setup_code: *mut libc::c_char = dc_initiate_key_transfer(context);
         ret = if !setup_code.is_null() {
             dc_mprintf(
                 b"Setup code for the transferred setup message: %s\x00" as *const u8
@@ -593,10 +586,10 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     ) == 0i32
     {
         if !arg1.is_empty() {
-            let mut msg_id: u32 = arg1.parse().unwrap();
-            let mut msg: *mut dc_msg_t = dc_get_msg(context, msg_id);
+            let msg_id: u32 = arg1.parse().unwrap();
+            let msg: *mut dc_msg_t = dc_get_msg(context, msg_id);
             if 0 != dc_msg_is_setupmessage(msg) {
-                let mut setupcodebegin: *mut libc::c_char = dc_msg_get_setupcodebegin(msg);
+                let setupcodebegin: *mut libc::c_char = dc_msg_get_setupcodebegin(msg);
                 ret = dc_mprintf(
                     b"The setup code for setup message Msg#%i starts with: %s\x00" as *const u8
                         as *const libc::c_char,
@@ -681,12 +674,12 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         );
         ret = 2i32 as *mut libc::c_char
     } else if strcmp(cmd, b"export-setup\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        let mut setup_code_0: *mut libc::c_char = dc_create_setup_code(context);
-        let mut file_name: *mut libc::c_char = dc_mprintf(
+        let setup_code_0: *mut libc::c_char = dc_create_setup_code(context);
+        let file_name: *mut libc::c_char = dc_mprintf(
             b"%s/autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
             context.get_blobdir(),
         );
-        let mut file_content: *mut libc::c_char;
+        let file_content: *mut libc::c_char;
         file_content = dc_render_setup_file(context, setup_code_0);
         if !file_content.is_null()
             && 0 != dc_write_file(
@@ -716,7 +709,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"reset\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut bits: libc::c_int = arg1.parse().unwrap();
+            let bits: libc::c_int = arg1.parse().unwrap();
             if bits > 15i32 {
                 ret = dc_strdup(
                     b"ERROR: <bits> must be lower than 16.\x00" as *const u8 as *const libc::c_char,
@@ -749,7 +742,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"get\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut val: *mut libc::c_char = dc_get_config(context, arg1_c.as_ptr());
+            let val: *mut libc::c_char = dc_get_config(context, arg1_c.as_ptr());
             ret = dc_mprintf(
                 b"%s=%s\x00" as *const u8 as *const libc::c_char,
                 arg1_c.as_ptr(),
@@ -775,18 +768,18 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         || strcmp(cmd, b"listarchived\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(cmd, b"chats\x00" as *const u8 as *const libc::c_char) == 0i32
     {
-        let mut listflags: libc::c_int =
+        let listflags: libc::c_int =
             if strcmp(cmd, b"listarchived\x00" as *const u8 as *const libc::c_char) == 0i32 {
                 0x1i32
             } else {
                 0i32
             };
 
-        let mut chatlist: *mut dc_chatlist_t =
+        let chatlist: *mut dc_chatlist_t =
             dc_get_chatlist(context, listflags, arg1_c.as_ptr(), 0i32 as uint32_t);
         if !chatlist.is_null() {
             let mut i: libc::c_int;
-            let mut cnt: libc::c_int = dc_chatlist_get_cnt(chatlist) as libc::c_int;
+            let cnt: libc::c_int = dc_chatlist_get_cnt(chatlist) as libc::c_int;
             if cnt > 0i32 {
                 dc_log_info(context, 0i32,
                                 b"================================================================================\x00"
@@ -794,10 +787,10 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
                 i = cnt - 1i32;
 
                 while i >= 0i32 {
-                    let mut chat: *mut dc_chat_t =
+                    let chat: *mut dc_chat_t =
                         dc_get_chat(context, dc_chatlist_get_chat_id(chatlist, i as size_t));
-                    let mut temp_subtitle: *mut libc::c_char = dc_chat_get_subtitle(chat);
-                    let mut temp_name: *mut libc::c_char = dc_chat_get_name(chat);
+                    let temp_subtitle: *mut libc::c_char = dc_chat_get_subtitle(chat);
+                    let temp_name: *mut libc::c_char = dc_chat_get_name(chat);
                     dc_log_info(
                         context,
                         0i32,
@@ -810,8 +803,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
                     );
                     free(temp_subtitle as *mut libc::c_void);
                     free(temp_name as *mut libc::c_void);
-                    let mut lot: *mut dc_lot_t =
-                        dc_chatlist_get_summary(chatlist, i as size_t, chat);
+                    let lot: *mut dc_lot_t = dc_chatlist_get_summary(chatlist, i as size_t, chat);
                     let mut statestr: *const libc::c_char =
                         b"\x00" as *const u8 as *const libc::c_char;
                     if 0 != dc_chat_get_archived(chat) {
@@ -830,10 +822,9 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
                             _ => {}
                         }
                     }
-                    let mut timestr: *mut libc::c_char =
-                        dc_timestamp_to_str(dc_lot_get_timestamp(lot));
-                    let mut text1: *mut libc::c_char = dc_lot_get_text1(lot);
-                    let mut text2: *mut libc::c_char = dc_lot_get_text2(lot);
+                    let timestr: *mut libc::c_char = dc_timestamp_to_str(dc_lot_get_timestamp(lot));
+                    let text1: *mut libc::c_char = dc_lot_get_text1(lot);
+                    let text2: *mut libc::c_char = dc_lot_get_text2(lot);
                     dc_log_info(
                         context,
                         0i32,
@@ -898,14 +889,14 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
             *context.cmdline_sel_chat_id.write().unwrap() = chat_id;
         }
         if !sel_chat.is_null() {
-            let mut msglist: *mut dc_array_t = dc_get_chat_msgs(
+            let msglist: *mut dc_array_t = dc_get_chat_msgs(
                 context,
                 dc_chat_get_id(sel_chat),
                 0x1i32 as uint32_t,
                 0i32 as uint32_t,
             );
-            let mut temp2: *mut libc::c_char = dc_chat_get_subtitle(sel_chat);
-            let mut temp_name_0: *mut libc::c_char = dc_chat_get_name(sel_chat);
+            let temp2: *mut libc::c_char = dc_chat_get_subtitle(sel_chat);
+            let temp_name_0: *mut libc::c_char = dc_chat_get_name(sel_chat);
             dc_log_info(
                 context,
                 0i32,
@@ -926,7 +917,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
                 log_msglist(context, msglist);
                 dc_array_unref(msglist);
             }
-            let mut draft: *mut dc_msg_t = dc_get_draft(context, dc_chat_get_id(sel_chat));
+            let draft: *mut dc_msg_t = dc_get_draft(context, dc_chat_get_id(sel_chat));
             if !draft.is_null() {
                 log_msg(
                     context,
@@ -945,8 +936,8 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"createchat\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut contact_id: libc::c_int = arg1.parse().unwrap();
-            let mut chat_id: libc::c_int =
+            let contact_id: libc::c_int = arg1.parse().unwrap();
+            let chat_id: libc::c_int =
                 dc_create_chat_by_contact_id(context, contact_id as uint32_t) as libc::c_int;
             ret = if chat_id != 0i32 {
                 dc_mprintf(
@@ -967,11 +958,11 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     ) == 0i32
     {
         if !arg1.is_empty() {
-            let mut msg_id_0: libc::c_int = arg1.parse().unwrap();
-            let mut chat_id_0: libc::c_int =
+            let msg_id_0: libc::c_int = arg1.parse().unwrap();
+            let chat_id_0: libc::c_int =
                 dc_create_chat_by_msg_id(context, msg_id_0 as uint32_t) as libc::c_int;
             if chat_id_0 != 0i32 {
-                let mut chat_0: *mut dc_chat_t = dc_get_chat(context, chat_id_0 as uint32_t);
+                let chat_0: *mut dc_chat_t = dc_get_chat(context, chat_id_0 as uint32_t);
                 ret = dc_mprintf(
                     b"%s#%lu created successfully.\x00" as *const u8 as *const libc::c_char,
                     chat_prefix(chat_0),
@@ -988,7 +979,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"creategroup\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut chat_id_1: libc::c_int =
+            let chat_id_1: libc::c_int =
                 dc_create_group_chat(context, 0i32, arg1_c.as_ptr()) as libc::c_int;
             ret = if chat_id_1 != 0i32 {
                 dc_mprintf(
@@ -1009,7 +1000,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     ) == 0i32
     {
         if !arg1.is_empty() {
-            let mut chat_id_2: libc::c_int =
+            let chat_id_2: libc::c_int =
                 dc_create_group_chat(context, 1i32, arg1_c.as_ptr()) as libc::c_int;
             ret = if chat_id_2 != 0i32 {
                 dc_mprintf(
@@ -1028,7 +1019,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     } else if strcmp(cmd, b"addmember\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !sel_chat.is_null() {
             if !arg1.is_empty() {
-                let mut contact_id_0: libc::c_int = arg1.parse().unwrap();
+                let contact_id_0: libc::c_int = arg1.parse().unwrap();
                 if 0 != dc_add_contact_to_chat(
                     context,
                     dc_chat_get_id(sel_chat),
@@ -1054,7 +1045,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     } else if strcmp(cmd, b"removemember\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !sel_chat.is_null() {
             if !arg1.is_empty() {
-                let mut contact_id_1: libc::c_int = arg1.parse().unwrap();
+                let contact_id_1: libc::c_int = arg1.parse().unwrap();
                 if 0 != dc_remove_contact_from_chat(
                     context,
                     dc_chat_get_id(sel_chat),
@@ -1114,8 +1105,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"chatinfo\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !sel_chat.is_null() {
-            let mut contacts: *mut dc_array_t =
-                dc_get_chat_contacts(context, dc_chat_get_id(sel_chat));
+            let contacts: *mut dc_array_t = dc_get_chat_contacts(context, dc_chat_get_id(sel_chat));
             if !contacts.is_null() {
                 dc_log_info(
                     context,
@@ -1136,12 +1126,12 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
             ret = dc_strdup(b"No chat selected.\x00" as *const u8 as *const libc::c_char)
         }
     } else if strcmp(cmd, b"getlocations\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        let mut contact_id_2: libc::c_int = if !arg1.is_empty() {
+        let contact_id_2: libc::c_int = if !arg1.is_empty() {
             arg1.parse().unwrap()
         } else {
             0i32
         };
-        let mut loc: *mut dc_array_t = dc_get_locations(
+        let loc: *mut dc_array_t = dc_get_locations(
             context,
             dc_chat_get_id(sel_chat),
             contact_id_2 as uint32_t,
@@ -1150,9 +1140,9 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         );
         let mut j = 0;
         while j < dc_array_get_cnt(loc) {
-            let mut timestr_0: *mut libc::c_char =
+            let timestr_0: *mut libc::c_char =
                 dc_timestamp_to_str(dc_array_get_timestamp(loc, j as size_t));
-            let mut marker: *mut libc::c_char = dc_array_get_marker(loc, j as size_t);
+            let marker: *mut libc::c_char = dc_array_get_marker(loc, j as size_t);
             dc_log_info(
                 context,
                 0i32,
@@ -1192,7 +1182,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     {
         if !sel_chat.is_null() {
             if !arg1.is_empty() {
-                let mut seconds: libc::c_int = arg1.parse().unwrap();
+                let seconds: libc::c_int = arg1.parse().unwrap();
                 dc_send_locations_to_chat(context, dc_chat_get_id(sel_chat), seconds);
                 ret =
                         dc_mprintf(b"Locations will be sent to Chat#%i for %i seconds. Use \'setlocation <lat> <lng>\' to play around.\x00"
@@ -1206,9 +1196,9 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"setlocation\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() && !arg2.is_empty() {
-            let mut latitude: libc::c_double = arg1.parse().unwrap();
-            let mut longitude: libc::c_double = arg2.parse().unwrap();
-            let mut continue_streaming: libc::c_int =
+            let latitude: libc::c_double = arg1.parse().unwrap();
+            let longitude: libc::c_double = arg2.parse().unwrap();
+            let continue_streaming: libc::c_int =
                 dc_set_location(context, latitude, longitude, 0.0f64);
             ret = dc_strdup(if 0 != continue_streaming {
                 b"Success, streaming should be continued.\x00" as *const u8 as *const libc::c_char
@@ -1259,7 +1249,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     {
         if !sel_chat.is_null() {
             if !arg1.is_empty() && !arg2.is_empty() {
-                let mut msg_0: *mut dc_msg_t = dc_msg_new(
+                let msg_0: *mut dc_msg_t = dc_msg_new(
                     context,
                     if strcmp(cmd, b"sendimage\x00" as *const u8 as *const libc::c_char) == 0i32 {
                         20i32
@@ -1280,7 +1270,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"listmsgs\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut msglist_0: *mut dc_array_t = dc_search_msgs(
+            let msglist_0: *mut dc_array_t = dc_search_msgs(
                 context,
                 if !sel_chat.is_null() {
                     dc_chat_get_id(sel_chat)
@@ -1305,7 +1295,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     } else if strcmp(cmd, b"draft\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !sel_chat.is_null() {
             if !arg1.is_empty() {
-                let mut draft_0: *mut dc_msg_t = dc_msg_new(context, 10i32);
+                let draft_0: *mut dc_msg_t = dc_msg_new(context, 10i32);
                 dc_msg_set_text(draft_0, arg1_c.as_ptr());
                 dc_set_draft(context, dc_chat_get_id(sel_chat), draft_0);
                 dc_msg_unref(draft_0);
@@ -1319,17 +1309,17 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"listmedia\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !sel_chat.is_null() {
-            let mut images: *mut dc_array_t =
+            let images: *mut dc_array_t =
                 dc_get_chat_media(context, dc_chat_get_id(sel_chat), 20i32, 21i32, 50i32);
             let mut i_0: libc::c_int;
-            let mut icnt: libc::c_int = dc_array_get_cnt(images) as libc::c_int;
+            let icnt: libc::c_int = dc_array_get_cnt(images) as libc::c_int;
             ret = dc_mprintf(
                 b"%i images or videos: \x00" as *const u8 as *const libc::c_char,
                 icnt,
             );
             i_0 = 0i32;
             while i_0 < icnt {
-                let mut temp: *mut libc::c_char = dc_mprintf(
+                let temp: *mut libc::c_char = dc_mprintf(
                     b"%s%sMsg#%i\x00" as *const u8 as *const libc::c_char,
                     if 0 != i_0 {
                         b", \x00" as *const u8 as *const libc::c_char
@@ -1351,7 +1341,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         || strcmp(cmd, b"unarchive\x00" as *const u8 as *const libc::c_char) == 0i32
     {
         if !arg1.is_empty() {
-            let mut chat_id_3: libc::c_int = arg1.parse().unwrap();
+            let chat_id_3: libc::c_int = arg1.parse().unwrap();
             dc_archive_chat(
                 context,
                 chat_id_3 as uint32_t,
@@ -1369,7 +1359,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"delchat\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut chat_id_4: libc::c_int = arg1.parse().unwrap();
+            let chat_id_4: libc::c_int = arg1.parse().unwrap();
             dc_delete_chat(context, chat_id_4 as uint32_t);
             ret = 2i32 as *mut libc::c_char
         } else {
@@ -1379,7 +1369,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"msginfo\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut id: libc::c_int = arg1.parse().unwrap();
+            let id: libc::c_int = arg1.parse().unwrap();
             ret = dc_get_msg_info(context, id as uint32_t)
         } else {
             ret = dc_strdup(
@@ -1387,7 +1377,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
             )
         }
     } else if strcmp(cmd, b"listfresh\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        let mut msglist_1: *mut dc_array_t = dc_get_fresh_msgs(context);
+        let msglist_1: *mut dc_array_t = dc_get_fresh_msgs(context);
         if !msglist_1.is_null() {
             log_msglist(context, msglist_1);
             ret = dc_mprintf(
@@ -1399,7 +1389,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
     } else if strcmp(cmd, b"forward\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() && !arg2.is_empty() {
             let mut msg_ids: [uint32_t; 1] = [0; 1];
-            let mut chat_id_5: uint32_t = arg2.parse().unwrap();
+            let chat_id_5: uint32_t = arg2.parse().unwrap();
             msg_ids[0usize] = arg1.parse().unwrap();
             dc_forward_msgs(context, msg_ids.as_mut_ptr(), 1i32, chat_id_5);
             ret = 2i32 as *mut libc::c_char
@@ -1457,7 +1447,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         || strcmp(cmd, b"contacts\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(cmd, b"listverified\x00" as *const u8 as *const libc::c_char) == 0i32
     {
-        let mut contacts_0: *mut dc_array_t = dc_get_contacts(
+        let contacts_0: *mut dc_array_t = dc_get_contacts(
             context,
             (if strcmp(cmd, b"listverified\x00" as *const u8 as *const libc::c_char) == 0i32 {
                 0x1i32 | 0x2i32
@@ -1478,7 +1468,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"addcontact\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() && !arg2.is_empty() {
-            let mut book: *mut libc::c_char = dc_mprintf(
+            let book: *mut libc::c_char = dc_mprintf(
                 b"%s\n%s\x00" as *const u8 as *const libc::c_char,
                 arg1_c.as_ptr(),
                 arg2_c.as_ptr(),
@@ -1500,7 +1490,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"contactinfo\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut contact_id_3: libc::c_int = arg1.parse().unwrap();
+            let contact_id_3: libc::c_int = arg1.parse().unwrap();
             let mut strbuilder: dc_strbuilder_t = dc_strbuilder_t {
                 buf: 0 as *mut libc::c_char,
                 allocated: 0,
@@ -1509,8 +1499,8 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
             };
 
             dc_strbuilder_init(&mut strbuilder, 0i32);
-            let mut contact: *mut dc_contact_t = dc_get_contact(context, contact_id_3 as uint32_t);
-            let mut nameNaddr: *mut libc::c_char = dc_contact_get_name_n_addr(contact);
+            let contact: *mut dc_contact_t = dc_get_contact(context, contact_id_3 as uint32_t);
+            let nameNaddr: *mut libc::c_char = dc_contact_get_name_n_addr(contact);
             dc_strbuilder_catf(
                 &mut strbuilder as *mut dc_strbuilder_t,
                 b"Contact info for: %s:\n\n\x00" as *const u8 as *const libc::c_char,
@@ -1518,17 +1508,17 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
             );
             free(nameNaddr as *mut libc::c_void);
             dc_contact_unref(contact);
-            let mut encrinfo: *mut libc::c_char =
+            let encrinfo: *mut libc::c_char =
                 dc_get_contact_encrinfo(context, contact_id_3 as uint32_t);
             dc_strbuilder_cat(&mut strbuilder, encrinfo);
             free(encrinfo as *mut libc::c_void);
-            let mut chatlist_0: *mut dc_chatlist_t = dc_get_chatlist(
+            let chatlist_0: *mut dc_chatlist_t = dc_get_chatlist(
                 context,
                 0i32,
                 0 as *const libc::c_char,
                 contact_id_3 as uint32_t,
             );
-            let mut chatlist_cnt: libc::c_int = dc_chatlist_get_cnt(chatlist_0) as libc::c_int;
+            let chatlist_cnt: libc::c_int = dc_chatlist_get_cnt(chatlist_0) as libc::c_int;
             if chatlist_cnt > 0i32 {
                 dc_strbuilder_catf(
                     &mut strbuilder as *mut dc_strbuilder_t,
@@ -1545,7 +1535,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
                             b", \x00" as *const u8 as *const libc::c_char,
                         );
                     }
-                    let mut chat_1: *mut dc_chat_t =
+                    let chat_1: *mut dc_chat_t =
                         dc_get_chat(context, dc_chatlist_get_chat_id(chatlist_0, i_1 as size_t));
                     dc_strbuilder_catf(
                         &mut strbuilder as *mut dc_strbuilder_t,
@@ -1591,7 +1581,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"checkqr\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut res: *mut dc_lot_t = dc_check_qr(context, arg1_c.as_ptr());
+            let res: *mut dc_lot_t = dc_check_qr(context, arg1_c.as_ptr());
             ret = dc_mprintf(
                 b"state=%i, id=%i, text1=%s, text2=%s\x00" as *const u8 as *const libc::c_char,
                 (*res).state as libc::c_int,
@@ -1615,9 +1605,8 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"event\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            let mut event = Event::from_u32(arg1.parse().unwrap()).unwrap();
-            let mut r: uintptr_t =
-                (context.cb)(context, event, 0i32 as uintptr_t, 0i32 as uintptr_t);
+            let event = Event::from_u32(arg1.parse().unwrap()).unwrap();
+            let r: uintptr_t = (context.cb)(context, event, 0i32 as uintptr_t, 0i32 as uintptr_t);
             ret = dc_mprintf(
                 b"Sending event %i, received value %i.\x00" as *const u8 as *const libc::c_char,
                 event as libc::c_int,

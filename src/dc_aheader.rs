@@ -31,8 +31,8 @@ pub unsafe fn dc_aheader_new() -> *mut dc_aheader_t {
 }
 
 pub unsafe fn dc_aheader_new_from_imffields(
-    mut wanted_from: *const libc::c_char,
-    mut header: *const mailimf_fields,
+    wanted_from: *const libc::c_char,
+    header: *const mailimf_fields,
 ) -> *mut dc_aheader_t {
     let mut cur;
     let mut fine_header = 0 as *mut dc_aheader_t;
@@ -43,14 +43,14 @@ pub unsafe fn dc_aheader_new_from_imffields(
 
     cur = (*(*header).fld_list).first;
     while !cur.is_null() {
-        let mut field = (if !cur.is_null() {
+        let field = (if !cur.is_null() {
             (*cur).data
         } else {
             0 as *mut libc::c_void
         }) as *mut mailimf_field;
 
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            let mut optional_field = (*field).fld_data.fld_optional_field;
+            let optional_field = (*field).fld_data.fld_optional_field;
             if !optional_field.is_null()
                 && !(*optional_field).fld_name.is_null()
                 && strcasecmp(
@@ -85,7 +85,7 @@ pub unsafe fn dc_aheader_new_from_imffields(
     fine_header
 }
 
-pub unsafe fn dc_aheader_unref(mut aheader: *mut dc_aheader_t) {
+pub unsafe fn dc_aheader_unref(aheader: *mut dc_aheader_t) {
     if aheader.is_null() {
         return;
     }
@@ -96,9 +96,9 @@ pub unsafe fn dc_aheader_unref(mut aheader: *mut dc_aheader_t) {
 
 pub unsafe fn dc_aheader_set_from_string(
     mut aheader: *mut dc_aheader_t,
-    mut header_str__: *const libc::c_char,
+    header_str__: *const libc::c_char,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let current_block: u64;
     /* according to RFC 5322 (Internet Message Format), the given string may contain `\r\n` before any whitespace.
     we can ignore this issue as
     (a) no key or value is expected to contain spaces,
@@ -190,8 +190,8 @@ pub unsafe fn dc_aheader_empty(mut aheader: *mut dc_aheader_t) {
 
 unsafe fn add_attribute(
     mut aheader: *mut dc_aheader_t,
-    mut name: *const libc::c_char,
-    mut value: *const libc::c_char,
+    name: *const libc::c_char,
+    value: *const libc::c_char,
 ) -> libc::c_int {
     if strcasecmp(name, b"addr\x00" as *const u8 as *const libc::c_char) == 0 {
         if value.is_null() || 0 == dc_may_be_valid_addr(value) || !(*aheader).addr.is_null() {
@@ -232,7 +232,7 @@ unsafe fn add_attribute(
     0
 }
 
-pub unsafe fn dc_aheader_render(mut aheader: *const dc_aheader_t) -> *mut libc::c_char {
+pub unsafe fn dc_aheader_render(aheader: *const dc_aheader_t) -> *mut libc::c_char {
     let mut success: bool = false;
     let mut keybase64_wrapped: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {

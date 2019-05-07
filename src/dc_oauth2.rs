@@ -20,9 +20,9 @@ pub struct oauth2_t {
 }
 
 pub unsafe fn dc_get_oauth2_url(
-    mut context: &dc_context_t,
-    mut addr: *const libc::c_char,
-    mut redirect_uri: *const libc::c_char,
+    context: &dc_context_t,
+    addr: *const libc::c_char,
+    redirect_uri: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut oauth2: *mut oauth2_t = 0 as *mut oauth2_t;
     let mut oauth2_url: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -54,20 +54,20 @@ pub unsafe fn dc_get_oauth2_url(
 }
 
 unsafe fn replace_in_uri(
-    mut uri: *mut *mut libc::c_char,
-    mut key: *const libc::c_char,
-    mut value: *const libc::c_char,
+    uri: *mut *mut libc::c_char,
+    key: *const libc::c_char,
+    value: *const libc::c_char,
 ) {
     if !uri.is_null() && !key.is_null() && !value.is_null() {
-        let mut value_urlencoded: *mut libc::c_char = dc_urlencode(value);
+        let value_urlencoded: *mut libc::c_char = dc_urlencode(value);
         dc_str_replace(uri, key, value_urlencoded);
         free(value_urlencoded as *mut libc::c_void);
     };
 }
 
-unsafe fn get_info(mut addr: *const libc::c_char) -> *mut oauth2_t {
+unsafe fn get_info(addr: *const libc::c_char) -> *mut oauth2_t {
     let mut oauth2: *mut oauth2_t = 0 as *mut oauth2_t;
-    let mut addr_normalized: *mut libc::c_char;
+    let addr_normalized: *mut libc::c_char;
     let mut domain: *const libc::c_char;
     addr_normalized = dc_addr_normalize(addr);
     domain = strchr(addr_normalized, '@' as i32);
@@ -124,12 +124,12 @@ unsafe fn get_info(mut addr: *const libc::c_char) -> *mut oauth2_t {
 // the following function may block due http-requests;
 // must not be called from the main thread or by the ui!
 pub unsafe fn dc_get_oauth2_access_token(
-    mut context: &dc_context_t,
-    mut addr: *const libc::c_char,
-    mut code: *const libc::c_char,
-    mut flags: libc::c_int,
+    context: &dc_context_t,
+    addr: *const libc::c_char,
+    code: *const libc::c_char,
+    flags: libc::c_int,
 ) -> *mut libc::c_char {
-    let mut current_block: u64;
+    let current_block: u64;
     let mut oauth2: *mut oauth2_t = 0 as *mut oauth2_t;
     let mut access_token: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut refresh_token: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -153,7 +153,7 @@ pub unsafe fn dc_get_oauth2_access_token(
         end: 0,
         size: 0,
     }; 128];
-    let mut tok_cnt: libc::c_int;
+    let tok_cnt: libc::c_int;
     if code.is_null() || *code.offset(0isize) as libc::c_int == 0i32 {
         dc_log_warning(
             context,
@@ -320,12 +320,12 @@ pub unsafe fn dc_get_oauth2_access_token(
                                     b"expires_in\x00" as *const u8 as *const libc::c_char,
                                 ) == 0i32
                                 {
-                                    let mut expires_in_str: *mut libc::c_char = jsondup(
+                                    let expires_in_str: *mut libc::c_char = jsondup(
                                         json,
                                         &mut *tok.as_mut_ptr().offset((i + 1i32) as isize),
                                     );
                                     if !expires_in_str.is_null() {
-                                        let mut val: time_t = atol(expires_in_str);
+                                        let val: time_t = atol(expires_in_str);
                                         if val > 20i32 as libc::c_long
                                             && val
                                                 < (60i32 * 60i32 * 24i32 * 365i32 * 5i32)
@@ -456,7 +456,7 @@ pub unsafe fn dc_get_oauth2_access_token(
     };
 }
 
-unsafe fn jsondup(mut json: *const libc::c_char, mut tok: *mut jsmntok_t) -> *mut libc::c_char {
+unsafe fn jsondup(json: *const libc::c_char, tok: *mut jsmntok_t) -> *mut libc::c_char {
     if (*tok).type_0 as libc::c_uint == JSMN_STRING as libc::c_int as libc::c_uint
         || (*tok).type_0 as libc::c_uint == JSMN_PRIMITIVE as libc::c_int as libc::c_uint
     {
@@ -470,9 +470,9 @@ unsafe fn jsondup(mut json: *const libc::c_char, mut tok: *mut jsmntok_t) -> *mu
 }
 
 unsafe extern "C" fn jsoneq(
-    mut json: *const libc::c_char,
-    mut tok: *mut jsmntok_t,
-    mut s: *const libc::c_char,
+    json: *const libc::c_char,
+    tok: *mut jsmntok_t,
+    s: *const libc::c_char,
 ) -> libc::c_int {
     if (*tok).type_0 as libc::c_uint == JSMN_STRING as libc::c_int as libc::c_uint
         && strlen(s) as libc::c_int == (*tok).end - (*tok).start
@@ -489,8 +489,8 @@ unsafe extern "C" fn jsoneq(
 }
 
 // TODO should return bool /rtn
-unsafe fn is_expired(mut context: &dc_context_t) -> libc::c_int {
-    let mut expire_timestamp: time_t = dc_sqlite3_get_config_int64(
+unsafe fn is_expired(context: &dc_context_t) -> libc::c_int {
+    let expire_timestamp: time_t = dc_sqlite3_get_config_int64(
         context,
         &context.sql.clone().read().unwrap(),
         b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
@@ -507,13 +507,13 @@ unsafe fn is_expired(mut context: &dc_context_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_get_oauth2_addr(
-    mut context: &dc_context_t,
-    mut addr: *const libc::c_char,
-    mut code: *const libc::c_char,
+    context: &dc_context_t,
+    addr: *const libc::c_char,
+    code: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut access_token: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut addr_out: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut oauth2: *mut oauth2_t;
+    let oauth2: *mut oauth2_t;
     if !({
         oauth2 = get_info(addr);
         oauth2.is_null()
@@ -534,9 +534,9 @@ pub unsafe fn dc_get_oauth2_addr(
 }
 
 unsafe fn get_oauth2_addr(
-    mut context: &dc_context_t,
-    mut oauth2: *const oauth2_t,
-    mut access_token: *const libc::c_char,
+    context: &dc_context_t,
+    oauth2: *const oauth2_t,
+    access_token: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut addr_out: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut userinfo_url: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -553,7 +553,7 @@ unsafe fn get_oauth2_addr(
         end: 0,
         size: 0,
     }; 128];
-    let mut tok_cnt: libc::c_int;
+    let tok_cnt: libc::c_int;
     if !(access_token.is_null()
         || *access_token.offset(0isize) as libc::c_int == 0i32
         || oauth2.is_null())

@@ -82,10 +82,10 @@ pub unsafe fn jsmn_init(mut parser: *mut jsmn_parser) {
  */
 pub unsafe fn jsmn_parse(
     mut parser: *mut jsmn_parser,
-    mut js: *const libc::c_char,
-    mut len: size_t,
-    mut tokens: *mut jsmntok_t,
-    mut num_tokens: libc::c_uint,
+    js: *const libc::c_char,
+    len: size_t,
+    tokens: *mut jsmntok_t,
+    num_tokens: libc::c_uint,
 ) -> libc::c_int {
     let mut r: libc::c_int;
     let mut i: libc::c_int;
@@ -94,8 +94,8 @@ pub unsafe fn jsmn_parse(
     while (*parser).pos < len as libc::c_uint
         && *js.offset((*parser).pos as isize) as libc::c_int != '\u{0}' as i32
     {
-        let mut c: libc::c_char;
-        let mut type_0: jsmntype_t;
+        let c: libc::c_char;
+        let type_0: jsmntype_t;
         c = *js.offset((*parser).pos as isize);
         match c as libc::c_int {
             123 | 91 => {
@@ -231,13 +231,13 @@ pub unsafe fn jsmn_parse(
  */
 unsafe fn jsmn_parse_primitive(
     mut parser: *mut jsmn_parser,
-    mut js: *const libc::c_char,
-    mut len: size_t,
-    mut tokens: *mut jsmntok_t,
-    mut num_tokens: size_t,
+    js: *const libc::c_char,
+    len: size_t,
+    tokens: *mut jsmntok_t,
+    num_tokens: size_t,
 ) -> libc::c_int {
-    let mut token: *mut jsmntok_t;
-    let mut start: libc::c_int;
+    let token: *mut jsmntok_t;
+    let start: libc::c_int;
     start = (*parser).pos as libc::c_int;
     while (*parser).pos < len as libc::c_uint
         && *js.offset((*parser).pos as isize) as libc::c_int != '\u{0}' as i32
@@ -276,9 +276,9 @@ unsafe fn jsmn_parse_primitive(
  */
 unsafe fn jsmn_fill_token(
     mut token: *mut jsmntok_t,
-    mut type_0: jsmntype_t,
-    mut start: libc::c_int,
-    mut end: libc::c_int,
+    type_0: jsmntype_t,
+    start: libc::c_int,
+    end: libc::c_int,
 ) {
     (*token).type_0 = type_0;
     (*token).start = start;
@@ -313,8 +313,8 @@ THE SOFTWARE.
  */
 unsafe fn jsmn_alloc_token(
     mut parser: *mut jsmn_parser,
-    mut tokens: *mut jsmntok_t,
-    mut num_tokens: size_t,
+    tokens: *mut jsmntok_t,
+    num_tokens: size_t,
 ) -> *mut jsmntok_t {
     let mut tok: *mut jsmntok_t;
     if (*parser).toknext as size_t >= num_tokens {
@@ -335,18 +335,18 @@ unsafe fn jsmn_alloc_token(
  */
 unsafe fn jsmn_parse_string(
     mut parser: *mut jsmn_parser,
-    mut js: *const libc::c_char,
-    mut len: size_t,
-    mut tokens: *mut jsmntok_t,
-    mut num_tokens: size_t,
+    js: *const libc::c_char,
+    len: size_t,
+    tokens: *mut jsmntok_t,
+    num_tokens: size_t,
 ) -> libc::c_int {
-    let mut token: *mut jsmntok_t;
-    let mut start: libc::c_int = (*parser).pos as libc::c_int;
+    let token: *mut jsmntok_t;
+    let start: libc::c_int = (*parser).pos as libc::c_int;
     (*parser).pos = (*parser).pos.wrapping_add(1);
     while ((*parser).pos as size_t) < len
         && *js.offset((*parser).pos as isize) as libc::c_int != '\u{0}' as i32
     {
-        let mut c: libc::c_char = *js.offset((*parser).pos as isize);
+        let c: libc::c_char = *js.offset((*parser).pos as isize);
         if c as libc::c_int == '\"' as i32 {
             if tokens.is_null() {
                 return 0i32;

@@ -907,15 +907,14 @@ pub unsafe fn dc_sqlite3_open(
                         }
 
                         if 0 != recalc_fingerprints {
-                            let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+                            let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
                                 context,
                                 sql,
                                 b"SELECT addr FROM acpeerstates;\x00" as *const u8
                                     as *const libc::c_char,
                             );
                             while sqlite3_step(stmt) == 100 {
-                                let mut peerstate: *mut dc_apeerstate_t =
-                                    dc_apeerstate_new(context);
+                                let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
                                 if 0 != dc_apeerstate_load_by_addr(
                                     peerstate,
                                     sql,
@@ -929,7 +928,7 @@ pub unsafe fn dc_sqlite3_open(
                             sqlite3_finalize(stmt);
                         }
                         if 0 != update_file_paths {
-                            let mut repl_from: *mut libc::c_char = dc_sqlite3_get_config(
+                            let repl_from: *mut libc::c_char = dc_sqlite3_get_config(
                                 context,
                                 sql,
                                 b"backup_for\x00" as *const u8 as *const libc::c_char,
@@ -1132,7 +1131,7 @@ pub unsafe extern "C" fn dc_sqlite3_log_error(
     msg_format: *const libc::c_char,
     va: ...
 ) {
-    let mut msg;
+    let msg;
     if msg_format.is_null() {
         return;
     }
@@ -1171,7 +1170,7 @@ pub unsafe fn dc_sqlite3_get_config(
     key: *const libc::c_char,
     def: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut stmt;
+    let stmt;
     if 0 == dc_sqlite3_is_open(sql) || key.is_null() {
         return dc_strdup_keep_null(def);
     }
@@ -1182,9 +1181,9 @@ pub unsafe fn dc_sqlite3_get_config(
     );
     sqlite3_bind_text(stmt, 1, key, -1, None);
     if sqlite3_step(stmt) == 100 {
-        let mut ptr: *const libc::c_uchar = sqlite3_column_text(stmt, 0);
+        let ptr: *const libc::c_uchar = sqlite3_column_text(stmt, 0);
         if !ptr.is_null() {
-            let mut ret: *mut libc::c_char = dc_strdup(ptr as *const libc::c_char);
+            let ret: *mut libc::c_char = dc_strdup(ptr as *const libc::c_char);
             sqlite3_finalize(stmt);
             return ret;
         }
@@ -1199,7 +1198,7 @@ pub unsafe fn dc_sqlite3_execute(
     querystr: *const libc::c_char,
 ) -> libc::c_int {
     let mut success = 0;
-    let mut sqlState;
+    let sqlState;
     let stmt = dc_sqlite3_prepare(context, sql, querystr);
     if !stmt.is_null() {
         sqlState = sqlite3_step(stmt);
@@ -1224,7 +1223,7 @@ pub unsafe fn dc_sqlite3_set_config_int(
     key: *const libc::c_char,
     value: int32_t,
 ) -> libc::c_int {
-    let mut value_str = dc_mprintf(
+    let value_str = dc_mprintf(
         b"%i\x00" as *const u8 as *const libc::c_char,
         value as libc::c_int,
     );
@@ -1243,11 +1242,11 @@ pub unsafe fn dc_sqlite3_get_config_int(
     key: *const libc::c_char,
     def: int32_t,
 ) -> int32_t {
-    let mut str = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
+    let str = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     if str.is_null() {
         return def;
     }
-    let mut ret = atoi(str) as int32_t;
+    let ret = atoi(str) as int32_t;
     free(str as *mut libc::c_void);
     ret
 }
@@ -1259,7 +1258,7 @@ pub unsafe fn dc_sqlite3_table_exists(
 ) -> libc::c_int {
     let mut ret = 0;
     let mut stmt = 0 as *mut sqlite3_stmt;
-    let mut sqlState;
+    let sqlState;
 
     let querystr = sqlite3_mprintf(
         b"PRAGMA table_info(%s)\x00" as *const u8 as *const libc::c_char,
@@ -1297,7 +1296,7 @@ pub unsafe fn dc_sqlite3_set_config_int64(
     key: *const libc::c_char,
     value: int64_t,
 ) -> libc::c_int {
-    let mut value_str = dc_mprintf(
+    let value_str = dc_mprintf(
         b"%lld\x00" as *const u8 as *const libc::c_char,
         value as libc::c_long,
     );
@@ -1315,7 +1314,7 @@ pub unsafe fn dc_sqlite3_get_config_int64(
     key: *const libc::c_char,
     def: int64_t,
 ) -> int64_t {
-    let mut str = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
+    let str = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     if str.is_null() {
         return def;
     }
@@ -1336,7 +1335,7 @@ pub unsafe fn dc_sqlite3_try_execute(
 ) -> libc::c_int {
     // same as dc_sqlite3_execute() but does not pass error to ui
     let mut success = 0;
-    let mut sql_state;
+    let sql_state;
     let stmt = dc_sqlite3_prepare(context, sql, querystr);
     if !stmt.is_null() {
         sql_state = sqlite3_step(stmt);
@@ -1367,13 +1366,13 @@ pub unsafe fn dc_sqlite3_get_rowid(
     // the ORDER BY ensures, this function always returns the most recent id,
     // eg. if a Message-ID is splitted into different messages.
     let mut id = 0 as uint32_t;
-    let mut q3 = sqlite3_mprintf(
+    let q3 = sqlite3_mprintf(
         b"SELECT id FROM %s WHERE %s=%Q ORDER BY id DESC;\x00" as *const u8 as *const libc::c_char,
         table,
         field,
         value,
     );
-    let mut stmt = dc_sqlite3_prepare(context, sql, q3);
+    let stmt = dc_sqlite3_prepare(context, sql, q3);
     if 100 == sqlite3_step(stmt) {
         id = sqlite3_column_int(stmt, 0) as uint32_t
     }
@@ -1394,7 +1393,7 @@ pub unsafe fn dc_sqlite3_get_rowid2(
     // same as dc_sqlite3_get_rowid() with a key over two columns
     let mut id = 0 as uint32_t;
     // see https://www.sqlite.org/printf.html for sqlite-printf modifiers
-    let mut q3 = sqlite3_mprintf(
+    let q3 = sqlite3_mprintf(
         b"SELECT id FROM %s WHERE %s=%lli AND %s=%i ORDER BY id DESC;\x00" as *const u8
             as *const libc::c_char,
         table,
@@ -1403,7 +1402,7 @@ pub unsafe fn dc_sqlite3_get_rowid2(
         field2,
         value2,
     );
-    let mut stmt = dc_sqlite3_prepare(context, sql, q3);
+    let stmt = dc_sqlite3_prepare(context, sql, q3);
     if 100 == sqlite3_step(stmt) {
         id = sqlite3_column_int(stmt, 0) as uint32_t
     }
@@ -1413,8 +1412,8 @@ pub unsafe fn dc_sqlite3_get_rowid2(
 }
 
 pub unsafe fn dc_housekeeping(context: &dc_context_t) {
-    let mut stmt;
-    let mut dir_handle;
+    let stmt;
+    let dir_handle;
     let mut dir_entry;
     let mut files_in_use = dc_hash_t {
         keyClass: 0,
@@ -1494,8 +1493,8 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
                 break;
             }
             /* name without path or `.` or `..` */
-            let mut name: *const libc::c_char = (*dir_entry).d_name.as_mut_ptr();
-            let mut name_len: libc::c_int = strlen(name) as libc::c_int;
+            let name: *const libc::c_char = (*dir_entry).d_name.as_mut_ptr();
+            let name_len: libc::c_int = strlen(name) as libc::c_int;
             if name_len == 1 && *name.offset(0isize) as libc::c_int == '.' as i32
                 || name_len == 2
                     && *name.offset(0isize) as libc::c_int == '.' as i32
@@ -1578,10 +1577,10 @@ unsafe fn is_file_in_use(
     namespc: *const libc::c_char,
     name: *const libc::c_char,
 ) -> libc::c_int {
-    let mut name_to_check = dc_strdup(name);
+    let name_to_check = dc_strdup(name);
     if !namespc.is_null() {
-        let mut name_len: libc::c_int = strlen(name) as libc::c_int;
-        let mut namespc_len: libc::c_int = strlen(namespc) as libc::c_int;
+        let name_len: libc::c_int = strlen(name) as libc::c_int;
+        let namespc_len: libc::c_int = strlen(namespc) as libc::c_int;
         if name_len <= namespc_len
             || strcmp(&*name.offset((name_len - namespc_len) as isize), namespc) != 0
         {
@@ -1589,7 +1588,7 @@ unsafe fn is_file_in_use(
         }
         *name_to_check.offset((name_len - namespc_len) as isize) = 0 as libc::c_char
     }
-    let mut ret: libc::c_int = (dc_hash_find(
+    let ret: libc::c_int = (dc_hash_find(
         files_in_use,
         name_to_check as *const libc::c_void,
         strlen(name_to_check) as libc::c_int,
@@ -1607,7 +1606,7 @@ unsafe fn maybe_add_file(files_in_use: *mut dc_hash_t, file: *const libc::c_char
     {
         return;
     }
-    let mut raw_name = &*file.offset(9isize) as *const libc::c_char;
+    let raw_name = &*file.offset(9isize) as *const libc::c_char;
     dc_hash_insert(
         files_in_use,
         raw_name as *const libc::c_void,
@@ -1622,11 +1621,11 @@ unsafe fn maybe_add_from_param(
     query: *const libc::c_char,
     param_id: libc::c_int,
 ) {
-    let mut param = dc_param_new();
-    let mut stmt = dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(), query);
+    let param = dc_param_new();
+    let stmt = dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(), query);
     while sqlite3_step(stmt) == 100 {
         dc_param_set_packed(param, sqlite3_column_text(stmt, 0) as *const libc::c_char);
-        let mut file = dc_param_get(param, param_id, 0 as *const libc::c_char);
+        let file = dc_param_get(param, param_id, 0 as *const libc::c_char);
         if !file.is_null() {
             maybe_add_file(files_in_use, file);
             free(file as *mut libc::c_void);

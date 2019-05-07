@@ -22,13 +22,13 @@ pub struct dc_chatlist_t<'a> {
 
 // handle chatlists
 pub unsafe fn dc_get_chatlist<'a>(
-    mut context: &'a dc_context_t,
-    mut listflags: libc::c_int,
-    mut query_str: *const libc::c_char,
-    mut query_id: uint32_t,
+    context: &'a dc_context_t,
+    listflags: libc::c_int,
+    query_str: *const libc::c_char,
+    query_id: uint32_t,
 ) -> *mut dc_chatlist_t<'a> {
     let mut success: libc::c_int = 0i32;
-    let mut obj: *mut dc_chatlist_t = dc_chatlist_new(context);
+    let obj: *mut dc_chatlist_t = dc_chatlist_new(context);
 
     if !(0 == dc_chatlist_load_from_db(obj, listflags, query_str, query_id)) {
         success = 1i32
@@ -80,7 +80,7 @@ pub unsafe fn dc_get_chatlist<'a>(
  * Rendering the deaddrop in the described way
  * would not add extra work in the UI then.
  */
-pub unsafe fn dc_chatlist_new(mut context: &dc_context_t) -> *mut dc_chatlist_t {
+pub unsafe fn dc_chatlist_new(context: &dc_context_t) -> *mut dc_chatlist_t {
     let mut chatlist: *mut dc_chatlist_t;
     chatlist = calloc(1, ::std::mem::size_of::<dc_chatlist_t>()) as *mut dc_chatlist_t;
     if chatlist.is_null() {
@@ -121,11 +121,11 @@ pub unsafe fn dc_chatlist_empty(mut chatlist: *mut dc_chatlist_t) {
 // TODO should return bool /rtn
 unsafe fn dc_chatlist_load_from_db(
     mut chatlist: *mut dc_chatlist_t,
-    mut listflags: libc::c_int,
-    mut query__: *const libc::c_char,
-    mut query_contact_id: uint32_t,
+    listflags: libc::c_int,
+    query__: *const libc::c_char,
+    query_contact_id: uint32_t,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let current_block: u64;
     //clock_t       start = clock();
     let mut success: libc::c_int = 0i32;
     let mut add_archived_link_item: libc::c_int = 0i32;
@@ -164,7 +164,7 @@ unsafe fn dc_chatlist_load_from_db(
             current_block = 3437258052017859086;
         } else if query__.is_null() {
             if 0 == listflags & 0x2i32 {
-                let mut last_deaddrop_fresh_msg_id: uint32_t =
+                let last_deaddrop_fresh_msg_id: uint32_t =
                     get_last_deaddrop_fresh_msg((*chatlist).context);
                 if last_deaddrop_fresh_msg_id > 0i32 as libc::c_uint {
                     dc_array_add_id((*chatlist).chatNlastmsg_ids, 1i32 as uint32_t);
@@ -233,9 +233,9 @@ unsafe fn dc_chatlist_load_from_db(
 }
 
 // Context functions to work with chatlist
-pub unsafe fn dc_get_archived_cnt(mut context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_get_archived_cnt(context: &dc_context_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+    let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;\x00" as *const u8
@@ -248,9 +248,9 @@ pub unsafe fn dc_get_archived_cnt(mut context: &dc_context_t) -> libc::c_int {
     ret
 }
 
-unsafe fn get_last_deaddrop_fresh_msg(mut context: &dc_context_t) -> uint32_t {
+unsafe fn get_last_deaddrop_fresh_msg(context: &dc_context_t) -> uint32_t {
     let mut ret: uint32_t = 0i32 as uint32_t;
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     stmt =
         dc_sqlite3_prepare(
             context,
@@ -265,17 +265,14 @@ unsafe fn get_last_deaddrop_fresh_msg(mut context: &dc_context_t) -> uint32_t {
     ret
 }
 
-pub unsafe fn dc_chatlist_get_cnt(mut chatlist: *const dc_chatlist_t) -> size_t {
+pub unsafe fn dc_chatlist_get_cnt(chatlist: *const dc_chatlist_t) -> size_t {
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return 0i32 as size_t;
     }
     (*chatlist).cnt
 }
 
-pub unsafe fn dc_chatlist_get_chat_id(
-    mut chatlist: *const dc_chatlist_t,
-    mut index: size_t,
-) -> uint32_t {
+pub unsafe fn dc_chatlist_get_chat_id(chatlist: *const dc_chatlist_t, index: size_t) -> uint32_t {
     if chatlist.is_null()
         || (*chatlist).magic != 0xc4a71157u32
         || (*chatlist).chatNlastmsg_ids.is_null()
@@ -286,10 +283,7 @@ pub unsafe fn dc_chatlist_get_chat_id(
     dc_array_get_id((*chatlist).chatNlastmsg_ids, index.wrapping_mul(2))
 }
 
-pub unsafe fn dc_chatlist_get_msg_id(
-    mut chatlist: *const dc_chatlist_t,
-    mut index: size_t,
-) -> uint32_t {
+pub unsafe fn dc_chatlist_get_msg_id(chatlist: *const dc_chatlist_t, index: size_t) -> uint32_t {
     if chatlist.is_null()
         || (*chatlist).magic != 0xc4a71157u32
         || (*chatlist).chatNlastmsg_ids.is_null()
@@ -304,11 +298,11 @@ pub unsafe fn dc_chatlist_get_msg_id(
 }
 
 pub unsafe fn dc_chatlist_get_summary<'a>(
-    mut chatlist: *const dc_chatlist_t<'a>,
-    mut index: size_t,
+    chatlist: *const dc_chatlist_t<'a>,
+    index: size_t,
     mut chat: *mut dc_chat_t<'a>,
 ) -> *mut dc_lot_t {
-    let mut current_block: u64;
+    let current_block: u64;
     /* The summary is created by the chat, not by the last message.
     This is because we may want to display drafts here or stuff as
     "is typing".
@@ -316,7 +310,7 @@ pub unsafe fn dc_chatlist_get_summary<'a>(
     message. */
     /* the function never returns NULL */
     let mut ret: *mut dc_lot_t = dc_lot_new();
-    let mut lastmsg_id: uint32_t;
+    let lastmsg_id: uint32_t;
     let mut lastmsg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let mut lastcontact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut chat_to_delete: *mut dc_chat_t = 0 as *mut dc_chat_t;

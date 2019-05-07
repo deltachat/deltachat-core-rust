@@ -55,7 +55,7 @@ pub struct outlk_autodiscover_t {
     pub redirect: *mut libc::c_char,
 }
 // connect
-pub unsafe fn dc_configure(mut context: &dc_context_t) {
+pub unsafe fn dc_configure(context: &dc_context_t) {
     if 0 != dc_has_ongoing(context) {
         dc_log_warning(
             context,
@@ -68,7 +68,7 @@ pub unsafe fn dc_configure(mut context: &dc_context_t) {
     dc_job_kill_action(context, 900i32);
     dc_job_add(context, 900i32, 0i32, 0 as *const libc::c_char, 0i32);
 }
-pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_has_ongoing(context: &dc_context_t) -> libc::c_int {
     let s_a = context.running_state.clone();
     let s = s_a.read().unwrap();
 
@@ -78,7 +78,7 @@ pub unsafe fn dc_has_ongoing(mut context: &dc_context_t) -> libc::c_int {
         0
     }
 }
-pub unsafe fn dc_is_configured(mut context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_is_configured(context: &dc_context_t) -> libc::c_int {
     return if 0
         != dc_sqlite3_get_config_int(
             context,
@@ -112,13 +112,13 @@ pub unsafe fn dc_stop_ongoing_process(context: &dc_context_t) {
 }
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
 pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut dc_job_t) {
-    let mut flags: libc::c_int;
+    let flags: libc::c_int;
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut imap_connected_here: libc::c_int = 0i32;
     let mut smtp_connected_here: libc::c_int = 0i32;
     let mut ongoing_allocated_here: libc::c_int = 0i32;
-    let mut mvbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mvbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
     /* just a pointer inside param, must not be freed! */
     let mut param_domain: *mut libc::c_char;
@@ -205,7 +205,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                 }) as uintptr_t,
                                 0i32 as uintptr_t,
                             );
-                            let mut oauth2_addr: *mut libc::c_char =
+                            let oauth2_addr: *mut libc::c_char =
                                 dc_get_oauth2_addr(context, (*param).addr, (*param).mail_pw);
                             if !oauth2_addr.is_null() {
                                 free((*param).addr as *mut libc::c_void);
@@ -281,11 +281,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                         /*&&param->mail_user   ==NULL -- the user can enter a loginname which is used by autoconfig then */
                                         /*&&param->send_pw     ==NULL -- the password cannot be auto-configured and is no criterion for autoconfig or not */
                                         /* flags but OAuth2 avoid autoconfig */
-                                        let mut keep_flags: libc::c_int =
+                                        let keep_flags: libc::c_int =
                                             (*param).server_flags & 0x2i32;
                                         /* A.  Search configurations from the domain used in the email-address, prefer encrypted */
                                         if param_autoconfig.is_null() {
-                                            let mut url:
+                                            let  url:
                                             *mut libc::c_char =
                                                 dc_mprintf(b"https://autoconfig.%s/mail/config-v1.1.xml?emailaddress=%s\x00"
                                                            as
@@ -323,7 +323,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                             _ => {
                                                 if param_autoconfig.is_null() {
                                                     // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
-                                                    let mut url_0:
+                                                    let  url_0:
                                                     *mut libc::c_char =
                                                         dc_mprintf(b"https://%s/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress=%s\x00"
                                                                    as
@@ -368,7 +368,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                             }
                                                             if param_autoconfig.is_null() {
                                                                 /* Outlook uses always SSL but different domains */
-                                                                let mut url_1:
+                                                                let  url_1:
                                                                 *mut libc::c_char =
                                                                     dc_mprintf(b"https://%s%s/autodiscover/autodiscover.xml\x00"
                                                                                as
@@ -424,7 +424,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                             2927484062889439186 => {}
                                                             _ => {
                                                                 if param_autoconfig.is_null() {
-                                                                    let mut url_2:
+                                                                    let  url_2:
                                                                     *mut libc::c_char =
                                                                         dc_mprintf(b"http://autoconfig.%s/mail/config-v1.1.xml?emailaddress=%s\x00"
                                                                                    as
@@ -481,7 +481,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                             .is_null()
                                                                         {
                                                                             // do not transfer the email-address unencrypted
-                                                                            let mut url_3:
+                                                                            let  url_3:
                                                                             *mut libc::c_char =
                                                                                 dc_mprintf(b"http://%s/.well-known/autoconfig/mail/config-v1.1.xml\x00"
                                                                                            as
@@ -540,7 +540,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                                     .is_null()
                                                                                 {
                                                                                     /* always SSL for Thunderbird's database */
-                                                                                    let mut url_4:
+                                                                                    let  url_4:
                                                                                     *mut libc::c_char =
                                                                                         dc_mprintf(b"https://autoconfig.thunderbird.net/v1.1/%s\x00"
                                                                                                    as
@@ -602,7 +602,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                                     {
                                                                                         if !param_autoconfig.is_null()
                                                                                         {
-                                                                                            let mut r:
+                                                                                            let  r:
                                                                                             *mut libc::c_char =
                                                                                                 dc_loginparam_get_readable(param_autoconfig);
                                                                                             dc_log_info(context,
@@ -803,7 +803,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                         current_block = 14187386403465544025;
                                                         break;
                                                     }
-                                                    let mut r_0: *mut libc::c_char =
+                                                    let r_0: *mut libc::c_char =
                                                         dc_loginparam_get_readable(param);
                                                     dc_log_info(
                                                         context,
@@ -852,7 +852,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                     (*param).server_flags &=
                                                         !(0x100i32 | 0x200i32 | 0x400i32);
                                                     (*param).server_flags |= 0x100i32;
-                                                    let mut r_1: *mut libc::c_char =
+                                                    let r_1: *mut libc::c_char =
                                                         dc_loginparam_get_readable(param);
                                                     dc_log_info(
                                                         context,
@@ -895,7 +895,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                         0i32 as uintptr_t,
                                                     );
                                                     (*param).mail_port = 143i32;
-                                                    let mut r_2: *mut libc::c_char =
+                                                    let r_2: *mut libc::c_char =
                                                         dc_loginparam_get_readable(param);
                                                     dc_log_info(
                                                         context,
@@ -1009,7 +1009,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                     (*param).server_flags |=
                                                                         0x10000i32;
                                                                     (*param).send_port = 587i32;
-                                                                    let mut r_3: *mut libc::c_char =
+                                                                    let r_3: *mut libc::c_char =
                                                                         dc_loginparam_get_readable(
                                                                             param,
                                                                         );
@@ -1063,7 +1063,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                                                                 0x10000i32;
                                                                             (*param).send_port =
                                                                                 25i32;
-                                                                            let mut r_4:
+                                                                            let  r_4:
                                                                             *mut libc::c_char =
                                                                                 dc_loginparam_get_readable(param);
                                                                             dc_log_info(context,
@@ -1301,13 +1301,13 @@ pub unsafe fn dc_free_ongoing(context: &dc_context_t) {
 }
 
 unsafe fn moz_autoconfigure(
-    mut context: &dc_context_t,
-    mut url: *const libc::c_char,
-    mut param_in: *const dc_loginparam_t,
+    context: &dc_context_t,
+    url: *const libc::c_char,
+    param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
-    let mut p: *mut libc::c_char;
+    let p: *mut libc::c_char;
     let mut saxparser: dc_saxparser_t;
-    let mut xml_raw: *mut libc::c_char;
+    let xml_raw: *mut libc::c_char;
     let mut moz_ac: moz_autoconfigure_t = moz_autoconfigure_t {
         in_0: 0 as *const dc_loginparam_t,
         in_emaildomain: 0 as *mut libc::c_char,
@@ -1354,7 +1354,7 @@ unsafe fn moz_autoconfigure(
                 || (*moz_ac.out).send_server.is_null()
                 || (*moz_ac.out).send_port == 0i32
             {
-                let mut r: *mut libc::c_char = dc_loginparam_get_readable(moz_ac.out);
+                let r: *mut libc::c_char = dc_loginparam_get_readable(moz_ac.out);
                 dc_log_warning(
                     context,
                     0i32,
@@ -1451,10 +1451,7 @@ unsafe fn moz_autoconfigure_text_cb(
     }
     free(val as *mut libc::c_void);
 }
-unsafe fn moz_autoconfigure_endtag_cb(
-    mut userdata: *mut libc::c_void,
-    mut tag: *const libc::c_char,
-) {
+unsafe fn moz_autoconfigure_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
     let mut moz_ac: *mut moz_autoconfigure_t = userdata as *mut moz_autoconfigure_t;
     if strcmp(
         tag,
@@ -1477,9 +1474,9 @@ unsafe fn moz_autoconfigure_endtag_cb(
     };
 }
 unsafe fn moz_autoconfigure_starttag_cb(
-    mut userdata: *mut libc::c_void,
-    mut tag: *const libc::c_char,
-    mut attr: *mut *mut libc::c_char,
+    userdata: *mut libc::c_void,
+    tag: *const libc::c_char,
+    attr: *mut *mut libc::c_char,
 ) {
     let mut moz_ac: *mut moz_autoconfigure_t = userdata as *mut moz_autoconfigure_t;
     let mut p1: *const libc::c_char = 0 as *const libc::c_char;
@@ -1522,10 +1519,10 @@ unsafe fn moz_autoconfigure_starttag_cb(
     };
 }
 unsafe fn read_autoconf_file(
-    mut context: &dc_context_t,
-    mut url: *const libc::c_char,
+    context: &dc_context_t,
+    url: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut filecontent: *mut libc::c_char;
+    let filecontent: *mut libc::c_char;
     dc_log_info(
         context,
         0i32,
@@ -1554,7 +1551,7 @@ unsafe fn outlk_autodiscover(
     url__: *const libc::c_char,
     param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
-    let mut current_block: u64;
+    let current_block: u64;
     let mut xml_raw: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut url: *mut libc::c_char = dc_strdup(url__);
     let mut outlk_ad: outlk_autodiscover_t = outlk_autodiscover_t {
@@ -1622,7 +1619,7 @@ unsafe fn outlk_autodiscover(
                 || (*outlk_ad.out).send_server.is_null()
                 || (*outlk_ad.out).send_port == 0i32
             {
-                let mut r: *mut libc::c_char = dc_loginparam_get_readable(outlk_ad.out);
+                let r: *mut libc::c_char = dc_loginparam_get_readable(outlk_ad.out);
                 dc_log_warning(
                     context,
                     0i32,
@@ -1655,25 +1652,22 @@ unsafe fn outlk_autodiscover_text_cb(
     _len: libc::c_int,
 ) {
     let mut outlk_ad: *mut outlk_autodiscover_t = userdata as *mut outlk_autodiscover_t;
-    let mut val: *mut libc::c_char = dc_strdup(text);
+    let val: *mut libc::c_char = dc_strdup(text);
     dc_trim(val);
     free((*outlk_ad).config[(*outlk_ad).tag_config as usize] as *mut libc::c_void);
     (*outlk_ad).config[(*outlk_ad).tag_config as usize] = val;
 }
-unsafe fn outlk_autodiscover_endtag_cb(
-    mut userdata: *mut libc::c_void,
-    mut tag: *const libc::c_char,
-) {
+unsafe fn outlk_autodiscover_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
     let mut outlk_ad: *mut outlk_autodiscover_t = userdata as *mut outlk_autodiscover_t;
     if strcmp(tag, b"protocol\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !(*outlk_ad).config[1usize].is_null() {
-            let mut port: libc::c_int = dc_atoi_null_is_0((*outlk_ad).config[3usize]);
-            let mut ssl_on: libc::c_int = (!(*outlk_ad).config[4usize].is_null()
+            let port: libc::c_int = dc_atoi_null_is_0((*outlk_ad).config[3usize]);
+            let ssl_on: libc::c_int = (!(*outlk_ad).config[4usize].is_null()
                 && strcasecmp(
                     (*outlk_ad).config[4usize],
                     b"on\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32) as libc::c_int;
-            let mut ssl_off: libc::c_int = (!(*outlk_ad).config[4usize].is_null()
+            let ssl_off: libc::c_int = (!(*outlk_ad).config[4usize].is_null()
                 && strcasecmp(
                     (*outlk_ad).config[4usize],
                     b"off\x00" as *const u8 as *const libc::c_char,
@@ -1753,7 +1747,7 @@ pub unsafe fn dc_alloc_ongoing(context: &dc_context_t) -> libc::c_int {
 
 pub unsafe fn dc_connect_to_configured_imap(context: &dc_context_t, imap: &Imap) -> libc::c_int {
     let mut ret_connected: libc::c_int = 0i32;
-    let mut param: *mut dc_loginparam_t = dc_loginparam_new();
+    let param: *mut dc_loginparam_t = dc_loginparam_new();
     if imap.is_connected() {
         ret_connected = 1i32
     } else if dc_sqlite3_get_config_int(

@@ -3,7 +3,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
     unused_attributes,
     non_upper_case_globals,
     non_camel_case_types,
@@ -29,6 +28,7 @@ pub mod dc_log;
 mod pgp;
 
 pub mod dc_aheader;
+
 pub mod dc_apeerstate;
 pub mod dc_array;
 pub mod dc_chat;

@@ -105,7 +105,7 @@ impl Smtp {
         let creds = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
             // oauth2
 
-            let mut access_token =
+            let access_token =
                 unsafe { dc_get_oauth2_access_token(context, lp.addr, lp.send_pw, 0i32) };
             if access_token.is_null() {
                 return 0;

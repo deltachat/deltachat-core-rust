@@ -291,7 +291,7 @@ pub struct ImapConfig {
 
 impl Default for ImapConfig {
     fn default() -> Self {
-        let mut cfg = ImapConfig {
+        let cfg = ImapConfig {
             addr: None,
             imap_server: None,
             imap_port: None,
@@ -447,7 +447,7 @@ impl Imap {
     }
 
     pub fn disconnect(&self, context: &dc_context_t) {
-        let mut session = self.session.lock().unwrap().take();
+        let session = self.session.lock().unwrap().take();
         if session.is_some() {
             match session.unwrap().close() {
                 Ok(_) => {}
@@ -955,7 +955,7 @@ impl Imap {
     fn fake_idle(&self, context: &dc_context_t) {
         // Idle using timeouts. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job
-        let mut fake_idle_start_time = SystemTime::now();
+        let fake_idle_start_time = SystemTime::now();
 
         info!(context, 0, "IMAP-fake-IDLEing...");
 
@@ -1186,7 +1186,7 @@ impl Imap {
     pub fn set_mdnsent<S: AsRef<str>>(&self, context: &dc_context_t, folder: S, uid: u32) -> usize {
         // returns 0=job should be retried later, 1=job done, 2=job done and flag just set
         let mut res = DC_RETRY_LATER;
-        let mut set = format!("{}", uid);
+        let set = format!("{}", uid);
 
         if uid == 0 {
             res = DC_FAILED;
@@ -1400,7 +1400,7 @@ impl Imap {
             .find(|folder| folder.name() == "DeltaChat" || folder.name() == fallback_folder)
             .map(|n| n.name().to_string());
 
-        let mut sentbox_folder = folders
+        let sentbox_folder = folders
             .iter()
             .find(|folder| match get_folder_meaning(folder) {
                 FolderMeaning::SentObjects => true,

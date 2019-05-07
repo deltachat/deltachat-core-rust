@@ -7,14 +7,14 @@ use crate::x::*;
 
 /* Return the string with the given ID by calling DC_EVENT_GET_STRING.
 The result must be free()'d! */
-pub unsafe fn dc_stock_str(mut context: &dc_context_t, mut id: libc::c_int) -> *mut libc::c_char {
+pub unsafe fn dc_stock_str(context: &dc_context_t, id: libc::c_int) -> *mut libc::c_char {
     return get_string(context, id, 0i32);
 }
 
 unsafe fn get_string(
-    mut context: &dc_context_t,
-    mut id: libc::c_int,
-    mut qty: libc::c_int,
+    context: &dc_context_t,
+    id: libc::c_int,
+    qty: libc::c_int,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char;
 
@@ -35,7 +35,7 @@ unsafe fn get_string(
 /* Add translated strings that are used by the messager backend.
 As the logging functions may use these strings, do not log any
 errors from here. */
-unsafe fn default_string(mut id: libc::c_int) -> *mut libc::c_char {
+unsafe fn default_string(id: libc::c_int) -> *mut libc::c_char {
     // TODO match on enum values /rtn
     match id {
         1 => {
@@ -216,9 +216,9 @@ unsafe fn default_string(mut id: libc::c_int) -> *mut libc::c_char {
 /* Replaces the first `%1$s` in the given String-ID by the given value.
 The result must be free()'d! */
 pub unsafe fn dc_stock_str_repl_string(
-    mut context: &dc_context_t,
-    mut id: libc::c_int,
-    mut to_insert: *const libc::c_char,
+    context: &dc_context_t,
+    id: libc::c_int,
+    to_insert: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = get_string(context, id, 0i32);
     dc_str_replace(
@@ -236,12 +236,12 @@ pub unsafe fn dc_stock_str_repl_string(
 }
 
 pub unsafe fn dc_stock_str_repl_int(
-    mut context: &dc_context_t,
-    mut id: libc::c_int,
-    mut to_insert_int: libc::c_int,
+    context: &dc_context_t,
+    id: libc::c_int,
+    to_insert_int: libc::c_int,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = get_string(context, id, to_insert_int);
-    let mut to_insert_str: *mut libc::c_char = dc_mprintf(
+    let to_insert_str: *mut libc::c_char = dc_mprintf(
         b"%i\x00" as *const u8 as *const libc::c_char,
         to_insert_int as libc::c_int,
     );
@@ -263,10 +263,10 @@ pub unsafe fn dc_stock_str_repl_int(
 /* Replaces the first `%1$s` and `%2$s` in the given String-ID by the two given strings.
 The result must be free()'d! */
 pub unsafe fn dc_stock_str_repl_string2(
-    mut context: &dc_context_t,
-    mut id: libc::c_int,
-    mut to_insert: *const libc::c_char,
-    mut to_insert2: *const libc::c_char,
+    context: &dc_context_t,
+    id: libc::c_int,
+    to_insert: *const libc::c_char,
+    to_insert2: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = get_string(context, id, 0i32);
     dc_str_replace(
@@ -295,26 +295,26 @@ pub unsafe fn dc_stock_str_repl_string2(
 
 /* Misc. */
 pub unsafe fn dc_stock_system_msg(
-    mut context: &dc_context_t,
-    mut str_id: libc::c_int,
+    context: &dc_context_t,
+    str_id: libc::c_int,
     mut param1: *const libc::c_char,
-    mut param2: *const libc::c_char,
-    mut from_id: uint32_t,
+    param2: *const libc::c_char,
+    from_id: uint32_t,
 ) -> *mut libc::c_char {
-    let mut ret: *mut libc::c_char;
+    let ret: *mut libc::c_char;
     let mut mod_contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut mod_displayname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut from_contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut from_displayname: *mut libc::c_char = 0 as *mut libc::c_char;
     if str_id == 17i32 || str_id == 18i32 {
-        let mut mod_contact_id: uint32_t = dc_lookup_contact_id_by_addr(context, param1);
+        let mod_contact_id: uint32_t = dc_lookup_contact_id_by_addr(context, param1);
         if mod_contact_id != 0i32 as libc::c_uint {
             mod_contact = dc_get_contact(context, mod_contact_id);
             mod_displayname = dc_contact_get_name_n_addr(mod_contact);
             param1 = mod_displayname
         }
     }
-    let mut action: *mut libc::c_char = dc_stock_str_repl_string2(context, str_id, param1, param2);
+    let action: *mut libc::c_char = dc_stock_str_repl_string2(context, str_id, param1, param2);
     if 0 != from_id {
         if 0 != strlen(action)
             && *action.offset(strlen(action).wrapping_sub(1) as isize) as libc::c_int == '.' as i32

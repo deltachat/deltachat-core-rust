@@ -40,15 +40,15 @@ pub struct dc_kml_t {
 
 // location streaming
 pub unsafe fn dc_send_locations_to_chat(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut seconds: libc::c_int,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    seconds: libc::c_int,
 ) {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut now: time_t = time(0 as *mut time_t);
+    let now: time_t = time(0 as *mut time_t);
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let mut stock_str: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut is_sending_locations_before: libc::c_int;
+    let is_sending_locations_before: libc::c_int;
     if !(seconds < 0i32 || chat_id <= 9i32 as libc::c_uint) {
         is_sending_locations_before = dc_is_sending_locations_to_chat(context, chat_id);
         stmt =
@@ -123,18 +123,18 @@ pub unsafe fn dc_send_locations_to_chat(
 /*******************************************************************************
  * job to send locations out to all chats that want them
  ******************************************************************************/
-unsafe fn schedule_MAYBE_SEND_LOCATIONS(mut context: &dc_context_t, mut flags: libc::c_int) {
+unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &dc_context_t, flags: libc::c_int) {
     if 0 != flags & 0x1i32 || 0 == dc_job_action_exists(context, 5005i32) {
         dc_job_add(context, 5005i32, 0i32, 0 as *const libc::c_char, 60i32);
     };
 }
 
 pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
 ) -> libc::c_int {
     let mut is_sending_locations: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
 
     stmt = dc_sqlite3_prepare(
         context,
@@ -163,10 +163,10 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
 }
 
 pub unsafe fn dc_set_location(
-    mut context: &dc_context_t,
-    mut latitude: libc::c_double,
-    mut longitude: libc::c_double,
-    mut accuracy: libc::c_double,
+    context: &dc_context_t,
+    latitude: libc::c_double,
+    longitude: libc::c_double,
+    accuracy: libc::c_double,
 ) -> libc::c_int {
     let mut stmt_chats: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut stmt_insert: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -182,7 +182,7 @@ pub unsafe fn dc_set_location(
         );
         sqlite3_bind_int64(stmt_chats, 1i32, time(0 as *mut time_t) as sqlite3_int64);
         while sqlite3_step(stmt_chats) == 100i32 {
-            let mut chat_id: uint32_t = sqlite3_column_int(stmt_chats, 0i32) as uint32_t;
+            let chat_id: uint32_t = sqlite3_column_int(stmt_chats, 0i32) as uint32_t;
             stmt_insert =
                 dc_sqlite3_prepare(
                     context,
@@ -215,14 +215,14 @@ pub unsafe fn dc_set_location(
 }
 
 pub unsafe fn dc_get_locations(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut contact_id: uint32_t,
-    mut timestamp_from: time_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    contact_id: uint32_t,
+    timestamp_from: time_t,
     mut timestamp_to: time_t,
 ) -> *mut dc_array_t {
-    let mut ret: *mut dc_array_t = dc_array_new_typed(1i32, 500i32 as size_t);
-    let mut stmt: *mut sqlite3_stmt;
+    let ret: *mut dc_array_t = dc_array_new_typed(1i32, 500i32 as size_t);
+    let stmt: *mut sqlite3_stmt;
 
     if timestamp_to == 0i32 as libc::c_long {
         timestamp_to = time(0 as *mut time_t) + 10i32 as libc::c_long
@@ -277,8 +277,7 @@ pub unsafe fn dc_get_locations(
         (*loc).chat_id = sqlite3_column_int(stmt, 8i32) as uint32_t;
 
         if 0 != (*loc).msg_id {
-            let mut txt: *const libc::c_char =
-                sqlite3_column_text(stmt, 9i32) as *const libc::c_char;
+            let txt: *const libc::c_char = sqlite3_column_text(stmt, 9i32) as *const libc::c_char;
             if 0 != is_marker(txt) {
                 (*loc).marker = strdup(txt)
             }
@@ -292,9 +291,9 @@ pub unsafe fn dc_get_locations(
 }
 
 // TODO should be bool /rtn
-unsafe fn is_marker(mut txt: *const libc::c_char) -> libc::c_int {
+unsafe fn is_marker(txt: *const libc::c_char) -> libc::c_int {
     if !txt.is_null() {
-        let mut len: libc::c_int = dc_utf8_strlen(txt) as libc::c_int;
+        let len: libc::c_int = dc_utf8_strlen(txt) as libc::c_int;
         if len == 1i32 && *txt.offset(0isize) as libc::c_int != ' ' as i32 {
             return 1i32;
         }
@@ -303,8 +302,8 @@ unsafe fn is_marker(mut txt: *const libc::c_char) -> libc::c_int {
     0
 }
 
-pub unsafe fn dc_delete_all_locations(mut context: &dc_context_t) {
-    let mut stmt: *mut sqlite3_stmt;
+pub unsafe fn dc_delete_all_locations(context: &dc_context_t) {
+    let stmt: *mut sqlite3_stmt;
 
     stmt = dc_sqlite3_prepare(
         context,
@@ -323,17 +322,17 @@ pub unsafe fn dc_delete_all_locations(mut context: &dc_context_t) {
 }
 
 pub unsafe fn dc_get_location_kml(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut last_added_location_id: *mut uint32_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    last_added_location_id: *mut uint32_t,
 ) -> *mut libc::c_char {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt;
-    let mut self_addr: *mut libc::c_char;
-    let mut now: time_t = time(0 as *mut time_t);
-    let mut locations_send_begin: time_t;
-    let mut locations_send_until: time_t;
-    let mut locations_last_sent: time_t;
+    let self_addr: *mut libc::c_char;
+    let now: time_t = time(0 as *mut time_t);
+    let locations_send_begin: time_t;
+    let locations_send_until: time_t;
+    let locations_last_sent: time_t;
     let mut location_count: libc::c_int = 0i32;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -385,11 +384,11 @@ pub unsafe fn dc_get_location_kml(
             sqlite3_bind_int64(stmt, 3i32, locations_last_sent as sqlite3_int64);
             sqlite3_bind_int(stmt, 4i32, 1i32);
             while sqlite3_step(stmt) == 100i32 {
-                let mut location_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
-                let mut latitude: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 1i32));
-                let mut longitude: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 2i32));
-                let mut accuracy: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 3i32));
-                let mut timestamp: *mut libc::c_char =
+                let location_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
+                let latitude: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 1i32));
+                let longitude: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 2i32));
+                let accuracy: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 3i32));
+                let timestamp: *mut libc::c_char =
                     get_kml_timestamp(sqlite3_column_int64(stmt, 4i32) as time_t);
                 dc_strbuilder_catf(&mut ret as *mut dc_strbuilder_t,
                                        b"<Placemark><Timestamp><when>%s</when></Timestamp><Point><coordinates accuracy=\"%s\">%s,%s</coordinates></Point></Placemark>\n\x00"
@@ -498,7 +497,7 @@ pub unsafe fn dc_set_kml_sent_timestamp(
     chat_id: uint32_t,
     timestamp: time_t,
 ) {
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
@@ -512,11 +511,11 @@ pub unsafe fn dc_set_kml_sent_timestamp(
 }
 
 pub unsafe fn dc_set_msg_location_id(
-    mut context: &dc_context_t,
-    mut msg_id: uint32_t,
-    mut location_id: uint32_t,
+    context: &dc_context_t,
+    msg_id: uint32_t,
+    location_id: uint32_t,
 ) {
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
@@ -529,10 +528,10 @@ pub unsafe fn dc_set_msg_location_id(
 }
 
 pub unsafe fn dc_save_locations(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut contact_id: uint32_t,
-    mut locations: *const dc_array_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    contact_id: uint32_t,
+    locations: *const dc_array_t,
     independent: libc::c_int,
 ) -> uint32_t {
     let mut stmt_test: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -555,7 +554,7 @@ pub unsafe fn dc_save_locations(
         );
         let mut i = 0;
         while i < dc_array_get_cnt(locations) {
-            let mut location: *mut dc_location_t =
+            let location: *mut dc_location_t =
                 dc_array_get_ptr(locations, i as size_t) as *mut dc_location_t;
             sqlite3_reset(stmt_test);
             sqlite3_bind_int64(stmt_test, 1i32, (*location).timestamp as sqlite3_int64);
@@ -593,9 +592,9 @@ pub unsafe fn dc_save_locations(
 }
 
 pub unsafe fn dc_kml_parse(
-    mut context: &dc_context_t,
-    mut content: *const libc::c_char,
-    mut content_bytes: size_t,
+    context: &dc_context_t,
+    content: *const libc::c_char,
+    content_bytes: size_t,
 ) -> *mut dc_kml_t {
     let mut kml: *mut dc_kml_t = calloc(1, ::std::mem::size_of::<dc_kml_t>()) as *mut dc_kml_t;
     let mut content_nullterminated: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -696,8 +695,8 @@ unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _l
         } else if 0 != (*kml).tag & 0x10i32 {
             let mut comma: *mut libc::c_char = strchr(val, ',' as i32);
             if !comma.is_null() {
-                let mut longitude: *mut libc::c_char = val;
-                let mut latitude: *mut libc::c_char = comma.offset(1isize);
+                let longitude: *mut libc::c_char = val;
+                let latitude: *mut libc::c_char = comma.offset(1isize);
                 *comma = 0i32 as libc::c_char;
                 comma = strchr(latitude, ',' as i32);
                 if !comma.is_null() {
@@ -711,7 +710,7 @@ unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _l
     };
 }
 
-unsafe fn kml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c_char) {
+unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
     let mut kml: *mut dc_kml_t = userdata as *mut dc_kml_t;
     if strcmp(tag, b"placemark\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if 0 != (*kml).tag & 0x1i32
@@ -719,7 +718,7 @@ unsafe fn kml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c
             && 0. != (*kml).curr.latitude
             && 0. != (*kml).curr.longitude
         {
-            let mut location: *mut dc_location_t =
+            let location: *mut dc_location_t =
                 calloc(1, ::std::mem::size_of::<dc_location_t>()) as *mut dc_location_t;
             *location = (*kml).curr;
             dc_array_add_ptr((*kml).locations, location as *mut libc::c_void);
@@ -732,13 +731,13 @@ unsafe fn kml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c
  * parse kml-files
  ******************************************************************************/
 unsafe fn kml_starttag_cb(
-    mut userdata: *mut libc::c_void,
-    mut tag: *const libc::c_char,
-    mut attr: *mut *mut libc::c_char,
+    userdata: *mut libc::c_void,
+    tag: *const libc::c_char,
+    attr: *mut *mut libc::c_char,
 ) {
     let mut kml: *mut dc_kml_t = userdata as *mut dc_kml_t;
     if strcmp(tag, b"document\x00" as *const u8 as *const libc::c_char) == 0i32 {
-        let mut addr: *const libc::c_char =
+        let addr: *const libc::c_char =
             dc_attr_find(attr, b"addr\x00" as *const u8 as *const libc::c_char);
         if !addr.is_null() {
             (*kml).addr = dc_strdup(addr)
@@ -765,7 +764,7 @@ unsafe fn kml_starttag_cb(
         && 0 != (*kml).tag & 0x8i32
     {
         (*kml).tag = 0x1i32 | 0x8i32 | 0x10i32;
-        let mut accuracy: *const libc::c_char =
+        let accuracy: *const libc::c_char =
             dc_attr_find(attr, b"accuracy\x00" as *const u8 as *const libc::c_char);
         if !accuracy.is_null() {
             (*kml).curr.accuracy = dc_atof(accuracy)
@@ -773,7 +772,7 @@ unsafe fn kml_starttag_cb(
     };
 }
 
-pub unsafe fn dc_kml_unref(mut kml: *mut dc_kml_t) {
+pub unsafe fn dc_kml_unref(kml: *mut dc_kml_t) {
     if kml.is_null() {
         return;
     }
@@ -783,9 +782,9 @@ pub unsafe fn dc_kml_unref(mut kml: *mut dc_kml_t) {
 }
 
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job: *mut dc_job_t) {
-    let mut stmt_chats: *mut sqlite3_stmt;
+    let stmt_chats: *mut sqlite3_stmt;
     let mut stmt_locations: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut now: time_t = time(0 as *mut time_t);
+    let now: time_t = time(0 as *mut time_t);
     let mut continue_streaming: libc::c_int = 1i32;
     dc_log_info(
         context,
@@ -802,9 +801,9 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job
     );
     sqlite3_bind_int64(stmt_chats, 1i32, now as sqlite3_int64);
     while sqlite3_step(stmt_chats) == 100i32 {
-        let mut chat_id: uint32_t = sqlite3_column_int(stmt_chats, 0i32) as uint32_t;
-        let mut locations_send_begin: time_t = sqlite3_column_int64(stmt_chats, 1i32) as time_t;
-        let mut locations_last_sent: time_t = sqlite3_column_int64(stmt_chats, 2i32) as time_t;
+        let chat_id: uint32_t = sqlite3_column_int(stmt_chats, 0i32) as uint32_t;
+        let locations_send_begin: time_t = sqlite3_column_int64(stmt_chats, 1i32) as time_t;
+        let locations_last_sent: time_t = sqlite3_column_int64(stmt_chats, 2i32) as time_t;
         continue_streaming = 1i32;
         // be a bit tolerant as the timer may not align exactly with time(NULL)
         if now - locations_last_sent < (60i32 - 3i32) as libc::c_long {
@@ -855,16 +854,13 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job
     sqlite3_finalize(stmt_locations);
 }
 
-pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(
-    mut context: &dc_context_t,
-    mut job: &mut dc_job_t,
-) {
+pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &dc_context_t, job: &mut dc_job_t) {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.
-    let mut chat_id: uint32_t = (*job).foreign_id;
-    let mut locations_send_begin: time_t;
-    let mut locations_send_until: time_t;
+    let chat_id: uint32_t = (*job).foreign_id;
+    let locations_send_begin: time_t;
+    let locations_send_until: time_t;
     let mut stmt;
     let mut stock_str: *mut libc::c_char = 0 as *mut libc::c_char;
     stmt = dc_sqlite3_prepare(

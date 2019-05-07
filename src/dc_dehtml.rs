@@ -13,7 +13,7 @@ pub struct dehtml_t {
 
 /* ** library-internal *********************************************************/
 /* dc_dehtml() returns way too many lineends; however, an optimisation on this issue is not needed as the lineends are typically remove in further processing by the caller */
-pub unsafe fn dc_dehtml(mut buf_terminated: *mut libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char {
     dc_trim(buf_terminated);
     if *buf_terminated.offset(0isize) as libc::c_int == 0i32 {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
@@ -64,9 +64,9 @@ unsafe fn dehtml_text_cb(
     text: *const libc::c_char,
     _len: libc::c_int,
 ) {
-    let mut dehtml: *mut dehtml_t = userdata as *mut dehtml_t;
+    let dehtml: *mut dehtml_t = userdata as *mut dehtml_t;
     if (*dehtml).add_text != 0i32 {
-        let mut last_added: *mut libc::c_char = dc_strbuilder_cat(&mut (*dehtml).strbuilder, text);
+        let last_added: *mut libc::c_char = dc_strbuilder_cat(&mut (*dehtml).strbuilder, text);
         if (*dehtml).add_text == 1i32 {
             let mut p: *mut libc::c_uchar = last_added as *mut libc::c_uchar;
             while 0 != *p {
@@ -95,7 +95,7 @@ unsafe fn dehtml_text_cb(
         }
     };
 }
-unsafe fn dehtml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc::c_char) {
+unsafe fn dehtml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
     let mut dehtml: *mut dehtml_t = userdata as *mut dehtml_t;
     if strcmp(tag, b"p\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(tag, b"div\x00" as *const u8 as *const libc::c_char) == 0i32
@@ -142,9 +142,9 @@ unsafe fn dehtml_endtag_cb(mut userdata: *mut libc::c_void, mut tag: *const libc
     };
 }
 unsafe fn dehtml_starttag_cb(
-    mut userdata: *mut libc::c_void,
-    mut tag: *const libc::c_char,
-    mut attr: *mut *mut libc::c_char,
+    userdata: *mut libc::c_void,
+    tag: *const libc::c_char,
+    attr: *mut *mut libc::c_char,
 ) {
     let mut dehtml: *mut dehtml_t = userdata as *mut dehtml_t;
     if strcmp(tag, b"p\x00" as *const u8 as *const libc::c_char) == 0i32

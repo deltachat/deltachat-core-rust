@@ -42,7 +42,7 @@ pub unsafe fn dc_receive_imf(
     /* the function returns the number of created messages in the database */
     let mut incoming: libc::c_int = 1i32;
     let mut incoming_origin: libc::c_int = 0i32;
-    let mut to_ids: *mut dc_array_t;
+    let to_ids: *mut dc_array_t;
     let mut to_self: libc::c_int = 0i32;
     let mut from_id: uint32_t = 0i32 as uint32_t;
     let mut from_id_blocked: libc::c_int = 0i32;
@@ -62,13 +62,13 @@ pub unsafe fn dc_receive_imf(
     let mut sort_timestamp: time_t = -1i32 as time_t;
     let mut sent_timestamp: time_t = -1i32 as time_t;
     let mut rcvd_timestamp: time_t = -1i32 as time_t;
-    let mut mime_parser: *mut dc_mimeparser_t = dc_mimeparser_new(context.get_blobdir(), context);
+    let mime_parser: *mut dc_mimeparser_t = dc_mimeparser_new(context.get_blobdir(), context);
     let mut field: *const mailimf_field;
     let mut mime_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut mime_references: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut created_db_entries: *mut carray = carray_new(16i32 as libc::c_uint);
+    let created_db_entries: *mut carray = carray_new(16i32 as libc::c_uint);
     let mut create_event_to_send = Some(Event::MSGS_CHANGED);
-    let mut rr_event_to_send: *mut carray = carray_new(16i32 as libc::c_uint);
+    let rr_event_to_send: *mut carray = carray_new(16i32 as libc::c_uint);
     let mut txt_raw: *mut libc::c_char = 0 as *mut libc::c_char;
     dc_log_info(
         context,
@@ -107,7 +107,7 @@ pub unsafe fn dc_receive_imf(
                 b"Date\x00" as *const u8 as *const libc::c_char,
             );
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_ORIG_DATE as libc::c_int {
-                let mut orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
+                let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
                 if !orig_date.is_null() {
                     sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
                 }
@@ -117,10 +117,10 @@ pub unsafe fn dc_receive_imf(
                 b"From\x00" as *const u8 as *const libc::c_char,
             );
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_FROM as libc::c_int {
-                let mut fld_from: *mut mailimf_from = (*field).fld_data.fld_from;
+                let fld_from: *mut mailimf_from = (*field).fld_data.fld_from;
                 if !fld_from.is_null() {
                     let mut check_self: libc::c_int = 0;
-                    let mut from_list: *mut dc_array_t = dc_array_new(16i32 as size_t);
+                    let from_list: *mut dc_array_t = dc_array_new(16i32 as size_t);
                     dc_add_or_lookup_contacts_by_mailbox_list(
                         context,
                         (*fld_from).frm_mb_list,
@@ -146,7 +146,7 @@ pub unsafe fn dc_receive_imf(
                 b"To\x00" as *const u8 as *const libc::c_char,
             );
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_TO as libc::c_int {
-                let mut fld_to: *mut mailimf_to = (*field).fld_data.fld_to;
+                let fld_to: *mut mailimf_to = (*field).fld_data.fld_to;
                 if !fld_to.is_null() {
                     dc_add_or_lookup_contacts_by_address_list(
                         context,
@@ -169,7 +169,7 @@ pub unsafe fn dc_receive_imf(
                     b"Cc\x00" as *const u8 as *const libc::c_char,
                 );
                 if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_CC as libc::c_int {
-                    let mut fld_cc: *mut mailimf_cc = (*field).fld_data.fld_cc;
+                    let fld_cc: *mut mailimf_cc = (*field).fld_data.fld_cc;
                     if !fld_cc.is_null() {
                         dc_add_or_lookup_contacts_by_address_list(
                             context,
@@ -192,8 +192,7 @@ pub unsafe fn dc_receive_imf(
                 );
                 if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_MESSAGE_ID as libc::c_int
                 {
-                    let mut fld_message_id: *mut mailimf_message_id =
-                        (*field).fld_data.fld_message_id;
+                    let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
                     if !fld_message_id.is_null() {
                         rfc724_mid = dc_strdup((*fld_message_id).mid_value)
                     }
@@ -255,7 +254,7 @@ pub unsafe fn dc_receive_imf(
                             by checking the state before the message body is downloaded */
                             let mut allow_creation: libc::c_int = 1i32;
                             if msgrmsg == 0i32 {
-                                let mut show_emails: libc::c_int = dc_sqlite3_get_config_int(
+                                let show_emails: libc::c_int = dc_sqlite3_get_config_int(
                                     context,
                                     &context.sql.clone().read().unwrap(),
                                     b"show_emails\x00" as *const u8 as *const libc::c_char,
@@ -284,7 +283,7 @@ pub unsafe fn dc_receive_imf(
                                     msgrmsg = 1i32;
                                     chat_id = 0i32 as uint32_t;
                                     allow_creation = 1i32;
-                                    let mut handshake: libc::c_int = dc_handle_securejoin_handshake(
+                                    let handshake: libc::c_int = dc_handle_securejoin_handshake(
                                         context,
                                         mime_parser,
                                         from_id,
@@ -304,8 +303,7 @@ pub unsafe fn dc_receive_imf(
                                     &mut test_normal_chat_id_blocked,
                                 );
                                 if chat_id == 0i32 as libc::c_uint {
-                                    let mut create_blocked: libc::c_int = if 0
-                                        != test_normal_chat_id
+                                    let create_blocked: libc::c_int = if 0 != test_normal_chat_id
                                         && test_normal_chat_id_blocked == 0i32
                                         || incoming_origin >= 0x7fffffffi32
                                     {
@@ -341,7 +339,7 @@ pub unsafe fn dc_receive_imf(
                                     }
                                 }
                                 if chat_id == 0i32 as libc::c_uint {
-                                    let mut create_blocked_0: libc::c_int =
+                                    let create_blocked_0: libc::c_int =
                                         if incoming_origin >= 0x7fffffffi32 || from_id == to_id {
                                             0i32
                                         } else {
@@ -409,7 +407,7 @@ pub unsafe fn dc_receive_imf(
                                         }
                                     }
                                     if chat_id == 0i32 as libc::c_uint && 0 != allow_creation {
-                                        let mut create_blocked_1: libc::c_int = if 0 != msgrmsg
+                                        let create_blocked_1: libc::c_int = if 0 != msgrmsg
                                             && 0 == dc_is_contact_blocked(context, to_id)
                                         {
                                             0i32
@@ -468,7 +466,7 @@ pub unsafe fn dc_receive_imf(
                             dc_unarchive_chat(context, chat_id);
                             // if the mime-headers should be saved, find out its size
                             // (the mime-header ends with an empty line)
-                            let mut save_mime_headers: libc::c_int = dc_sqlite3_get_config_int(
+                            let save_mime_headers: libc::c_int = dc_sqlite3_get_config_int(
                                 context,
                                 &context.sql.clone().read().unwrap(),
                                 b"save_mime_headers\x00" as *const u8 as *const libc::c_char,
@@ -507,7 +505,7 @@ pub unsafe fn dc_receive_imf(
                             if !field.is_null()
                                 && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int
                             {
-                                let mut fld_in_reply_to: *mut mailimf_in_reply_to =
+                                let fld_in_reply_to: *mut mailimf_in_reply_to =
                                     (*field).fld_data.fld_in_reply_to;
                                 if !fld_in_reply_to.is_null() {
                                     mime_in_reply_to = dc_str_from_clist(
@@ -523,7 +521,7 @@ pub unsafe fn dc_receive_imf(
                             if !field.is_null()
                                 && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int
                             {
-                                let mut fld_references: *mut mailimf_references =
+                                let fld_references: *mut mailimf_references =
                                     (*field).fld_data.fld_references;
                                 if !fld_references.is_null() {
                                     mime_references = dc_str_from_clist(
@@ -546,7 +544,7 @@ pub unsafe fn dc_receive_imf(
                                     current_block = 2756754640271984560;
                                     break;
                                 }
-                                let mut part: *mut dc_mimepart_t =
+                                let part: *mut dc_mimepart_t =
                                     carray_get((*mime_parser).parts, i as libc::c_uint)
                                         as *mut dc_mimepart_t;
                                 if !(0 != (*part).is_meta) {
@@ -713,7 +711,7 @@ pub unsafe fn dc_receive_imf(
                 16282941964262048061 => {}
                 _ => {
                     if carray_count((*mime_parser).reports) > 0i32 as libc::c_uint {
-                        let mut mdns_enabled: libc::c_int = dc_sqlite3_get_config_int(
+                        let mdns_enabled: libc::c_int = dc_sqlite3_get_config_int(
                             context,
                             &context.sql.clone().read().unwrap(),
                             b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
@@ -723,14 +721,13 @@ pub unsafe fn dc_receive_imf(
                         i = 0i32 as size_t;
                         while i < icnt {
                             let mut mdn_consumed: libc::c_int = 0i32;
-                            let mut report_root: *mut mailmime =
+                            let report_root: *mut mailmime =
                                 carray_get((*mime_parser).reports, i as libc::c_uint)
                                     as *mut mailmime;
-                            let mut report_type: *mut mailmime_parameter =
-                                mailmime_find_ct_parameter(
-                                    report_root,
-                                    b"report-type\x00" as *const u8 as *const libc::c_char,
-                                );
+                            let report_type: *mut mailmime_parameter = mailmime_find_ct_parameter(
+                                report_root,
+                                b"report-type\x00" as *const u8 as *const libc::c_char,
+                            );
                             if !(report_root.is_null()
                                 || report_type.is_null()
                                 || (*report_type).pa_value.is_null())
@@ -744,11 +741,22 @@ pub unsafe fn dc_receive_imf(
                                         >= 2i32
                                 {
                                     if 0 != mdns_enabled {
-                                        let mut report_data: *mut mailmime =
-                                            (if !if !(*(*report_root)
-                                                .mm_data
-                                                .mm_multipart
-                                                .mm_mp_list)
+                                        let report_data: *mut mailmime = (if !if !(*(*report_root)
+                                            .mm_data
+                                            .mm_multipart
+                                            .mm_mp_list)
+                                            .first
+                                            .is_null()
+                                        {
+                                            (*(*(*report_root).mm_data.mm_multipart.mm_mp_list)
+                                                .first)
+                                                .next
+                                        } else {
+                                            0 as *mut clistcell
+                                        }
+                                        .is_null()
+                                        {
+                                            (*if !(*(*report_root).mm_data.mm_multipart.mm_mp_list)
                                                 .first
                                                 .is_null()
                                             {
@@ -757,30 +765,12 @@ pub unsafe fn dc_receive_imf(
                                                     .next
                                             } else {
                                                 0 as *mut clistcell
-                                            }
-                                            .is_null()
-                                            {
-                                                (*if !(*(*report_root)
-                                                    .mm_data
-                                                    .mm_multipart
-                                                    .mm_mp_list)
-                                                    .first
-                                                    .is_null()
-                                                {
-                                                    (*(*(*report_root)
-                                                        .mm_data
-                                                        .mm_multipart
-                                                        .mm_mp_list)
-                                                        .first)
-                                                        .next
-                                                } else {
-                                                    0 as *mut clistcell
-                                                })
-                                                .data
-                                            } else {
-                                                0 as *mut libc::c_void
                                             })
-                                                as *mut mailmime;
+                                            .data
+                                        } else {
+                                            0 as *mut libc::c_void
+                                        })
+                                            as *mut mailmime;
                                         if !report_data.is_null()
                                             && (*(*(*report_data).mm_content_type).ct_type).tp_type
                                                 == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int
@@ -817,10 +807,10 @@ pub unsafe fn dc_receive_imf(
                                                 ) == MAIL_NO_ERROR as libc::c_int
                                                     && !report_parsed.is_null()
                                                 {
-                                                    let mut report_fields: *mut mailimf_fields =
+                                                    let report_fields: *mut mailimf_fields =
                                                         mailmime_find_mailimf_fields(report_parsed);
                                                     if !report_fields.is_null() {
-                                                        let mut of_disposition:
+                                                        let  of_disposition:
                                                                 *mut mailimf_optional_field =
                                                             mailimf_find_optional_field(report_fields,
                                                                                         b"Disposition\x00"
@@ -828,7 +818,7 @@ pub unsafe fn dc_receive_imf(
                                                                                             *const u8
                                                                                             as
                                                                                             *const libc::c_char);
-                                                        let mut of_org_msgid:
+                                                        let  of_org_msgid:
                                                                 *mut mailimf_optional_field =
                                                             mailimf_find_optional_field(report_fields,
                                                                                         b"Original-Message-ID\x00"
@@ -901,7 +891,7 @@ pub unsafe fn dc_receive_imf(
                                     }
                                     if 0 != (*mime_parser).is_send_by_messenger || 0 != mdn_consumed
                                     {
-                                        let mut param: *mut dc_param_t = dc_param_new();
+                                        let param: *mut dc_param_t = dc_param_new();
                                         dc_param_set(param, 'Z' as i32, server_folder);
                                         dc_param_set_int(param, 'z' as i32, server_uid as int32_t);
                                         if 0 != (*mime_parser).is_send_by_messenger
@@ -930,7 +920,7 @@ pub unsafe fn dc_receive_imf(
                         if !(*mime_parser).message_kml.is_null()
                             && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
                         {
-                            let mut newest_location_id: uint32_t = dc_save_locations(
+                            let newest_location_id: uint32_t = dc_save_locations(
                                 context,
                                 chat_id,
                                 from_id,
@@ -1006,7 +996,7 @@ pub unsafe fn dc_receive_imf(
     if !created_db_entries.is_null() {
         if let Some(create_event_to_send) = create_event_to_send {
             let mut i_0: size_t = 0;
-            let mut icnt_0: size_t = carray_count(created_db_entries) as size_t;
+            let icnt_0: size_t = carray_count(created_db_entries) as size_t;
             while i_0 < icnt_0 {
                 ((*context).cb)(
                     context,
@@ -1022,7 +1012,7 @@ pub unsafe fn dc_receive_imf(
     }
     if !rr_event_to_send.is_null() {
         let mut i_1: size_t;
-        let mut icnt_1: size_t = carray_count(rr_event_to_send) as size_t;
+        let icnt_1: size_t = carray_count(rr_event_to_send) as size_t;
         i_1 = 0i32 as size_t;
         while i_1 < icnt_1 {
             ((*context).cb)(
@@ -1042,14 +1032,14 @@ pub unsafe fn dc_receive_imf(
  * Misc. Tools
  ******************************************************************************/
 unsafe fn calc_timestamps(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut from_id: uint32_t,
-    mut message_timestamp: time_t,
-    mut is_fresh_msg: libc::c_int,
-    mut sort_timestamp: *mut time_t,
-    mut sent_timestamp: *mut time_t,
-    mut rcvd_timestamp: *mut time_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    from_id: uint32_t,
+    message_timestamp: time_t,
+    is_fresh_msg: libc::c_int,
+    sort_timestamp: *mut time_t,
+    sent_timestamp: *mut time_t,
+    rcvd_timestamp: *mut time_t,
 ) {
     *rcvd_timestamp = time(0 as *mut time_t);
     *sent_timestamp = message_timestamp;
@@ -1058,7 +1048,7 @@ unsafe fn calc_timestamps(
     }
     *sort_timestamp = message_timestamp;
     if 0 != is_fresh_msg {
-        let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+        let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             b"SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?\x00"
@@ -1068,7 +1058,7 @@ unsafe fn calc_timestamps(
         sqlite3_bind_int(stmt, 2i32, from_id as libc::c_int);
         sqlite3_bind_int64(stmt, 3i32, *sort_timestamp as sqlite3_int64);
         if sqlite3_step(stmt) == 100i32 {
-            let mut last_msg_time: time_t = sqlite3_column_int64(stmt, 0i32) as time_t;
+            let last_msg_time: time_t = sqlite3_column_int64(stmt, 0i32) as time_t;
             if last_msg_time > 0i32 as libc::c_long {
                 if *sort_timestamp <= last_msg_time {
                     *sort_timestamp = last_msg_time + 1i32 as libc::c_long
@@ -1094,16 +1084,16 @@ which tries to create or find out the chat_id by:
 So when the function returns, the caller has the group id matching the current
 state of the group. */
 unsafe fn create_or_lookup_group(
-    mut context: &dc_context_t,
+    context: &dc_context_t,
     mut mime_parser: *mut dc_mimeparser_t,
-    mut allow_creation: libc::c_int,
-    mut create_blocked: libc::c_int,
-    mut from_id: int32_t,
-    mut to_ids: *const dc_array_t,
-    mut ret_chat_id: *mut uint32_t,
-    mut ret_chat_id_blocked: *mut libc::c_int,
+    allow_creation: libc::c_int,
+    create_blocked: libc::c_int,
+    from_id: int32_t,
+    to_ids: *const dc_array_t,
+    ret_chat_id: *mut uint32_t,
+    ret_chat_id_blocked: *mut libc::c_int,
 ) {
-    let mut group_explicitly_left: libc::c_int;
+    let group_explicitly_left: libc::c_int;
     let mut current_block: u64;
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut chat_id_blocked: libc::c_int = 0i32;
@@ -1112,7 +1102,7 @@ unsafe fn create_or_lookup_group(
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt;
     let mut i: libc::c_int;
-    let mut to_ids_cnt: libc::c_int = dc_array_get_cnt(to_ids) as libc::c_int;
+    let to_ids_cnt: libc::c_int = dc_array_get_cnt(to_ids) as libc::c_int;
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut recreate_member_list: libc::c_int = 0i32;
     let mut send_EVENT_CHAT_MODIFIED: libc::c_int = 0i32;
@@ -1150,7 +1140,7 @@ unsafe fn create_or_lookup_group(
             b"Message-ID\x00" as *const u8 as *const libc::c_char,
         );
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_MESSAGE_ID as libc::c_int {
-            let mut fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
+            let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
             if !fld_message_id.is_null() {
                 grpid = dc_extract_grpid_from_rfc724_mid((*fld_message_id).mid_value)
             }
@@ -1161,8 +1151,7 @@ unsafe fn create_or_lookup_group(
                 b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
             );
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
-                let mut fld_in_reply_to: *mut mailimf_in_reply_to =
-                    (*field).fld_data.fld_in_reply_to;
+                let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
                 if !fld_in_reply_to.is_null() {
                     grpid = dc_extract_grpid_from_rfc724_mid_list((*fld_in_reply_to).mid_list)
                 }
@@ -1174,8 +1163,7 @@ unsafe fn create_or_lookup_group(
                 );
                 if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int
                 {
-                    let mut fld_references: *mut mailimf_references =
-                        (*field).fld_data.fld_references;
+                    let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
                     if !fld_references.is_null() {
                         grpid = dc_extract_grpid_from_rfc724_mid_list((*fld_references).mid_list)
                     }
@@ -1220,7 +1208,7 @@ unsafe fn create_or_lookup_group(
             if !optional_field.is_null() {
                 X_MrRemoveFromGrp = (*optional_field).fld_value;
                 (*mime_parser).is_system_message = 5i32;
-                let mut left_group: libc::c_int =
+                let left_group: libc::c_int =
                     (dc_lookup_contact_id_by_addr(context, X_MrRemoveFromGrp)
                         == from_id as libc::c_uint) as libc::c_int;
                 better_msg = dc_stock_system_msg(
@@ -1428,7 +1416,7 @@ unsafe fn create_or_lookup_group(
                             } else {
                                 let mut i_0: libc::c_int = 0i32;
                                 while (i_0 as libc::c_uint) < carray_count((*mime_parser).parts) {
-                                    let mut part: *mut dc_mimepart_t =
+                                    let part: *mut dc_mimepart_t =
                                         carray_get((*mime_parser).parts, i_0 as libc::c_uint)
                                             as *mut dc_mimepart_t;
                                     if (*part).type_0 == 20i32 {
@@ -1443,7 +1431,7 @@ unsafe fn create_or_lookup_group(
                                 }
                             }
                             if 0 != ok {
-                                let mut chat: *mut dc_chat_t = dc_chat_new(context);
+                                let chat: *mut dc_chat_t = dc_chat_new(context);
                                 dc_log_info(
                                     context,
                                     0i32,
@@ -1464,7 +1452,7 @@ unsafe fn create_or_lookup_group(
                             }
                         }
                         if 0 != recreate_member_list {
-                            let mut skip: *const libc::c_char = if !X_MrRemoveFromGrp.is_null() {
+                            let skip: *const libc::c_char = if !X_MrRemoveFromGrp.is_null() {
                                 X_MrRemoveFromGrp
                             } else {
                                 0 as *mut libc::c_char
@@ -1500,7 +1488,7 @@ unsafe fn create_or_lookup_group(
                             }
                             i = 0i32;
                             while i < to_ids_cnt {
-                                let mut to_id: uint32_t = dc_array_get_id(to_ids, i as size_t);
+                                let to_id: uint32_t = dc_array_get_id(to_ids, i as size_t);
                                 if dc_addr_equals_contact(context, self_addr, to_id) == 0i32
                                     && (skip.is_null()
                                         || dc_addr_equals_contact(context, skip, to_id) == 0i32)
@@ -1523,7 +1511,7 @@ unsafe fn create_or_lookup_group(
                         /* check the number of receivers -
                         the only critical situation is if the user hits "Reply" instead of "Reply all" in a non-messenger-client */
                         if to_ids_cnt == 1i32 && (*mime_parser).is_send_by_messenger == 0i32 {
-                            let mut is_contact_cnt: libc::c_int =
+                            let is_contact_cnt: libc::c_int =
                                 dc_get_chat_contact_cnt(context, chat_id);
                             if is_contact_cnt > 3i32 {
                                 /* to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt. So everything up to 3 is no error. */
@@ -1562,16 +1550,16 @@ unsafe fn create_or_lookup_group(
  * Handle groups for received messages
  ******************************************************************************/
 unsafe fn create_or_lookup_adhoc_group(
-    mut context: &dc_context_t,
-    mut mime_parser: *mut dc_mimeparser_t,
-    mut allow_creation: libc::c_int,
-    mut create_blocked: libc::c_int,
-    mut from_id: int32_t,
-    mut to_ids: *const dc_array_t,
-    mut ret_chat_id: *mut uint32_t,
-    mut ret_chat_id_blocked: *mut libc::c_int,
+    context: &dc_context_t,
+    mime_parser: *mut dc_mimeparser_t,
+    allow_creation: libc::c_int,
+    create_blocked: libc::c_int,
+    from_id: int32_t,
+    to_ids: *const dc_array_t,
+    ret_chat_id: *mut uint32_t,
+    ret_chat_id_blocked: *mut libc::c_int,
 ) {
-    let mut current_block: u64;
+    let current_block: u64;
     /* if we're here, no grpid was found, check there is an existing ad-hoc
     group matching the to-list or if we can create one */
     let mut member_ids: *mut dc_array_t = 0 as *mut dc_array_t;
@@ -1676,14 +1664,14 @@ unsafe fn create_or_lookup_adhoc_group(
     };
 }
 unsafe fn create_group_record(
-    mut context: &dc_context_t,
-    mut grpid: *const libc::c_char,
-    mut grpname: *const libc::c_char,
-    mut create_blocked: libc::c_int,
-    mut create_verified: libc::c_int,
+    context: &dc_context_t,
+    grpid: *const libc::c_char,
+    grpname: *const libc::c_char,
+    create_blocked: libc::c_int,
+    create_verified: libc::c_int,
 ) -> uint32_t {
     let mut chat_id: uint32_t = 0i32 as uint32_t;
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
@@ -1711,8 +1699,8 @@ unsafe fn create_group_record(
     return chat_id;
 }
 unsafe fn create_adhoc_grp_id(
-    mut context: &dc_context_t,
-    mut member_ids: *mut dc_array_t,
+    context: &dc_context_t,
+    member_ids: *mut dc_array_t,
 ) -> *mut libc::c_char {
     /* algorithm:
     - sort normalized, lowercased, e-mail addresses alphabetically
@@ -1720,14 +1708,14 @@ unsafe fn create_adhoc_grp_id(
     - sha-256 this string (without possibly terminating null-characters)
     - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
      */
-    let mut member_addrs: *mut dc_array_t = dc_array_new(23i32 as size_t);
-    let mut member_ids_str: *mut libc::c_char =
+    let member_addrs: *mut dc_array_t = dc_array_new(23i32 as size_t);
+    let member_ids_str: *mut libc::c_char =
         dc_array_get_string(member_ids, b",\x00" as *const u8 as *const libc::c_char);
-    let mut stmt: *mut sqlite3_stmt;
-    let mut q3: *mut libc::c_char;
+    let stmt: *mut sqlite3_stmt;
+    let q3: *mut libc::c_char;
     let mut addr: *mut libc::c_char;
     let mut i: libc::c_int;
-    let mut iCnt: libc::c_int;
+    let iCnt: libc::c_int;
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut member_cs: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -1769,7 +1757,7 @@ unsafe fn create_adhoc_grp_id(
         i += 1
     }
     /* make sha-256 from the string */
-    let mut binary_hash: *mut crate::pgp::cvec = pgp::rpgp_hash_sha256(
+    let binary_hash: *mut crate::pgp::cvec = pgp::rpgp_hash_sha256(
         member_cs.buf as *const uint8_t,
         strlen(member_cs.buf) as usize,
     );
@@ -1797,23 +1785,23 @@ unsafe fn create_adhoc_grp_id(
     return ret;
 }
 unsafe fn search_chat_ids_by_contact_ids(
-    mut context: &dc_context_t,
-    mut unsorted_contact_ids: *const dc_array_t,
+    context: &dc_context_t,
+    unsorted_contact_ids: *const dc_array_t,
 ) -> *mut dc_array_t {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut contact_ids: *mut dc_array_t = dc_array_new(23i32 as size_t);
+    let contact_ids: *mut dc_array_t = dc_array_new(23i32 as size_t);
     let mut contact_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut chat_ids: *mut dc_array_t = dc_array_new(23i32 as size_t);
+    let chat_ids: *mut dc_array_t = dc_array_new(23i32 as size_t);
 
     /* copy array, remove duplicates and SELF, sort by ID */
     let mut i: libc::c_int;
-    let mut iCnt: libc::c_int = dc_array_get_cnt(unsorted_contact_ids) as libc::c_int;
+    let iCnt: libc::c_int = dc_array_get_cnt(unsorted_contact_ids) as libc::c_int;
     if !(iCnt <= 0i32) {
         i = 0i32;
         while i < iCnt {
-            let mut curr_id: uint32_t = dc_array_get_id(unsorted_contact_ids, i as size_t);
+            let curr_id: uint32_t = dc_array_get_id(unsorted_contact_ids, i as size_t);
             if curr_id != 1i32 as libc::c_uint
                 && 0 == dc_array_search_id(contact_ids, curr_id, 0 as *mut size_t)
             {
@@ -1834,8 +1822,8 @@ unsafe fn search_chat_ids_by_contact_ids(
             let mut matches = 0;
             let mut mismatches = 0;
             while sqlite3_step(stmt) == 100 {
-                let mut chat_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
-                let mut contact_id: uint32_t = sqlite3_column_int(stmt, 1i32) as uint32_t;
+                let chat_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
+                let contact_id: uint32_t = sqlite3_column_int(stmt, 1i32) as uint32_t;
                 if chat_id != last_chat_id {
                     if matches == dc_array_get_cnt(contact_ids)
                         && mismatches == 0i32 as libc::c_uint
@@ -1865,16 +1853,16 @@ unsafe fn search_chat_ids_by_contact_ids(
     return chat_ids;
 }
 unsafe fn check_verified_properties(
-    mut context: &dc_context_t,
-    mut mimeparser: *mut dc_mimeparser_t,
-    mut from_id: uint32_t,
-    mut to_ids: *const dc_array_t,
-    mut failure_reason: *mut *mut libc::c_char,
+    context: &dc_context_t,
+    mimeparser: *mut dc_mimeparser_t,
+    from_id: uint32_t,
+    to_ids: *const dc_array_t,
+    failure_reason: *mut *mut libc::c_char,
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut everythings_okay: libc::c_int = 0i32;
-    let mut contact: *mut dc_contact_t = dc_contact_new(context);
-    let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+    let contact: *mut dc_contact_t = dc_contact_new(context);
+    let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
     let mut to_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -1943,7 +1931,7 @@ unsafe fn check_verified_properties(
                         current_block = 2604890879466389055;
                         break;
                     }
-                    let mut to_addr: *const libc::c_char =
+                    let to_addr: *const libc::c_char =
                         sqlite3_column_text(stmt, 0i32) as *const libc::c_char;
                     let mut is_verified: libc::c_int = sqlite3_column_int(stmt, 1i32);
                     if !dc_hash_find(
@@ -1992,7 +1980,7 @@ unsafe fn check_verified_properties(
                     if !(0 == is_verified) {
                         continue;
                     }
-                    let mut err: *mut libc::c_char = dc_mprintf(
+                    let err: *mut libc::c_char = dc_mprintf(
                         b"%s is not a member of this verified group.\x00" as *const u8
                             as *const libc::c_char,
                         to_addr,
@@ -2020,10 +2008,7 @@ unsafe fn check_verified_properties(
     sqlite3_free(q3 as *mut libc::c_void);
     return everythings_okay;
 }
-unsafe fn set_better_msg(
-    mut mime_parser: *mut dc_mimeparser_t,
-    mut better_msg: *mut *mut libc::c_char,
-) {
+unsafe fn set_better_msg(mime_parser: *mut dc_mimeparser_t, better_msg: *mut *mut libc::c_char) {
     if !(*better_msg).is_null() && carray_count((*mime_parser).parts) > 0i32 as libc::c_uint {
         let mut part: *mut dc_mimepart_t =
             carray_get((*mime_parser).parts, 0i32 as libc::c_uint) as *mut dc_mimepart_t;
@@ -2035,12 +2020,12 @@ unsafe fn set_better_msg(
     };
 }
 unsafe fn dc_is_reply_to_known_message(
-    mut context: &dc_context_t,
-    mut mime_parser: *mut dc_mimeparser_t,
+    context: &dc_context_t,
+    mime_parser: *mut dc_mimeparser_t,
 ) -> libc::c_int {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) or from `Chat-Predecessor:` (Delta clients, see comment in dc_chat.c) */
-    let mut optional_field: *mut mailimf_optional_field;
+    let optional_field: *mut mailimf_optional_field;
     optional_field = dc_mimeparser_lookup_optional_field(
         mime_parser,
         b"Chat-Predecessor\x00" as *const u8 as *const libc::c_char,
@@ -2056,7 +2041,7 @@ unsafe fn dc_is_reply_to_known_message(
         b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
     );
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
-        let mut fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
+        let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
             if 0 != is_known_rfc724_mid_in_list(
                 context,
@@ -2071,7 +2056,7 @@ unsafe fn dc_is_reply_to_known_message(
         b"References\x00" as *const u8 as *const libc::c_char,
     );
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
-        let mut fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
+        let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {
             if 0 != is_known_rfc724_mid_in_list(
                 context,
@@ -2084,8 +2069,8 @@ unsafe fn dc_is_reply_to_known_message(
     return 0i32;
 }
 unsafe fn is_known_rfc724_mid_in_list(
-    mut context: &dc_context_t,
-    mut mid_list: *const clist,
+    context: &dc_context_t,
+    mid_list: *const clist,
 ) -> libc::c_int {
     if !mid_list.is_null() {
         let mut cur: *mut clistiter;
@@ -2114,12 +2099,12 @@ unsafe fn is_known_rfc724_mid_in_list(
  * Check if a message is a reply to a known message (messenger or non-messenger)
  ******************************************************************************/
 unsafe fn is_known_rfc724_mid(
-    mut context: &dc_context_t,
-    mut rfc724_mid: *const libc::c_char,
+    context: &dc_context_t,
+    rfc724_mid: *const libc::c_char,
 ) -> libc::c_int {
     let mut is_known: libc::c_int = 0i32;
     if !rfc724_mid.is_null() {
-        let mut stmt: *mut sqlite3_stmt =
+        let  stmt: *mut sqlite3_stmt =
             dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(),
                                b"SELECT m.id FROM msgs m  LEFT JOIN chats c ON m.chat_id=c.id  WHERE m.rfc724_mid=?  AND m.chat_id>9 AND c.blocked=0;\x00"
                                    as *const u8 as *const libc::c_char);
@@ -2132,8 +2117,8 @@ unsafe fn is_known_rfc724_mid(
     return is_known;
 }
 unsafe fn dc_is_reply_to_messenger_message(
-    mut context: &dc_context_t,
-    mut mime_parser: *mut dc_mimeparser_t,
+    context: &dc_context_t,
+    mime_parser: *mut dc_mimeparser_t,
 ) -> libc::c_int {
     /* function checks, if the message defined by mime_parser references a message send by us from Delta Chat.
     This is similar to is_reply_to_known_message() but
@@ -2146,7 +2131,7 @@ unsafe fn dc_is_reply_to_messenger_message(
         b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
     );
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
-        let mut fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
+        let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
             if 0 != is_msgrmsg_rfc724_mid_in_list(
                 context,
@@ -2161,7 +2146,7 @@ unsafe fn dc_is_reply_to_messenger_message(
         b"References\x00" as *const u8 as *const libc::c_char,
     );
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
-        let mut fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
+        let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {
             if 0 != is_msgrmsg_rfc724_mid_in_list(
                 context,
@@ -2174,8 +2159,8 @@ unsafe fn dc_is_reply_to_messenger_message(
     return 0i32;
 }
 unsafe fn is_msgrmsg_rfc724_mid_in_list(
-    mut context: &dc_context_t,
-    mut mid_list: *const clist,
+    context: &dc_context_t,
+    mid_list: *const clist,
 ) -> libc::c_int {
     if !mid_list.is_null() {
         let mut cur: *mut clistiter = (*mid_list).first;
@@ -2203,12 +2188,12 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(
  * Check if a message is a reply to any messenger message
  ******************************************************************************/
 unsafe fn is_msgrmsg_rfc724_mid(
-    mut context: &dc_context_t,
-    mut rfc724_mid: *const libc::c_char,
+    context: &dc_context_t,
+    rfc724_mid: *const libc::c_char,
 ) -> libc::c_int {
     let mut is_msgrmsg: libc::c_int = 0i32;
     if !rfc724_mid.is_null() {
-        let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+        let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             b"SELECT id FROM msgs  WHERE rfc724_mid=?  AND msgrmsg!=0  AND chat_id>9;\x00"
@@ -2223,25 +2208,25 @@ unsafe fn is_msgrmsg_rfc724_mid(
     return is_msgrmsg;
 }
 unsafe fn dc_add_or_lookup_contacts_by_address_list(
-    mut context: &dc_context_t,
-    mut adr_list: *const mailimf_address_list,
-    mut origin: libc::c_int,
-    mut ids: *mut dc_array_t,
-    mut check_self: *mut libc::c_int,
+    context: &dc_context_t,
+    adr_list: *const mailimf_address_list,
+    origin: libc::c_int,
+    ids: *mut dc_array_t,
+    check_self: *mut libc::c_int,
 ) {
     if adr_list.is_null() {
         return;
     }
     let mut cur: *mut clistiter = (*(*adr_list).ad_list).first;
     while !cur.is_null() {
-        let mut adr: *mut mailimf_address = (if !cur.is_null() {
+        let adr: *mut mailimf_address = (if !cur.is_null() {
             (*cur).data
         } else {
             0 as *mut libc::c_void
         }) as *mut mailimf_address;
         if !adr.is_null() {
             if (*adr).ad_type == MAILIMF_ADDRESS_MAILBOX as libc::c_int {
-                let mut mb: *mut mailimf_mailbox = (*adr).ad_data.ad_mailbox;
+                let mb: *mut mailimf_mailbox = (*adr).ad_data.ad_mailbox;
                 if !mb.is_null() {
                     add_or_lookup_contact_by_addr(
                         context,
@@ -2253,7 +2238,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
                     );
                 }
             } else if (*adr).ad_type == MAILIMF_ADDRESS_GROUP as libc::c_int {
-                let mut group: *mut mailimf_group = (*adr).ad_data.ad_group;
+                let group: *mut mailimf_group = (*adr).ad_data.ad_group;
                 if !group.is_null() && !(*group).grp_mb_list.is_null() {
                     dc_add_or_lookup_contacts_by_mailbox_list(
                         context,
@@ -2273,18 +2258,18 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
     }
 }
 unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
-    mut context: &dc_context_t,
-    mut mb_list: *const mailimf_mailbox_list,
-    mut origin: libc::c_int,
-    mut ids: *mut dc_array_t,
-    mut check_self: *mut libc::c_int,
+    context: &dc_context_t,
+    mb_list: *const mailimf_mailbox_list,
+    origin: libc::c_int,
+    ids: *mut dc_array_t,
+    check_self: *mut libc::c_int,
 ) {
     if mb_list.is_null() {
         return;
     }
     let mut cur: *mut clistiter = (*(*mb_list).mb_list).first;
     while !cur.is_null() {
-        let mut mb: *mut mailimf_mailbox = (if !cur.is_null() {
+        let mb: *mut mailimf_mailbox = (if !cur.is_null() {
             (*cur).data
         } else {
             0 as *mut libc::c_void
@@ -2310,11 +2295,11 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
  * Add contacts to database on receiving messages
  ******************************************************************************/
 unsafe fn add_or_lookup_contact_by_addr(
-    mut context: &dc_context_t,
-    mut display_name_enc: *const libc::c_char,
-    mut addr_spec: *const libc::c_char,
-    mut origin: libc::c_int,
-    mut ids: *mut dc_array_t,
+    context: &dc_context_t,
+    display_name_enc: *const libc::c_char,
+    addr_spec: *const libc::c_char,
+    origin: libc::c_int,
+    ids: *mut dc_array_t,
     mut check_self: *mut libc::c_int,
 ) {
     /* is addr_spec equal to SELF? */
@@ -2326,7 +2311,7 @@ unsafe fn add_or_lookup_contact_by_addr(
         return;
     }
     *check_self = 0i32;
-    let mut self_addr: *mut libc::c_char = dc_sqlite3_get_config(
+    let self_addr: *mut libc::c_char = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
@@ -2346,7 +2331,7 @@ unsafe fn add_or_lookup_contact_by_addr(
         dc_normalize_name(display_name_dec);
     }
     /*can be NULL*/
-    let mut row_id: uint32_t = dc_add_or_lookup_contact(
+    let row_id: uint32_t = dc_add_or_lookup_contact(
         context,
         display_name_dec,
         addr_spec,

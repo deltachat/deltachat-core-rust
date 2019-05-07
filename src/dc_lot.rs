@@ -74,7 +74,7 @@ pub unsafe fn dc_lot_unref(mut set: *mut dc_lot_t) {
     free(set as *mut libc::c_void);
 }
 
-pub unsafe fn dc_lot_get_text1(mut lot: *const dc_lot_t) -> *mut libc::c_char {
+pub unsafe fn dc_lot_get_text1(lot: *const dc_lot_t) -> *mut libc::c_char {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0 as *mut libc::c_char;
     }
@@ -82,7 +82,7 @@ pub unsafe fn dc_lot_get_text1(mut lot: *const dc_lot_t) -> *mut libc::c_char {
     dc_strdup_keep_null((*lot).text1)
 }
 
-pub unsafe fn dc_lot_get_text2(mut lot: *const dc_lot_t) -> *mut libc::c_char {
+pub unsafe fn dc_lot_get_text2(lot: *const dc_lot_t) -> *mut libc::c_char {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0 as *mut libc::c_char;
     }
@@ -90,7 +90,7 @@ pub unsafe fn dc_lot_get_text2(mut lot: *const dc_lot_t) -> *mut libc::c_char {
     dc_strdup_keep_null((*lot).text2)
 }
 
-pub unsafe fn dc_lot_get_text1_meaning(mut lot: *const dc_lot_t) -> libc::c_int {
+pub unsafe fn dc_lot_get_text1_meaning(lot: *const dc_lot_t) -> libc::c_int {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0i32;
     }
@@ -98,7 +98,7 @@ pub unsafe fn dc_lot_get_text1_meaning(mut lot: *const dc_lot_t) -> libc::c_int 
     (*lot).text1_meaning
 }
 
-pub unsafe fn dc_lot_get_state(mut lot: *const dc_lot_t) -> libc::c_int {
+pub unsafe fn dc_lot_get_state(lot: *const dc_lot_t) -> libc::c_int {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0i32;
     }
@@ -106,7 +106,7 @@ pub unsafe fn dc_lot_get_state(mut lot: *const dc_lot_t) -> libc::c_int {
     (*lot).state
 }
 
-pub unsafe fn dc_lot_get_id(mut lot: *const dc_lot_t) -> uint32_t {
+pub unsafe fn dc_lot_get_id(lot: *const dc_lot_t) -> uint32_t {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
@@ -114,7 +114,7 @@ pub unsafe fn dc_lot_get_id(mut lot: *const dc_lot_t) -> uint32_t {
     (*lot).id
 }
 
-pub unsafe fn dc_lot_get_timestamp(mut lot: *const dc_lot_t) -> time_t {
+pub unsafe fn dc_lot_get_timestamp(lot: *const dc_lot_t) -> time_t {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return 0i32 as time_t;
     }
@@ -126,10 +126,10 @@ pub unsafe fn dc_lot_get_timestamp(mut lot: *const dc_lot_t) -> time_t {
 /* in practice, the user additionally cuts the string himself pixel-accurate */
 pub unsafe fn dc_lot_fill(
     mut lot: *mut dc_lot_t,
-    mut msg: *const dc_msg_t,
-    mut chat: *const dc_chat_t,
-    mut contact: *const dc_contact_t,
-    mut context: &dc_context_t,
+    msg: *const dc_msg_t,
+    chat: *const dc_chat_t,
+    contact: *const dc_contact_t,
+    context: &dc_context_t,
 ) {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint || msg.is_null() {
         return;

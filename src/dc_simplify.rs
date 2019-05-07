@@ -13,7 +13,7 @@ pub struct dc_simplify_t {
 }
 
 pub unsafe fn dc_simplify_new() -> *mut dc_simplify_t {
-    let mut simplify: *mut dc_simplify_t;
+    let simplify: *mut dc_simplify_t;
     simplify = calloc(1, ::std::mem::size_of::<dc_simplify_t>()) as *mut dc_simplify_t;
     if simplify.is_null() {
         exit(31i32);
@@ -22,7 +22,7 @@ pub unsafe fn dc_simplify_new() -> *mut dc_simplify_t {
     simplify
 }
 
-pub unsafe fn dc_simplify_unref(mut simplify: *mut dc_simplify_t) {
+pub unsafe fn dc_simplify_unref(simplify: *mut dc_simplify_t) {
     if simplify.is_null() {
         return;
     }
@@ -34,10 +34,10 @@ lineends etc.
 The data returned from Simplify() must be free()'d when no longer used, private */
 pub unsafe fn dc_simplify_simplify(
     mut simplify: *mut dc_simplify_t,
-    mut in_unterminated: *const libc::c_char,
-    mut in_bytes: libc::c_int,
-    mut is_html: libc::c_int,
-    mut is_msgrmsg: libc::c_int,
+    in_unterminated: *const libc::c_char,
+    in_bytes: libc::c_int,
+    is_html: libc::c_int,
+    is_msgrmsg: libc::c_int,
 ) -> *mut libc::c_char {
     /* create a copy of the given buffer */
     let mut out: *mut libc::c_char;
@@ -78,8 +78,8 @@ pub unsafe fn dc_simplify_simplify(
  ******************************************************************************/
 unsafe fn dc_simplify_simplify_plain_text(
     mut simplify: *mut dc_simplify_t,
-    mut buf_terminated: *const libc::c_char,
-    mut is_msgrmsg: libc::c_int,
+    buf_terminated: *const libc::c_char,
+    is_msgrmsg: libc::c_int,
 ) -> *mut libc::c_char {
     /* This function ...
     ... removes all text after the line `-- ` (footer mark)
@@ -87,7 +87,7 @@ unsafe fn dc_simplify_simplify_plain_text(
         these are all lines starting with the character `>`
     ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
     /* split the given buffer into lines */
-    let mut lines: *mut carray = dc_split_into_lines(buf_terminated);
+    let lines: *mut carray = dc_split_into_lines(buf_terminated);
     let mut l: libc::c_int;
     let mut l_first: libc::c_int = 0i32;
     /* if l_last is -1, there are no lines */
@@ -119,11 +119,11 @@ unsafe fn dc_simplify_simplify_plain_text(
         }
     }
     if l_last - l_first + 1i32 >= 3i32 {
-        let mut line0: *mut libc::c_char =
+        let line0: *mut libc::c_char =
             carray_get(lines, l_first as libc::c_uint) as *mut libc::c_char;
-        let mut line1: *mut libc::c_char =
+        let line1: *mut libc::c_char =
             carray_get(lines, (l_first + 1i32) as libc::c_uint) as *mut libc::c_char;
-        let mut line2: *mut libc::c_char =
+        let line2: *mut libc::c_char =
             carray_get(lines, (l_first + 2i32) as libc::c_uint) as *mut libc::c_char;
         if strcmp(
             line0,
@@ -257,7 +257,7 @@ unsafe fn dc_simplify_simplify_plain_text(
  * Tools
  ******************************************************************************/
 // TODO should return bool /rtn
-unsafe fn is_empty_line(mut buf: *const libc::c_char) -> libc::c_int {
+unsafe fn is_empty_line(buf: *const libc::c_char) -> libc::c_int {
     /* force unsigned - otherwise the `> ' '` comparison will fail */
     let mut p1: *const libc::c_uchar = buf as *const libc::c_uchar;
     while 0 != *p1 {
@@ -271,12 +271,12 @@ unsafe fn is_empty_line(mut buf: *const libc::c_char) -> libc::c_int {
 }
 
 // TODO should return bool /rtn
-unsafe fn is_quoted_headline(mut buf: *const libc::c_char) -> libc::c_int {
+unsafe fn is_quoted_headline(buf: *const libc::c_char) -> libc::c_int {
     /* This function may be called for the line _directly_ before a quote.
     The function checks if the line contains sth. like "On 01.02.2016, xy@z wrote:" in various languages.
     - Currently, we simply check if the last character is a ':'.
     - Checking for the existance of an email address may fail (headlines may show the user's name instead of the address) */
-    let mut buf_len: libc::c_int = strlen(buf) as libc::c_int;
+    let buf_len: libc::c_int = strlen(buf) as libc::c_int;
     if buf_len > 80i32 {
         return 0i32;
     }
@@ -288,7 +288,7 @@ unsafe fn is_quoted_headline(mut buf: *const libc::c_char) -> libc::c_int {
 }
 
 // TODO should return bool /rtn
-unsafe fn is_plain_quote(mut buf: *const libc::c_char) -> libc::c_int {
+unsafe fn is_plain_quote(buf: *const libc::c_char) -> libc::c_int {
     if *buf.offset(0isize) as libc::c_int == '>' as i32 {
         return 1i32;
     }

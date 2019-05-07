@@ -21,7 +21,7 @@ pub struct dc_loginparam_t {
 }
 
 pub unsafe fn dc_loginparam_new() -> *mut dc_loginparam_t {
-    let mut loginparam: *mut dc_loginparam_t;
+    let loginparam: *mut dc_loginparam_t;
     loginparam = calloc(1, ::std::mem::size_of::<dc_loginparam_t>()) as *mut dc_loginparam_t;
     if loginparam.is_null() {
         exit(22i32);
@@ -30,7 +30,7 @@ pub unsafe fn dc_loginparam_new() -> *mut dc_loginparam_t {
     loginparam
 }
 
-pub unsafe fn dc_loginparam_unref(mut loginparam: *mut dc_loginparam_t) {
+pub unsafe fn dc_loginparam_unref(loginparam: *mut dc_loginparam_t) {
     if loginparam.is_null() {
         return;
     }
@@ -223,16 +223,14 @@ pub unsafe fn dc_loginparam_write(
     sqlite3_free(key as *mut libc::c_void);
 }
 
-pub unsafe fn dc_loginparam_get_readable(
-    mut loginparam: *const dc_loginparam_t,
-) -> *mut libc::c_char {
-    let mut unset: *const libc::c_char = b"0\x00" as *const u8 as *const libc::c_char;
-    let mut pw: *const libc::c_char = b"***\x00" as *const u8 as *const libc::c_char;
+pub unsafe fn dc_loginparam_get_readable(loginparam: *const dc_loginparam_t) -> *mut libc::c_char {
+    let unset: *const libc::c_char = b"0\x00" as *const u8 as *const libc::c_char;
+    let pw: *const libc::c_char = b"***\x00" as *const u8 as *const libc::c_char;
     if loginparam.is_null() {
         return dc_strdup(0 as *const libc::c_char);
     }
-    let mut flags_readable: *mut libc::c_char = get_readable_flags((*loginparam).server_flags);
-    let mut ret: *mut libc::c_char = dc_mprintf(
+    let flags_readable: *mut libc::c_char = get_readable_flags((*loginparam).server_flags);
+    let ret: *mut libc::c_char = dc_mprintf(
         b"%s %s:%s:%s:%i %s:%s:%s:%i %s\x00" as *const u8 as *const libc::c_char,
         if !(*loginparam).addr.is_null() {
             (*loginparam).addr
@@ -278,7 +276,7 @@ pub unsafe fn dc_loginparam_get_readable(
     ret
 }
 
-unsafe fn get_readable_flags(mut flags: libc::c_int) -> *mut libc::c_char {
+unsafe fn get_readable_flags(flags: libc::c_int) -> *mut libc::c_char {
     let mut strbuilder: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,
@@ -347,7 +345,7 @@ unsafe fn get_readable_flags(mut flags: libc::c_int) -> *mut libc::c_char {
                 flag_added = 1i32
             }
             if 0 == flag_added {
-                let mut temp: *mut libc::c_char = dc_mprintf(
+                let temp: *mut libc::c_char = dc_mprintf(
                     b"0x%x \x00" as *const u8 as *const libc::c_char,
                     1i32 << bit,
                 );
