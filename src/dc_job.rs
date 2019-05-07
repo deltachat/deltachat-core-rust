@@ -554,7 +554,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &dc_context_t, job: &mut dc_job_t) 
 /* ******************************************************************************
  * IMAP-jobs
  ******************************************************************************/
-unsafe fn connect_to_inbox(context: &dc_context_t, inbox: &dc_imap_t) -> libc::c_int {
+unsafe fn connect_to_inbox(context: &dc_context_t, inbox: &Imap) -> libc::c_int {
     let mut ret_connected: libc::c_int;
 
     ret_connected = dc_connect_to_configured_imap(context, inbox);

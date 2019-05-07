@@ -2,7 +2,7 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_imap::dc_imap_t;
+use crate::dc_imap::Imap;
 use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
@@ -13,14 +13,14 @@ use crate::x::*;
 pub struct dc_jobthread_t {
     pub name: *mut libc::c_char,
     pub folder_config_name: *mut libc::c_char,
-    pub imap: dc_imap_t,
+    pub imap: Imap,
     pub state: Arc<(Mutex<JobState>, Condvar)>,
 }
 
 pub unsafe fn dc_jobthread_init(
     name: *const libc::c_char,
     folder_config_name: *const libc::c_char,
-    imap: dc_imap_t,
+    imap: Imap,
 ) -> dc_jobthread_t {
     dc_jobthread_t {
         name: dc_strdup(name),

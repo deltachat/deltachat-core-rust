@@ -54,14 +54,7 @@ impl Smtp {
         }
 
         if self.is_connected() {
-            unsafe {
-                dc_log_warning(
-                    context,
-                    0,
-                    b"SMTP already connected.\x00" as *const u8 as *const libc::c_char,
-                )
-            };
-
+            warn!(context, 0, "SMTP already connected.");
             return 1;
         }
 
@@ -140,7 +133,7 @@ impl Smtp {
 
         let client = lettre::smtp::SmtpClient::new((domain, port), security)
             .expect("failed to construct stmp client")
-            // .smtp_utf8(true)
+            .smtp_utf8(true)
             .credentials(creds)
             .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
 
@@ -182,14 +175,7 @@ impl Smtp {
                     let msg = CString::new(error_msg).unwrap();
                     self.error = unsafe { libc::strdup(msg.as_ptr()) };
 
-                    unsafe {
-                        dc_log_warning(
-                            context,
-                            0,
-                            b"%s\x00" as *const u8 as *const libc::c_char,
-                            msg,
-                        );
-                    }
+                    warn!(context, 0, "%s", msg,);
 
                     0
                 }

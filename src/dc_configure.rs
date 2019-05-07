@@ -1751,10 +1751,7 @@ pub unsafe fn dc_alloc_ongoing(context: &dc_context_t) -> libc::c_int {
     1
 }
 
-pub unsafe fn dc_connect_to_configured_imap(
-    context: &dc_context_t,
-    imap: &dc_imap_t,
-) -> libc::c_int {
+pub unsafe fn dc_connect_to_configured_imap(context: &dc_context_t, imap: &Imap) -> libc::c_int {
     let mut ret_connected: libc::c_int = 0i32;
     let mut param: *mut dc_loginparam_t = dc_loginparam_new();
     if imap.is_connected() {

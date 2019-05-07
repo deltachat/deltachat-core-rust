@@ -21,7 +21,7 @@ const BODY_FLAGS: &'static str = "(FLAGS BODY.PEEK[])";
 const FETCH_FLAGS: &'static str = "(FLAGS)";
 
 #[repr(C)]
-pub struct dc_imap_t {
+pub struct Imap {
     config: Arc<RwLock<ImapConfig>>,
     watch: Arc<(Mutex<bool>, Condvar)>,
 
@@ -312,23 +312,14 @@ impl Default for ImapConfig {
     }
 }
 
-pub fn dc_imap_new(
-    get_config: dc_get_config_t,
-    set_config: dc_set_config_t,
-    precheck_imf: dc_precheck_imf_t,
-    receive_imf: dc_receive_imf_t,
-) -> dc_imap_t {
-    dc_imap_t::new(get_config, set_config, precheck_imf, receive_imf)
-}
-
-impl dc_imap_t {
+impl Imap {
     pub fn new(
         get_config: dc_get_config_t,
         set_config: dc_set_config_t,
         precheck_imf: dc_precheck_imf_t,
         receive_imf: dc_receive_imf_t,
     ) -> Self {
-        dc_imap_t {
+        Imap {
             session: Arc::new(Mutex::new(None)),
             // idle: Arc::new(Mutex::new(None)),
             config: Arc::new(RwLock::new(ImapConfig::default())),

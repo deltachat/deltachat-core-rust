@@ -28,7 +28,7 @@ pub struct dc_context_t {
     pub dbfile: Arc<RwLock<*mut libc::c_char>>,
     pub blobdir: Arc<RwLock<*mut libc::c_char>>,
     pub sql: Arc<RwLock<dc_sqlite3_t>>,
-    pub inbox: Arc<RwLock<dc_imap_t>>,
+    pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<i32>>,
     pub probe_imap_network: Arc<RwLock<i32>>,
     pub sentbox_thread: Arc<Mutex<dc_jobthread_t>>,
@@ -132,7 +132,7 @@ pub fn dc_context_new(
         blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
         dbfile: Arc::new(RwLock::new(std::ptr::null_mut())),
         inbox: Arc::new(RwLock::new({
-            dc_imap_new(
+            Imap::new(
                 cb_get_config,
                 cb_set_config,
                 cb_precheck_imf,
@@ -154,7 +154,7 @@ pub fn dc_context_new(
             dc_jobthread_init(
                 b"SENTBOX\x00" as *const u8 as *const libc::c_char,
                 b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
-                dc_imap_new(
+                Imap::new(
                     cb_get_config,
                     cb_set_config,
                     cb_precheck_imf,
@@ -166,7 +166,7 @@ pub fn dc_context_new(
             dc_jobthread_init(
                 b"MVBOX\x00" as *const u8 as *const libc::c_char,
                 b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
-                dc_imap_new(
+                Imap::new(
                     cb_get_config,
                     cb_set_config,
                     cb_precheck_imf,
