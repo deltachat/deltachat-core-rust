@@ -142,14 +142,15 @@ pub unsafe fn dc_chat_load_from_db(mut chat: *mut dc_chat_t, mut chat_id: uint32
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
         dc_chat_empty(chat);
-        stmt =
-            dc_sqlite3_prepare(
-                (*chat).context,
-                &(*chat).context.sql.read().unwrap(),
-                b"SELECT  c.id,c.type,c.name, c.grpid,c.param,c.archived, c.blocked, c.gossiped_timestamp, c.locations_send_until  FROM chats c WHERE c.id=?;\x00"
-                    as *const u8 as *const libc::c_char
-            );
-        sqlite3_bind_int(stmt, 1i32, chat_id as libc::c_int);
+        stmt = dc_sqlite3_prepare(
+            (*chat).context,
+            &(*chat).context.sql.read().unwrap(),
+            b"SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
+                  c.blocked, c.gossiped_timestamp, c.locations_send_until  \
+                  FROM chats c WHERE c.id=?;\x00" as *const u8 as *const libc::c_char,
+        );
+        sqlite3_bind_int(stmt, 1, chat_id as libc::c_int);
+
         if !(sqlite3_step(stmt) != 100i32) {
             if !(0 == set_from_stmt(chat, stmt)) {
                 success = 1i32
