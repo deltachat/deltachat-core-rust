@@ -204,7 +204,7 @@ unsafe fn cb_precheck_imf(
     server_uid: uint32_t,
 ) -> libc::c_int {
     let mut rfc724_mid_exists: libc::c_int = 0i32;
-    let mut msg_id: uint32_t;
+    let msg_id: uint32_t;
     let mut old_server_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut old_server_uid: uint32_t = 0i32 as uint32_t;
     let mut mark_seen: libc::c_int = 0i32;
@@ -390,7 +390,7 @@ pub unsafe fn dc_set_config(
         ret = dc_sqlite3_set_config(context, &context.sql.clone().read().unwrap(), key, value);
         dc_interrupt_mvbox_idle(context);
     } else if strcmp(key, b"selfstatus\x00" as *const u8 as *const libc::c_char) == 0 {
-        let mut def = dc_stock_str(context, 13);
+        let def = dc_stock_str(context, 13);
         ret = dc_sqlite3_set_config(
             context,
             &context.sql.clone().read().unwrap(),
@@ -479,7 +479,7 @@ pub unsafe fn dc_get_config(context: &dc_context_t, key: *const libc::c_char) ->
     }
 
     if strcmp(key, b"selfavatar\x00" as *const u8 as *const libc::c_char) == 0 {
-        let mut rel_path: *mut libc::c_char = dc_sqlite3_get_config(
+        let rel_path: *mut libc::c_char = dc_sqlite3_get_config(
             context,
             &context.sql.clone().read().unwrap(),
             key,
@@ -611,33 +611,33 @@ unsafe fn get_config_keys_str() -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
-    let mut unset = b"0\x00" as *const u8 as *const libc::c_char;
-    let mut displayname;
-    let mut temp;
-    let mut l_readable_str;
-    let mut l2_readable_str;
-    let mut fingerprint_str;
-    let mut l;
-    let mut l2;
-    let mut inbox_watch;
-    let mut sentbox_watch;
-    let mut mvbox_watch;
-    let mut mvbox_move;
-    let mut folders_configured;
-    let mut configured_sentbox_folder;
-    let mut configured_mvbox_folder;
-    let mut contacts;
-    let mut chats;
-    let mut real_msgs;
-    let mut deaddrop_msgs;
-    let mut is_configured;
-    let mut dbversion;
-    let mut mdns_enabled;
-    let mut e2ee_enabled;
-    let mut prv_key_cnt;
-    let mut pub_key_cnt;
-    let mut self_public = dc_key_new();
-    let mut rpgp_enabled = 1;
+    let unset = b"0\x00" as *const u8 as *const libc::c_char;
+    let displayname;
+    let temp;
+    let l_readable_str;
+    let l2_readable_str;
+    let fingerprint_str;
+    let l;
+    let l2;
+    let inbox_watch;
+    let sentbox_watch;
+    let mvbox_watch;
+    let mvbox_move;
+    let folders_configured;
+    let configured_sentbox_folder;
+    let configured_mvbox_folder;
+    let contacts;
+    let chats;
+    let real_msgs;
+    let deaddrop_msgs;
+    let is_configured;
+    let dbversion;
+    let mdns_enabled;
+    let e2ee_enabled;
+    let prv_key_cnt;
+    let pub_key_cnt;
+    let self_public = dc_key_new();
+    let rpgp_enabled = 1;
 
     let mut ret = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -868,8 +868,8 @@ pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_get_fresh_msgs(context: &dc_context_t) -> *mut dc_array_t {
-    let mut show_deaddrop = 0;
-    let mut ret = dc_array_new(128 as size_t);
+    let show_deaddrop = 0;
+    let ret = dc_array_new(128 as size_t);
     let mut stmt = 0 as *mut sqlite3_stmt;
     if !ret.is_null() {
         stmt = dc_sqlite3_prepare(
@@ -900,7 +900,7 @@ pub unsafe fn dc_search_msgs(
     query: *const libc::c_char,
 ) -> *mut dc_array_t {
     let mut success = 0;
-    let mut ret = dc_array_new(100 as size_t);
+    let ret = dc_array_new(100 as size_t);
     let mut strLikeInText = 0 as *mut libc::c_char;
     let mut strLikeBeg = 0 as *mut libc::c_char;
     let mut real_query = 0 as *mut libc::c_char;
@@ -930,7 +930,7 @@ pub unsafe fn dc_search_msgs(
                 sqlite3_bind_text(stmt, 2, strLikeInText, -1, None);
                 sqlite3_bind_text(stmt, 3, strLikeBeg, -1, None);
             } else {
-                let mut show_deaddrop = 0;
+                let show_deaddrop = 0;
                 stmt = dc_sqlite3_prepare(
                     context,
                     &context.sql.clone().read().unwrap(),
@@ -989,7 +989,7 @@ pub unsafe fn dc_is_sentbox(
     context: &dc_context_t,
     folder_name: *const libc::c_char,
 ) -> libc::c_int {
-    let mut sentbox_name = dc_sqlite3_get_config(
+    let sentbox_name = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
@@ -1008,7 +1008,7 @@ pub unsafe fn dc_is_sentbox(
 }
 
 pub unsafe fn dc_is_mvbox(context: &dc_context_t, folder_name: *const libc::c_char) -> libc::c_int {
-    let mut mvbox_name = dc_sqlite3_get_config(
+    let mvbox_name = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,

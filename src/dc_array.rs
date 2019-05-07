@@ -34,7 +34,7 @@ pub unsafe fn dc_array_unref(mut array: *mut dc_array_t) {
     free(array as *mut libc::c_void);
 }
 
-pub unsafe fn dc_array_free_ptr(mut array: *mut dc_array_t) {
+pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint {
         return;
     }
@@ -52,12 +52,12 @@ pub unsafe fn dc_array_free_ptr(mut array: *mut dc_array_t) {
     }
 }
 
-pub unsafe fn dc_array_add_uint(mut array: *mut dc_array_t, mut item: uintptr_t) {
+pub unsafe fn dc_array_add_uint(mut array: *mut dc_array_t, item: uintptr_t) {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint {
         return;
     }
     if (*array).count == (*array).allocated {
-        let mut newsize = (*array).allocated.wrapping_mul(2).wrapping_add(10);
+        let newsize = (*array).allocated.wrapping_mul(2).wrapping_add(10);
         (*array).array = realloc(
             (*array).array as *mut libc::c_void,
             (newsize).wrapping_mul(::std::mem::size_of::<uintptr_t>()),
@@ -71,29 +71,29 @@ pub unsafe fn dc_array_add_uint(mut array: *mut dc_array_t, mut item: uintptr_t)
     (*array).count = (*array).count.wrapping_add(1);
 }
 
-pub unsafe fn dc_array_add_id(mut array: *mut dc_array_t, mut item: uint32_t) {
+pub unsafe fn dc_array_add_id(array: *mut dc_array_t, item: uint32_t) {
     dc_array_add_uint(array, item as uintptr_t);
 }
 
-pub unsafe fn dc_array_add_ptr(mut array: *mut dc_array_t, mut item: *mut libc::c_void) {
+pub unsafe fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut libc::c_void) {
     dc_array_add_uint(array, item as uintptr_t);
 }
 
-pub unsafe fn dc_array_get_cnt(mut array: *const dc_array_t) -> size_t {
+pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint {
         return 0i32 as size_t;
     }
     (*array).count
 }
 
-pub unsafe fn dc_array_get_uint(mut array: *const dc_array_t, mut index: size_t) -> uintptr_t {
+pub unsafe fn dc_array_get_uint(array: *const dc_array_t, index: size_t) -> uintptr_t {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || index >= (*array).count {
         return 0i32 as uintptr_t;
     }
     *(*array).array.offset(index as isize)
 }
 
-pub unsafe fn dc_array_get_id(mut array: *const dc_array_t, mut index: size_t) -> uint32_t {
+pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || index >= (*array).count {
         return 0i32 as uint32_t;
     }
@@ -103,20 +103,14 @@ pub unsafe fn dc_array_get_id(mut array: *const dc_array_t, mut index: size_t) -
     *(*array).array.offset(index as isize) as uint32_t
 }
 
-pub unsafe fn dc_array_get_ptr(
-    mut array: *const dc_array_t,
-    mut index: size_t,
-) -> *mut libc::c_void {
+pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut libc::c_void {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || index >= (*array).count {
         return 0 as *mut libc::c_void;
     }
     *(*array).array.offset(index as isize) as *mut libc::c_void
 }
 
-pub unsafe fn dc_array_get_latitude(
-    mut array: *const dc_array_t,
-    mut index: size_t,
-) -> libc::c_double {
+pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
@@ -128,10 +122,7 @@ pub unsafe fn dc_array_get_latitude(
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).latitude
 }
 
-pub unsafe fn dc_array_get_longitude(
-    mut array: *const dc_array_t,
-    mut index: size_t,
-) -> libc::c_double {
+pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
@@ -143,10 +134,7 @@ pub unsafe fn dc_array_get_longitude(
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).longitude
 }
 
-pub unsafe fn dc_array_get_accuracy(
-    mut array: *const dc_array_t,
-    mut index: size_t,
-) -> libc::c_double {
+pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
@@ -158,7 +146,7 @@ pub unsafe fn dc_array_get_accuracy(
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).accuracy
 }
 
-pub unsafe fn dc_array_get_timestamp(mut array: *const dc_array_t, mut index: size_t) -> time_t {
+pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) -> time_t {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
@@ -170,7 +158,7 @@ pub unsafe fn dc_array_get_timestamp(mut array: *const dc_array_t, mut index: si
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).timestamp
 }
 
-pub unsafe fn dc_array_get_chat_id(mut array: *const dc_array_t, mut index: size_t) -> uint32_t {
+pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
@@ -182,7 +170,7 @@ pub unsafe fn dc_array_get_chat_id(mut array: *const dc_array_t, mut index: size
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).chat_id
 }
 
-pub unsafe fn dc_array_get_contact_id(mut array: *const dc_array_t, mut index: size_t) -> uint32_t {
+pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
@@ -194,7 +182,7 @@ pub unsafe fn dc_array_get_contact_id(mut array: *const dc_array_t, mut index: s
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).contact_id
 }
 
-pub unsafe fn dc_array_get_msg_id(mut array: *const dc_array_t, mut index: size_t) -> uint32_t {
+pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
@@ -206,10 +194,7 @@ pub unsafe fn dc_array_get_msg_id(mut array: *const dc_array_t, mut index: size_
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).msg_id
 }
 
-pub unsafe fn dc_array_get_marker(
-    mut array: *const dc_array_t,
-    mut index: size_t,
-) -> *mut libc::c_char {
+pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *mut libc::c_char {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
@@ -246,16 +231,16 @@ pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -
 
 // TODO should return bool /rtn
 pub unsafe fn dc_array_search_id(
-    mut array: *const dc_array_t,
-    mut needle: uint32_t,
-    mut ret_index: *mut size_t,
+    array: *const dc_array_t,
+    needle: uint32_t,
+    ret_index: *mut size_t,
 ) -> libc::c_int {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint {
         return 0i32;
     }
-    let mut data: *mut uintptr_t = (*array).array;
+    let data: *mut uintptr_t = (*array).array;
     let mut i: size_t = 0;
-    let mut cnt: size_t = (*array).count;
+    let cnt: size_t = (*array).count;
     while i < cnt {
         if *data.offset(i as isize) == needle as size_t {
             if !ret_index.is_null() {
@@ -268,7 +253,7 @@ pub unsafe fn dc_array_search_id(
     0
 }
 
-pub unsafe fn dc_array_get_raw(mut array: *const dc_array_t) -> *const uintptr_t {
+pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint {
         return 0 as *const uintptr_t;
     }
@@ -280,8 +265,8 @@ pub unsafe fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
 }
 
 pub unsafe extern "C" fn dc_array_new_typed(
-    mut type_0: libc::c_int,
-    mut initsize: size_t,
+    type_0: libc::c_int,
+    initsize: size_t,
 ) -> *mut dc_array_t {
     let mut array: *mut dc_array_t;
     array = calloc(1, ::std::mem::size_of::<dc_array_t>()) as *mut dc_array_t;
@@ -310,7 +295,7 @@ pub unsafe fn dc_array_empty(mut array: *mut dc_array_t) {
     (*array).count = 0i32 as size_t;
 }
 
-pub unsafe fn dc_array_duplicate(mut array: *const dc_array_t) -> *mut dc_array_t {
+pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
     let mut ret: *mut dc_array_t;
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint {
         return 0 as *mut dc_array_t;
@@ -327,7 +312,7 @@ pub unsafe fn dc_array_duplicate(mut array: *const dc_array_t) -> *mut dc_array_
     ret
 }
 
-pub unsafe fn dc_array_sort_ids(mut array: *mut dc_array_t) {
+pub unsafe fn dc_array_sort_ids(array: *mut dc_array_t) {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || (*array).count <= 1 {
         return;
     }
@@ -339,12 +324,9 @@ pub unsafe fn dc_array_sort_ids(mut array: *mut dc_array_t) {
     );
 }
 
-unsafe extern "C" fn cmp_intptr_t(
-    mut p1: *const libc::c_void,
-    mut p2: *const libc::c_void,
-) -> libc::c_int {
-    let mut v1: uintptr_t = *(p1 as *mut uintptr_t);
-    let mut v2: uintptr_t = *(p2 as *mut uintptr_t);
+unsafe extern "C" fn cmp_intptr_t(p1: *const libc::c_void, p2: *const libc::c_void) -> libc::c_int {
+    let v1: uintptr_t = *(p1 as *mut uintptr_t);
+    let v2: uintptr_t = *(p2 as *mut uintptr_t);
     return if v1 < v2 {
         -1i32
     } else if v1 > v2 {
@@ -354,7 +336,7 @@ unsafe extern "C" fn cmp_intptr_t(
     };
 }
 
-pub unsafe fn dc_array_sort_strings(mut array: *mut dc_array_t) {
+pub unsafe fn dc_array_sort_strings(array: *mut dc_array_t) {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || (*array).count <= 1 {
         return;
     }
@@ -367,20 +349,20 @@ pub unsafe fn dc_array_sort_strings(mut array: *mut dc_array_t) {
 }
 
 unsafe extern "C" fn cmp_strings_t(
-    mut p1: *const libc::c_void,
-    mut p2: *const libc::c_void,
+    p1: *const libc::c_void,
+    p2: *const libc::c_void,
 ) -> libc::c_int {
-    let mut v1: *const libc::c_char = *(p1 as *mut *const libc::c_char);
-    let mut v2: *const libc::c_char = *(p2 as *mut *const libc::c_char);
+    let v1: *const libc::c_char = *(p1 as *mut *const libc::c_char);
+    let v2: *const libc::c_char = *(p2 as *mut *const libc::c_char);
 
     strcmp(v1, v2)
 }
 
 pub unsafe fn dc_array_get_string(
-    mut array: *const dc_array_t,
-    mut sep: *const libc::c_char,
+    array: *const dc_array_t,
+    sep: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut ret: *mut libc::c_char;
+    let ret: *mut libc::c_char;
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || sep.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
@@ -410,13 +392,10 @@ pub unsafe fn dc_array_get_string(
     ret
 }
 
-pub unsafe fn dc_arr_to_string(
-    mut arr: *const uint32_t,
-    mut cnt: libc::c_int,
-) -> *mut libc::c_char {
+pub unsafe fn dc_arr_to_string(arr: *const uint32_t, cnt: libc::c_int) -> *mut libc::c_char {
     /* return comma-separated value-string from integer array */
-    let mut ret: *mut libc::c_char;
-    let mut sep: *const libc::c_char = b",\x00" as *const u8 as *const libc::c_char;
+    let ret: *mut libc::c_char;
+    let sep: *const libc::c_char = b",\x00" as *const u8 as *const libc::c_char;
     if arr.is_null() || cnt <= 0i32 {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }

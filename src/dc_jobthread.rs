@@ -116,7 +116,7 @@ pub unsafe fn dc_jobthread_fetch(
     jobthread: &mut dc_jobthread_t,
     use_network: libc::c_int,
 ) {
-    let mut start;
+    let start;
 
     {
         let &(ref lock, _) = &*jobthread.state.clone();

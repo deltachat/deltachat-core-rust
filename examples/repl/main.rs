@@ -11,7 +11,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_mut,
     unused_attributes,
     non_upper_case_globals,
     non_camel_case_types,
@@ -136,8 +135,9 @@ unsafe extern "C" fn receive_event(
             );
         }
         2100 | 2110 => {
-            let mut url: *mut libc::c_char = dc_strdup(data1 as *mut libc::c_char);
+            let url: *mut libc::c_char = dc_strdup(data1 as *mut libc::c_char);
             let mut param: *mut libc::c_char = strchr(url, '?' as i32);
+
             if !param.is_null() {
                 *param = 0i32 as libc::c_char;
                 param = param.offset(1isize)
@@ -145,12 +145,12 @@ unsafe extern "C" fn receive_event(
                 param = b"\x00" as *const u8 as *const libc::c_char as *mut libc::c_char
             }
             let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-            let mut tempFile: *mut libc::c_char = dc_get_fine_pathNfilename(
+            let tempFile: *mut libc::c_char = dc_get_fine_pathNfilename(
                 context,
                 context.get_blobdir(),
                 b"curl.result\x00" as *const u8 as *const libc::c_char,
             );
-            let mut cmd: *mut libc::c_char = if event == Event::HTTP_GET {
+            let cmd: *mut libc::c_char = if event == Event::HTTP_GET {
                 dc_mprintf(
                     b"curl --silent --location --fail --insecure %s%s%s > %s\x00" as *const u8
                         as *const libc::c_char,
@@ -171,7 +171,7 @@ unsafe extern "C" fn receive_event(
                     tempFile,
                 )
             };
-            let mut error: libc::c_int = system(cmd);
+            let error: libc::c_int = system(cmd);
             if error == 0i32 {
                 let mut bytes: size_t = 0i32 as size_t;
                 dc_read_file(
@@ -357,7 +357,7 @@ fn read_cmd() -> String {
     input.trim_end().to_string()
 }
 
-unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> libc::c_int {
+unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int {
     let mut cmd: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut context = dc_context_new(
         receive_event,
@@ -421,14 +421,14 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             handles = { Some(start_threads(ctx.clone())) };
             dc_configure(&ctx.read().unwrap());
         } else if strcmp(cmd, b"oauth2\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            let mut addr: *mut libc::c_char = dc_get_config(
+            let addr: *mut libc::c_char = dc_get_config(
                 &ctx.read().unwrap(),
                 b"addr\x00" as *const u8 as *const libc::c_char,
             );
             if addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32 {
                 printf(b"oauth2: set addr first.\n\x00" as *const u8 as *const libc::c_char);
             } else {
-                let mut oauth2_url: *mut libc::c_char = dc_get_oauth2_url(
+                let oauth2_url: *mut libc::c_char = dc_get_oauth2_url(
                     &ctx.read().unwrap(),
                     addr,
                     b"chat.delta:/com.b44t.messenger\x00" as *const u8 as *const libc::c_char,
@@ -453,7 +453,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             || strcmp(cmd, b"getbadqr\x00" as *const u8 as *const libc::c_char) == 0i32
         {
             handles = Some(start_threads(ctx.clone()));
-            let mut qrstr: *mut libc::c_char = dc_get_securejoin_qr(
+            let qrstr: *mut libc::c_char = dc_get_securejoin_qr(
                 &ctx.read().unwrap(),
                 (if !arg1.is_null() { atoi(arg1) } else { 0i32 }) as uint32_t,
             );
@@ -468,7 +468,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
                     }
                 }
                 printf(b"%s\n\x00" as *const u8 as *const libc::c_char, qrstr);
-                let mut syscmd: *mut libc::c_char = dc_mprintf(
+                let syscmd: *mut libc::c_char = dc_mprintf(
                     b"qrencode -t ansiutf8 \"%s\" -o -\x00" as *const u8 as *const libc::c_char,
                     qrstr,
                 );
@@ -486,8 +486,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
                 break;
             }
             if !(*cmd.offset(0isize) as libc::c_int == 0i32) {
-                let mut execute_result: *mut libc::c_char =
-                    dc_cmdline(&ctx.read().unwrap(), &cmdline);
+                let execute_result: *mut libc::c_char = dc_cmdline(&ctx.read().unwrap(), &cmdline);
                 if !execute_result.is_null() {
                     printf(
                         b"%s\n\x00" as *const u8 as *const libc::c_char,

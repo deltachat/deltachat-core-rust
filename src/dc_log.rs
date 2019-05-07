@@ -5,11 +5,11 @@ use crate::types::*;
 use crate::x::*;
 
 pub unsafe extern "C" fn dc_log_event(
-    mut context: &dc_context_t,
-    mut event_code: Event,
-    mut data1: libc::c_int,
-    mut msg: *const libc::c_char,
-    mut va: ...
+    context: &dc_context_t,
+    event_code: Event,
+    data1: libc::c_int,
+    msg: *const libc::c_char,
+    va: ...
 ) {
     log_vprintf(context, event_code, data1, msg, va);
 }
@@ -22,13 +22,13 @@ usually not reported using dc_log_error() - its up to the caller to
 decide, what should be reported or done.  However, these "Normal" errors
 are usually logged by dc_log_warning(). */
 unsafe fn log_vprintf(
-    mut context: &dc_context_t,
-    mut event: Event,
-    mut data1: libc::c_int,
-    mut msg_format: *const libc::c_char,
-    mut va_0: ::std::ffi::VaList,
+    context: &dc_context_t,
+    event: Event,
+    data1: libc::c_int,
+    msg_format: *const libc::c_char,
+    va_0: ::std::ffi::VaList,
 ) {
-    let mut msg: *mut libc::c_char;
+    let msg: *mut libc::c_char;
     if !msg_format.is_null() {
         let mut tempbuf: [libc::c_char; 1025] = [0; 1025];
         vsnprintf(
@@ -49,11 +49,11 @@ unsafe fn log_vprintf(
 }
 
 pub unsafe extern "C" fn dc_log_event_seq(
-    mut context: &dc_context_t,
-    mut event_code: Event,
-    mut sequence_start: *mut libc::c_int,
-    mut msg: *const libc::c_char,
-    mut va_0: ...
+    context: &dc_context_t,
+    event_code: Event,
+    sequence_start: *mut libc::c_int,
+    msg: *const libc::c_char,
+    va_0: ...
 ) {
     if sequence_start.is_null() {
         return;
@@ -63,28 +63,28 @@ pub unsafe extern "C" fn dc_log_event_seq(
 }
 
 pub unsafe extern "C" fn dc_log_error(
-    mut context: &dc_context_t,
-    mut data1: libc::c_int,
-    mut msg: *const libc::c_char,
-    mut va_1: ...
+    context: &dc_context_t,
+    data1: libc::c_int,
+    msg: *const libc::c_char,
+    va_1: ...
 ) {
     log_vprintf(context, Event::ERROR, data1, msg, va_1);
 }
 
 pub unsafe extern "C" fn dc_log_warning(
-    mut context: &dc_context_t,
-    mut data1: libc::c_int,
-    mut msg: *const libc::c_char,
-    mut va_2: ...
+    context: &dc_context_t,
+    data1: libc::c_int,
+    msg: *const libc::c_char,
+    va_2: ...
 ) {
     log_vprintf(context, Event::WARNING, data1, msg, va_2);
 }
 
 pub unsafe extern "C" fn dc_log_info(
-    mut context: &dc_context_t,
-    mut data1: libc::c_int,
-    mut msg: *const libc::c_char,
-    mut va_3: ...
+    context: &dc_context_t,
+    data1: libc::c_int,
+    msg: *const libc::c_char,
+    va_3: ...
 ) {
     log_vprintf(context, Event::INFO, data1, msg, va_3);
 }

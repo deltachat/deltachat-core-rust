@@ -6,13 +6,13 @@ use crate::dc_sqlite3::*;
 use crate::types::*;
 
 pub unsafe fn dc_do_heuristics_moves(
-    mut context: &dc_context_t,
-    mut folder: *const libc::c_char,
-    mut msg_id: uint32_t,
+    context: &dc_context_t,
+    folder: *const libc::c_char,
+    msg_id: uint32_t,
 ) {
     // for already seen messages, folder may be different from msg->folder
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),

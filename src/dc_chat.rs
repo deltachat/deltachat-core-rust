@@ -32,14 +32,11 @@ pub struct dc_chat_t<'a> {
 }
 
 // handle chats
-pub unsafe fn dc_create_chat_by_msg_id(
-    mut context: &dc_context_t,
-    mut msg_id: uint32_t,
-) -> uint32_t {
+pub unsafe fn dc_create_chat_by_msg_id(context: &dc_context_t, msg_id: uint32_t) -> uint32_t {
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut send_event: libc::c_int = 0i32;
-    let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    let mut chat: *mut dc_chat_t = dc_chat_new(context);
+    let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
+    let chat: *mut dc_chat_t = dc_chat_new(context);
     if !(0 == dc_msg_load_from_db(msg, context, msg_id)
         || 0 == dc_chat_load_from_db(chat, (*msg).chat_id)
         || (*chat).id <= 9i32 as libc::c_uint)
@@ -115,16 +112,12 @@ pub unsafe fn dc_chat_empty(mut chat: *mut dc_chat_t) {
     dc_param_set_packed((*chat).param, 0 as *const libc::c_char);
 }
 
-pub unsafe fn dc_unblock_chat(mut context: &dc_context_t, mut chat_id: uint32_t) {
+pub unsafe fn dc_unblock_chat(context: &dc_context_t, chat_id: uint32_t) {
     dc_block_chat(context, chat_id, 0i32);
 }
 
-pub unsafe fn dc_block_chat(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut new_blocking: libc::c_int,
-) {
-    let mut stmt: *mut sqlite3_stmt;
+pub unsafe fn dc_block_chat(context: &dc_context_t, chat_id: uint32_t, new_blocking: libc::c_int) {
+    let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
@@ -137,7 +130,7 @@ pub unsafe fn dc_block_chat(
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_load_from_db(mut chat: *mut dc_chat_t, mut chat_id: uint32_t) -> libc::c_int {
+pub unsafe fn dc_chat_load_from_db(chat: *mut dc_chat_t, chat_id: uint32_t) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
@@ -161,7 +154,7 @@ pub unsafe fn dc_chat_load_from_db(mut chat: *mut dc_chat_t, mut chat_id: uint32
     success
 }
 
-unsafe fn set_from_stmt(mut chat: *mut dc_chat_t, mut row: *mut sqlite3_stmt) -> libc::c_int {
+unsafe fn set_from_stmt(mut chat: *mut dc_chat_t, row: *mut sqlite3_stmt) -> libc::c_int {
     let mut row_offset: libc::c_int = 0i32;
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 || row.is_null() {
         return 0i32;
@@ -204,7 +197,7 @@ unsafe fn set_from_stmt(mut chat: *mut dc_chat_t, mut row: *mut sqlite3_stmt) ->
         (*chat).name = dc_stock_str((*chat).context, 8i32)
     } else if (*chat).id == 6i32 as libc::c_uint {
         free((*chat).name as *mut libc::c_void);
-        let mut tempname: *mut libc::c_char = dc_stock_str((*chat).context, 40i32);
+        let tempname: *mut libc::c_char = dc_stock_str((*chat).context, 40i32);
         (*chat).name = dc_mprintf(
             b"%s (%i)\x00" as *const u8 as *const libc::c_char,
             tempname,
@@ -222,8 +215,8 @@ unsafe fn set_from_stmt(mut chat: *mut dc_chat_t, mut row: *mut sqlite3_stmt) ->
 }
 
 pub unsafe fn dc_create_chat_by_contact_id(
-    mut context: &dc_context_t,
-    mut contact_id: uint32_t,
+    context: &dc_context_t,
+    contact_id: uint32_t,
 ) -> uint32_t {
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut chat_blocked: libc::c_int = 0i32;
@@ -269,16 +262,16 @@ pub unsafe fn dc_create_chat_by_contact_id(
 }
 
 pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
-    mut context: &dc_context_t,
-    mut contact_id: uint32_t,
-    mut create_blocked: libc::c_int,
-    mut ret_chat_id: *mut uint32_t,
-    mut ret_chat_blocked: *mut libc::c_int,
+    context: &dc_context_t,
+    contact_id: uint32_t,
+    create_blocked: libc::c_int,
+    ret_chat_id: *mut uint32_t,
+    ret_chat_blocked: *mut libc::c_int,
 ) {
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut chat_blocked: libc::c_int = 0i32;
-    let mut contact: *mut dc_contact_t;
-    let mut chat_name: *mut libc::c_char;
+    let contact: *mut dc_contact_t;
+    let chat_name: *mut libc::c_char;
     let mut q: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !ret_chat_id.is_null() {
@@ -376,13 +369,13 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
 }
 
 pub unsafe fn dc_lookup_real_nchat_by_contact_id(
-    mut context: &dc_context_t,
-    mut contact_id: uint32_t,
-    mut ret_chat_id: *mut uint32_t,
-    mut ret_chat_blocked: *mut libc::c_int,
+    context: &dc_context_t,
+    contact_id: uint32_t,
+    ret_chat_id: *mut uint32_t,
+    ret_chat_blocked: *mut libc::c_int,
 ) {
     /* checks for "real" chats or self-chat */
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     if !ret_chat_id.is_null() {
         *ret_chat_id = 0i32 as uint32_t
     }
@@ -411,8 +404,8 @@ pub unsafe fn dc_lookup_real_nchat_by_contact_id(
 }
 
 pub unsafe fn dc_get_chat_id_by_contact_id(
-    mut context: &dc_context_t,
-    mut contact_id: uint32_t,
+    context: &dc_context_t,
+    contact_id: uint32_t,
 ) -> uint32_t {
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut chat_id_blocked: libc::c_int = 0i32;
@@ -425,15 +418,15 @@ pub unsafe fn dc_get_chat_id_by_contact_id(
 }
 
 pub unsafe fn dc_prepare_msg<'a>(
-    mut context: &'a dc_context_t,
-    mut chat_id: uint32_t,
+    context: &'a dc_context_t,
+    chat_id: uint32_t,
     mut msg: *mut dc_msg_t<'a>,
 ) -> uint32_t {
     if msg.is_null() || chat_id <= 9i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
     (*msg).state = 18i32;
-    let mut msg_id: uint32_t = prepare_msg_common(context, chat_id, msg);
+    let msg_id: uint32_t = prepare_msg_common(context, chat_id, msg);
     (context.cb)(
         context,
         Event::MSGS_CHANGED,
@@ -444,11 +437,11 @@ pub unsafe fn dc_prepare_msg<'a>(
 }
 
 unsafe fn prepare_msg_common<'a>(
-    mut context: &'a dc_context_t,
-    mut chat_id: uint32_t,
+    context: &'a dc_context_t,
+    chat_id: uint32_t,
     mut msg: *mut dc_msg_t<'a>,
 ) -> uint32_t {
-    let mut current_block: u64;
+    let current_block: u64;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
     (*msg).id = 0i32 as uint32_t;
@@ -544,14 +537,14 @@ unsafe fn prepare_msg_common<'a>(
 }
 
 unsafe fn prepare_msg_raw(
-    mut context: &dc_context_t,
-    mut chat: *mut dc_chat_t,
-    mut msg: *const dc_msg_t,
-    mut timestamp: time_t,
+    context: &dc_context_t,
+    chat: *mut dc_chat_t,
+    msg: *const dc_msg_t,
+    timestamp: time_t,
 ) -> uint32_t {
     let mut do_guarantee_e2ee: libc::c_int;
-    let mut e2ee_enabled: libc::c_int;
-    let mut current_block: u64;
+    let e2ee_enabled: libc::c_int;
+    let current_block: u64;
     let mut parent_rfc724_mid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut parent_references: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut parent_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -580,7 +573,7 @@ unsafe fn prepare_msg_raw(
             b"Cannot send message; self not in group.\x00" as *const u8 as *const libc::c_char,
         );
     } else {
-        let mut from: *mut libc::c_char = dc_sqlite3_get_config(
+        let from: *mut libc::c_char = dc_sqlite3_get_config(
             context,
             &context.sql.clone().read().unwrap(),
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
@@ -670,8 +663,7 @@ unsafe fn prepare_msg_raw(
                                 can_encrypt = 0i32;
                                 all_mutual = 0i32
                             } else {
-                                let mut prefer_encrypted: libc::c_int =
-                                    sqlite3_column_int(stmt, 0i32);
+                                let prefer_encrypted: libc::c_int = sqlite3_column_int(stmt, 0i32);
                                 if prefer_encrypted != 1i32 {
                                     dc_log_info(
                                         context,
@@ -722,7 +714,7 @@ unsafe fn prepare_msg_raw(
                             new_in_reply_to = dc_strdup(parent_rfc724_mid)
                         }
                         if !parent_references.is_null() {
-                            let mut space: *mut libc::c_char;
+                            let space: *mut libc::c_char;
                             space = strchr(parent_references, ' ' as i32);
                             if !space.is_null() {
                                 *space = 0i32 as libc::c_char
@@ -870,10 +862,10 @@ unsafe fn prepare_msg_raw(
 
 // TODO should return bool /rtn
 unsafe fn get_parent_mime_headers(
-    mut chat: *const dc_chat_t,
-    mut parent_rfc724_mid: *mut *mut libc::c_char,
-    mut parent_in_reply_to: *mut *mut libc::c_char,
-    mut parent_references: *mut *mut libc::c_char,
+    chat: *const dc_chat_t,
+    parent_rfc724_mid: *mut *mut libc::c_char,
+    parent_in_reply_to: *mut *mut libc::c_char,
+    parent_references: *mut *mut libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -920,7 +912,7 @@ unsafe fn get_parent_mime_headers(
     success
 }
 
-pub unsafe fn dc_chat_is_self_talk(mut chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_is_self_talk(chat: *const dc_chat_t) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
@@ -937,14 +929,14 @@ unsafe fn last_msg_in_chat_encrypted(
     chat_id: uint32_t,
 ) -> libc::c_int {
     let mut last_is_encrypted: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt =
+    let  stmt: *mut sqlite3_stmt =
         dc_sqlite3_prepare(
             context,sql,
                            b"SELECT param  FROM msgs  WHERE timestamp=(SELECT MAX(timestamp) FROM msgs WHERE chat_id=?)  ORDER BY id DESC;\x00"
                                as *const u8 as *const libc::c_char);
     sqlite3_bind_int(stmt, 1i32, chat_id as libc::c_int);
     if sqlite3_step(stmt) == 100i32 {
-        let mut msg_param: *mut dc_param_t = dc_param_new();
+        let msg_param: *mut dc_param_t = dc_param_new();
         dc_param_set_packed(
             msg_param,
             sqlite3_column_text(stmt, 0i32) as *mut libc::c_char,
@@ -959,9 +951,9 @@ unsafe fn last_msg_in_chat_encrypted(
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_update_param(mut chat: *mut dc_chat_t) -> libc::c_int {
-    let mut success: libc::c_int;
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+pub unsafe fn dc_chat_update_param(chat: *mut dc_chat_t) -> libc::c_int {
+    let success: libc::c_int;
+    let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         (*chat).context,
         &mut (*chat).context.sql.clone().read().unwrap(),
         b"UPDATE chats SET param=? WHERE id=?\x00" as *const u8 as *const libc::c_char,
@@ -978,14 +970,14 @@ pub unsafe fn dc_chat_update_param(mut chat: *mut dc_chat_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_is_contact_in_chat(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut contact_id: uint32_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    contact_id: uint32_t,
 ) -> libc::c_int {
     /* this function works for group and for normal chats, however, it is more useful for group chats.
     DC_CONTACT_ID_SELF may be used to check, if the user itself is in a group chat (DC_CONTACT_ID_SELF is not added to normal chats) */
-    let mut ret: libc::c_int;
-    let mut stmt: *mut sqlite3_stmt;
+    let ret: libc::c_int;
+    let stmt: *mut sqlite3_stmt;
 
     stmt = dc_sqlite3_prepare(
         context,
@@ -1005,8 +997,8 @@ pub unsafe fn dc_is_contact_in_chat(
     ret
 }
 
-pub unsafe fn dc_unarchive_chat(mut context: &dc_context_t, mut chat_id: uint32_t) {
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+pub unsafe fn dc_unarchive_chat(context: &dc_context_t, chat_id: uint32_t) {
+    let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"UPDATE chats SET archived=0 WHERE id=?\x00" as *const u8 as *const libc::c_char,
@@ -1017,9 +1009,9 @@ pub unsafe fn dc_unarchive_chat(mut context: &dc_context_t, mut chat_id: uint32_
 }
 
 pub unsafe fn dc_send_msg<'a>(
-    mut context: &'a dc_context_t,
-    mut chat_id: uint32_t,
-    mut msg: *mut dc_msg_t<'a>,
+    context: &'a dc_context_t,
+    chat_id: uint32_t,
+    msg: *mut dc_msg_t<'a>,
 ) -> uint32_t {
     if msg.is_null() {
         return 0i32 as uint32_t;
@@ -1049,17 +1041,17 @@ pub unsafe fn dc_send_msg<'a>(
     }
 
     if 0 == chat_id {
-        let mut forwards: *mut libc::c_char =
+        let forwards: *mut libc::c_char =
             dc_param_get((*msg).param, 'P' as i32, 0 as *const libc::c_char);
         if !forwards.is_null() {
             let mut p: *mut libc::c_char = forwards;
             while 0 != *p {
-                let mut id: int32_t = strtol(p, &mut p, 10i32) as int32_t;
+                let id: int32_t = strtol(p, &mut p, 10i32) as int32_t;
                 if 0 == id {
                     // avoid hanging if user tampers with db
                     break;
                 } else {
-                    let mut copy: *mut dc_msg_t = dc_get_msg(context, id as uint32_t);
+                    let copy: *mut dc_msg_t = dc_get_msg(context, id as uint32_t);
                     if !copy.is_null() {
                         dc_send_msg(context, 0i32 as uint32_t, copy);
                     }
@@ -1076,9 +1068,9 @@ pub unsafe fn dc_send_msg<'a>(
 }
 
 pub unsafe fn dc_send_text_msg(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut text_to_send: *const libc::c_char,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    text_to_send: *const libc::c_char,
 ) -> uint32_t {
     let mut msg: *mut dc_msg_t = dc_msg_new(context, 10i32);
     let mut ret: uint32_t = 0i32 as uint32_t;
@@ -1090,11 +1082,7 @@ pub unsafe fn dc_send_text_msg(
     ret
 }
 
-pub unsafe fn dc_set_draft(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut msg: *mut dc_msg_t,
-) {
+pub unsafe fn dc_set_draft(context: &dc_context_t, chat_id: uint32_t, msg: *mut dc_msg_t) {
     if chat_id <= 9i32 as libc::c_uint {
         return;
     }
@@ -1110,15 +1098,15 @@ pub unsafe fn dc_set_draft(
 
 // TODO should return bool /rtn
 unsafe fn set_draft_raw(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut msg: *mut dc_msg_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    msg: *mut dc_msg_t,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let current_block: u64;
     // similar to as dc_set_draft() but does not emit an event
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut prev_draft_msg_id: uint32_t;
+    let prev_draft_msg_id: uint32_t;
     let mut sth_changed: libc::c_int = 0i32;
     prev_draft_msg_id = get_draft_msg_id(context, chat_id);
     if 0 != prev_draft_msg_id {
@@ -1194,9 +1182,9 @@ unsafe fn set_draft_raw(
     sth_changed
 }
 
-unsafe fn get_draft_msg_id(mut context: &dc_context_t, mut chat_id: uint32_t) -> uint32_t {
+unsafe fn get_draft_msg_id(context: &dc_context_t, chat_id: uint32_t) -> uint32_t {
     let mut draft_msg_id: uint32_t = 0i32 as uint32_t;
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+    let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"SELECT id FROM msgs WHERE chat_id=? AND state=?;\x00" as *const u8 as *const libc::c_char,
@@ -1210,9 +1198,9 @@ unsafe fn get_draft_msg_id(mut context: &dc_context_t, mut chat_id: uint32_t) ->
     draft_msg_id
 }
 
-pub unsafe fn dc_get_draft(mut context: &dc_context_t, mut chat_id: uint32_t) -> *mut dc_msg_t {
-    let mut draft_msg_id: uint32_t;
-    let mut draft_msg: *mut dc_msg_t;
+pub unsafe fn dc_get_draft(context: &dc_context_t, chat_id: uint32_t) -> *mut dc_msg_t {
+    let draft_msg_id: uint32_t;
+    let draft_msg: *mut dc_msg_t;
     if chat_id <= 9i32 as libc::c_uint {
         return 0 as *mut dc_msg_t;
     }
@@ -1230,23 +1218,23 @@ pub unsafe fn dc_get_draft(mut context: &dc_context_t, mut chat_id: uint32_t) ->
 }
 
 pub unsafe fn dc_get_chat_msgs(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut flags: uint32_t,
-    mut marker1before: uint32_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    flags: uint32_t,
+    marker1before: uint32_t,
 ) -> *mut dc_array_t {
     //clock_t       start = clock();
     let mut success: libc::c_int = 0i32;
-    let mut ret: *mut dc_array_t = dc_array_new(512i32 as size_t);
+    let ret: *mut dc_array_t = dc_array_new(512i32 as size_t);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut curr_id: uint32_t;
     let mut curr_local_timestamp: time_t;
     let mut curr_day: libc::c_int;
     let mut last_day: libc::c_int = 0i32;
-    let mut cnv_to_local: libc::c_long = dc_gm2local_offset();
+    let cnv_to_local: libc::c_long = dc_gm2local_offset();
     if !ret.is_null() {
         if chat_id == 1i32 as libc::c_uint {
-            let mut show_emails: libc::c_int = dc_sqlite3_get_config_int(
+            let show_emails: libc::c_int = dc_sqlite3_get_config_int(
                 context,
                 &context.sql.clone().read().unwrap(),
                 b"show_emails\x00" as *const u8 as *const libc::c_char,
@@ -1300,9 +1288,9 @@ pub unsafe fn dc_get_chat_msgs(
     };
 }
 
-pub unsafe fn dc_get_msg_cnt(mut context: &dc_context_t, mut chat_id: uint32_t) -> libc::c_int {
+pub unsafe fn dc_get_msg_cnt(context: &dc_context_t, chat_id: uint32_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
@@ -1317,12 +1305,9 @@ pub unsafe fn dc_get_msg_cnt(mut context: &dc_context_t, mut chat_id: uint32_t) 
     ret
 }
 
-pub unsafe fn dc_get_fresh_msg_cnt(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-) -> libc::c_int {
+pub unsafe fn dc_get_fresh_msg_cnt(context: &dc_context_t, chat_id: uint32_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
@@ -1337,8 +1322,8 @@ pub unsafe fn dc_get_fresh_msg_cnt(
     ret
 }
 
-pub unsafe fn dc_marknoticed_chat(mut context: &dc_context_t, mut chat_id: uint32_t) {
-    let mut check: *mut sqlite3_stmt;
+pub unsafe fn dc_marknoticed_chat(context: &dc_context_t, chat_id: uint32_t) {
+    let check: *mut sqlite3_stmt;
     let mut update: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
 
     check = dc_sqlite3_prepare(
@@ -1369,8 +1354,8 @@ pub unsafe fn dc_marknoticed_chat(mut context: &dc_context_t, mut chat_id: uint3
     sqlite3_finalize(update);
 }
 
-pub unsafe fn dc_marknoticed_all_chats(mut context: &dc_context_t) {
-    let mut check: *mut sqlite3_stmt;
+pub unsafe fn dc_marknoticed_all_chats(context: &dc_context_t) {
+    let check: *mut sqlite3_stmt;
     let mut update: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
 
     check = dc_sqlite3_prepare(
@@ -1398,14 +1383,14 @@ pub unsafe fn dc_marknoticed_all_chats(mut context: &dc_context_t) {
 }
 
 pub unsafe fn dc_get_chat_media(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut msg_type: libc::c_int,
-    mut msg_type2: libc::c_int,
-    mut msg_type3: libc::c_int,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    msg_type: libc::c_int,
+    msg_type2: libc::c_int,
+    msg_type3: libc::c_int,
 ) -> *mut dc_array_t {
-    let mut ret: *mut dc_array_t = dc_array_new(100i32 as size_t);
-    let mut stmt: *mut sqlite3_stmt =
+    let ret: *mut dc_array_t = dc_array_new(100i32 as size_t);
+    let  stmt: *mut sqlite3_stmt =
         dc_sqlite3_prepare(
             context,&context.sql.clone().read().unwrap(),
                            b"SELECT id FROM msgs WHERE chat_id=? AND (type=? OR type=? OR type=?) ORDER BY timestamp, id;\x00"
@@ -1438,18 +1423,18 @@ pub unsafe fn dc_get_chat_media(
 }
 
 pub unsafe fn dc_get_next_media(
-    mut context: &dc_context_t,
-    mut curr_msg_id: uint32_t,
-    mut dir: libc::c_int,
-    mut msg_type: libc::c_int,
-    mut msg_type2: libc::c_int,
-    mut msg_type3: libc::c_int,
+    context: &dc_context_t,
+    curr_msg_id: uint32_t,
+    dir: libc::c_int,
+    msg_type: libc::c_int,
+    msg_type2: libc::c_int,
+    msg_type3: libc::c_int,
 ) -> uint32_t {
     let mut ret_msg_id: uint32_t = 0i32 as uint32_t;
-    let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
+    let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut list: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut i: libc::c_int;
-    let mut cnt: libc::c_int;
+    let cnt: libc::c_int;
 
     if !(0 == dc_msg_load_from_db(msg, context, curr_msg_id)) {
         list = dc_get_chat_media(
@@ -1490,16 +1475,12 @@ pub unsafe fn dc_get_next_media(
     ret_msg_id
 }
 
-pub unsafe fn dc_archive_chat(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut archive: libc::c_int,
-) {
+pub unsafe fn dc_archive_chat(context: &dc_context_t, chat_id: uint32_t, archive: libc::c_int) {
     if chat_id <= 9i32 as libc::c_uint || archive != 0i32 && archive != 1i32 {
         return;
     }
     if 0 != archive {
-        let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+        let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             b"UPDATE msgs SET state=13 WHERE chat_id=? AND state=10;\x00" as *const u8
@@ -1509,7 +1490,7 @@ pub unsafe fn dc_archive_chat(
         sqlite3_step(stmt);
         sqlite3_finalize(stmt);
     }
-    let mut stmt_0: *mut sqlite3_stmt = dc_sqlite3_prepare(
+    let stmt_0: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"UPDATE chats SET archived=? WHERE id=?;\x00" as *const u8 as *const libc::c_char,
@@ -1526,9 +1507,9 @@ pub unsafe fn dc_archive_chat(
     );
 }
 
-pub unsafe fn dc_delete_chat(mut context: &dc_context_t, mut chat_id: uint32_t) {
+pub unsafe fn dc_delete_chat(context: &dc_context_t, chat_id: uint32_t) {
     /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
-    let mut obj: *mut dc_chat_t = dc_chat_new(context);
+    let obj: *mut dc_chat_t = dc_chat_new(context);
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint) {
         if !(0 == dc_chat_load_from_db(obj, chat_id)) {
@@ -1585,13 +1566,10 @@ pub unsafe fn dc_delete_chat(mut context: &dc_context_t, mut chat_id: uint32_t) 
     sqlite3_free(q3 as *mut libc::c_void);
 }
 
-pub unsafe fn dc_get_chat_contacts(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-) -> *mut dc_array_t {
+pub unsafe fn dc_get_chat_contacts(context: &dc_context_t, chat_id: uint32_t) -> *mut dc_array_t {
     /* Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     groupchat but the chats stays visible, moreover, this makes displaying lists easier) */
-    let mut ret: *mut dc_array_t = dc_array_new(100i32 as size_t);
+    let ret: *mut dc_array_t = dc_array_new(100i32 as size_t);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
 
     if !(chat_id == 1i32 as libc::c_uint) {
@@ -1611,9 +1589,9 @@ pub unsafe fn dc_get_chat_contacts(
     ret
 }
 
-pub unsafe fn dc_get_chat(mut context: &dc_context_t, mut chat_id: uint32_t) -> *mut dc_chat_t {
+pub unsafe fn dc_get_chat(context: &dc_context_t, chat_id: uint32_t) -> *mut dc_chat_t {
     let mut success: libc::c_int = 0i32;
-    let mut obj: *mut dc_chat_t = dc_chat_new(context);
+    let obj: *mut dc_chat_t = dc_chat_new(context);
 
     if !(0 == dc_chat_load_from_db(obj, chat_id)) {
         success = 1i32
@@ -1629,15 +1607,15 @@ pub unsafe fn dc_get_chat(mut context: &dc_context_t, mut chat_id: uint32_t) -> 
 
 // handle group chats
 pub unsafe fn dc_create_group_chat(
-    mut context: &dc_context_t,
-    mut verified: libc::c_int,
-    mut chat_name: *const libc::c_char,
+    context: &dc_context_t,
+    verified: libc::c_int,
+    chat_name: *const libc::c_char,
 ) -> uint32_t {
     let mut chat_id: uint32_t = 0i32 as uint32_t;
-    let mut draft_txt: *mut libc::c_char;
+    let draft_txt: *mut libc::c_char;
     let mut draft_msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
-    let mut grpid: *mut libc::c_char;
-    let mut stmt: *mut sqlite3_stmt;
+    let grpid: *mut libc::c_char;
+    let stmt: *mut sqlite3_stmt;
     if chat_name.is_null() || *chat_name.offset(0isize) as libc::c_int == 0i32 {
         return 0i32 as uint32_t;
     }
@@ -1688,13 +1666,13 @@ pub unsafe fn dc_create_group_chat(
 // Context functions to work with chats
 // TODO should return bool /rtn
 pub unsafe fn dc_add_to_chat_contacts_table(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut contact_id: uint32_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    contact_id: uint32_t,
 ) -> libc::c_int {
     /* add a contact to a chat; the function does not check the type or if any of the record exist or are already added to the chat! */
-    let mut ret: libc::c_int;
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+    let ret: libc::c_int;
+    let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)\x00" as *const u8
@@ -1712,24 +1690,24 @@ pub unsafe fn dc_add_to_chat_contacts_table(
 }
 
 pub unsafe fn dc_add_contact_to_chat(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut contact_id: uint32_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    contact_id: uint32_t,
 ) -> libc::c_int {
     dc_add_contact_to_chat_ex(context, chat_id, contact_id, 0i32)
 }
 
 // TODO should return bool /rtn
 pub unsafe fn dc_add_contact_to_chat_ex(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut contact_id: uint32_t,
-    mut flags: libc::c_int,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    contact_id: uint32_t,
+    flags: libc::c_int,
 ) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
-    let mut contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
-    let mut chat: *mut dc_chat_t = dc_chat_new(context);
+    let contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
+    let chat: *mut dc_chat_t = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(contact.is_null() || chat_id <= 9i32 as libc::c_uint) {
@@ -1843,9 +1821,9 @@ pub unsafe fn dc_add_contact_to_chat_ex(
 }
 
 // TODO should return bool /rtn
-unsafe fn real_group_exists(mut context: &dc_context_t, mut chat_id: uint32_t) -> libc::c_int {
+unsafe fn real_group_exists(context: &dc_context_t, chat_id: uint32_t) -> libc::c_int {
     // check if a group or a verified group exists under the given ID
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     let mut ret: libc::c_int = 0i32;
     if (*context.sql.clone().read().unwrap()).cobj.is_null() || chat_id <= 9i32 as libc::c_uint {
         return 0i32;
@@ -1864,16 +1842,16 @@ unsafe fn real_group_exists(mut context: &dc_context_t, mut chat_id: uint32_t) -
     ret
 }
 
-pub unsafe fn dc_reset_gossiped_timestamp(mut context: &dc_context_t, mut chat_id: uint32_t) {
+pub unsafe fn dc_reset_gossiped_timestamp(context: &dc_context_t, chat_id: uint32_t) {
     dc_set_gossiped_timestamp(context, chat_id, 0i32 as time_t);
 }
 
 pub unsafe fn dc_set_gossiped_timestamp(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut timestamp: time_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    timestamp: time_t,
 ) {
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     if 0 != chat_id {
         dc_log_info(
             context,
@@ -1910,13 +1888,13 @@ pub unsafe fn dc_set_gossiped_timestamp(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_remove_contact_from_chat(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut contact_id: uint32_t,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    contact_id: uint32_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
-    let mut chat: *mut dc_chat_t = dc_chat_new(context);
+    let contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
+    let chat: *mut dc_chat_t = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint
@@ -1995,12 +1973,9 @@ pub unsafe fn dc_remove_contact_from_chat(
     success
 }
 
-pub unsafe fn dc_set_group_explicitly_left(
-    mut context: &dc_context_t,
-    mut grpid: *const libc::c_char,
-) {
+pub unsafe fn dc_set_group_explicitly_left(context: &dc_context_t, grpid: *const libc::c_char) {
     if 0 == dc_is_group_explicitly_left(context, grpid) {
-        let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+        let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             b"INSERT INTO leftgrps (grpid) VALUES(?);\x00" as *const u8 as *const libc::c_char,
@@ -2013,29 +1988,29 @@ pub unsafe fn dc_set_group_explicitly_left(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_is_group_explicitly_left(
-    mut context: &dc_context_t,
-    mut grpid: *const libc::c_char,
+    context: &dc_context_t,
+    grpid: *const libc::c_char,
 ) -> libc::c_int {
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+    let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"SELECT id FROM leftgrps WHERE grpid=?;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_bind_text(stmt, 1i32, grpid, -1i32, None);
-    let mut ret: libc::c_int = (sqlite3_step(stmt) == 100i32) as libc::c_int;
+    let ret: libc::c_int = (sqlite3_step(stmt) == 100i32) as libc::c_int;
     sqlite3_finalize(stmt);
     ret
 }
 
 // TODO should return bool /rtn
 pub unsafe fn dc_set_chat_name(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut new_name: *const libc::c_char,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    new_name: *const libc::c_char,
 ) -> libc::c_int {
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success: libc::c_int = 0i32;
-    let mut chat: *mut dc_chat_t = dc_chat_new(context);
+    let chat: *mut dc_chat_t = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(new_name.is_null()
@@ -2104,13 +2079,13 @@ pub unsafe fn dc_set_chat_name(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_set_chat_profile_image(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut new_image: *const libc::c_char,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    new_image: *const libc::c_char,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let current_block: u64;
     let mut success: libc::c_int = 0i32;
-    let mut chat: *mut dc_chat_t = dc_chat_new(context);
+    let chat: *mut dc_chat_t = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut new_image_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint) {
@@ -2187,20 +2162,20 @@ pub unsafe fn dc_set_chat_profile_image(
 }
 
 pub unsafe fn dc_forward_msgs(
-    mut context: &dc_context_t,
-    mut msg_ids: *const uint32_t,
-    mut msg_cnt: libc::c_int,
-    mut chat_id: uint32_t,
+    context: &dc_context_t,
+    msg_ids: *const uint32_t,
+    msg_cnt: libc::c_int,
+    chat_id: uint32_t,
 ) {
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    let mut chat: *mut dc_chat_t = dc_chat_new(context);
-    let mut contact: *mut dc_contact_t = dc_contact_new(context);
-    let mut created_db_entries: *mut carray = carray_new(16i32 as libc::c_uint);
+    let chat: *mut dc_chat_t = dc_chat_new(context);
+    let contact: *mut dc_contact_t = dc_contact_new(context);
+    let created_db_entries: *mut carray = carray_new(16i32 as libc::c_uint);
     let mut idsstr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut curr_timestamp: time_t;
-    let mut original_param: *mut dc_param_t = dc_param_new();
+    let original_param: *mut dc_param_t = dc_param_new();
     if !(msg_ids.is_null() || msg_cnt <= 0i32 || chat_id <= 9i32 as libc::c_uint) {
         dc_unarchive_chat(context, chat_id);
         if !(0 == dc_chat_load_from_db(chat, chat_id)) {
@@ -2216,7 +2191,7 @@ pub unsafe fn dc_forward_msgs(
                 if !(sqlite3_step(stmt) == 100i32) {
                     break;
                 }
-                let mut src_msg_id: libc::c_int = sqlite3_column_int(stmt, 0i32);
+                let src_msg_id: libc::c_int = sqlite3_column_int(stmt, 0i32);
                 if 0 == dc_msg_load_from_db(msg, context, src_msg_id as uint32_t) {
                     break;
                 }
@@ -2227,20 +2202,20 @@ pub unsafe fn dc_forward_msgs(
                 dc_param_set((*msg).param, 'c' as i32, 0 as *const libc::c_char);
                 dc_param_set((*msg).param, 'u' as i32, 0 as *const libc::c_char);
                 dc_param_set((*msg).param, 'S' as i32, 0 as *const libc::c_char);
-                let mut new_msg_id: uint32_t;
+                let new_msg_id: uint32_t;
                 if (*msg).state == 18i32 {
                     let fresh9 = curr_timestamp;
                     curr_timestamp = curr_timestamp + 1;
                     new_msg_id = prepare_msg_raw(context, chat, msg, fresh9);
-                    let mut save_param: *mut dc_param_t = (*msg).param;
+                    let save_param: *mut dc_param_t = (*msg).param;
                     (*msg).param = original_param;
                     (*msg).id = src_msg_id as uint32_t;
-                    let mut old_fwd: *mut libc::c_char = dc_param_get(
+                    let old_fwd: *mut libc::c_char = dc_param_get(
                         (*msg).param,
                         'P' as i32,
                         b"\x00" as *const u8 as *const libc::c_char,
                     );
-                    let mut new_fwd: *mut libc::c_char = dc_mprintf(
+                    let new_fwd: *mut libc::c_char = dc_mprintf(
                         b"%s %d\x00" as *const u8 as *const libc::c_char,
                         old_fwd,
                         new_msg_id,
@@ -2272,7 +2247,7 @@ pub unsafe fn dc_forward_msgs(
     }
     if !created_db_entries.is_null() {
         let mut i = 0u32;
-        let mut icnt = carray_count(created_db_entries);
+        let icnt = carray_count(created_db_entries);
         while i < icnt {
             (context.cb)(
                 context,
@@ -2293,28 +2268,28 @@ pub unsafe fn dc_forward_msgs(
     dc_param_unref(original_param);
 }
 
-pub unsafe fn dc_chat_get_id(mut chat: *const dc_chat_t) -> uint32_t {
+pub unsafe fn dc_chat_get_id(chat: *const dc_chat_t) -> uint32_t {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32 as uint32_t;
     }
     (*chat).id
 }
 
-pub unsafe fn dc_chat_get_type(mut chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_get_type(chat: *const dc_chat_t) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
     (*chat).type_0
 }
 
-pub unsafe fn dc_chat_get_name(mut chat: *const dc_chat_t) -> *mut libc::c_char {
+pub unsafe fn dc_chat_get_name(chat: *const dc_chat_t) -> *mut libc::c_char {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return dc_strdup(b"Err\x00" as *const u8 as *const libc::c_char);
     }
     dc_strdup((*chat).name)
 }
 
-pub unsafe extern "C" fn dc_chat_get_subtitle(mut chat: *const dc_chat_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *const dc_chat_t) -> *mut libc::c_char {
     /* returns either the address or the number of chat members */
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
@@ -2323,8 +2298,8 @@ pub unsafe extern "C" fn dc_chat_get_subtitle(mut chat: *const dc_chat_t) -> *mu
     if (*chat).type_0 == 100i32 && 0 != dc_param_exists((*chat).param, 'K' as i32) {
         ret = dc_stock_str((*chat).context, 50i32)
     } else if (*chat).type_0 == 100i32 {
-        let mut r: libc::c_int;
-        let mut stmt: *mut sqlite3_stmt =
+        let r: libc::c_int;
+        let  stmt: *mut sqlite3_stmt =
             dc_sqlite3_prepare(
                 (*chat).context,&mut (*chat).context.sql.clone().read().unwrap(),
                                b"SELECT c.addr FROM chats_contacts cc  LEFT JOIN contacts c ON c.id=cc.contact_id  WHERE cc.chat_id=?;\x00"
@@ -2336,7 +2311,7 @@ pub unsafe extern "C" fn dc_chat_get_subtitle(mut chat: *const dc_chat_t) -> *mu
         }
         sqlite3_finalize(stmt);
     } else if (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32 {
-        let mut cnt: libc::c_int;
+        let cnt: libc::c_int;
         if (*chat).id == 1i32 as libc::c_uint {
             ret = dc_stock_str((*chat).context, 8i32)
         } else {
@@ -2351,12 +2326,9 @@ pub unsafe extern "C" fn dc_chat_get_subtitle(mut chat: *const dc_chat_t) -> *mu
     };
 }
 
-pub unsafe fn dc_get_chat_contact_cnt(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-) -> libc::c_int {
+pub unsafe fn dc_get_chat_contact_cnt(context: &dc_context_t, chat_id: uint32_t) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+    let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;\x00" as *const u8
@@ -2370,7 +2342,7 @@ pub unsafe fn dc_get_chat_contact_cnt(
     ret
 }
 
-pub unsafe fn dc_chat_get_profile_image(mut chat: *const dc_chat_t) -> *mut libc::c_char {
+pub unsafe fn dc_chat_get_profile_image(chat: *const dc_chat_t) -> *mut libc::c_char {
     let mut image_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut image_abs: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
@@ -2398,7 +2370,7 @@ pub unsafe fn dc_chat_get_profile_image(mut chat: *const dc_chat_t) -> *mut libc
     image_abs
 }
 
-pub unsafe fn dc_chat_get_color(mut chat: *const dc_chat_t) -> uint32_t {
+pub unsafe fn dc_chat_get_color(chat: *const dc_chat_t) -> uint32_t {
     let mut color: uint32_t = 0i32 as uint32_t;
     let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
@@ -2424,7 +2396,7 @@ pub unsafe fn dc_chat_get_color(mut chat: *const dc_chat_t) -> uint32_t {
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_get_archived(mut chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_get_archived(chat: *const dc_chat_t) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
@@ -2432,7 +2404,7 @@ pub unsafe fn dc_chat_get_archived(mut chat: *const dc_chat_t) -> libc::c_int {
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_is_unpromoted(mut chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_is_unpromoted(chat: *const dc_chat_t) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
@@ -2440,7 +2412,7 @@ pub unsafe fn dc_chat_is_unpromoted(mut chat: *const dc_chat_t) -> libc::c_int {
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_is_verified(mut chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_is_verified(chat: *const dc_chat_t) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
@@ -2448,14 +2420,14 @@ pub unsafe fn dc_chat_is_verified(mut chat: *const dc_chat_t) -> libc::c_int {
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_is_sending_locations(mut chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_is_sending_locations(chat: *const dc_chat_t) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
     (*chat).is_sending_locations
 }
 
-pub unsafe fn dc_get_chat_cnt(mut context: &dc_context_t) -> size_t {
+pub unsafe fn dc_get_chat_cnt(context: &dc_context_t) -> size_t {
     let mut ret: size_t = 0i32 as size_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(*context.sql.clone().read().unwrap()).cobj.is_null() {
@@ -2475,13 +2447,13 @@ pub unsafe fn dc_get_chat_cnt(mut context: &dc_context_t) -> size_t {
 }
 
 pub unsafe fn dc_get_chat_id_by_grpid(
-    mut context: &dc_context_t,
-    mut grpid: *const libc::c_char,
-    mut ret_blocked: *mut libc::c_int,
-    mut ret_verified: *mut libc::c_int,
+    context: &dc_context_t,
+    grpid: *const libc::c_char,
+    ret_blocked: *mut libc::c_int,
+    ret_verified: *mut libc::c_int,
 ) -> uint32_t {
     let mut chat_id: uint32_t = 0i32 as uint32_t;
-    let mut stmt: *mut sqlite3_stmt;
+    let stmt: *mut sqlite3_stmt;
     if !ret_blocked.is_null() {
         *ret_blocked = 0i32
     }
@@ -2511,13 +2483,13 @@ pub unsafe fn dc_get_chat_id_by_grpid(
 }
 
 pub unsafe fn dc_add_device_msg(
-    mut context: &dc_context_t,
-    mut chat_id: uint32_t,
-    mut text: *const libc::c_char,
+    context: &dc_context_t,
+    chat_id: uint32_t,
+    text: *const libc::c_char,
 ) {
-    let mut msg_id: uint32_t;
+    let msg_id: uint32_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut rfc724_mid: *mut libc::c_char = dc_create_outgoing_rfc724_mid(
+    let rfc724_mid: *mut libc::c_char = dc_create_outgoing_rfc724_mid(
         0 as *const libc::c_char,
         b"@device\x00" as *const u8 as *const libc::c_char,
     );

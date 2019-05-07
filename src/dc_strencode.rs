@@ -24,12 +24,12 @@ pub fn isdigit(mut _c: libc::c_int) -> libc::c_int {
     }
 }
 
-pub unsafe extern "C" fn dc_urlencode(mut to_encode: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_urlencode(to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut pstr: *const libc::c_char = to_encode;
     if to_encode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut buf: *mut libc::c_char =
+    let buf: *mut libc::c_char =
         malloc(strlen(to_encode).wrapping_mul(3).wrapping_add(1)) as *mut libc::c_char;
     let mut pbuf: *mut libc::c_char = buf;
     if buf.is_null() {
@@ -70,7 +70,7 @@ pub unsafe extern "C" fn dc_urlencode(mut to_encode: *const libc::c_char) -> *mu
 /* ******************************************************************************
  * URL encoding and decoding, RFC 3986
  ******************************************************************************/
-unsafe fn int_2_uppercase_hex(mut code: libc::c_char) -> libc::c_char {
+unsafe fn int_2_uppercase_hex(code: libc::c_char) -> libc::c_char {
     static mut hex: [libc::c_char; 17] = [
         48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70, 0,
     ];
@@ -78,12 +78,12 @@ unsafe fn int_2_uppercase_hex(mut code: libc::c_char) -> libc::c_char {
     hex[(code as libc::c_int & 15i32) as usize]
 }
 
-pub unsafe fn dc_urldecode(mut to_decode: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_urldecode(to_decode: *const libc::c_char) -> *mut libc::c_char {
     let mut pstr: *const libc::c_char = to_decode;
     if to_decode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut buf: *mut libc::c_char = malloc(strlen(to_decode).wrapping_add(1)) as *mut libc::c_char;
+    let buf: *mut libc::c_char = malloc(strlen(to_decode).wrapping_add(1)) as *mut libc::c_char;
     let mut pbuf: *mut libc::c_char = buf;
     if buf.is_null() {
         exit(50i32);
@@ -115,7 +115,7 @@ pub unsafe fn dc_urldecode(mut to_decode: *const libc::c_char) -> *mut libc::c_c
     buf
 }
 
-unsafe fn hex_2_int(mut ch: libc::c_char) -> libc::c_char {
+unsafe fn hex_2_int(ch: libc::c_char) -> libc::c_char {
     return (if 0 != isdigit(ch as libc::c_int) {
         ch as libc::c_int - '0' as i32
     } else {
@@ -123,11 +123,11 @@ unsafe fn hex_2_int(mut ch: libc::c_char) -> libc::c_char {
     }) as libc::c_char;
 }
 
-pub unsafe fn dc_encode_header_words(mut to_encode: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut current_block: u64;
     let mut ret_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cur: *const libc::c_char = to_encode;
-    let mut mmapstr: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
+    let mmapstr: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     if to_encode.is_null() || mmapstr.is_null() {
         current_block = 8550051112593613029;
     } else {
@@ -143,7 +143,7 @@ pub unsafe fn dc_encode_header_words(mut to_encode: *const libc::c_char) -> *mut
             }
             _ => {
                 if *cur as libc::c_int != '\u{0}' as i32 {
-                    let mut begin: *const libc::c_char;
+                    let begin: *const libc::c_char;
                     let mut end: *const libc::c_char;
                     let mut do_quote: libc::c_int;
                     let mut quote_words: libc::c_int;
@@ -224,10 +224,10 @@ pub unsafe fn dc_encode_header_words(mut to_encode: *const libc::c_char) -> *mut
 
 // TODO return bool /rtn
 unsafe fn quote_word(
-    mut display_charset: *const libc::c_char,
-    mut mmapstr: *mut MMAPString,
-    mut word: *const libc::c_char,
-    mut size: size_t,
+    display_charset: *const libc::c_char,
+    mmapstr: *mut MMAPString,
+    word: *const libc::c_char,
+    size: size_t,
 ) -> libc::c_int {
     let mut cur: *const libc::c_char;
     let mut i: size_t = 0i32 as size_t;
@@ -287,9 +287,9 @@ unsafe fn quote_word(
 }
 
 unsafe fn get_word(
-    mut begin: *const libc::c_char,
-    mut pend: *mut *const libc::c_char,
-    mut pto_be_quoted: *mut libc::c_int, // TODO should be bool /rtn
+    begin: *const libc::c_char,
+    pend: *mut *const libc::c_char,
+    pto_be_quoted: *mut libc::c_int, // TODO should be bool /rtn
 ) {
     let mut cur: *const libc::c_char = begin;
     while *cur as libc::c_int != ' ' as i32
@@ -311,7 +311,7 @@ unsafe fn get_word(
 
 /* see comment below */
 // TODO should be bool /rtn
-unsafe fn to_be_quoted(mut word: *const libc::c_char, mut size: size_t) -> libc::c_int {
+unsafe fn to_be_quoted(word: *const libc::c_char, size: size_t) -> libc::c_int {
     let mut cur: *const libc::c_char = word;
     let mut i: size_t = 0i32 as size_t;
     while i < size {
@@ -331,13 +331,13 @@ unsafe fn to_be_quoted(mut word: *const libc::c_char, mut size: size_t) -> libc:
     0
 }
 
-pub unsafe fn dc_decode_header_words(mut in_0: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
         return 0 as *mut libc::c_char;
     }
     let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cur_token: size_t = 0i32 as size_t;
-    let mut r: libc::c_int = mailmime_encoded_phrase_parse(
+    let r: libc::c_int = mailmime_encoded_phrase_parse(
         b"iso-8859-1\x00" as *const u8 as *const libc::c_char,
         in_0,
         strlen(in_0),
@@ -354,7 +354,7 @@ pub unsafe fn dc_decode_header_words(mut in_0: *const libc::c_char) -> *mut libc
 
 pub unsafe fn dc_encode_modified_utf7(
     mut to_encode: *const libc::c_char,
-    mut change_spaces: libc::c_int,
+    change_spaces: libc::c_int,
 ) -> *mut libc::c_char {
     let mut utf8pos: libc::c_uint;
     let mut utf8total: libc::c_uint;
@@ -365,7 +365,7 @@ pub unsafe fn dc_encode_modified_utf7(
     let mut ucs4: libc::c_ulong = 0;
     let mut bitbuf: libc::c_ulong = 0;
     let mut dst: *mut libc::c_char;
-    let mut res: *mut libc::c_char;
+    let res: *mut libc::c_char;
     if to_encode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
@@ -504,8 +504,8 @@ static mut base64chars: [libc::c_char; 65] = [
 ];
 
 pub unsafe fn dc_decode_modified_utf7(
-    mut to_decode: *const libc::c_char,
-    mut change_spaces: libc::c_int,
+    to_decode: *const libc::c_char,
+    change_spaces: libc::c_int,
 ) -> *mut libc::c_char {
     let mut c: libc::c_uint;
     let mut i: libc::c_uint;
@@ -516,7 +516,7 @@ pub unsafe fn dc_decode_modified_utf7(
     let mut base64: [libc::c_uchar; 256] = [0; 256];
     let mut src: *const libc::c_char;
     let mut dst: *mut libc::c_char;
-    let mut res: *mut libc::c_char;
+    let res: *mut libc::c_char;
     if to_decode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
@@ -635,12 +635,12 @@ pub unsafe fn dc_needs_ext_header(mut to_check: *const libc::c_char) -> libc::c_
     0
 }
 
-pub unsafe fn dc_encode_ext_header(mut to_encode: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_encode_ext_header(to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut pstr: *const libc::c_char = to_encode;
     if to_encode.is_null() {
         return dc_strdup(b"utf-8\'\'\x00" as *const u8 as *const libc::c_char);
     }
-    let mut buf: *mut libc::c_char = malloc(
+    let buf: *mut libc::c_char = malloc(
         strlen(b"utf-8\'\'\x00" as *const u8 as *const libc::c_char)
             .wrapping_add(strlen(to_encode).wrapping_mul(3))
             .wrapping_add(1),
@@ -679,7 +679,7 @@ pub unsafe fn dc_encode_ext_header(mut to_encode: *const libc::c_char) -> *mut l
     buf
 }
 
-pub unsafe fn dc_decode_ext_header(mut to_decode: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc::c_char {
     let mut decoded: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut charset: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut p2: *const libc::c_char;
@@ -703,7 +703,7 @@ pub unsafe fn dc_decode_ext_header(mut to_decode: *const libc::c_char) -> *mut l
                     && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char) != 0i32
                 {
                     let mut converted: *mut libc::c_char = 0 as *mut libc::c_char;
-                    let mut r: libc::c_int = charconv(
+                    let r: libc::c_int = charconv(
                         b"utf-8\x00" as *const u8 as *const libc::c_char,
                         charset,
                         decoded,

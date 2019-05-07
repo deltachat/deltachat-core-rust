@@ -44,7 +44,7 @@ pub unsafe fn dc_apeerstate_new<'a>(context: &'a dc_context_t) -> *mut dc_apeers
     peerstate
 }
 
-pub unsafe fn dc_apeerstate_unref(mut peerstate: *mut dc_apeerstate_t) {
+pub unsafe fn dc_apeerstate_unref(peerstate: *mut dc_apeerstate_t) {
     dc_apeerstate_empty(peerstate);
     free(peerstate as *mut libc::c_void);
 }
@@ -81,8 +81,8 @@ unsafe fn dc_apeerstate_empty(mut peerstate: *mut dc_apeerstate_t) {
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_init_from_header(
     mut peerstate: *mut dc_apeerstate_t,
-    mut header: *const dc_aheader_t,
-    mut message_time: time_t,
+    header: *const dc_aheader_t,
+    message_time: time_t,
 ) -> libc::c_int {
     if peerstate.is_null() || header.is_null() {
         return 0i32;
@@ -154,8 +154,8 @@ pub unsafe fn dc_apeerstate_recalc_fingerprint(mut peerstate: *mut dc_apeerstate
 // TODO should return bool /rtn
 pub unsafe extern "C" fn dc_apeerstate_init_from_gossip(
     mut peerstate: *mut dc_apeerstate_t,
-    mut gossip_header: *const dc_aheader_t,
-    mut message_time: time_t,
+    gossip_header: *const dc_aheader_t,
+    message_time: time_t,
 ) -> libc::c_int {
     if peerstate.is_null() || gossip_header.is_null() {
         return 0i32;
@@ -174,7 +174,7 @@ pub unsafe extern "C" fn dc_apeerstate_init_from_gossip(
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_degrade_encryption(
     mut peerstate: *mut dc_apeerstate_t,
-    mut message_time: time_t,
+    message_time: time_t,
 ) -> libc::c_int {
     if peerstate.is_null() {
         return 0i32;
@@ -191,8 +191,8 @@ pub unsafe fn dc_apeerstate_degrade_encryption(
 
 pub unsafe fn dc_apeerstate_apply_header(
     mut peerstate: *mut dc_apeerstate_t,
-    mut header: *const dc_aheader_t,
-    mut message_time: time_t,
+    header: *const dc_aheader_t,
+    message_time: time_t,
 ) {
     if peerstate.is_null()
         || header.is_null()
@@ -229,8 +229,8 @@ pub unsafe fn dc_apeerstate_apply_header(
 
 pub unsafe fn dc_apeerstate_apply_gossip(
     mut peerstate: *mut dc_apeerstate_t,
-    mut gossip_header: *const dc_aheader_t,
-    mut message_time: time_t,
+    gossip_header: *const dc_aheader_t,
+    message_time: time_t,
 ) {
     if peerstate.is_null()
         || gossip_header.is_null()
@@ -256,8 +256,8 @@ pub unsafe fn dc_apeerstate_apply_gossip(
 }
 
 pub unsafe fn dc_apeerstate_render_gossip_header(
-    mut peerstate: *const dc_apeerstate_t,
-    mut min_verified: libc::c_int,
+    peerstate: *const dc_apeerstate_t,
+    min_verified: libc::c_int,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut autocryptheader: *mut dc_aheader_t = dc_aheader_new();
@@ -272,8 +272,8 @@ pub unsafe fn dc_apeerstate_render_gossip_header(
 }
 
 pub unsafe fn dc_apeerstate_peek_key(
-    mut peerstate: *const dc_apeerstate_t,
-    mut min_verified: libc::c_int,
+    peerstate: *const dc_apeerstate_t,
+    min_verified: libc::c_int,
 ) -> *mut dc_key_t {
     if peerstate.is_null()
         || !(*peerstate).public_key.is_null()
@@ -300,9 +300,9 @@ pub unsafe fn dc_apeerstate_peek_key(
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_set_verified(
     mut peerstate: *mut dc_apeerstate_t,
-    mut which_key: libc::c_int,
-    mut fingerprint: *const libc::c_char,
-    mut verified: libc::c_int,
+    which_key: libc::c_int,
+    fingerprint: *const libc::c_char,
+    verified: libc::c_int,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     if !(peerstate.is_null() || which_key != 0i32 && which_key != 1i32 || verified != 2i32) {
@@ -335,9 +335,9 @@ pub unsafe fn dc_apeerstate_set_verified(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_load_by_addr(
-    mut peerstate: *mut dc_apeerstate_t,
-    mut sql: &dc_sqlite3_t,
-    mut addr: *const libc::c_char,
+    peerstate: *mut dc_apeerstate_t,
+    sql: &dc_sqlite3_t,
+    addr: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -361,7 +361,7 @@ pub unsafe fn dc_apeerstate_load_by_addr(
 
 unsafe fn dc_apeerstate_set_from_stmt(
     mut peerstate: *mut dc_apeerstate_t,
-    mut stmt: *mut sqlite3_stmt,
+    stmt: *mut sqlite3_stmt,
 ) {
     (*peerstate).addr = dc_strdup(sqlite3_column_text(stmt, 0i32) as *mut libc::c_char);
     (*peerstate).last_seen = sqlite3_column_int64(stmt, 1i32) as time_t;
@@ -390,9 +390,9 @@ unsafe fn dc_apeerstate_set_from_stmt(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_load_by_fingerprint(
-    mut peerstate: *mut dc_apeerstate_t,
-    mut sql: &dc_sqlite3_t,
-    mut fingerprint: *const libc::c_char,
+    peerstate: *mut dc_apeerstate_t,
+    sql: &dc_sqlite3_t,
+    fingerprint: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -418,11 +418,11 @@ pub unsafe fn dc_apeerstate_load_by_fingerprint(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_save_to_db(
-    mut peerstate: *const dc_apeerstate_t,
-    mut sql: &dc_sqlite3_t,
-    mut create: libc::c_int,
+    peerstate: *const dc_apeerstate_t,
+    sql: &dc_sqlite3_t,
+    create: libc::c_int,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if peerstate.is_null() || (*peerstate).addr.is_null() {
@@ -555,8 +555,8 @@ pub unsafe fn dc_apeerstate_save_to_db(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_has_verified_key(
-    mut peerstate: *const dc_apeerstate_t,
-    mut fingerprints: *const dc_hash_t,
+    peerstate: *const dc_apeerstate_t,
+    fingerprints: *const dc_hash_t,
 ) -> libc::c_int {
     if peerstate.is_null() || fingerprints.is_null() {
         return 0i32;

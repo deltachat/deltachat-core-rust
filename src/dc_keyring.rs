@@ -13,7 +13,7 @@ pub struct dc_keyring_t {
 }
 
 pub unsafe fn dc_keyring_new() -> *mut dc_keyring_t {
-    let mut keyring: *mut dc_keyring_t;
+    let keyring: *mut dc_keyring_t;
     keyring = calloc(1, ::std::mem::size_of::<dc_keyring_t>()) as *mut dc_keyring_t;
     if keyring.is_null() {
         exit(42i32);
@@ -22,7 +22,7 @@ pub unsafe fn dc_keyring_new() -> *mut dc_keyring_t {
     keyring
 }
 
-pub unsafe fn dc_keyring_unref(mut keyring: *mut dc_keyring_t) {
+pub unsafe fn dc_keyring_unref(keyring: *mut dc_keyring_t) {
     if keyring.is_null() {
         return;
     }
@@ -36,12 +36,12 @@ pub unsafe fn dc_keyring_unref(mut keyring: *mut dc_keyring_t) {
 }
 
 /* the reference counter of the key is increased by one */
-pub unsafe fn dc_keyring_add(mut keyring: *mut dc_keyring_t, mut to_add: *mut dc_key_t) {
+pub unsafe fn dc_keyring_add(mut keyring: *mut dc_keyring_t, to_add: *mut dc_key_t) {
     if keyring.is_null() || to_add.is_null() {
         return;
     }
     if (*keyring).count == (*keyring).allocated {
-        let mut newsize = (*keyring).allocated * 2 + 10;
+        let newsize = (*keyring).allocated * 2 + 10;
         (*keyring).keys = realloc(
             (*keyring).keys as *mut libc::c_void,
             (newsize as size_t).wrapping_mul(::std::mem::size_of::<*mut dc_key_t>()),
@@ -67,7 +67,7 @@ pub unsafe fn dc_keyring_load_self_private_for_decrypting(
     if keyring.is_null() || self_addr.is_null() {
         return 0i32;
     }
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+    let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         sql,
         b"SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;\x00" as *const u8
@@ -75,7 +75,7 @@ pub unsafe fn dc_keyring_load_self_private_for_decrypting(
     );
     sqlite3_bind_text(stmt, 1i32, self_addr, -1i32, None);
     while sqlite3_step(stmt) == 100i32 {
-        let mut key: *mut dc_key_t = dc_key_new();
+        let key: *mut dc_key_t = dc_key_new();
         if 0 != dc_key_set_from_stmt(key, stmt, 0i32, 1i32) {
             dc_keyring_add(keyring, key);
         }

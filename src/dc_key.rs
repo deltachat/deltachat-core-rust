@@ -79,7 +79,7 @@ unsafe fn dc_key_empty(mut key: *mut dc_key_t) {
     (*key).type_0 = 0i32;
 }
 
-pub unsafe fn dc_wipe_secret_mem(mut buf: *mut libc::c_void, mut buf_bytes: size_t) {
+pub unsafe fn dc_wipe_secret_mem(buf: *mut libc::c_void, buf_bytes: size_t) {
     if buf.is_null() || buf_bytes <= 0 {
         return;
     }
@@ -89,9 +89,9 @@ pub unsafe fn dc_wipe_secret_mem(mut buf: *mut libc::c_void, mut buf_bytes: size
 // TODO should return bool /rtn
 pub unsafe fn dc_key_set_from_binary(
     mut key: *mut dc_key_t,
-    mut data: *const libc::c_void,
-    mut bytes: libc::c_int,
-    mut type_0: libc::c_int,
+    data: *const libc::c_void,
+    bytes: libc::c_int,
+    type_0: libc::c_int,
 ) -> libc::c_int {
     dc_key_empty(key);
     if key.is_null() || data == 0 as *mut libc::c_void || bytes <= 0i32 {
@@ -108,7 +108,7 @@ pub unsafe fn dc_key_set_from_binary(
     1
 }
 
-pub unsafe fn dc_key_set_from_key(mut key: *mut dc_key_t, mut o: *const dc_key_t) -> libc::c_int {
+pub unsafe fn dc_key_set_from_key(key: *mut dc_key_t, o: *const dc_key_t) -> libc::c_int {
     dc_key_empty(key);
     if key.is_null() || o.is_null() {
         return 0i32;
@@ -119,10 +119,10 @@ pub unsafe fn dc_key_set_from_key(mut key: *mut dc_key_t, mut o: *const dc_key_t
 
 // TODO should return bool /rtn
 pub unsafe extern "C" fn dc_key_set_from_stmt(
-    mut key: *mut dc_key_t,
-    mut stmt: *mut sqlite3_stmt,
-    mut index: libc::c_int,
-    mut type_0: libc::c_int,
+    key: *mut dc_key_t,
+    stmt: *mut sqlite3_stmt,
+    index: libc::c_int,
+    type_0: libc::c_int,
 ) -> libc::c_int {
     dc_key_empty(key);
     if key.is_null() || stmt.is_null() {
@@ -139,9 +139,9 @@ pub unsafe extern "C" fn dc_key_set_from_stmt(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_key_set_from_base64(
-    mut key: *mut dc_key_t,
-    mut base64: *const libc::c_char,
-    mut type_0: libc::c_int,
+    key: *mut dc_key_t,
+    base64: *const libc::c_char,
+    type_0: libc::c_int,
 ) -> libc::c_int {
     let mut indx: size_t = 0i32 as size_t;
     let mut result_len: size_t = 0i32 as size_t;
@@ -174,7 +174,7 @@ pub unsafe fn dc_key_set_from_base64(
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_key_equals(mut key: *const dc_key_t, mut o: *const dc_key_t) -> libc::c_int {
+pub unsafe fn dc_key_equals(key: *const dc_key_t, o: *const dc_key_t) -> libc::c_int {
     if key.is_null()
         || o.is_null()
         || (*key).binary.is_null()
@@ -371,9 +371,9 @@ pub fn dc_key_render_asc(key: *const dc_key_t, header: Option<(&str, &str)>) -> 
 }
 
 pub unsafe fn dc_key_render_asc_to_file(
-    mut key: *const dc_key_t,
-    mut file: *const libc::c_char,
-    mut context: &dc_context_t,
+    key: *const dc_key_t,
+    file: *const libc::c_char,
+    context: &dc_context_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut file_content: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -404,9 +404,9 @@ pub unsafe fn dc_key_render_asc_to_file(
     success
 }
 
-pub unsafe fn dc_format_fingerprint(mut fingerprint: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_format_fingerprint(fingerprint: *const libc::c_char) -> *mut libc::c_char {
     let mut i: libc::c_int = 0i32;
-    let mut fingerprint_len: libc::c_int = strlen(fingerprint) as libc::c_int;
+    let fingerprint_len: libc::c_int = strlen(fingerprint) as libc::c_int;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,
@@ -433,7 +433,7 @@ pub unsafe fn dc_format_fingerprint(mut fingerprint: *const libc::c_char) -> *mu
     ret.buf
 }
 
-pub unsafe fn dc_normalize_fingerprint(mut in_0: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_normalize_fingerprint(in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
         return 0 as *mut libc::c_char;
     }
@@ -488,8 +488,8 @@ pub unsafe fn dc_key_get_formatted_fingerprint(
     context: &dc_context_t,
     key: *const dc_key_t,
 ) -> *mut libc::c_char {
-    let mut rawhex: *mut libc::c_char = dc_key_get_fingerprint(context, key);
-    let mut formatted: *mut libc::c_char = dc_format_fingerprint(rawhex);
+    let rawhex: *mut libc::c_char = dc_key_get_fingerprint(context, key);
+    let formatted: *mut libc::c_char = dc_format_fingerprint(rawhex);
     free(rawhex as *mut libc::c_void);
 
     formatted

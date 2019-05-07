@@ -44,28 +44,28 @@ pub struct dc_e2ee_helper_t {
 }
 
 pub unsafe fn dc_e2ee_encrypt(
-    mut context: &dc_context_t,
-    mut recipients_addr: *const clist,
-    mut force_unencrypted: libc::c_int,
-    mut e2ee_guaranteed: libc::c_int,
-    mut min_verified: libc::c_int,
-    mut do_gossip: libc::c_int,
+    context: &dc_context_t,
+    recipients_addr: *const clist,
+    force_unencrypted: libc::c_int,
+    e2ee_guaranteed: libc::c_int,
+    min_verified: libc::c_int,
+    do_gossip: libc::c_int,
     mut in_out_message: *mut mailmime,
     mut helper: *mut dc_e2ee_helper_t,
 ) {
-    let mut p_0: *mut libc::c_char;
-    let mut current_block: u64;
+    let p_0: *mut libc::c_char;
+    let current_block: u64;
     let mut col: libc::c_int = 0i32;
     let mut do_encrypt: libc::c_int = 0i32;
     let mut autocryptheader: *mut dc_aheader_t = dc_aheader_new();
     /*just a pointer into mailmime structure, must not be freed*/
-    let mut imffields_unprotected: *mut mailimf_fields;
-    let mut keyring: *mut dc_keyring_t = dc_keyring_new();
-    let mut sign_key: *mut dc_key_t = dc_key_new();
-    let mut plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
+    let imffields_unprotected: *mut mailimf_fields;
+    let keyring: *mut dc_keyring_t = dc_keyring_new();
+    let sign_key: *mut dc_key_t = dc_key_new();
+    let plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     let mut ctext: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ctext_bytes: size_t = 0i32 as size_t;
-    let mut peerstates = dc_array_new(10i32 as size_t);
+    let peerstates = dc_array_new(10i32 as size_t);
     if !helper.is_null() {
         memset(
             helper as *mut libc::c_void,
@@ -113,13 +113,13 @@ pub unsafe fn dc_e2ee_encrypt(
                     let mut iter1: *mut clistiter;
                     iter1 = (*recipients_addr).first;
                     while !iter1.is_null() {
-                        let mut recipient_addr: *const libc::c_char = (if !iter1.is_null() {
+                        let recipient_addr: *const libc::c_char = (if !iter1.is_null() {
                             (*iter1).data
                         } else {
                             0 as *mut libc::c_void
                         })
                             as *const libc::c_char;
-                        let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+                        let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
                         let mut key_to_use: *mut dc_key_t = 0 as *mut dc_key_t;
                         if !(strcasecmp(recipient_addr, (*autocryptheader).addr) == 0i32) {
                             if 0 != dc_apeerstate_load_by_addr(
@@ -169,10 +169,9 @@ pub unsafe fn dc_e2ee_encrypt(
                         let mut part_to_encrypt: *mut mailmime =
                             (*in_out_message).mm_data.mm_message.mm_msg_mime;
                         (*part_to_encrypt).mm_parent = 0 as *mut mailmime;
-                        let mut imffields_encrypted: *mut mailimf_fields =
-                            mailimf_fields_new_empty();
+                        let imffields_encrypted: *mut mailimf_fields = mailimf_fields_new_empty();
                         /* mailmime_new_message_data() calls mailmime_fields_new_with_version() which would add the unwanted MIME-Version:-header */
-                        let mut message_to_encrypt: *mut mailmime = mailmime_new(
+                        let message_to_encrypt: *mut mailmime = mailmime_new(
                             MAILMIME_MESSAGE as libc::c_int,
                             0 as *const libc::c_char,
                             0i32 as size_t,
@@ -186,16 +185,15 @@ pub unsafe fn dc_e2ee_encrypt(
                             part_to_encrypt,
                         );
                         if 0 != do_gossip {
-                            let mut iCnt: libc::c_int = dc_array_get_cnt(peerstates) as libc::c_int;
+                            let iCnt: libc::c_int = dc_array_get_cnt(peerstates) as libc::c_int;
                             if iCnt > 1i32 {
                                 let mut i: libc::c_int = 0i32;
                                 while i < iCnt {
-                                    let mut p: *mut libc::c_char =
-                                        dc_apeerstate_render_gossip_header(
-                                            dc_array_get_ptr(peerstates, i as size_t)
-                                                as *mut dc_apeerstate_t,
-                                            min_verified,
-                                        );
+                                    let p: *mut libc::c_char = dc_apeerstate_render_gossip_header(
+                                        dc_array_get_ptr(peerstates, i as size_t)
+                                            as *mut dc_apeerstate_t,
+                                        min_verified,
+                                    );
                                     if !p.is_null() {
                                         mailimf_fields_add(
                                             imffields_encrypted,
@@ -216,7 +214,7 @@ pub unsafe fn dc_e2ee_encrypt(
                         let mut cur: *mut clistiter = (*(*imffields_unprotected).fld_list).first;
                         while !cur.is_null() {
                             let mut move_to_encrypted: libc::c_int = 0i32;
-                            let mut field: *mut mailimf_field = (if !cur.is_null() {
+                            let field: *mut mailimf_field = (if !cur.is_null() {
                                 (*cur).data
                             } else {
                                 0 as *mut libc::c_void
@@ -228,7 +226,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 } else if (*field).fld_type
                                     == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
                                 {
-                                    let mut opt_field: *mut mailimf_optional_field =
+                                    let opt_field: *mut mailimf_optional_field =
                                         (*field).fld_data.fld_optional_field;
                                     if !opt_field.is_null() && !(*opt_field).fld_name.is_null() {
                                         if strncmp(
@@ -263,7 +261,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 }
                             }
                         }
-                        let mut subject: *mut mailimf_subject = mailimf_subject_new(dc_strdup(
+                        let subject: *mut mailimf_subject = mailimf_subject_new(dc_strdup(
                             b"...\x00" as *const u8 as *const libc::c_char,
                         ));
                         mailimf_fields_add(
@@ -331,8 +329,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                     as *mut libc::c_char,
                                 -1i32,
                             );
-                            let mut content: *mut mailmime_content =
-                                (*encrypted_part).mm_content_type;
+                            let content: *mut mailmime_content = (*encrypted_part).mm_content_type;
                             clist_insert_after(
                                 (*content).ct_parameters,
                                 (*(*content).ct_parameters).last,
@@ -346,7 +343,7 @@ pub unsafe fn dc_e2ee_encrypt(
                             );
                             static mut version_content: [libc::c_char; 13] =
                                 [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
-                            let mut version_mime: *mut mailmime = new_data_part(
+                            let version_mime: *mut mailmime = new_data_part(
                                 version_content.as_mut_ptr() as *mut libc::c_void,
                                 strlen(version_content.as_mut_ptr()),
                                 b"application/pgp-encrypted\x00" as *const u8 as *const libc::c_char
@@ -354,7 +351,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 MAILMIME_MECHANISM_7BIT as libc::c_int,
                             );
                             mailmime_smart_add_part(encrypted_part, version_mime);
-                            let mut ctext_part: *mut mailmime = new_data_part(
+                            let ctext_part: *mut mailmime = new_data_part(
                                 ctext as *mut libc::c_void,
                                 ctext_bytes,
                                 b"application/octet-stream\x00" as *const u8 as *const libc::c_char
@@ -410,21 +407,21 @@ pub unsafe fn dc_e2ee_encrypt(
  * Tools
  ******************************************************************************/
 unsafe fn new_data_part(
-    mut data: *mut libc::c_void,
-    mut data_bytes: size_t,
-    mut default_content_type: *mut libc::c_char,
-    mut default_encoding: libc::c_int,
+    data: *mut libc::c_void,
+    data_bytes: size_t,
+    default_content_type: *mut libc::c_char,
+    default_encoding: libc::c_int,
 ) -> *mut mailmime {
     let mut current_block: u64;
     //char basename_buf[PATH_MAX];
     let mut encoding: *mut mailmime_mechanism;
-    let mut content: *mut mailmime_content;
-    let mut mime: *mut mailmime;
+    let content: *mut mailmime_content;
+    let mime: *mut mailmime;
     //int r;
     //char * dup_filename;
-    let mut mime_fields: *mut mailmime_fields;
-    let mut encoding_type: libc::c_int;
-    let mut content_type_str: *mut libc::c_char;
+    let mime_fields: *mut mailmime_fields;
+    let encoding_type: libc::c_int;
+    let content_type_str: *mut libc::c_char;
     let mut do_encoding: libc::c_int;
     encoding = 0 as *mut mailmime_mechanism;
     if default_content_type.is_null() {
@@ -439,7 +436,7 @@ unsafe fn new_data_part(
     } else {
         do_encoding = 1i32;
         if (*(*content).ct_type).tp_type == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int {
-            let mut composite: *mut mailmime_composite_type;
+            let composite: *mut mailmime_composite_type;
             composite = (*(*content).ct_type).tp_data.tp_composite_type;
             match (*composite).ct_type {
                 1 => {
@@ -520,15 +517,15 @@ unsafe fn new_data_part(
  ******************************************************************************/
 // TODO should return bool /rtn
 unsafe fn load_or_generate_self_public_key(
-    mut context: &dc_context_t,
-    mut public_key: *mut dc_key_t,
-    mut self_addr: *const libc::c_char,
-    mut random_data_mime: *mut mailmime,
+    context: &dc_context_t,
+    public_key: *mut dc_key_t,
+    self_addr: *const libc::c_char,
+    random_data_mime: *mut mailmime,
 ) -> libc::c_int {
     let mut current_block: u64;
     /* avoid double creation (we unlock the database during creation) */
     static mut s_in_key_creation: libc::c_int = 0i32;
-    let mut key_created: libc::c_int;
+    let key_created: libc::c_int;
     let mut success: libc::c_int = 0i32;
     let mut key_creation_here: libc::c_int = 0i32;
     if !public_key.is_null() {
@@ -545,7 +542,7 @@ unsafe fn load_or_generate_self_public_key(
                 key_creation_here = 1i32;
                 s_in_key_creation = 1i32;
                 if !random_data_mime.is_null() {
-                    let mut random_data_mmap: *mut MMAPString;
+                    let random_data_mmap: *mut MMAPString;
                     let mut col: libc::c_int = 0i32;
                     random_data_mmap = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
                     if random_data_mmap.is_null() {
@@ -561,8 +558,8 @@ unsafe fn load_or_generate_self_public_key(
                 match current_block {
                     10496152961502316708 => {}
                     _ => {
-                        let mut private_key: *mut dc_key_t = dc_key_new();
-                        let mut start: libc::clock_t = clock();
+                        let private_key: *mut dc_key_t = dc_key_new();
+                        let start: libc::clock_t = clock();
                         dc_log_info(
                             context,
                             0i32,
@@ -639,22 +636,22 @@ unsafe fn load_or_generate_self_public_key(
 
 /* returns 1 if sth. was decrypted, 0 in other cases */
 pub unsafe fn dc_e2ee_decrypt(
-    mut context: &dc_context_t,
-    mut in_out_message: *mut mailmime,
+    context: &dc_context_t,
+    in_out_message: *mut mailmime,
     mut helper: *mut dc_e2ee_helper_t,
 ) {
     let mut iterations: libc::c_int;
     /* return values: 0=nothing to decrypt/cannot decrypt, 1=sth. decrypted
     (to detect parts that could not be decrypted, simply look for left "multipart/encrypted" MIME types */
     /*just a pointer into mailmime structure, must not be freed*/
-    let mut imffields: *mut mailimf_fields = mailmime_find_mailimf_fields(in_out_message);
+    let imffields: *mut mailimf_fields = mailmime_find_mailimf_fields(in_out_message);
     let mut autocryptheader: *mut dc_aheader_t = 0 as *mut dc_aheader_t;
     let mut message_time: time_t = 0i32 as time_t;
-    let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+    let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
     let mut from: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut private_keyring: *mut dc_keyring_t = dc_keyring_new();
-    let mut public_keyring_for_validate: *mut dc_keyring_t = dc_keyring_new();
+    let private_keyring: *mut dc_keyring_t = dc_keyring_new();
+    let public_keyring_for_validate: *mut dc_keyring_t = dc_keyring_new();
     let mut gossip_headers: *mut mailimf_fields = 0 as *mut mailimf_fields;
     if !helper.is_null() {
         memset(
@@ -672,7 +669,7 @@ pub unsafe fn dc_e2ee_decrypt(
             }
             field = mailimf_find_field(imffields, MAILIMF_FIELD_ORIG_DATE as libc::c_int);
             if !field.is_null() && !(*field).fld_data.fld_orig_date.is_null() {
-                let mut orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
+                let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
                 if !orig_date.is_null() {
                     message_time = dc_timestamp_from_date((*orig_date).dt_date_time);
                     if message_time != -1i32 as libc::c_long
@@ -779,23 +776,23 @@ pub unsafe fn dc_e2ee_decrypt(
 }
 
 unsafe fn update_gossip_peerstates(
-    mut context: &dc_context_t,
-    mut message_time: time_t,
-    mut imffields: *mut mailimf_fields,
-    mut gossip_headers: *const mailimf_fields,
+    context: &dc_context_t,
+    message_time: time_t,
+    imffields: *mut mailimf_fields,
+    gossip_headers: *const mailimf_fields,
 ) -> *mut dc_hash_t {
     let mut cur1: *mut clistiter;
     let mut recipients: *mut dc_hash_t = 0 as *mut dc_hash_t;
     let mut gossipped_addr: *mut dc_hash_t = 0 as *mut dc_hash_t;
     cur1 = (*(*gossip_headers).fld_list).first;
     while !cur1.is_null() {
-        let mut field: *mut mailimf_field = (if !cur1.is_null() {
+        let field: *mut mailimf_field = (if !cur1.is_null() {
             (*cur1).data
         } else {
             0 as *mut libc::c_void
         }) as *mut mailimf_field;
         if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
-            let mut optional_field: *const mailimf_optional_field =
+            let optional_field: *const mailimf_optional_field =
                 (*field).fld_data.fld_optional_field;
             if !optional_field.is_null()
                 && !(*optional_field).fld_name.is_null()
@@ -804,7 +801,7 @@ unsafe fn update_gossip_peerstates(
                     b"Autocrypt-Gossip\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
             {
-                let mut gossip_header: *mut dc_aheader_t = dc_aheader_new();
+                let gossip_header: *mut dc_aheader_t = dc_aheader_new();
                 if 0 != dc_aheader_set_from_string(gossip_header, (*optional_field).fld_value)
                     && 0 != dc_pgp_is_valid_key(context, (*gossip_header).public_key)
                 {
@@ -818,7 +815,7 @@ unsafe fn update_gossip_peerstates(
                     )
                     .is_null()
                     {
-                        let mut peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+                        let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
                         if 0 == dc_apeerstate_load_by_addr(
                             peerstate,
                             &context.sql.clone().read().unwrap(),
@@ -882,15 +879,15 @@ unsafe fn update_gossip_peerstates(
 
 // TODO should return bool /rtn
 unsafe fn decrypt_recursive(
-    mut context: &dc_context_t,
-    mut mime: *mut mailmime,
-    mut private_keyring: *const dc_keyring_t,
-    mut public_keyring_for_validate: *const dc_keyring_t,
-    mut ret_valid_signatures: *mut dc_hash_t,
-    mut ret_gossip_headers: *mut *mut mailimf_fields,
-    mut ret_has_unencrypted_parts: *mut libc::c_int,
+    context: &dc_context_t,
+    mime: *mut mailmime,
+    private_keyring: *const dc_keyring_t,
+    public_keyring_for_validate: *const dc_keyring_t,
+    ret_valid_signatures: *mut dc_hash_t,
+    ret_gossip_headers: *mut *mut mailimf_fields,
+    ret_has_unencrypted_parts: *mut libc::c_int,
 ) -> libc::c_int {
-    let mut ct: *mut mailmime_content;
+    let ct: *mut mailmime_content;
     let mut cur: *mut clistiter;
     if mime.is_null() {
         return 0i32;
@@ -989,16 +986,16 @@ unsafe fn decrypt_recursive(
 }
 
 unsafe fn decrypt_part(
-    mut context: &dc_context_t,
-    mut mime: *mut mailmime,
-    mut private_keyring: *const dc_keyring_t,
-    mut public_keyring_for_validate: *const dc_keyring_t,
-    mut ret_valid_signatures: *mut dc_hash_t,
-    mut ret_decrypted_mime: *mut *mut mailmime,
+    context: &dc_context_t,
+    mime: *mut mailmime,
+    private_keyring: *const dc_keyring_t,
+    public_keyring_for_validate: *const dc_keyring_t,
+    ret_valid_signatures: *mut dc_hash_t,
+    ret_decrypted_mime: *mut *mut mailmime,
 ) -> libc::c_int {
-    let mut add_signatures: *mut dc_hash_t;
-    let mut current_block: u64;
-    let mut mime_data: *mut mailmime_data;
+    let add_signatures: *mut dc_hash_t;
+    let current_block: u64;
+    let mime_data: *mut mailmime_data;
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
     /* mmap_string_unref()'d if set */
     let mut transfer_decoding_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1019,7 +1016,7 @@ unsafe fn decrypt_part(
             let mut cur: *mut clistiter;
             cur = (*(*(*mime).mm_mime_fields).fld_list).first;
             while !cur.is_null() {
-                let mut field: *mut mailmime_field = (if !cur.is_null() {
+                let field: *mut mailmime_field = (if !cur.is_null() {
                     (*cur).data
                 } else {
                     0 as *mut libc::c_void
@@ -1052,7 +1049,7 @@ unsafe fn decrypt_part(
                 current_block = 4488286894823169796;
             }
         } else {
-            let mut r: libc::c_int;
+            let r: libc::c_int;
             let mut current_index: size_t = 0i32 as size_t;
             r = mailmime_part_parse(
                 (*mime_data).dt_data.dt_text.dt_data,
@@ -1136,11 +1133,10 @@ unsafe fn decrypt_part(
  ******************************************************************************/
 // TODO should return bool /rtn
 unsafe fn has_decrypted_pgp_armor(
-    mut str__: *const libc::c_char,
+    str__: *const libc::c_char,
     mut str_bytes: libc::c_int,
 ) -> libc::c_int {
-    let mut str_end: *const libc::c_uchar =
-        (str__ as *const libc::c_uchar).offset(str_bytes as isize);
+    let str_end: *const libc::c_uchar = (str__ as *const libc::c_uchar).offset(str_bytes as isize);
     let mut p: *const libc::c_uchar = str__ as *const libc::c_uchar;
     while p < str_end {
         if *p as libc::c_int > ' ' as i32 {
@@ -1177,7 +1173,7 @@ unsafe fn has_decrypted_pgp_armor(
  * @return 1=multipart/report found in MIME, 0=no multipart/report found
  */
 // TODO should return bool /rtn
-unsafe fn contains_report(mut mime: *mut mailmime) -> libc::c_int {
+unsafe fn contains_report(mime: *mut mailmime) -> libc::c_int {
     if (*mime).mm_type == MAILMIME_MULTIPLE as libc::c_int {
         if (*(*(*mime).mm_content_type).ct_type).tp_type
             == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int
@@ -1241,11 +1237,11 @@ pub unsafe fn dc_e2ee_thanks(mut helper: *mut dc_e2ee_helper_t) {
 
 /* makes sure, the private key exists, needed only for exporting keys and the case no message was sent before */
 // TODO should return bool /rtn
-pub unsafe fn dc_ensure_secret_key_exists(mut context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_ensure_secret_key_exists(context: &dc_context_t) -> libc::c_int {
     /* normally, the key is generated as soon as the first mail is send
     (this is to gain some extra-random-seed by the message content and the timespan between program start and message sending) */
     let mut success: libc::c_int = 0i32;
-    let mut public_key: *mut dc_key_t = dc_key_new();
+    let public_key: *mut dc_key_t = dc_key_new();
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     if !public_key.is_null() {
         self_addr = dc_sqlite3_get_config(

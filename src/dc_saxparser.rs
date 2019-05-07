@@ -22,7 +22,7 @@ pub type dc_saxparser_starttag_cb_t = Option<
 
 pub unsafe extern "C" fn dc_saxparser_init(
     mut saxparser: *mut dc_saxparser_t,
-    mut userdata: *mut libc::c_void,
+    userdata: *mut libc::c_void,
 ) {
     (*saxparser).userdata = userdata;
     (*saxparser).starttag_cb = Some(def_starttag_cb);
@@ -47,8 +47,8 @@ unsafe fn def_starttag_cb(
 
 pub unsafe fn dc_saxparser_set_tag_handler(
     mut saxparser: *mut dc_saxparser_t,
-    mut starttag_cb: dc_saxparser_starttag_cb_t,
-    mut endtag_cb: dc_saxparser_endtag_cb_t,
+    starttag_cb: dc_saxparser_starttag_cb_t,
+    endtag_cb: dc_saxparser_endtag_cb_t,
 ) {
     if saxparser.is_null() {
         return;
@@ -67,7 +67,7 @@ pub unsafe fn dc_saxparser_set_tag_handler(
 
 pub unsafe fn dc_saxparser_set_text_handler(
     mut saxparser: *mut dc_saxparser_t,
-    mut text_cb: dc_saxparser_text_cb_t,
+    text_cb: dc_saxparser_text_cb_t,
 ) {
     if saxparser.is_null() {
         return;
@@ -79,13 +79,10 @@ pub unsafe fn dc_saxparser_set_text_handler(
     };
 }
 
-pub unsafe fn dc_saxparser_parse(
-    mut saxparser: *mut dc_saxparser_t,
-    mut buf_start__: *const libc::c_char,
-) {
-    let mut current_block: u64;
+pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *const libc::c_char) {
+    let current_block: u64;
     let mut bak: libc::c_char;
-    let mut buf_start: *mut libc::c_char;
+    let buf_start: *mut libc::c_char;
     let mut last_text_start: *mut libc::c_char;
     let mut p: *mut libc::c_char;
     /* attributes per tag - a fixed border here is a security feature, not a limit */
@@ -123,7 +120,7 @@ pub unsafe fn dc_saxparser_parse(
             } else if strncmp(p, b"![CDATA[\x00" as *const u8 as *const libc::c_char, 8) == 0i32 {
                 /* process <![CDATA[ ... ]]> text
                  **************************************************************/
-                let mut text_beg: *mut libc::c_char = p.offset(8isize);
+                let text_beg: *mut libc::c_char = p.offset(8isize);
                 p = strstr(p, b"]]>\x00" as *const u8 as *const libc::c_char);
                 if !p.is_null() {
                     call_text_cb(
@@ -183,7 +180,7 @@ pub unsafe fn dc_saxparser_parse(
                     p = p.offset(
                         strspn(p, b"\t\r\n \x00" as *const u8 as *const libc::c_char) as isize,
                     );
-                    let mut beg_tag_name: *mut libc::c_char = p;
+                    let beg_tag_name: *mut libc::c_char = p;
                     p = p.offset(
                         strcspn(p, b"\t\r\n />\x00" as *const u8 as *const libc::c_char) as isize,
                     );
@@ -199,12 +196,12 @@ pub unsafe fn dc_saxparser_parse(
                     }
                 } else {
                     do_free_attr(attr.as_mut_ptr(), free_attr.as_mut_ptr());
-                    let mut beg_tag_name_0: *mut libc::c_char = p;
+                    let beg_tag_name_0: *mut libc::c_char = p;
                     p = p.offset(
                         strcspn(p, b"\t\r\n />\x00" as *const u8 as *const libc::c_char) as isize,
                     );
                     if p != beg_tag_name_0 {
-                        let mut after_tag_name: *mut libc::c_char = p;
+                        let after_tag_name: *mut libc::c_char = p;
                         let mut attr_index: libc::c_int = 0i32;
                         while 0 != libc::isspace(*p as libc::c_int) {
                             p = p.offset(1isize)
@@ -213,9 +210,9 @@ pub unsafe fn dc_saxparser_parse(
                             && *p as libc::c_int != '/' as i32
                             && *p as libc::c_int != '>' as i32
                         {
-                            let mut beg_attr_name: *mut libc::c_char = p;
+                            let beg_attr_name: *mut libc::c_char = p;
                             let mut beg_attr_value: *mut libc::c_char = 0 as *mut libc::c_char;
-                            let mut beg_attr_value_new: *mut libc::c_char;
+                            let beg_attr_value_new: *mut libc::c_char;
                             if '=' as i32 == *beg_attr_name as libc::c_int {
                                 p = p.offset(1isize)
                             } else {
@@ -224,7 +221,7 @@ pub unsafe fn dc_saxparser_parse(
                                     b"\t\r\n =/>\x00" as *const u8 as *const libc::c_char,
                                 ) as isize);
                                 if p != beg_attr_name {
-                                    let mut after_attr_name: *mut libc::c_char = p;
+                                    let after_attr_name: *mut libc::c_char = p;
                                     p = p.offset(strspn(
                                         p,
                                         b"\t\r\n \x00" as *const u8 as *const libc::c_char,
@@ -235,7 +232,7 @@ pub unsafe fn dc_saxparser_parse(
                                             b"\t\r\n =\x00" as *const u8 as *const libc::c_char,
                                         )
                                             as isize);
-                                        let mut quote: libc::c_char = *p;
+                                        let quote: libc::c_char = *p;
                                         if quote as libc::c_int == '\"' as i32
                                             || quote as libc::c_int == '\'' as i32
                                         {
@@ -264,8 +261,7 @@ pub unsafe fn dc_saxparser_parse(
                                                 as isize);
                                             bak = *p;
                                             *p = '\u{0}' as i32 as libc::c_char;
-                                            let mut temp: *mut libc::c_char =
-                                                dc_strdup(beg_attr_value);
+                                            let temp: *mut libc::c_char = dc_strdup(beg_attr_value);
                                             beg_attr_value_new =
                                                 xml_decode(temp, ' ' as i32 as libc::c_char);
                                             if beg_attr_value_new != temp {
@@ -307,7 +303,7 @@ pub unsafe fn dc_saxparser_parse(
                                 }
                             }
                         }
-                        let mut bak_0: libc::c_char = *after_tag_name;
+                        let bak_0: libc::c_char = *after_tag_name;
                         *after_tag_name = 0i32 as libc::c_char;
                         dc_strlower_in_place(beg_tag_name_0);
                         (*saxparser).starttag_cb.expect("non-null function pointer")(
@@ -358,7 +354,7 @@ pub unsafe fn dc_saxparser_parse(
     free(buf_start as *mut libc::c_void);
 }
 
-unsafe fn do_free_attr(mut attr: *mut *mut libc::c_char, mut free_attr: *mut libc::c_int) {
+unsafe fn do_free_attr(attr: *mut *mut libc::c_char, free_attr: *mut libc::c_int) {
     /* "attr" are key/value pairs; the function frees the data if the corresponding bit in "free_attr" is set.
     (we need this as we try to use the strings from the "main" document instead of allocating small strings) */
     let mut i: libc::c_int = 0i32;
@@ -380,14 +376,14 @@ unsafe fn do_free_attr(mut attr: *mut *mut libc::c_char, mut free_attr: *mut lib
 }
 
 unsafe fn call_text_cb(
-    mut saxparser: *mut dc_saxparser_t,
-    mut text: *mut libc::c_char,
-    mut len: size_t,
-    mut type_0: libc::c_char,
+    saxparser: *mut dc_saxparser_t,
+    text: *mut libc::c_char,
+    len: size_t,
+    type_0: libc::c_char,
 ) {
     if !text.is_null() && 0 != len {
-        let mut bak: libc::c_char = *text.offset(len as isize);
-        let mut text_new: *mut libc::c_char;
+        let bak: libc::c_char = *text.offset(len as isize);
+        let text_new: *mut libc::c_char;
         *text.offset(len as isize) = '\u{0}' as i32 as libc::c_char;
         text_new = xml_decode(text, type_0);
         (*saxparser).text_cb.expect("non-null function pointer")(
@@ -421,10 +417,10 @@ Returns s, or if the decoded string is longer than s, returns a malloced string
 that must be freed.
 Function based upon ezxml_decode() from the "ezxml" parser which is
 Copyright 2004-2006 Aaron Voisine <aaron@voisine.org> */
-unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut libc::c_char {
+unsafe fn xml_decode(mut s: *mut libc::c_char, type_0: libc::c_char) -> *mut libc::c_char {
     let mut e: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut r: *mut libc::c_char = s;
-    let mut original_buf: *const libc::c_char = s;
+    let original_buf: *const libc::c_char = s;
     let mut b;
     let mut c: isize;
     let mut d: isize;
@@ -517,14 +513,14 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, mut type_0: libc::c_char) -> *mut
                     d = s.wrapping_offset_from(r) as isize;
                     l = (d + c).wrapping_add(strlen(e) as isize);
                     if r == original_buf as *mut libc::c_char {
-                        let mut new_ret = malloc(l as usize) as *mut libc::c_char;
+                        let new_ret = malloc(l as usize) as *mut libc::c_char;
                         if new_ret.is_null() {
                             return r;
                         }
                         strcpy(new_ret, r);
                         r = new_ret
                     } else {
-                        let mut new_ret_0: *mut libc::c_char =
+                        let new_ret_0: *mut libc::c_char =
                             realloc(r as *mut libc::c_void, l as usize) as *mut libc::c_char;
                         if new_ret_0.is_null() {
                             return r;
@@ -1085,8 +1081,8 @@ static mut s_ent: [*const libc::c_char; 508] = [
 ];
 
 pub unsafe fn dc_attr_find(
-    mut attr: *mut *mut libc::c_char,
-    mut key: *const libc::c_char,
+    attr: *mut *mut libc::c_char,
+    key: *const libc::c_char,
 ) -> *const libc::c_char {
     if !attr.is_null() && !key.is_null() {
         let mut i: libc::c_int = 0i32;
