@@ -2,6 +2,11 @@
 
 pub const VERSION: &'static [u8; 7] = b"0.43.0\x00";
 
+pub const DC_MOVE_STATE_MOVING: u32 = 3;
+pub const DC_MOVE_STATE_STAY: u32 = 2;
+pub const DC_MOVE_STATE_PENDING: u32 = 1;
+pub const DC_MOVE_STATE_UNDEFINED: u32 = 0;
+
 pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;
 pub const DC_GCL_ADD_ALLDONE_HINT: usize = 0x04;
@@ -87,6 +92,8 @@ pub const DC_CONTACT_ID_LAST_SPECIAL: usize = 9;
 pub const DC_TEXT1_DRAFT: usize = 1;
 pub const DC_TEXT1_USERNAME: usize = 2;
 pub const DC_TEXT1_SELF: usize = 3;
+
+pub const DC_CREATE_MVBOX: usize = 1;
 
 /// Text message.
 /// The text of the message is set using dc_msg_set_text()

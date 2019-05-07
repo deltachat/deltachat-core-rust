@@ -1,5 +1,4 @@
-use libc;
-
+use crate::constants::*;
 use crate::dc_context::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
@@ -7,7 +6,7 @@ use crate::dc_sqlite3::*;
 use crate::types::*;
 
 pub unsafe fn dc_do_heuristics_moves(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut folder: *const libc::c_char,
     mut msg_id: uint32_t,
 ) {
@@ -15,7 +14,8 @@ pub unsafe fn dc_do_heuristics_moves(
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(dc_sqlite3_get_config_int(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"mvbox_move\x00" as *const u8 as *const libc::c_char,
         1i32,
     ) == 0i32)

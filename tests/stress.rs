@@ -1,46 +1,35 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
+use std::ffi::{CStr, CString};
+
+use mmime::mailimf_types::*;
+use mmime::mailmime_content::*;
+use mmime::mailmime_types::*;
+use mmime::other::*;
+use tempfile::tempdir;
+
+use deltachat::constants::*;
 use deltachat::dc_aheader::*;
-use deltachat::dc_apeerstate::*;
 use deltachat::dc_array::*;
-use deltachat::dc_chat::*;
-use deltachat::dc_chatlist::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_contact::*;
 use deltachat::dc_context::*;
-use deltachat::dc_dehtml::*;
-use deltachat::dc_e2ee::*;
 use deltachat::dc_hash::*;
-use deltachat::dc_imap::*;
 use deltachat::dc_imex::*;
-use deltachat::dc_job::*;
-use deltachat::dc_jobthread::*;
-use deltachat::dc_jsmn::*;
 use deltachat::dc_key::*;
-use deltachat::dc_keyhistory::*;
 use deltachat::dc_keyring::*;
 use deltachat::dc_location::*;
-use deltachat::dc_log::*;
-use deltachat::dc_loginparam::*;
 use deltachat::dc_lot::*;
-use deltachat::dc_mimefactory::*;
 use deltachat::dc_mimeparser::*;
-use deltachat::dc_move::*;
 use deltachat::dc_msg::*;
-use deltachat::dc_oauth2::*;
 use deltachat::dc_param::*;
 use deltachat::dc_pgp::*;
 use deltachat::dc_qr::*;
-use deltachat::dc_receive_imf::*;
 use deltachat::dc_saxparser::*;
 use deltachat::dc_securejoin::*;
 use deltachat::dc_simplify::*;
-use deltachat::dc_smtp::*;
-use deltachat::dc_sqlite3::*;
-use deltachat::dc_stock::*;
 use deltachat::dc_strbuilder::*;
 use deltachat::dc_strencode::*;
-use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
 use deltachat::types::*;
 use deltachat::x::*;
@@ -48,15 +37,15 @@ use libc;
 
 /* some data used for testing
  ******************************************************************************/
-/* s_em_setupfile is a AES-256 symm. encrypted setup message created by Enigmail
-with an "encrypted session key", see RFC 4880.  The code is in s_em_setupcode */
-static mut s_em_setupcode: *const libc::c_char =
+/* S_EM_SETUPFILE is a AES-256 symm. encrypted setup message created by Enigmail
+with an "encrypted session key", see RFC 4880.  The code is in S_EM_SETUPCODE */
+static mut S_EM_SETUPCODE: *const libc::c_char =
     b"1742-0185-6197-1303-7016-8412-3581-4441-0597\x00" as *const u8 as *const libc::c_char;
-static mut s_em_setupfile: *const libc::c_char =
+static mut S_EM_SETUPFILE: *const libc::c_char =
     b"-----BEGIN PGP MESSAGE-----\nPassphrase-Format: numeric9x4\nPassphrase-Begin: 17\n\n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\nmngm1QCMMw2v/j8=\n=9sJE\n-----END PGP MESSAGE-----\n\x00"
         as *const u8 as *const libc::c_char;
-#[no_mangle]
-pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
+
+unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     let mut saxparser: dc_saxparser_t = dc_saxparser_t {
         starttag_cb: None,
         endtag_cb: None,
@@ -73,20 +62,20 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         b"<tag attr=\"val\"=\x00" as *const u8 as *const libc::c_char,
     );
 
-    let mut simplify: *mut dc_simplify_t = dc_simplify_new();
+    let simplify: *mut dc_simplify_t = dc_simplify_new();
     let mut html: *const libc::c_char =
         b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
     let mut plain: *mut libc::c_char =
         dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
 
-    // FIXME
-    // assert_eq!(
-    //     strcmp(plain, b"line1\nline2\x00" as *const u8 as *const libc::c_char),
-    //     0,
-    //     "{:?}",
-    //     std::ffi::CStr::from_ptr(plain),
-    // );
-    // free(plain as *mut libc::c_void);
+    assert_eq!(
+        CStr::from_ptr(plain as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "line1\nline2",
+    );
+    free(plain as *mut libc::c_void);
+
     html = b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
     plain = dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
     if 0 != !(strcmp(
@@ -141,10 +130,10 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else { };
     free(plain as *mut libc::c_void);
     dc_simplify_unref(simplify);
-    let mut xml: *const libc::c_char =
+    let xml: *const libc::c_char =
         b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</wHeN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></Placemark>\n</Document>\n</kml>\x00"
             as *const u8 as *const libc::c_char;
-    let mut kml: *mut dc_kml_t = dc_kml_parse(context, xml, strlen(xml));
+    let kml: *mut dc_kml_t = dc_kml_parse(context, xml, strlen(xml));
     if 0 != !(!(*kml).addr.is_null()
         && strcmp(
             (*kml).addr,
@@ -352,18 +341,18 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
             );
         } else {
         };
-        let mut absPath: *mut libc::c_char = dc_mprintf(
+        let abs_path: *mut libc::c_char = dc_mprintf(
             b"%s/%s\x00" as *const u8 as *const libc::c_char,
-            (*context).blobdir,
+            context.get_blobdir(),
             b"foobar\x00" as *const u8 as *const libc::c_char,
         );
-        if 0 != (0 == dc_is_blobdir_path(context, absPath)) as libc::c_int as libc::c_long {
+        if 0 != (0 == dc_is_blobdir_path(context, abs_path)) as libc::c_int as libc::c_long {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
                 b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
                 242i32,
-                b"dc_is_blobdir_path(context, absPath)\x00" as *const u8 as *const libc::c_char,
+                b"dc_is_blobdir_path(context, abs_path)\x00" as *const u8 as *const libc::c_char,
             );
         } else {
         };
@@ -399,17 +388,17 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
             );
         } else {
         };
-        if 0 != (0 == dc_file_exist(context, absPath)) as libc::c_int as libc::c_long {
+        if 0 != (0 == dc_file_exist(context, abs_path)) as libc::c_int as libc::c_long {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
                 b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
                 245i32,
-                b"dc_file_exist(context, absPath)\x00" as *const u8 as *const libc::c_char,
+                b"dc_file_exist(context, abs_path)\x00" as *const u8 as *const libc::c_char,
             );
         } else {
         };
-        free(absPath as *mut libc::c_void);
+        free(abs_path as *mut libc::c_void);
         if 0 != (0
             == dc_copy_file(
                 context,
@@ -442,50 +431,25 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
             );
         } else {
         };
+
         let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
         let mut buf_bytes: size_t = 0;
-        if 0 != (0
-            == dc_read_file(
+
+        assert_eq!(
+            dc_read_file(
                 context,
                 b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
                 &mut buf,
                 &mut buf_bytes,
-            )) as libc::c_int as libc::c_long
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                253i32,
-                b"dc_read_file(context, \"$BLOBDIR/dada\", &buf, &buf_bytes)\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(buf_bytes == 7) as libc::c_int as libc::c_long {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                254i32,
-                b"buf_bytes==7\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(strcmp(
-            buf as *const libc::c_char,
-            b"content\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                255i32,
-                b"strcmp(buf, \"content\")==0\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
+            ),
+            1
+        );
+        assert_eq!(buf_bytes, 7);
+        assert_eq!(
+            std::str::from_utf8(std::slice::from_raw_parts(buf as *const u8, buf_bytes)).unwrap(),
+            "content"
+        );
+
         free(buf);
         if 0 != (0
             == dc_delete_file(
@@ -567,7 +531,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
             );
         } else {
         };
-        let mut fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
+        let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
@@ -603,7 +567,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
             b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
             7i32 as size_t,
         );
-        let mut fn1: *mut libc::c_char = dc_get_fine_pathNfilename(
+        let fn1: *mut libc::c_char = dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
@@ -646,7 +610,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-    let mut txt: *const libc::c_char =
+    let txt: *const libc::c_char =
         b"FieldA: ValueA\nFieldB: ValueB\n\x00" as *const u8 as *const libc::c_char;
     let mut mime: *mut mailmime = 0 as *mut mailmime;
     let mut dummy: size_t = 0i32 as size_t;
@@ -673,7 +637,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    let mut fields: *mut mailimf_fields = mailmime_find_mailimf_fields(mime);
+    let fields: *mut mailimf_fields = mailmime_find_mailimf_fields(mime);
     if 0 != fields.is_null() as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -763,7 +727,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    let mut of_b: *mut mailimf_optional_field =
+    let of_b: *mut mailimf_optional_field =
         mailimf_find_optional_field(fields, b"FieldB\x00" as *const u8 as *const libc::c_char);
     if 0 != !(!of_b.is_null() && !(*of_b).fld_value.is_null()) as libc::c_int as libc::c_long {
         __assert_rtn(
@@ -790,8 +754,8 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     mailmime_free(mime);
-    let mut mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new((*context).blobdir, context);
-    let mut raw: *const libc::c_char =
+    let mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new(context.get_blobdir(), context);
+    let raw: *const libc::c_char =
         b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00"
             as *const u8 as *const libc::c_char;
     dc_mimeparser_parse(mimeparser, raw, strlen(raw));
@@ -943,7 +907,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    let mut f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
+    let f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
     if 0 != !(f > 1.22f64 && f < 1.24f64) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -954,7 +918,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    let mut s: *mut libc::c_char = dc_ftoa(1.23f64);
+    let s: *mut libc::c_char = dc_ftoa(1.23f64);
     if 0 != !(dc_atof(s) > 1.22f64 && dc_atof(s) < 1.24f64) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1121,7 +1085,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     let mut str: *mut libc::c_char = strdup(b"aaa\x00" as *const u8 as *const libc::c_char);
-    let mut replacements: libc::c_int = dc_str_replace(
+    let replacements: libc::c_int = dc_str_replace(
         &mut str,
         b"a\x00" as *const u8 as *const libc::c_char,
         b"ab\x00" as *const u8 as *const libc::c_char,
@@ -2445,7 +2409,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    let mut arr: *mut dc_array_t = dc_array_new(0 as *mut dc_context_t, 7i32 as size_t);
+    let arr = dc_array_new(7i32 as size_t);
     if 0 != !(dc_array_get_cnt(arr) == 0) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -2457,7 +2421,6 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     let mut i: libc::c_int = 0;
-    i = 0i32;
     while i < 1000i32 {
         dc_array_add_id(arr, (i + 1i32 * 2i32) as uint32_t);
         i += 1
@@ -2673,7 +2636,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     dc_array_unref(arr);
-    let mut p1: *mut dc_param_t = dc_param_new();
+    let p1: *mut dc_param_t = dc_param_new();
     dc_param_set_packed(
         p1,
         b"\r\n\r\na=1\nb=2\n\nc = 3 \x00" as *const u8 as *const libc::c_char,
@@ -2752,40 +2715,28 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
+
     dc_param_set(p1, 'b' as i32, 0 as *const libc::c_char);
-    // FIXME
-    // if 0 != !(strcmp(
-    //     (*p1).packed,
-    //     b"a=foo\nd=4\x00" as *const u8 as *const libc::c_char,
-    // ) == 0i32) as libc::c_int as libc::c_long
-    // {
-    //     println!("{:?}", std::ffi::CStr::from_ptr((*p1).packed));
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         706i32,
-    //         b"strcmp(p1->packed, \"a=foo\\nd=4\")==0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+
+    assert_eq!(
+        CStr::from_ptr((*p1).packed as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "a=foo\nd=4",
+    );
+
     dc_param_set(p1, 'a' as i32, 0 as *const libc::c_char);
     dc_param_set(p1, 'd' as i32, 0 as *const libc::c_char);
 
-    // FIXME
-    // if 0 != !(strcmp((*p1).packed, b"\x00" as *const u8 as *const libc::c_char) == 0i32)
-    //     as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         710i32,
-    //         b"strcmp(p1->packed, \"\")==0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert_eq!(
+        CStr::from_ptr((*p1).packed as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "",
+    );
+
     dc_param_unref(p1);
+
     let mut keys: *mut libc::c_char = dc_get_config(
         context,
         b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
@@ -3224,14 +3175,11 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     free(keys as *mut libc::c_void);
-    let mut ah: *mut dc_aheader_t = dc_aheader_new();
-    let mut rendered: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut ah_ok: libc::c_int = 0;
-    ah_ok = dc_aheader_set_from_string(
-        ah,
-        b"addr=a@b.example.org; prefer-encrypt=mutual; keydata=RGVsdGEgQ2hhdA==\x00" as *const u8
-            as *const libc::c_char,
-    );
+    let ah: *mut dc_aheader_t = dc_aheader_new();
+    let rendered: *mut libc::c_char;
+    let mut ah_ok: libc::c_int;
+    let fixed_header = b"addr=a@b.example.org; prefer-encrypt=mutual; keydata= xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJgWL7O3y/g 4HdDW/dN2z26Y6W13IMzx9gLInn1KQZChtqWAcr/ReUucXcymwcfg1mdkBGk3TSLeLihN6CJx8Wsv8 ig+kgAzte4f5rqEEAJVQ9WZHuti7UiYs6oRzqTo06CRe9owVXxzdMf0VDQtf7ZFm9dpzKKbhH7Lu88 80iiotQ9/yRCkDGp9fNThsrLdZiK6OIAcIBAqi2rI89aS1dAmnRbktQieCx5izzyYkR1KvVL3gTTll HOzfKVEC2asmtWu2e4se/+O4WMIS1eGrn7GeWVb0Vwc5ABEBAAHNETxhQEBiLmV4YW1wbGUuZGU+ws CJBBABCAAzAhkBBQJcxt5FAhsDBAsJCAcGFQgJCgsCAxYCARYhBI4xxYKBgH3ANh5cufaKrc9mtiML AAoJEPaKrc9mtiML938H/18F+3Wf9/JaAy/8hCO1v4S2PVBhxaKCokaNFtkfaMRne2l087LscCFPiF Nyb4mv6Z3YeK8Xpxlp2sI0ecvdiqLUOGfnxS6tQrj+83EjtIrZ/hXOk1h121QFWH9Zg2VNHtODXjAg dLDC0NWUrclR0ZOqEDQHeo0ibTILdokVfXFN25wakPmGaYJP2y729cb1ve7RzvIvwn+Dddfxo3ao72 rBfLi7l4NQ4S0KsY4cw+/6l5bRCKYCP77wZtvCwUvfVVosLdT43agtSiBI49+ayqvZ8OCvSJa61i+v 81brTiEy9GBod4eAp45Ibsuemkw+gon4ZOvUXHTjwFB+h63MrozOwE0EXMbePQEIAL/vauf1zK8JgC u3V+G+SOX0iWw5xUlCPX+ERpBbWfwu3uAqn4wYXD3JDE/fVAF668xiV4eTPtlSUd5h0mn+G7uXMMOt kb+20SoEt50f8zw8TrL9t+ZsV11GKZWJpCar5AhXWsn6EEi8I2hLL5vn55ZZmHuGgN4jjmkRl3ToKC LhaXwTBjCJem7N5EH7F75wErEITa55v4Lb4Nfca7vnvtYrI1OA446xa8gHra0SINelTD09/JM/Fw4s WVPBaRZmJK/Tnu79N23No9XBUubmFPv1pNexZsQclicnTpt/BEWhiun7d6lfGB63K1aoHRTR1pcrWv BuALuuz0gqar2zlI0AEQEAAcLAdgQYAQgAIAUCXMbeRQIbDBYhBI4xxYKBgH3ANh5cufaKrc9mtiML AAoJEPaKrc9mtiMLKSEIAIyLCRO2OyZ0IYRvRPpMn4p7E+7Pfcz/0mSkOy+1hshgJnqivXurm8zwGr wdMqeV4eslKR9H1RUdWGUQJNbtwmmjrt5DHpIhYHl5t3FpCBaGbV20Omo00Q38lBl9MtrmZkZw+ktE k6X+0xCKssMF+2MADkSOIufbR5HrDVB89VZOHCO9DeXvCUUAw2hyJiL/LHmLzJ40zYoTmb+F//f0k0 j+tRdbkefyRoCmwG7YGiT+2hnCdgcezswnzah5J3ZKlrg7jOGo1LxtbvNUzxNBbC6S/aNgwm6qxo7x egRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc=";
+    ah_ok = dc_aheader_set_from_string(ah, fixed_header as *const u8 as *const libc::c_char);
     if 0 != !(ah_ok == 1i32) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -3258,21 +3206,9 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    if 0 != !((*(*ah).public_key).bytes == 10i32
-        && strncmp(
-            (*(*ah).public_key).binary as *mut libc::c_char,
-            b"Delta Chat\x00" as *const u8 as *const libc::c_char,
-            10,
-        ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                               &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                     b"../cmdline/stress.c\x00" as *const u8 as
-                         *const libc::c_char, 771i32,
-                     b"ah->public_key->bytes==10 && strncmp((char*)ah->public_key->binary, \"Delta Chat\", 10)==0\x00"
-                         as *const u8 as *const libc::c_char);
-    } else {
-    };
+
+    assert_eq!((*(*ah).public_key).bytes, 1212);
+
     if 0 != !((*ah).prefer_encrypt == 1i32) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -3283,22 +3219,15 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
+
     rendered = dc_aheader_render(ah);
-    if 0 != !(!rendered.is_null()
-        && strcmp(
-            rendered,
-            b"addr=a@b.example.org; prefer-encrypt=mutual; keydata= RGVsdGEgQ2hhdA==\x00"
-                as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                               &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                     b"../cmdline/stress.c\x00" as *const u8 as
-                         *const libc::c_char, 775i32,
-                     b"rendered && strcmp(rendered, \"addr=a@b.example.org; prefer-encrypt=mutual; keydata= RGVsdGEgQ2hhdA==\")==0\x00"
-                         as *const u8 as *const libc::c_char);
-    } else {
-    };
+
+    assert!(!rendered.is_null());
+    assert_eq!(
+        std::ffi::CStr::from_ptr(rendered).to_str().unwrap(),
+        std::str::from_utf8(fixed_header).unwrap()
+    );
+
     ah_ok =
         dc_aheader_set_from_string(ah,
                                    b" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = RG VsdGEgQ\r\n2hhdA==\x00"
@@ -3329,6 +3258,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
+
     if 0 != !((*(*ah).public_key).bytes == 10i32
         && strncmp(
             (*(*ah).public_key).binary as *mut libc::c_char,
@@ -3455,8 +3385,8 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     };
     dc_aheader_unref(ah);
     free(rendered as *mut libc::c_void);
-    let mut ok: libc::c_int = 0;
-    let mut buf_0: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut ok: libc::c_int;
+    let mut buf_0: *mut libc::c_char;
     let mut headerline: *const libc::c_char = 0 as *const libc::c_char;
     let mut setupcodebegin: *const libc::c_char = 0 as *const libc::c_char;
     let mut preferencrypt: *const libc::c_char = 0 as *const libc::c_char;
@@ -3498,21 +3428,17 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(base64, b"data\x00" as *const u8 as *const libc::c_char) == 0i32)
-    //     as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         823i32,
-    //         b"base64 && strcmp(base64, \"data\") == 0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "data",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     buf_0 =
         strdup(b"-----BEGIN PGP MESSAGE-----\n\ndat1\n-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n\ndat2\n-----END PGP MESSAGE-----\x00"
                    as *const u8 as *const libc::c_char);
@@ -3550,21 +3476,16 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
 
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(base64, b"dat1\x00" as *const u8 as *const libc::c_char) == 0i32)
-    //     as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         830i32,
-    //         b"base64 && strcmp(base64, \"dat1\") == 0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "dat1",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     buf_0 = strdup(
         b"foo \n -----BEGIN PGP MESSAGE----- \n base64-123 \n  -----END PGP MESSAGE-----\x00"
             as *const u8 as *const libc::c_char,
@@ -3613,23 +3534,16 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
 
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(
-    //         base64,
-    //         b"base64-123\x00" as *const u8 as *const libc::c_char,
-    //     ) == 0i32) as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         838i32,
-    //         b"base64 && strcmp(base64, \"base64-123\")==0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "base64-123",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     buf_0 = strdup(b"foo-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char);
     ok = dc_split_armored_data(
         buf_0,
@@ -3702,24 +3616,16 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
 
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(
-    //         base64,
-    //         b"base64-567 \n abc\x00" as *const u8 as *const libc::c_char,
-    //     ) == 0i32) as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         851i32,
-    //         b"base64 && strcmp(base64, \"base64-567 \\n abc\")==0\x00" as *const u8
-    //             as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "base64-567 \n abc",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     buf_0 =
         strdup(b"-----BEGIN PGP PRIVATE KEY BLOCK-----\n Autocrypt-Prefer-Encrypt :  mutual \n\nbase64\n-----END PGP PRIVATE KEY BLOCK-----\x00"
                    as *const u8 as *const libc::c_char);
@@ -3773,21 +3679,16 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
 
-    // FIXME
-    // if 0 != !(!base64.is_null()
-    //     && strcmp(base64, b"base64\x00" as *const u8 as *const libc::c_char) == 0i32)
-    //     as libc::c_int as libc::c_long
-    // {
-    //     __assert_rtn(
-    //         (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-    //             .as_ptr(),
-    //         b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-    //         859i32,
-    //         b"base64 && strcmp(base64, \"base64\")==0\x00" as *const u8 as *const libc::c_char,
-    //     );
-    // } else {
-    // };
+    assert!(!base64.is_null());
+    assert_eq!(
+        CStr::from_ptr(base64 as *const libc::c_char)
+            .to_str()
+            .unwrap(),
+        "base64",
+    );
+
     free(buf_0 as *mut libc::c_void);
+
     let mut norm: *mut libc::c_char = dc_normalize_setup_code(
         context,
         b"123422343234423452346234723482349234\x00" as *const u8 as *const libc::c_char,
@@ -3849,11 +3750,11 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     free(norm as *mut libc::c_void);
-    let mut buf_1: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut buf_1: *mut libc::c_char;
     let mut headerline_0: *const libc::c_char = 0 as *const libc::c_char;
     let mut setupcodebegin_0: *const libc::c_char = 0 as *const libc::c_char;
     let mut preferencrypt_0: *const libc::c_char = 0 as *const libc::c_char;
-    buf_1 = strdup(s_em_setupfile);
+    buf_1 = strdup(S_EM_SETUPFILE);
     if 0 != (0
         == dc_split_armored_data(
             buf_1,
@@ -3890,8 +3791,8 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     if 0 != !(!setupcodebegin_0.is_null()
-        && strlen(setupcodebegin_0) < strlen(s_em_setupcode)
-        && strncmp(setupcodebegin_0, s_em_setupcode, strlen(setupcodebegin_0)) == 0i32)
+        && strlen(setupcodebegin_0) < strlen(S_EM_SETUPCODE)
+        && strncmp(setupcodebegin_0, S_EM_SETUPCODE, strlen(setupcodebegin_0)) == 0i32)
         as libc::c_int as libc::c_long
     {
         __assert_rtn((*::std::mem::transmute::<&[u8; 17],
@@ -3913,7 +3814,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     free(buf_1 as *mut libc::c_void);
-    buf_1 = dc_decrypt_setup_file(context, s_em_setupcode, s_em_setupfile);
+    buf_1 = dc_decrypt_setup_file(context, S_EM_SETUPCODE, S_EM_SETUPFILE);
     if 0 != buf_1.is_null() as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -3988,8 +3889,8 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     };
     free(buf_1 as *mut libc::c_void);
     if 0 != dc_is_configured(context) {
-        let mut setupcode: *mut libc::c_char = 0 as *mut libc::c_char;
-        let mut setupfile: *mut libc::c_char = 0 as *mut libc::c_char;
+        let setupcode: *mut libc::c_char;
+        let setupfile: *mut libc::c_char;
         setupcode = dc_create_setup_code(context);
         if 0 != setupcode.is_null() as libc::c_int as libc::c_long {
             __assert_rtn(
@@ -4042,7 +3943,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
             );
         } else {
         };
-        let mut buf_2: *mut libc::c_char = dc_strdup(setupfile);
+        let buf_2: *mut libc::c_char = dc_strdup(setupfile);
         let mut headerline_1: *const libc::c_char = 0 as *const libc::c_char;
         let mut setupcodebegin_1: *const libc::c_char = 0 as *const libc::c_char;
         if 0 != (0
@@ -4094,7 +3995,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         } else {
         };
         free(buf_2 as *mut libc::c_void);
-        let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
+        let payload: *mut libc::c_char;
         let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
         payload = dc_decrypt_setup_file(context, setupcode, setupfile);
         if 0 != payload.is_null() as libc::c_int as libc::c_long {
@@ -4145,7 +4046,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         free(setupfile as *mut libc::c_void);
         free(setupcode as *mut libc::c_void);
     }
-    let mut bad_key: *mut dc_key_t = dc_key_new();
+    let bad_key: *mut dc_key_t = dc_key_new();
     let mut bad_data: [libc::c_uchar; 4096] = [0; 4096];
     let mut i_0: libc::c_int = 0i32;
     while i_0 < 4096i32 {
@@ -4174,8 +4075,8 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         j += 1
     }
     dc_key_unref(bad_key);
-    let mut public_key: *mut dc_key_t = dc_key_new();
-    let mut private_key: *mut dc_key_t = dc_key_new();
+    let public_key: *mut dc_key_t = dc_key_new();
+    let private_key: *mut dc_key_t = dc_key_new();
     dc_pgp_create_keypair(
         context,
         b"foo@bar.de\x00" as *const u8 as *const libc::c_char,
@@ -4202,7 +4103,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    let mut test_key: *mut dc_key_t = dc_key_new();
+    let test_key: *mut dc_key_t = dc_key_new();
     if 0 != (0 == dc_pgp_split_key(context, private_key, test_key)) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -4215,8 +4116,8 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     dc_key_unref(test_key);
-    let mut public_key2: *mut dc_key_t = dc_key_new();
-    let mut private_key2: *mut dc_key_t = dc_key_new();
+    let public_key2: *mut dc_key_t = dc_key_new();
+    let private_key2: *mut dc_key_t = dc_key_new();
     dc_pgp_create_keypair(
         context,
         b"two@zwo.de\x00" as *const u8 as *const libc::c_char,
@@ -4233,14 +4134,14 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         );
     } else {
     };
-    let mut original_text: *const libc::c_char =
+    let original_text: *const libc::c_char =
         b"This is a test\x00" as *const u8 as *const libc::c_char;
     let mut ctext_signed: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut ctext_unsigned: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut ctext_signed_bytes: size_t = 0i32 as size_t;
     let mut ctext_unsigned_bytes: size_t = 0;
     let mut plain_bytes: size_t = 0i32 as size_t;
-    let mut keyring: *mut dc_keyring_t = dc_keyring_new();
+    let keyring: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(keyring, public_key);
     dc_keyring_add(keyring, public_key2);
     let mut ok_0: libc::c_int = dc_pgp_pk_encrypt(
@@ -4345,11 +4246,11 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     dc_keyring_unref(keyring);
-    let mut keyring_0: *mut dc_keyring_t = dc_keyring_new();
+    let keyring_0: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(keyring_0, private_key);
-    let mut public_keyring: *mut dc_keyring_t = dc_keyring_new();
+    let public_keyring: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(public_keyring, public_key);
-    let mut public_keyring2: *mut dc_keyring_t = dc_keyring_new();
+    let public_keyring2: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(public_keyring2, public_key2);
     let mut plain_0: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut valid_signatures: dc_hash_t = dc_hash_t {
@@ -4361,7 +4262,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         ht: 0 as *mut _ht,
     };
     dc_hash_init(&mut valid_signatures, 3i32, 1i32);
-    let mut ok_1: libc::c_int = 0;
+    let mut ok_1: libc::c_int;
     ok_1 = dc_pgp_pk_decrypt(
         context,
         ctext_signed,
@@ -4601,17 +4502,16 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     } else {
     };
     free(plain_0);
-    plain_0 = 0 as *mut libc::c_void;
     dc_hash_clear(&mut valid_signatures);
     dc_keyring_unref(keyring_0);
     dc_keyring_unref(public_keyring);
     dc_keyring_unref(public_keyring2);
-    let mut keyring_1: *mut dc_keyring_t = dc_keyring_new();
+    let keyring_1: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(keyring_1, private_key2);
-    let mut public_keyring_0: *mut dc_keyring_t = dc_keyring_new();
+    let public_keyring_0: *mut dc_keyring_t = dc_keyring_new();
     dc_keyring_add(public_keyring_0, public_key);
     let mut plain_1: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut ok_2: libc::c_int = dc_pgp_pk_decrypt(
+    let ok_2: libc::c_int = dc_pgp_pk_decrypt(
         context,
         ctext_signed,
         ctext_signed_bytes,
@@ -4664,7 +4564,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     dc_key_unref(private_key2);
     dc_key_unref(public_key);
     dc_key_unref(private_key);
-    let mut fingerprint: *mut libc::c_char = dc_normalize_fingerprint(
+    let fingerprint: *mut libc::c_char = dc_normalize_fingerprint(
         b" 1234  567890 \n AbcD abcdef ABCDEF \x00" as *const u8 as *const libc::c_char,
     );
     if 0 != fingerprint.is_null() as libc::c_int as libc::c_long {
@@ -4694,7 +4594,7 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
     };
     free(fingerprint as *mut libc::c_void);
     if 0 != dc_is_configured(context) {
-        let mut qr: *mut libc::c_char = dc_get_securejoin_qr(context, 0i32 as uint32_t);
+        let qr: *mut libc::c_char = dc_get_securejoin_qr(context, 0i32 as uint32_t);
         if 0 != !(strlen(qr) > 55
             && strncmp(
                 qr,
@@ -4775,4 +4675,32 @@ pub unsafe extern "C" fn stress_functions(mut context: *mut dc_context_t) {
         };
         dc_lot_unref(res);
     };
+}
+
+unsafe extern "C" fn cb(
+    _context: &dc_context_t,
+    _event: Event,
+    _data1: uintptr_t,
+    _data2: uintptr_t,
+) -> uintptr_t {
+    0
+}
+
+#[test]
+fn run_stress_tests() {
+    unsafe {
+        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
+        let dir = tempdir().unwrap();
+        let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+        assert_eq!(
+            dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
+            1,
+            "Failed to open {}",
+            CStr::from_ptr(dbfile.as_ptr() as *const libc::c_char)
+                .to_str()
+                .unwrap()
+        );
+
+        stress_functions(&ctx)
+    }
 }

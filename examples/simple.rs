@@ -1,7 +1,8 @@
 extern crate deltachat;
 
 use std::ffi::{CStr, CString};
-use std::ptr::NonNull;
+use std::sync::Arc;
+use std::{thread, time};
 use tempfile::tempdir;
 
 use deltachat::constants::Event;
@@ -16,10 +17,14 @@ use deltachat::dc_job::{
 };
 use deltachat::dc_lot::*;
 
-extern "C" fn cb(_ctx: *mut dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
+extern "C" fn cb(_ctx: &dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
     println!("[{:?}]", event);
 
     match event {
+        Event::CONFIGURE_PROGRESS => {
+            println!("  progress: {}", data1);
+            0
+        }
         Event::HTTP_GET => {
             let url = unsafe { CStr::from_ptr(data1 as *const _).to_str().unwrap() };
 
@@ -49,61 +54,60 @@ extern "C" fn cb(_ctx: *mut dc_context_t, event: Event, data1: usize, data2: usi
     }
 }
 
-struct Wrapper(NonNull<dc_context_t>);
-
-unsafe impl std::marker::Send for Wrapper {}
-unsafe impl std::marker::Sync for Wrapper {}
-
 fn main() {
     unsafe {
         let ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
-        let info = dc_get_info(ctx);
+        let info = dc_get_info(&ctx);
         let info_s = CStr::from_ptr(info);
+        let duration = time::Duration::from_millis(4000);
         println!("info: {}", info_s.to_str().unwrap());
 
-        let sendable_ctx = Wrapper(NonNull::new(ctx).unwrap());
-        let t1 = std::thread::spawn(move || loop {
-            dc_perform_imap_jobs(sendable_ctx.0.as_ptr());
-            dc_perform_imap_fetch(sendable_ctx.0.as_ptr());
-            dc_perform_imap_idle(sendable_ctx.0.as_ptr());
+        let ctx = Arc::new(ctx);
+        let ctx1 = ctx.clone();
+        let t1 = thread::spawn(move || loop {
+            dc_perform_imap_jobs(&ctx1);
+            dc_perform_imap_fetch(&ctx1);
+            dc_perform_imap_idle(&ctx1);
         });
 
-        let sendable_ctx = Wrapper(NonNull::new(ctx).unwrap());
-        let t2 = std::thread::spawn(move || loop {
-            dc_perform_smtp_jobs(sendable_ctx.0.as_ptr());
-            dc_perform_smtp_idle(sendable_ctx.0.as_ptr());
+        let ctx1 = ctx.clone();
+        let t2 = thread::spawn(move || loop {
+            dc_perform_smtp_jobs(&ctx1);
+            dc_perform_smtp_idle(&ctx1);
         });
 
         let dir = tempdir().unwrap();
         let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
 
         println!("opening database {:?}", dbfile);
-        dc_open(ctx, dbfile.as_ptr(), std::ptr::null());
+
+        dc_open(&ctx, dbfile.as_ptr(), std::ptr::null());
 
         println!("configuring");
+        let pw = std::env::args().collect::<Vec<String>>()[1].clone();
         dc_set_config(
-            ctx,
+            &ctx,
             CString::new("addr").unwrap().as_ptr(),
             CString::new("d@testrun.org").unwrap().as_ptr(),
         );
         dc_set_config(
-            ctx,
+            &ctx,
             CString::new("mail_pw").unwrap().as_ptr(),
-            CString::new("***").unwrap().as_ptr(),
+            CString::new(pw).unwrap().as_ptr(),
         );
-        dc_configure(ctx);
+        dc_configure(&ctx);
 
-        std::thread::sleep_ms(4000);
+        thread::sleep(duration);
 
         let email = CString::new("dignifiedquire@gmail.com").unwrap();
         println!("sending a message");
-        let contact_id = dc_create_contact(ctx, std::ptr::null(), email.as_ptr());
-        let chat_id = dc_create_chat_by_contact_id(ctx, contact_id);
+        let contact_id = dc_create_contact(&ctx, std::ptr::null(), email.as_ptr());
+        let chat_id = dc_create_chat_by_contact_id(&ctx, contact_id);
         let msg_text = CString::new("Hi, here is my first message!").unwrap();
-        dc_send_text_msg(ctx, chat_id, msg_text.as_ptr());
+        dc_send_text_msg(&ctx, chat_id, msg_text.as_ptr());
 
         println!("fetching chats..");
-        let chats = dc_get_chatlist(ctx, 0, std::ptr::null(), 0);
+        let chats = dc_get_chatlist(&ctx, 0, std::ptr::null(), 0);
 
         for i in 0..dc_chatlist_get_cnt(chats) {
             let summary = dc_chatlist_get_summary(chats, 0, std::ptr::null_mut());
@@ -125,7 +129,7 @@ fn main() {
         }
         dc_chatlist_unref(chats);
 
-        // let msglist = dc_get_chat_msgs(ctx, chat_id, 0, 0);
+        // let msglist = dc_get_chat_msgs(&ctx, chat_id, 0, 0);
         // for i in 0..dc_array_get_cnt(msglist) {
         //     let msg_id = dc_array_get_id(msglist, i);
         //     let msg = dc_get_msg(context, msg_id);

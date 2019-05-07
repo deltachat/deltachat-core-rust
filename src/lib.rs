@@ -3,7 +3,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
     unused_mut,
     unused_attributes,
     non_upper_case_globals,
@@ -21,6 +20,11 @@
 extern crate failure;
 #[macro_use]
 extern crate num_derive;
+// #[macro_use]
+// extern crate rental;
+
+#[macro_use]
+pub mod dc_log;
 
 mod pgp;
 
@@ -44,7 +48,6 @@ pub mod dc_key;
 pub mod dc_keyhistory;
 pub mod dc_keyring;
 pub mod dc_location;
-pub mod dc_log;
 pub mod dc_loginparam;
 pub mod dc_lot;
 pub mod dc_mimefactory;

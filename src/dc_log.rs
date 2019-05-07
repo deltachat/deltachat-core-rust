@@ -1,5 +1,3 @@
-use libc;
-
 use crate::constants::Event;
 use crate::dc_context::dc_context_t;
 use crate::dc_tools::*;
@@ -7,7 +5,7 @@ use crate::types::*;
 use crate::x::*;
 
 pub unsafe extern "C" fn dc_log_event(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut event_code: Event,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
@@ -15,6 +13,7 @@ pub unsafe extern "C" fn dc_log_event(
 ) {
     log_vprintf(context, event_code, data1, msg, va);
 }
+
 /* Asynchronous "Thread-errors" are reported by the dc_log_error()
 function.  These errors must be shown to the user by a bubble or so.
 
@@ -23,16 +22,13 @@ usually not reported using dc_log_error() - its up to the caller to
 decide, what should be reported or done.  However, these "Normal" errors
 are usually logged by dc_log_warning(). */
 unsafe fn log_vprintf(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut event: Event,
     mut data1: libc::c_int,
     mut msg_format: *const libc::c_char,
     mut va_0: ::std::ffi::VaList,
 ) {
-    let mut msg: *mut libc::c_char = 0 as *mut libc::c_char;
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
+    let mut msg: *mut libc::c_char;
     if !msg_format.is_null() {
         let mut tempbuf: [libc::c_char; 1025] = [0; 1025];
         vsnprintf(
@@ -51,43 +47,95 @@ unsafe fn log_vprintf(
     ((*context).cb)(context, event, data1 as uintptr_t, msg as uintptr_t);
     free(msg as *mut libc::c_void);
 }
+
 pub unsafe extern "C" fn dc_log_event_seq(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut event_code: Event,
     mut sequence_start: *mut libc::c_int,
     mut msg: *const libc::c_char,
     mut va_0: ...
 ) {
-    if context.is_null()
-        || sequence_start.is_null()
-        || (*context).magic != 0x11a11807i32 as libc::c_uint
-    {
+    if sequence_start.is_null() {
         return;
     }
     log_vprintf(context, event_code, *sequence_start, msg, va_0);
     *sequence_start = 0i32;
 }
+
 pub unsafe extern "C" fn dc_log_error(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
     mut va_1: ...
 ) {
     log_vprintf(context, Event::ERROR, data1, msg, va_1);
 }
+
 pub unsafe extern "C" fn dc_log_warning(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
     mut va_2: ...
 ) {
     log_vprintf(context, Event::WARNING, data1, msg, va_2);
 }
+
 pub unsafe extern "C" fn dc_log_info(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut data1: libc::c_int,
     mut msg: *const libc::c_char,
     mut va_3: ...
 ) {
     log_vprintf(context, Event::INFO, data1, msg, va_3);
+}
+
+#[macro_export]
+macro_rules! info {
+    ($ctx:expr, $data1:expr, $msg:expr) => {
+        info!($ctx, $data1, $msg,)
+    };
+    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        unsafe {
+            dc_log_info(
+                $ctx,
+                $data1,
+                std::ffi::CString::new($msg).unwrap().as_ptr(),
+                $($args),*
+            )
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! warn {
+    ($ctx:expr, $data1:expr, $msg:expr) => {
+        warn!($ctx, $data1, $msg,)
+    };
+    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        unsafe {
+            dc_log_warning(
+                $ctx,
+                $data1,
+                std::ffi::CString::new($msg).unwrap().as_ptr(),
+                $($args),*
+            )
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! error {
+    ($ctx:expr, $data1:expr, $msg:expr) => {
+        error!($ctx, $data1, $msg,)
+    };
+    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        unsafe {
+            dc_log_error(
+                $ctx,
+                $data1,
+                std::ffi::CString::new($msg).unwrap().as_ptr(),
+                $($args),*
+            )
+        }
+    };
 }

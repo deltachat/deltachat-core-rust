@@ -1,4 +1,15 @@
+use mmime::mailmime_content::*;
+use mmime::mmapstring::*;
+use mmime::other::*;
+
+use std::collections::BTreeMap;
+use std::ffi::CString;
+use std::io::Cursor;
+use std::slice;
+
 use libc;
+use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
+use pgp::ser::Serialize;
 
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
@@ -8,9 +19,7 @@ use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
-/* *
- * Library-internal.
- */
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_key_t {
@@ -26,21 +35,25 @@ pub unsafe fn toupper(mut _c: libc::c_int) -> libc::c_int {
 }
 
 pub unsafe fn dc_key_new() -> *mut dc_key_t {
-    let mut key: *mut dc_key_t = 0 as *mut dc_key_t;
+    let mut key: *mut dc_key_t;
     key = calloc(1, ::std::mem::size_of::<dc_key_t>()) as *mut dc_key_t;
     if key.is_null() {
         exit(44i32);
     }
     (*key)._m_heap_refcnt = 1i32;
-    return key;
+
+    key
 }
+
 pub unsafe fn dc_key_ref(mut key: *mut dc_key_t) -> *mut dc_key_t {
     if key.is_null() {
         return 0 as *mut dc_key_t;
     }
     (*key)._m_heap_refcnt += 1;
-    return key;
+
+    key
 }
+
 pub unsafe fn dc_key_unref(mut key: *mut dc_key_t) {
     if key.is_null() {
         return;
@@ -52,6 +65,7 @@ pub unsafe fn dc_key_unref(mut key: *mut dc_key_t) {
     dc_key_empty(key);
     free(key as *mut libc::c_void);
 }
+
 unsafe fn dc_key_empty(mut key: *mut dc_key_t) {
     if key.is_null() {
         return;
@@ -64,12 +78,15 @@ unsafe fn dc_key_empty(mut key: *mut dc_key_t) {
     (*key).bytes = 0i32;
     (*key).type_0 = 0i32;
 }
+
 pub unsafe fn dc_wipe_secret_mem(mut buf: *mut libc::c_void, mut buf_bytes: size_t) {
     if buf.is_null() || buf_bytes <= 0 {
         return;
     }
     memset(buf, 0i32, buf_bytes);
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_set_from_binary(
     mut key: *mut dc_key_t,
     mut data: *const libc::c_void,
@@ -87,15 +104,20 @@ pub unsafe fn dc_key_set_from_binary(
     memcpy((*key).binary, data, bytes as size_t);
     (*key).bytes = bytes;
     (*key).type_0 = type_0;
-    return 1i32;
+
+    1
 }
+
 pub unsafe fn dc_key_set_from_key(mut key: *mut dc_key_t, mut o: *const dc_key_t) -> libc::c_int {
     dc_key_empty(key);
     if key.is_null() || o.is_null() {
         return 0i32;
     }
-    return dc_key_set_from_binary(key, (*o).binary, (*o).bytes, (*o).type_0);
+
+    dc_key_set_from_binary(key, (*o).binary, (*o).bytes, (*o).type_0)
 }
+
+// TODO should return bool /rtn
 pub unsafe extern "C" fn dc_key_set_from_stmt(
     mut key: *mut dc_key_t,
     mut stmt: *mut sqlite3_stmt,
@@ -106,13 +128,16 @@ pub unsafe extern "C" fn dc_key_set_from_stmt(
     if key.is_null() || stmt.is_null() {
         return 0i32;
     }
-    return dc_key_set_from_binary(
+
+    dc_key_set_from_binary(
         key,
         sqlite3_column_blob(stmt, index) as *mut libc::c_uchar as *const libc::c_void,
         sqlite3_column_bytes(stmt, index),
         type_0,
-    );
+    )
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_set_from_base64(
     mut key: *mut dc_key_t,
     mut base64: *const libc::c_char,
@@ -144,90 +169,11 @@ pub unsafe fn dc_key_set_from_base64(
         type_0,
     );
     mmap_string_unref(result);
-    return 1i32;
+
+    1
 }
-pub unsafe fn dc_key_set_from_file(
-    mut key: *mut dc_key_t,
-    mut pathNfilename: *const libc::c_char,
-    mut context: *mut dc_context_t,
-) -> libc::c_int {
-    let mut current_block: u64;
-    let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
-    // just pointer inside buf, must not be freed
-    let mut headerline: *const libc::c_char = 0 as *const libc::c_char;
-    //   - " -
-    let mut base64: *const libc::c_char = 0 as *const libc::c_char;
-    let mut buf_bytes: size_t = 0i32 as size_t;
-    let mut type_0: libc::c_int = -1i32;
-    let mut success: libc::c_int = 0i32;
-    dc_key_empty(key);
-    if !(key.is_null() || pathNfilename.is_null()) {
-        if !(0
-            == dc_read_file(
-                context,
-                pathNfilename,
-                &mut buf as *mut *mut libc::c_char as *mut *mut libc::c_void,
-                &mut buf_bytes,
-            )
-            || buf_bytes < 50)
-        {
-            /* error is already loged */
-            if !(0
-                == dc_split_armored_data(
-                    buf,
-                    &mut headerline,
-                    0 as *mut *const libc::c_char,
-                    0 as *mut *const libc::c_char,
-                    &mut base64,
-                )
-                || headerline.is_null()
-                || base64.is_null())
-            {
-                if strcmp(
-                    headerline,
-                    b"-----BEGIN PGP PUBLIC KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
-                {
-                    type_0 = 0i32;
-                    current_block = 7149356873433890176;
-                } else if strcmp(
-                    headerline,
-                    b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8
-                        as *const libc::c_char,
-                ) == 0i32
-                {
-                    type_0 = 1i32;
-                    current_block = 7149356873433890176;
-                } else {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"Header missing for key \"%s\".\x00" as *const u8 as *const libc::c_char,
-                        pathNfilename,
-                    );
-                    current_block = 7704194852291245876;
-                }
-                match current_block {
-                    7704194852291245876 => {}
-                    _ => {
-                        if 0 == dc_key_set_from_base64(key, base64, type_0) {
-                            dc_log_warning(
-                                context,
-                                0i32,
-                                b"Bad data in key \"%s\".\x00" as *const u8 as *const libc::c_char,
-                                pathNfilename,
-                            );
-                        } else {
-                            success = 1i32
-                        }
-                    }
-                }
-            }
-        }
-    }
-    free(buf as *mut libc::c_void);
-    return success;
-}
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_equals(mut key: *const dc_key_t, mut o: *const dc_key_t) -> libc::c_int {
     if key.is_null()
         || o.is_null()
@@ -251,25 +197,29 @@ pub unsafe fn dc_key_equals(mut key: *const dc_key_t, mut o: *const dc_key_t) ->
         0
     }
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_save_self_keypair(
-    mut public_key: *const dc_key_t,
-    mut private_key: *const dc_key_t,
-    mut addr: *const libc::c_char,
-    mut is_default: libc::c_int,
-    mut sql: *mut dc_sqlite3_t,
+    context: &dc_context_t,
+    public_key: *const dc_key_t,
+    private_key: *const dc_key_t,
+    addr: *const libc::c_char,
+    is_default: libc::c_int,
+    sql: &dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(public_key.is_null()
         || private_key.is_null()
         || addr.is_null()
-        || sql.is_null()
         || (*public_key).binary.is_null()
         || (*private_key).binary.is_null())
     {
         stmt =
-            dc_sqlite3_prepare(sql,
-                               b"INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);\x00"
+            dc_sqlite3_prepare(
+                context,
+                sql,
+                b"INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);\x00"
                                    as *const u8 as *const libc::c_char);
         sqlite3_bind_text(stmt, 1i32, addr, -1i32, None);
         sqlite3_bind_int(stmt, 2i32, is_default);
@@ -287,18 +237,23 @@ pub unsafe fn dc_key_save_self_keypair(
         }
     }
     sqlite3_finalize(stmt);
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_load_self_public(
-    mut key: *mut dc_key_t,
-    mut self_addr: *const libc::c_char,
-    mut sql: *mut dc_sqlite3_t,
+    context: &dc_context_t,
+    key: *mut dc_key_t,
+    self_addr: *const libc::c_char,
+    sql: &dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(key.is_null() || self_addr.is_null() || sql.is_null()) {
+    if !(key.is_null() || self_addr.is_null()) {
         dc_key_empty(key);
         stmt = dc_sqlite3_prepare(
+            context,
             sql,
             b"SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
                 as *const libc::c_char,
@@ -310,18 +265,23 @@ pub unsafe fn dc_key_load_self_public(
         }
     }
     sqlite3_finalize(stmt);
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_key_load_self_private(
-    mut key: *mut dc_key_t,
-    mut self_addr: *const libc::c_char,
-    mut sql: *mut dc_sqlite3_t,
+    context: &dc_context_t,
+    key: *mut dc_key_t,
+    self_addr: *const libc::c_char,
+    sql: &dc_sqlite3_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(key.is_null() || self_addr.is_null() || sql.is_null()) {
+    if !(key.is_null() || self_addr.is_null()) {
         dc_key_empty(key);
         stmt = dc_sqlite3_prepare(
+            context,
             sql,
             b"SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
                 as *const libc::c_char,
@@ -329,148 +289,98 @@ pub unsafe fn dc_key_load_self_private(
         sqlite3_bind_text(stmt, 1i32, self_addr, -1i32, None);
         if !(sqlite3_step(stmt) != 100i32) {
             dc_key_set_from_stmt(key, stmt, 0i32, 1i32);
-            success = 1i32
+            success = 1i32;
         }
     }
     sqlite3_finalize(stmt);
-    return success;
+
+    success
 }
+
 /* the result must be freed */
-pub unsafe fn dc_render_base64(
-    mut buf: *const libc::c_void,
-    mut buf_bytes: size_t,
-    mut break_every: libc::c_int,
-    mut break_chars: *const libc::c_char,
-    mut add_checksum: libc::c_int,
-) -> *mut libc::c_char {
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(buf == 0 as *mut libc::c_void || buf_bytes <= 0) {
-        ret = encode_base64(buf as *const libc::c_char, buf_bytes as libc::c_int);
-        if !ret.is_null() {
-            if break_every > 0i32 {
-                let mut temp: *mut libc::c_char = ret;
-                ret = dc_insert_breaks(temp, break_every, break_chars);
-                free(temp as *mut libc::c_void);
-            }
-            if add_checksum == 2i32 {
-                let mut checksum: libc::c_long = crc_octets(buf as *const libc::c_uchar, buf_bytes);
-                let mut c: [uint8_t; 3] = [0; 3];
-                c[0usize] = (checksum >> 16i32 & 0xffi32 as libc::c_long) as uint8_t;
-                c[1usize] = (checksum >> 8i32 & 0xffi32 as libc::c_long) as uint8_t;
-                c[2usize] = (checksum & 0xffi32 as libc::c_long) as uint8_t;
-                let mut c64: *mut libc::c_char =
-                    encode_base64(c.as_mut_ptr() as *const libc::c_char, 3i32);
-                let mut temp_0: *mut libc::c_char = ret;
-                ret = dc_mprintf(
-                    b"%s%s=%s\x00" as *const u8 as *const libc::c_char,
-                    temp_0,
-                    break_chars,
-                    c64,
-                );
-                free(temp_0 as *mut libc::c_void);
-                free(c64 as *mut libc::c_void);
-            }
-        }
-    }
-    return ret;
-}
-/* ******************************************************************************
- * Render keys
- ******************************************************************************/
-unsafe fn crc_octets(mut octets: *const libc::c_uchar, mut len: size_t) -> libc::c_long {
-    let mut crc: libc::c_long = 0xb704ce;
-    loop {
-        let fresh0 = len;
-        len = len.wrapping_sub(1);
-        if !(0 != fresh0) {
-            break;
-        }
-        let fresh1 = octets;
-        octets = octets.offset(1);
-        crc ^= ((*fresh1 as libc::c_int) << 16i32) as libc::c_long;
-        let mut i: libc::c_int = 0i32;
-        while i < 8i32 {
-            crc <<= 1i32;
-            if 0 != crc & 0x1000000 as libc::c_long {
-                crc ^= 0x1864cfb
-            }
-            i += 1
-        }
-    }
-    return crc & 0xffffff;
-}
-/* the result must be freed */
-pub unsafe fn dc_key_render_base64(
-    mut key: *const dc_key_t,
-    mut break_every: libc::c_int,
-    mut break_chars: *const libc::c_char,
-    mut add_checksum: libc::c_int,
-) -> *mut libc::c_char {
+pub fn dc_key_render_base64(key: *const dc_key_t, break_every: usize) -> *mut libc::c_char {
     if key.is_null() {
-        return 0 as *mut libc::c_char;
+        return std::ptr::null_mut();
     }
-    return dc_render_base64(
-        (*key).binary,
-        (*key).bytes as size_t,
-        break_every,
-        break_chars,
-        add_checksum,
-    );
+
+    let key = unsafe { *key };
+    let bytes = unsafe { slice::from_raw_parts(key.binary as *const u8, key.bytes as usize) };
+    assert_eq!(bytes.len(), key.bytes as usize);
+
+    let buf = if key.type_0 == 0 {
+        // public key
+        let skey = SignedPublicKey::from_bytes(Cursor::new(bytes)).expect("invalid pub key");
+        skey.to_bytes().expect("failed to serialize key")
+    } else {
+        // secret key
+        let skey = SignedSecretKey::from_bytes(Cursor::new(bytes)).expect("invalid sec key");
+        skey.to_bytes().expect("failed to serialize key")
+    };
+
+    let encoded = base64::encode(&buf);
+    let res = encoded
+        .as_bytes()
+        .chunks(break_every)
+        .fold(String::new(), |mut res, buf| {
+            // safe because we are using a base64 encoded string
+            res += unsafe { std::str::from_utf8_unchecked(buf) };
+            res += " ";
+            res
+        });
+
+    let res_c = CString::new(res.trim()).unwrap();
+
+    // need to use strdup to allocate the result with malloc
+    // so it can be `free`d later.
+    unsafe { libc::strdup(res_c.as_ptr()) }
 }
-/* each header line must be terminated by \r\n, the result must be freed */
-pub unsafe fn dc_key_render_asc(
-    mut key: *const dc_key_t,
-    mut add_header_lines: *const libc::c_char,
-) -> *mut libc::c_char {
-    /* see RFC 4880, 6.2.  Forming ASCII Armor, https://tools.ietf.org/html/rfc4880#section-6.2 */
-    let mut base64: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !key.is_null() {
-        base64 = dc_key_render_base64(
-            key,
-            76i32,
-            b"\r\n\x00" as *const u8 as *const libc::c_char,
-            2i32,
-        );
-        if !base64.is_null() {
-            /*checksum in new line*/
-            /* RFC: The encoded output stream must be represented in lines of no more than 76 characters each. */
-            ret =
-                dc_mprintf(b"-----BEGIN PGP %s KEY BLOCK-----\r\n%s\r\n%s\r\n-----END PGP %s KEY BLOCK-----\r\n\x00"
-                               as *const u8 as *const libc::c_char,
-                           if (*key).type_0 == 0i32 {
-                               b"PUBLIC\x00" as *const u8 as
-                                   *const libc::c_char
-                           } else {
-                               b"PRIVATE\x00" as *const u8 as
-                                   *const libc::c_char
-                           },
-                           if !add_header_lines.is_null() {
-                               add_header_lines
-                           } else {
-                               b"\x00" as *const u8 as *const libc::c_char
-                           }, base64,
-                           if (*key).type_0 == 0i32 {
-                               b"PUBLIC\x00" as *const u8 as
-                                   *const libc::c_char
-                           } else {
-                               b"PRIVATE\x00" as *const u8 as
-                                   *const libc::c_char
-                           })
-        }
+
+///  each header line must be terminated by `\r\n`, the result must be freed.
+pub fn dc_key_render_asc(key: *const dc_key_t, header: Option<(&str, &str)>) -> *mut libc::c_char {
+    if key.is_null() {
+        return std::ptr::null_mut();
     }
-    free(base64 as *mut libc::c_void);
-    return ret;
+
+    let key = unsafe { *key };
+
+    let headers = header.map(|(key, value)| {
+        let mut m = BTreeMap::new();
+        m.insert(key.to_string(), value.to_string());
+        m
+    });
+
+    let bytes = unsafe { slice::from_raw_parts(key.binary as *const u8, key.bytes as usize) };
+
+    let buf = if key.type_0 == 0 {
+        // public key
+        let skey = SignedPublicKey::from_bytes(Cursor::new(bytes)).expect("invalid key");
+        skey.to_armored_string(headers.as_ref())
+            .expect("failed to serialize key")
+    } else {
+        // secret key
+        let skey = SignedSecretKey::from_bytes(Cursor::new(bytes)).expect("invalid key");
+        skey.to_armored_string(headers.as_ref())
+            .expect("failed to serialize key")
+    };
+
+    let buf_c = CString::new(buf).unwrap();
+
+    // need to use strdup to allocate the result with malloc
+    // so it can be `free`d later.
+    unsafe { libc::strdup(buf_c.as_ptr()) }
 }
+
 pub unsafe fn dc_key_render_asc_to_file(
     mut key: *const dc_key_t,
     mut file: *const libc::c_char,
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut file_content: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(key.is_null() || file.is_null() || context.is_null()) {
-        file_content = dc_key_render_asc(key, 0 as *const libc::c_char);
+
+    if !(key.is_null() || file.is_null()) {
+        file_content = dc_key_render_asc(key, None);
+
         if !file_content.is_null() {
             if 0 == dc_write_file(
                 context,
@@ -490,8 +400,10 @@ pub unsafe fn dc_key_render_asc_to_file(
         }
     }
     free(file_content as *mut libc::c_void);
-    return success;
+
+    success
 }
+
 pub unsafe fn dc_format_fingerprint(mut fingerprint: *const libc::c_char) -> *mut libc::c_char {
     let mut i: libc::c_int = 0i32;
     let mut fingerprint_len: libc::c_int = strlen(fingerprint) as libc::c_int;
@@ -517,8 +429,10 @@ pub unsafe fn dc_format_fingerprint(mut fingerprint: *const libc::c_char) -> *mu
             }
         }
     }
-    return ret.buf;
+
+    ret.buf
 }
+
 pub unsafe fn dc_normalize_fingerprint(mut in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
         return 0 as *mut libc::c_char;
@@ -544,14 +458,21 @@ pub unsafe fn dc_normalize_fingerprint(mut in_0: *const libc::c_char) -> *mut li
         }
         p1 = p1.offset(1isize)
     }
-    return out.buf;
+
+    out.buf
 }
-pub unsafe fn dc_key_get_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_char {
+
+pub unsafe fn dc_key_get_fingerprint(
+    context: &dc_context_t,
+    key: *const dc_key_t,
+) -> *mut libc::c_char {
     let mut fingerprint_buf: *mut uint8_t = 0 as *mut uint8_t;
     let mut fingerprint_bytes: size_t = 0i32 as size_t;
     let mut fingerprint_hex: *mut libc::c_char = 0 as *mut libc::c_char;
     if !key.is_null() {
-        if !(0 == dc_pgp_calc_fingerprint(key, &mut fingerprint_buf, &mut fingerprint_bytes)) {
+        if !(0
+            == dc_pgp_calc_fingerprint(context, key, &mut fingerprint_buf, &mut fingerprint_bytes))
+        {
             fingerprint_hex = dc_binary_to_uc_hex(fingerprint_buf, fingerprint_bytes)
         }
     }
@@ -562,9 +483,14 @@ pub unsafe fn dc_key_get_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_c
         dc_strdup(0 as *const libc::c_char)
     };
 }
-pub unsafe fn dc_key_get_formatted_fingerprint(mut key: *const dc_key_t) -> *mut libc::c_char {
-    let mut rawhex: *mut libc::c_char = dc_key_get_fingerprint(key);
+
+pub unsafe fn dc_key_get_formatted_fingerprint(
+    context: &dc_context_t,
+    key: *const dc_key_t,
+) -> *mut libc::c_char {
+    let mut rawhex: *mut libc::c_char = dc_key_get_fingerprint(context, key);
     let mut formatted: *mut libc::c_char = dc_format_fingerprint(rawhex);
     free(rawhex as *mut libc::c_void);
-    return formatted;
+
+    formatted
 }

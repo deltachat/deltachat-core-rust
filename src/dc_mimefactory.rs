@@ -1,4 +1,11 @@
-use libc;
+use mmime::mailimf_types::*;
+use mmime::mailimf_types_helper::*;
+use mmime::mailmime_disposition::*;
+use mmime::mailmime_types::*;
+use mmime::mailmime_types_helper::*;
+use mmime::mailmime_write_mem::*;
+use mmime::mmapstring::*;
+use mmime::other::*;
 
 use crate::constants::VERSION;
 use crate::dc_chat::*;
@@ -19,7 +26,7 @@ use crate::x::*;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct dc_mimefactory_t {
+pub struct dc_mimefactory_t<'a> {
     pub from_addr: *mut libc::c_char,
     pub from_displayname: *mut libc::c_char,
     pub selfstatus: *mut libc::c_char,
@@ -28,8 +35,8 @@ pub struct dc_mimefactory_t {
     pub timestamp: time_t,
     pub rfc724_mid: *mut libc::c_char,
     pub loaded: dc_mimefactory_loaded_t,
-    pub msg: *mut dc_msg_t,
-    pub chat: *mut dc_chat_t,
+    pub msg: *mut dc_msg_t<'a>,
+    pub chat: *mut dc_chat_t<'a>,
     pub increation: libc::c_int,
     pub in_reply_to: *mut libc::c_char,
     pub references: *mut libc::c_char,
@@ -39,7 +46,7 @@ pub struct dc_mimefactory_t {
     pub out_gossiped: libc::c_int,
     pub out_last_added_location_id: uint32_t,
     pub error: *mut libc::c_char,
-    pub context: *mut dc_context_t,
+    pub context: &'a dc_context_t,
 }
 
 pub type dc_mimefactory_loaded_t = libc::c_uint;
@@ -47,11 +54,11 @@ pub const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
 pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;
 pub const DC_MF_NOTHING_LOADED: dc_mimefactory_loaded_t = 0;
 
-pub unsafe fn dc_mimefactory_init(
-    mut factory: *mut dc_mimefactory_t,
-    mut context: *mut dc_context_t,
+pub unsafe fn dc_mimefactory_init<'a>(
+    factory: *mut dc_mimefactory_t<'a>,
+    context: &'a dc_context_t,
 ) {
-    if factory.is_null() || context.is_null() {
+    if factory.is_null() {
         return;
     }
     memset(
@@ -61,6 +68,7 @@ pub unsafe fn dc_mimefactory_init(
     );
     (*factory).context = context;
 }
+
 pub unsafe fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
     if factory.is_null() {
         return;
@@ -101,20 +109,16 @@ pub unsafe fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
     (*factory).error = 0 as *mut libc::c_char;
     (*factory).timestamp = 0i32 as time_t;
 }
+
 pub unsafe fn dc_mimefactory_load_msg(
     mut factory: *mut dc_mimefactory_t,
     mut msg_id: uint32_t,
 ) -> libc::c_int {
-    let mut context: *mut dc_context_t = 0 as *mut dc_context_t;
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(factory.is_null()
-        || msg_id <= 9i32 as libc::c_uint
-        || (*factory).context.is_null()
-        || !(*factory).msg.is_null())
-    {
+    if !(factory.is_null() || msg_id <= 9i32 as libc::c_uint || !(*factory).msg.is_null()) {
         /*call empty() before */
-        context = (*factory).context;
+        let context = (*factory).context;
         (*factory).recipients_names = clist_new();
         (*factory).recipients_addr = clist_new();
         (*factory).msg = dc_msg_new_untyped(context);
@@ -137,10 +141,12 @@ pub unsafe fn dc_mimefactory_load_msg(
                 );
             } else {
                 stmt =
-                    dc_sqlite3_prepare((*context).sql,
-                                       b"SELECT c.authname, c.addr  FROM chats_contacts cc  LEFT JOIN contacts c ON cc.contact_id=c.id  WHERE cc.chat_id=? AND cc.contact_id>9;\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
+                    dc_sqlite3_prepare(
+                        context,
+                        &context.sql.clone().read().unwrap(),
+                        b"SELECT c.authname, c.addr  FROM chats_contacts cc  LEFT JOIN contacts c ON cc.contact_id=c.id  WHERE cc.chat_id=? AND cc.contact_id>9;\x00"
+                            as *const u8 as
+                            *const libc::c_char);
                 sqlite3_bind_int(stmt, 1i32, (*(*factory).msg).chat_id as libc::c_int);
                 while sqlite3_step(stmt) == 100i32 {
                     let mut authname: *const libc::c_char =
@@ -166,7 +172,6 @@ pub unsafe fn dc_mimefactory_load_msg(
                     }
                 }
                 sqlite3_finalize(stmt);
-                stmt = 0 as *mut sqlite3_stmt;
                 let mut command: libc::c_int =
                     dc_param_get_int((*(*factory).msg).param, 'S' as i32, 0i32);
                 if command == 5i32 {
@@ -176,7 +181,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                         0 as *const libc::c_char,
                     );
                     let mut self_addr: *mut libc::c_char = dc_sqlite3_get_config(
-                        (*context).sql,
+                        context,
+                        &context.sql.clone().read().unwrap(),
                         b"configured_addr\x00" as *const u8 as *const libc::c_char,
                         b"\x00" as *const u8 as *const libc::c_char,
                     );
@@ -202,7 +208,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                 if command != 6i32
                     && command != 7i32
                     && 0 != dc_sqlite3_get_config_int(
-                        (*context).sql,
+                        context,
+                        &context.sql.clone().read().unwrap(),
                         b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                         1i32,
                     )
@@ -211,7 +218,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                 }
             }
             stmt = dc_sqlite3_prepare(
-                (*context).sql,
+                context,
+                &context.sql.clone().read().unwrap(),
                 b"SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?\x00" as *const u8
                     as *const libc::c_char,
             );
@@ -236,19 +244,23 @@ pub unsafe fn dc_mimefactory_load_msg(
     sqlite3_finalize(stmt);
     return success;
 }
+
 unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     (*factory).from_addr = dc_sqlite3_get_config(
-        (*(*factory).context).sql,
+        (*factory).context,
+        &mut (*factory).context.sql.clone().read().unwrap(),
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
     (*factory).from_displayname = dc_sqlite3_get_config(
-        (*(*factory).context).sql,
+        (*factory).context,
+        &mut (*factory).context.sql.clone().read().unwrap(),
         b"displayname\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
     (*factory).selfstatus = dc_sqlite3_get_config(
-        (*(*factory).context).sql,
+        (*factory).context,
+        &mut (*factory).context.sql.clone().read().unwrap(),
         b"selfstatus\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
@@ -256,6 +268,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
         (*factory).selfstatus = dc_stock_str((*factory).context, 13i32)
     };
 }
+
 pub unsafe fn dc_mimefactory_load_mdn(
     mut factory: *mut dc_mimefactory_t,
     mut msg_id: uint32_t,
@@ -268,7 +281,8 @@ pub unsafe fn dc_mimefactory_load_mdn(
         (*factory).msg = dc_msg_new_untyped((*factory).context);
         if !(0
             == dc_sqlite3_get_config_int(
-                (*(*factory).context).sql,
+                (*factory).context,
+                &mut (*factory).context.sql.clone().read().unwrap(),
                 b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                 1i32,
             ))
@@ -278,7 +292,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
             if !(0 == dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
                 || 0 == dc_contact_load_from_db(
                     contact,
-                    (*(*factory).context).sql,
+                    &mut (*factory).context.sql.clone().read().unwrap(),
                     (*(*factory).msg).from_id,
                 ))
             {
@@ -315,12 +329,15 @@ pub unsafe fn dc_mimefactory_load_mdn(
         }
     }
     dc_contact_unref(contact);
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc::c_int {
-    let mut subject: *mut mailimf_subject = 0 as *mut mailimf_subject;
+    let mut subject: *mut mailimf_subject;
     let mut current_block: u64;
-    let mut imf_fields: *mut mailimf_fields = 0 as *mut mailimf_fields;
+    let mut imf_fields: *mut mailimf_fields;
     let mut message: *mut mailmime = 0 as *mut mailmime;
     let mut message_text: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut message_text2: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -374,8 +391,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             && !(*factory).recipients_addr.is_null()
             && (*(*factory).recipients_addr).count > 0i32
         {
-            let mut iter1: *mut clistiter = 0 as *mut clistiter;
-            let mut iter2: *mut clistiter = 0 as *mut clistiter;
+            let mut iter1: *mut clistiter;
+            let mut iter2: *mut clistiter;
             to = mailimf_address_list_new_empty();
             iter1 = (*(*factory).recipients_names).first;
             iter2 = (*(*factory).recipients_addr).first;
@@ -408,12 +425,12 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 iter1 = if !iter1.is_null() {
                     (*iter1).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 };
                 iter2 = if !iter2.is_null() {
                     (*iter2).next
                 } else {
-                    0 as *mut clistcell_s
+                    0 as *mut clistcell
                 }
             }
         }
@@ -844,7 +861,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     } else {
                         if !meta_part.is_null() {
                             mailmime_smart_add_part(message, meta_part);
-                            parts += 1
                         }
                         if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int)
                         {
@@ -858,12 +874,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 DC_PARAM_SET_LONGITUDE as libc::c_int,
                                 0.0,
                             );
-                            let kml_file = dc_get_message_kml(
-                                (*msg).context,
-                                (*msg).timestamp_sort,
-                                latitude,
-                                longitude,
-                            );
+                            let kml_file =
+                                dc_get_message_kml((*msg).timestamp_sort, latitude, longitude);
                             if !kml_file.is_null() {
                                 let content_type = mailmime_content_new_with_str(
                                     b"application/vnd.google-earth.kml+xml\x00" as *const u8
@@ -880,7 +892,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
 
                                 mailmime_smart_add_part(message, kml_mime_part);
-                                parts += 1;
                             }
                         }
 
@@ -909,7 +920,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                     mailmime_new_empty(content_type, mime_fields);
                                 mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
                                 mailmime_smart_add_part(message, kml_mime_part);
-                                parts += 1;
                                 if 0 == dc_param_exists(
                                     (*msg).param,
                                     DC_PARAM_SET_LATITUDE as libc::c_int,
@@ -939,8 +949,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 ) as *mut libc::c_void,
             );
             mailmime_add_part(message, multipart);
-            let mut p1: *mut libc::c_char = 0 as *mut libc::c_char;
-            let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
+            let mut p1: *mut libc::c_char;
+            let mut p2: *mut libc::c_char;
             if 0 != dc_param_get_int((*(*factory).msg).param, 'c' as i32, 0i32) {
                 p1 = dc_stock_str((*factory).context, 24i32)
             } else {
@@ -1050,19 +1060,17 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
     free(message_text2 as *mut libc::c_void);
     free(subject_str as *mut libc::c_void);
     free(grpimage as *mut libc::c_void);
-    return success;
+
+    success
 }
+
 unsafe fn get_subject(
     mut chat: *const dc_chat_t,
     mut msg: *const dc_msg_t,
     mut afwd_email: libc::c_int,
 ) -> *mut libc::c_char {
-    let mut context: *mut dc_context_t = if !chat.is_null() {
-        (*chat).context
-    } else {
-        0 as *mut dc_context_t
-    };
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
+    let context = (*chat).context;
+    let mut ret: *mut libc::c_char;
     let mut raw_subject: *mut libc::c_char =
         dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, (*msg).param, 32i32, context);
     let mut fwd: *const libc::c_char = if 0 != afwd_email {
@@ -1087,8 +1095,10 @@ unsafe fn get_subject(
         )
     }
     free(raw_subject as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
 unsafe fn set_error(mut factory: *mut dc_mimefactory_t, mut text: *const libc::c_char) {
     if factory.is_null() {
         return;
@@ -1096,10 +1106,11 @@ unsafe fn set_error(mut factory: *mut dc_mimefactory_t, mut text: *const libc::c
     free((*factory).error as *mut libc::c_void);
     (*factory).error = dc_strdup_keep_null(text);
 }
+
 unsafe fn build_body_text(mut text: *mut libc::c_char) -> *mut mailmime {
-    let mut mime_fields: *mut mailmime_fields = 0 as *mut mailmime_fields;
-    let mut message_part: *mut mailmime = 0 as *mut mailmime;
-    let mut content: *mut mailmime_content = 0 as *mut mailmime_content;
+    let mut mime_fields: *mut mailmime_fields;
+    let mut message_part: *mut mailmime;
+    let mut content: *mut mailmime_content;
     content = mailmime_content_new_with_str(b"text/plain\x00" as *const u8 as *const libc::c_char);
     clist_insert_after(
         (*content).ct_parameters,
@@ -1112,17 +1123,19 @@ unsafe fn build_body_text(mut text: *mut libc::c_char) -> *mut mailmime {
     mime_fields = mailmime_fields_new_encoding(MAILMIME_MECHANISM_8BIT as libc::c_int);
     message_part = mailmime_new_empty(content, mime_fields);
     mailmime_set_body_text(message_part, text, strlen(text));
-    return message_part;
+
+    message_part
 }
+
 unsafe fn build_body_file(
     mut msg: *const dc_msg_t,
     mut base_name: *const libc::c_char,
     mut ret_file_name_as_sent: *mut *mut libc::c_char,
 ) -> *mut mailmime {
-    let mut needs_ext: libc::c_int = 0;
-    let mut mime_fields: *mut mailmime_fields = 0 as *mut mailmime_fields;
+    let mut needs_ext: libc::c_int;
+    let mut mime_fields: *mut mailmime_fields;
     let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
-    let mut content: *mut mailmime_content = 0 as *mut mailmime_content;
+    let mut content: *mut mailmime_content;
     let mut pathNfilename: *mut libc::c_char =
         dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
     let mut mimetype: *mut libc::c_char =
@@ -1268,7 +1281,7 @@ unsafe fn build_body_file(
                         cur1 = if !cur1.is_null() {
                             (*cur1).next
                         } else {
-                            0 as *mut clistcell_s
+                            0 as *mut clistcell
                         }
                     }
                 }
@@ -1295,11 +1308,14 @@ unsafe fn build_body_file(
     free(filename_to_send as *mut libc::c_void);
     free(filename_encoded as *mut libc::c_void);
     free(suffix as *mut libc::c_void);
-    return mime_sub;
+
+    mime_sub
 }
-/* ******************************************************************************
+
+/*******************************************************************************
  * Render
  ******************************************************************************/
+
 unsafe fn is_file_size_okay(mut msg: *const dc_msg_t) -> libc::c_int {
     let mut file_size_okay: libc::c_int = 1i32;
     let mut pathNfilename: *mut libc::c_char =
@@ -1309,5 +1325,6 @@ unsafe fn is_file_size_okay(mut msg: *const dc_msg_t) -> libc::c_int {
         file_size_okay = 0i32
     }
     free(pathNfilename as *mut libc::c_void);
-    return file_size_okay;
+
+    file_size_okay
 }

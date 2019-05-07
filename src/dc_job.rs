@@ -1,4 +1,8 @@
-use libc;
+use mmime::mmapstring::*;
+
+use std::ffi::CStr;
+use std::time::{Duration, SystemTime};
+
 use rand::{thread_rng, Rng};
 
 use crate::constants::Event;
@@ -15,7 +19,6 @@ use crate::dc_loginparam::*;
 use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_smtp::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
@@ -45,18 +48,18 @@ pub struct dc_job_t {
     pub pending_error: *mut libc::c_char,
 }
 
-pub unsafe fn dc_perform_imap_jobs(mut context: *mut dc_context_t) {
+pub unsafe fn dc_perform_imap_jobs(context: &dc_context_t) {
     dc_log_info(
         context,
         0i32,
         b"INBOX-jobs started...\x00" as *const u8 as *const libc::c_char,
     );
-    pthread_mutex_lock(&mut (*context).inboxidle_condmutex);
-    let mut probe_imap_network: libc::c_int = (*context).probe_imap_network;
-    (*context).probe_imap_network = 0i32;
-    (*context).perform_inbox_jobs_needed = 0i32;
-    pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
-    dc_job_perform(context, 100i32, probe_imap_network);
+
+    let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
+    *context.probe_imap_network.clone().write().unwrap() = 0;
+    *context.perform_inbox_jobs_needed.clone().write().unwrap() = 0;
+
+    dc_job_perform(context, 100, probe_imap_network);
     dc_log_info(
         context,
         0i32,
@@ -64,12 +67,12 @@ pub unsafe fn dc_perform_imap_jobs(mut context: *mut dc_context_t) {
     );
 }
 unsafe fn dc_job_perform(
-    mut context: *mut dc_context_t,
+    context: &dc_context_t,
     mut thread: libc::c_int,
     mut probe_network: libc::c_int,
 ) {
-    let mut select_stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut job: dc_job_t = dc_job_t {
+    let mut select_stmt: *mut sqlite3_stmt;
+    let mut job = dc_job_t {
         job_id: 0,
         action: 0,
         foreign_id: 0,
@@ -80,128 +83,143 @@ unsafe fn dc_job_perform(
         try_again: 0,
         pending_error: 0 as *mut libc::c_char,
     };
-    memset(
-        &mut job as *mut dc_job_t as *mut libc::c_void,
-        0,
-        ::std::mem::size_of::<dc_job_t>(),
-    );
     job.param = dc_param_new();
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint) {
-        if probe_network == 0i32 {
-            select_stmt =
-                dc_sqlite3_prepare((*context).sql,
-                                   b"SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;\x00"
+
+    if probe_network == 0i32 {
+        select_stmt =
+            dc_sqlite3_prepare(
+                context,
+                &context.sql.clone().read().unwrap(),
+                b"SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;\x00"
+                    as *const u8 as *const libc::c_char);
+        sqlite3_bind_int64(select_stmt, 1i32, thread as sqlite3_int64);
+        sqlite3_bind_int64(select_stmt, 2i32, time(0 as *mut time_t) as sqlite3_int64);
+    } else {
+        select_stmt =
+            dc_sqlite3_prepare(
+                context,
+                &context.sql.clone().read().unwrap(),
+                b"SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;\x00"
                                        as *const u8 as *const libc::c_char);
-            sqlite3_bind_int64(select_stmt, 1i32, thread as sqlite3_int64);
-            sqlite3_bind_int64(select_stmt, 2i32, time(0 as *mut time_t) as sqlite3_int64);
-        } else {
-            select_stmt =
-                dc_sqlite3_prepare((*context).sql,
-                                   b"SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;\x00"
-                                       as *const u8 as *const libc::c_char);
-            sqlite3_bind_int64(select_stmt, 1i32, thread as sqlite3_int64);
-        }
-        while sqlite3_step(select_stmt) == 100i32 {
-            job.job_id = sqlite3_column_int(select_stmt, 0i32) as uint32_t;
-            job.action = sqlite3_column_int(select_stmt, 1i32);
-            job.foreign_id = sqlite3_column_int(select_stmt, 2i32) as uint32_t;
-            dc_param_set_packed(
-                job.param,
-                sqlite3_column_text(select_stmt, 3i32) as *mut libc::c_char,
+        sqlite3_bind_int64(select_stmt, 1i32, thread as sqlite3_int64);
+    }
+    while sqlite3_step(select_stmt) == 100i32 {
+        job.job_id = sqlite3_column_int(select_stmt, 0i32) as uint32_t;
+        job.action = sqlite3_column_int(select_stmt, 1i32);
+        job.foreign_id = sqlite3_column_int(select_stmt, 2i32) as uint32_t;
+        dc_param_set_packed(
+            job.param,
+            sqlite3_column_text(select_stmt, 3i32) as *mut libc::c_char,
+        );
+        job.added_timestamp = sqlite3_column_int64(select_stmt, 4i32) as time_t;
+        job.desired_timestamp = sqlite3_column_int64(select_stmt, 5i32) as time_t;
+        job.tries = sqlite3_column_int(select_stmt, 6i32);
+        dc_log_info(
+            context,
+            0i32,
+            b"%s-job #%i, action %i started...\x00" as *const u8 as *const libc::c_char,
+            if thread == 100i32 {
+                b"INBOX\x00" as *const u8 as *const libc::c_char
+            } else {
+                b"SMTP\x00" as *const u8 as *const libc::c_char
+            },
+            job.job_id as libc::c_int,
+            job.action as libc::c_int,
+        );
+        if 900i32 == job.action || 910i32 == job.action {
+            dc_job_kill_action(context, job.action);
+            sqlite3_finalize(select_stmt);
+            select_stmt = 0 as *mut sqlite3_stmt;
+            dc_jobthread_suspend(
+                context,
+                &mut context.sentbox_thread.clone().lock().unwrap(),
+                1,
             );
-            job.added_timestamp = sqlite3_column_int64(select_stmt, 4i32) as time_t;
-            job.desired_timestamp = sqlite3_column_int64(select_stmt, 5i32) as time_t;
-            job.tries = sqlite3_column_int(select_stmt, 6i32);
+            dc_jobthread_suspend(
+                context,
+                &mut context.mvbox_thread.clone().lock().unwrap(),
+                1,
+            );
+            dc_suspend_smtp_thread(context, 1i32);
+        }
+        let mut tries: libc::c_int = 0i32;
+        while tries <= 1i32 {
+            job.try_again = 0i32;
+            match job.action {
+                5901 => {
+                    dc_job_do_DC_JOB_SEND(context, &mut job);
+                }
+                110 => {
+                    dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context, &mut job);
+                }
+                130 => {
+                    dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context, &mut job);
+                }
+                120 => {
+                    dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context, &mut job);
+                }
+                200 => {
+                    dc_job_do_DC_JOB_MOVE_MSG(context, &mut job);
+                }
+                5011 => {
+                    dc_job_do_DC_JOB_SEND(context, &mut job);
+                }
+                900 => {
+                    dc_job_do_DC_JOB_CONFIGURE_IMAP(context, &mut job);
+                }
+                910 => {
+                    dc_job_do_DC_JOB_IMEX_IMAP(context, &mut job);
+                }
+                5005 => {
+                    dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &mut job);
+                }
+                5007 => {
+                    dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context, &mut job);
+                }
+                105 => {
+                    dc_housekeeping(context);
+                }
+                _ => {}
+            }
+            if job.try_again != -1i32 {
+                break;
+            }
+            tries += 1
+        }
+        if 900i32 == job.action || 910i32 == job.action {
+            dc_jobthread_suspend(
+                context,
+                &mut context.sentbox_thread.clone().lock().unwrap(),
+                0,
+            );
+            dc_jobthread_suspend(
+                context,
+                &mut context.mvbox_thread.clone().lock().unwrap(),
+                0,
+            );
+            dc_suspend_smtp_thread(context, 0i32);
+            break;
+        } else if job.try_again == 2i32 {
             dc_log_info(
                 context,
                 0i32,
-                b"%s-job #%i, action %i started...\x00" as *const u8 as *const libc::c_char,
+                b"%s-job #%i not yet ready and will be delayed.\x00" as *const u8
+                    as *const libc::c_char,
                 if thread == 100i32 {
                     b"INBOX\x00" as *const u8 as *const libc::c_char
                 } else {
                     b"SMTP\x00" as *const u8 as *const libc::c_char
                 },
                 job.job_id as libc::c_int,
-                job.action as libc::c_int,
             );
-            if 900i32 == job.action || 910i32 == job.action {
-                dc_job_kill_action(context, job.action);
-                sqlite3_finalize(select_stmt);
-                select_stmt = 0 as *mut sqlite3_stmt;
-                dc_jobthread_suspend(&mut (*context).sentbox_thread, 1i32);
-                dc_jobthread_suspend(&mut (*context).mvbox_thread, 1i32);
-                dc_suspend_smtp_thread(context, 1i32);
-            }
-            let mut tries: libc::c_int = 0i32;
-            while tries <= 1i32 {
-                job.try_again = 0i32;
-                match job.action {
-                    5901 => {
-                        dc_job_do_DC_JOB_SEND(context, &mut job);
-                    }
-                    110 => {
-                        dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context, &mut job);
-                    }
-                    130 => {
-                        dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context, &mut job);
-                    }
-                    120 => {
-                        dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context, &mut job);
-                    }
-                    200 => {
-                        dc_job_do_DC_JOB_MOVE_MSG(context, &mut job);
-                    }
-                    5011 => {
-                        dc_job_do_DC_JOB_SEND(context, &mut job);
-                    }
-                    900 => {
-                        dc_job_do_DC_JOB_CONFIGURE_IMAP(context, &mut job);
-                    }
-                    910 => {
-                        dc_job_do_DC_JOB_IMEX_IMAP(context, &mut job);
-                    }
-                    5005 => {
-                        dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &mut job);
-                    }
-                    5007 => {
-                        dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context, &mut job);
-                    }
-                    105 => {
-                        dc_housekeeping(context);
-                    }
-                    _ => {}
-                }
-                if job.try_again != -1i32 {
-                    break;
-                }
-                tries += 1
-            }
-            if 900i32 == job.action || 910i32 == job.action {
-                dc_jobthread_suspend(&mut (*context).sentbox_thread, 0i32);
-                dc_jobthread_suspend(&mut (*context).mvbox_thread, 0i32);
-                dc_suspend_smtp_thread(context, 0i32);
-                break;
-            } else if job.try_again == 2i32 {
-                dc_log_info(
-                    context,
-                    0i32,
-                    b"%s-job #%i not yet ready and will be delayed.\x00" as *const u8
-                        as *const libc::c_char,
-                    if thread == 100i32 {
-                        b"INBOX\x00" as *const u8 as *const libc::c_char
-                    } else {
-                        b"SMTP\x00" as *const u8 as *const libc::c_char
-                    },
-                    job.job_id as libc::c_int,
-                );
-            } else if job.try_again == -1i32 || job.try_again == 3i32 {
-                let mut tries_0: libc::c_int = job.tries + 1i32;
-                if tries_0 < 17i32 {
-                    job.tries = tries_0;
-                    let mut time_offset: time_t = get_backoff_time_offset(tries_0);
-                    job.desired_timestamp = job.added_timestamp + time_offset;
-                    dc_job_update(context, &mut job);
-                    dc_log_info(context, 0i32,
+        } else if job.try_again == -1i32 || job.try_again == 3i32 {
+            let mut tries_0: libc::c_int = job.tries + 1i32;
+            if tries_0 < 17i32 {
+                job.tries = tries_0;
+                let mut time_offset: time_t = get_backoff_time_offset(tries_0);
+                job.desired_timestamp = job.added_timestamp + time_offset;
+                dc_job_update(context, &mut job);
+                dc_log_info(context, 0i32,
                                 b"%s-job #%i not succeeded on try #%i, retry in ADD_TIME+%i (in %i seconds).\x00"
                                     as *const u8 as *const libc::c_char,
                                 if thread == 100i32 {
@@ -214,43 +232,49 @@ unsafe fn dc_job_perform(
                                 time_offset,
                                 job.added_timestamp + time_offset -
                                     time(0 as *mut time_t));
-                    if thread == 5000i32 && tries_0 < 17i32 - 1i32 {
-                        pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-                        (*context).perform_smtp_jobs_needed = 2i32;
-                        pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
-                    }
-                } else {
-                    if job.action == 5901i32 {
-                        dc_set_msg_failed(context, job.foreign_id, job.pending_error);
-                    }
-                    dc_job_delete(context, &mut job);
+                if thread == 5000i32 && tries_0 < 17i32 - 1i32 {
+                    context
+                        .smtp_state
+                        .clone()
+                        .0
+                        .lock()
+                        .unwrap()
+                        .perform_jobs_needed = 2i32;
                 }
-                if !(0 != probe_network) {
-                    continue;
-                }
-                // on dc_maybe_network() we stop trying here;
-                // these jobs are already tried once.
-                // otherwise, we just continue with the next job
-                // to give other jobs a chance being tried at least once.
-                break;
             } else {
+                if job.action == 5901i32 {
+                    dc_set_msg_failed(context, job.foreign_id, job.pending_error);
+                }
                 dc_job_delete(context, &mut job);
             }
+            if !(0 != probe_network) {
+                continue;
+            }
+            // on dc_maybe_network() we stop trying here;
+            // these jobs are already tried once.
+            // otherwise, we just continue with the next job
+            // to give other jobs a chance being tried at least once.
+            break;
+        } else {
+            dc_job_delete(context, &mut job);
         }
     }
     dc_param_unref(job.param);
     free(job.pending_error as *mut libc::c_void);
     sqlite3_finalize(select_stmt);
 }
-unsafe fn dc_job_delete(mut context: *mut dc_context_t, mut job: *const dc_job_t) {
+
+unsafe fn dc_job_delete(context: &dc_context_t, job: &dc_job_t) {
     let mut delete_stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"DELETE FROM jobs WHERE id=?;\x00" as *const u8 as *const libc::c_char,
     );
-    sqlite3_bind_int(delete_stmt, 1i32, (*job).job_id as libc::c_int);
+    sqlite3_bind_int(delete_stmt, 1i32, job.job_id as libc::c_int);
     sqlite3_step(delete_stmt);
     sqlite3_finalize(delete_stmt);
 }
+
 /* ******************************************************************************
  * Tools
  ******************************************************************************/
@@ -266,52 +290,53 @@ unsafe fn get_backoff_time_offset(mut c_tries: libc::c_int) -> time_t {
     }
     return seconds;
 }
-unsafe fn dc_job_update(mut context: *mut dc_context_t, mut job: *const dc_job_t) {
+unsafe fn dc_job_update(context: &dc_context_t, job: &dc_job_t) {
     let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"UPDATE jobs SET desired_timestamp=?, tries=?, param=? WHERE id=?;\x00" as *const u8
             as *const libc::c_char,
     );
-    sqlite3_bind_int64(stmt, 1i32, (*job).desired_timestamp as sqlite3_int64);
-    sqlite3_bind_int64(stmt, 2i32, (*job).tries as sqlite3_int64);
-    sqlite3_bind_text(stmt, 3i32, (*(*job).param).packed, -1i32, None);
-    sqlite3_bind_int(stmt, 4i32, (*job).job_id as libc::c_int);
+    sqlite3_bind_int64(stmt, 1i32, job.desired_timestamp as sqlite3_int64);
+    sqlite3_bind_int64(stmt, 2i32, job.tries as sqlite3_int64);
+    sqlite3_bind_text(stmt, 3i32, (*job.param).packed, -1i32, None);
+    sqlite3_bind_int(stmt, 4i32, job.job_id as libc::c_int);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-unsafe fn dc_suspend_smtp_thread(mut context: *mut dc_context_t, mut suspend: libc::c_int) {
-    pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-    (*context).smtp_suspended = suspend;
-    pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
+unsafe fn dc_suspend_smtp_thread(mut context: &dc_context_t, mut suspend: libc::c_int) {
+    context.smtp_state.clone().0.lock().unwrap().suspended = suspend;
     if 0 != suspend {
         loop {
-            pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-            if (*context).smtp_doing_jobs == 0i32 {
-                pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
+            if context.smtp_state.clone().0.lock().unwrap().doing_jobs == 0 {
                 return;
             }
-            pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
             usleep((300i32 * 1000i32) as libc::useconds_t);
         }
-    };
+    }
 }
-unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: *mut dc_context_t, mut job: *mut dc_job_t) {
+unsafe extern "C" fn dc_job_do_DC_JOB_SEND(context: &dc_context_t, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut buf_bytes: size_t = 0i32 as size_t;
     let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut recipients_list: *mut clist = 0 as *mut clist;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     /* connect to SMTP server, if not yet done */
-    if 0 == dc_smtp_is_connected((*context).smtp) {
+    if !context.smtp.clone().lock().unwrap().is_connected() {
         let mut loginparam: *mut dc_loginparam_t = dc_loginparam_new();
         dc_loginparam_read(
+            context,
             loginparam,
-            (*context).sql,
+            &context.sql.clone().read().unwrap(),
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
-        let mut connected: libc::c_int = dc_smtp_connect((*context).smtp, loginparam);
+        let mut connected = context
+            .smtp
+            .clone()
+            .lock()
+            .unwrap()
+            .connect(context, loginparam);
         dc_loginparam_unref(loginparam);
         if 0 == connected {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
@@ -324,40 +349,48 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: *mut dc_context_t, mut j
     }
     match current_block {
         13109137661213826276 => {
-            filename = dc_param_get((*job).param, 'f' as i32, 0 as *const libc::c_char);
+            filename = dc_param_get(job.param, 'f' as i32, 0 as *const libc::c_char);
             if filename.is_null() {
                 dc_log_warning(
                     context,
                     0i32,
                     b"Missing file name for job %d\x00" as *const u8 as *const libc::c_char,
-                    (*job).job_id,
+                    job.job_id,
                 );
             } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
-                recipients = dc_param_get((*job).param, 'R' as i32, 0 as *const libc::c_char);
+                recipients = dc_param_get(job.param, 'R' as i32, 0 as *const libc::c_char);
                 if recipients.is_null() {
                     dc_log_warning(
                         context,
                         0i32,
                         b"Missing recipients for job %d\x00" as *const u8 as *const libc::c_char,
-                        (*job).job_id,
+                        job.job_id,
                     );
                 } else {
-                    recipients_list = dc_str_to_clist(
-                        recipients,
-                        b"\x1e\x00" as *const u8 as *const libc::c_char,
-                    );
+                    let recipients_list = std::ffi::CStr::from_ptr(recipients)
+                        .to_str()
+                        .unwrap()
+                        .split("\x1e")
+                        .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
+                            Ok(addr) => Some(addr),
+                            Err(err) => {
+                                eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>();
                     /* if there is a msg-id and it does not exist in the db, cancel sending.
                     this happends if dc_delete_msgs() was called
                     before the generated mime was sent out */
-                    if 0 != (*job).foreign_id {
-                        if 0 == dc_msg_exists(context, (*job).foreign_id) {
+                    if 0 != job.foreign_id {
+                        if 0 == dc_msg_exists(context, job.foreign_id) {
                             dc_log_warning(
                                 context,
                                 0i32,
                                 b"Message %i for job %i does not exist\x00" as *const u8
                                     as *const libc::c_char,
-                                (*job).foreign_id,
-                                (*job).job_id,
+                                job.foreign_id,
+                                job.job_id,
                             );
                             current_block = 14216916617354591294;
                         } else {
@@ -370,48 +403,40 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: *mut dc_context_t, mut j
                         14216916617354591294 => {}
                         _ => {
                             /* send message */
-                            if 0 == dc_smtp_send_msg(
-                                (*context).smtp,
+                            let body =
+                                std::slice::from_raw_parts(buf as *const u8, buf_bytes).to_vec();
+                            if 0 == context.smtp.clone().lock().unwrap().send(
+                                context,
                                 recipients_list,
-                                buf as *const libc::c_char,
-                                buf_bytes,
+                                body,
                             ) {
-                                if 0 != (*job).foreign_id
-                                    && (MAILSMTP_ERROR_EXCEED_STORAGE_ALLOCATION as libc::c_int
-                                        == (*(*context).smtp).error_etpan
-                                        || MAILSMTP_ERROR_INSUFFICIENT_SYSTEM_STORAGE
-                                            as libc::c_int
-                                            == (*(*context).smtp).error_etpan)
-                                {
-                                    dc_set_msg_failed(
-                                        context,
-                                        (*job).foreign_id,
-                                        (*(*context).smtp).error,
-                                    );
-                                } else {
-                                    dc_smtp_disconnect((*context).smtp);
-                                    dc_job_try_again_later(job, -1i32, (*(*context).smtp).error);
-                                }
+                                context.smtp.clone().lock().unwrap().disconnect();
+                                dc_job_try_again_later(
+                                    job,
+                                    -1i32,
+                                    (*&mut context.smtp.clone().lock().unwrap()).error,
+                                );
                             } else {
                                 dc_delete_file(context, filename);
-                                if 0 != (*job).foreign_id {
-                                    dc_update_msg_state(context, (*job).foreign_id, 26i32);
+                                if 0 != job.foreign_id {
+                                    dc_update_msg_state(context, job.foreign_id, 26i32);
                                     stmt = dc_sqlite3_prepare(
-                                        (*context).sql,
+                                        context,
+                                        &context.sql.clone().read().unwrap(),
                                         b"SELECT chat_id FROM msgs WHERE id=?\x00" as *const u8
                                             as *const libc::c_char,
                                     );
-                                    sqlite3_bind_int(stmt, 1i32, (*job).foreign_id as libc::c_int);
+                                    sqlite3_bind_int(stmt, 1i32, job.foreign_id as libc::c_int);
                                     let mut chat_id: libc::c_int = if sqlite3_step(stmt) == 100i32 {
                                         sqlite3_column_int(stmt, 0i32)
                                     } else {
                                         0i32
                                     };
-                                    ((*context).cb)(
+                                    (context.cb)(
                                         context,
                                         Event::MSG_DELIVERED,
                                         chat_id as uintptr_t,
-                                        (*job).foreign_id as uintptr_t,
+                                        job.foreign_id as uintptr_t,
                                     );
                                 }
                             }
@@ -423,35 +448,32 @@ unsafe extern "C" fn dc_job_do_DC_JOB_SEND(mut context: *mut dc_context_t, mut j
         _ => {}
     }
     sqlite3_finalize(stmt);
-    if !recipients_list.is_null() {
-        clist_free_content(recipients_list);
-        clist_free(recipients_list);
-    }
     free(recipients as *mut libc::c_void);
     free(buf);
     free(filename as *mut libc::c_void);
 }
 // this value does not increase the number of tries
 pub unsafe fn dc_job_try_again_later(
-    mut job: *mut dc_job_t,
-    mut try_again: libc::c_int,
-    mut pending_error: *const libc::c_char,
+    job: &mut dc_job_t,
+    try_again: libc::c_int,
+    pending_error: *const libc::c_char,
 ) {
-    if job.is_null() {
-        return;
-    }
-    (*job).try_again = try_again;
-    free((*job).pending_error as *mut libc::c_void);
-    (*job).pending_error = dc_strdup_keep_null(pending_error);
+    job.try_again = try_again;
+    free(job.pending_error as *mut libc::c_void);
+    job.pending_error = dc_strdup_keep_null(pending_error);
 }
-unsafe fn dc_job_do_DC_JOB_MOVE_MSG(mut context: *mut dc_context_t, mut job: *mut dc_job_t) {
+
+unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &dc_context_t, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut dest_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut dest_uid: uint32_t = 0i32 as uint32_t;
-    if 0 == dc_imap_is_connected((*context).inbox) {
-        connect_to_inbox(context);
-        if 0 == dc_imap_is_connected((*context).inbox) {
+
+    let inbox = context.inbox.read().unwrap();
+
+    if !inbox.is_connected() {
+        connect_to_inbox(context, &inbox);
+        if !inbox.is_connected() {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             current_block = 2238328302157162973;
         } else {
@@ -462,25 +484,29 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(mut context: *mut dc_context_t, mut job: *mu
     }
     match current_block {
         2473556513754201174 => {
-            if !(0 == dc_msg_load_from_db(msg, context, (*job).foreign_id)) {
+            if !(0 == dc_msg_load_from_db(msg, context, job.foreign_id)) {
                 if dc_sqlite3_get_config_int(
-                    (*context).sql,
+                    context,
+                    &context.sql.clone().read().unwrap(),
                     b"folders_configured\x00" as *const u8 as *const libc::c_char,
                     0i32,
                 ) < 3i32
                 {
-                    dc_configure_folders(context, (*context).inbox, 0x1i32);
+                    inbox.configure_folders(context, 0x1i32);
                 }
                 dest_folder = dc_sqlite3_get_config(
-                    (*context).sql,
+                    context,
+                    &context.sql.clone().read().unwrap(),
                     b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
                     0 as *const libc::c_char,
                 );
-                match dc_imap_move(
-                    (*context).inbox,
-                    (*msg).server_folder,
+
+                let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                match inbox.mv(
+                    context,
+                    server_folder,
                     (*msg).server_uid,
-                    dest_folder,
+                    CStr::from_ptr(dest_folder).to_str().unwrap(),
                     &mut dest_uid,
                 ) as libc::c_uint
                 {
@@ -528,30 +554,28 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(mut context: *mut dc_context_t, mut job: *mu
 /* ******************************************************************************
  * IMAP-jobs
  ******************************************************************************/
-unsafe fn connect_to_inbox(mut context: *mut dc_context_t) -> libc::c_int {
-    let mut ret_connected: libc::c_int = 0i32;
-    ret_connected = dc_connect_to_configured_imap(context, (*context).inbox);
+unsafe fn connect_to_inbox(context: &dc_context_t, inbox: &Imap) -> libc::c_int {
+    let mut ret_connected: libc::c_int;
+
+    ret_connected = dc_connect_to_configured_imap(context, inbox);
     if !(0 == ret_connected) {
-        dc_imap_set_watch_folder(
-            (*context).inbox,
-            b"INBOX\x00" as *const u8 as *const libc::c_char,
-        );
+        inbox.set_watch_folder(b"INBOX\x00" as *const u8 as *const libc::c_char);
     }
-    return ret_connected;
+    ret_connected
 }
-unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(
-    mut context: *mut dc_context_t,
-    mut job: *mut dc_job_t,
-) {
+
+unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &dc_context_t, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut folder: *mut libc::c_char =
-        dc_param_get((*job).param, 'Z' as i32, 0 as *const libc::c_char);
-    let mut uid: uint32_t = dc_param_get_int((*job).param, 'z' as i32, 0i32) as uint32_t;
+        dc_param_get(job.param, 'Z' as i32, 0 as *const libc::c_char);
+    let mut uid: uint32_t = dc_param_get_int(job.param, 'z' as i32, 0i32) as uint32_t;
     let mut dest_folder: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut dest_uid: uint32_t = 0i32 as uint32_t;
-    if 0 == dc_imap_is_connected((*context).inbox) {
-        connect_to_inbox(context);
-        if 0 == dc_imap_is_connected((*context).inbox) {
+    let mut inbox = context.inbox.read().unwrap();
+
+    if !inbox.is_connected() {
+        connect_to_inbox(context, &inbox);
+        if !inbox.is_connected() {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             current_block = 2670689566614003383;
         } else {
@@ -562,28 +586,28 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(
     }
     match current_block {
         11006700562992250127 => {
-            if dc_imap_set_seen((*context).inbox, folder, uid) as libc::c_uint
-                == 0i32 as libc::c_uint
-            {
+            let folder = CStr::from_ptr(folder).to_str().unwrap();
+            if inbox.set_seen(context, folder, uid) as libc::c_uint == 0i32 as libc::c_uint {
                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             }
-            if 0 != dc_param_get_int((*job).param, 'M' as i32, 0i32) {
+            if 0 != dc_param_get_int(job.param, 'M' as i32, 0i32) {
                 if dc_sqlite3_get_config_int(
-                    (*context).sql,
+                    context,
+                    &context.sql.clone().read().unwrap(),
                     b"folders_configured\x00" as *const u8 as *const libc::c_char,
                     0i32,
                 ) < 3i32
                 {
-                    dc_configure_folders(context, (*context).inbox, 0x1i32);
+                    inbox.configure_folders(context, 0x1i32);
                 }
                 dest_folder = dc_sqlite3_get_config(
-                    (*context).sql,
+                    context,
+                    &context.sql.clone().read().unwrap(),
                     b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
                     0 as *const libc::c_char,
                 );
-                match dc_imap_move((*context).inbox, folder, uid, dest_folder, &mut dest_uid)
-                    as libc::c_uint
-                {
+                let dest_folder = CStr::from_ptr(dest_folder).to_str().unwrap();
+                match inbox.mv(context, folder, uid, dest_folder, &mut dest_uid) as libc::c_uint {
                     1 => {
                         dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
                     }
@@ -596,15 +620,14 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(
     free(folder as *mut libc::c_void);
     free(dest_folder as *mut libc::c_void);
 }
-unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
-    mut context: *mut dc_context_t,
-    mut job: *mut dc_job_t,
-) {
+unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &dc_context_t, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    if 0 == dc_imap_is_connected((*context).inbox) {
-        connect_to_inbox(context);
-        if 0 == dc_imap_is_connected((*context).inbox) {
+    let inbox = context.inbox.read().unwrap();
+
+    if !inbox.is_connected() {
+        connect_to_inbox(context, &inbox);
+        if !inbox.is_connected() {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             current_block = 17792648348530113339;
         } else {
@@ -615,10 +638,9 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
     }
     match current_block {
         15240798224410183470 => {
-            if !(0 == dc_msg_load_from_db(msg, context, (*job).foreign_id)) {
-                match dc_imap_set_seen((*context).inbox, (*msg).server_folder, (*msg).server_uid)
-                    as libc::c_uint
-                {
+            if !(0 == dc_msg_load_from_db(msg, context, job.foreign_id)) {
+                let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                match inbox.set_seen(context, server_folder, (*msg).server_uid) as libc::c_uint {
                     0 => {}
                     1 => {
                         current_block = 12392248546350854223;
@@ -629,16 +651,16 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
                             _ => {
                                 if 0 != dc_param_get_int((*msg).param, 'r' as i32, 0i32)
                                     && 0 != dc_sqlite3_get_config_int(
-                                        (*context).sql,
+                                        context,
+                                        &context.sql.clone().read().unwrap(),
                                         b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                                         1i32,
                                     )
                                 {
-                                    match dc_imap_set_mdnsent(
-                                        (*context).inbox,
-                                        (*msg).server_folder,
-                                        (*msg).server_uid,
-                                    ) as libc::c_uint
+                                    let folder =
+                                        CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                                    match inbox.set_mdnsent(context, folder, (*msg).server_uid)
+                                        as libc::c_uint
                                     {
                                         1 => {
                                             current_block = 4016212065805849280;
@@ -685,16 +707,17 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
                             _ => {
                                 if 0 != dc_param_get_int((*msg).param, 'r' as i32, 0i32)
                                     && 0 != dc_sqlite3_get_config_int(
-                                        (*context).sql,
+                                        context,
+                                        &context.sql.clone().read().unwrap(),
                                         b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
                                         1i32,
                                     )
                                 {
-                                    match dc_imap_set_mdnsent(
-                                        (*context).inbox,
-                                        (*msg).server_folder,
-                                        (*msg).server_uid,
-                                    ) as libc::c_uint
+                                    let folder =
+                                        CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+
+                                    match inbox.set_mdnsent(context, folder, (*msg).server_uid)
+                                        as libc::c_uint
                                     {
                                         1 => {
                                             current_block = 4016212065805849280;
@@ -739,7 +762,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(
     }
     dc_msg_unref(msg);
 }
-unsafe fn dc_send_mdn(mut context: *mut dc_context_t, mut msg_id: uint32_t) {
+unsafe fn dc_send_mdn(mut context: &dc_context_t, mut msg_id: uint32_t) {
     let mut mimefactory: dc_mimefactory_t = dc_mimefactory_t {
         from_addr: 0 as *mut libc::c_char,
         from_displayname: 0 as *mut libc::c_char,
@@ -760,12 +783,9 @@ unsafe fn dc_send_mdn(mut context: *mut dc_context_t, mut msg_id: uint32_t) {
         out_gossiped: 0,
         out_last_added_location_id: 0,
         error: 0 as *mut libc::c_char,
-        context: 0 as *mut dc_context_t,
+        context,
     };
     dc_mimefactory_init(&mut mimefactory, context);
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
     if !(0 == dc_mimefactory_load_mdn(&mut mimefactory, msg_id)
         || 0 == dc_mimefactory_render(&mut mimefactory))
     {
@@ -785,11 +805,11 @@ unsafe fn dc_send_mdn(mut context: *mut dc_context_t, mut msg_id: uint32_t) {
  * @return 1=success, 0=error
  */
 unsafe fn dc_add_smtp_job(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut action: libc::c_int,
     mut mimefactory: *mut dc_mimefactory_t,
 ) -> libc::c_int {
-    let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut pathNfilename: *mut libc::c_char;
     let mut success: libc::c_int = 0i32;
     let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut param: *mut dc_param_t = dc_param_new();
@@ -849,15 +869,15 @@ unsafe fn dc_add_smtp_job(
     return success;
 }
 pub unsafe fn dc_job_add(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut action: libc::c_int,
     mut foreign_id: libc::c_int,
     mut param: *const libc::c_char,
     mut delay_seconds: libc::c_int,
 ) {
     let mut timestamp: time_t = time(0 as *mut time_t);
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut thread: libc::c_int = 0i32;
+    let mut stmt: *mut sqlite3_stmt;
+    let mut thread: libc::c_int;
     if action >= 100i32 && action < 100i32 + 1000i32 {
         thread = 100i32
     } else if action >= 5000i32 && action < 5000i32 + 1000i32 {
@@ -866,8 +886,10 @@ pub unsafe fn dc_job_add(
         return;
     }
     stmt =
-        dc_sqlite3_prepare((*context).sql,
-                           b"INSERT INTO jobs (added_timestamp, thread, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?,?);\x00"
+        dc_sqlite3_prepare(
+            context,
+            &context.sql.clone().read().unwrap(),
+            b"INSERT INTO jobs (added_timestamp, thread, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?,?);\x00"
                                as *const u8 as *const libc::c_char);
     sqlite3_bind_int64(stmt, 1i32, timestamp as sqlite3_int64);
     sqlite3_bind_int(stmt, 2i32, thread);
@@ -897,56 +919,39 @@ pub unsafe fn dc_job_add(
         dc_interrupt_smtp_idle(context);
     };
 }
-pub unsafe fn dc_interrupt_smtp_idle(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        dc_log_warning(
-            context,
-            0i32,
-            b"Interrupt SMTP-idle: Bad parameters.\x00" as *const u8 as *const libc::c_char,
-        );
-        return;
-    }
+pub unsafe fn dc_interrupt_smtp_idle(mut context: &dc_context_t) {
     dc_log_info(
         context,
         0i32,
         b"Interrupting SMTP-idle...\x00" as *const u8 as *const libc::c_char,
     );
-    pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-    (*context).perform_smtp_jobs_needed = 1i32;
-    (*context).smtpidle_condflag = 1i32;
-    pthread_cond_signal(&mut (*context).smtpidle_cond);
-    pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
+
+    let &(ref lock, ref cvar) = &*context.smtp_state.clone();
+    let mut state = lock.lock().unwrap();
+
+    state.perform_jobs_needed = 1;
+    state.idle = true;
+    cvar.notify_one();
 }
-pub unsafe fn dc_interrupt_imap_idle(mut context: *mut dc_context_t) {
-    if context.is_null()
-        || (*context).magic != 0x11a11807i32 as libc::c_uint
-        || (*context).inbox.is_null()
-    {
-        dc_log_warning(
-            context,
-            0i32,
-            b"Interrupt IMAP-IDLE: Bad parameters.\x00" as *const u8 as *const libc::c_char,
-        );
-        return;
-    }
+
+pub unsafe fn dc_interrupt_imap_idle(context: &dc_context_t) {
     dc_log_info(
         context,
         0i32,
         b"Interrupting IMAP-IDLE...\x00" as *const u8 as *const libc::c_char,
     );
-    pthread_mutex_lock(&mut (*context).inboxidle_condmutex);
-    (*context).perform_inbox_jobs_needed = 1i32;
-    pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
-    dc_imap_interrupt_idle((*context).inbox);
+
+    *context.perform_inbox_jobs_needed.write().unwrap() = 1;
+    context.inbox.read().unwrap().interrupt_idle();
 }
-unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(
-    mut context: *mut dc_context_t,
-    mut job: *mut dc_job_t,
-) {
+
+unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &dc_context_t, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut delete_from_server: libc::c_int = 1i32;
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    if !(0 == dc_msg_load_from_db(msg, context, (*job).foreign_id)
+    let inbox = context.inbox.read().unwrap();
+
+    if !(0 == dc_msg_load_from_db(msg, context, job.foreign_id)
         || (*msg).rfc724_mid.is_null()
         || *(*msg).rfc724_mid.offset(0isize) as libc::c_int == 0i32)
     {
@@ -962,9 +967,9 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(
         }
         /* if this is the last existing part of the message, we delete the message from the server */
         if 0 != delete_from_server {
-            if 0 == dc_imap_is_connected((*context).inbox) {
-                connect_to_inbox(context);
-                if 0 == dc_imap_is_connected((*context).inbox) {
+            if !inbox.is_connected() {
+                connect_to_inbox(context, &inbox);
+                if !inbox.is_connected() {
                     dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
                     current_block = 8913536887710889399;
                 } else {
@@ -976,12 +981,9 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(
             match current_block {
                 8913536887710889399 => {}
                 _ => {
-                    if 0 == dc_imap_delete_msg(
-                        (*context).inbox,
-                        (*msg).rfc724_mid,
-                        (*msg).server_folder,
-                        (*msg).server_uid,
-                    ) {
+                    let mid = CStr::from_ptr((*msg).rfc724_mid).to_str().unwrap();
+                    let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                    if 0 == inbox.delete_msg(context, mid, server_folder, &mut (*msg).server_uid) {
                         dc_job_try_again_later(job, -1i32, 0 as *const libc::c_char);
                         current_block = 8913536887710889399;
                     } else {
@@ -1001,26 +1003,29 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(
     }
     dc_msg_unref(msg);
 }
+
 /* delete all pending jobs with the given action */
-pub unsafe fn dc_job_kill_action(mut context: *mut dc_context_t, mut action: libc::c_int) {
-    if context.is_null() {
-        return;
-    }
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
-        (*context).sql,
+pub unsafe fn dc_job_kill_action(mut context: &dc_context_t, mut action: libc::c_int) {
+    let mut stmt = dc_sqlite3_prepare(
+        context,
+        &context.sql.clone().read().unwrap(),
         b"DELETE FROM jobs WHERE action=?;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_bind_int(stmt, 1i32, action);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
-pub unsafe fn dc_perform_imap_fetch(mut context: *mut dc_context_t) {
+
+pub unsafe fn dc_perform_imap_fetch(context: &dc_context_t) {
+    let inbox = context.inbox.read().unwrap();
+
     let mut start: libc::clock_t = clock();
-    if 0 == connect_to_inbox(context) {
+    if 0 == connect_to_inbox(context, &inbox) {
         return;
     }
     if dc_sqlite3_get_config_int(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"inbox_watch\x00" as *const u8 as *const libc::c_char,
         1i32,
     ) == 0i32
@@ -1037,14 +1042,14 @@ pub unsafe fn dc_perform_imap_fetch(mut context: *mut dc_context_t) {
         0i32,
         b"INBOX-fetch started...\x00" as *const u8 as *const libc::c_char,
     );
-    dc_imap_fetch((*context).inbox);
-    if 0 != (*(*context).inbox).should_reconnect {
+    inbox.fetch(context);
+    if inbox.should_reconnect() {
         dc_log_info(
             context,
             0i32,
             b"INBOX-fetch aborted, starting over...\x00" as *const u8 as *const libc::c_char,
         );
-        dc_imap_fetch((*context).inbox);
+        inbox.fetch(context);
     }
     dc_log_info(
         context,
@@ -1053,220 +1058,229 @@ pub unsafe fn dc_perform_imap_fetch(mut context: *mut dc_context_t) {
         clock().wrapping_sub(start) as libc::c_double * 1000.0f64 / 1000000i32 as libc::c_double,
     );
 }
-pub unsafe fn dc_perform_imap_idle(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
-    connect_to_inbox(context);
-    pthread_mutex_lock(&mut (*context).inboxidle_condmutex);
-    if 0 != (*context).perform_inbox_jobs_needed {
+
+pub unsafe fn dc_perform_imap_idle(context: &dc_context_t) {
+    let inbox = context.inbox.read().unwrap();
+
+    connect_to_inbox(context, &inbox);
+
+    if 0 != *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         dc_log_info(
             context,
             0i32,
             b"INBOX-IDLE will not be started because of waiting jobs.\x00" as *const u8
                 as *const libc::c_char,
         );
-        pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
         return;
     }
-    pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
     dc_log_info(
         context,
         0i32,
         b"INBOX-IDLE started...\x00" as *const u8 as *const libc::c_char,
     );
-    dc_imap_idle((*context).inbox);
+    inbox.idle(context);
     dc_log_info(
         context,
         0i32,
         b"INBOX-IDLE ended.\x00" as *const u8 as *const libc::c_char,
     );
 }
-pub unsafe fn dc_perform_mvbox_fetch(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
+
+pub unsafe fn dc_perform_mvbox_fetch(context: &dc_context_t) {
     let mut use_network: libc::c_int = dc_sqlite3_get_config_int(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"mvbox_watch\x00" as *const u8 as *const libc::c_char,
         1i32,
     );
-    dc_jobthread_fetch(&mut (*context).mvbox_thread, use_network);
+    dc_jobthread_fetch(
+        context,
+        &mut context.mvbox_thread.clone().lock().unwrap(),
+        use_network,
+    );
 }
-pub unsafe fn dc_perform_mvbox_idle(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
+
+pub unsafe fn dc_perform_mvbox_idle(context: &dc_context_t) {
     let mut use_network: libc::c_int = dc_sqlite3_get_config_int(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"mvbox_watch\x00" as *const u8 as *const libc::c_char,
         1i32,
     );
-    dc_jobthread_idle(&mut (*context).mvbox_thread, use_network);
+    dc_jobthread_idle(
+        context,
+        &mut context.mvbox_thread.clone().lock().unwrap(),
+        use_network,
+    );
 }
-pub unsafe fn dc_interrupt_mvbox_idle(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        dc_log_warning(
-            context,
-            0i32,
-            b"Interrupt MVBOX-IDLE: Bad parameters.\x00" as *const u8 as *const libc::c_char,
-        );
-        return;
-    }
-    dc_jobthread_interrupt_idle(&mut (*context).mvbox_thread);
+
+pub unsafe fn dc_interrupt_mvbox_idle(context: &dc_context_t) {
+    dc_jobthread_interrupt_idle(context, &mut context.mvbox_thread.clone().lock().unwrap());
 }
-pub unsafe fn dc_perform_sentbox_fetch(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
+
+pub unsafe fn dc_perform_sentbox_fetch(context: &dc_context_t) {
     let mut use_network: libc::c_int = dc_sqlite3_get_config_int(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"sentbox_watch\x00" as *const u8 as *const libc::c_char,
         1i32,
     );
-    dc_jobthread_fetch(&mut (*context).sentbox_thread, use_network);
+    dc_jobthread_fetch(
+        context,
+        &mut context.sentbox_thread.clone().lock().unwrap(),
+        use_network,
+    );
 }
-pub unsafe fn dc_perform_sentbox_idle(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        return;
-    }
+
+pub unsafe fn dc_perform_sentbox_idle(context: &dc_context_t) {
     let mut use_network: libc::c_int = dc_sqlite3_get_config_int(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"sentbox_watch\x00" as *const u8 as *const libc::c_char,
         1i32,
     );
-    dc_jobthread_idle(&mut (*context).sentbox_thread, use_network);
+    dc_jobthread_idle(
+        context,
+        &mut context.sentbox_thread.clone().lock().unwrap(),
+        use_network,
+    );
 }
-pub unsafe fn dc_interrupt_sentbox_idle(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        dc_log_warning(
-            context,
-            0i32,
-            b"Interrupt SENT-IDLE: Bad parameters.\x00" as *const u8 as *const libc::c_char,
-        );
-        return;
-    }
-    dc_jobthread_interrupt_idle(&mut (*context).sentbox_thread);
+
+pub unsafe fn dc_interrupt_sentbox_idle(context: &dc_context_t) {
+    dc_jobthread_interrupt_idle(context, &mut context.sentbox_thread.clone().lock().unwrap());
 }
-pub unsafe fn dc_perform_smtp_jobs(mut context: *mut dc_context_t) {
-    pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-    let mut probe_smtp_network: libc::c_int = (*context).probe_smtp_network;
-    (*context).probe_smtp_network = 0i32;
-    (*context).perform_smtp_jobs_needed = 0i32;
-    if 0 != (*context).smtp_suspended {
-        dc_log_info(
-            context,
-            0i32,
-            b"SMTP-jobs suspended.\x00" as *const u8 as *const libc::c_char,
-        );
-        pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
-        return;
-    }
-    (*context).smtp_doing_jobs = 1i32;
-    pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
+
+pub unsafe fn dc_perform_smtp_jobs(context: &dc_context_t) {
+    let probe_smtp_network = {
+        let &(ref lock, _) = &*context.smtp_state.clone();
+        let mut state = lock.lock().unwrap();
+
+        let probe_smtp_network = state.probe_network;
+        state.probe_network = 0;
+        state.perform_jobs_needed = 0;
+
+        if 0 != state.suspended {
+            dc_log_info(
+                context,
+                0i32,
+                b"SMTP-jobs suspended.\x00" as *const u8 as *const libc::c_char,
+            );
+            return;
+        }
+        state.doing_jobs = 1;
+        probe_smtp_network
+    };
+
     dc_log_info(
         context,
-        0i32,
+        0,
         b"SMTP-jobs started...\x00" as *const u8 as *const libc::c_char,
     );
-    dc_job_perform(context, 5000i32, probe_smtp_network);
+    dc_job_perform(context, 5000, probe_smtp_network);
     dc_log_info(
         context,
         0i32,
         b"SMTP-jobs ended.\x00" as *const u8 as *const libc::c_char,
     );
-    pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-    (*context).smtp_doing_jobs = 0i32;
-    pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
-}
-pub unsafe fn dc_perform_smtp_idle(mut context: *mut dc_context_t) {
-    if context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint {
-        dc_log_warning(
-            context,
-            0i32,
-            b"Cannot perform SMTP-idle: Bad parameters.\x00" as *const u8 as *const libc::c_char,
-        );
-        return;
+
+    {
+        let &(ref lock, _) = &*context.smtp_state.clone();
+        let mut state = lock.lock().unwrap();
+
+        state.doing_jobs = 0;
     }
+}
+
+pub unsafe fn dc_perform_smtp_idle(mut context: &dc_context_t) {
     dc_log_info(
         context,
         0i32,
         b"SMTP-idle started...\x00" as *const u8 as *const libc::c_char,
     );
-    pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-    if (*context).perform_smtp_jobs_needed == 1i32 {
-        dc_log_info(
-            context,
-            0i32,
-            b"SMTP-idle will not be started because of waiting jobs.\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-        let mut r: libc::c_int = 0i32;
-        let mut wakeup_at: timespec = timespec {
-            tv_sec: 0,
-            tv_nsec: 0,
-        };
-        memset(
-            &mut wakeup_at as *mut timespec as *mut libc::c_void,
-            0,
-            ::std::mem::size_of::<timespec>(),
-        );
-        wakeup_at.tv_sec = get_next_wakeup_time(context, 5000i32) + 1i32 as libc::c_long;
-        while (*context).smtpidle_condflag == 0i32 && r == 0i32 {
-            r = pthread_cond_timedwait(
-                &mut (*context).smtpidle_cond,
-                &mut (*context).smtpidle_condmutex,
-                &mut wakeup_at,
-            )
+    {
+        let &(ref lock, ref cvar) = &*context.smtp_state.clone();
+        let mut state = lock.lock().unwrap();
+
+        if state.perform_jobs_needed == 1 {
+            dc_log_info(
+                context,
+                0,
+                b"SMTP-idle will not be started because of waiting jobs.\x00" as *const u8
+                    as *const libc::c_char,
+            );
+        } else {
+            let dur = get_next_wakeup_time(context, 5000);
+
+            loop {
+                let res = cvar.wait_timeout(state, dur).unwrap();
+                state = res.0;
+
+                if state.idle == true || res.1.timed_out() {
+                    // We received the notification and the value has been updated, we can leave.
+                    break;
+                }
+            }
+            state.idle = false;
         }
-        (*context).smtpidle_condflag = 0i32
     }
-    pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
+
     dc_log_info(
         context,
         0i32,
         b"SMTP-idle ended.\x00" as *const u8 as *const libc::c_char,
     );
 }
-unsafe fn get_next_wakeup_time(mut context: *mut dc_context_t, mut thread: libc::c_int) -> time_t {
-    let mut wakeup_time: time_t = 0i32 as time_t;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    stmt = dc_sqlite3_prepare(
-        (*context).sql,
+
+unsafe fn get_next_wakeup_time(context: &dc_context_t, thread: libc::c_int) -> Duration {
+    let stmt = dc_sqlite3_prepare(
+        context,
+        &context.sql.clone().read().unwrap(),
         b"SELECT MIN(desired_timestamp) FROM jobs WHERE thread=?;\x00" as *const u8
             as *const libc::c_char,
     );
-    sqlite3_bind_int(stmt, 1i32, thread);
-    if sqlite3_step(stmt) == 100i32 {
-        wakeup_time = sqlite3_column_int(stmt, 0i32) as time_t
+    sqlite3_bind_int(stmt, 1, thread);
+
+    let mut wakeup_time = Duration::new(10 * 60, 0);
+
+    if sqlite3_step(stmt) == 100 {
+        let t = sqlite3_column_int(stmt, 0) as u64;
+        let now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap();
+        if t > 0 {
+            println!("{:?} {:?} {:?}", t, now, Duration::new(t, 0));
+            wakeup_time = Duration::new(t, 0) - now;
+        }
     }
-    if wakeup_time == 0i32 as libc::c_long {
-        wakeup_time = time(0 as *mut time_t) + (10i32 * 60i32) as libc::c_long
-    }
+
     sqlite3_finalize(stmt);
-    return wakeup_time;
+    wakeup_time
 }
-pub unsafe fn dc_maybe_network(mut context: *mut dc_context_t) {
-    pthread_mutex_lock(&mut (*context).smtpidle_condmutex);
-    (*context).probe_smtp_network = 1i32;
-    pthread_mutex_unlock(&mut (*context).smtpidle_condmutex);
-    pthread_mutex_lock(&mut (*context).inboxidle_condmutex);
-    (*context).probe_imap_network = 1i32;
-    pthread_mutex_unlock(&mut (*context).inboxidle_condmutex);
+
+pub unsafe fn dc_maybe_network(mut context: &dc_context_t) {
+    {
+        let &(ref lock, _) = &*context.smtp_state.clone();
+        let mut state = lock.lock().unwrap();
+        state.probe_network = 1;
+
+        *context.probe_imap_network.clone().write().unwrap() = 1;
+    }
+
     dc_interrupt_smtp_idle(context);
     dc_interrupt_imap_idle(context);
     dc_interrupt_mvbox_idle(context);
     dc_interrupt_sentbox_idle(context);
 }
+
 pub unsafe fn dc_job_action_exists(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut action: libc::c_int,
 ) -> libc::c_int {
-    let mut job_exists: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut job_exists: libc::c_int;
+    let mut stmt;
     stmt = dc_sqlite3_prepare(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"SELECT id FROM jobs WHERE action=?;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_bind_int(stmt, 1i32, action);
@@ -1275,9 +1289,9 @@ pub unsafe fn dc_job_action_exists(
     return job_exists;
 }
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
-pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32_t) -> libc::c_int {
+pub unsafe fn dc_job_send_msg(context: &dc_context_t, msg_id: uint32_t) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut mimefactory: dc_mimefactory_t = dc_mimefactory_t {
+    let mut mimefactory = dc_mimefactory_t {
         from_addr: 0 as *mut libc::c_char,
         from_displayname: 0 as *mut libc::c_char,
         selfstatus: 0 as *mut libc::c_char,
@@ -1297,7 +1311,7 @@ pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32
         out_gossiped: 0,
         out_last_added_location_id: 0,
         error: 0 as *mut libc::c_char,
-        context: 0 as *mut dc_context_t,
+        context,
     };
     dc_mimefactory_init(&mut mimefactory, context);
     /* load message data */
@@ -1317,7 +1331,7 @@ pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32
             || (*mimefactory.msg).type_0 == 50i32
             || (*mimefactory.msg).type_0 == 60i32
         {
-            let mut pathNfilename: *mut libc::c_char = dc_param_get(
+            let mut pathNfilename = dc_param_get(
                 (*mimefactory.msg).param,
                 'f' as i32,
                 0 as *const libc::c_char,
@@ -1382,7 +1396,6 @@ pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32
                     dc_strdup(mimefactory.from_addr) as *mut libc::c_void,
                 );
             }
-            dc_sqlite3_begin_transaction((*context).sql);
             if 0 != mimefactory.out_gossiped {
                 dc_set_gossiped_timestamp(
                     context,
@@ -1417,7 +1430,6 @@ pub unsafe fn dc_job_send_msg(mut context: *mut dc_context_t, mut msg_id: uint32
                 0 as *const libc::c_char,
                 0 as *const libc::c_char,
             );
-            dc_sqlite3_commit((*context).sql);
             success = dc_add_smtp_job(context, 5901i32, &mut mimefactory)
         }
     }

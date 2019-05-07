@@ -1,5 +1,4 @@
-use libc;
-
+use crate::dc_context::dc_context_t;
 use crate::dc_sqlite3::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
@@ -22,13 +21,15 @@ pub struct dc_loginparam_t {
 }
 
 pub unsafe fn dc_loginparam_new() -> *mut dc_loginparam_t {
-    let mut loginparam: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
+    let mut loginparam: *mut dc_loginparam_t;
     loginparam = calloc(1, ::std::mem::size_of::<dc_loginparam_t>()) as *mut dc_loginparam_t;
     if loginparam.is_null() {
         exit(22i32);
     }
-    return loginparam;
+
+    loginparam
 }
+
 pub unsafe fn dc_loginparam_unref(mut loginparam: *mut dc_loginparam_t) {
     if loginparam.is_null() {
         return;
@@ -36,6 +37,7 @@ pub unsafe fn dc_loginparam_unref(mut loginparam: *mut dc_loginparam_t) {
     dc_loginparam_empty(loginparam);
     free(loginparam as *mut libc::c_void);
 }
+
 /* clears all data and frees its memory. All pointers are NULL after this function is called. */
 pub unsafe fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
     if loginparam.is_null() {
@@ -59,10 +61,12 @@ pub unsafe fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
     (*loginparam).send_pw = 0 as *mut libc::c_char;
     (*loginparam).server_flags = 0i32;
 }
+
 pub unsafe fn dc_loginparam_read(
-    mut loginparam: *mut dc_loginparam_t,
-    mut sql: *mut dc_sqlite3_t,
-    mut prefix: *const libc::c_char,
+    context: &dc_context_t,
+    loginparam: *mut dc_loginparam_t,
+    sql: &dc_sqlite3_t,
+    prefix: *const libc::c_char,
 ) {
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     dc_loginparam_empty(loginparam);
@@ -72,76 +76,78 @@ pub unsafe fn dc_loginparam_read(
         prefix,
         b"addr\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).addr = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    (*loginparam).addr = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"mail_server\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).mail_server = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    (*loginparam).mail_server = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"mail_port\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).mail_port = dc_sqlite3_get_config_int(sql, key, 0i32);
+    (*loginparam).mail_port = dc_sqlite3_get_config_int(context, sql, key, 0i32);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"mail_user\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).mail_user = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    (*loginparam).mail_user = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"mail_pw\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).mail_pw = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    (*loginparam).mail_pw = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"send_server\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).send_server = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    (*loginparam).send_server = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"send_port\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).send_port = dc_sqlite3_get_config_int(sql, key, 0i32);
+    (*loginparam).send_port = dc_sqlite3_get_config_int(context, sql, key, 0i32);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"send_user\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).send_user = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    (*loginparam).send_user = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"send_pw\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).send_pw = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    (*loginparam).send_pw = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"server_flags\x00" as *const u8 as *const libc::c_char,
     );
-    (*loginparam).server_flags = dc_sqlite3_get_config_int(sql, key, 0i32);
+    (*loginparam).server_flags = dc_sqlite3_get_config_int(context, sql, key, 0i32);
     sqlite3_free(key as *mut libc::c_void);
 }
+
 pub unsafe fn dc_loginparam_write(
-    mut loginparam: *const dc_loginparam_t,
-    mut sql: *mut dc_sqlite3_t,
-    mut prefix: *const libc::c_char,
+    context: &dc_context_t,
+    loginparam: *const dc_loginparam_t,
+    sql: &dc_sqlite3_t,
+    prefix: *const libc::c_char,
 ) {
     let mut key: *mut libc::c_char = 0 as *mut libc::c_char;
     sqlite3_free(key as *mut libc::c_void);
@@ -150,72 +156,73 @@ pub unsafe fn dc_loginparam_write(
         prefix,
         b"addr\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config(sql, key, (*loginparam).addr);
+    dc_sqlite3_set_config(context, sql, key, (*loginparam).addr);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"mail_server\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config(sql, key, (*loginparam).mail_server);
+    dc_sqlite3_set_config(context, sql, key, (*loginparam).mail_server);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"mail_port\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config_int(sql, key, (*loginparam).mail_port);
+    dc_sqlite3_set_config_int(context, sql, key, (*loginparam).mail_port);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"mail_user\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config(sql, key, (*loginparam).mail_user);
+    dc_sqlite3_set_config(context, sql, key, (*loginparam).mail_user);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"mail_pw\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config(sql, key, (*loginparam).mail_pw);
+    dc_sqlite3_set_config(context, sql, key, (*loginparam).mail_pw);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"send_server\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config(sql, key, (*loginparam).send_server);
+    dc_sqlite3_set_config(context, sql, key, (*loginparam).send_server);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"send_port\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config_int(sql, key, (*loginparam).send_port);
+    dc_sqlite3_set_config_int(context, sql, key, (*loginparam).send_port);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"send_user\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config(sql, key, (*loginparam).send_user);
+    dc_sqlite3_set_config(context, sql, key, (*loginparam).send_user);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"send_pw\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config(sql, key, (*loginparam).send_pw);
+    dc_sqlite3_set_config(context, sql, key, (*loginparam).send_pw);
     sqlite3_free(key as *mut libc::c_void);
     key = sqlite3_mprintf(
         b"%s%s\x00" as *const u8 as *const libc::c_char,
         prefix,
         b"server_flags\x00" as *const u8 as *const libc::c_char,
     );
-    dc_sqlite3_set_config_int(sql, key, (*loginparam).server_flags);
+    dc_sqlite3_set_config_int(context, sql, key, (*loginparam).server_flags);
     sqlite3_free(key as *mut libc::c_void);
 }
+
 pub unsafe fn dc_loginparam_get_readable(
     mut loginparam: *const dc_loginparam_t,
 ) -> *mut libc::c_char {
@@ -267,8 +274,10 @@ pub unsafe fn dc_loginparam_get_readable(
         flags_readable,
     );
     free(flags_readable as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
 unsafe fn get_readable_flags(mut flags: libc::c_int) -> *mut libc::c_char {
     let mut strbuilder: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -355,5 +364,6 @@ unsafe fn get_readable_flags(mut flags: libc::c_int) -> *mut libc::c_char {
         );
     }
     dc_trim(strbuilder.buf);
-    return strbuilder.buf;
+
+    strbuilder.buf
 }

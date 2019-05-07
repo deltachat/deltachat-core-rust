@@ -11,7 +11,6 @@
     non_camel_case_types,
     non_snake_case,
     non_upper_case_globals,
-    unused_assignments,
     unused_mut,
     unused_attributes,
     non_upper_case_globals,
@@ -21,6 +20,7 @@
 
 use std::ffi::CString;
 use std::io::{self, Write};
+use std::sync::{Arc, RwLock};
 
 use deltachat::constants::*;
 use deltachat::dc_aheader::*;
@@ -67,35 +67,28 @@ use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
 use deltachat::types::*;
 use deltachat::x::*;
-use libc;
-
 mod cmdline;
-mod stress;
 
 use self::cmdline::*;
-use self::stress::*;
 
 /* ******************************************************************************
  * Event Handler
  ******************************************************************************/
-static mut s_do_log_info: libc::c_int = 1i32;
 
 unsafe extern "C" fn receive_event(
-    mut context: *mut dc_context_t,
-    mut event: Event,
-    mut data1: uintptr_t,
-    mut data2: uintptr_t,
+    context: &dc_context_t,
+    event: Event,
+    data1: uintptr_t,
+    data2: uintptr_t,
 ) -> uintptr_t {
     match event as u32 {
         2091 => {}
         100 => {
             /* do not show the event as this would fill the screen */
-            if 0 != s_do_log_info {
-                printf(
-                    b"%s\n\x00" as *const u8 as *const libc::c_char,
-                    data2 as *mut libc::c_char,
-                );
-            }
+            printf(
+                b"%s\n\x00" as *const u8 as *const libc::c_char,
+                data2 as *mut libc::c_char,
+            );
         }
         101 => {
             printf(
@@ -154,7 +147,7 @@ unsafe extern "C" fn receive_event(
             let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
             let mut tempFile: *mut libc::c_char = dc_get_fine_pathNfilename(
                 context,
-                (*context).blobdir,
+                context.get_blobdir(),
                 b"curl.result\x00" as *const u8 as *const libc::c_char,
             );
             let mut cmd: *mut libc::c_char = if event == Event::HTTP_GET {
@@ -270,111 +263,88 @@ unsafe extern "C" fn receive_event(
 /* ******************************************************************************
  * Threads for waiting for messages and for jobs
  ******************************************************************************/
-static mut inbox_thread: pthread_t = 0 as pthread_t;
 static mut run_threads: libc::c_int = 0i32;
 
-unsafe extern "C" fn inbox_thread_entry_point(
-    mut entry_arg: *mut libc::c_void,
-) -> *mut libc::c_void {
-    let mut context: *mut dc_context_t = entry_arg as *mut dc_context_t;
-    while 0 != run_threads {
-        dc_perform_imap_jobs(context);
-        dc_perform_imap_fetch(context);
-        if 0 != run_threads {
-            dc_perform_imap_idle(context);
+unsafe fn start_threads(
+    c: Arc<RwLock<dc_context_t>>,
+) -> (
+    std::thread::JoinHandle<()>,
+    std::thread::JoinHandle<()>,
+    std::thread::JoinHandle<()>,
+    std::thread::JoinHandle<()>,
+) {
+    run_threads = 1;
+
+    let ctx = c.clone();
+    let h1 = std::thread::spawn(move || {
+        let context = ctx.read().unwrap();
+        while 0 != run_threads {
+            dc_perform_imap_jobs(&context);
+            dc_perform_imap_fetch(&context);
+            if 0 != run_threads {
+                dc_perform_imap_idle(&context);
+            }
         }
-    }
-    return 0 as *mut libc::c_void;
-}
-static mut mvbox_thread: pthread_t = 0 as pthread_t;
-unsafe extern "C" fn mvbox_thread_entry_point(
-    mut entry_arg: *mut libc::c_void,
-) -> *mut libc::c_void {
-    let mut context: *mut dc_context_t = entry_arg as *mut dc_context_t;
-    while 0 != run_threads {
-        dc_perform_mvbox_fetch(context);
-        if 0 != run_threads {
-            dc_perform_mvbox_idle(context);
+    });
+
+    let ctx = c.clone();
+    let h2 = std::thread::spawn(move || {
+        let context = ctx.read().unwrap();
+        while 0 != run_threads {
+            dc_perform_mvbox_fetch(&context);
+            if 0 != run_threads {
+                dc_perform_mvbox_idle(&context);
+            }
         }
-    }
-    return 0 as *mut libc::c_void;
-}
-static mut sentbox_thread: pthread_t = 0 as pthread_t;
-unsafe extern "C" fn sentbox_thread_entry_point(
-    mut entry_arg: *mut libc::c_void,
-) -> *mut libc::c_void {
-    let mut context: *mut dc_context_t = entry_arg as *mut dc_context_t;
-    while 0 != run_threads {
-        dc_perform_sentbox_fetch(context);
-        if 0 != run_threads {
-            dc_perform_sentbox_idle(context);
+    });
+
+    let ctx = c.clone();
+    let h3 = std::thread::spawn(move || {
+        let context = ctx.read().unwrap();
+        while 0 != run_threads {
+            dc_perform_sentbox_fetch(&context);
+            if 0 != run_threads {
+                dc_perform_sentbox_idle(&context);
+            }
         }
-    }
-    return 0 as *mut libc::c_void;
-}
-static mut smtp_thread: pthread_t = 0 as pthread_t;
-unsafe extern "C" fn smtp_thread_entry_point(
-    mut entry_arg: *mut libc::c_void,
-) -> *mut libc::c_void {
-    let mut context: *mut dc_context_t = entry_arg as *mut dc_context_t;
-    while 0 != run_threads {
-        dc_perform_smtp_jobs(context);
-        if 0 != run_threads {
-            dc_perform_smtp_idle(context);
+    });
+
+    let ctx = c.clone();
+    let h4 = std::thread::spawn(move || {
+        let context = ctx.read().unwrap();
+        while 0 != run_threads {
+            dc_perform_smtp_jobs(&context);
+            if 0 != run_threads {
+                dc_perform_smtp_idle(&context);
+            }
         }
-    }
-    return 0 as *mut libc::c_void;
+    });
+
+    (h1, h2, h3, h4)
 }
-unsafe extern "C" fn start_threads(mut context: *mut dc_context_t) {
-    run_threads = 1i32;
-    if inbox_thread == 0 {
-        pthread_create(
-            &mut inbox_thread,
-            0 as *const pthread_attr_t,
-            Some(inbox_thread_entry_point),
-            context as *mut libc::c_void,
-        );
-    }
-    if mvbox_thread == 0 {
-        pthread_create(
-            &mut mvbox_thread,
-            0 as *const pthread_attr_t,
-            Some(mvbox_thread_entry_point),
-            context as *mut libc::c_void,
-        );
-    }
-    if sentbox_thread == 0 {
-        pthread_create(
-            &mut sentbox_thread,
-            0 as *const pthread_attr_t,
-            Some(sentbox_thread_entry_point),
-            context as *mut libc::c_void,
-        );
-    }
-    if smtp_thread == 0 {
-        pthread_create(
-            &mut smtp_thread,
-            0 as *const pthread_attr_t,
-            Some(smtp_thread_entry_point),
-            context as *mut libc::c_void,
-        );
-    };
-}
-unsafe extern "C" fn stop_threads(mut context: *mut dc_context_t) {
+
+unsafe fn stop_threads(
+    context: &dc_context_t,
+    handles: Option<(
+        std::thread::JoinHandle<()>,
+        std::thread::JoinHandle<()>,
+        std::thread::JoinHandle<()>,
+        std::thread::JoinHandle<()>,
+    )>,
+) {
     run_threads = 0i32;
     dc_interrupt_imap_idle(context);
     dc_interrupt_mvbox_idle(context);
     dc_interrupt_sentbox_idle(context);
     dc_interrupt_smtp_idle(context);
-    pthread_join(inbox_thread, 0 as *mut *mut libc::c_void);
-    pthread_join(mvbox_thread, 0 as *mut *mut libc::c_void);
-    pthread_join(sentbox_thread, 0 as *mut *mut libc::c_void);
-    pthread_join(smtp_thread, 0 as *mut *mut libc::c_void);
-    inbox_thread = 0 as pthread_t;
-    mvbox_thread = 0 as pthread_t;
-    sentbox_thread = 0 as pthread_t;
-    smtp_thread = 0 as pthread_t;
+    if let Some((h1, h2, h3, h4)) = handles {
+        h1.join().unwrap();
+        h2.join().unwrap();
+        h3.join().unwrap();
+        h4.join().unwrap();
+    }
 }
+
 /* ******************************************************************************
  * The main loop
  ******************************************************************************/
@@ -387,24 +357,18 @@ fn read_cmd() -> String {
     input.trim_end().to_string()
 }
 
-#[cfg(not(target_os = "android"))]
 unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> libc::c_int {
     let mut cmd: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut context: *mut dc_context_t = dc_context_new(
+    let mut context = dc_context_new(
         receive_event,
         0 as *mut libc::c_void,
         b"CLI\x00" as *const u8 as *const libc::c_char,
     );
-    let mut stresstest_only: libc::c_int = 0i32;
+
     dc_cmdline_skip_auth();
+
     if argc == 2i32 {
-        if strcmp(
-            *argv.offset(1isize),
-            b"--stress\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32
-        {
-            stresstest_only = 1i32
-        } else if 0 == dc_open(context, *argv.offset(1isize), 0 as *const libc::c_char) {
+        if 0 == dc_open(&mut context, *argv.offset(1isize), 0 as *const libc::c_char) {
             printf(
                 b"ERROR: Cannot open %s.\n\x00" as *const u8 as *const libc::c_char,
                 *argv.offset(1isize),
@@ -413,13 +377,13 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
     } else if argc != 1i32 {
         printf(b"ERROR: Bad arguments\n\x00" as *const u8 as *const libc::c_char);
     }
-    s_do_log_info = 0i32;
-    stress_functions(context);
-    s_do_log_info = 1i32;
-    if 0 != stresstest_only {
-        return 0i32;
-    }
+
     printf(b"Delta Chat Core is awaiting your commands.\n\x00" as *const u8 as *const libc::c_char);
+
+    let mut handles = None;
+
+    let ctx = Arc::new(RwLock::new(context));
+
     loop {
         /* read command */
         let cmdline = read_cmd();
@@ -431,9 +395,10 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             arg1 = arg1.offset(1isize)
         }
         if strcmp(cmd, b"connect\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            start_threads(context);
+            handles = Some(start_threads(ctx.clone()));
         } else if strcmp(cmd, b"disconnect\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            stop_threads(context);
+            stop_threads(&ctx.read().unwrap(), handles);
+            handles = None;
         } else if strcmp(cmd, b"smtp-jobs\x00" as *const u8 as *const libc::c_char) == 0i32 {
             if 0 != run_threads {
                 printf(
@@ -441,7 +406,7 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
                         as *const libc::c_char,
                 );
             } else {
-                dc_perform_smtp_jobs(context);
+                dc_perform_smtp_jobs(&ctx.read().unwrap());
             }
         } else if strcmp(cmd, b"imap-jobs\x00" as *const u8 as *const libc::c_char) == 0i32 {
             if 0 != run_threads {
@@ -450,19 +415,21 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
                         as *const libc::c_char,
                 );
             } else {
-                dc_perform_imap_jobs(context);
+                dc_perform_imap_jobs(&ctx.read().unwrap());
             }
         } else if strcmp(cmd, b"configure\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            start_threads(context);
-            dc_configure(context);
+            handles = { Some(start_threads(ctx.clone())) };
+            dc_configure(&ctx.read().unwrap());
         } else if strcmp(cmd, b"oauth2\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            let mut addr: *mut libc::c_char =
-                dc_get_config(context, b"addr\x00" as *const u8 as *const libc::c_char);
+            let mut addr: *mut libc::c_char = dc_get_config(
+                &ctx.read().unwrap(),
+                b"addr\x00" as *const u8 as *const libc::c_char,
+            );
             if addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32 {
                 printf(b"oauth2: set addr first.\n\x00" as *const u8 as *const libc::c_char);
             } else {
                 let mut oauth2_url: *mut libc::c_char = dc_get_oauth2_url(
-                    context,
+                    &ctx.read().unwrap(),
                     addr,
                     b"chat.delta:/com.b44t.messenger\x00" as *const u8 as *const libc::c_char,
                 );
@@ -485,9 +452,9 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
         } else if strcmp(cmd, b"getqr\x00" as *const u8 as *const libc::c_char) == 0i32
             || strcmp(cmd, b"getbadqr\x00" as *const u8 as *const libc::c_char) == 0i32
         {
-            start_threads(context);
+            handles = Some(start_threads(ctx.clone()));
             let mut qrstr: *mut libc::c_char = dc_get_securejoin_qr(
-                context,
+                &ctx.read().unwrap(),
                 (if !arg1.is_null() { atoi(arg1) } else { 0i32 }) as uint32_t,
             );
             if !qrstr.is_null() && 0 != *qrstr.offset(0isize) as libc::c_int {
@@ -510,16 +477,17 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             }
             free(qrstr as *mut libc::c_void);
         } else if strcmp(cmd, b"joinqr\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            start_threads(context);
+            handles = Some(start_threads(ctx.clone()));
             if !arg1.is_null() {
-                dc_join_securejoin(context, arg1);
+                dc_join_securejoin(&ctx.read().unwrap(), arg1);
             }
         } else {
             if strcmp(cmd, b"exit\x00" as *const u8 as *const libc::c_char) == 0i32 {
                 break;
             }
             if !(*cmd.offset(0isize) as libc::c_int == 0i32) {
-                let mut execute_result: *mut libc::c_char = dc_cmdline(context, &cmdline);
+                let mut execute_result: *mut libc::c_char =
+                    dc_cmdline(&ctx.read().unwrap(), &cmdline);
                 if !execute_result.is_null() {
                     printf(
                         b"%s\n\x00" as *const u8 as *const libc::c_char,
@@ -530,12 +498,17 @@ unsafe fn main_0(mut argc: libc::c_int, mut argv: *mut *mut libc::c_char) -> lib
             }
         }
     }
-    free(cmd as *mut libc::c_void);
-    stop_threads(context);
-    dc_close(context);
-    dc_context_unref(context);
-    context = 0 as *mut dc_context_t;
-    return 0i32;
+
+    let ctx = ctx.clone();
+
+    {
+        let mut ctx = ctx.write().unwrap();
+        free(cmd as *mut libc::c_void);
+        stop_threads(&ctx, handles);
+        dc_close(&mut ctx);
+        dc_context_unref(&mut ctx);
+    }
+    0
 }
 
 pub fn main() {

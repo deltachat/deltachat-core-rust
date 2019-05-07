@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
 use crate::dc_key::*;
@@ -10,18 +8,9 @@ use crate::pgp as rpgp;
 use crate::types::*;
 use crate::x::*;
 
-/* ** library-private **********************************************************/
-/* validation errors */
-/* misc. */
-pub unsafe fn dc_pgp_init() {}
 pub unsafe fn dc_pgp_exit() {}
-pub unsafe fn dc_pgp_rand_seed(
-    _context: *mut dc_context_t,
-    _buf: *const libc::c_void,
-    _bytes: size_t,
-) {
-}
 
+// TODO should return bool /rtn
 pub unsafe fn dc_split_armored_data(
     mut buf: *mut libc::c_char,
     mut ret_headerline: *mut *const libc::c_char,
@@ -33,7 +22,7 @@ pub unsafe fn dc_split_armored_data(
     let mut line_chars: size_t = 0i32 as size_t;
     let mut line: *mut libc::c_char = buf;
     let mut p1: *mut libc::c_char = buf;
-    let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut p2: *mut libc::c_char;
     let mut headerline: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut base64: *mut libc::c_char = 0 as *mut libc::c_char;
     if !ret_headerline.is_null() {
@@ -136,21 +125,24 @@ pub unsafe fn dc_split_armored_data(
             }
         }
     }
-    return success;
+
+    success
 }
+
 /* public key encryption */
+// TODO should return bool /rtn
 pub unsafe fn dc_pgp_create_keypair(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut addr: *const libc::c_char,
     mut ret_public_key: *mut dc_key_t,
     mut ret_private_key: *mut dc_key_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut skey: *mut rpgp::signed_secret_key = 0 as *mut rpgp::signed_secret_key;
+    let mut skey: *mut rpgp::signed_secret_key;
     let mut pkey: *mut rpgp::signed_public_key = 0 as *mut rpgp::signed_public_key;
     let mut skey_bytes: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
     let mut pkey_bytes: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
-    let mut user_id: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut user_id: *mut libc::c_char;
     user_id = dc_mprintf(b"<%s>\x00" as *const u8 as *const libc::c_char, addr);
     skey = rpgp::rpgp_create_rsa_skey(2048i32 as uint32_t, user_id);
     if !(0 != dc_pgp_handle_rpgp_error(context)) {
@@ -197,42 +189,42 @@ pub unsafe fn dc_pgp_create_keypair(
     if !user_id.is_null() {
         free(user_id as *mut libc::c_void);
     }
-    return success;
+
+    success
 }
+
 /* returns 0 if there is no error, otherwise logs the error if a context is provided and returns 1*/
-pub unsafe fn dc_pgp_handle_rpgp_error(mut context: *mut dc_context_t) -> libc::c_int {
+// TODO should return bool /rtn
+pub unsafe fn dc_pgp_handle_rpgp_error(mut context: &dc_context_t) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut len: libc::c_int = 0i32;
+    let mut len: libc::c_int;
     let mut msg: *mut libc::c_char = 0 as *mut libc::c_char;
     len = rpgp::rpgp_last_error_length();
     if !(len == 0i32) {
         msg = rpgp::rpgp_last_error_message();
-        if !context.is_null() {
-            dc_log_info(
-                context,
-                0i32,
-                b"[rpgp][error] %s\x00" as *const u8 as *const libc::c_char,
-                msg,
-            );
-        }
+        dc_log_info(
+            context,
+            0i32,
+            b"[rpgp][error] %s\x00" as *const u8 as *const libc::c_char,
+            msg,
+        );
         success = 1i32
     }
     if !msg.is_null() {
         rpgp::rpgp_string_drop(msg);
     }
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_pgp_is_valid_key(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut raw_key: *const dc_key_t,
 ) -> libc::c_int {
     let mut key_is_valid: libc::c_int = 0i32;
     let mut key: *mut rpgp::public_or_secret_key = 0 as *mut rpgp::public_or_secret_key;
-    if !(context.is_null()
-        || raw_key.is_null()
-        || (*raw_key).binary.is_null()
-        || (*raw_key).bytes <= 0i32)
-    {
+    if !(raw_key.is_null() || (*raw_key).binary.is_null() || (*raw_key).bytes <= 0i32) {
         key = rpgp::rpgp_key_from_bytes(
             (*raw_key).binary as *const uint8_t,
             (*raw_key).bytes as usize,
@@ -249,12 +241,16 @@ pub unsafe fn dc_pgp_is_valid_key(
     if !key.is_null() {
         rpgp::rpgp_key_drop(key);
     }
-    return key_is_valid;
+
+    key_is_valid
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_pgp_calc_fingerprint(
-    mut raw_key: *const dc_key_t,
-    mut ret_fingerprint: *mut *mut uint8_t,
-    mut ret_fingerprint_bytes: *mut size_t,
+    context: &dc_context_t,
+    raw_key: *const dc_key_t,
+    ret_fingerprint: *mut *mut uint8_t,
+    ret_fingerprint_bytes: *mut size_t,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut key: *mut rpgp::public_or_secret_key = 0 as *mut rpgp::public_or_secret_key;
@@ -271,9 +267,9 @@ pub unsafe fn dc_pgp_calc_fingerprint(
             (*raw_key).binary as *const uint8_t,
             (*raw_key).bytes as usize,
         );
-        if !(0 != dc_pgp_handle_rpgp_error(0 as *mut dc_context_t)) {
+        if !(0 != dc_pgp_handle_rpgp_error(context)) {
             fingerprint = rpgp::rpgp_key_fingerprint(key);
-            if !(0 != dc_pgp_handle_rpgp_error(0 as *mut dc_context_t)) {
+            if !(0 != dc_pgp_handle_rpgp_error(context)) {
                 *ret_fingerprint_bytes = rpgp::rpgp_cvec_len(fingerprint) as size_t;
                 *ret_fingerprint = malloc(*ret_fingerprint_bytes) as *mut uint8_t;
                 memcpy(
@@ -291,10 +287,13 @@ pub unsafe fn dc_pgp_calc_fingerprint(
     if !fingerprint.is_null() {
         rpgp::rpgp_cvec_drop(fingerprint);
     }
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_pgp_split_key(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut private_in: *const dc_key_t,
     mut ret_public_key: *mut dc_key_t,
 ) -> libc::c_int {
@@ -302,7 +301,7 @@ pub unsafe fn dc_pgp_split_key(
     let mut key: *mut rpgp::signed_secret_key = 0 as *mut rpgp::signed_secret_key;
     let mut pub_key: *mut rpgp::signed_public_key = 0 as *mut rpgp::signed_public_key;
     let mut buf: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
-    if !(context.is_null() || private_in.is_null() || ret_public_key.is_null()) {
+    if !(private_in.is_null() || ret_public_key.is_null()) {
         if (*private_in).type_0 != 1i32 {
             dc_log_warning(
                 context,
@@ -340,10 +339,13 @@ pub unsafe fn dc_pgp_split_key(
     if !buf.is_null() {
         rpgp::rpgp_cvec_drop(buf);
     }
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_pgp_pk_encrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut plain_text: *const libc::c_void,
     mut plain_bytes: size_t,
     mut raw_public_keys_for_encryption: *const dc_keyring_t,
@@ -353,14 +355,13 @@ pub unsafe fn dc_pgp_pk_encrypt(
     mut ret_ctext_bytes: *mut size_t,
 ) -> libc::c_int {
     let mut current_block: u64;
-    let mut i: libc::c_int = 0i32;
+    let mut i: libc::c_int;
     let mut success: libc::c_int = 0i32;
     let mut public_keys_len: libc::c_int = 0i32;
     let mut public_keys: *mut *mut rpgp::signed_public_key = 0 as *mut *mut rpgp::signed_public_key;
     let mut private_key: *mut rpgp::signed_secret_key = 0 as *mut rpgp::signed_secret_key;
     let mut encrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
-    if !(context.is_null()
-        || plain_text == 0 as *mut libc::c_void
+    if !(plain_text == 0 as *mut libc::c_void
         || plain_bytes == 0
         || ret_ctext.is_null()
         || ret_ctext_bytes.is_null()
@@ -422,7 +423,7 @@ pub unsafe fn dc_pgp_pk_encrypt(
                     2132137392766895896 => {}
                     _ => {
                         /* sign & encrypt */
-                        let mut op_clocks: libc::clock_t = 0i32 as libc::clock_t;
+                        let mut op_clocks: libc::clock_t;
                         let mut start: libc::clock_t = clock();
                         if private_key.is_null() {
                             encrypted = rpgp::rpgp_encrypt_bytes_to_keys(
@@ -509,10 +510,13 @@ pub unsafe fn dc_pgp_pk_encrypt(
     if !encrypted.is_null() {
         rpgp::rpgp_msg_drop(encrypted);
     }
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_pgp_pk_decrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut ctext: *const libc::c_void,
     mut ctext_bytes: size_t,
     mut raw_private_keys_for_decryption: *const dc_keyring_t,
@@ -523,7 +527,7 @@ pub unsafe fn dc_pgp_pk_decrypt(
     mut ret_signature_fingerprints: *mut dc_hash_t,
 ) -> libc::c_int {
     let mut current_block: u64;
-    let mut i: libc::c_int = 0i32;
+    let mut i: libc::c_int;
     let mut success: libc::c_int = 0i32;
     let mut encrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
     let mut decrypted: *mut rpgp::message_decrypt_result = 0 as *mut rpgp::message_decrypt_result;
@@ -532,8 +536,7 @@ pub unsafe fn dc_pgp_pk_decrypt(
     let mut private_keys: *mut *mut rpgp::signed_secret_key =
         0 as *mut *mut rpgp::signed_secret_key;
     let mut public_keys: *mut *mut rpgp::signed_public_key = 0 as *mut *mut rpgp::signed_public_key;
-    if !(context.is_null()
-        || ctext == 0 as *mut libc::c_void
+    if !(ctext == 0 as *mut libc::c_void
         || ctext_bytes == 0
         || ret_plain.is_null()
         || ret_plain_bytes.is_null()
@@ -671,11 +674,14 @@ pub unsafe fn dc_pgp_pk_decrypt(
     if !decrypted.is_null() {
         rpgp::rpgp_message_decrypt_result_drop(decrypted);
     }
-    return success;
+
+    success
 }
+
 /* symm. encryption */
+// TODO should return bool /rtn
 pub unsafe fn dc_pgp_symm_encrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut passphrase: *const libc::c_char,
     mut plain: *const libc::c_void,
     mut plain_bytes: size_t,
@@ -683,8 +689,7 @@ pub unsafe fn dc_pgp_symm_encrypt(
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut decrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
-    if !(context.is_null()
-        || passphrase.is_null()
+    if !(passphrase.is_null()
         || plain == 0 as *mut libc::c_void
         || plain_bytes == 0
         || ret_ctext_armored.is_null())
@@ -704,19 +709,22 @@ pub unsafe fn dc_pgp_symm_encrypt(
     if !decrypted.is_null() {
         rpgp::rpgp_msg_drop(decrypted);
     }
-    return success;
+
+    success
 }
+
+// TODO should return bool /rtn
 pub unsafe fn dc_pgp_symm_decrypt(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut passphrase: *const libc::c_char,
     mut ctext: *const libc::c_void,
     mut ctext_bytes: size_t,
     mut ret_plain_text: *mut *mut libc::c_void,
     mut ret_plain_bytes: *mut size_t,
 ) -> libc::c_int {
-    let mut decrypted_bytes: *mut rpgp::cvec = 0 as *mut rpgp::cvec;
+    let mut decrypted_bytes: *mut rpgp::cvec;
     let mut success: libc::c_int = 0i32;
-    let mut encrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
+    let mut encrypted: *mut rpgp::Message;
     let mut decrypted: *mut rpgp::Message = 0 as *mut rpgp::Message;
     encrypted = rpgp::rpgp_msg_from_bytes(ctext as *const uint8_t, ctext_bytes as usize);
     if !(0 != dc_pgp_handle_rpgp_error(context)) {
@@ -737,5 +745,6 @@ pub unsafe fn dc_pgp_symm_decrypt(
     if !decrypted.is_null() {
         rpgp::rpgp_msg_drop(decrypted);
     }
-    return success;
+
+    success
 }

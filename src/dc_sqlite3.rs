@@ -1,5 +1,4 @@
-use libc;
-
+use crate::constants::*;
 use crate::dc_apeerstate::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
@@ -9,245 +8,322 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-/* *
- * Library-internal.
- */
-#[derive(Copy, Clone)]
+const DC_OPEN_READONLY: usize = 0x01;
+
+/// A simple wrapper around the underlying Sqlite3 object.
 #[repr(C)]
 pub struct dc_sqlite3_t {
     pub cobj: *mut sqlite3,
-    pub context: *mut dc_context_t,
 }
 
-pub unsafe fn dc_sqlite3_new(mut context: *mut dc_context_t) -> *mut dc_sqlite3_t {
-    let mut sql: *mut dc_sqlite3_t = 0 as *mut dc_sqlite3_t;
-    sql = calloc(1, ::std::mem::size_of::<dc_sqlite3_t>()) as *mut dc_sqlite3_t;
-    if sql.is_null() {
-        exit(24i32);
+pub fn dc_sqlite3_new() -> dc_sqlite3_t {
+    dc_sqlite3_t {
+        cobj: std::ptr::null_mut(),
     }
-    (*sql).context = context;
-    return sql;
 }
-pub unsafe fn dc_sqlite3_unref(mut sql: *mut dc_sqlite3_t) {
-    if sql.is_null() {
-        return;
+
+pub unsafe fn dc_sqlite3_unref(context: &dc_context_t, sql: &mut dc_sqlite3_t) {
+    if !sql.cobj.is_null() {
+        dc_sqlite3_close(context, sql);
     }
-    if !(*sql).cobj.is_null() {
-        dc_sqlite3_close(sql);
-    }
-    free(sql as *mut libc::c_void);
 }
-pub unsafe fn dc_sqlite3_close(mut sql: *mut dc_sqlite3_t) {
-    if sql.is_null() {
-        return;
+
+pub unsafe fn dc_sqlite3_close(context: &dc_context_t, sql: &mut dc_sqlite3_t) {
+    if !sql.cobj.is_null() {
+        sqlite3_close(sql.cobj);
+        sql.cobj = 0 as *mut sqlite3
     }
-    if !(*sql).cobj.is_null() {
-        sqlite3_close((*sql).cobj);
-        (*sql).cobj = 0 as *mut sqlite3
-    }
+
     dc_log_info(
-        (*sql).context,
-        0i32,
+        context,
+        0,
         b"Database closed.\x00" as *const u8 as *const libc::c_char,
     );
 }
+
 pub unsafe fn dc_sqlite3_open(
-    mut sql: *mut dc_sqlite3_t,
-    mut dbfile: *const libc::c_char,
-    mut flags: libc::c_int,
+    context: &dc_context_t,
+    sql: &mut dc_sqlite3_t,
+    dbfile: *const libc::c_char,
+    flags: libc::c_int,
 ) -> libc::c_int {
     let mut current_block: u64;
     if 0 != dc_sqlite3_is_open(sql) {
-        return 0i32;
+        return 0;
     }
-    if !(sql.is_null() || dbfile.is_null()) {
-        if sqlite3_threadsafe() == 0i32 {
+    if !dbfile.is_null() {
+        if sqlite3_threadsafe() == 0 {
             dc_log_error(
-                (*sql).context,
-                0i32,
+                context,
+                0,
                 b"Sqlite3 compiled thread-unsafe; this is not supported.\x00" as *const u8
                     as *const libc::c_char,
             );
-        } else if !(*sql).cobj.is_null() {
+        } else if !sql.cobj.is_null() {
             dc_log_error(
-                (*sql).context,
-                0i32,
+                context,
+                0,
                 b"Cannot open, database \"%s\" already opened.\x00" as *const u8
                     as *const libc::c_char,
                 dbfile,
             );
         } else if sqlite3_open_v2(
             dbfile,
-            &mut (*sql).cobj,
-            0x10000i32
-                | if 0 != flags & 0x1i32 {
-                    0x1i32
+            &mut sql.cobj,
+            SQLITE_OPEN_FULLMUTEX
+                | (if 0 != (flags & DC_OPEN_READONLY as i32) {
+                    SQLITE_OPEN_READONLY
                 } else {
-                    0x2i32 | 0x4i32
-                },
-            0 as *const libc::c_char,
-        ) != 0i32
+                    SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+                }),
+            std::ptr::null(),
+        ) != 0
         {
             dc_sqlite3_log_error(
+                context,
                 sql,
                 b"Cannot open database \"%s\".\x00" as *const u8 as *const libc::c_char,
                 dbfile,
             );
         } else {
             dc_sqlite3_execute(
+                context,
                 sql,
                 b"PRAGMA secure_delete=on;\x00" as *const u8 as *const libc::c_char,
             );
-            sqlite3_busy_timeout((*sql).cobj, 10i32 * 1000i32);
-            if 0 == flags & 0x1i32 {
-                let mut exists_before_update: libc::c_int = 0i32;
-                let mut dbversion_before_update: libc::c_int = 0i32;
+            sqlite3_busy_timeout(sql.cobj, 10 * 1000);
+            if 0 == flags & DC_OPEN_READONLY as i32 {
+                let mut exists_before_update = 0;
+                let mut dbversion_before_update = 0;
                 /* Init tables to dbversion=0 */
                 if 0 == dc_sqlite3_table_exists(
+                    context,
                     sql,
                     b"config\x00" as *const u8 as *const libc::c_char,
                 ) {
                     dc_log_info(
-                        (*sql).context,
-                        0i32,
+                        context,
+                        0,
                         b"First time init: creating tables in \"%s\".\x00" as *const u8
                             as *const libc::c_char,
                         dbfile,
                     );
-                    dc_sqlite3_execute(sql,
-                                       b"CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
                     dc_sqlite3_execute(
+                        context,
+                        sql,
+                        b"CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);\x00"
+                            as *const u8 as
+                            *const libc::c_char
+                    );
+                    dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX config_index1 ON config (keyname);\x00" as *const u8
                             as *const libc::c_char,
                     );
-                    dc_sqlite3_execute(sql,
-                                       b"CREATE TABLE contacts (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT DEFAULT \'\', addr TEXT DEFAULT \'\' COLLATE NOCASE, origin INTEGER DEFAULT 0, blocked INTEGER DEFAULT 0, last_seen INTEGER DEFAULT 0, param TEXT DEFAULT \'\');\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
                     dc_sqlite3_execute(
+                        context,
+                        sql,
+                        b"CREATE TABLE contacts (\
+                          id INTEGER PRIMARY KEY AUTOINCREMENT, \
+                          name TEXT DEFAULT \'\', \
+                          addr TEXT DEFAULT \'\' COLLATE NOCASE, \
+                          origin INTEGER DEFAULT 0, \
+                          blocked INTEGER DEFAULT 0, \
+                          last_seen INTEGER DEFAULT 0, \
+                          param TEXT DEFAULT \'\');\x00" as *const u8
+                            as *const libc::c_char,
+                    );
+                    dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX contacts_index1 ON contacts (name COLLATE NOCASE);\x00"
                             as *const u8 as *const libc::c_char,
                     );
                     dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX contacts_index2 ON contacts (addr COLLATE NOCASE);\x00"
                             as *const u8 as *const libc::c_char,
                     );
-                    dc_sqlite3_execute(sql,
-                                       b"INSERT INTO contacts (id,name,origin) VALUES (1,\'self\',262144), (2,\'device\',262144), (3,\'rsvd\',262144), (4,\'rsvd\',262144), (5,\'rsvd\',262144), (6,\'rsvd\',262144), (7,\'rsvd\',262144), (8,\'rsvd\',262144), (9,\'rsvd\',262144);\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
-                    dc_sqlite3_execute(sql,
-                                       b"CREATE TABLE chats (id INTEGER PRIMARY KEY AUTOINCREMENT,  type INTEGER DEFAULT 0, name TEXT DEFAULT \'\', draft_timestamp INTEGER DEFAULT 0, draft_txt TEXT DEFAULT \'\', blocked INTEGER DEFAULT 0, grpid TEXT DEFAULT \'\', param TEXT DEFAULT \'\');\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
                     dc_sqlite3_execute(
+                        context,
+                        sql,
+                        b"INSERT INTO contacts (id,name,origin) VALUES \
+                          (1,\'self\',262144), (2,\'device\',262144), (3,\'rsvd\',262144), \
+                          (4,\'rsvd\',262144), (5,\'rsvd\',262144), (6,\'rsvd\',262144), \
+                          (7,\'rsvd\',262144), (8,\'rsvd\',262144), (9,\'rsvd\',262144);\x00"
+                            as *const u8 as *const libc::c_char,
+                    );
+                    dc_sqlite3_execute(
+                        context,
+                        sql,
+                        b"CREATE TABLE chats (\
+                          id INTEGER PRIMARY KEY AUTOINCREMENT,  \
+                          type INTEGER DEFAULT 0, \
+                          name TEXT DEFAULT \'\', \
+                          draft_timestamp INTEGER DEFAULT 0, \
+                          draft_txt TEXT DEFAULT \'\', \
+                          blocked INTEGER DEFAULT 0, \
+                          grpid TEXT DEFAULT \'\', \
+                          param TEXT DEFAULT \'\');\x00" as *const u8
+                            as *const libc::c_char,
+                    );
+                    dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX chats_index1 ON chats (grpid);\x00" as *const u8
                             as *const libc::c_char,
                     );
                     dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE TABLE chats_contacts (chat_id INTEGER, contact_id INTEGER);\x00"
                             as *const u8 as *const libc::c_char,
                     );
                     dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);\x00"
                             as *const u8 as *const libc::c_char,
                     );
-                    dc_sqlite3_execute(sql,
-                                       b"INSERT INTO chats (id,type,name) VALUES (1,120,\'deaddrop\'), (2,120,\'rsvd\'), (3,120,\'trash\'), (4,120,\'msgs_in_creation\'), (5,120,\'starred\'), (6,120,\'archivedlink\'), (7,100,\'rsvd\'), (8,100,\'rsvd\'), (9,100,\'rsvd\');\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
-                    dc_sqlite3_execute(sql,
-                                       b"CREATE TABLE msgs (id INTEGER PRIMARY KEY AUTOINCREMENT, rfc724_mid TEXT DEFAULT \'\', server_folder TEXT DEFAULT \'\', server_uid INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0, to_id INTEGER DEFAULT 0, timestamp INTEGER DEFAULT 0, type INTEGER DEFAULT 0, state INTEGER DEFAULT 0, msgrmsg INTEGER DEFAULT 1, bytes INTEGER DEFAULT 0, txt TEXT DEFAULT \'\', txt_raw TEXT DEFAULT \'\', param TEXT DEFAULT \'\');\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
                     dc_sqlite3_execute(
+                        context,
+                        sql,
+                        b"INSERT INTO chats (id,type,name) VALUES \
+                          (1,120,\'deaddrop\'), (2,120,\'rsvd\'), (3,120,\'trash\'), \
+                          (4,120,\'msgs_in_creation\'), (5,120,\'starred\'), (6,120,\'archivedlink\'), \
+                          (7,100,\'rsvd\'), (8,100,\'rsvd\'), (9,100,\'rsvd\');\x00"
+                            as *const u8 as *const libc::c_char
+                    );
+                    dc_sqlite3_execute(
+                        context,
+                        sql,
+                        b"CREATE TABLE msgs (\
+                          id INTEGER PRIMARY KEY AUTOINCREMENT, \
+                          rfc724_mid TEXT DEFAULT \'\', \
+                          server_folder TEXT DEFAULT \'\', \
+                          server_uid INTEGER DEFAULT 0, \
+                          chat_id INTEGER DEFAULT 0, \
+                          from_id INTEGER DEFAULT 0, \
+                          to_id INTEGER DEFAULT 0, \
+                          timestamp INTEGER DEFAULT 0, \
+                          type INTEGER DEFAULT 0, \
+                          state INTEGER DEFAULT 0, \
+                          msgrmsg INTEGER DEFAULT 1, \
+                          bytes INTEGER DEFAULT 0, \
+                          txt TEXT DEFAULT \'\', \
+                          txt_raw TEXT DEFAULT \'\', \
+                          param TEXT DEFAULT \'\');\x00" as *const u8
+                            as *const libc::c_char,
+                    );
+                    dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX msgs_index1 ON msgs (rfc724_mid);\x00" as *const u8
                             as *const libc::c_char,
                     );
                     dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX msgs_index2 ON msgs (chat_id);\x00" as *const u8
                             as *const libc::c_char,
                     );
                     dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX msgs_index3 ON msgs (timestamp);\x00" as *const u8
                             as *const libc::c_char,
                     );
                     dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX msgs_index4 ON msgs (state);\x00" as *const u8
                             as *const libc::c_char,
                     );
-                    dc_sqlite3_execute(sql,
-                                       b"INSERT INTO msgs (id,msgrmsg,txt) VALUES (1,0,\'marker1\'), (2,0,\'rsvd\'), (3,0,\'rsvd\'), (4,0,\'rsvd\'), (5,0,\'rsvd\'), (6,0,\'rsvd\'), (7,0,\'rsvd\'), (8,0,\'rsvd\'), (9,0,\'daymarker\');\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
-                    dc_sqlite3_execute(sql,
-                                       b"CREATE TABLE jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, added_timestamp INTEGER, desired_timestamp INTEGER DEFAULT 0, action INTEGER, foreign_id INTEGER, param TEXT DEFAULT \'\');\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
                     dc_sqlite3_execute(
+                        context,
+                        sql,
+                        b"INSERT INTO msgs (id,msgrmsg,txt) VALUES \
+                          (1,0,\'marker1\'), (2,0,\'rsvd\'), (3,0,\'rsvd\'), \
+                          (4,0,\'rsvd\'), (5,0,\'rsvd\'), (6,0,\'rsvd\'), (7,0,\'rsvd\'), \
+                          (8,0,\'rsvd\'), (9,0,\'daymarker\');\x00"
+                            as *const u8 as *const libc::c_char,
+                    );
+                    dc_sqlite3_execute(
+                        context,
+                        sql,
+                        b"CREATE TABLE jobs (\
+                          id INTEGER PRIMARY KEY AUTOINCREMENT, \
+                          added_timestamp INTEGER, \
+                          desired_timestamp INTEGER DEFAULT 0, \
+                          action INTEGER, \
+                          foreign_id INTEGER, \
+                          param TEXT DEFAULT \'\');\x00" as *const u8
+                            as *const libc::c_char,
+                    );
+                    dc_sqlite3_execute(
+                        context,
                         sql,
                         b"CREATE INDEX jobs_index1 ON jobs (desired_timestamp);\x00" as *const u8
                             as *const libc::c_char,
                     );
                     if 0 == dc_sqlite3_table_exists(
+                        context,
                         sql,
                         b"config\x00" as *const u8 as *const libc::c_char,
                     ) || 0
                         == dc_sqlite3_table_exists(
+                            context,
                             sql,
                             b"contacts\x00" as *const u8 as *const libc::c_char,
                         )
                         || 0 == dc_sqlite3_table_exists(
+                            context,
                             sql,
                             b"chats\x00" as *const u8 as *const libc::c_char,
                         )
                         || 0 == dc_sqlite3_table_exists(
+                            context,
                             sql,
                             b"chats_contacts\x00" as *const u8 as *const libc::c_char,
                         )
                         || 0 == dc_sqlite3_table_exists(
+                            context,
                             sql,
                             b"msgs\x00" as *const u8 as *const libc::c_char,
                         )
                         || 0 == dc_sqlite3_table_exists(
+                            context,
                             sql,
                             b"jobs\x00" as *const u8 as *const libc::c_char,
                         )
                     {
                         dc_sqlite3_log_error(
+                            context,
                             sql,
                             b"Cannot create tables in new database \"%s\".\x00" as *const u8
                                 as *const libc::c_char,
                             dbfile,
                         );
-                        /* cannot create the tables - maybe we cannot write? */
+                        // cannot create the tables - maybe we cannot write?
                         current_block = 13628706266672894061;
                     } else {
                         dc_sqlite3_set_config_int(
+                            context,
                             sql,
                             b"dbversion\x00" as *const u8 as *const libc::c_char,
-                            0i32,
+                            0,
                         );
                         current_block = 14072441030219150333;
                     }
                 } else {
-                    exists_before_update = 1i32;
+                    exists_before_update = 1;
                     dbversion_before_update = dc_sqlite3_get_config_int(
+                        context,
                         sql,
                         b"dbversion\x00" as *const u8 as *const libc::c_char,
-                        0i32,
+                        0,
                     );
                     current_block = 14072441030219150333;
                 }
@@ -259,326 +335,397 @@ pub unsafe fn dc_sqlite3_open(
                         // rely themselves on the low-level structure.
                         // --------------------------------------------------------------------
                         let mut dbversion: libc::c_int = dbversion_before_update;
-                        let mut recalc_fingerprints: libc::c_int = 0i32;
-                        let mut update_file_paths: libc::c_int = 0i32;
-                        if dbversion < 1i32 {
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT \'\');\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
+                        let mut recalc_fingerprints: libc::c_int = 0;
+                        let mut update_file_paths: libc::c_int = 0;
+                        if dbversion < 1 {
                             dc_sqlite3_execute(
+                                context, sql,
+                                b"CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT \'\');\x00"
+                                    as *const u8 as *const libc::c_char
+                            );
+                            dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX leftgrps_index1 ON leftgrps (grpid);\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 1i32;
+                            dbversion = 1;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                1i32,
+                                1,
                             );
                         }
-                        if dbversion < 2i32 {
+                        if dbversion < 2 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT \'\';\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 2i32;
+                            dbversion = 2;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                2i32,
+                                2,
                             );
                         }
-                        if dbversion < 7i32 {
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE TABLE keypairs ( id INTEGER PRIMARY KEY, addr TEXT DEFAULT \'\' COLLATE NOCASE, is_default INTEGER DEFAULT 0, private_key, public_key, created INTEGER DEFAULT 0);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dbversion = 7i32;
-                            dc_sqlite3_set_config_int(
-                                sql,
-                                b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                7i32,
-                            );
-                        }
-                        if dbversion < 10i32 {
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE TABLE acpeerstates ( id INTEGER PRIMARY KEY, addr TEXT DEFAULT \'\' COLLATE NOCASE, last_seen INTEGER DEFAULT 0, last_seen_autocrypt INTEGER DEFAULT 0, public_key, prefer_encrypted INTEGER DEFAULT 0);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
+                        if dbversion < 7 {
                             dc_sqlite3_execute(
+                                context,
+                                sql,
+                                b"CREATE TABLE keypairs (\
+                                  id INTEGER PRIMARY KEY, \
+                                  addr TEXT DEFAULT \'\' COLLATE NOCASE, \
+                                  is_default INTEGER DEFAULT 0, \
+                                  private_key, \
+                                  public_key, \
+                                  created INTEGER DEFAULT 0);\x00"
+                                    as *const u8
+                                    as *const libc::c_char,
+                            );
+                            dbversion = 7;
+                            dc_sqlite3_set_config_int(
+                                context,
+                                sql,
+                                b"dbversion\x00" as *const u8 as *const libc::c_char,
+                                7,
+                            );
+                        }
+                        if dbversion < 10 {
+                            dc_sqlite3_execute(
+                                context,
+                                sql,
+                                b"CREATE TABLE acpeerstates (\
+                                  id INTEGER PRIMARY KEY, \
+                                  addr TEXT DEFAULT \'\' COLLATE NOCASE, \
+                                  last_seen INTEGER DEFAULT 0, \
+                                  last_seen_autocrypt INTEGER DEFAULT 0, \
+                                  public_key, \
+                                  prefer_encrypted INTEGER DEFAULT 0);\x00"
+                                    as *const u8
+                                    as *const libc::c_char,
+                            );
+                            dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 10i32;
+                            dbversion = 10;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                10i32,
+                                10,
                             );
                         }
-                        if dbversion < 12i32 {
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE TABLE msgs_mdns ( msg_id INTEGER,  contact_id INTEGER);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
+                        if dbversion < 12 {
                             dc_sqlite3_execute(
+                                context, sql,
+                                b"CREATE TABLE msgs_mdns ( msg_id INTEGER,  contact_id INTEGER);\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX msgs_mdns_index1 ON msgs_mdns (msg_id);\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 12i32;
+                            dbversion = 12;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                12i32,
+                                12,
                             );
                         }
-                        if dbversion < 17i32 {
+                        if dbversion < 17 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX chats_index2 ON chats (archived);\x00" as *const u8
                                     as *const libc::c_char,
                             );
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN starred INTEGER DEFAULT 0;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX msgs_index5 ON msgs (starred);\x00" as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 17i32;
+                            dbversion = 17;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                17i32,
+                                17,
                             );
                         }
-                        if dbversion < 18i32 {
-                            dc_sqlite3_execute(sql,
-                                               b"ALTER TABLE acpeerstates ADD COLUMN gossip_timestamp INTEGER DEFAULT 0;\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
+                        if dbversion < 18 {
                             dc_sqlite3_execute(
+                                context, sql,
+                                b"ALTER TABLE acpeerstates ADD COLUMN gossip_timestamp INTEGER DEFAULT 0;\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE acpeerstates ADD COLUMN gossip_key;\x00" as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 18i32;
+                            dbversion = 18;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                18i32,
+                                18,
                             );
                         }
-                        if dbversion < 27i32 {
+                        if dbversion < 27 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;\x00" as *const u8
                                     as *const libc::c_char,
                             );
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
                             dc_sqlite3_execute(
+                                context, sql,
+                                b"CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);\x00"
+                                    as *const u8 as
+                                    *const libc::c_char
+                            );
+                            dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN timestamp_sent INTEGER DEFAULT 0;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN timestamp_rcvd INTEGER DEFAULT 0;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 27i32;
+                            dbversion = 27;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                27i32,
+                                27,
                             );
                         }
-                        if dbversion < 34i32 {
+                        if dbversion < 34 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN hidden INTEGER DEFAULT 0;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dc_sqlite3_execute(sql,
-                                               b"ALTER TABLE msgs_mdns ADD COLUMN timestamp_sent INTEGER DEFAULT 0;\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dc_sqlite3_execute(sql,
-                                               b"ALTER TABLE acpeerstates ADD COLUMN public_key_fingerprint TEXT DEFAULT \'\';\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dc_sqlite3_execute(sql,
-                                               b"ALTER TABLE acpeerstates ADD COLUMN gossip_key_fingerprint TEXT DEFAULT \'\';\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            recalc_fingerprints = 1i32;
-                            dbversion = 34i32;
+                            dc_sqlite3_execute(
+                                context, sql,
+                                b"ALTER TABLE msgs_mdns ADD COLUMN timestamp_sent INTEGER DEFAULT 0;\x00"
+                                    as *const u8 as
+                                    *const libc::c_char
+                            );
+                            dc_sqlite3_execute(
+                                context, sql,
+                                b"ALTER TABLE acpeerstates ADD COLUMN public_key_fingerprint TEXT DEFAULT \'\';\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            dc_sqlite3_execute(
+                                context, sql,
+                                b"ALTER TABLE acpeerstates ADD COLUMN gossip_key_fingerprint TEXT DEFAULT \'\';\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            dc_sqlite3_execute(
+                                context, sql,
+                                b"CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            dc_sqlite3_execute(
+                                context, sql,
+                                b"CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            recalc_fingerprints = 1;
+                            dbversion = 34;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                34i32,
+                                34,
                             );
                         }
-                        if dbversion < 39i32 {
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT \'\', timestamp INTEGER DEFAULT 0);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
+                        if dbversion < 39 {
                             dc_sqlite3_execute(
+                                context, sql,
+                                b"CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT \'\', timestamp INTEGER DEFAULT 0);\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE acpeerstates ADD COLUMN verified_key;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dc_sqlite3_execute(sql,
-                                               b"ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT \'\';\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dc_sqlite3_execute(sql,
-                                               b"CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            if dbversion_before_update == 34i32 {
-                                dc_sqlite3_execute(sql,
-                                                   b"UPDATE acpeerstates SET verified_key=gossip_key, verified_key_fingerprint=gossip_key_fingerprint WHERE gossip_key_verified=2;\x00"
-                                                       as *const u8 as
-                                                       *const libc::c_char);
-                                dc_sqlite3_execute(sql,
-                                                   b"UPDATE acpeerstates SET verified_key=public_key, verified_key_fingerprint=public_key_fingerprint WHERE public_key_verified=2;\x00"
-                                                       as *const u8 as
-                                                       *const libc::c_char);
+                            dc_sqlite3_execute(
+                                context, sql,
+                                b"ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT \'\';\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            dc_sqlite3_execute(
+                                context, sql,
+                                b"CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            if dbversion_before_update == 34 {
+                                dc_sqlite3_execute(
+                                    context, sql,
+                                    b"UPDATE acpeerstates SET verified_key=gossip_key, verified_key_fingerprint=gossip_key_fingerprint WHERE gossip_key_verified=2;\x00"
+                                        as *const u8 as
+                                        *const libc::c_char);
+                                dc_sqlite3_execute(
+                                    context, sql,
+                                    b"UPDATE acpeerstates SET verified_key=public_key, verified_key_fingerprint=public_key_fingerprint WHERE public_key_verified=2;\x00"
+                                        as *const u8 as
+                                        *const libc::c_char);
                             }
-                            dbversion = 39i32;
+                            dbversion = 39;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                39i32,
+                                39,
                             );
                         }
-                        if dbversion < 40i32 {
+                        if dbversion < 40 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE jobs ADD COLUMN thread INTEGER DEFAULT 0;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 40i32;
+                            dbversion = 40;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                40i32,
+                                40,
                             );
                         }
-                        if dbversion < 41i32 {
-                            update_file_paths = 1i32;
-                            dbversion = 41i32;
+                        if dbversion < 41 {
+                            update_file_paths = 1;
+                            dbversion = 41;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                41i32,
+                                41,
                             );
                         }
-                        if dbversion < 42i32 {
+                        if dbversion < 42 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"UPDATE msgs SET txt=\'\' WHERE type!=10\x00" as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 42i32;
+                            dbversion = 42;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                42i32,
+                                42,
                             );
                         }
-                        if dbversion < 44i32 {
+                        if dbversion < 44 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN mime_headers TEXT;\x00" as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 44i32;
+                            dbversion = 44;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                44i32,
+                                44,
                             );
                         }
-                        if dbversion < 46i32 {
+                        if dbversion < 46 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN mime_in_reply_to TEXT;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN mime_references TEXT;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 46i32;
+                            dbversion = 46;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                46i32,
+                                46,
                             );
                         }
-                        if dbversion < 47i32 {
+                        if dbversion < 47 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE jobs ADD COLUMN tries INTEGER DEFAULT 0;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 47i32;
+                            dbversion = 47;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                47i32,
+                                47,
                             );
                         }
-                        if dbversion < 48i32 {
+                        if dbversion < 48 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            if 0 != !(DC_MOVE_STATE_UNDEFINED as libc::c_int == 0i32) as libc::c_int
+                            if 0 != !(DC_MOVE_STATE_UNDEFINED as libc::c_int == 0) as libc::c_int
                                 as libc::c_long
                             {
                                 __assert_rtn(
@@ -587,13 +734,13 @@ pub unsafe fn dc_sqlite3_open(
                                     ))
                                     .as_ptr(),
                                     b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    559i32,
+                                    559,
                                     b"DC_MOVE_STATE_UNDEFINED == 0\x00" as *const u8
                                         as *const libc::c_char,
                                 );
                             } else {
                             };
-                            if 0 != !(DC_MOVE_STATE_PENDING as libc::c_int == 1i32) as libc::c_int
+                            if 0 != !(DC_MOVE_STATE_PENDING as libc::c_int == 1) as libc::c_int
                                 as libc::c_long
                             {
                                 __assert_rtn(
@@ -602,13 +749,13 @@ pub unsafe fn dc_sqlite3_open(
                                     ))
                                     .as_ptr(),
                                     b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    560i32,
+                                    560,
                                     b"DC_MOVE_STATE_PENDING == 1\x00" as *const u8
                                         as *const libc::c_char,
                                 );
                             } else {
                             };
-                            if 0 != !(DC_MOVE_STATE_STAY as libc::c_int == 2i32) as libc::c_int
+                            if 0 != !(DC_MOVE_STATE_STAY as libc::c_int == 2) as libc::c_int
                                 as libc::c_long
                             {
                                 __assert_rtn(
@@ -617,13 +764,13 @@ pub unsafe fn dc_sqlite3_open(
                                     ))
                                     .as_ptr(),
                                     b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    561i32,
+                                    561,
                                     b"DC_MOVE_STATE_STAY == 2\x00" as *const u8
                                         as *const libc::c_char,
                                 );
                             } else {
                             };
-                            if 0 != !(DC_MOVE_STATE_MOVING as libc::c_int == 3i32) as libc::c_int
+                            if 0 != !(DC_MOVE_STATE_MOVING as libc::c_int == 3) as libc::c_int
                                 as libc::c_long
                             {
                                 __assert_rtn(
@@ -632,115 +779,127 @@ pub unsafe fn dc_sqlite3_open(
                                     ))
                                     .as_ptr(),
                                     b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    562i32,
+                                    562,
                                     b"DC_MOVE_STATE_MOVING == 3\x00" as *const u8
                                         as *const libc::c_char,
                                 );
                             } else {
                             };
-                            dbversion = 48i32;
+                            dbversion = 48;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                48i32,
+                                48,
                             );
                         }
-                        if dbversion < 49i32 {
-                            dc_sqlite3_execute(sql,
-                                               b"ALTER TABLE chats ADD COLUMN gossiped_timestamp INTEGER DEFAULT 0;\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dbversion = 49i32;
+                        if dbversion < 49 {
+                            dc_sqlite3_execute(
+                                context, sql,
+                                b"ALTER TABLE chats ADD COLUMN gossiped_timestamp INTEGER DEFAULT 0;\x00"
+                                    as *const u8 as
+                                    *const libc::c_char);
+                            dbversion = 49;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                49i32,
+                                49,
                             );
                         }
-                        if dbversion < 50i32 {
+                        if dbversion < 50 {
                             if 0 != exists_before_update {
                                 dc_sqlite3_set_config_int(
+                                    context,
                                     sql,
                                     b"show_emails\x00" as *const u8 as *const libc::c_char,
-                                    2i32,
+                                    2,
                                 );
                             }
-                            dbversion = 50i32;
+                            dbversion = 50;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                50i32,
+                                50,
                             );
                         }
-                        if dbversion < 53i32 {
-                            dc_sqlite3_execute(sql,
+                        if dbversion < 53 {
+                            dc_sqlite3_execute(context, sql,
                                                b"CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
+                                               as *const u8 as
+                                               *const libc::c_char);
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX locations_index1 ON locations (from_id);\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX locations_index2 ON locations (timestamp);\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dc_sqlite3_execute(sql,
+                            dc_sqlite3_execute(context, sql,
                                                b"ALTER TABLE chats ADD COLUMN locations_send_begin INTEGER DEFAULT 0;\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dc_sqlite3_execute(sql,
+                                               as *const u8 as
+                                               *const libc::c_char);
+                            dc_sqlite3_execute(context, sql,
                                                b"ALTER TABLE chats ADD COLUMN locations_send_until INTEGER DEFAULT 0;\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
-                            dc_sqlite3_execute(sql,
+                                               as *const u8 as
+                                               *const libc::c_char);
+                            dc_sqlite3_execute(context, sql,
                                                b"ALTER TABLE chats ADD COLUMN locations_last_sent INTEGER DEFAULT 0;\x00"
-                                                   as *const u8 as
-                                                   *const libc::c_char);
+                                               as *const u8 as
+                                               *const libc::c_char);
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX chats_index3 ON chats (locations_send_until);\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 53i32;
+                            dbversion = 53;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                53i32,
+                                53,
                             );
                         }
-                        if dbversion < 54i32 {
+                        if dbversion < 54 {
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"ALTER TABLE msgs ADD COLUMN location_id INTEGER DEFAULT 0;\x00"
                                     as *const u8
                                     as *const libc::c_char,
                             );
                             dc_sqlite3_execute(
+                                context,
                                 sql,
                                 b"CREATE INDEX msgs_index6 ON msgs (location_id);\x00" as *const u8
                                     as *const libc::c_char,
                             );
-                            dbversion = 54i32;
+                            dbversion = 54;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
-                                54i32,
+                                54,
                             );
                         }
                         if dbversion < 55 {
                             dc_sqlite3_execute(
-                                sql,
+                                context, sql,
                                 b"ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;\x00" as *const u8 as *const libc::c_char
                             );
 
-                            dbversion = 55;
                             dc_sqlite3_set_config_int(
+                                context,
                                 sql,
                                 b"dbversion\x00" as *const u8 as *const libc::c_char,
                                 55,
@@ -749,20 +908,21 @@ pub unsafe fn dc_sqlite3_open(
 
                         if 0 != recalc_fingerprints {
                             let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+                                context,
                                 sql,
                                 b"SELECT addr FROM acpeerstates;\x00" as *const u8
                                     as *const libc::c_char,
                             );
-                            while sqlite3_step(stmt) == 100i32 {
+                            while sqlite3_step(stmt) == 100 {
                                 let mut peerstate: *mut dc_apeerstate_t =
-                                    dc_apeerstate_new((*sql).context);
+                                    dc_apeerstate_new(context);
                                 if 0 != dc_apeerstate_load_by_addr(
                                     peerstate,
                                     sql,
-                                    sqlite3_column_text(stmt, 0i32) as *const libc::c_char,
+                                    sqlite3_column_text(stmt, 0) as *const libc::c_char,
                                 ) && 0 != dc_apeerstate_recalc_fingerprint(peerstate)
                                 {
-                                    dc_apeerstate_save_to_db(peerstate, sql, 0i32);
+                                    dc_apeerstate_save_to_db(peerstate, sql, 0);
                                 }
                                 dc_apeerstate_unref(peerstate);
                             }
@@ -770,9 +930,10 @@ pub unsafe fn dc_sqlite3_open(
                         }
                         if 0 != update_file_paths {
                             let mut repl_from: *mut libc::c_char = dc_sqlite3_get_config(
+                                context,
                                 sql,
                                 b"backup_for\x00" as *const u8 as *const libc::c_char,
-                                (*(*sql).context).blobdir,
+                                context.get_blobdir(),
                             );
                             dc_ensure_no_slash(repl_from);
                             if 0 != !('f' as i32 == 'f' as i32) as libc::c_int as libc::c_long {
@@ -782,17 +943,17 @@ pub unsafe fn dc_sqlite3_open(
                                     ))
                                     .as_ptr(),
                                     b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    656i32,
+                                    656,
                                     b"\'f\'==DC_PARAM_FILE\x00" as *const u8 as *const libc::c_char,
                                 );
                             } else {
                             };
                             let mut q3: *mut libc::c_char =
                                 sqlite3_mprintf(b"UPDATE msgs SET param=replace(param, \'f=%q/\', \'f=$BLOBDIR/\');\x00"
-                                                    as *const u8 as
-                                                    *const libc::c_char,
+                                                as *const u8 as
+                                                *const libc::c_char,
                                                 repl_from);
-                            dc_sqlite3_execute(sql, q3);
+                            dc_sqlite3_execute(context, sql, q3);
                             sqlite3_free(q3 as *mut libc::c_void);
                             if 0 != !('i' as i32 == 'i' as i32) as libc::c_int as libc::c_long {
                                 __assert_rtn(
@@ -801,7 +962,7 @@ pub unsafe fn dc_sqlite3_open(
                                     ))
                                     .as_ptr(),
                                     b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    661i32,
+                                    661,
                                     b"\'i\'==DC_PARAM_PROFILE_IMAGE\x00" as *const u8
                                         as *const libc::c_char,
                                 );
@@ -809,13 +970,14 @@ pub unsafe fn dc_sqlite3_open(
                             };
                             q3 =
                                 sqlite3_mprintf(b"UPDATE chats SET param=replace(param, \'i=%q/\', \'i=$BLOBDIR/\');\x00"
-                                                    as *const u8 as
-                                                    *const libc::c_char,
+                                                as *const u8 as
+                                                *const libc::c_char,
                                                 repl_from);
-                            dc_sqlite3_execute(sql, q3);
+                            dc_sqlite3_execute(context, sql, q3);
                             sqlite3_free(q3 as *mut libc::c_void);
                             free(repl_from as *mut libc::c_void);
                             dc_sqlite3_set_config(
+                                context,
                                 sql,
                                 b"backup_for\x00" as *const u8 as *const libc::c_char,
                                 0 as *const libc::c_char,
@@ -831,178 +993,196 @@ pub unsafe fn dc_sqlite3_open(
                 13628706266672894061 => {}
                 _ => {
                     dc_log_info(
-                        (*sql).context,
-                        0i32,
+                        context,
+                        0,
                         b"Opened \"%s\".\x00" as *const u8 as *const libc::c_char,
                         dbfile,
                     );
-                    return 1i32;
+                    return 1;
                 }
             }
         }
     }
-    dc_sqlite3_close(sql);
-    return 0i32;
+
+    dc_sqlite3_close(context, sql);
+    0
 }
-/* handle configurations, private */
+
+// handle configurations, private
 pub unsafe fn dc_sqlite3_set_config(
-    mut sql: *mut dc_sqlite3_t,
-    mut key: *const libc::c_char,
-    mut value: *const libc::c_char,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    key: *const libc::c_char,
+    value: *const libc::c_char,
 ) -> libc::c_int {
-    let mut state: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut state;
+    let mut stmt;
     if key.is_null() {
         dc_log_error(
-            (*sql).context,
-            0i32,
+            context,
+            0,
             b"dc_sqlite3_set_config(): Bad parameter.\x00" as *const u8 as *const libc::c_char,
         );
-        return 0i32;
+        return 0;
     }
     if 0 == dc_sqlite3_is_open(sql) {
         dc_log_error(
-            (*sql).context,
-            0i32,
+            context,
+            0,
             b"dc_sqlite3_set_config(): Database not ready.\x00" as *const u8 as *const libc::c_char,
         );
-        return 0i32;
+        return 0;
     }
     if !value.is_null() {
         stmt = dc_sqlite3_prepare(
+            context,
             sql,
             b"SELECT value FROM config WHERE keyname=?;\x00" as *const u8 as *const libc::c_char,
         );
-        sqlite3_bind_text(stmt, 1i32, key, -1i32, None);
+        sqlite3_bind_text(stmt, 1, key, -1, None);
         state = sqlite3_step(stmt);
         sqlite3_finalize(stmt);
-        if state == 101i32 {
+        if state == 101 {
             stmt = dc_sqlite3_prepare(
+                context,
                 sql,
                 b"INSERT INTO config (keyname, value) VALUES (?, ?);\x00" as *const u8
                     as *const libc::c_char,
             );
-            sqlite3_bind_text(stmt, 1i32, key, -1i32, None);
-            sqlite3_bind_text(stmt, 2i32, value, -1i32, None);
+            sqlite3_bind_text(stmt, 1, key, -1, None);
+            sqlite3_bind_text(stmt, 2, value, -1, None);
             state = sqlite3_step(stmt);
             sqlite3_finalize(stmt);
-        } else if state == 100i32 {
+        } else if state == 100 {
             stmt = dc_sqlite3_prepare(
+                context,
                 sql,
                 b"UPDATE config SET value=? WHERE keyname=?;\x00" as *const u8
                     as *const libc::c_char,
             );
-            sqlite3_bind_text(stmt, 1i32, value, -1i32, None);
-            sqlite3_bind_text(stmt, 2i32, key, -1i32, None);
+            sqlite3_bind_text(stmt, 1, value, -1, None);
+            sqlite3_bind_text(stmt, 2, key, -1, None);
             state = sqlite3_step(stmt);
             sqlite3_finalize(stmt);
         } else {
             dc_log_error(
-                (*sql).context,
-                0i32,
+                context,
+                0,
                 b"dc_sqlite3_set_config(): Cannot read value.\x00" as *const u8
                     as *const libc::c_char,
             );
-            return 0i32;
+            return 0;
         }
     } else {
         stmt = dc_sqlite3_prepare(
+            context,
             sql,
             b"DELETE FROM config WHERE keyname=?;\x00" as *const u8 as *const libc::c_char,
         );
-        sqlite3_bind_text(stmt, 1i32, key, -1i32, None);
+        sqlite3_bind_text(stmt, 1, key, -1, None);
         state = sqlite3_step(stmt);
         sqlite3_finalize(stmt);
     }
-    if state != 101i32 {
+    if state != 101 {
         dc_log_error(
-            (*sql).context,
-            0i32,
+            context,
+            0,
             b"dc_sqlite3_set_config(): Cannot change value.\x00" as *const u8
                 as *const libc::c_char,
         );
-        return 0i32;
+        return 0;
     }
-    return 1i32;
+
+    1
 }
+
 /* tools, these functions are compatible to the corresponding sqlite3_* functions */
 /* the result mus be freed using sqlite3_finalize() */
 pub unsafe fn dc_sqlite3_prepare(
-    mut sql: *mut dc_sqlite3_t,
-    mut querystr: *const libc::c_char,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    querystr: *const libc::c_char,
 ) -> *mut sqlite3_stmt {
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if sql.is_null() || querystr.is_null() || (*sql).cobj.is_null() {
+    let mut stmt = 0 as *mut sqlite3_stmt;
+    if querystr.is_null() || sql.cobj.is_null() {
         return 0 as *mut sqlite3_stmt;
     }
     if sqlite3_prepare_v2(
-        (*sql).cobj,
+        sql.cobj,
         querystr,
-        -1i32,
+        -1,
         &mut stmt,
         0 as *mut *const libc::c_char,
-    ) != 0i32
+    ) != 0
     {
         dc_sqlite3_log_error(
+            context,
             sql,
             b"Query failed: %s\x00" as *const u8 as *const libc::c_char,
             querystr,
         );
         return 0 as *mut sqlite3_stmt;
     }
-    return stmt;
+    stmt
 }
+
 pub unsafe extern "C" fn dc_sqlite3_log_error(
-    mut sql: *mut dc_sqlite3_t,
-    mut msg_format: *const libc::c_char,
-    mut va: ...
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    msg_format: *const libc::c_char,
+    va: ...
 ) {
-    let mut msg: *mut libc::c_char = 0 as *mut libc::c_char;
-    if sql.is_null() || msg_format.is_null() {
+    let mut msg;
+    if msg_format.is_null() {
         return;
     }
     // FIXME: evil transmute
     msg = sqlite3_vmprintf(msg_format, std::mem::transmute(va));
     dc_log_error(
-        (*sql).context,
-        0i32,
+        context,
+        0,
         b"%s SQLite says: %s\x00" as *const u8 as *const libc::c_char,
         if !msg.is_null() {
             msg
         } else {
             b"\x00" as *const u8 as *const libc::c_char
         },
-        if !(*sql).cobj.is_null() {
-            sqlite3_errmsg((*sql).cobj)
+        if !sql.cobj.is_null() {
+            sqlite3_errmsg(sql.cobj)
         } else {
             b"SQLite object not set up.\x00" as *const u8 as *const libc::c_char
         },
     );
     sqlite3_free(msg as *mut libc::c_void);
 }
-pub unsafe fn dc_sqlite3_is_open(mut sql: *const dc_sqlite3_t) -> libc::c_int {
-    if sql.is_null() || (*sql).cobj.is_null() {
-        return 0i32;
+
+pub unsafe fn dc_sqlite3_is_open(sql: &dc_sqlite3_t) -> libc::c_int {
+    if sql.cobj.is_null() {
+        0
+    } else {
+        1
     }
-    return 1i32;
 }
+
 /* the returned string must be free()'d, returns NULL on errors */
 pub unsafe fn dc_sqlite3_get_config(
-    mut sql: *mut dc_sqlite3_t,
-    mut key: *const libc::c_char,
-    mut def: *const libc::c_char,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    key: *const libc::c_char,
+    def: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let mut stmt;
     if 0 == dc_sqlite3_is_open(sql) || key.is_null() {
         return dc_strdup_keep_null(def);
     }
     stmt = dc_sqlite3_prepare(
+        context,
         sql,
         b"SELECT value FROM config WHERE keyname=?;\x00" as *const u8 as *const libc::c_char,
     );
-    sqlite3_bind_text(stmt, 1i32, key, -1i32, None);
-    if sqlite3_step(stmt) == 100i32 {
-        let mut ptr: *const libc::c_uchar = sqlite3_column_text(stmt, 0i32);
+    sqlite3_bind_text(stmt, 1, key, -1, None);
+    if sqlite3_step(stmt) == 100 {
+        let mut ptr: *const libc::c_uchar = sqlite3_column_text(stmt, 0);
         if !ptr.is_null() {
             let mut ret: *mut libc::c_char = dc_strdup(ptr as *const libc::c_char);
             sqlite3_finalize(stmt);
@@ -1010,85 +1190,94 @@ pub unsafe fn dc_sqlite3_get_config(
         }
     }
     sqlite3_finalize(stmt);
-    return dc_strdup_keep_null(def);
+    dc_strdup_keep_null(def)
 }
+
 pub unsafe fn dc_sqlite3_execute(
-    mut sql: *mut dc_sqlite3_t,
-    mut querystr: *const libc::c_char,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    querystr: *const libc::c_char,
 ) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut sqlState: libc::c_int = 0i32;
-    stmt = dc_sqlite3_prepare(sql, querystr);
+    let mut success = 0;
+    let mut sqlState;
+    let stmt = dc_sqlite3_prepare(context, sql, querystr);
     if !stmt.is_null() {
         sqlState = sqlite3_step(stmt);
-        if sqlState != 101i32 && sqlState != 100i32 {
+        if sqlState != 101 && sqlState != 100 {
             dc_sqlite3_log_error(
+                context,
                 sql,
                 b"Cannot execute \"%s\".\x00" as *const u8 as *const libc::c_char,
                 querystr,
             );
         } else {
-            success = 1i32
+            success = 1
         }
     }
     sqlite3_finalize(stmt);
-    return success;
+    success
 }
+
 pub unsafe fn dc_sqlite3_set_config_int(
-    mut sql: *mut dc_sqlite3_t,
-    mut key: *const libc::c_char,
-    mut value: int32_t,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    key: *const libc::c_char,
+    value: int32_t,
 ) -> libc::c_int {
-    let mut value_str: *mut libc::c_char = dc_mprintf(
+    let mut value_str = dc_mprintf(
         b"%i\x00" as *const u8 as *const libc::c_char,
         value as libc::c_int,
     );
     if value_str.is_null() {
-        return 0i32;
+        return 0;
     }
-    let mut ret: libc::c_int = dc_sqlite3_set_config(sql, key, value_str);
+    let ret = dc_sqlite3_set_config(context, sql, key, value_str);
     free(value_str as *mut libc::c_void);
-    return ret;
+
+    ret
 }
+
 pub unsafe fn dc_sqlite3_get_config_int(
-    mut sql: *mut dc_sqlite3_t,
-    mut key: *const libc::c_char,
-    mut def: int32_t,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    key: *const libc::c_char,
+    def: int32_t,
 ) -> int32_t {
-    let mut str: *mut libc::c_char = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    let mut str = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     if str.is_null() {
         return def;
     }
-    let mut ret: int32_t = atoi(str) as int32_t;
+    let mut ret = atoi(str) as int32_t;
     free(str as *mut libc::c_void);
-    return ret;
+    ret
 }
+
 pub unsafe fn dc_sqlite3_table_exists(
-    mut sql: *mut dc_sqlite3_t,
-    mut name: *const libc::c_char,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    name: *const libc::c_char,
 ) -> libc::c_int {
-    let mut ret: libc::c_int = 0i32;
-    let mut querystr: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut sqlState: libc::c_int = 0i32;
-    querystr = sqlite3_mprintf(
+    let mut ret = 0;
+    let mut stmt = 0 as *mut sqlite3_stmt;
+    let mut sqlState;
+
+    let querystr = sqlite3_mprintf(
         b"PRAGMA table_info(%s)\x00" as *const u8 as *const libc::c_char,
         name,
     );
     if querystr.is_null() {
         /* this statement cannot be used with binded variables */
         dc_log_error(
-            (*sql).context,
-            0i32,
+            context,
+            0,
             b"dc_sqlite3_table_exists_(): Out of memory.\x00" as *const u8 as *const libc::c_char,
         );
     } else {
-        stmt = dc_sqlite3_prepare(sql, querystr);
+        stmt = dc_sqlite3_prepare(context, sql, querystr);
         if !stmt.is_null() {
             sqlState = sqlite3_step(stmt);
-            if sqlState == 100i32 {
-                ret = 1i32
+            if sqlState == 100 {
+                ret = 1
             }
         }
     }
@@ -1099,104 +1288,113 @@ pub unsafe fn dc_sqlite3_table_exists(
     if !querystr.is_null() {
         sqlite3_free(querystr as *mut libc::c_void);
     }
-    return ret;
+    ret
 }
+
 pub unsafe fn dc_sqlite3_set_config_int64(
-    mut sql: *mut dc_sqlite3_t,
-    mut key: *const libc::c_char,
-    mut value: int64_t,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    key: *const libc::c_char,
+    value: int64_t,
 ) -> libc::c_int {
-    let mut value_str: *mut libc::c_char = dc_mprintf(
+    let mut value_str = dc_mprintf(
         b"%lld\x00" as *const u8 as *const libc::c_char,
         value as libc::c_long,
     );
     if value_str.is_null() {
-        return 0i32;
+        return 0;
     }
-    let mut ret: libc::c_int = dc_sqlite3_set_config(sql, key, value_str);
+    let ret = dc_sqlite3_set_config(context, sql, key, value_str);
     free(value_str as *mut libc::c_void);
-    return ret;
+    ret
 }
+
 pub unsafe fn dc_sqlite3_get_config_int64(
-    mut sql: *mut dc_sqlite3_t,
-    mut key: *const libc::c_char,
-    mut def: int64_t,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    key: *const libc::c_char,
+    def: int64_t,
 ) -> int64_t {
-    let mut str: *mut libc::c_char = dc_sqlite3_get_config(sql, key, 0 as *const libc::c_char);
+    let mut str = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
     if str.is_null() {
         return def;
     }
-    let mut ret: int64_t = 0i32 as int64_t;
+    let mut ret = 0 as int64_t;
     sscanf(
         str,
         b"%lld\x00" as *const u8 as *const libc::c_char,
         &mut ret as *mut int64_t,
     );
     free(str as *mut libc::c_void);
-    return ret;
+    ret
 }
+
 pub unsafe fn dc_sqlite3_try_execute(
-    mut sql: *mut dc_sqlite3_t,
-    mut querystr: *const libc::c_char,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    querystr: *const libc::c_char,
 ) -> libc::c_int {
     // same as dc_sqlite3_execute() but does not pass error to ui
-    let mut success: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut sql_state: libc::c_int = 0i32;
-    stmt = dc_sqlite3_prepare(sql, querystr);
+    let mut success = 0;
+    let mut sql_state;
+    let stmt = dc_sqlite3_prepare(context, sql, querystr);
     if !stmt.is_null() {
         sql_state = sqlite3_step(stmt);
-        if sql_state != 101i32 && sql_state != 100i32 {
+        if sql_state != 101 && sql_state != 100 {
             dc_log_warning(
-                (*sql).context,
-                0i32,
+                context,
+                0,
                 b"Try-execute for \"%s\" failed: %s\x00" as *const u8 as *const libc::c_char,
                 querystr,
-                sqlite3_errmsg((*sql).cobj),
+                sqlite3_errmsg(sql.cobj),
             );
         } else {
-            success = 1i32
+            success = 1
         }
     }
     sqlite3_finalize(stmt);
-    return success;
+    success
 }
+
 pub unsafe fn dc_sqlite3_get_rowid(
-    mut sql: *mut dc_sqlite3_t,
-    mut table: *const libc::c_char,
-    mut field: *const libc::c_char,
-    mut value: *const libc::c_char,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    table: *const libc::c_char,
+    field: *const libc::c_char,
+    value: *const libc::c_char,
 ) -> uint32_t {
     // alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
     // the ORDER BY ensures, this function always returns the most recent id,
     // eg. if a Message-ID is splitted into different messages.
-    let mut id: uint32_t = 0i32 as uint32_t;
-    let mut q3: *mut libc::c_char = sqlite3_mprintf(
+    let mut id = 0 as uint32_t;
+    let mut q3 = sqlite3_mprintf(
         b"SELECT id FROM %s WHERE %s=%Q ORDER BY id DESC;\x00" as *const u8 as *const libc::c_char,
         table,
         field,
         value,
     );
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(sql, q3);
-    if 100i32 == sqlite3_step(stmt) {
-        id = sqlite3_column_int(stmt, 0i32) as uint32_t
+    let mut stmt = dc_sqlite3_prepare(context, sql, q3);
+    if 100 == sqlite3_step(stmt) {
+        id = sqlite3_column_int(stmt, 0) as uint32_t
     }
     sqlite3_finalize(stmt);
     sqlite3_free(q3 as *mut libc::c_void);
-    return id;
+    id
 }
+
 pub unsafe fn dc_sqlite3_get_rowid2(
-    mut sql: *mut dc_sqlite3_t,
-    mut table: *const libc::c_char,
-    mut field: *const libc::c_char,
-    mut value: uint64_t,
-    mut field2: *const libc::c_char,
-    mut value2: uint32_t,
+    context: &dc_context_t,
+    sql: &dc_sqlite3_t,
+    table: *const libc::c_char,
+    field: *const libc::c_char,
+    value: uint64_t,
+    field2: *const libc::c_char,
+    value2: uint32_t,
 ) -> uint32_t {
     // same as dc_sqlite3_get_rowid() with a key over two columns
-    let mut id: uint32_t = 0i32 as uint32_t;
+    let mut id = 0 as uint32_t;
     // see https://www.sqlite.org/printf.html for sqlite-printf modifiers
-    let mut q3: *mut libc::c_char = sqlite3_mprintf(
+    let mut q3 = sqlite3_mprintf(
         b"SELECT id FROM %s WHERE %s=%lli AND %s=%i ORDER BY id DESC;\x00" as *const u8
             as *const libc::c_char,
         table,
@@ -1205,27 +1403,20 @@ pub unsafe fn dc_sqlite3_get_rowid2(
         field2,
         value2,
     );
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(sql, q3);
-    if 100i32 == sqlite3_step(stmt) {
-        id = sqlite3_column_int(stmt, 0i32) as uint32_t
+    let mut stmt = dc_sqlite3_prepare(context, sql, q3);
+    if 100 == sqlite3_step(stmt) {
+        id = sqlite3_column_int(stmt, 0) as uint32_t
     }
     sqlite3_finalize(stmt);
     sqlite3_free(q3 as *mut libc::c_void);
-    return id;
+    id
 }
 
-// NOTE: This assumes no transaction usage, port code if this is desired.
-
-pub unsafe fn dc_sqlite3_begin_transaction(_sql: *mut dc_sqlite3_t) {}
-pub unsafe fn dc_sqlite3_commit(_sql: *mut dc_sqlite3_t) {}
-pub unsafe fn dc_sqlite3_rollback(_sql: *mut dc_sqlite3_t) {}
-
-/* housekeeping */
-pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut dir_handle: *mut DIR = 0 as *mut DIR;
-    let mut dir_entry: *mut dirent = 0 as *mut dirent;
-    let mut files_in_use: dc_hash_t = dc_hash_t {
+pub unsafe fn dc_housekeeping(context: &dc_context_t) {
+    let mut stmt;
+    let mut dir_handle;
+    let mut dir_entry;
+    let mut files_in_use = dc_hash_t {
         keyClass: 0,
         copyKey: 0,
         count: 0,
@@ -1233,12 +1424,12 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
         htsize: 0,
         ht: 0 as *mut _ht,
     };
-    let mut path: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut unreferenced_count: libc::c_int = 0i32;
-    dc_hash_init(&mut files_in_use, 3i32, 1i32);
+    let mut path = 0 as *mut libc::c_char;
+    let mut unreferenced_count = 0;
+    dc_hash_init(&mut files_in_use, 3, 1);
     dc_log_info(
         context,
-        0i32,
+        0,
         b"Start housekeeping...\x00" as *const u8 as *const libc::c_char,
     );
     maybe_add_from_param(
@@ -1267,29 +1458,30 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
         'i' as i32,
     );
     stmt = dc_sqlite3_prepare(
-        (*context).sql,
+        context,
+        &context.sql.clone().read().unwrap(),
         b"SELECT value FROM config;\x00" as *const u8 as *const libc::c_char,
     );
-    while sqlite3_step(stmt) == 100i32 {
+    while sqlite3_step(stmt) == 100 {
         maybe_add_file(
             &mut files_in_use,
-            sqlite3_column_text(stmt, 0i32) as *const libc::c_char,
+            sqlite3_column_text(stmt, 0) as *const libc::c_char,
         );
     }
     dc_log_info(
         context,
-        0i32,
+        0,
         b"%i files in use.\x00" as *const u8 as *const libc::c_char,
         files_in_use.count as libc::c_int,
     );
     /* go through directory and delete unused files */
-    dir_handle = opendir((*context).blobdir);
+    dir_handle = opendir(context.get_blobdir());
     if dir_handle.is_null() {
         dc_log_warning(
             context,
-            0i32,
+            0,
             b"Housekeeping: Cannot open %s.\x00" as *const u8 as *const libc::c_char,
-            (*context).blobdir,
+            context.get_blobdir(),
         );
     } else {
         /* avoid deletion of files that are just created to build a message object */
@@ -1304,8 +1496,8 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
             /* name without path or `.` or `..` */
             let mut name: *const libc::c_char = (*dir_entry).d_name.as_mut_ptr();
             let mut name_len: libc::c_int = strlen(name) as libc::c_int;
-            if name_len == 1i32 && *name.offset(0isize) as libc::c_int == '.' as i32
-                || name_len == 2i32
+            if name_len == 1 && *name.offset(0isize) as libc::c_int == '.' as i32
+                || name_len == 2
                     && *name.offset(0isize) as libc::c_int == '.' as i32
                     && *name.offset(1isize) as libc::c_int == '.' as i32
             {
@@ -1334,7 +1526,7 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
             free(path as *mut libc::c_void);
             path = dc_mprintf(
                 b"%s/%s\x00" as *const u8 as *const libc::c_char,
-                (*context).blobdir,
+                context.get_blobdir(),
                 name,
             );
 
@@ -1346,7 +1538,7 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
                     {
                         dc_log_info(
                             context,
-                            0i32,
+                            0,
                             b"Housekeeping: Keeping new unreferenced file #%i: %s\x00" as *const u8
                                 as *const libc::c_char,
                             unreferenced_count,
@@ -1359,7 +1551,7 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
             }
             dc_log_info(
                 context,
-                0i32,
+                0,
                 b"Housekeeping: Deleting unreferenced file #%i: %s\x00" as *const u8
                     as *const libc::c_char,
                 unreferenced_count,
@@ -1376,25 +1568,26 @@ pub unsafe fn dc_housekeeping(mut context: *mut dc_context_t) {
     free(path as *mut libc::c_void);
     dc_log_info(
         context,
-        0i32,
+        0,
         b"Housekeeping done.\x00" as *const u8 as *const libc::c_char,
     );
 }
+
 unsafe fn is_file_in_use(
-    mut files_in_use: *mut dc_hash_t,
-    mut namespc: *const libc::c_char,
-    mut name: *const libc::c_char,
+    files_in_use: *mut dc_hash_t,
+    namespc: *const libc::c_char,
+    name: *const libc::c_char,
 ) -> libc::c_int {
-    let mut name_to_check: *mut libc::c_char = dc_strdup(name);
+    let mut name_to_check = dc_strdup(name);
     if !namespc.is_null() {
         let mut name_len: libc::c_int = strlen(name) as libc::c_int;
         let mut namespc_len: libc::c_int = strlen(namespc) as libc::c_int;
         if name_len <= namespc_len
-            || strcmp(&*name.offset((name_len - namespc_len) as isize), namespc) != 0i32
+            || strcmp(&*name.offset((name_len - namespc_len) as isize), namespc) != 0
         {
-            return 0i32;
+            return 0;
         }
-        *name_to_check.offset((name_len - namespc_len) as isize) = 0i32 as libc::c_char
+        *name_to_check.offset((name_len - namespc_len) as isize) = 0 as libc::c_char
     }
     let mut ret: libc::c_int = (dc_hash_find(
         files_in_use,
@@ -1402,42 +1595,38 @@ unsafe fn is_file_in_use(
         strlen(name_to_check) as libc::c_int,
     ) != 0 as *mut libc::c_void) as libc::c_int;
     free(name_to_check as *mut libc::c_void);
-    return ret;
+    ret
 }
-/* ******************************************************************************
- * Housekeeping
- ******************************************************************************/
-unsafe fn maybe_add_file(mut files_in_use: *mut dc_hash_t, mut file: *const libc::c_char) {
+
+unsafe fn maybe_add_file(files_in_use: *mut dc_hash_t, file: *const libc::c_char) {
     if strncmp(
         file,
         b"$BLOBDIR/\x00" as *const u8 as *const libc::c_char,
         9,
-    ) != 0i32
+    ) != 0
     {
         return;
     }
-    let mut raw_name: *const libc::c_char = &*file.offset(9isize) as *const libc::c_char;
+    let mut raw_name = &*file.offset(9isize) as *const libc::c_char;
     dc_hash_insert(
         files_in_use,
         raw_name as *const libc::c_void,
         strlen(raw_name) as libc::c_int,
-        1i32 as *mut libc::c_void,
+        1 as *mut libc::c_void,
     );
 }
+
 unsafe fn maybe_add_from_param(
-    mut context: *mut dc_context_t,
-    mut files_in_use: *mut dc_hash_t,
-    mut query: *const libc::c_char,
-    mut param_id: libc::c_int,
+    context: &dc_context_t,
+    files_in_use: *mut dc_hash_t,
+    query: *const libc::c_char,
+    param_id: libc::c_int,
 ) {
-    let mut param: *mut dc_param_t = dc_param_new();
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare((*context).sql, query);
-    while sqlite3_step(stmt) == 100i32 {
-        dc_param_set_packed(
-            param,
-            sqlite3_column_text(stmt, 0i32) as *const libc::c_char,
-        );
-        let mut file: *mut libc::c_char = dc_param_get(param, param_id, 0 as *const libc::c_char);
+    let mut param = dc_param_new();
+    let mut stmt = dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(), query);
+    while sqlite3_step(stmt) == 100 {
+        dc_param_set_packed(param, sqlite3_column_text(stmt, 0) as *const libc::c_char);
+        let mut file = dc_param_get(param, param_id, 0 as *const libc::c_char);
         if !file.is_null() {
             maybe_add_file(files_in_use, file);
             free(file as *mut libc::c_void);

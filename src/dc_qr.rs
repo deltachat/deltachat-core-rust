@@ -1,5 +1,3 @@
-use libc;
-
 use crate::dc_apeerstate::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -24,7 +22,7 @@ use crate::x::*;
 // text1=URL
 // text1=error string
 pub unsafe fn dc_check_qr(
-    mut context: *mut dc_context_t,
+    mut context: &dc_context_t,
     mut qr: *const libc::c_char,
 ) -> *mut dc_lot_t {
     let mut current_block: u64;
@@ -43,7 +41,7 @@ pub unsafe fn dc_check_qr(
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
     (*qr_parsed).state = 0i32;
-    if !(context.is_null() || (*context).magic != 0x11a11807i32 as libc::c_uint || qr.is_null()) {
+    if !qr.is_null() {
         dc_log_info(
             context,
             0i32,
@@ -247,7 +245,7 @@ pub unsafe fn dc_check_qr(
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if 0 != dc_apeerstate_load_by_fingerprint(
                                             peerstate,
-                                            (*context).sql,
+                                            &context.sql.clone().read().unwrap(),
                                             fingerprint,
                                         ) {
                                             (*qr_parsed).state = 210i32;
