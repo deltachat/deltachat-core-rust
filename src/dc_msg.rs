@@ -1312,17 +1312,21 @@ pub unsafe fn dc_delete_msg_from_db(context: &dc_context_t, mut msg_id: uint32_t
 Do not use too long subjects - we add a tag after the subject which gets truncated by the clients otherwise.
 It should also be very clear, the subject is _not_ the whole message.
 The value is also used for CC:-summaries */
+
 // Context functions to work with messages
-pub unsafe fn dc_msg_exists(mut context: &dc_context_t, mut msg_id: uint32_t) -> libc::c_int {
-    let mut msg_exists: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !msg_id <= 9i32 as libc::c_uint {
+
+pub unsafe fn dc_msg_exists(context: &dc_context_t, msg_id: uint32_t) -> libc::c_int {
+    let mut msg_exists = 0;
+    let mut stmt = 0 as *mut sqlite3_stmt;
+
+    if msg_id > 9 {
         stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             b"SELECT chat_id FROM msgs WHERE id=?;\x00" as *const u8 as *const libc::c_char,
         );
         sqlite3_bind_int(stmt, 1i32, msg_id as libc::c_int);
+
         if sqlite3_step(stmt) == 100i32 {
             let mut chat_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
             if chat_id != 3i32 as libc::c_uint {
