@@ -1,3 +1,11 @@
+use mmime::mailimf::*;
+use mmime::mailimf_types::*;
+use mmime::mailmime::*;
+use mmime::mailmime_content::*;
+use mmime::mailmime_types::*;
+use mmime::mmapstring::*;
+use mmime::other::*;
+
 use crate::constants::*;
 use crate::dc_apeerstate::*;
 use crate::dc_array::*;

@@ -1,13 +1,15 @@
 use mmime::clist::*;
+use mmime::mailimf::*;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
 use mmime::mailmime::*;
 use mmime::mailmime_content::*;
 use mmime::mailmime_types::*;
 use mmime::mailmime_types_helper::*;
+use mmime::mailmime_write_mem::*;
 use mmime::mailprivacy_prepare_mime;
 use mmime::mmapstring::*;
-use mmime::MAILIMF_NO_ERROR;
+use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
 
 use crate::dc_aheader::*;
 use crate::dc_apeerstate::*;

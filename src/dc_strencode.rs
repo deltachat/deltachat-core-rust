@@ -1,15 +1,10 @@
+use mmime::charconv::*;
+use mmime::mailmime_decode::*;
+use mmime::mmapstring::*;
+use mmime::other::*;
+
 use crate::dc_tools::*;
 use crate::types::*;
-use crate::x::*;
-
-#[inline]
-unsafe fn __isctype(mut _c: __darwin_ct_rune_t, mut _f: libc::c_ulong) -> __darwin_ct_rune_t {
-    return if _c < 0i32 || _c >= 1i32 << 8i32 {
-        0i32
-    } else {
-        (0 != _DefaultRuneLocale.__runetype[_c as usize] as libc::c_ulong & _f) as libc::c_int
-    };
-}
 
 #[inline]
 pub fn isalnum(mut _c: libc::c_int) -> libc::c_int {

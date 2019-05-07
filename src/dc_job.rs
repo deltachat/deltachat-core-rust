@@ -1,3 +1,5 @@
+use mmime::mmapstring::*;
+
 use std::ffi::CStr;
 use std::time::{Duration, SystemTime};
 

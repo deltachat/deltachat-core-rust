@@ -1,3 +1,6 @@
+use mmime::mailmime_content::*;
+use mmime::mmapstring::*;
+use mmime::other::*;
 use rand::{thread_rng, Rng};
 
 use crate::constants::Event;

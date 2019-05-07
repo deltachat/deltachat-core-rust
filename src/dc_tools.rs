@@ -1,5 +1,6 @@
 use std::fs;
 
+use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
 
 use crate::dc_array::*;

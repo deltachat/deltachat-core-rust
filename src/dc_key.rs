@@ -1,3 +1,7 @@
+use mmime::mailmime_content::*;
+use mmime::mmapstring::*;
+use mmime::other::*;
+
 use std::collections::BTreeMap;
 use std::ffi::CString;
 use std::io::Cursor;

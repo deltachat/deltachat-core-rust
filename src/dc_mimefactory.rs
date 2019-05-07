@@ -1,4 +1,11 @@
+use mmime::mailimf_types::*;
+use mmime::mailimf_types_helper::*;
+use mmime::mailmime_disposition::*;
 use mmime::mailmime_types::*;
+use mmime::mailmime_types_helper::*;
+use mmime::mailmime_write_mem::*;
+use mmime::mmapstring::*;
+use mmime::other::*;
 
 use crate::constants::VERSION;
 use crate::dc_chat::*;

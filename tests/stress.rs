@@ -1,6 +1,11 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::ffi::{CStr, CString};
+
+use mmime::mailimf_types::*;
+use mmime::mailmime_content::*;
+use mmime::mailmime_types::*;
+use mmime::other::*;
 use tempfile::tempdir;
 
 use deltachat::constants::*;

@@ -1,3 +1,5 @@
+use mmime::mailimf_types::*;
+
 use crate::constants::Event;
 use crate::dc_apeerstate::*;
 use crate::dc_array::*;
