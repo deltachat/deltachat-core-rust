@@ -4467,18 +4467,20 @@ unsafe fn stress_functions(context: &dc_context_t) {
     };
 }
 
-unsafe extern "C" fn cb(
-    _context: &dc_context_t,
-    _event: Event,
-    _data1: uintptr_t,
-    _data2: uintptr_t,
-) -> uintptr_t {
-    0
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn run_stress_tests() {
-    unsafe {
+    unsafe extern "C" fn cb(
+        _context: &dc_context_t,
+        _event: Event,
+        _data1: uintptr_t,
+        _data2: uintptr_t,
+    ) -> uintptr_t {
+        0
+    }
+
+    unsafe fn create_context() -> dc_context_t {
         let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
         let dir = tempdir().unwrap();
         let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
@@ -4491,6 +4493,14 @@ fn run_stress_tests() {
                 .unwrap()
         );
 
-        stress_functions(&ctx)
+        ctx
+    }
+
+    #[test]
+    fn run_stress_tests() {
+        unsafe {
+            let ctx = create_context();
+            stress_functions(&ctx);
+        }
     }
 }
