@@ -363,7 +363,11 @@ impl Imap {
             if (server_flags & (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_PLAIN)) != 0 {
                 imap::connect_insecure((imap_server, imap_port)).and_then(|client| {
                     if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
-                        let tls = native_tls::TlsConnector::builder().build().unwrap();
+                        let tls = native_tls::TlsConnector::builder()
+                            // FIXME: unfortunately this is needed to make things work on macos + testrun.org
+                            .danger_accept_invalid_hostnames(true)
+                            .build()
+                            .unwrap();
                         client.secure(imap_server, &tls).map(Into::into)
                     } else {
                         Ok(client.into())

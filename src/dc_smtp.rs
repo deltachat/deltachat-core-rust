@@ -2,7 +2,6 @@ use std::ffi::{CStr, CString};
 
 use lettre::smtp::client::net::*;
 use lettre::*;
-use native_tls::TlsConnector;
 
 use crate::constants::Event;
 use crate::constants::*;
@@ -96,11 +95,14 @@ impl Smtp {
         };
         let port = lp.send_port as u16;
 
-        let mut tls_builder = TlsConnector::builder();
-        tls_builder.min_protocol_version(Some(DEFAULT_TLS_PROTOCOLS[0]));
+        let tls = native_tls::TlsConnector::builder()
+            // FIXME: unfortunately this is needed to make things work on macos + testrun.org
+            .danger_accept_invalid_hostnames(true)
+            .min_protocol_version(Some(DEFAULT_TLS_PROTOCOLS[0]))
+            .build()
+            .unwrap();
 
-        let tls_parameters =
-            ClientTlsParameters::new(domain.to_string(), tls_builder.build().unwrap());
+        let tls_parameters = ClientTlsParameters::new(domain.to_string(), tls);
 
         let creds = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
             // oauth2
