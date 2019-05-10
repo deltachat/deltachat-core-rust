@@ -1131,10 +1131,10 @@ impl Imap {
         if let Some(ref mut session) = *self.session.lock().unwrap() {
             let set = format!("{}", server_uid);
             let query = format!("+ FLAGS ({})", flag.as_ref());
-            match session.uid_store(set, query) {
+            match session.uid_store(&set, &query) {
                 Ok(_) => {}
                 Err(err) => {
-                    eprintln!("imap store error {:?}", err);
+                    eprintln!("imap store error: ({}, {}) {:?}", set, query, err);
                 }
             }
         }
