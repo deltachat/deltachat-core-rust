@@ -173,7 +173,7 @@ pub unsafe fn dc_get_oauth2_access_token(
 
             let l = lock.lock().unwrap();
             // read generated token
-            if 0 == flags & 0x1i32 && 0 == is_expired(context) {
+            if 0 == flags & 0x1i32 && !is_expired(context) {
                 access_token = dc_sqlite3_get_config(
                     context,
                     &context.sql.clone().read().unwrap(),
@@ -488,8 +488,7 @@ unsafe extern "C" fn jsoneq(
     -1
 }
 
-// TODO should return bool /rtn
-unsafe fn is_expired(context: &dc_context_t) -> libc::c_int {
+unsafe fn is_expired(context: &dc_context_t) -> bool {
     let expire_timestamp: time_t = dc_sqlite3_get_config_int64(
         context,
         &context.sql.clone().read().unwrap(),
@@ -497,13 +496,13 @@ unsafe fn is_expired(context: &dc_context_t) -> libc::c_int {
         0i32 as int64_t,
     ) as time_t;
     if expire_timestamp <= 0i32 as libc::c_long {
-        return 0i32;
+        return false;
     }
     if expire_timestamp > time(0 as *mut time_t) {
-        return 0i32;
+        return false;
     }
 
-    1
+    true
 }
 
 pub unsafe fn dc_get_oauth2_addr(

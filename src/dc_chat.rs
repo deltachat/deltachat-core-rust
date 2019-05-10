@@ -37,7 +37,7 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &dc_context_t, msg_id: uint32_t)
     let mut send_event: libc::c_int = 0i32;
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let chat: *mut dc_chat_t = dc_chat_new(context);
-    if !(0 == dc_msg_load_from_db(msg, context, msg_id)
+    if !(!dc_msg_load_from_db(msg, context, msg_id)
         || 0 == dc_chat_load_from_db(chat, (*msg).chat_id)
         || (*chat).id <= 9i32 as libc::c_uint)
     {
@@ -1209,7 +1209,7 @@ pub unsafe fn dc_get_draft(context: &dc_context_t, chat_id: uint32_t) -> *mut dc
         return 0 as *mut dc_msg_t;
     }
     draft_msg = dc_msg_new_untyped(context);
-    if 0 == dc_msg_load_from_db(draft_msg, context, draft_msg_id) {
+    if !dc_msg_load_from_db(draft_msg, context, draft_msg_id) {
         dc_msg_unref(draft_msg);
         return 0 as *mut dc_msg_t;
     }
@@ -1436,7 +1436,7 @@ pub unsafe fn dc_get_next_media(
     let mut i: libc::c_int;
     let cnt: libc::c_int;
 
-    if !(0 == dc_msg_load_from_db(msg, context, curr_msg_id)) {
+    if dc_msg_load_from_db(msg, context, curr_msg_id) {
         list = dc_get_chat_media(
             context,
             (*msg).chat_id,
@@ -2192,7 +2192,7 @@ pub unsafe fn dc_forward_msgs(
                     break;
                 }
                 let src_msg_id: libc::c_int = sqlite3_column_int(stmt, 0i32);
-                if 0 == dc_msg_load_from_db(msg, context, src_msg_id as uint32_t) {
+                if !dc_msg_load_from_db(msg, context, src_msg_id as uint32_t) {
                     break;
                 }
                 dc_param_set_packed(original_param, (*(*msg).param).packed);

@@ -1320,7 +1320,7 @@ pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg::dc_msg
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_has_location(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
-    dc_msg::dc_msg_has_location(msg)
+    if dc_msg::dc_msg_has_location(msg) { 1 } else { 0 }
 }
 
 #[no_mangle]

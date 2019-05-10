@@ -472,7 +472,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &dc_context_t, job: &mut dc_job_t) 
     }
     match current_block {
         2473556513754201174 => {
-            if !(0 == dc_msg_load_from_db(msg, context, job.foreign_id)) {
+            if dc_msg_load_from_db(msg, context, job.foreign_id) {
                 if dc_sqlite3_get_config_int(
                     context,
                     &context.sql.clone().read().unwrap(),
@@ -625,7 +625,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &dc_context_t, job: &mu
     }
     match current_block {
         15240798224410183470 => {
-            if !(0 == dc_msg_load_from_db(msg, context, job.foreign_id)) {
+            if dc_msg_load_from_db(msg, context, job.foreign_id) {
                 let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
                 match inbox.set_seen(context, server_folder, (*msg).server_uid) as libc::c_uint {
                     0 => {}
@@ -938,7 +938,7 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &dc_context_t, job: &mut 
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let inbox = context.inbox.read().unwrap();
 
-    if !(0 == dc_msg_load_from_db(msg, context, job.foreign_id)
+    if !(!dc_msg_load_from_db(msg, context, job.foreign_id)
         || (*msg).rfc724_mid.is_null()
         || *(*msg).rfc724_mid.offset(0isize) as libc::c_int == 0i32)
     {

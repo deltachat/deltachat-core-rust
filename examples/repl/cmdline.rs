@@ -336,7 +336,7 @@ unsafe fn log_msg(context: &dc_context_t, prefix: *const libc::c_char, msg: *mut
         } else {
             b"\x00" as *const u8 as *const libc::c_char
         },
-        if 0 != dc_msg_has_location(msg) {
+        if dc_msg_has_location(msg) {
             b"\xf0\x9f\x93\x8d\x00" as *const u8 as *const libc::c_char
         } else {
             b"\x00" as *const u8 as *const libc::c_char

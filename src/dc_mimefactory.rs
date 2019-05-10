@@ -123,7 +123,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         (*factory).recipients_addr = clist_new();
         (*factory).msg = dc_msg_new_untyped(context);
         (*factory).chat = dc_chat_new(context);
-        if 0 != dc_msg_load_from_db((*factory).msg, context, msg_id)
+        if dc_msg_load_from_db((*factory).msg, context, msg_id)
             && 0 != dc_chat_load_from_db((*factory).chat, (*(*factory).msg).chat_id)
         {
             load_from(factory);
@@ -289,7 +289,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
         {
             /* MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ... */
             contact = dc_contact_new((*factory).context);
-            if !(0 == dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
+            if !(!dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
                 || 0 == dc_contact_load_from_db(
                     contact,
                     &mut (*factory).context.sql.clone().read().unwrap(),
