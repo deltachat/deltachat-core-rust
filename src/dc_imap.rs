@@ -1130,7 +1130,7 @@ impl Imap {
     fn add_flag<S: AsRef<str>>(&self, server_uid: u32, flag: S) -> usize {
         if let Some(ref mut session) = *self.session.lock().unwrap() {
             let set = format!("{}", server_uid);
-            let query = format!("+ FLAGS ({})", flag.as_ref());
+            let query = format!("+FLAGS ({})", flag.as_ref());
             match session.uid_store(&set, &query) {
                 Ok(_) => {}
                 Err(err) => {
