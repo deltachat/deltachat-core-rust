@@ -31,8 +31,8 @@ pub struct dc_context_t {
     pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<i32>>,
     pub probe_imap_network: Arc<RwLock<i32>>,
-    pub sentbox_thread: Arc<Mutex<dc_jobthread_t>>,
-    pub mvbox_thread: Arc<Mutex<dc_jobthread_t>>,
+    pub sentbox_thread: Arc<RwLock<dc_jobthread_t>>,
+    pub mvbox_thread: Arc<RwLock<dc_jobthread_t>>,
     pub smtp: Arc<Mutex<Smtp>>,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
@@ -150,7 +150,7 @@ pub fn dc_context_new(
         bob: Arc::new(RwLock::new(Default::default())),
         last_smeared_timestamp: Arc::new(RwLock::new(0 as time_t)),
         cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
-        sentbox_thread: Arc::new(Mutex::new(unsafe {
+        sentbox_thread: Arc::new(RwLock::new(unsafe {
             dc_jobthread_init(
                 b"SENTBOX\x00" as *const u8 as *const libc::c_char,
                 b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
@@ -162,7 +162,7 @@ pub fn dc_context_new(
                 ),
             )
         })),
-        mvbox_thread: Arc::new(Mutex::new(unsafe {
+        mvbox_thread: Arc::new(RwLock::new(unsafe {
             dc_jobthread_init(
                 b"MVBOX\x00" as *const u8 as *const libc::c_char,
                 b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
@@ -282,8 +282,8 @@ pub unsafe fn dc_context_unref(context: &mut dc_context_t) {
     }
     dc_sqlite3_unref(context, &mut context.sql.clone().write().unwrap());
 
-    dc_jobthread_exit(&mut context.sentbox_thread.clone().lock().unwrap());
-    dc_jobthread_exit(&mut context.mvbox_thread.clone().lock().unwrap());
+    dc_jobthread_exit(&mut context.sentbox_thread.clone().write().unwrap());
+    dc_jobthread_exit(&mut context.mvbox_thread.clone().write().unwrap());
 
     free(context.os_name as *mut libc::c_void);
 }
@@ -292,13 +292,13 @@ pub unsafe fn dc_close(context: &dc_context_t) {
     context.inbox.read().unwrap().disconnect(context);
     context
         .sentbox_thread
-        .lock()
+        .read()
         .unwrap()
         .imap
         .disconnect(context);
     context
         .mvbox_thread
-        .lock()
+        .read()
         .unwrap()
         .imap
         .disconnect(context);

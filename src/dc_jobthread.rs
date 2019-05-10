@@ -47,7 +47,7 @@ pub unsafe fn dc_jobthread_exit(jobthread: &mut dc_jobthread_t) {
 
 pub unsafe fn dc_jobthread_suspend(
     context: &dc_context_t,
-    jobthread: &mut dc_jobthread_t,
+    jobthread: &dc_jobthread_t,
     suspend: libc::c_int,
 ) {
     if 0 != suspend {
@@ -88,7 +88,7 @@ pub unsafe fn dc_jobthread_suspend(
 
 pub unsafe extern "C" fn dc_jobthread_interrupt_idle(
     context: &dc_context_t,
-    jobthread: &mut dc_jobthread_t,
+    jobthread: &dc_jobthread_t,
 ) {
     {
         jobthread.state.clone().0.lock().unwrap().jobs_needed = 1;
@@ -167,7 +167,7 @@ pub unsafe fn dc_jobthread_fetch(
  * the typical fetch, idle, interrupt-idle
  ******************************************************************************/
 
-unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t) -> libc::c_int {
+unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &dc_jobthread_t) -> libc::c_int {
     let mut ret_connected: libc::c_int;
     let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
 
@@ -206,7 +206,7 @@ unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &mut dc_jobthread_t
 
 pub unsafe fn dc_jobthread_idle(
     context: &dc_context_t,
-    jobthread: &mut dc_jobthread_t,
+    jobthread: &dc_jobthread_t,
     use_network: libc::c_int,
 ) {
     {

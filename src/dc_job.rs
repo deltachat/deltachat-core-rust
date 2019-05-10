@@ -126,16 +126,8 @@ unsafe fn dc_job_perform(context: &dc_context_t, thread: libc::c_int, probe_netw
             dc_job_kill_action(context, job.action);
             sqlite3_finalize(select_stmt);
             select_stmt = 0 as *mut sqlite3_stmt;
-            dc_jobthread_suspend(
-                context,
-                &mut context.sentbox_thread.clone().lock().unwrap(),
-                1,
-            );
-            dc_jobthread_suspend(
-                context,
-                &mut context.mvbox_thread.clone().lock().unwrap(),
-                1,
-            );
+            dc_jobthread_suspend(context, &context.sentbox_thread.clone().read().unwrap(), 1);
+            dc_jobthread_suspend(context, &context.mvbox_thread.clone().read().unwrap(), 1);
             dc_suspend_smtp_thread(context, 1i32);
         }
         let mut tries: libc::c_int = 0i32;
@@ -185,12 +177,12 @@ unsafe fn dc_job_perform(context: &dc_context_t, thread: libc::c_int, probe_netw
         if 900i32 == job.action || 910i32 == job.action {
             dc_jobthread_suspend(
                 context,
-                &mut context.sentbox_thread.clone().lock().unwrap(),
+                &mut context.sentbox_thread.clone().read().unwrap(),
                 0,
             );
             dc_jobthread_suspend(
                 context,
-                &mut context.mvbox_thread.clone().lock().unwrap(),
+                &mut context.mvbox_thread.clone().read().unwrap(),
                 0,
             );
             dc_suspend_smtp_thread(context, 0i32);
@@ -1090,7 +1082,7 @@ pub unsafe fn dc_perform_mvbox_fetch(context: &dc_context_t) {
     );
     dc_jobthread_fetch(
         context,
-        &mut context.mvbox_thread.clone().lock().unwrap(),
+        &mut context.mvbox_thread.clone().write().unwrap(),
         use_network,
     );
 }
@@ -1104,13 +1096,13 @@ pub unsafe fn dc_perform_mvbox_idle(context: &dc_context_t) {
     );
     dc_jobthread_idle(
         context,
-        &mut context.mvbox_thread.clone().lock().unwrap(),
+        &context.mvbox_thread.clone().read().unwrap(),
         use_network,
     );
 }
 
 pub unsafe fn dc_interrupt_mvbox_idle(context: &dc_context_t) {
-    dc_jobthread_interrupt_idle(context, &mut context.mvbox_thread.clone().lock().unwrap());
+    dc_jobthread_interrupt_idle(context, &context.mvbox_thread.clone().read().unwrap());
 }
 
 pub unsafe fn dc_perform_sentbox_fetch(context: &dc_context_t) {
@@ -1122,7 +1114,7 @@ pub unsafe fn dc_perform_sentbox_fetch(context: &dc_context_t) {
     );
     dc_jobthread_fetch(
         context,
-        &mut context.sentbox_thread.clone().lock().unwrap(),
+        &mut context.sentbox_thread.clone().write().unwrap(),
         use_network,
     );
 }
@@ -1136,13 +1128,13 @@ pub unsafe fn dc_perform_sentbox_idle(context: &dc_context_t) {
     );
     dc_jobthread_idle(
         context,
-        &mut context.sentbox_thread.clone().lock().unwrap(),
+        &context.sentbox_thread.clone().read().unwrap(),
         use_network,
     );
 }
 
 pub unsafe fn dc_interrupt_sentbox_idle(context: &dc_context_t) {
-    dc_jobthread_interrupt_idle(context, &mut context.sentbox_thread.clone().lock().unwrap());
+    dc_jobthread_interrupt_idle(context, &context.sentbox_thread.clone().read().unwrap());
 }
 
 pub unsafe fn dc_perform_smtp_jobs(context: &dc_context_t) {

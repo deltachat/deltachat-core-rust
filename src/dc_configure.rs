@@ -137,13 +137,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
             context.inbox.read().unwrap().disconnect(context);
             context
                 .sentbox_thread
-                .lock()
+                .read()
                 .unwrap()
                 .imap
                 .disconnect(context);
             context
                 .mvbox_thread
-                .lock()
+                .read()
                 .unwrap()
                 .imap
                 .disconnect(context);

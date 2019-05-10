@@ -1,7 +1,7 @@
 extern crate deltachat;
 
 use std::ffi::{CStr, CString};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
 
@@ -57,6 +57,7 @@ extern "C" fn cb(_ctx: &dc_context_t, event: Event, data1: usize, data2: usize) 
 fn main() {
     unsafe {
         let ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
+        let running = Arc::new(RwLock::new(true));
         let info = dc_get_info(&ctx);
         let info_s = CStr::from_ptr(info);
         let duration = time::Duration::from_millis(4000);
@@ -64,16 +65,29 @@ fn main() {
 
         let ctx = Arc::new(ctx);
         let ctx1 = ctx.clone();
-        let t1 = thread::spawn(move || loop {
-            dc_perform_imap_jobs(&ctx1);
-            dc_perform_imap_fetch(&ctx1);
-            dc_perform_imap_idle(&ctx1);
+        let r1 = running.clone();
+        let t1 = thread::spawn(move || {
+            while *r1.read().unwrap() {
+                dc_perform_imap_jobs(&ctx1);
+                if *r1.read().unwrap() {
+                    dc_perform_imap_fetch(&ctx1);
+
+                    if *r1.read().unwrap() {
+                        dc_perform_imap_idle(&ctx1);
+                    }
+                }
+            }
         });
 
         let ctx1 = ctx.clone();
-        let t2 = thread::spawn(move || loop {
-            dc_perform_smtp_jobs(&ctx1);
-            dc_perform_smtp_idle(&ctx1);
+        let r1 = running.clone();
+        let t2 = thread::spawn(move || {
+            while *r1.read().unwrap() {
+                dc_perform_smtp_jobs(&ctx1);
+                if *r1.read().unwrap() {
+                    dc_perform_smtp_idle(&ctx1);
+                }
+            }
         });
 
         let dir = tempdir().unwrap();
@@ -129,6 +143,8 @@ fn main() {
         }
         dc_chatlist_unref(chats);
 
+        *running.clone().write().unwrap() = false;
+        println!("stopping threads");
         // let msglist = dc_get_chat_msgs(&ctx, chat_id, 0, 0);
         // for i in 0..dc_array_get_cnt(msglist) {
         //     let msg_id = dc_array_get_id(msglist, i);
@@ -139,7 +155,14 @@ fn main() {
         // }
         // dc_array_unref(msglist);
 
+        deltachat::dc_job::dc_interrupt_imap_idle(&ctx);
+        deltachat::dc_job::dc_interrupt_smtp_idle(&ctx);
+
+        println!("joining");
         t1.join().unwrap();
         t2.join().unwrap();
+
+        println!("closing");
+        dc_close(&ctx);
     }
 }
