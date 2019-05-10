@@ -31,22 +31,7 @@ pub struct Imap {
     receive_imf: dc_receive_imf_t,
 
     session: Arc<Mutex<Option<Session>>>,
-    // idle: Arc<Mutex<Option<RentSession>>>,
 }
-
-// rental! {
-//     pub mod rent {
-//         use crate::dc_imap::{Session, IdleHandle};
-
-//         #[rental_mut]
-//         pub struct RentSession {
-//             session: Box<Session>,
-//             idle: IdleHandle<'session>,
-//         }
-//     }
-// }
-
-// use rent::*;
 
 #[derive(Debug)]
 pub enum FolderMeaning {
@@ -56,42 +41,24 @@ pub enum FolderMeaning {
 }
 
 pub enum Client {
-    Secure(imap::Client<native_tls::TlsStream<std::net::TcpStream>>),
-    Insecure(imap::Client<std::net::TcpStream>),
+    Secure(
+        imap::Client<native_tls::TlsStream<std::net::TcpStream>>,
+        std::net::TcpStream,
+    ),
+    Insecure(imap::Client<std::net::TcpStream>, std::net::TcpStream),
 }
 
 pub enum Session {
-    Secure(imap::Session<native_tls::TlsStream<std::net::TcpStream>>),
-    Insecure(imap::Session<std::net::TcpStream>),
+    Secure(
+        imap::Session<native_tls::TlsStream<std::net::TcpStream>>,
+        std::net::TcpStream,
+    ),
+    Insecure(imap::Session<std::net::TcpStream>, std::net::TcpStream),
 }
 
 pub enum IdleHandle<'a> {
     Secure(imap::extensions::idle::Handle<'a, native_tls::TlsStream<std::net::TcpStream>>),
     Insecure(imap::extensions::idle::Handle<'a, std::net::TcpStream>),
-}
-
-impl From<imap::Client<native_tls::TlsStream<std::net::TcpStream>>> for Client {
-    fn from(client: imap::Client<native_tls::TlsStream<std::net::TcpStream>>) -> Self {
-        Client::Secure(client)
-    }
-}
-
-impl From<imap::Client<std::net::TcpStream>> for Client {
-    fn from(client: imap::Client<std::net::TcpStream>) -> Self {
-        Client::Insecure(client)
-    }
-}
-
-impl From<imap::Session<native_tls::TlsStream<std::net::TcpStream>>> for Session {
-    fn from(session: imap::Session<native_tls::TlsStream<std::net::TcpStream>>) -> Self {
-        Session::Secure(session)
-    }
-}
-
-impl From<imap::Session<std::net::TcpStream>> for Session {
-    fn from(session: imap::Session<std::net::TcpStream>) -> Self {
-        Session::Insecure(session)
-    }
 }
 
 impl<'a> From<imap::extensions::idle::Handle<'a, native_tls::TlsStream<std::net::TcpStream>>>
@@ -127,20 +94,65 @@ impl<'a> IdleHandle<'a> {
 }
 
 impl Client {
+    pub fn connect_secure<A: std::net::ToSocketAddrs, S: AsRef<str>>(
+        addr: A,
+        domain: S,
+    ) -> imap::error::Result<Self> {
+        let stream = std::net::TcpStream::connect(addr)?;
+        let tls = native_tls::TlsConnector::builder()
+            .danger_accept_invalid_hostnames(true)
+            .build()
+            .unwrap();
+
+        let s = stream.try_clone().expect("cloning the stream failed");
+        let tls_stream = native_tls::TlsConnector::connect(&tls, domain.as_ref(), s)?;
+
+        let client = imap::Client::new(tls_stream);
+        // TODO: Read greeting
+
+        Ok(Client::Secure(client, stream))
+    }
+
+    pub fn connect_insecure<A: std::net::ToSocketAddrs>(addr: A) -> imap::error::Result<Self> {
+        let stream = std::net::TcpStream::connect(addr)?;
+
+        let client = imap::Client::new(stream.try_clone().unwrap());
+        // TODO: Read greeting
+
+        Ok(Client::Insecure(client, stream))
+    }
+
+    pub fn secure<S: AsRef<str>>(self, domain: S) -> imap::error::Result<Client> {
+        match self {
+            Client::Insecure(client, stream) => {
+                let tls = native_tls::TlsConnector::builder()
+                    .danger_accept_invalid_hostnames(true)
+                    .build()
+                    .unwrap();
+
+                let client_sec = client.secure(domain, &tls)?;
+
+                Ok(Client::Secure(client_sec, stream))
+            }
+            // Nothing to do
+            Client::Secure(_, _) => Ok(self),
+        }
+    }
+
     pub fn login<U: AsRef<str>, P: AsRef<str>>(
         self,
         username: U,
         password: P,
     ) -> Result<Session, (imap::error::Error, Client)> {
         match self {
-            Client::Secure(i) => i
-                .login(username, password)
-                .map(Into::into)
-                .map_err(|(e, c)| (e, c.into())),
-            Client::Insecure(i) => i
-                .login(username, password)
-                .map(Into::into)
-                .map_err(|(e, c)| (e, c.into())),
+            Client::Secure(i, stream) => match i.login(username, password) {
+                Ok(session) => Ok(Session::Secure(session, stream)),
+                Err((err, c)) => Err((err, Client::Secure(c, stream))),
+            },
+            Client::Insecure(i, stream) => match i.login(username, password) {
+                Ok(session) => Ok(Session::Insecure(session, stream)),
+                Err((err, c)) => Err((err, Client::Insecure(c, stream))),
+            },
         }
     }
 }
@@ -150,8 +162,8 @@ impl Session {
         &mut self,
     ) -> imap::error::Result<imap::types::ZeroCopy<imap::types::Capabilities>> {
         match self {
-            Session::Secure(i) => i.capabilities(),
-            Session::Insecure(i) => i.capabilities(),
+            Session::Secure(i, _) => i.capabilities(),
+            Session::Insecure(i, _) => i.capabilities(),
         }
     }
 
@@ -161,29 +173,36 @@ impl Session {
         mailbox_pattern: Option<&str>,
     ) -> imap::error::Result<imap::types::ZeroCopy<Vec<imap::types::Name>>> {
         match self {
-            Session::Secure(i) => i.list(reference_name, mailbox_pattern),
-            Session::Insecure(i) => i.list(reference_name, mailbox_pattern),
+            Session::Secure(i, _) => i.list(reference_name, mailbox_pattern),
+            Session::Insecure(i, _) => i.list(reference_name, mailbox_pattern),
         }
     }
 
     pub fn create<S: AsRef<str>>(&mut self, mailbox_name: S) -> imap::error::Result<()> {
         match self {
-            Session::Secure(i) => i.subscribe(mailbox_name),
-            Session::Insecure(i) => i.subscribe(mailbox_name),
+            Session::Secure(i, _) => i.subscribe(mailbox_name),
+            Session::Insecure(i, _) => i.subscribe(mailbox_name),
         }
     }
 
     pub fn subscribe<S: AsRef<str>>(&mut self, mailbox: S) -> imap::error::Result<()> {
         match self {
-            Session::Secure(i) => i.subscribe(mailbox),
-            Session::Insecure(i) => i.subscribe(mailbox),
+            Session::Secure(i, _) => i.subscribe(mailbox),
+            Session::Insecure(i, _) => i.subscribe(mailbox),
         }
     }
 
     pub fn close(&mut self) -> imap::error::Result<()> {
         match self {
-            Session::Secure(i) => i.close(),
-            Session::Insecure(i) => i.close(),
+            Session::Secure(i, _) => i.close(),
+            Session::Insecure(i, _) => i.close(),
+        }
+    }
+
+    pub fn shutdown(&self) -> std::io::Result<()> {
+        match self {
+            Session::Secure(_, stream) => stream.shutdown(std::net::Shutdown::Both),
+            Session::Insecure(_, stream) => stream.shutdown(std::net::Shutdown::Both),
         }
     }
 
@@ -192,8 +211,8 @@ impl Session {
         mailbox_name: S,
     ) -> imap::error::Result<imap::types::Mailbox> {
         match self {
-            Session::Secure(i) => i.select(mailbox_name),
-            Session::Insecure(i) => i.select(mailbox_name),
+            Session::Secure(i, _) => i.select(mailbox_name),
+            Session::Insecure(i, _) => i.select(mailbox_name),
         }
     }
 
@@ -207,8 +226,8 @@ impl Session {
         S2: AsRef<str>,
     {
         match self {
-            Session::Secure(i) => i.fetch(sequence_set, query),
-            Session::Insecure(i) => i.fetch(sequence_set, query),
+            Session::Secure(i, _) => i.fetch(sequence_set, query),
+            Session::Insecure(i, _) => i.fetch(sequence_set, query),
         }
     }
 
@@ -222,15 +241,15 @@ impl Session {
         S2: AsRef<str>,
     {
         match self {
-            Session::Secure(i) => i.uid_fetch(uid_set, query),
-            Session::Insecure(i) => i.uid_fetch(uid_set, query),
+            Session::Secure(i, _) => i.uid_fetch(uid_set, query),
+            Session::Insecure(i, _) => i.uid_fetch(uid_set, query),
         }
     }
 
     pub fn idle(&mut self) -> imap::error::Result<IdleHandle> {
         match self {
-            Session::Secure(i) => i.idle().map(Into::into),
-            Session::Insecure(i) => i.idle().map(Into::into),
+            Session::Secure(i, _) => i.idle().map(Into::into),
+            Session::Insecure(i, _) => i.idle().map(Into::into),
         }
     }
 
@@ -244,8 +263,8 @@ impl Session {
         S2: AsRef<str>,
     {
         match self {
-            Session::Secure(i) => i.uid_store(uid_set, query),
-            Session::Insecure(i) => i.uid_store(uid_set, query),
+            Session::Secure(i, _) => i.uid_store(uid_set, query),
+            Session::Insecure(i, _) => i.uid_store(uid_set, query),
         }
     }
 
@@ -255,8 +274,8 @@ impl Session {
         mailbox_name: S2,
     ) -> imap::error::Result<()> {
         match self {
-            Session::Secure(i) => i.uid_mv(uid_set, mailbox_name),
-            Session::Insecure(i) => i.uid_mv(uid_set, mailbox_name),
+            Session::Secure(i, _) => i.uid_mv(uid_set, mailbox_name),
+            Session::Insecure(i, _) => i.uid_mv(uid_set, mailbox_name),
         }
     }
 
@@ -266,8 +285,8 @@ impl Session {
         mailbox_name: S2,
     ) -> imap::error::Result<()> {
         match self {
-            Session::Secure(i) => i.uid_copy(uid_set, mailbox_name),
-            Session::Insecure(i) => i.uid_copy(uid_set, mailbox_name),
+            Session::Secure(i, _) => i.uid_copy(uid_set, mailbox_name),
+            Session::Insecure(i, _) => i.uid_copy(uid_set, mailbox_name),
         }
     }
 }
@@ -361,25 +380,15 @@ impl Imap {
 
         let connection_res: imap::error::Result<Client> =
             if (server_flags & (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_PLAIN)) != 0 {
-                imap::connect_insecure((imap_server, imap_port)).and_then(|client| {
+                Client::connect_insecure((imap_server, imap_port)).and_then(|client| {
                     if (server_flags & DC_LP_IMAP_SOCKET_STARTTLS) != 0 {
-                        let tls = native_tls::TlsConnector::builder()
-                            // FIXME: unfortunately this is needed to make things work on macos + testrun.org
-                            .danger_accept_invalid_hostnames(true)
-                            .build()
-                            .unwrap();
-                        client.secure(imap_server, &tls).map(Into::into)
+                        client.secure(imap_server)
                     } else {
-                        Ok(client.into())
+                        Ok(client)
                     }
                 })
             } else {
-                let tls = native_tls::TlsConnector::builder()
-                    // FIXME: unfortunately this is needed to make things work on macos + testrun.org
-                    .danger_accept_invalid_hostnames(true)
-                    .build()
-                    .unwrap();
-                imap::connect((imap_server, imap_port), imap_server, &tls).map(Into::into)
+                Client::connect_secure((imap_server, imap_port), imap_server)
             };
 
         match connection_res {
@@ -453,10 +462,17 @@ impl Imap {
     pub fn disconnect(&self, context: &dc_context_t) {
         let session = self.session.lock().unwrap().take();
         if session.is_some() {
-            match session.unwrap().close() {
+            let mut session = session.unwrap();
+            match session.close() {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("failed to close connection: {:?}", err);
+                }
+            }
+            match session.shutdown() {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("failed to shutdown connection: {:?}", err);
                 }
             }
         }
@@ -1003,8 +1019,14 @@ impl Imap {
     }
 
     pub fn interrupt_idle(&self) {
-        // TODO: interrupt real idle
-        // ref: https://github.com/jonhoo/rust-imap/issues/121
+        if let Some(ref mut session) = *self.session.lock().unwrap() {
+            match session.shutdown() {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("failed to disconnect: {}", err);
+                }
+            }
+        }
 
         let &(ref lock, ref cvar) = &*self.watch.clone();
         let mut watch = lock.lock().unwrap();
