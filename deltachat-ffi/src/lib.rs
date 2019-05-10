@@ -1059,6 +1059,14 @@ pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const li
     dc_array::dc_array_get_raw(array)
 }
 
+#[no_mangle]
+pub unsafe fn dc_array_is_independent(
+    array: *const dc_array_t,
+    index: libc::size_t,
+) -> libc::c_int {
+    dc_array::dc_array_is_independent(array, index)
+}
+
 // dc_chatlist_t
 
 #[no_mangle]
