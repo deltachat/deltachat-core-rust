@@ -1131,7 +1131,7 @@ unsafe fn build_body_file(
     mut base_name: *const libc::c_char,
     ret_file_name_as_sent: *mut *mut libc::c_char,
 ) -> *mut mailmime {
-    let needs_ext: libc::c_int;
+    let needs_ext: bool;
     let mime_fields: *mut mailmime_fields;
     let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
     let content: *mut mailmime_content;
@@ -1229,14 +1229,14 @@ unsafe fn build_body_file(
             needs_ext = dc_needs_ext_header(filename_to_send);
             mime_fields = mailmime_fields_new_filename(
                 MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                if 0 != needs_ext {
+                if needs_ext {
                     0 as *mut libc::c_char
                 } else {
                     dc_strdup(filename_to_send)
                 },
                 MAILMIME_MECHANISM_BASE64 as libc::c_int,
             );
-            if 0 != needs_ext {
+            if needs_ext {
                 let mut cur1: *mut clistiter = (*(*mime_fields).fld_list).first;
                 while !cur1.is_null() {
                     let field: *mut mailmime_field = (if !cur1.is_null() {

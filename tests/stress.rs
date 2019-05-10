@@ -2127,7 +2127,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
     } else {
     };
     free(buf1 as *mut libc::c_void);
-    if 0 != (0 == dc_needs_ext_header(b"Bj\xc3\xb6rn\x00" as *const u8 as *const libc::c_char))
+    if 0 != (!dc_needs_ext_header(b"Bj\xc3\xb6rn\x00" as *const u8 as *const libc::c_char))
         as libc::c_int as libc::c_long
     {
         __assert_rtn(
@@ -2139,7 +2139,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (0 != dc_needs_ext_header(b"Bjoern\x00" as *const u8 as *const libc::c_char))
+    if 0 != (dc_needs_ext_header(b"Bjoern\x00" as *const u8 as *const libc::c_char))
         as libc::c_int as libc::c_long
     {
         __assert_rtn(
@@ -2151,7 +2151,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (0 != dc_needs_ext_header(b"\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+    if 0 != (dc_needs_ext_header(b"\x00" as *const u8 as *const libc::c_char)) as libc::c_int
         as libc::c_long
     {
         __assert_rtn(
@@ -2163,7 +2163,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (0 == dc_needs_ext_header(b" \x00" as *const u8 as *const libc::c_char)) as libc::c_int
+    if 0 != (!dc_needs_ext_header(b" \x00" as *const u8 as *const libc::c_char)) as libc::c_int
         as libc::c_long
     {
         __assert_rtn(
@@ -2175,7 +2175,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (0 == dc_needs_ext_header(b"a b\x00" as *const u8 as *const libc::c_char))
+    if 0 != (!dc_needs_ext_header(b"a b\x00" as *const u8 as *const libc::c_char))
         as libc::c_int as libc::c_long
     {
         __assert_rtn(
@@ -2187,7 +2187,7 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (0 != dc_needs_ext_header(0 as *const libc::c_char)) as libc::c_int as libc::c_long {
+    if 0 != (dc_needs_ext_header(0 as *const libc::c_char)) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),

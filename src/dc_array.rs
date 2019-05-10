@@ -229,14 +229,13 @@ pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).independent as libc::c_int
 }
 
-// TODO should return bool /rtn
 pub unsafe fn dc_array_search_id(
     array: *const dc_array_t,
     needle: uint32_t,
     ret_index: *mut size_t,
-) -> libc::c_int {
+) -> bool {
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint {
-        return 0i32;
+        return false;
     }
     let data: *mut uintptr_t = (*array).array;
     let mut i: size_t = 0;
@@ -246,11 +245,11 @@ pub unsafe fn dc_array_search_id(
             if !ret_index.is_null() {
                 *ret_index = i
             }
-            return 1i32;
+            return true;
         }
         i = i.wrapping_add(1)
     }
-    0
+    false
 }
 
 pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {

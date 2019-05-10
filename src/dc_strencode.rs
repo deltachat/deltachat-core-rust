@@ -145,15 +145,15 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                 if *cur as libc::c_int != '\u{0}' as i32 {
                     let begin: *const libc::c_char;
                     let mut end: *const libc::c_char;
-                    let mut do_quote: libc::c_int;
+                    let mut do_quote: bool;
                     let mut quote_words: libc::c_int;
                     begin = cur;
                     end = begin;
                     quote_words = 0i32;
-                    do_quote = 1i32;
+                    do_quote = true;
                     while *cur as libc::c_int != '\u{0}' as i32 {
                         get_word(cur, &mut cur, &mut do_quote);
-                        if !(0 != do_quote) {
+                        if !do_quote {
                             break;
                         }
                         quote_words = 1i32;
@@ -163,7 +163,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                         }
                     }
                     if 0 != quote_words {
-                        if 0 == quote_word(
+                        if !quote_word(
                             b"utf-8\x00" as *const u8 as *const libc::c_char,
                             mmapstr,
                             begin,
@@ -222,25 +222,24 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
     ret_str
 }
 
-// TODO return bool /rtn
 unsafe fn quote_word(
     display_charset: *const libc::c_char,
     mmapstr: *mut MMAPString,
     word: *const libc::c_char,
     size: size_t,
-) -> libc::c_int {
+) -> bool {
     let mut cur: *const libc::c_char;
     let mut i: size_t = 0i32 as size_t;
     let mut hex: [libc::c_char; 4] = [0; 4];
     // let mut col: libc::c_int = 0i32;
     if mmap_string_append(mmapstr, b"=?\x00" as *const u8 as *const libc::c_char).is_null() {
-        return 0i32;
+        return false;
     }
     if mmap_string_append(mmapstr, display_charset).is_null() {
-        return 0i32;
+        return false;
     }
     if mmap_string_append(mmapstr, b"?Q?\x00" as *const u8 as *const libc::c_char).is_null() {
-        return 0i32;
+        return false;
     }
     // col = (*mmapstr).len as libc::c_int;
     cur = word;
@@ -263,16 +262,16 @@ unsafe fn quote_word(
                 *cur as libc::c_uchar as libc::c_int,
             );
             if mmap_string_append(mmapstr, hex.as_mut_ptr()).is_null() {
-                return 0i32;
+                return false;
             }
         // col += 3i32
         } else {
             if *cur as libc::c_int == ' ' as i32 {
                 if mmap_string_append_c(mmapstr, '_' as i32 as libc::c_char).is_null() {
-                    return 0i32;
+                    return false;
                 }
             } else if mmap_string_append_c(mmapstr, *cur).is_null() {
-                return 0i32;
+                return false;
             }
             // col += 3i32
         }
@@ -280,16 +279,16 @@ unsafe fn quote_word(
         i = i.wrapping_add(1)
     }
     if mmap_string_append(mmapstr, b"?=\x00" as *const u8 as *const libc::c_char).is_null() {
-        return 0i32;
+        return false;
     }
 
-    1
+    true
 }
 
 unsafe fn get_word(
     begin: *const libc::c_char,
     pend: *mut *const libc::c_char,
-    pto_be_quoted: *mut libc::c_int, // TODO should be bool /rtn
+    pto_be_quoted: *mut bool,
 ) {
     let mut cur: *const libc::c_char = begin;
     while *cur as libc::c_int != ' ' as i32
@@ -310,17 +309,16 @@ unsafe fn get_word(
  ******************************************************************************/
 
 /* see comment below */
-// TODO should be bool /rtn
-unsafe fn to_be_quoted(word: *const libc::c_char, size: size_t) -> libc::c_int {
+unsafe fn to_be_quoted(word: *const libc::c_char, size: size_t) -> bool {
     let mut cur: *const libc::c_char = word;
     let mut i: size_t = 0i32 as size_t;
     while i < size {
         match *cur as libc::c_int {
             44 | 58 | 33 | 34 | 35 | 36 | 64 | 91 | 92 | 93 | 94 | 96 | 123 | 124 | 125 | 126
-            | 61 | 63 | 95 => return 1i32,
+            | 61 | 63 | 95 => return true,
             _ => {
                 if *cur as libc::c_uchar as libc::c_int >= 128i32 {
-                    return 1i32;
+                    return true;
                 }
             }
         }
@@ -328,7 +326,7 @@ unsafe fn to_be_quoted(word: *const libc::c_char, size: size_t) -> libc::c_int {
         i = i.wrapping_add(1)
     }
 
-    0
+    false
 }
 
 pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_char {
@@ -616,8 +614,7 @@ pub unsafe fn dc_decode_modified_utf7(
     res
 }
 
-// TODO should be bool /rtn
-pub unsafe fn dc_needs_ext_header(mut to_check: *const libc::c_char) -> libc::c_int {
+pub unsafe fn dc_needs_ext_header(mut to_check: *const libc::c_char) -> bool {
     if !to_check.is_null() {
         while 0 != *to_check {
             if 0 == isalnum(*to_check as libc::c_int)
@@ -626,13 +623,13 @@ pub unsafe fn dc_needs_ext_header(mut to_check: *const libc::c_char) -> libc::c_
                 && *to_check as libc::c_int != '.' as i32
                 && *to_check as libc::c_int != '~' as i32
             {
-                return 1i32;
+                return true;
             }
             to_check = to_check.offset(1isize)
         }
     }
 
-    0
+    false
 }
 
 pub unsafe fn dc_encode_ext_header(to_encode: *const libc::c_char) -> *mut libc::c_char {

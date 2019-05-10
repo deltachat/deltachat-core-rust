@@ -408,7 +408,7 @@ unsafe fn log_msglist(context: &dc_context_t, msglist: *mut dc_array_t) {
 unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t;
     let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
-    if 0 == dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
+    if !dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
     }
     let mut i = 0;

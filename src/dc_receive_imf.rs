@@ -1576,10 +1576,10 @@ unsafe fn create_or_lookup_adhoc_group(
     if !(dc_array_get_cnt(to_ids) == 0 || 0 != dc_mimeparser_is_mailinglist_message(mime_parser)) {
         /* too few contacts or a mailinglist */
         member_ids = dc_array_duplicate(to_ids);
-        if 0 == dc_array_search_id(member_ids, from_id as uint32_t, 0 as *mut size_t) {
+        if !dc_array_search_id(member_ids, from_id as uint32_t, 0 as *mut size_t) {
             dc_array_add_id(member_ids, from_id as uint32_t);
         }
-        if 0 == dc_array_search_id(member_ids, 1i32 as uint32_t, 0 as *mut size_t) {
+        if !dc_array_search_id(member_ids, 1i32 as uint32_t, 0 as *mut size_t) {
             dc_array_add_id(member_ids, 1i32 as uint32_t);
         }
         if !(dc_array_get_cnt(member_ids) < 3) {
@@ -1803,7 +1803,7 @@ unsafe fn search_chat_ids_by_contact_ids(
         while i < iCnt {
             let curr_id: uint32_t = dc_array_get_id(unsorted_contact_ids, i as size_t);
             if curr_id != 1i32 as libc::c_uint
-                && 0 == dc_array_search_id(contact_ids, curr_id, 0 as *mut size_t)
+                && !dc_array_search_id(contact_ids, curr_id, 0 as *mut size_t)
             {
                 dc_array_add_id(contact_ids, curr_id);
             }
@@ -2340,7 +2340,7 @@ unsafe fn add_or_lookup_contact_by_addr(
     );
     free(display_name_dec as *mut libc::c_void);
     if 0 != row_id {
-        if 0 == dc_array_search_id(ids, row_id, 0 as *mut size_t) {
+        if !dc_array_search_id(ids, row_id, 0 as *mut size_t) {
             dc_array_add_id(ids, row_id);
         }
     };
