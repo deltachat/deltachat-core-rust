@@ -230,7 +230,7 @@ pub unsafe fn dc_get_locations(
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
-        b"SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp, l.independent \
+        b"SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp, l.independent, \
               m.id, l.from_id, l.chat_id, m.txt \
               FROM locations l  LEFT JOIN msgs m ON l.id=m.location_id  WHERE (? OR l.chat_id=?) \
               AND (? OR l.from_id=?) \
