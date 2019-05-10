@@ -363,8 +363,8 @@ unsafe fn fingerprint_equals_sender(
     let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
     let mut fingerprint_normalized: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(dc_array_get_cnt(contacts) != 1) {
-        if !(0
-            == dc_contact_load_from_db(
+        if !(
+            !dc_contact_load_from_db(
                 contact,
                 &context.sql.clone().read().unwrap(),
                 dc_array_get_id(contacts, 0i32 as size_t),

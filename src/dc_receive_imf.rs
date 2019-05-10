@@ -408,7 +408,7 @@ pub unsafe fn dc_receive_imf(
                                     }
                                     if chat_id == 0i32 as libc::c_uint && 0 != allow_creation {
                                         let create_blocked_1: libc::c_int = if 0 != msgrmsg
-                                            && 0 == dc_is_contact_blocked(context, to_id)
+                                            && !dc_is_contact_blocked(context, to_id)
                                         {
                                             0i32
                                         } else {
@@ -1470,14 +1470,13 @@ unsafe fn create_or_lookup_group(
                                 dc_add_to_chat_contacts_table(context, chat_id, 1i32 as uint32_t);
                             }
                             if from_id > 9i32 {
-                                if dc_addr_equals_contact(context, self_addr, from_id as uint32_t)
-                                    == 0i32
+                                if !dc_addr_equals_contact(context, self_addr, from_id as uint32_t)
                                     && (skip.is_null()
-                                        || dc_addr_equals_contact(
+                                        || !dc_addr_equals_contact(
                                             context,
                                             skip,
                                             from_id as uint32_t,
-                                        ) == 0i32)
+                                        ))
                                 {
                                     dc_add_to_chat_contacts_table(
                                         context,
@@ -1489,9 +1488,9 @@ unsafe fn create_or_lookup_group(
                             i = 0i32;
                             while i < to_ids_cnt {
                                 let to_id: uint32_t = dc_array_get_id(to_ids, i as size_t);
-                                if dc_addr_equals_contact(context, self_addr, to_id) == 0i32
+                                if !dc_addr_equals_contact(context, self_addr, to_id)
                                     && (skip.is_null()
-                                        || dc_addr_equals_contact(context, skip, to_id) == 0i32)
+                                        || !dc_addr_equals_contact(context, skip, to_id))
                                 {
                                     dc_add_to_chat_contacts_table(context, chat_id, to_id);
                                 }
@@ -1866,7 +1865,7 @@ unsafe fn check_verified_properties(
     let mut to_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if 0 == dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), from_id) {
+    if !dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), from_id) {
         *failure_reason = dc_mprintf(
             b"%s. See \"Info\" for details.\x00" as *const u8 as *const libc::c_char,
             b"Internal Error; cannot load contact.\x00" as *const u8 as *const libc::c_char,

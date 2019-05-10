@@ -1556,7 +1556,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"delcontact\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            ret = if 0 != dc_delete_contact(context, arg1.parse().unwrap()) {
+            ret = if dc_delete_contact(context, arg1.parse().unwrap()) {
                 2i32 as *mut libc::c_char
             } else {
                 1i32 as *mut libc::c_char

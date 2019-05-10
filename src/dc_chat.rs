@@ -38,7 +38,7 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &dc_context_t, msg_id: uint32_t)
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let chat: *mut dc_chat_t = dc_chat_new(context);
     if !(!dc_msg_load_from_db(msg, context, msg_id)
-        || 0 == dc_chat_load_from_db(chat, (*msg).chat_id)
+        || !dc_chat_load_from_db(chat, (*msg).chat_id)
         || (*chat).id <= 9i32 as libc::c_uint)
     {
         chat_id = (*chat).id;
@@ -129,9 +129,8 @@ pub unsafe fn dc_block_chat(context: &dc_context_t, chat_id: uint32_t, new_block
     sqlite3_finalize(stmt);
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_chat_load_from_db(chat: *mut dc_chat_t, chat_id: uint32_t) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+pub unsafe fn dc_chat_load_from_db(chat: *mut dc_chat_t, chat_id: uint32_t) -> bool {
+    let mut success = false;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
         dc_chat_empty(chat);
@@ -146,7 +145,7 @@ pub unsafe fn dc_chat_load_from_db(chat: *mut dc_chat_t, chat_id: uint32_t) -> l
 
         if !(sqlite3_step(stmt) != 100i32) {
             if !(0 == set_from_stmt(chat, stmt)) {
-                success = 1i32
+                success = true
             }
         }
     }
@@ -227,7 +226,7 @@ pub unsafe fn dc_create_chat_by_contact_id(
             dc_unblock_chat(context, chat_id);
             send_event = 1i32
         }
-    } else if 0i32 == dc_real_contact_exists(context, contact_id)
+    } else if !dc_real_contact_exists(context, contact_id)
         && contact_id != 1i32 as libc::c_uint
     {
         dc_log_warning(
@@ -297,7 +296,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
         return;
     }
     contact = dc_contact_new(context);
-    if !(0 == dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)) {
+    if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
         chat_name =
             if !(*contact).name.is_null() && 0 != *(*contact).name.offset(0isize) as libc::c_int {
                 (*contact).name
@@ -518,7 +517,7 @@ unsafe fn prepare_msg_common<'a>(
         17281240262373992796 => {
             dc_unarchive_chat(context, chat_id);
             chat = dc_chat_new(context);
-            if 0 != dc_chat_load_from_db(chat, chat_id) {
+            if dc_chat_load_from_db(chat, chat_id) {
                 if (*msg).state != 18i32 {
                     (*msg).state = 20i32
                 }
@@ -1512,7 +1511,7 @@ pub unsafe fn dc_delete_chat(context: &dc_context_t, chat_id: uint32_t) {
     let obj: *mut dc_chat_t = dc_chat_new(context);
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint) {
-        if !(0 == dc_chat_load_from_db(obj, chat_id)) {
+        if !(!dc_chat_load_from_db(obj, chat_id)) {
             q3 = sqlite3_mprintf(
                 b"DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=%i);\x00"
                     as *const u8 as *const libc::c_char,
@@ -1593,7 +1592,7 @@ pub unsafe fn dc_get_chat(context: &dc_context_t, chat_id: uint32_t) -> *mut dc_
     let mut success: libc::c_int = 0i32;
     let obj: *mut dc_chat_t = dc_chat_new(context);
 
-    if !(0 == dc_chat_load_from_db(obj, chat_id)) {
+    if !(!dc_chat_load_from_db(obj, chat_id)) {
         success = 1i32
     }
 
@@ -1714,9 +1713,9 @@ pub unsafe fn dc_add_contact_to_chat_ex(
         dc_reset_gossiped_timestamp(context, chat_id);
         /*this also makes sure, not contacts are added to special or normal chats*/
         if !(0i32 == real_group_exists(context, chat_id)
-            || 0i32 == dc_real_contact_exists(context, contact_id)
+            || !dc_real_contact_exists(context, contact_id)
                 && contact_id != 1i32 as libc::c_uint
-            || 0i32 == dc_chat_load_from_db(chat, chat_id))
+            || !dc_chat_load_from_db(chat, chat_id))
         {
             if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
                 dc_log_event(
@@ -1903,7 +1902,7 @@ pub unsafe fn dc_remove_contact_from_chat(
         /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
         /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
         if !(0i32 == real_group_exists(context, chat_id)
-            || 0i32 == dc_chat_load_from_db(chat, chat_id))
+            || !dc_chat_load_from_db(chat, chat_id))
         {
             if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
                 dc_log_event(
@@ -2018,7 +2017,7 @@ pub unsafe fn dc_set_chat_name(
         || chat_id <= 9i32 as libc::c_uint)
     {
         if !(0i32 == real_group_exists(context, chat_id)
-            || 0i32 == dc_chat_load_from_db(chat, chat_id))
+            || !dc_chat_load_from_db(chat, chat_id))
         {
             if strcmp((*chat).name, new_name) == 0i32 {
                 success = 1i32
@@ -2090,7 +2089,7 @@ pub unsafe fn dc_set_chat_profile_image(
     let mut new_image_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint) {
         if !(0i32 == real_group_exists(context, chat_id)
-            || 0i32 == dc_chat_load_from_db(chat, chat_id))
+            || !dc_chat_load_from_db(chat, chat_id))
         {
             if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
                 dc_log_event(
@@ -2178,7 +2177,7 @@ pub unsafe fn dc_forward_msgs(
     let original_param: *mut dc_param_t = dc_param_new();
     if !(msg_ids.is_null() || msg_cnt <= 0i32 || chat_id <= 9i32 as libc::c_uint) {
         dc_unarchive_chat(context, chat_id);
-        if !(0 == dc_chat_load_from_db(chat, chat_id)) {
+        if !(!dc_chat_load_from_db(chat, chat_id)) {
             curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
             idsstr = dc_arr_to_string(msg_ids, msg_cnt);
             q3 = sqlite3_mprintf(

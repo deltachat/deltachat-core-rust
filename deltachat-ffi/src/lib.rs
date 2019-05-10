@@ -684,7 +684,7 @@ pub unsafe extern "C" fn dc_get_msg<'a>(
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *mut libc::c_char) -> libc::c_int {
-    dc_contact::dc_may_be_valid_addr(addr)
+    if dc_contact::dc_may_be_valid_addr(addr) { 1 } else { 0 }
 }
 
 #[no_mangle]
@@ -782,7 +782,7 @@ pub unsafe extern "C" fn dc_delete_contact(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_contact::dc_delete_contact(context, contact_id)
+    if dc_contact::dc_delete_contact(context, contact_id) { 1 } else { 0 }
 }
 
 #[no_mangle]
