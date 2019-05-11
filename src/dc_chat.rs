@@ -37,9 +37,9 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &dc_context_t, msg_id: uint32_t)
     let mut send_event: libc::c_int = 0i32;
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let chat: *mut dc_chat_t = dc_chat_new(context);
-    if !(!dc_msg_load_from_db(msg, context, msg_id)
-        || !dc_chat_load_from_db(chat, (*msg).chat_id)
-        || (*chat).id <= 9i32 as libc::c_uint)
+    if dc_msg_load_from_db(msg, context, msg_id)
+        && dc_chat_load_from_db(chat, (*msg).chat_id)
+        && (*chat).id > 9i32 as libc::c_uint
     {
         chat_id = (*chat).id;
         if 0 != (*chat).blocked {
@@ -1509,7 +1509,7 @@ pub unsafe fn dc_delete_chat(context: &dc_context_t, chat_id: uint32_t) {
     let obj: *mut dc_chat_t = dc_chat_new(context);
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint) {
-        if !(!dc_chat_load_from_db(obj, chat_id)) {
+        if dc_chat_load_from_db(obj, chat_id) {
             q3 = sqlite3_mprintf(
                 b"DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=%i);\x00"
                     as *const u8 as *const libc::c_char,
@@ -1590,7 +1590,7 @@ pub unsafe fn dc_get_chat(context: &dc_context_t, chat_id: uint32_t) -> *mut dc_
     let mut success: libc::c_int = 0i32;
     let obj: *mut dc_chat_t = dc_chat_new(context);
 
-    if !(!dc_chat_load_from_db(obj, chat_id)) {
+    if dc_chat_load_from_db(obj, chat_id) {
         success = 1i32
     }
 
@@ -2168,7 +2168,7 @@ pub unsafe fn dc_forward_msgs(
     let original_param: *mut dc_param_t = dc_param_new();
     if !(msg_ids.is_null() || msg_cnt <= 0i32 || chat_id <= 9i32 as libc::c_uint) {
         dc_unarchive_chat(context, chat_id);
-        if !(!dc_chat_load_from_db(chat, chat_id)) {
+        if dc_chat_load_from_db(chat, chat_id) {
             curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
             idsstr = dc_arr_to_string(msg_ids, msg_cnt);
             q3 = sqlite3_mprintf(
