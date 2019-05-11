@@ -160,7 +160,7 @@ pub unsafe fn dc_get_msg_info(context: &dc_context_t, msg_id: uint32_t) -> *mut 
                 p,
             );
             free(p as *mut libc::c_void);
-            if 0 != dc_msg_has_location(msg) {
+            if dc_msg_has_location(msg) {
                 dc_strbuilder_cat(
                     &mut ret,
                     b", Location sent\x00" as *const u8 as *const libc::c_char,
@@ -448,13 +448,12 @@ pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
  * @param msg The message object.
  * @return 1=Message has location bound to it, 0=No location bound to message.
  */
-// TODO should return bool /rtn
-pub unsafe fn dc_msg_has_location(msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_has_location(msg: *const dc_msg_t) -> bool {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32;
+        return false;
     }
 
-    ((*msg).location_id != 0i32 as libc::c_uint) as libc::c_int
+    ((*msg).location_id != 0i32 as libc::c_uint)
 }
 
 /**
@@ -505,13 +504,12 @@ pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> time_t {
     };
 }
 
-// TODO should return bool /rtn
 pub unsafe fn dc_msg_load_from_db<'a>(
     msg: *mut dc_msg_t<'a>,
     context: &'a dc_context_t,
     id: uint32_t,
-) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+) -> bool {
+    let mut success = false;
     let mut stmt = 0 as *mut sqlite3_stmt;
     if !msg.is_null() {
         stmt =
@@ -525,7 +523,7 @@ pub unsafe fn dc_msg_load_from_db<'a>(
             if !(0 == dc_msg_set_from_stmt(msg, stmt, 0i32)) {
                 /* also calls dc_msg_empty() */
                 (*msg).context = context;
-                success = 1i32
+                success = true
             }
         }
     }
@@ -777,7 +775,7 @@ pub unsafe fn dc_star_msgs(
 pub unsafe fn dc_get_msg<'a>(context: &'a dc_context_t, msg_id: uint32_t) -> *mut dc_msg_t<'a> {
     let mut success: libc::c_int = 0i32;
     let obj: *mut dc_msg_t = dc_msg_new_untyped(context);
-    if !(0 == dc_msg_load_from_db(obj, context, msg_id)) {
+    if dc_msg_load_from_db(obj, context, msg_id) {
         success = 1i32
     }
     if 0 != success {
@@ -905,13 +903,12 @@ pub unsafe fn dc_msg_get_height(msg: *const dc_msg_t) -> libc::c_int {
     dc_param_get_int((*msg).param, 'h' as i32, 0i32)
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> bool {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32;
+        return false;
     }
 
-    dc_param_get_int((*msg).param, 'd' as i32, 0i32)
+    0 != dc_param_get_int((*msg).param, 'd' as i32, 0i32)
 }
 
 // TODO should return bool /rtn
@@ -1267,7 +1264,7 @@ pub unsafe fn dc_msg_new_load<'a>(
 pub unsafe fn dc_delete_msg_from_db(context: &dc_context_t, msg_id: uint32_t) {
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(0 == dc_msg_load_from_db(msg, context, msg_id)) {
+    if dc_msg_load_from_db(msg, context, msg_id) {
         stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
@@ -1346,7 +1343,7 @@ pub unsafe fn dc_set_msg_failed(
 ) {
     let mut msg = dc_msg_new_untyped(context);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(0 == dc_msg_load_from_db(msg, context, msg_id)) {
+    if dc_msg_load_from_db(msg, context, msg_id) {
         if 18i32 == (*msg).state || 20i32 == (*msg).state || 26i32 == (*msg).state {
             (*msg).state = 24i32
         }

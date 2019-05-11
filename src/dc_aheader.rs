@@ -194,7 +194,7 @@ unsafe fn add_attribute(
     value: *const libc::c_char,
 ) -> libc::c_int {
     if strcasecmp(name, b"addr\x00" as *const u8 as *const libc::c_char) == 0 {
-        if value.is_null() || 0 == dc_may_be_valid_addr(value) || !(*aheader).addr.is_null() {
+        if value.is_null() || !dc_may_be_valid_addr(value) || !(*aheader).addr.is_null() {
             return 0;
         }
         (*aheader).addr = dc_addr_normalize(value);

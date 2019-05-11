@@ -46,14 +46,13 @@ pub unsafe fn dc_marknoticed_contact(context: &dc_context_t, contact_id: uint32_
 }
 
 // handle contacts
-// TODO should return bool /rtn
-pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *const libc::c_char) -> libc::c_int {
+pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
     if addr.is_null() {
-        return 0i32;
+        return false;
     }
     let at: *const libc::c_char = strchr(addr, '@' as i32);
     if at.is_null() || (at.wrapping_offset_from(addr) as libc::c_long) < 1i32 as libc::c_long {
-        return 0i32;
+        return false;
     }
     let dot: *const libc::c_char = strchr(at, '.' as i32);
     if dot.is_null()
@@ -61,10 +60,10 @@ pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *const libc::c_char) -> libc
         || *dot.offset(1isize) as libc::c_int == 0i32
         || *dot.offset(2isize) as libc::c_int == 0i32
     {
-        return 0i32;
+        return false;
     }
 
-    1
+    true
 }
 
 pub unsafe fn dc_lookup_contact_id_by_addr(
@@ -137,7 +136,7 @@ pub unsafe fn dc_create_contact(
 ) -> uint32_t {
     let mut contact_id: uint32_t = 0i32 as uint32_t;
     let mut sth_modified: libc::c_int = 0i32;
-    let blocked: libc::c_int;
+    let blocked: bool;
     if !(addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32) {
         contact_id = dc_add_or_lookup_contact(context, name, addr, 0x4000000i32, &mut sth_modified);
         blocked = dc_is_contact_blocked(context, contact_id);
@@ -151,7 +150,7 @@ pub unsafe fn dc_create_contact(
             }) as uintptr_t,
             0i32 as uintptr_t,
         );
-        if 0 != blocked {
+        if blocked {
             dc_block_contact(context, contact_id, 0i32);
         }
     }
@@ -169,7 +168,7 @@ pub unsafe fn dc_block_contact(
     let contact: *mut dc_contact_t = dc_contact_new(context);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(contact_id <= 9i32 as libc::c_uint) {
-        if 0 != dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)
+        if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)
             && (*contact).blocked != new_blocking
         {
             stmt = dc_sqlite3_prepare(
@@ -296,14 +295,13 @@ pub unsafe fn dc_contact_empty(mut contact: *mut dc_contact_t) {
 /* contacts with at least this origin value are shown in the contact list */
 /* contacts with at least this origin value are verified and known not to be spam */
 /* contacts with at least this origin value start a new "normal" chat, defaults to off */
-// TODO should return bool /rtn
 pub unsafe fn dc_contact_load_from_db(
     contact: *mut dc_contact_t,
     sql: &dc_sqlite3_t,
     contact_id: uint32_t,
-) -> libc::c_int {
+) -> bool {
     let current_block: u64;
-    let mut success: libc::c_int = 0i32;
+    let mut success = false;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint) {
         dc_contact_empty(contact);
@@ -339,7 +337,7 @@ pub unsafe fn dc_contact_load_from_db(
         }
         match current_block {
             12908855840294526070 => {}
-            _ => success = 1i32,
+            _ => success = true,
         }
     }
     sqlite3_finalize(stmt);
@@ -347,13 +345,12 @@ pub unsafe fn dc_contact_load_from_db(
     success
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_is_contact_blocked(context: &dc_context_t, contact_id: uint32_t) -> libc::c_int {
-    let mut is_blocked: libc::c_int = 0i32;
+pub unsafe fn dc_is_contact_blocked(context: &dc_context_t, contact_id: uint32_t) -> bool {
+    let mut is_blocked = false;
     let contact: *mut dc_contact_t = dc_contact_new(context);
-    if 0 != dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
+    if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
         if 0 != (*contact).blocked {
-            is_blocked = 1i32
+            is_blocked = true
         }
     }
     dc_contact_unref(contact);
@@ -391,7 +388,7 @@ pub unsafe fn dc_add_or_lookup_contact(
         );
         if strcasecmp(addr, addr_self) == 0i32 {
             row_id = 1i32 as uint32_t
-        } else if 0 == dc_may_be_valid_addr(addr) {
+        } else if !dc_may_be_valid_addr(addr) {
             dc_log_warning(
                 context,
                 0i32,
@@ -786,7 +783,7 @@ pub unsafe fn dc_get_contact_encrinfo(
         eos: 0 as *mut libc::c_char,
     };
     dc_strbuilder_init(&mut ret, 0i32);
-    if !(0 == dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)) {
+    if !(!dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)) {
         dc_apeerstate_load_by_addr(
             peerstate,
             &context.sql.clone().read().unwrap(),
@@ -920,9 +917,8 @@ unsafe fn cat_fingerprint(
     };
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_delete_contact(context: &dc_context_t, contact_id: uint32_t) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+pub unsafe fn dc_delete_contact(context: &dc_context_t, contact_id: uint32_t) -> bool {
+    let mut success = false;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !contact_id <= 9i32 as libc::c_uint {
         stmt = dc_sqlite3_prepare(
@@ -957,7 +953,7 @@ pub unsafe fn dc_delete_contact(context: &dc_context_t, contact_id: uint32_t) ->
                         0i32 as uintptr_t,
                         0i32 as uintptr_t,
                     );
-                    success = 1i32
+                    success = true
                 }
             }
         }
@@ -969,7 +965,7 @@ pub unsafe fn dc_delete_contact(context: &dc_context_t, contact_id: uint32_t) ->
 
 pub unsafe fn dc_get_contact(context: &dc_context_t, contact_id: uint32_t) -> *mut dc_contact_t {
     let mut ret: *mut dc_contact_t = dc_contact_new(context);
-    if 0 == dc_contact_load_from_db(ret, &context.sql.clone().read().unwrap(), contact_id) {
+    if !dc_contact_load_from_db(ret, &context.sql.clone().read().unwrap(), contact_id) {
         dc_contact_unref(ret);
         ret = 0 as *mut dc_contact_t
     }
@@ -1163,20 +1159,19 @@ pub unsafe fn dc_addr_equals_self(
     ret
 }
 
-// TODO should return bool /rtn
 pub unsafe fn dc_addr_equals_contact(
     context: &dc_context_t,
     addr: *const libc::c_char,
     contact_id: uint32_t,
-) -> libc::c_int {
-    let mut addr_are_equal: libc::c_int = 0i32;
+) -> bool {
+    let mut addr_are_equal = false;
     if !addr.is_null() {
         let contact: *mut dc_contact_t = dc_contact_new(context);
-        if 0 != dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
+        if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
             if !(*contact).addr.is_null() {
                 let normalized_addr: *mut libc::c_char = dc_addr_normalize(addr);
                 if strcasecmp((*contact).addr, normalized_addr) == 0i32 {
-                    addr_are_equal = 1i32
+                    addr_are_equal = true;
                 }
                 free(normalized_addr as *mut libc::c_void);
             }
@@ -1217,7 +1212,7 @@ pub unsafe fn dc_get_contact_origin(
     }
     let contact: *mut dc_contact_t = dc_contact_new(context);
     *ret_blocked = 0i32;
-    if !(0 == dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)) {
+    if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
         /* we could optimize this by loading only the needed fields */
         if 0 != (*contact).blocked {
             *ret_blocked = 1i32
@@ -1229,10 +1224,9 @@ pub unsafe fn dc_get_contact_origin(
     ret
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_real_contact_exists(context: &dc_context_t, contact_id: uint32_t) -> libc::c_int {
+pub unsafe fn dc_real_contact_exists(context: &dc_context_t, contact_id: uint32_t) -> bool {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut ret: libc::c_int = 0i32;
+    let mut ret = false;
     if !(context.sql.clone().read().unwrap().cobj.is_null() || contact_id <= 9i32 as libc::c_uint) {
         stmt = dc_sqlite3_prepare(
             context,
@@ -1241,7 +1235,7 @@ pub unsafe fn dc_real_contact_exists(context: &dc_context_t, contact_id: uint32_
         );
         sqlite3_bind_int(stmt, 1i32, contact_id as libc::c_int);
         if sqlite3_step(stmt) == 100i32 {
-            ret = 1i32
+            ret = true
         }
     }
     sqlite3_finalize(stmt);

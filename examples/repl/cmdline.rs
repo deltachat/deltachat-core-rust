@@ -336,7 +336,7 @@ unsafe fn log_msg(context: &dc_context_t, prefix: *const libc::c_char, msg: *mut
         } else {
             b"\x00" as *const u8 as *const libc::c_char
         },
-        if 0 != dc_msg_has_location(msg) {
+        if dc_msg_has_location(msg) {
             b"\xf0\x9f\x93\x8d\x00" as *const u8 as *const libc::c_char
         } else {
             b"\x00" as *const u8 as *const libc::c_char
@@ -408,7 +408,7 @@ unsafe fn log_msglist(context: &dc_context_t, msglist: *mut dc_array_t) {
 unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t;
     let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
-    if 0 == dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
+    if !dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
     }
     let mut i = 0;
@@ -1556,7 +1556,7 @@ pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_
         }
     } else if strcmp(cmd, b"delcontact\x00" as *const u8 as *const libc::c_char) == 0i32 {
         if !arg1.is_empty() {
-            ret = if 0 != dc_delete_contact(context, arg1.parse().unwrap()) {
+            ret = if dc_delete_contact(context, arg1.parse().unwrap()) {
                 2i32 as *mut libc::c_char
             } else {
                 1i32 as *mut libc::c_char

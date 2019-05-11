@@ -684,7 +684,11 @@ pub unsafe extern "C" fn dc_get_msg<'a>(
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *mut libc::c_char) -> libc::c_int {
-    dc_contact::dc_may_be_valid_addr(addr)
+    if dc_contact::dc_may_be_valid_addr(addr) {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
@@ -782,7 +786,11 @@ pub unsafe extern "C" fn dc_delete_contact(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_contact::dc_delete_contact(context, contact_id)
+    if dc_contact::dc_delete_contact(context, contact_id) {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
@@ -1052,7 +1060,11 @@ pub unsafe extern "C" fn dc_array_search_id(
     needle: libc::c_uint,
     ret_index: *mut libc::size_t,
 ) -> libc::c_int {
-    dc_array::dc_array_search_id(array, needle, ret_index)
+    if dc_array::dc_array_search_id(array, needle, ret_index) {
+        1
+    } else {
+        0
+    }
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const libc::size_t {
@@ -1289,7 +1301,11 @@ pub unsafe extern "C" fn dc_msg_get_height(msg: *mut dc_msg::dc_msg_t) -> libc::
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_duration(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
-    dc_msg::dc_msg_get_duration(msg)
+    if dc_msg::dc_msg_get_duration(msg) {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
@@ -1320,7 +1336,11 @@ pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg::dc_msg
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_has_location(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
-    dc_msg::dc_msg_has_location(msg)
+    if dc_msg::dc_msg_has_location(msg) {
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]

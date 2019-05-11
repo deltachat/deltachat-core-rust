@@ -123,8 +123,8 @@ pub unsafe fn dc_mimefactory_load_msg(
         (*factory).recipients_addr = clist_new();
         (*factory).msg = dc_msg_new_untyped(context);
         (*factory).chat = dc_chat_new(context);
-        if 0 != dc_msg_load_from_db((*factory).msg, context, msg_id)
-            && 0 != dc_chat_load_from_db((*factory).chat, (*(*factory).msg).chat_id)
+        if dc_msg_load_from_db((*factory).msg, context, msg_id)
+            && dc_chat_load_from_db((*factory).chat, (*(*factory).msg).chat_id)
         {
             load_from(factory);
             (*factory).req_mdn = 0i32;
@@ -289,8 +289,8 @@ pub unsafe fn dc_mimefactory_load_mdn(
         {
             /* MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ... */
             contact = dc_contact_new((*factory).context);
-            if !(0 == dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
-                || 0 == dc_contact_load_from_db(
+            if !(!dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
+                || !dc_contact_load_from_db(
                     contact,
                     &mut (*factory).context.sql.clone().read().unwrap(),
                     (*(*factory).msg).from_id,
@@ -1131,7 +1131,7 @@ unsafe fn build_body_file(
     mut base_name: *const libc::c_char,
     ret_file_name_as_sent: *mut *mut libc::c_char,
 ) -> *mut mailmime {
-    let needs_ext: libc::c_int;
+    let needs_ext: bool;
     let mime_fields: *mut mailmime_fields;
     let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
     let content: *mut mailmime_content;
@@ -1229,14 +1229,14 @@ unsafe fn build_body_file(
             needs_ext = dc_needs_ext_header(filename_to_send);
             mime_fields = mailmime_fields_new_filename(
                 MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                if 0 != needs_ext {
+                if needs_ext {
                     0 as *mut libc::c_char
                 } else {
                     dc_strdup(filename_to_send)
                 },
                 MAILMIME_MECHANISM_BASE64 as libc::c_int,
             );
-            if 0 != needs_ext {
+            if needs_ext {
                 let mut cur1: *mut clistiter = (*(*mime_fields).fld_list).first;
                 while !cur1.is_null() {
                     let field: *mut mailmime_field = (if !cur1.is_null() {

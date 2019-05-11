@@ -324,7 +324,7 @@ pub unsafe fn dc_chatlist_get_summary<'a>(
         if chat.is_null() {
             chat = dc_chat_new((*chatlist).context);
             chat_to_delete = chat;
-            if 0 == dc_chat_load_from_db(
+            if !dc_chat_load_from_db(
                 chat,
                 dc_array_get_id((*chatlist).chatNlastmsg_ids, index.wrapping_mul(2)),
             ) {
