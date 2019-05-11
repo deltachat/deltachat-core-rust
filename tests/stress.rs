@@ -964,8 +964,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_may_be_valid_addr(b"uuu\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_may_be_valid_addr(b"uuu\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -976,8 +976,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_may_be_valid_addr(b"dd.tt\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_may_be_valid_addr(b"dd.tt\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1000,8 +1000,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_may_be_valid_addr(b"uu\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_may_be_valid_addr(b"uu\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1012,8 +1012,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_may_be_valid_addr(b"u@d\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_may_be_valid_addr(b"u@d\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1024,8 +1024,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_may_be_valid_addr(b"u@d.\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_may_be_valid_addr(b"u@d.\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1036,8 +1036,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_may_be_valid_addr(b"u@d.t\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_may_be_valid_addr(b"u@d.t\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1060,8 +1060,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_may_be_valid_addr(b"u@.tt\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_may_be_valid_addr(b"u@.tt\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1072,8 +1072,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_may_be_valid_addr(b"@d.tt\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_may_be_valid_addr(b"@d.tt\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -2139,8 +2139,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (dc_needs_ext_header(b"Bjoern\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (dc_needs_ext_header(b"Bjoern\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -2175,8 +2175,8 @@ unsafe extern "C" fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (!dc_needs_ext_header(b"a b\x00" as *const u8 as *const libc::c_char))
-        as libc::c_int as libc::c_long
+    if 0 != (!dc_needs_ext_header(b"a b\x00" as *const u8 as *const libc::c_char)) as libc::c_int
+        as libc::c_long
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))

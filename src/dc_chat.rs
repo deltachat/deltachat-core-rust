@@ -226,9 +226,7 @@ pub unsafe fn dc_create_chat_by_contact_id(
             dc_unblock_chat(context, chat_id);
             send_event = 1i32
         }
-    } else if !dc_real_contact_exists(context, contact_id)
-        && contact_id != 1i32 as libc::c_uint
-    {
+    } else if !dc_real_contact_exists(context, contact_id) && contact_id != 1i32 as libc::c_uint {
         dc_log_warning(
             context,
             0i32,
@@ -1713,8 +1711,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
         dc_reset_gossiped_timestamp(context, chat_id);
         /*this also makes sure, not contacts are added to special or normal chats*/
         if !(0i32 == real_group_exists(context, chat_id)
-            || !dc_real_contact_exists(context, contact_id)
-                && contact_id != 1i32 as libc::c_uint
+            || !dc_real_contact_exists(context, contact_id) && contact_id != 1i32 as libc::c_uint
             || !dc_chat_load_from_db(chat, chat_id))
         {
             if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
@@ -1901,9 +1898,7 @@ pub unsafe fn dc_remove_contact_from_chat(
     {
         /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
         /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
-        if !(0i32 == real_group_exists(context, chat_id)
-            || !dc_chat_load_from_db(chat, chat_id))
-        {
+        if !(0i32 == real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
             if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
                 dc_log_event(
                     context,
@@ -2016,9 +2011,7 @@ pub unsafe fn dc_set_chat_name(
         || *new_name.offset(0isize) as libc::c_int == 0i32
         || chat_id <= 9i32 as libc::c_uint)
     {
-        if !(0i32 == real_group_exists(context, chat_id)
-            || !dc_chat_load_from_db(chat, chat_id))
-        {
+        if !(0i32 == real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
             if strcmp((*chat).name, new_name) == 0i32 {
                 success = 1i32
             } else if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
@@ -2088,9 +2081,7 @@ pub unsafe fn dc_set_chat_profile_image(
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut new_image_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint) {
-        if !(0i32 == real_group_exists(context, chat_id)
-            || !dc_chat_load_from_db(chat, chat_id))
-        {
+        if !(0i32 == real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
             if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
                 dc_log_event(
                     context,

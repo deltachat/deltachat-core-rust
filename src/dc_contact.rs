@@ -1226,7 +1226,7 @@ pub unsafe fn dc_get_contact_origin(
 
 pub unsafe fn dc_real_contact_exists(context: &dc_context_t, contact_id: uint32_t) -> bool {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut ret= false;
+    let mut ret = false;
     if !(context.sql.clone().read().unwrap().cobj.is_null() || contact_id <= 9i32 as libc::c_uint) {
         stmt = dc_sqlite3_prepare(
             context,

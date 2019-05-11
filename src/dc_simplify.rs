@@ -169,8 +169,7 @@ unsafe fn dc_simplify_simplify_plain_text(
             l_last = l_lastQuotedLine - 1i32;
             (*simplify).is_cut_at_end = 1i32;
             if l_last > 0i32 {
-                if is_empty_line(carray_get(lines, l_last as libc::c_uint) as *mut libc::c_char)
-                {
+                if is_empty_line(carray_get(lines, l_last as libc::c_uint) as *mut libc::c_char) {
                     l_last -= 1
                 }
             }
@@ -191,9 +190,7 @@ unsafe fn dc_simplify_simplify_plain_text(
             if is_plain_quote(line) {
                 l_lastQuotedLine_0 = l
             } else if !is_empty_line(line) {
-                if is_quoted_headline(line)
-                    && 0 == hasQuotedHeadline
-                    && l_lastQuotedLine_0 == -1i32
+                if is_quoted_headline(line) && 0 == hasQuotedHeadline && l_lastQuotedLine_0 == -1i32
                 {
                     hasQuotedHeadline = 1i32
                 } else {

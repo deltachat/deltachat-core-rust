@@ -903,7 +903,6 @@ pub unsafe fn dc_msg_get_height(msg: *const dc_msg_t) -> libc::c_int {
     dc_param_get_int((*msg).param, 'h' as i32, 0i32)
 }
 
-
 pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> bool {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return false;
