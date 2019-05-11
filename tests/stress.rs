@@ -4467,40 +4467,35 @@ unsafe fn stress_functions(context: &dc_context_t) {
     };
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+unsafe extern "C" fn cb(
+    _context: &dc_context_t,
+    _event: Event,
+    _data1: uintptr_t,
+    _data2: uintptr_t,
+) -> uintptr_t {
+    0
+}
 
-    unsafe extern "C" fn cb(
-        _context: &dc_context_t,
-        _event: Event,
-        _data1: uintptr_t,
-        _data2: uintptr_t,
-    ) -> uintptr_t {
-        0
-    }
+unsafe fn create_context() -> dc_context_t {
+    let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
+    let dir = tempdir().unwrap();
+    let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+    assert_eq!(
+        dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
+        1,
+        "Failed to open {}",
+        CStr::from_ptr(dbfile.as_ptr() as *const libc::c_char)
+            .to_str()
+            .unwrap()
+    );
 
-    unsafe fn create_context() -> dc_context_t {
-        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
-        let dir = tempdir().unwrap();
-        let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
-        assert_eq!(
-            dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
-            1,
-            "Failed to open {}",
-            CStr::from_ptr(dbfile.as_ptr() as *const libc::c_char)
-                .to_str()
-                .unwrap()
-        );
+    ctx
+}
 
-        ctx
-    }
-
-    #[test]
-    fn run_stress_tests() {
-        unsafe {
-            let ctx = create_context();
-            stress_functions(&ctx);
-        }
+#[test]
+fn run_stress_tests() {
+    unsafe {
+        let ctx = create_context();
+        stress_functions(&ctx);
     }
 }
