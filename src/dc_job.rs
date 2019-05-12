@@ -56,8 +56,8 @@ pub unsafe fn dc_perform_imap_jobs(context: &dc_context_t) {
     );
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
-    *context.probe_imap_network.clone().write().unwrap() = 0;
-    *context.perform_inbox_jobs_needed.clone().write().unwrap() = 0;
+    *context.probe_imap_network.write().unwrap() = 0;
+    *context.perform_inbox_jobs_needed.write().unwrap() = 0;
 
     dc_job_perform(context, 100, probe_imap_network);
     dc_log_info(
@@ -293,10 +293,10 @@ unsafe fn dc_job_update(context: &dc_context_t, job: &dc_job_t) {
     sqlite3_finalize(stmt);
 }
 unsafe fn dc_suspend_smtp_thread(context: &dc_context_t, suspend: libc::c_int) {
-    context.smtp_state.clone().0.lock().unwrap().suspended = suspend;
+    context.smtp_state.0.lock().unwrap().suspended = suspend;
     if 0 != suspend {
         loop {
-            if context.smtp_state.clone().0.lock().unwrap().doing_jobs == 0 {
+            if context.smtp_state.0.lock().unwrap().doing_jobs == 0 {
                 return;
             }
             usleep((300i32 * 1000i32) as libc::useconds_t);
@@ -311,7 +311,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &dc_context_t, job: &mut dc_job_t) {
     let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     /* connect to SMTP server, if not yet done */
-    if !context.smtp.clone().lock().unwrap().is_connected() {
+    if !context.smtp.lock().unwrap().is_connected() {
         let loginparam: *mut dc_loginparam_t = dc_loginparam_new();
         dc_loginparam_read(
             context,
@@ -319,12 +319,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &dc_context_t, job: &mut dc_job_t) {
             &context.sql.clone().read().unwrap(),
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
-        let connected = context
-            .smtp
-            .clone()
-            .lock()
-            .unwrap()
-            .connect(context, loginparam);
+        let connected = context.smtp.lock().unwrap().connect(context, loginparam);
         dc_loginparam_unref(loginparam);
         if 0 == connected {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
@@ -393,12 +388,12 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &dc_context_t, job: &mut dc_job_t) {
                             /* send message */
                             let body =
                                 std::slice::from_raw_parts(buf as *const u8, buf_bytes).to_vec();
-                            if 0 == context.smtp.clone().lock().unwrap().send(
+                            if 0 == context.smtp.lock().unwrap().send(
                                 context,
                                 recipients_list,
                                 body,
                             ) {
-                                context.smtp.clone().lock().unwrap().disconnect();
+                                context.smtp.lock().unwrap().disconnect();
                                 dc_job_try_again_later(
                                     job,
                                     -1i32,
@@ -1254,7 +1249,7 @@ pub unsafe fn dc_maybe_network(context: &dc_context_t) {
         let mut state = lock.lock().unwrap();
         state.probe_network = 1;
 
-        *context.probe_imap_network.clone().write().unwrap() = 1;
+        *context.probe_imap_network.write().unwrap() = 1;
     }
 
     dc_interrupt_smtp_idle(context);
