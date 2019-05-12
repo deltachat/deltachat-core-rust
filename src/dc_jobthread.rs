@@ -59,11 +59,11 @@ pub unsafe fn dc_jobthread_suspend(
         );
 
         {
-            jobthread.state.clone().0.lock().unwrap().suspended = 1;
+            jobthread.state.0.lock().unwrap().suspended = 1;
         }
         dc_jobthread_interrupt_idle(context, jobthread);
         loop {
-            let using_handle = jobthread.state.clone().0.lock().unwrap().using_handle;
+            let using_handle = jobthread.state.0.lock().unwrap().using_handle;
             if using_handle == 0 {
                 return;
             }
@@ -86,12 +86,9 @@ pub unsafe fn dc_jobthread_suspend(
     }
 }
 
-pub unsafe extern "C" fn dc_jobthread_interrupt_idle(
-    context: &dc_context_t,
-    jobthread: &dc_jobthread_t,
-) {
+pub unsafe fn dc_jobthread_interrupt_idle(context: &dc_context_t, jobthread: &dc_jobthread_t) {
     {
-        jobthread.state.clone().0.lock().unwrap().jobs_needed = 1;
+        jobthread.state.0.lock().unwrap().jobs_needed = 1;
     }
 
     dc_log_info(
@@ -101,7 +98,6 @@ pub unsafe extern "C" fn dc_jobthread_interrupt_idle(
         jobthread.name,
     );
 
-    println!("jobthread interrupt, waiting for lock");
     jobthread.imap.interrupt_idle();
 
     let &(ref lock, ref cvar) = &*jobthread.state.clone();
@@ -160,7 +156,7 @@ pub unsafe fn dc_jobthread_fetch(
         }
     }
 
-    jobthread.state.clone().0.lock().unwrap().using_handle = 0;
+    jobthread.state.0.lock().unwrap().using_handle = 0;
 }
 
 /* ******************************************************************************
@@ -261,5 +257,5 @@ pub unsafe fn dc_jobthread_idle(
         jobthread.name,
     );
 
-    jobthread.state.clone().0.lock().unwrap().using_handle = 0;
+    jobthread.state.0.lock().unwrap().using_handle = 0;
 }

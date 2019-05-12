@@ -2279,7 +2279,7 @@ pub unsafe fn dc_chat_get_name(chat: *const dc_chat_t) -> *mut libc::c_char {
     dc_strdup((*chat).name)
 }
 
-pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *const dc_chat_t) -> *mut libc::c_char {
+pub unsafe fn dc_chat_get_subtitle(chat: *const dc_chat_t) -> *mut libc::c_char {
     /* returns either the address or the number of chat members */
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {

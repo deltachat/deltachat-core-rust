@@ -509,3 +509,10 @@ pub const DC_STR_MSGLOCATIONENABLED: usize = 64;
 pub const DC_STR_MSGLOCATIONDISABLED: usize = 65;
 pub const DC_STR_LOCATION: usize = 66;
 pub const DC_STR_COUNT: usize = 66;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(u8)]
+pub enum Key {
+    Public = 0,
+    Private = 1,
+}

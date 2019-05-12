@@ -263,10 +263,7 @@ pub unsafe fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
     dc_array_new_typed(0, initsize)
 }
 
-pub unsafe extern "C" fn dc_array_new_typed(
-    type_0: libc::c_int,
-    initsize: size_t,
-) -> *mut dc_array_t {
+pub unsafe fn dc_array_new_typed(type_0: libc::c_int, initsize: size_t) -> *mut dc_array_t {
     let mut array: *mut dc_array_t;
     array = calloc(1, ::std::mem::size_of::<dc_array_t>()) as *mut dc_array_t;
     if array.is_null() {

@@ -224,7 +224,7 @@ pub unsafe fn dc_hash_insert(
 
 /* Link an element into the hash table
  */
-unsafe extern "C" fn insertElement(
+unsafe fn insertElement(
     mut pH: *mut dc_hash_t,
     mut pEntry: *mut _ht,
     mut pNew: *mut dc_hashelem_t,

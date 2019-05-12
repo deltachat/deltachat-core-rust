@@ -129,7 +129,7 @@ unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &dc_context_t, flags: libc::c_i
     };
 }
 
-pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
+pub unsafe fn dc_is_sending_locations_to_chat(
     context: &dc_context_t,
     chat_id: uint32_t,
 ) -> libc::c_int {

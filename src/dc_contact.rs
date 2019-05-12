@@ -46,7 +46,7 @@ pub unsafe fn dc_marknoticed_contact(context: &dc_context_t, contact_id: uint32_
 }
 
 // handle contacts
-pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
+pub unsafe fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
     if addr.is_null() {
         return false;
     }

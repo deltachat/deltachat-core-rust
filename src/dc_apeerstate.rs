@@ -1,3 +1,7 @@
+use std::ffi::{CStr, CString};
+
+use num_traits::ToPrimitive;
+
 use crate::dc_aheader::*;
 use crate::dc_chat::*;
 use crate::dc_context::dc_context_t;
@@ -81,20 +85,20 @@ unsafe fn dc_apeerstate_empty(mut peerstate: *mut dc_apeerstate_t) {
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_init_from_header(
     mut peerstate: *mut dc_apeerstate_t,
-    header: *const dc_aheader_t,
+    header: &Aheader,
     message_time: time_t,
 ) -> libc::c_int {
-    if peerstate.is_null() || header.is_null() {
+    if peerstate.is_null() {
         return 0i32;
     }
     dc_apeerstate_empty(peerstate);
-    (*peerstate).addr = dc_strdup((*header).addr);
+    (*peerstate).addr = dc_strdup(CString::new(header.addr.clone()).unwrap().as_ptr());
     (*peerstate).last_seen = message_time;
     (*peerstate).last_seen_autocrypt = message_time;
     (*peerstate).to_save |= 0x2i32;
-    (*peerstate).prefer_encrypt = (*header).prefer_encrypt;
+    (*peerstate).prefer_encrypt = header.prefer_encrypt.to_i32().unwrap();
     (*peerstate).public_key = dc_key_new();
-    dc_key_set_from_key((*peerstate).public_key, (*header).public_key);
+    dc_key_set_from_key((*peerstate).public_key, header.public_key);
     dc_apeerstate_recalc_fingerprint(peerstate);
 
     1
@@ -152,20 +156,20 @@ pub unsafe fn dc_apeerstate_recalc_fingerprint(mut peerstate: *mut dc_apeerstate
 }
 
 // TODO should return bool /rtn
-pub unsafe extern "C" fn dc_apeerstate_init_from_gossip(
+pub unsafe fn dc_apeerstate_init_from_gossip(
     mut peerstate: *mut dc_apeerstate_t,
-    gossip_header: *const dc_aheader_t,
+    gossip_header: &Aheader,
     message_time: time_t,
 ) -> libc::c_int {
-    if peerstate.is_null() || gossip_header.is_null() {
+    if peerstate.is_null() {
         return 0i32;
     }
     dc_apeerstate_empty(peerstate);
-    (*peerstate).addr = dc_strdup((*gossip_header).addr);
+    (*peerstate).addr = dc_strdup(CString::new(gossip_header.addr.clone()).unwrap().as_ptr());
     (*peerstate).gossip_timestamp = message_time;
     (*peerstate).to_save |= 0x2i32;
     (*peerstate).gossip_key = dc_key_new();
-    dc_key_set_from_key((*peerstate).gossip_key, (*gossip_header).public_key);
+    dc_key_set_from_key((*peerstate).gossip_key, gossip_header.public_key);
     dc_apeerstate_recalc_fingerprint(peerstate);
 
     1
@@ -191,15 +195,17 @@ pub unsafe fn dc_apeerstate_degrade_encryption(
 
 pub unsafe fn dc_apeerstate_apply_header(
     mut peerstate: *mut dc_apeerstate_t,
-    header: *const dc_aheader_t,
+    header: &Aheader,
     message_time: time_t,
 ) {
     if peerstate.is_null()
-        || header.is_null()
         || (*peerstate).addr.is_null()
-        || (*header).addr.is_null()
-        || (*(*header).public_key).binary.is_null()
-        || strcasecmp((*peerstate).addr, (*header).addr) != 0i32
+        || (*header.public_key).binary.is_null()
+        || CStr::from_ptr((*peerstate).addr)
+            .to_str()
+            .unwrap()
+            .to_lowercase()
+            != header.addr.to_lowercase()
     {
         return;
     }
@@ -207,13 +213,16 @@ pub unsafe fn dc_apeerstate_apply_header(
         (*peerstate).last_seen = message_time;
         (*peerstate).last_seen_autocrypt = message_time;
         (*peerstate).to_save |= 0x1i32;
-        if ((*header).prefer_encrypt == 1i32 || (*header).prefer_encrypt == 0i32)
-            && (*header).prefer_encrypt != (*peerstate).prefer_encrypt
+        if (header.prefer_encrypt == EncryptPreference::Mutual
+            || header.prefer_encrypt == EncryptPreference::NoPreference)
+            && header.prefer_encrypt.to_i32().unwrap() != (*peerstate).prefer_encrypt
         {
-            if (*peerstate).prefer_encrypt == 1i32 && (*header).prefer_encrypt != 1i32 {
+            if (*peerstate).prefer_encrypt == 1i32
+                && header.prefer_encrypt != EncryptPreference::Mutual
+            {
                 (*peerstate).degrade_event |= 0x1i32
             }
-            (*peerstate).prefer_encrypt = (*header).prefer_encrypt;
+            (*peerstate).prefer_encrypt = header.prefer_encrypt.to_i32().unwrap();
             (*peerstate).to_save |= 0x2i32
         }
         if (*peerstate).public_key.is_null() {
@@ -229,15 +238,17 @@ pub unsafe fn dc_apeerstate_apply_header(
 
 pub unsafe fn dc_apeerstate_apply_gossip(
     mut peerstate: *mut dc_apeerstate_t,
-    gossip_header: *const dc_aheader_t,
+    gossip_header: &Aheader,
     message_time: time_t,
 ) {
     if peerstate.is_null()
-        || gossip_header.is_null()
         || (*peerstate).addr.is_null()
-        || (*gossip_header).addr.is_null()
         || (*(*gossip_header).public_key).binary.is_null()
-        || strcasecmp((*peerstate).addr, (*gossip_header).addr) != 0i32
+        || CStr::from_ptr((*peerstate).addr)
+            .to_str()
+            .unwrap()
+            .to_lowercase()
+            != gossip_header.addr.to_lowercase()
     {
         return;
     }
@@ -259,16 +270,17 @@ pub unsafe fn dc_apeerstate_render_gossip_header(
     peerstate: *const dc_apeerstate_t,
     min_verified: libc::c_int,
 ) -> *mut libc::c_char {
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut autocryptheader: *mut dc_aheader_t = dc_aheader_new();
     if !(peerstate.is_null() || (*peerstate).addr.is_null()) {
-        (*autocryptheader).prefer_encrypt = 0i32;
-        (*autocryptheader).addr = dc_strdup((*peerstate).addr);
-        (*autocryptheader).public_key = dc_key_ref(dc_apeerstate_peek_key(peerstate, min_verified));
-        ret = dc_aheader_render(autocryptheader)
+        let addr = CStr::from_ptr((*peerstate).addr).to_str().unwrap().into();
+        let key = dc_key_ref(dc_apeerstate_peek_key(peerstate, min_verified));
+        let header = Aheader::new(addr, key, EncryptPreference::NoPreference);
+        let rendered = header.to_string();
+        let rendered_c = CString::new(rendered).unwrap();
+
+        libc::strdup(rendered_c.as_ptr())
+    } else {
+        std::ptr::null_mut()
     }
-    dc_aheader_unref(autocryptheader);
-    ret
 }
 
 pub unsafe fn dc_apeerstate_peek_key(
