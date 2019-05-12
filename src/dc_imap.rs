@@ -7,10 +7,12 @@ use crate::constants::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
+use crate::dc_oauth2::dc_get_oauth2_access_token;
 use crate::dc_sqlite3::*;
 use crate::types::*;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
+pub const DC_REGENERATE: usize = 0x01;
 
 pub const DC_SUCCESS: usize = 3;
 pub const DC_ALREADY_DONE: usize = 2;
@@ -32,6 +34,23 @@ pub struct Imap {
     receive_imf: dc_receive_imf_t,
 
     session: Arc<Mutex<(Option<Session>, Option<net::TcpStream>)>>,
+}
+
+struct OAuth2 {
+    user: String,
+    access_token: String,
+}
+
+impl imap::Authenticator for OAuth2 {
+    type Response = String;
+
+    #[allow(unused_variables)]
+    fn process(&self, data: &[u8]) -> Self::Response {
+        format!(
+            "user={}\x01auth=Bearer {}\x01\x01",
+            self.user, self.access_token
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -118,6 +137,23 @@ impl Client {
             }
             // Nothing to do
             Client::Secure(_, _) => Ok(self),
+        }
+    }
+
+    pub fn authenticate<A: imap::Authenticator, S: AsRef<str>>(
+        self,
+        auth_type: S,
+        authenticator: &A,
+    ) -> Result<(Session, net::TcpStream), (imap::error::Error, Client)> {
+        match self {
+            Client::Secure(i, stream) => match i.authenticate(auth_type, authenticator) {
+                Ok(session) => Ok((Session::Secure(session), stream)),
+                Err((err, c)) => Err((err, Client::Secure(c, stream))),
+            },
+            Client::Insecure(i, stream) => match i.authenticate(auth_type, authenticator) {
+                Ok(session) => Ok((Session::Insecure(session), stream)),
+                Err((err, c)) => Err((err, Client::Insecure(c, stream))),
+            },
         }
     }
 
@@ -365,53 +401,27 @@ impl Imap {
                 Client::connect_secure((imap_server, imap_port), imap_server)
             };
 
-        match connection_res {
+        let login_res = match connection_res {
             Ok(client) => {
-                // TODO: handle oauth2
-                match client.login(imap_user, imap_pw) {
-                    Ok((mut session, stream)) => {
-                        // TODO: error handling
-                        let caps = session.capabilities().unwrap();
-                        let can_idle = caps.has("IDLE");
-                        let has_xlist = caps.has("XLIST");
+                if (server_flags & DC_LP_AUTH_OAUTH2) != 0 {
+                    let access_token = unsafe {
+                        CStr::from_ptr(dc_get_oauth2_access_token(
+                            context,
+                            lp.addr,
+                            lp.mail_pw,
+                            DC_REGENERATE as libc::c_int,
+                        ))
+                        .to_str()
+                        .unwrap()
+                    };
 
-                        let caps_list = caps.iter().fold(String::new(), |mut s, c| {
-                            s += " ";
-                            s += c;
-                            s
-                        });
-                        let caps_list_c = std::ffi::CString::new(caps_list).unwrap();
-
-                        info!(context, 0, "IMAP-capabilities:%s", caps_list_c.as_ptr());
-
-                        let mut config = self.config.write().unwrap();
-                        config.can_idle = can_idle;
-                        config.has_xlist = has_xlist;
-                        config.addr = Some(addr.into());
-                        config.imap_server = Some(imap_server.into());
-                        config.imap_port = Some(imap_port.into());
-                        config.imap_user = Some(imap_user.into());
-                        config.imap_pw = Some(imap_pw.into());
-                        config.server_flags = Some(server_flags);
-
-                        *self.session.lock().unwrap() = (Some(session), Some(stream));
-
-                        1
-                    }
-                    Err((err, _)) => {
-                        eprintln!("failed to login: {:?}", err);
-
-                        unsafe {
-                            dc_log_event_seq(
-                                context,
-                                Event::ERROR_NETWORK,
-                                &mut 0 as *mut i32,
-                                b"Cannot login\x00" as *const u8 as *const libc::c_char,
-                            )
-                        };
-
-                        0
-                    }
+                    let auth = OAuth2 {
+                        user: imap_user.into(),
+                        access_token: access_token.into(),
+                    };
+                    client.authenticate("XOAUTH2", &auth)
+                } else {
+                    client.login(imap_user, imap_pw)
                 }
             }
             Err(err) => {
@@ -425,6 +435,52 @@ impl Imap {
                             as *const libc::c_char,
                         imap_server,
                         imap_port as usize as libc::c_int,
+                    )
+                };
+
+                return 0;
+            }
+        };
+
+        match login_res {
+            Ok((mut session, stream)) => {
+                // TODO: error handling
+                let caps = session.capabilities().unwrap();
+                let can_idle = caps.has("IDLE");
+                let has_xlist = caps.has("XLIST");
+
+                let caps_list = caps.iter().fold(String::new(), |mut s, c| {
+                    s += " ";
+                    s += c;
+                    s
+                });
+                let caps_list_c = std::ffi::CString::new(caps_list).unwrap();
+
+                info!(context, 0, "IMAP-capabilities:%s", caps_list_c.as_ptr());
+
+                let mut config = self.config.write().unwrap();
+                config.can_idle = can_idle;
+                config.has_xlist = has_xlist;
+                config.addr = Some(addr.into());
+                config.imap_server = Some(imap_server.into());
+                config.imap_port = Some(imap_port.into());
+                config.imap_user = Some(imap_user.into());
+                config.imap_pw = Some(imap_pw.into());
+                config.server_flags = Some(server_flags);
+
+                *self.session.lock().unwrap() = (Some(session), Some(stream));
+
+                1
+            }
+            Err((err, _)) => {
+                eprintln!("failed to login: {:?}", err);
+
+                unsafe {
+                    dc_log_event_seq(
+                        context,
+                        Event::ERROR_NETWORK,
+                        &mut 0 as *mut i32,
+                        b"Cannot login\x00" as *const u8 as *const libc::c_char,
                     )
                 };
 
