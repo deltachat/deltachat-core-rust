@@ -20,10 +20,7 @@ pub type dc_saxparser_starttag_cb_t = Option<
     unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: *mut *mut libc::c_char) -> (),
 >;
 
-pub unsafe extern "C" fn dc_saxparser_init(
-    mut saxparser: *mut dc_saxparser_t,
-    userdata: *mut libc::c_void,
-) {
+pub unsafe fn dc_saxparser_init(mut saxparser: *mut dc_saxparser_t, userdata: *mut libc::c_void) {
     (*saxparser).userdata = userdata;
     (*saxparser).starttag_cb = Some(def_starttag_cb);
     (*saxparser).endtag_cb = Some(def_endtag_cb);

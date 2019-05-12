@@ -118,7 +118,7 @@ pub unsafe fn dc_key_set_from_key(key: *mut dc_key_t, o: *const dc_key_t) -> lib
 }
 
 // TODO should return bool /rtn
-pub unsafe extern "C" fn dc_key_set_from_stmt(
+pub unsafe fn dc_key_set_from_stmt(
     key: *mut dc_key_t,
     stmt: *mut sqlite3_stmt,
     index: libc::c_int,
@@ -297,11 +297,8 @@ pub unsafe fn dc_key_load_self_private(
     success
 }
 
-/* the result must be freed */
-pub fn dc_key_render_base64(key: *const dc_key_t, break_every: usize) -> *mut libc::c_char {
-    if key.is_null() {
-        return std::ptr::null_mut();
-    }
+pub fn dc_key_render_base64_string(key: *const dc_key_t, break_every: usize) -> String {
+    assert!(!key.is_null(), "missing key");
 
     let key = unsafe { *key };
     let bytes = unsafe { slice::from_raw_parts(key.binary as *const u8, key.bytes as usize) };
@@ -318,7 +315,7 @@ pub fn dc_key_render_base64(key: *const dc_key_t, break_every: usize) -> *mut li
     };
 
     let encoded = base64::encode(&buf);
-    let res = encoded
+    encoded
         .as_bytes()
         .chunks(break_every)
         .fold(String::new(), |mut res, buf| {
@@ -326,8 +323,14 @@ pub fn dc_key_render_base64(key: *const dc_key_t, break_every: usize) -> *mut li
             res += unsafe { std::str::from_utf8_unchecked(buf) };
             res += " ";
             res
-        });
+        })
+        .trim()
+        .to_string()
+}
 
+/* the result must be freed */
+pub fn dc_key_render_base64(key: *const dc_key_t, break_every: usize) -> *mut libc::c_char {
+    let res = dc_key_render_base64_string(key, break_every);
     let res_c = CString::new(res.trim()).unwrap();
 
     // need to use strdup to allocate the result with malloc

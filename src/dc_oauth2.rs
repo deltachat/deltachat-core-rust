@@ -469,7 +469,7 @@ unsafe fn jsondup(json: *const libc::c_char, tok: *mut jsmntok_t) -> *mut libc::
     strdup(b"\x00" as *const u8 as *const libc::c_char)
 }
 
-unsafe extern "C" fn jsoneq(
+unsafe fn jsoneq(
     json: *const libc::c_char,
     tok: *mut jsmntok_t,
     s: *const libc::c_char,

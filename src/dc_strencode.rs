@@ -24,7 +24,7 @@ pub fn isdigit(mut _c: libc::c_int) -> libc::c_int {
     }
 }
 
-pub unsafe extern "C" fn dc_urlencode(to_encode: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_urlencode(to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut pstr: *const libc::c_char = to_encode;
     if to_encode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);

@@ -303,7 +303,7 @@ unsafe fn dc_suspend_smtp_thread(context: &dc_context_t, suspend: libc::c_int) {
         }
     }
 }
-unsafe extern "C" fn dc_job_do_DC_JOB_SEND(context: &dc_context_t, job: &mut dc_job_t) {
+unsafe fn dc_job_do_DC_JOB_SEND(context: &dc_context_t, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;

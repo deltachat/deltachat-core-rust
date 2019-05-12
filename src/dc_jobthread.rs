@@ -86,10 +86,7 @@ pub unsafe fn dc_jobthread_suspend(
     }
 }
 
-pub unsafe extern "C" fn dc_jobthread_interrupt_idle(
-    context: &dc_context_t,
-    jobthread: &dc_jobthread_t,
-) {
+pub unsafe fn dc_jobthread_interrupt_idle(context: &dc_context_t, jobthread: &dc_jobthread_t) {
     {
         jobthread.state.clone().0.lock().unwrap().jobs_needed = 1;
     }

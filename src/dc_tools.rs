@@ -266,7 +266,7 @@ pub unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut li
 }
 
 /* remove all \r characters from string */
-pub unsafe extern "C" fn dc_remove_cr_chars(buf: *mut libc::c_char) {
+pub unsafe fn dc_remove_cr_chars(buf: *mut libc::c_char) {
     /* search for first `\r` */
     let mut p1: *const libc::c_char = buf;
     while 0 != *p1 {
