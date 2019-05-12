@@ -1235,8 +1235,12 @@ unsafe fn get_next_wakeup_time(context: &dc_context_t, thread: libc::c_int) -> D
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap();
         if t > 0 {
-            println!("{:?} {:?} {:?}", t, now, Duration::new(t, 0));
-            wakeup_time = Duration::new(t, 0) - now;
+            let t = Duration::new(t, 0);
+            if t > now {
+                wakeup_time = t - now;
+            } else {
+                wakeup_time = Duration::new(0, 0);
+            }
         }
     }
 
