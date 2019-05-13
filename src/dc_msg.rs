@@ -1,4 +1,4 @@
-use crate::constants::Event;
+use crate::constants::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_context::*;
@@ -388,32 +388,32 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
         suffix = dc_get_filesuffix_lc(pathNfilename);
         if !suffix.is_null() {
             if strcmp(suffix, b"mp3\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = 40i32;
+                *ret_msgtype = DC_MSG_AUDIO as libc::c_int;
                 *ret_mime = dc_strdup(b"audio/mpeg\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"aac\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = 40i32;
+                *ret_msgtype = DC_MSG_AUDIO as libc::c_int;
                 *ret_mime = dc_strdup(b"audio/aac\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"mp4\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = 50i32;
+                *ret_msgtype = DC_MSG_VIDEO as libc::c_int;
                 *ret_mime = dc_strdup(b"video/mp4\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                *ret_msgtype = 20i32;
+                *ret_msgtype = DC_MSG_IMAGE as libc::c_int;
                 *ret_mime = dc_strdup(b"image/jpeg\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = 20i32;
+                *ret_msgtype = DC_MSG_IMAGE as libc::c_int;
                 *ret_mime = dc_strdup(b"image/png\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"webp\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = 20i32;
+                *ret_msgtype = DC_MSG_IMAGE as libc::c_int;
                 *ret_mime = dc_strdup(b"image/webp\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = 21i32;
+                *ret_msgtype = DC_MSG_GIF as libc::c_int;
                 *ret_mime = dc_strdup(b"image/gif\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"vcf\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(suffix, b"vcard\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                *ret_msgtype = 60i32;
+                *ret_msgtype = DC_MSG_FILE as libc::c_int;
                 *ret_mime = dc_strdup(b"text/vcard\x00" as *const u8 as *const libc::c_char)
             }
         }
@@ -1009,7 +1009,14 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
                     b"ErrFilename\x00" as *const u8 as *const libc::c_char,
                 );
                 value = dc_get_filename(pathNfilename);
-                label = dc_stock_str(context, if type_0 == 40i32 { 11i32 } else { 12i32 });
+                label = dc_stock_str(
+                    context,
+                    if type_0 == DC_MSG_AUDIO as libc::c_int {
+                        11i32
+                    } else {
+                        12i32
+                    },
+                );
                 prefix = dc_mprintf(
                     b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
                     label,
@@ -1112,18 +1119,21 @@ pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
         return 0i32;
     }
 
-    (((*msg).type_0 == 20i32
-        || (*msg).type_0 == 21i32
-        || (*msg).type_0 == 40i32
-        || (*msg).type_0 == 41i32
-        || (*msg).type_0 == 50i32
-        || (*msg).type_0 == 60i32)
+    (((*msg).type_0 == DC_MSG_IMAGE as libc::c_int
+        || (*msg).type_0 == DC_MSG_GIF as libc::c_int
+        || (*msg).type_0 == DC_MSG_AUDIO as libc::c_int
+        || (*msg).type_0 == DC_MSG_VOICE as libc::c_int
+        || (*msg).type_0 == DC_MSG_VIDEO as libc::c_int
+        || (*msg).type_0 == DC_MSG_FILE as libc::c_int)
         && (*msg).state == 18i32) as libc::c_int
 }
 
 // TODO should return bool /rtn
 pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint || (*msg).type_0 != 60i32 {
+    if msg.is_null()
+        || (*msg).magic != 0x11561156i32 as libc::c_uint
+        || (*msg).type_0 != DC_MSG_FILE as libc::c_int
+    {
         return 0i32;
     }
     return if dc_param_get_int((*msg).param, 'S' as i32, 0i32) == 6i32 {
@@ -1615,4 +1625,144 @@ pub unsafe fn dc_update_server_uid(
     sqlite3_bind_text(stmt, 3i32, rfc724_mid, -1i32, None);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn test_dc_msg_guess_msgtype_from_suffix() {
+        unsafe {
+            let mut type_0: libc::c_int = 0;
+            let mut mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "audio/mpeg"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.aac\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "audio/aac"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.mp4\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_VIDEO as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "video/mp4"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.jpg\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/jpeg"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.jpeg\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/jpeg"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.png\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/png"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.webp\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/webp"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.gif\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_GIF as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/gif"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.vcf\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, DC_MSG_FILE as libc::c_int);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "text/vcard"
+            );
+            free(mime_0 as *mut libc::c_void);
+        }
+    }
 }

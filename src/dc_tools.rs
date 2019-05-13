@@ -1704,4 +1704,258 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_dc_atof() {
+        unsafe {
+            let f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
+            assert!(f > 1.22f64);
+            assert!(f < 1.24f64);
+        }
+    }
+
+    #[test]
+    fn test_dc_ftoa() {
+        unsafe {
+            let s: *mut libc::c_char = dc_ftoa(1.23f64);
+            assert!(dc_atof(s) > 1.22f64);
+            assert!(dc_atof(s) < 1.24f64);
+            free(s as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_replace() {
+        unsafe {
+            let mut str: *mut libc::c_char = strdup(b"aaa\x00" as *const u8 as *const libc::c_char);
+            let replacements: libc::c_int = dc_str_replace(
+                &mut str,
+                b"a\x00" as *const u8 as *const libc::c_char,
+                b"ab\x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "ababab"
+            );
+            assert_eq!(replacements, 3);
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_truncate_1() {
+        unsafe {
+            let str: *mut libc::c_char =
+                strdup(b"this is a little test string\x00" as *const u8 as *const libc::c_char);
+            dc_truncate_str(str, 16);
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "this is a [...]"
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_truncate_2() {
+        unsafe {
+            let str: *mut libc::c_char = strdup(b"1234\x00" as *const u8 as *const libc::c_char);
+            dc_truncate_str(str, 2);
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "1234"
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_truncate_3() {
+        unsafe {
+            let str: *mut libc::c_char = strdup(b"1234567\x00" as *const u8 as *const libc::c_char);
+            dc_truncate_str(str, 1);
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "1[...]"
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_truncate_4() {
+        unsafe {
+            let str: *mut libc::c_char = strdup(b"123456\x00" as *const u8 as *const libc::c_char);
+            dc_truncate_str(str, 4);
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "123456"
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_insert_breaks_1() {
+        unsafe {
+            let str: *mut libc::c_char = dc_insert_breaks(
+                b"just1234test\x00" as *const u8 as *const libc::c_char,
+                4,
+                b" \x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "just 1234 test"
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_insert_breaks_2() {
+        unsafe {
+            let str: *mut libc::c_char = dc_insert_breaks(
+                b"just1234tes\x00" as *const u8 as *const libc::c_char,
+                4i32,
+                b"--\x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "just--1234--tes"
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_insert_breaks_3() {
+        unsafe {
+            let str: *mut libc::c_char = dc_insert_breaks(
+                b"just1234t\x00" as *const u8 as *const libc::c_char,
+                4i32,
+                b"\x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "just1234t"
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_insert_breaks_4() {
+        unsafe {
+            let str: *mut libc::c_char = dc_insert_breaks(
+                b"\x00" as *const u8 as *const libc::c_char,
+                4i32,
+                b"---\x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                ""
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_null_terminate_1() {
+        unsafe {
+            let str: *mut libc::c_char =
+                dc_null_terminate(b"abcxyz\x00" as *const u8 as *const libc::c_char, 3);
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "abc"
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_null_terminate_2() {
+        unsafe {
+            let str: *mut libc::c_char =
+                dc_null_terminate(b"abcxyz\x00" as *const u8 as *const libc::c_char, 0);
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                ""
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_null_terminate_3() {
+        unsafe {
+            let str: *mut libc::c_char =
+                dc_null_terminate(0 as *const u8 as *const libc::c_char, 0);
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                ""
+            );
+            free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_to_clist_1() {
+        unsafe {
+            let list: *mut clist = dc_str_to_clist(
+                0 as *const libc::c_char,
+                b" \x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!((*list).count, 0);
+            clist_free_content(list);
+            clist_free(list);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_to_clist_2() {
+        unsafe {
+            let list: *mut clist = dc_str_to_clist(
+                b"\x00" as *const u8 as *const libc::c_char,
+                b" \x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!((*list).count, 1);
+            clist_free_content(list);
+            clist_free(list);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_to_clist_3() {
+        unsafe {
+            let list: *mut clist = dc_str_to_clist(
+                b" \x00" as *const u8 as *const libc::c_char,
+                b" \x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!((*list).count, 2);
+            clist_free_content(list);
+            clist_free(list);
+        }
+    }
+
+    #[test]
+    fn test_dc_str_to_clist_4() {
+        unsafe {
+            let list: *mut clist = dc_str_to_clist(
+                b"foo bar test\x00" as *const u8 as *const libc::c_char,
+                b" \x00" as *const u8 as *const libc::c_char,
+            );
+            assert_eq!((*list).count, 3);
+            let str: *mut libc::c_char =
+                dc_str_from_clist(list, b" \x00" as *const u8 as *const libc::c_char);
+
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "foo bar test"
+            );
+
+            clist_free_content(list);
+            clist_free(list);
+            free(str as *mut libc::c_void);
+        }
+    }
 }
