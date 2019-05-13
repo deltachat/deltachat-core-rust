@@ -26,7 +26,6 @@ use deltachat::dc_pgp::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_saxparser::*;
 use deltachat::dc_securejoin::*;
-use deltachat::dc_simplify::*;
 use deltachat::dc_strbuilder::*;
 use deltachat::dc_strencode::*;
 use deltachat::dc_tools::*;
@@ -61,74 +60,6 @@ unsafe fn stress_functions(context: &dc_context_t) {
         b"<tag attr=\"val\"=\x00" as *const u8 as *const libc::c_char,
     );
 
-    let simplify: *mut dc_simplify_t = dc_simplify_new();
-    let mut html: *const libc::c_char =
-        b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-    let mut plain: *mut libc::c_char =
-        dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
-
-    assert_eq!(
-        CStr::from_ptr(plain as *const libc::c_char)
-            .to_str()
-            .unwrap(),
-        "line1\nline2",
-    );
-    free(plain as *mut libc::c_void);
-
-    html = b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
-    plain = dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
-    if 0 != !(strcmp(
-        plain,
-        b"[text](url)\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            179i32,
-            b"strcmp(plain, \"[text](url)\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(plain as *mut libc::c_void);
-    html =
-        b"<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>\x00"
-            as *const u8 as *const libc::c_char;
-    plain = dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
-    if 0 != !(strcmp(
-        plain,
-        b"text *bold*<>\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            184i32,
-            b"strcmp(plain, \"text *bold*<>\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(plain as *mut libc::c_void);
-    html =
-        b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&noent;&lrm;&rlm;&zwnj;&zwj;\x00"
-            as *const u8 as *const libc::c_char;
-    plain = dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1i32, 0i32);
-    if 0 !=
-           !(strcmp(plain,
-                    b"<>\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\x00"
-                        as *const u8 as *const libc::c_char) == 0i32) as
-               libc::c_int as libc::c_long {
-        __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                               &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                     b"../cmdline/stress.c\x00" as *const u8 as
-                         *const libc::c_char, 189i32,
-                     b"strcmp(plain, \"<>\\\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\")==0\x00"
-                         as *const u8 as *const libc::c_char);
-    } else { };
-    free(plain as *mut libc::c_void);
-    dc_simplify_unref(simplify);
     let xml: *const libc::c_char =
         b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</wHeN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></Placemark>\n</Document>\n</kml>\x00"
             as *const u8 as *const libc::c_char;

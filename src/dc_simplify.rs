@@ -73,9 +73,9 @@ pub unsafe fn dc_simplify_simplify(
     out
 }
 
-/* ******************************************************************************
+/**
  * Simplify Plain Text
- ******************************************************************************/
+ */
 unsafe fn dc_simplify_simplify_plain_text(
     mut simplify: *mut dc_simplify_t,
     buf_terminated: *const libc::c_char,
@@ -250,9 +250,9 @@ unsafe fn dc_simplify_simplify_plain_text(
     ret.buf
 }
 
-/* ******************************************************************************
+/**
  * Tools
- ******************************************************************************/
+ */
 unsafe fn is_empty_line(buf: *const libc::c_char) -> bool {
     /* force unsigned - otherwise the `> ' '` comparison will fail */
     let mut p1: *const libc::c_uchar = buf as *const libc::c_uchar;
@@ -288,4 +288,96 @@ unsafe fn is_plain_quote(buf: *const libc::c_char) -> bool {
     }
 
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn test_simplify_trim() {
+        unsafe {
+            let simplify: *mut dc_simplify_t = dc_simplify_new();
+            let html: *const libc::c_char =
+                b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
+            let plain: *mut libc::c_char =
+                dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1, 0);
+
+            assert_eq!(
+                CStr::from_ptr(plain as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "line1\nline2",
+            );
+
+            free(plain as *mut libc::c_void);
+            dc_simplify_unref(simplify);
+        }
+    }
+
+    #[test]
+    fn test_simplify_parse_href() {
+        unsafe {
+            let simplify: *mut dc_simplify_t = dc_simplify_new();
+            let html: *const libc::c_char =
+                b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
+            let plain: *mut libc::c_char =
+                dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1, 0);
+
+            assert_eq!(
+                CStr::from_ptr(plain as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "[text](url)",
+            );
+
+            free(plain as *mut libc::c_void);
+            dc_simplify_unref(simplify);
+        }
+    }
+
+    #[test]
+    fn test_simplify_bold_text() {
+        unsafe {
+            let simplify: *mut dc_simplify_t = dc_simplify_new();
+            let html: *const libc::c_char =
+                b"<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>\x00"
+                as *const u8 as *const libc::c_char;
+            let plain: *mut libc::c_char =
+                dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1, 0);
+
+            assert_eq!(
+                CStr::from_ptr(plain as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "text *bold*<>",
+            );
+
+            free(plain as *mut libc::c_void);
+            dc_simplify_unref(simplify);
+        }
+    }
+
+    #[test]
+    fn test_simplify_html_encoded() {
+        unsafe {
+            let simplify: *mut dc_simplify_t = dc_simplify_new();
+            let html: *const libc::c_char =
+                b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&noent;&lrm;&rlm;&zwnj;&zwj;\x00"
+                as *const u8 as *const libc::c_char;
+            let plain: *mut libc::c_char =
+                dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1, 0);
+
+            assert_eq!(
+                strcmp(plain,
+                       b"<>\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\x00"
+                       as *const u8 as *const libc::c_char),
+                0,
+            );
+
+            free(plain as *mut libc::c_void);
+            dc_simplify_unref(simplify);
+        }
+    }
 }
