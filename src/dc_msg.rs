@@ -1616,3 +1616,36 @@ pub unsafe fn dc_update_server_uid(
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn test_dc_msg_guess_msgtype_from_suffix() {
+        unsafe {
+            let mut type_0: libc::c_int = 0;
+            let mut mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
+                0 as *mut libc::c_int,
+                &mut mime_0,
+            );
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "audio/mpeg"
+            );
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                0 as *mut *mut libc::c_char,
+            );
+            assert_eq!(type_0, 40);
+            // TODO add more tests for different message types
+            free(mime_0 as *mut libc::c_void);
+        }
+    }
+}

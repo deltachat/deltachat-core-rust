@@ -17,7 +17,6 @@ use deltachat::dc_keyring::*;
 use deltachat::dc_location::*;
 use deltachat::dc_lot::*;
 use deltachat::dc_mimeparser::*;
-use deltachat::dc_msg::*;
 use deltachat::dc_param::*;
 use deltachat::dc_pgp::*;
 use deltachat::dc_qr::*;
@@ -414,49 +413,6 @@ unsafe fn stress_functions(context: &dc_context_t) {
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-
-    let mut type_0: libc::c_int = 0;
-    let mut mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
-    dc_msg_guess_msgtype_from_suffix(
-        b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
-        0 as *mut libc::c_int,
-        0 as *mut *mut libc::c_char,
-    );
-    dc_msg_guess_msgtype_from_suffix(
-        b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
-        0 as *mut libc::c_int,
-        &mut mime_0,
-    );
-    if 0 != !(strcmp(
-        mime_0,
-        b"audio/mpeg\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            360i32,
-            b"strcmp(mime, \"audio/mpeg\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_msg_guess_msgtype_from_suffix(
-        b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
-        &mut type_0,
-        0 as *mut *mut libc::c_char,
-    );
-    if 0 != !(type_0 == 40i32) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            362i32,
-            b"type == DC_MSG_AUDIO\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(mime_0 as *mut libc::c_void);
 
     let mut str: *mut libc::c_char = strdup(b"aaa\x00" as *const u8 as *const libc::c_char);
     let replacements: libc::c_int = dc_str_replace(
