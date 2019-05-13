@@ -753,7 +753,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     } else {
     };
     mailmime_free(mime);
-    let mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new(context.get_blobdir(), context);
+    let mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new(context);
     let raw: *const libc::c_char =
         b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00"
             as *const u8 as *const libc::c_char;
