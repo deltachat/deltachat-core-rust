@@ -1704,4 +1704,23 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_dc_atof() {
+        unsafe {
+            let f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
+            assert!(f > 1.22f64);
+            assert!(f < 1.24f64);
+        }
+    }
+
+    #[test]
+    fn test_dc_ftoa() {
+        unsafe {
+            let s: *mut libc::c_char = dc_ftoa(1.23f64);
+            assert!(dc_atof(s) > 1.22f64);
+            assert!(dc_atof(s) < 1.24f64);
+            free(s as *mut libc::c_void);
+        }
+    }
 }
