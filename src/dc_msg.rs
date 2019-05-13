@@ -1627,24 +1627,131 @@ mod tests {
         unsafe {
             let mut type_0: libc::c_int = 0;
             let mut mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
+
             dc_msg_guess_msgtype_from_suffix(
                 b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
-                0 as *mut libc::c_int,
+                &mut type_0,
                 &mut mime_0,
             );
+            assert_eq!(type_0, 40);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
                     .unwrap(),
                 "audio/mpeg"
             );
+            free(mime_0 as *mut libc::c_void);
+
             dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
+                b"foo/bar-sth.aac\x00" as *const u8 as *const libc::c_char,
                 &mut type_0,
-                0 as *mut *mut libc::c_char,
+                &mut mime_0,
             );
             assert_eq!(type_0, 40);
-            // TODO add more tests for different message types
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "audio/aac"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.mp4\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, 50);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "video/mp4"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.jpg\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, 20);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/jpeg"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.jpeg\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, 20);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/jpeg"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.png\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, 20);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/png"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.webp\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, 20);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/webp"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.gif\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, 21);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "image/gif"
+            );
+            free(mime_0 as *mut libc::c_void);
+
+            dc_msg_guess_msgtype_from_suffix(
+                b"foo/bar-sth.vcf\x00" as *const u8 as *const libc::c_char,
+                &mut type_0,
+                &mut mime_0,
+            );
+            assert_eq!(type_0, 60);
+            assert_eq!(
+                CStr::from_ptr(mime_0 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "text/vcard"
+            );
             free(mime_0 as *mut libc::c_void);
         }
     }
