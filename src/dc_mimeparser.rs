@@ -53,7 +53,6 @@ pub struct dc_mimeparser_t<'a> {
     pub is_send_by_messenger: libc::c_int,
     pub decrypting_failed: libc::c_int,
     pub e2ee_helper: *mut dc_e2ee_helper_t,
-    pub blobdir: *const libc::c_char,
     pub is_forwarded: libc::c_int,
     pub context: &'a dc_context_t,
     pub reports: *mut carray,
@@ -70,10 +69,7 @@ pub unsafe fn dc_no_compound_msgs() {
 // deprecated: flag to switch generation of compound messages on and off.
 static mut s_generate_compound_msgs: libc::c_int = 1i32;
 
-pub unsafe fn dc_mimeparser_new(
-    blobdir: *const libc::c_char,
-    context: &dc_context_t,
-) -> *mut dc_mimeparser_t {
+pub unsafe fn dc_mimeparser_new(context: &dc_context_t) -> *mut dc_mimeparser_t {
     let mut mimeparser: *mut dc_mimeparser_t;
     mimeparser = calloc(1, ::std::mem::size_of::<dc_mimeparser_t>()) as *mut dc_mimeparser_t;
     if mimeparser.is_null() {
@@ -81,7 +77,6 @@ pub unsafe fn dc_mimeparser_new(
     }
     (*mimeparser).context = context;
     (*mimeparser).parts = carray_new(16i32 as libc::c_uint);
-    (*mimeparser).blobdir = blobdir;
     (*mimeparser).reports = carray_new(16i32 as libc::c_uint);
     (*mimeparser).e2ee_helper =
         calloc(1, ::std::mem::size_of::<dc_e2ee_helper_t>()) as *mut dc_e2ee_helper_t;

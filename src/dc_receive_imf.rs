@@ -62,7 +62,7 @@ pub unsafe fn dc_receive_imf(
     let mut sort_timestamp: time_t = -1i32 as time_t;
     let mut sent_timestamp: time_t = -1i32 as time_t;
     let mut rcvd_timestamp: time_t = -1i32 as time_t;
-    let mime_parser: *mut dc_mimeparser_t = dc_mimeparser_new(context.get_blobdir(), context);
+    let mime_parser: *mut dc_mimeparser_t = dc_mimeparser_new(context);
     let mut field: *const mailimf_field;
     let mut mime_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut mime_references: *mut libc::c_char = 0 as *mut libc::c_char;
