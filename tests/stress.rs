@@ -6,7 +6,7 @@ use mmime::mailimf_types::*;
 use mmime::mailmime_content::*;
 use mmime::mailmime_types::*;
 use mmime::other::*;
-use tempfile::tempdir;
+use tempfile::{tempdir, TempDir};
 
 use deltachat::constants::*;
 use deltachat::dc_array::*;
@@ -4476,7 +4476,13 @@ unsafe extern "C" fn cb(
     0
 }
 
-unsafe fn create_context() -> dc_context_t {
+#[allow(dead_code)]
+struct TestContext {
+    ctx: dc_context_t,
+    dir: TempDir,
+}
+
+unsafe fn create_test_context() -> TestContext {
     let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
     let dir = tempdir().unwrap();
     let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
@@ -4489,13 +4495,13 @@ unsafe fn create_context() -> dc_context_t {
             .unwrap()
     );
 
-    ctx
+    TestContext { ctx: ctx, dir: dir }
 }
 
 #[test]
 fn run_stress_tests() {
     unsafe {
-        let ctx = create_context();
-        stress_functions(&ctx);
+        let context = create_test_context();
+        stress_functions(&context.ctx);
     }
 }
