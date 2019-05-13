@@ -325,7 +325,8 @@ pub unsafe extern "C" fn dc_render_setup_file(
                     payload_key_asc as *const libc::c_void,
                     strlen(payload_key_asc),
                 ) {
-                    let encr_string = CString::new(encr).unwrap();
+                    let encr_string_c = CString::new(encr).unwrap();
+                    let mut encr_string = libc::strdup(encr_string_c.as_ptr());
 
                     free(payload_key_asc as *mut libc::c_void);
                     let  replacement: *mut libc::c_char =
@@ -333,7 +334,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
                                        as *const u8 as *const libc::c_char,
                                    passphrase_begin.as_mut_ptr());
                     dc_str_replace(
-                        &mut (encr_string.as_ptr() as *mut _),
+                        &mut encr_string,
                         b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
                         replacement,
                     );
@@ -354,9 +355,10 @@ pub unsafe extern "C" fn dc_render_setup_file(
                         dc_mprintf(b"<!DOCTYPE html>\r\n<html>\r\n<head>\r\n<title>%s</title>\r\n</head>\r\n<body>\r\n<h1>%s</h1>\r\n<p>%s</p>\r\n<pre>\r\n%s\r\n</pre>\r\n</body>\r\n</html>\r\n\x00"
                                        as *const u8 as *const libc::c_char,
                                    setup_message_title, setup_message_title,
-                                   setup_message_body, encr_string.as_ptr());
+                                   setup_message_body, encr_string);
                     free(setup_message_title as *mut libc::c_void);
                     free(setup_message_body as *mut libc::c_void);
+                    free(encr_string as *mut libc::c_void);
                 }
             }
         }
