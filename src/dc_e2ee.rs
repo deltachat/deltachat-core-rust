@@ -62,7 +62,6 @@ pub unsafe fn dc_e2ee_encrypt(
     /*just a pointer into mailmime structure, must not be freed*/
     let imffields_unprotected: *mut mailimf_fields;
     let keyring: *mut dc_keyring_t = dc_keyring_new();
-    let sign_key: *mut dc_key_t = dc_key_new();
     let plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     let mut ctext: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ctext_bytes: size_t = 0i32 as size_t;
@@ -79,7 +78,6 @@ pub unsafe fn dc_e2ee_encrypt(
         || in_out_message.is_null()
         || !(*in_out_message).mm_parent.is_null()
         || keyring.is_null()
-        || sign_key.is_null()
         || plain.is_null()
         || helper.is_null())
     {
@@ -103,9 +101,10 @@ pub unsafe fn dc_e2ee_encrypt(
             0 as *const libc::c_char,
         );
 
-        let public_key = dc_key_new();
         if !addr.is_null() {
-            if 0 != load_or_generate_self_public_key(context, public_key, addr, in_out_message) {
+            if let Some(public_key) =
+                load_or_generate_self_public_key(context, addr, in_out_message)
+            {
                 /*only for random-seed*/
                 if prefer_encrypt == EncryptPreference::Mutual || 0 != e2ee_guaranteed {
                     do_encrypt = 1i32;
@@ -118,22 +117,22 @@ pub unsafe fn dc_e2ee_encrypt(
                             0 as *mut libc::c_void
                         })
                             as *const libc::c_char;
-                        let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
-                        let mut key_to_use: *mut dc_key_t = 0 as *mut dc_key_t;
+                        let peerstate = dc_apeerstate_new(context);
                         if !(strcasecmp(recipient_addr, addr) == 0i32) {
                             if 0 != dc_apeerstate_load_by_addr(
                                 peerstate,
                                 &context.sql.clone().read().unwrap(),
                                 recipient_addr,
-                            ) && {
-                                key_to_use = dc_apeerstate_peek_key(peerstate, min_verified);
-                                !key_to_use.is_null()
-                            } && ((*peerstate).prefer_encrypt == 1i32 || 0 != e2ee_guaranteed)
+                            ) && (peerstate.prefer_encrypt == 1i32 || 0 != e2ee_guaranteed)
                             {
-                                dc_keyring_add(keyring, key_to_use);
-                                dc_array_add_ptr(peerstates, peerstate as *mut libc::c_void);
+                                if let Some(key_to_use) =
+                                    dc_apeerstate_peek_key(peerstate, min_verified)
+                                {
+                                    dc_keyring_add(keyring, key_to_use);
+                                    dc_array_add_ptr(peerstates, &peerstate);
+                                }
                             } else {
-                                dc_apeerstate_unref(peerstate);
+                                dc_apeerstate_unref(&mut peerstate);
                                 do_encrypt = 0i32;
                                 /* if we cannot encrypt to a single recipient, we cannot encrypt the message at all */
                                 break;
@@ -146,17 +145,18 @@ pub unsafe fn dc_e2ee_encrypt(
                         }
                     }
                 }
-                if 0 != do_encrypt {
+                let sign_key = if 0 != do_encrypt {
                     dc_keyring_add(keyring, public_key);
-                    if 0 == dc_key_load_self_private(
-                        context,
-                        sign_key,
-                        addr,
-                        &context.sql.clone().read().unwrap(),
-                    ) {
-                        do_encrypt = 0i32
+                    let key =
+                        Key::from_self_private(context, addr, &context.sql.clone().read().unwrap());
+
+                    if key.is_none() {
+                        do_encrypt = 0i32;
                     }
-                }
+                    key
+                } else {
+                    None
+                };
                 if 0 != force_unencrypted {
                     do_encrypt = 0i32
                 }
@@ -309,7 +309,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 (*plain).str_0 as *const libc::c_void,
                                 (*plain).len,
                                 keyring,
-                                sign_key,
+                                &sign_key,
                                 1,
                                 &mut ctext as *mut *mut libc::c_char as *mut *mut libc::c_void,
                                 &mut ctext_bytes,
@@ -389,7 +389,6 @@ pub unsafe fn dc_e2ee_encrypt(
     }
 
     dc_keyring_unref(keyring);
-    dc_key_unref(sign_key);
     if !plain.is_null() {
         mmap_string_free(plain);
     }
@@ -513,123 +512,87 @@ unsafe fn new_data_part(
 /*******************************************************************************
  * Generate Keypairs
  ******************************************************************************/
-// TODO should return bool /rtn
 unsafe fn load_or_generate_self_public_key(
     context: &dc_context_t,
-    public_key: *mut dc_key_t,
     self_addr: *const libc::c_char,
     random_data_mime: *mut mailmime,
-) -> libc::c_int {
+) -> Option<Key> {
     let mut current_block: u64;
     /* avoid double creation (we unlock the database during creation) */
     static mut s_in_key_creation: libc::c_int = 0i32;
     let key_created: libc::c_int;
     let mut success: libc::c_int = 0i32;
     let mut key_creation_here: libc::c_int = 0i32;
-    if !public_key.is_null() {
-        if 0 == dc_key_load_self_public(
-            context,
-            public_key,
-            self_addr,
-            &context.sql.clone().read().unwrap(),
-        ) {
-            /* create the keypair - this may take a moment, however, as this is in a thread, this is no big deal */
-            if 0 != s_in_key_creation {
-                current_block = 10496152961502316708;
-            } else {
-                key_creation_here = 1i32;
-                s_in_key_creation = 1i32;
-                if !random_data_mime.is_null() {
-                    let random_data_mmap: *mut MMAPString;
-                    let mut col: libc::c_int = 0i32;
-                    random_data_mmap = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-                    if random_data_mmap.is_null() {
-                        current_block = 10496152961502316708;
-                    } else {
-                        mailmime_write_mem(random_data_mmap, &mut col, random_data_mime);
-                        mmap_string_free(random_data_mmap);
-                        current_block = 26972500619410423;
-                    }
-                } else {
-                    current_block = 26972500619410423;
-                }
-                match current_block {
-                    10496152961502316708 => {}
-                    _ => {
-                        let private_key: *mut dc_key_t = dc_key_new();
-                        let start: libc::clock_t = clock();
-                        dc_log_info(
-                            context,
-                            0i32,
-                            b"Generating keypair with %i bits, e=%i ...\x00" as *const u8
-                                as *const libc::c_char,
-                            2048i32,
-                            65537i32,
-                        );
-                        key_created =
-                            dc_pgp_create_keypair(context, self_addr, public_key, private_key);
-                        if 0 == key_created {
-                            dc_log_warning(
-                                context,
-                                0i32,
-                                b"Cannot create keypair.\x00" as *const u8 as *const libc::c_char,
-                            );
-                            current_block = 10496152961502316708;
-                        } else if 0 == dc_pgp_is_valid_key(context, public_key)
-                            || 0 == dc_pgp_is_valid_key(context, private_key)
-                        {
-                            dc_log_warning(
-                                context,
-                                0i32,
-                                b"Generated keys are not valid.\x00" as *const u8
-                                    as *const libc::c_char,
-                            );
-                            current_block = 10496152961502316708;
-                        } else if 0
-                            == dc_key_save_self_keypair(
-                                context,
-                                public_key,
-                                private_key,
-                                self_addr,
-                                1i32,
-                                &context.sql.clone().read().unwrap(),
-                            )
-                        {
-                            /*set default*/
-                            dc_log_warning(
-                                context,
-                                0i32,
-                                b"Cannot save keypair.\x00" as *const u8 as *const libc::c_char,
-                            );
-                            current_block = 10496152961502316708;
-                        } else {
-                            dc_log_info(
-                                context,
-                                0i32,
-                                b"Keypair generated in %.3f s.\x00" as *const u8
-                                    as *const libc::c_char,
-                                clock().wrapping_sub(start) as libc::c_double
-                                    / 1000000i32 as libc::c_double,
-                            );
-                            dc_key_unref(private_key);
-                            current_block = 1118134448028020070;
-                        }
-                    }
-                }
-            }
-        } else {
-            current_block = 1118134448028020070;
-        }
-        match current_block {
-            10496152961502316708 => {}
-            _ => success = 1i32,
-        }
-    }
-    if 0 != key_creation_here {
-        s_in_key_creation = 0i32
+
+    let mut key = Key::from_self_public(context, self_addr, &context.sql.clone().read().unwrap());
+    if key.is_some() {
+        return key;
     }
 
-    success
+    /* create the keypair - this may take a moment, however, as this is in a thread, this is no big deal */
+    if 0 != s_in_key_creation {
+        return None;
+    }
+    key_creation_here = 1;
+    s_in_key_creation = 1;
+
+    let start: libc::clock_t = clock();
+    dc_log_info(
+        context,
+        0i32,
+        b"Generating keypair with %i bits, e=%i ...\x00" as *const u8 as *const libc::c_char,
+        2048i32,
+        65537i32,
+    );
+
+    if let Some((public_key, private_key)) = dc_pgp_create_keypair(context, self_addr) {
+        if 0 == dc_pgp_is_valid_key(context, &public_key)
+            || 0 == dc_pgp_is_valid_key(context, &private_key)
+        {
+            dc_log_warning(
+                context,
+                0i32,
+                b"Generated keys are not valid.\x00" as *const u8 as *const libc::c_char,
+            );
+        } else if 0
+            == dc_key_save_self_keypair(
+                context,
+                &public_key,
+                &private_key,
+                self_addr,
+                1i32,
+                &context.sql.clone().read().unwrap(),
+            )
+        {
+            /*set default*/
+            dc_log_warning(
+                context,
+                0i32,
+                b"Cannot save keypair.\x00" as *const u8 as *const libc::c_char,
+            );
+        } else {
+            dc_log_info(
+                context,
+                0i32,
+                b"Keypair generated in %.3f s.\x00" as *const u8 as *const libc::c_char,
+                clock().wrapping_sub(start) as libc::c_double / 1000000i32 as libc::c_double,
+            );
+        }
+
+        key = public_key;
+    } else {
+        dc_log_warning(
+            context,
+            0i32,
+            b"Cannot create keypair.\x00" as *const u8 as *const libc::c_char,
+        );
+    }
+
+    if 0 != key_creation_here {
+        s_in_key_creation = 0;
+    }
+
+    key
 }
 
 /* returns 1 if sth. was decrypted, 0 in other cases */
@@ -1241,30 +1204,26 @@ pub unsafe fn dc_ensure_secret_key_exists(context: &dc_context_t) -> libc::c_int
     /* normally, the key is generated as soon as the first mail is send
     (this is to gain some extra-random-seed by the message content and the timespan between program start and message sending) */
     let mut success: libc::c_int = 0i32;
-    let public_key: *mut dc_key_t = dc_key_new();
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !public_key.is_null() {
-        self_addr = dc_sqlite3_get_config(
+
+    self_addr = dc_sqlite3_get_config(
+        context,
+        &context.sql.clone().read().unwrap(),
+        b"configured_addr\x00" as *const u8 as *const libc::c_char,
+        0 as *const libc::c_char,
+    );
+    if self_addr.is_null() {
+        dc_log_warning(
             context,
-            &context.sql.clone().read().unwrap(),
-            b"configured_addr\x00" as *const u8 as *const libc::c_char,
-            0 as *const libc::c_char,
+            0i32,
+            b"Cannot ensure secret key if context is not configured.\x00" as *const u8
+                as *const libc::c_char,
         );
-        if self_addr.is_null() {
-            dc_log_warning(
-                context,
-                0i32,
-                b"Cannot ensure secret key if context is not configured.\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else if !(0
-            == load_or_generate_self_public_key(context, public_key, self_addr, 0 as *mut mailmime))
-        {
-            /*no random text data for seeding available*/
-            success = 1i32
-        }
+    } else if load_or_generate_self_public_key(context, self_addr, 0 as *mut mailmime).is_some() {
+        /*no random text data for seeding available*/
+        success = 1i32
     }
-    dc_key_unref(public_key);
+
     free(self_addr as *mut libc::c_void);
 
     success

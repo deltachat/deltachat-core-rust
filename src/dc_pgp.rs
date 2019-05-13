@@ -289,11 +289,7 @@ pub unsafe fn dc_pgp_calc_fingerprint(
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_pgp_split_key(
-    context: &dc_context_t,
-    private_in: *const dc_key_t,
-    ret_public_key: *mut dc_key_t,
-) -> libc::c_int {
+pub unsafe fn dc_pgp_split_key(context: &dc_context_t, private_in: *const dc_key_t) -> Option<Key> {
     let mut success: libc::c_int = 0i32;
     let mut key: *mut rpgp::signed_secret_key = 0 as *mut rpgp::signed_secret_key;
     let mut pub_key: *mut rpgp::signed_public_key = 0 as *mut rpgp::signed_public_key;

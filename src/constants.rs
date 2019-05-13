@@ -512,7 +512,7 @@ pub const DC_STR_COUNT: usize = 66;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
-pub enum Key {
+pub enum KeyType {
     Public = 0,
     Private = 1,
 }

@@ -3,7 +3,7 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 use rand::{thread_rng, Rng};
 
-use crate::constants::Event;
+use crate::constants::*;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
@@ -288,11 +288,11 @@ pub unsafe extern "C" fn dc_render_setup_file(
 ) -> *mut libc::c_char {
     let stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
-    let curr_private_key: *mut dc_key_t = dc_key_new();
+
     let mut passphrase_begin: [libc::c_char; 8] = [0; 8];
     let mut encr_string: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret_setupfilecontent: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(passphrase.is_null() || strlen(passphrase) < 2 || curr_private_key.is_null()) {
+    if !(passphrase.is_null() || strlen(passphrase) < 2) {
         strncpy(passphrase_begin.as_mut_ptr(), passphrase, 2);
         passphrase_begin[2usize] = 0i32 as libc::c_char;
         /* create the payload */
@@ -303,27 +303,22 @@ pub unsafe extern "C" fn dc_render_setup_file(
                 b"configured_addr\x00" as *const u8 as *const libc::c_char,
                 0 as *const libc::c_char,
             );
-            dc_key_load_self_private(
-                context,
-                curr_private_key,
-                self_addr,
-                &context.sql.clone().read().unwrap(),
-            );
+            let curr_private_key =
+                Key::from_self_private(context, self_addr, &context.sql.clone().read().unwrap());
             let e2ee_enabled: libc::c_int = dc_sqlite3_get_config_int(
                 context,
                 &context.sql.clone().read().unwrap(),
                 b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
                 1i32,
             );
-            let payload_key_asc: *mut libc::c_char = dc_key_render_asc(
-                curr_private_key,
-                if 0 != e2ee_enabled {
-                    Some(("Autocrypt-Prefer-Encrypt", "mutual"))
-                } else {
-                    None
-                },
-            );
-            if !payload_key_asc.is_null() {
+
+            let headers = if 0 != e2ee_enabled {
+                Some(("Autocrypt-Prefer-Encrypt", "mutual"))
+            } else {
+                None
+            };
+
+            if let Some(payload_key_asc) = curr_private_key.map(|k| k.to_asc_c(headers)) {
                 if !(0
                     == dc_pgp_symm_encrypt(
                         context,
@@ -368,7 +363,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
         }
     }
     sqlite3_finalize(stmt);
-    dc_key_unref(curr_private_key);
+
     free(encr_string as *mut libc::c_void);
     free(self_addr as *mut libc::c_void);
 
@@ -503,8 +498,6 @@ unsafe fn set_self_key(
     let mut buf_preferencrypt: *const libc::c_char = 0 as *const libc::c_char;
     //   - " -
     let mut buf_base64: *const libc::c_char = 0 as *const libc::c_char;
-    let private_key: *mut dc_key_t = dc_key_new();
-    let public_key: *mut dc_key_t = dc_key_new();
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     buf = dc_strdup(armored);
@@ -525,93 +518,94 @@ unsafe fn set_self_key(
             0i32,
             b"File does not contain a private key.\x00" as *const u8 as *const libc::c_char,
         );
-    } else if 0 == dc_key_set_from_base64(private_key, buf_base64, 1i32)
-        || 0 == dc_pgp_is_valid_key(context, private_key)
-        || 0 == dc_pgp_split_key(context, private_key, public_key)
-    {
-        dc_log_error(
-            context,
-            0i32,
-            b"File does not contain a valid private key.\x00" as *const u8 as *const libc::c_char,
-        );
     } else {
-        stmt = dc_sqlite3_prepare(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"DELETE FROM keypairs WHERE public_key=? OR private_key=?;\x00" as *const u8
-                as *const libc::c_char,
-        );
-        sqlite3_bind_blob(stmt, 1i32, (*public_key).binary, (*public_key).bytes, None);
-        sqlite3_bind_blob(
-            stmt,
-            2i32,
-            (*private_key).binary,
-            (*private_key).bytes,
-            None,
-        );
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-        stmt = 0 as *mut sqlite3_stmt;
-        if 0 != set_default {
-            dc_sqlite3_execute(
+        if let Some((private_key, public_key)) = Key::from_base64(buf_base64, KeyType::Private)
+            .and_then(|k| dc_pgp_split_key(context, &k).map(|pk| (k, pk)))
+        {
+            stmt = dc_sqlite3_prepare(
                 context,
                 &context.sql.clone().read().unwrap(),
-                b"UPDATE keypairs SET is_default=0;\x00" as *const u8 as *const libc::c_char,
+                b"DELETE FROM keypairs WHERE public_key=? OR private_key=?;\x00" as *const u8
+                    as *const libc::c_char,
             );
-        }
-        self_addr = dc_sqlite3_get_config(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"configured_addr\x00" as *const u8 as *const libc::c_char,
-            0 as *const libc::c_char,
-        );
-        if 0 == dc_key_save_self_keypair(
-            context,
-            public_key,
-            private_key,
-            self_addr,
-            set_default,
-            &context.sql.clone().read().unwrap(),
-        ) {
+            sqlite3_bind_blob(stmt, 1i32, (*public_key).binary, (*public_key).bytes, None);
+            sqlite3_bind_blob(
+                stmt,
+                2i32,
+                (*private_key).binary,
+                (*private_key).bytes,
+                None,
+            );
+            sqlite3_step(stmt);
+            sqlite3_finalize(stmt);
+            stmt = 0 as *mut sqlite3_stmt;
+            if 0 != set_default {
+                dc_sqlite3_execute(
+                    context,
+                    &context.sql.clone().read().unwrap(),
+                    b"UPDATE keypairs SET is_default=0;\x00" as *const u8 as *const libc::c_char,
+                );
+            }
+            self_addr = dc_sqlite3_get_config(
+                context,
+                &context.sql.clone().read().unwrap(),
+                b"configured_addr\x00" as *const u8 as *const libc::c_char,
+                0 as *const libc::c_char,
+            );
+            if 0 == dc_key_save_self_keypair(
+                context,
+                public_key,
+                private_key,
+                self_addr,
+                set_default,
+                &context.sql.clone().read().unwrap(),
+            ) {
+                dc_log_error(
+                    context,
+                    0i32,
+                    b"Cannot save keypair.\x00" as *const u8 as *const libc::c_char,
+                );
+            } else {
+                if !buf_preferencrypt.is_null() {
+                    if strcmp(
+                        buf_preferencrypt,
+                        b"nopreference\x00" as *const u8 as *const libc::c_char,
+                    ) == 0i32
+                    {
+                        dc_sqlite3_set_config_int(
+                            context,
+                            &context.sql.clone().read().unwrap(),
+                            b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
+                            0i32,
+                        );
+                    } else if strcmp(
+                        buf_preferencrypt,
+                        b"mutual\x00" as *const u8 as *const libc::c_char,
+                    ) == 0i32
+                    {
+                        dc_sqlite3_set_config_int(
+                            context,
+                            &context.sql.clone().read().unwrap(),
+                            b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
+                            1i32,
+                        );
+                    }
+                }
+                success = 1;
+            }
+        } else {
             dc_log_error(
                 context,
                 0i32,
-                b"Cannot save keypair.\x00" as *const u8 as *const libc::c_char,
+                b"File does not contain a valid private key.\x00" as *const u8
+                    as *const libc::c_char,
             );
-        } else {
-            if !buf_preferencrypt.is_null() {
-                if strcmp(
-                    buf_preferencrypt,
-                    b"nopreference\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
-                {
-                    dc_sqlite3_set_config_int(
-                        context,
-                        &context.sql.clone().read().unwrap(),
-                        b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
-                        0i32,
-                    );
-                } else if strcmp(
-                    buf_preferencrypt,
-                    b"mutual\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
-                {
-                    dc_sqlite3_set_config_int(
-                        context,
-                        &context.sql.clone().read().unwrap(),
-                        b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
-                        1i32,
-                    );
-                }
-            }
-            success = 1i32
         }
     }
+
     sqlite3_finalize(stmt);
     free(buf as *mut libc::c_void);
     free(self_addr as *mut libc::c_void);
-    dc_key_unref(private_key);
-    dc_key_unref(public_key);
 
     success
 }
@@ -1579,8 +1573,6 @@ unsafe fn export_self_keys(context: &dc_context_t, dir: *const libc::c_char) -> 
     let mut export_errors: libc::c_int = 0i32;
     let mut id: libc::c_int;
     let mut is_default: libc::c_int;
-    let public_key: *mut dc_key_t = dc_key_new();
-    let private_key: *mut dc_key_t = dc_key_new();
     let stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
@@ -1590,13 +1582,14 @@ unsafe fn export_self_keys(context: &dc_context_t, dir: *const libc::c_char) -> 
     if !stmt.is_null() {
         while sqlite3_step(stmt) == 100i32 {
             id = sqlite3_column_int(stmt, 0i32);
-            dc_key_set_from_stmt(public_key, stmt, 1i32, 0i32);
-            dc_key_set_from_stmt(private_key, stmt, 2i32, 1i32);
+            let public_key = Key::from_stmt(stmt, 1i32, KeyType::Public);
+            let private_key = Key::from_stmt(stmt, 2i32, KeyType::Private);
+
             is_default = sqlite3_column_int(stmt, 3i32);
-            if 0 == export_key_to_asc_file(context, dir, id, public_key, is_default) {
+            if 0 == export_key_to_asc_file(context, dir, id, &public_key, is_default) {
                 export_errors += 1
             }
-            if 0 == export_key_to_asc_file(context, dir, id, private_key, is_default) {
+            if 0 == export_key_to_asc_file(context, dir, id, &private_key, is_default) {
                 export_errors += 1
             }
         }
@@ -1605,8 +1598,6 @@ unsafe fn export_self_keys(context: &dc_context_t, dir: *const libc::c_char) -> 
         }
     }
     sqlite3_finalize(stmt);
-    dc_key_unref(public_key);
-    dc_key_unref(private_key);
 
     success
 }
@@ -1619,7 +1610,7 @@ unsafe fn export_key_to_asc_file(
     context: &dc_context_t,
     dir: *const libc::c_char,
     id: libc::c_int,
-    key: *const dc_key_t,
+    key: &Key,
     is_default: libc::c_int,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
@@ -1653,7 +1644,7 @@ unsafe fn export_key_to_asc_file(
         file_name,
     );
     dc_delete_file(context, file_name);
-    if 0 == dc_key_render_asc_to_file(key, file_name, context) {
+    if !key.write_asc_to_file(file_name, context) {
         dc_log_error(
             context,
             0i32,

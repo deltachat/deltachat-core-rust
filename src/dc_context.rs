@@ -636,7 +636,6 @@ pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
     let e2ee_enabled;
     let prv_key_cnt;
     let pub_key_cnt;
-    let self_public = dc_key_new();
     let rpgp_enabled = 1;
 
     let mut ret = dc_strbuilder_t {
@@ -710,16 +709,15 @@ pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
     sqlite3_step(stmt);
     pub_key_cnt = sqlite3_column_int(stmt, 0);
     sqlite3_finalize(stmt);
-    if 0 != dc_key_load_self_public(
-        context,
-        self_public,
-        (*l2).addr,
-        &context.sql.clone().read().unwrap(),
-    ) {
-        fingerprint_str = dc_key_get_fingerprint(context, self_public)
+    if let Some(key) =
+        Key::from_self_public(context, (*l2).addr, &context.sql.clone().read().unwrap())
+    {
+        fingerprint_str = key.fingerprint_c();
     } else {
-        fingerprint_str = dc_strdup(b"<Not yet calculated>\x00" as *const u8 as *const libc::c_char)
+        fingerprint_str =
+            dc_strdup(b"<Not yet calculated>\x00" as *const u8 as *const libc::c_char);
     }
+
     l_readable_str = dc_loginparam_get_readable(l);
     l2_readable_str = dc_loginparam_get_readable(l2);
     inbox_watch = dc_sqlite3_get_config_int(
@@ -858,7 +856,6 @@ pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
     free(configured_sentbox_folder as *mut libc::c_void);
     free(configured_mvbox_folder as *mut libc::c_void);
     free(fingerprint_str as *mut libc::c_void);
-    dc_key_unref(self_public);
 
     ret.buf
 }

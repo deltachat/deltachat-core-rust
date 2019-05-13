@@ -2668,35 +2668,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     dc_key_unref(private_key2);
     dc_key_unref(public_key);
     dc_key_unref(private_key);
-    let fingerprint: *mut libc::c_char = dc_normalize_fingerprint(
-        b" 1234  567890 \n AbcD abcdef ABCDEF \x00" as *const u8 as *const libc::c_char,
-    );
-    if 0 != fingerprint.is_null() as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1076i32,
-            b"fingerprint\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        fingerprint,
-        b"1234567890ABCDABCDEFABCDEF\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1077i32,
-            b"strcmp(fingerprint, \"1234567890ABCDABCDEFABCDEF\") == 0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    free(fingerprint as *mut libc::c_void);
+
     if 0 != dc_is_configured(context) {
         let qr: *mut libc::c_char = dc_get_securejoin_qr(context, 0i32 as uint32_t);
         if 0 != !(strlen(qr) > 55

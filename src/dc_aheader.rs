@@ -50,12 +50,12 @@ impl str::FromStr for EncryptPreference {
 /// Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 pub struct Aheader {
     pub addr: String,
-    pub public_key: *mut dc_key_t,
+    pub public_key: Key,
     pub prefer_encrypt: EncryptPreference,
 }
 
 impl Aheader {
-    pub fn new(addr: String, public_key: *mut dc_key_t, prefer_encrypt: EncryptPreference) -> Self {
+    pub fn new(addr: String, public_key: Key, prefer_encrypt: EncryptPreference) -> Self {
         Aheader {
             addr,
             public_key,
@@ -122,7 +122,7 @@ impl fmt::Display for Aheader {
         // adds a whitespace every 78 characters, this allows libEtPan to
         // wrap the lines according to RFC 5322
         // (which may insert a linebreak before every whitespace)
-        let keydata = dc_key_render_base64_string(self.public_key, 78);
+        let keydata = self.public_key.to_base64(78);
         write!(
             fmt,
             "addr={}; prefer-encrypt={}; keydata={}",
@@ -158,17 +158,7 @@ impl str::FromStr for Aheader {
         };
 
         let public_key = match attributes.remove("keydata") {
-            Some(raw) => {
-                let key = unsafe { dc_key_new() };
-                unsafe {
-                    dc_key_set_from_base64(
-                        key,
-                        CString::new(raw).unwrap().as_ptr(),
-                        Key::Public.to_i32().unwrap(),
-                    )
-                };
-                key
-            }
+            Some(raw) => Key::from_base64(raw, KeyType::Public),
             None => {
                 return Err(());
             }
@@ -193,15 +183,6 @@ impl str::FromStr for Aheader {
             public_key,
             prefer_encrypt,
         })
-    }
-}
-
-impl Drop for Aheader {
-    fn drop(&mut self) {
-        unsafe {
-            dc_key_unref(self.public_key);
-        }
-        self.public_key = std::ptr::null_mut();
     }
 }
 
