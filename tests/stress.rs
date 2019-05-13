@@ -60,129 +60,6 @@ unsafe fn stress_functions(context: &dc_context_t) {
         b"<tag attr=\"val\"=\x00" as *const u8 as *const libc::c_char,
     );
 
-    let xml: *const libc::c_char =
-        b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</wHeN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></Placemark>\n</Document>\n</kml>\x00"
-            as *const u8 as *const libc::c_char;
-    let kml: *mut dc_kml_t = dc_kml_parse(context, xml, strlen(xml));
-    if 0 != !(!(*kml).addr.is_null()
-        && strcmp(
-            (*kml).addr,
-            b"user@example.org\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            205i32,
-            b"kml->addr && strcmp(kml->addr, \"user@example.org\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_array_get_cnt((*kml).locations) == 2) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            206i32,
-            b"dc_array_get_cnt(kml->locations)==2\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let mut lat: libc::c_double = dc_array_get_latitude((*kml).locations, 0i32 as size_t);
-    if 0 != !(lat > 53.6f64 && lat < 53.8f64) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            208i32,
-            b"lat>53.6 && lat<53.8\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let mut lng: libc::c_double = dc_array_get_longitude((*kml).locations, 0i32 as size_t);
-    if 0 != !(lng > 9.3f64 && lng < 9.5f64) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            209i32,
-            b"lng> 9.3 && lng< 9.5\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let mut acc: libc::c_double = dc_array_get_accuracy((*kml).locations, 0i32 as size_t);
-    if 0 != !(acc > 31.9f64 && acc < 32.1f64) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            210i32,
-            b"acc>31.9 && acc<32.1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_array_get_timestamp((*kml).locations, 0i32 as size_t)
-        == 1551906597i32 as libc::c_long) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            211i32,
-            b"dc_array_get_timestamp(kml->locations, 0)==1551906597\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    lat = dc_array_get_latitude((*kml).locations, 1i32 as size_t);
-    if 0 != !(lat > 63.6f64 && lat < 63.8f64) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            213i32,
-            b"lat>63.6 && lat<63.8\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    lng = dc_array_get_longitude((*kml).locations, 1i32 as size_t);
-    if 0 != !(lng > 19.3f64 && lng < 19.5f64) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            214i32,
-            b"lng>19.3 && lng<19.5\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    acc = dc_array_get_accuracy((*kml).locations, 1i32 as size_t);
-    if 0 != !(acc > 2.4f64 && acc < 2.6f64) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            215i32,
-            b"acc> 2.4 && acc< 2.6\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_array_get_timestamp((*kml).locations, 1i32 as size_t)
-        == 1544739072i32 as libc::c_long) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            216i32,
-            b"dc_array_get_timestamp(kml->locations, 1)==1544739072\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_kml_unref(kml);
     if 0 != dc_is_open(context) {
         if 0 != dc_file_exist(
             context,
@@ -4430,7 +4307,48 @@ unsafe fn create_test_context() -> TestContext {
 }
 
 #[test]
-fn run_stress_tests() {
+fn test_dc_kml_parse() {
+    unsafe {
+        let context = create_test_context();
+
+        let xml: *const libc::c_char =
+        b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</wHeN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></Placemark>\n</Document>\n</kml>\x00"
+            as *const u8 as *const libc::c_char;
+
+        let kml: *mut dc_kml_t = dc_kml_parse(&context.ctx, xml, strlen(xml));
+
+        assert!(!(*kml).addr.is_null());
+        assert_eq!(
+            CStr::from_ptr((*kml).addr as *const libc::c_char)
+                .to_str()
+                .unwrap(),
+            "user@example.org",
+        );
+
+        assert_eq!(dc_array_get_cnt((*kml).locations), 2);
+
+        assert!(dc_array_get_latitude((*kml).locations, 0) > 53.6f64);
+        assert!(dc_array_get_latitude((*kml).locations, 0) < 53.8f64);
+        assert!(dc_array_get_longitude((*kml).locations, 0) > 9.3f64);
+        assert!(dc_array_get_longitude((*kml).locations, 0) < 9.5f64);
+        assert!(dc_array_get_accuracy((*kml).locations, 0) > 31.9f64);
+        assert!(dc_array_get_accuracy((*kml).locations, 0) < 32.1f64);
+        assert_eq!(dc_array_get_timestamp((*kml).locations, 0), 1551906597);
+
+        assert!(dc_array_get_latitude((*kml).locations, 1) > 63.6f64);
+        assert!(dc_array_get_latitude((*kml).locations, 1) < 63.8f64);
+        assert!(dc_array_get_longitude((*kml).locations, 1) > 19.3f64);
+        assert!(dc_array_get_longitude((*kml).locations, 1) < 19.5f64);
+        assert!(dc_array_get_accuracy((*kml).locations, 1) > 2.4f64);
+        assert!(dc_array_get_accuracy((*kml).locations, 1) < 2.6f64);
+        assert_eq!(dc_array_get_timestamp((*kml).locations, 1), 1544739072);
+
+        dc_kml_unref(kml);
+    }
+}
+
+#[test]
+fn test_stress_tests() {
     unsafe {
         let context = create_test_context();
         stress_functions(&context.ctx);
