@@ -415,93 +415,6 @@ unsafe fn stress_functions(context: &dc_context_t) {
         free(fn1 as *mut libc::c_void);
     }
 
-    let mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new(context);
-    let raw: *const libc::c_char =
-        b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00"
-            as *const u8 as *const libc::c_char;
-    dc_mimeparser_parse(mimeparser, raw, strlen(raw));
-    if 0 != !(strcmp(
-        (*mimeparser).subject,
-        b"inner-subject\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            336i32,
-            b"strcmp(mimeparser->subject, \"inner-subject\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    let mut of: *mut mailimf_optional_field = dc_mimeparser_lookup_optional_field(
-        mimeparser,
-        b"X-Special-A\x00" as *const u8 as *const libc::c_char,
-    );
-    if 0 != !(strcmp(
-        (*of).fld_value,
-        b"special-a\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            339i32,
-            b"strcmp(of->fld_value, \"special-a\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    of = dc_mimeparser_lookup_optional_field(
-        mimeparser,
-        b"Foo\x00" as *const u8 as *const libc::c_char,
-    );
-    if 0 != !(strcmp(
-        (*of).fld_value,
-        b"Bar\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            342i32,
-            b"strcmp(of->fld_value, \"Bar\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    of = dc_mimeparser_lookup_optional_field(
-        mimeparser,
-        b"Chat-Version\x00" as *const u8 as *const libc::c_char,
-    );
-    if 0 != !(strcmp(
-        (*of).fld_value,
-        b"1.0\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            345i32,
-            b"strcmp(of->fld_value, \"1.0\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(carray_count((*mimeparser).parts) == 1i32 as libc::c_uint) as libc::c_int
-        as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            347i32,
-            b"carray_count(mimeparser->parts) == 1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_mimeparser_unref(mimeparser);
     let mut type_0: libc::c_int = 0;
     let mut mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
     dc_msg_guess_msgtype_from_suffix(
@@ -3999,6 +3912,62 @@ fn test_dc_kml_parse() {
         assert_eq!(dc_array_get_timestamp((*kml).locations, 1), 1544739072);
 
         dc_kml_unref(kml);
+    }
+}
+
+#[test]
+fn test_dc_mimeparser_with_context() {
+    unsafe {
+        let context = create_test_context();
+
+        let mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new(&context.ctx);
+        let raw: *const libc::c_char =
+        b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00"
+            as *const u8 as *const libc::c_char;
+
+        dc_mimeparser_parse(mimeparser, raw, strlen(raw));
+        assert_eq!(
+            CStr::from_ptr((*mimeparser).subject as *const libc::c_char)
+                .to_str()
+                .unwrap(),
+            "inner-subject",
+        );
+
+        let mut of: *mut mailimf_optional_field = dc_mimeparser_lookup_optional_field(
+            mimeparser,
+            b"X-Special-A\x00" as *const u8 as *const libc::c_char,
+        );
+        assert_eq!(
+            CStr::from_ptr((*of).fld_value as *const libc::c_char)
+                .to_str()
+                .unwrap(),
+            "special-a",
+        );
+
+        of = dc_mimeparser_lookup_optional_field(
+            mimeparser,
+            b"Foo\x00" as *const u8 as *const libc::c_char,
+        );
+        assert_eq!(
+            CStr::from_ptr((*of).fld_value as *const libc::c_char)
+                .to_str()
+                .unwrap(),
+            "Bar",
+        );
+
+        of = dc_mimeparser_lookup_optional_field(
+            mimeparser,
+            b"Chat-Version\x00" as *const u8 as *const libc::c_char,
+        );
+        assert_eq!(
+            CStr::from_ptr((*of).fld_value as *const libc::c_char)
+                .to_str()
+                .unwrap(),
+            "1.0",
+        );
+        assert_eq!(carray_count((*mimeparser).parts), 1);
+
+        dc_mimeparser_unref(mimeparser);
     }
 }
 
