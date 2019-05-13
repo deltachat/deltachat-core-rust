@@ -914,16 +914,16 @@ pub unsafe fn dc_sqlite3_open(
                                     as *const libc::c_char,
                             );
                             while sqlite3_step(stmt) == 100 {
-                                let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+                                let mut peerstate = dc_apeerstate_new(context);
                                 if 0 != dc_apeerstate_load_by_addr(
-                                    peerstate,
+                                    &mut peerstate,
                                     sql,
                                     sqlite3_column_text(stmt, 0) as *const libc::c_char,
-                                ) && 0 != dc_apeerstate_recalc_fingerprint(peerstate)
+                                ) && 0 != dc_apeerstate_recalc_fingerprint(&mut peerstate)
                                 {
-                                    dc_apeerstate_save_to_db(peerstate, sql, 0);
+                                    dc_apeerstate_save_to_db(&mut peerstate, sql, 0);
                                 }
-                                dc_apeerstate_unref(peerstate);
+                                dc_apeerstate_unref(&mut peerstate);
                             }
                             sqlite3_finalize(stmt);
                         }

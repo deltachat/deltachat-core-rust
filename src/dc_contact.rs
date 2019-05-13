@@ -797,9 +797,10 @@ pub unsafe fn dc_get_contact_encrinfo(
         );
         let mut self_key = Key::from_self_public(
             context,
-            (*loginparam).addr & context.sql.clone().read().unwrap(),
+            (*loginparam).addr,
+            &context.sql.clone().read().unwrap(),
         );
-        if !dc_apeerstate_peek_key(&peerstate, 0).is_null() {
+        if dc_apeerstate_peek_key(&peerstate, 0).is_some() {
             p = dc_stock_str(
                 context,
                 if peerstate.prefer_encrypt == 1i32 {
@@ -828,7 +829,6 @@ pub unsafe fn dc_get_contact_encrinfo(
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
             fingerprint_other_verified = dc_apeerstate_peek_key(&peerstate, 2)
-                .map
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
             fingerprint_other_unverified = dc_apeerstate_peek_key(&peerstate, 0)
@@ -874,7 +874,7 @@ pub unsafe fn dc_get_contact_encrinfo(
         }
     }
 
-    dc_apeerstate_unref(peerstate);
+    dc_apeerstate_unref(&mut peerstate);
     dc_contact_unref(contact);
     dc_loginparam_unref(loginparam);
 
@@ -1077,51 +1077,60 @@ pub unsafe fn dc_contact_is_blocked(contact: *const dc_contact_t) -> libc::c_int
     (*contact).blocked
 }
 
+/// Check if a contact was verified. E.g. by a secure-join QR code scan
+/// and if the key has not changed since this verification.
+///
+/// The UI may draw a checkbox or something like that beside verified contacts.
+///
+/// Returns
+///   - 0: contact is not verified.
+///   -  2: SELF and contact have verified their fingerprints in both directions; in the UI typically checkmarks are shown.
 pub unsafe fn dc_contact_is_verified(contact: *mut dc_contact_t) -> libc::c_int {
-    dc_contact_is_verified_ex(contact, 0 as *mut dc_apeerstate_t)
+    dc_contact_is_verified_ex(contact, None)
 }
 
+/// Same as dc_contact_is_verified() but allows speeding up things
+/// by adding the peerstate belonging to the contact.
+/// If you do not have the peerstate available, it is loaded automatically.
 pub unsafe fn dc_contact_is_verified_ex<'a>(
     contact: *mut dc_contact_t<'a>,
-    mut peerstate: *mut dc_apeerstate_t<'a>,
+    peerstate: Option<&dc_apeerstate_t<'a>>,
 ) -> libc::c_int {
-    let current_block: u64;
-    let mut contact_verified: libc::c_int = 0i32;
-    let mut peerstate_to_delete: *mut dc_apeerstate_t = 0 as *mut dc_apeerstate_t;
-    if !(contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint) {
-        if (*contact).id == 1i32 as libc::c_uint {
-            contact_verified = 2i32
-        } else {
-            // we're always sort of secured-verified as we could verify the key on this device any time with the key on this device
-            if peerstate.is_null() {
-                peerstate_to_delete = dc_apeerstate_new((*contact).context);
-                if 0 == dc_apeerstate_load_by_addr(
-                    peerstate_to_delete,
-                    &mut (*contact).context.sql.clone().read().unwrap(),
-                    (*contact).addr,
-                ) {
-                    current_block = 8667923638376902112;
-                } else {
-                    peerstate = peerstate_to_delete;
-                    current_block = 13109137661213826276;
-                }
-            } else {
-                current_block = 13109137661213826276;
-            }
-            match current_block {
-                8667923638376902112 => {}
-                _ => {
-                    contact_verified = if !(*peerstate).verified_key.is_null() {
-                        2i32
-                    } else {
-                        0i32
-                    }
-                }
-            }
-        }
+    if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
+        return 0;
     }
-    dc_apeerstate_unref(peerstate_to_delete);
-    contact_verified
+
+    // we're always sort of secured-verified as we could verify the key on this device any time with the key
+    // on this device
+    if (*contact).id == 1 as libc::c_uint {
+        return 2;
+    }
+
+    if let Some(peerstate) = peerstate {
+        if peerstate.verified_key.is_some() {
+            2
+        } else {
+            0
+        }
+    } else {
+        let mut peerstate = dc_apeerstate_new((*contact).context);
+        let mut res = 0;
+
+        if 0 != dc_apeerstate_load_by_addr(
+            &mut peerstate,
+            &mut (*contact).context.sql.clone().read().unwrap(),
+            (*contact).addr,
+        ) {
+            res = if peerstate.verified_key.is_some() {
+                2
+            } else {
+                0
+            };
+        }
+        dc_apeerstate_unref(&mut peerstate);
+
+        res
+    }
 }
 
 // Working with e-mail-addresses

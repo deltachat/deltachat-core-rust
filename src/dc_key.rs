@@ -4,26 +4,78 @@ use std::io::Cursor;
 use std::slice;
 
 use libc;
-use mmime::mailmime_content::*;
-use mmime::mmapstring::*;
 use mmime::other::*;
 use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
+use pgp::types::{KeyTrait, SecretKeyTrait};
 
 use crate::constants::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
-use crate::dc_pgp::*;
 use crate::dc_sqlite3::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::types::*;
-use crate::x::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Key {
     Public(SignedPublicKey),
     Secret(SignedSecretKey),
+}
+
+impl From<SignedPublicKey> for Key {
+    fn from(key: SignedPublicKey) -> Self {
+        Key::Public(key)
+    }
+}
+
+impl From<SignedSecretKey> for Key {
+    fn from(key: SignedSecretKey) -> Self {
+        Key::Secret(key)
+    }
+}
+
+impl std::convert::TryInto<SignedSecretKey> for Key {
+    type Error = ();
+
+    fn try_into(self) -> Result<SignedSecretKey, Self::Error> {
+        match self {
+            Key::Public(_) => Err(()),
+            Key::Secret(key) => Ok(key),
+        }
+    }
+}
+
+impl<'a> std::convert::TryInto<&'a SignedSecretKey> for &'a Key {
+    type Error = ();
+
+    fn try_into(self) -> Result<&'a SignedSecretKey, Self::Error> {
+        match self {
+            Key::Public(_) => Err(()),
+            Key::Secret(key) => Ok(key),
+        }
+    }
+}
+
+impl std::convert::TryInto<SignedPublicKey> for Key {
+    type Error = ();
+
+    fn try_into(self) -> Result<SignedPublicKey, Self::Error> {
+        match self {
+            Key::Public(key) => Ok(key),
+            Key::Secret(_) => Err(()),
+        }
+    }
+}
+
+impl<'a> std::convert::TryInto<&'a SignedPublicKey> for &'a Key {
+    type Error = ();
+
+    fn try_into(self) -> Result<&'a SignedPublicKey, Self::Error> {
+        match self {
+            Key::Public(key) => Ok(key),
+            Key::Secret(_) => Err(()),
+        }
+    }
 }
 
 impl Key {
@@ -41,10 +93,10 @@ impl Key {
     pub fn from_slice(bytes: &[u8], key_type: KeyType) -> Option<Self> {
         match key_type {
             KeyType::Public => SignedPublicKey::from_bytes(Cursor::new(bytes))
-                .map(|k| Key::Public(k))
+                .map(Into::into)
                 .ok(),
-            KeyType::Secret => SignedSecretKey::from_bytes(Cursor::new(bytes))
-                .map(|k| Key::Secret(k))
+            KeyType::Private => SignedSecretKey::from_bytes(Cursor::new(bytes))
+                .map(Into::into)
                 .ok(),
         }
     }
@@ -57,7 +109,7 @@ impl Key {
         assert!(!data.is_null(), "missing data");
         assert!(len > 0);
 
-        let bytes = unsafe { slice::from_raw_parts(data, len) };
+        let bytes = unsafe { slice::from_raw_parts(data as *const u8, len as usize) };
         Self::from_slice(bytes, key_type)
     }
 
@@ -77,8 +129,9 @@ impl Key {
     }
 
     pub fn from_base64(encoded_data: &str, key_type: KeyType) -> Option<Self> {
-        // TODO: strip newlines and other whitespace
-        let bytes = encoded_data.as_bytes();
+        // strip newlines and other whitespace
+        let cleaned: String = encoded_data.trim().split_whitespace().collect();
+        let bytes = cleaned.as_bytes();
 
         base64::decode(bytes)
             .ok()
@@ -94,21 +147,23 @@ impl Key {
             return None;
         }
 
-        let stmt = dc_sqlite3_prepare(
-            context,
-            sql,
-            b"SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
-                as *const libc::c_char,
-        );
-        sqlite3_bind_text(stmt, 1, self_addr, -1, None);
+        let stmt = unsafe {
+            dc_sqlite3_prepare(
+                context,
+                sql,
+                b"SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
+                    as *const libc::c_char,
+            )
+        };
+        unsafe { sqlite3_bind_text(stmt, 1, self_addr, -1, None) };
 
-        let key = if sqlite3_step(stmt) == 100 {
-            Self::from_stmt(stmt, 0, KeyType::Public);
+        let key = if unsafe { sqlite3_step(stmt) } == 100 {
+            Self::from_stmt(stmt, 0, KeyType::Public)
         } else {
             None
         };
 
-        sqlite3_finalize(stmt);
+        unsafe { sqlite3_finalize(stmt) };
 
         key
     }
@@ -122,26 +177,35 @@ impl Key {
             return None;
         }
 
-        let stmt = dc_sqlite3_prepare(
-            context,
-            sql,
-            b"SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
-                as *const libc::c_char,
-        );
-        sqlite3_bind_text(stmt, 1, self_addr, -1, None);
+        let stmt = unsafe {
+            dc_sqlite3_prepare(
+                context,
+                sql,
+                b"SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
+                    as *const libc::c_char,
+            )
+        };
+        unsafe { sqlite3_bind_text(stmt, 1, self_addr, -1, None) };
 
-        let key = if sqlite3_step(stmt) == 100 {
-            Self::from_stmt(stmt, 0, KeyType::Secret)
+        let key = if unsafe { sqlite3_step(stmt) } == 100 {
+            Self::from_stmt(stmt, 0, KeyType::Private)
         } else {
             None
         };
-        sqlite3_finalize(stmt);
+        unsafe { sqlite3_finalize(stmt) };
 
         key
     }
 
+    pub fn to_bytes(&self) -> Vec<u8> {
+        match self {
+            Key::Public(k) => k.to_bytes().unwrap(),
+            Key::Secret(k) => k.to_bytes().unwrap(),
+        }
+    }
+
     pub fn to_base64(&self, break_every: usize) -> String {
-        let buf = self.0.to_bytes().expect("failed to serialize key");
+        let buf = self.to_bytes();
 
         let encoded = base64::encode(&buf);
         encoded
@@ -167,6 +231,16 @@ impl Key {
         unsafe { libc::strdup(res_c.as_ptr()) }
     }
 
+    pub fn to_armored_string(
+        &self,
+        headers: Option<&BTreeMap<String, String>>,
+    ) -> pgp::errors::Result<String> {
+        match self {
+            Key::Public(k) => k.to_armored_string(headers),
+            Key::Secret(k) => k.to_armored_string(headers),
+        }
+    }
+
     /// Each header line must be terminated by `\r\n`, the result must be freed.
     pub fn to_asc_c(&self, header: Option<(&str, &str)>) -> *mut libc::c_char {
         let headers = header.map(|(key, value)| {
@@ -176,7 +250,6 @@ impl Key {
         });
 
         let buf = self
-            .0
             .to_armored_string(headers.as_ref())
             .expect("failed to serialize key");
         let buf_c = CString::new(buf).unwrap();
@@ -191,7 +264,7 @@ impl Key {
             return false;
         }
 
-        let file_content = self.to_asc(None);
+        let file_content = self.to_asc_c(None);
 
         let success = if 0
             == unsafe {
@@ -208,13 +281,16 @@ impl Key {
             true
         };
 
-        free(file_content as *mut libc::c_void);
+        unsafe { free(file_content as *mut libc::c_void) };
 
         success
     }
 
     pub fn fingerprint(&self) -> String {
-        hex::encode_upper(self.0.fingerprint())
+        match self {
+            Key::Public(k) => hex::encode_upper(k.fingerprint()),
+            Key::Secret(k) => hex::encode_upper(k.fingerprint()),
+        }
     }
 
     pub fn fingerprint_c(&self) -> *mut libc::c_char {
@@ -228,10 +304,20 @@ impl Key {
         dc_format_fingerprint(&rawhex)
     }
 
-    pub fn formatted_fingerprint_c(&self) -> String {
+    pub fn formatted_fingerprint_c(&self) -> *mut libc::c_char {
         let res = CString::new(self.formatted_fingerprint()).unwrap();
 
         unsafe { libc::strdup(res.as_ptr()) }
+    }
+
+    pub fn split_key(&self) -> Option<Key> {
+        match self {
+            Key::Public(_) => None,
+            Key::Secret(k) => {
+                let pub_key = k.public_key();
+                pub_key.sign(k, || "".into()).map(|k| Key::Public(k)).ok()
+            }
+        }
     }
 }
 
@@ -244,30 +330,50 @@ pub fn dc_key_save_self_keypair(
     sql: &dc_sqlite3_t,
 ) -> bool {
     if addr.is_null() {
-        return 0;
+        return false;
     }
 
-    let stmt = dc_sqlite3_prepare(
+    let stmt = unsafe {
+        dc_sqlite3_prepare(
         context,
         sql,
         b"INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);\x00"
             as *const u8 as *const libc::c_char
-    );
+    )
+    };
 
-    sqlite3_bind_text(stmt, 1, addr, -1, None);
-    sqlite3_bind_int(stmt, 2, is_default);
+    unsafe {
+        sqlite3_bind_text(stmt, 1, addr, -1, None);
+        sqlite3_bind_int(stmt, 2, is_default)
+    };
     let pub_bytes = public_key.to_bytes();
     let sec_bytes = private_key.to_bytes();
-    sqlite3_bind_blob(stmt, 3, pub_bytes.as_ptr(), pub_bytes.len(), None);
-    sqlite3_bind_blob(stmt, 4, sec_bytes.as_ptr(), sec_bytes.len(), None);
-    sqlite3_bind_int64(stmt, 5, time(0 as *mut time_t) as sqlite3_int64);
-    let success = if sqlite3_step(stmt) == 101 {
+    unsafe {
+        sqlite3_bind_blob(
+            stmt,
+            3,
+            pub_bytes.as_ptr() as *const _,
+            pub_bytes.len() as libc::c_int,
+            None,
+        )
+    };
+    unsafe {
+        sqlite3_bind_blob(
+            stmt,
+            4,
+            sec_bytes.as_ptr() as *const _,
+            sec_bytes.len() as libc::c_int,
+            None,
+        )
+    };
+    unsafe { sqlite3_bind_int64(stmt, 5, time(0 as *mut time_t) as sqlite3_int64) };
+    let success = if unsafe { sqlite3_step(stmt) } == 101 {
         true
     } else {
         false
     };
 
-    sqlite3_finalize(stmt);
+    unsafe { sqlite3_finalize(stmt) };
 
     success
 }
@@ -275,20 +381,43 @@ pub fn dc_key_save_self_keypair(
 /// Make a fingerprint human-readable, in hex format.
 pub fn dc_format_fingerprint(fingerprint: &str) -> String {
     // split key into chunks of 4 with space, and 20 newline
-    fingerprint
-        .as_bytes()
-        .chunks(4)
-        .chunks(5)
-        .map(|chunk| chunk.join(" "))
-        .join("\n")
+    let mut res = String::new();
+
+    for (i, c) in fingerprint.chars().enumerate() {
+        if i > 0 && i % 20 == 0 {
+            res += "\n";
+        } else if i > 0 && i % 4 == 0 {
+            res += " ";
+        }
+
+        res += &c.to_string();
+    }
+
+    res
+}
+
+pub fn dc_format_fingerprint_c(fp: *const libc::c_char) -> *mut libc::c_char {
+    let input = unsafe { CStr::from_ptr(fp).to_str().unwrap() };
+    let res = dc_format_fingerprint(input);
+    let res_c = CString::new(res).unwrap();
+
+    unsafe { libc::strdup(res_c.as_ptr()) }
 }
 
 /// Bring a human-readable or otherwise formatted fingerprint back to the 40-characters-uppercase-hex format.
-pub unsafe fn dc_normalize_fingerprint(fp: &str) -> String {
+pub fn dc_normalize_fingerprint(fp: &str) -> String {
     fp.to_uppercase()
         .chars()
-        .filter(|c| c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
-        .join("")
+        .filter(|&c| c >= '0' && c <= '9' || c >= 'A' && c <= 'F')
+        .collect()
+}
+
+pub fn dc_normalize_fingerprint_c(fp: *const libc::c_char) -> *mut libc::c_char {
+    let input = unsafe { CStr::from_ptr(fp).to_str().unwrap() };
+    let res = dc_normalize_fingerprint(input);
+    let res_c = CString::new(res).unwrap();
+
+    unsafe { libc::strdup(res_c.as_ptr()) }
 }
 
 #[cfg(test)]
@@ -304,12 +433,11 @@ mod tests {
 
     #[test]
     fn test_format_fingerprint() {
-        let fingerprint = dc_normalize_fingerprint("1234567890ABCDABCDEFABCDEF1234567890ABCD");
+        let fingerprint = dc_format_fingerprint("1234567890ABCDABCDEFABCDEF1234567890ABCD");
 
         assert_eq!(
             fingerprint,
             "1234 5678 90AB CDAB CDEF\nABCD EF12 3456 7890 ABCD"
         );
     }
-
 }

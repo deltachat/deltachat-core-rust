@@ -2,6 +2,7 @@ use std::ffi::{CStr, CString};
 
 use num_traits::ToPrimitive;
 
+use crate::constants::*;
 use crate::dc_aheader::*;
 use crate::dc_chat::*;
 use crate::dc_context::dc_context_t;
@@ -104,11 +105,10 @@ pub unsafe fn dc_apeerstate_init_from_header(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_recalc_fingerprint(peerstate: &mut dc_apeerstate_t) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
     let mut old_public_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut old_gossip_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
 
-    if let Some(public_key) = peerstate.public_key {
+    if let Some(ref public_key) = peerstate.public_key {
         old_public_fingerprint = peerstate.public_key_fingerprint;
         peerstate.public_key_fingerprint = public_key.fingerprint_c();
         if old_public_fingerprint.is_null()
@@ -126,7 +126,7 @@ pub unsafe fn dc_apeerstate_recalc_fingerprint(peerstate: &mut dc_apeerstate_t) 
         }
     }
 
-    if let Some(gossip_key) = peerstate.gossip_key {
+    if let Some(ref gossip_key) = peerstate.gossip_key {
         old_gossip_fingerprint = peerstate.gossip_key_fingerprint;
         peerstate.gossip_key_fingerprint = gossip_key.fingerprint_c();
 
@@ -144,12 +144,11 @@ pub unsafe fn dc_apeerstate_recalc_fingerprint(peerstate: &mut dc_apeerstate_t) 
             }
         }
     }
-    success = 1i32;
 
     free(old_public_fingerprint as *mut libc::c_void);
     free(old_gossip_fingerprint as *mut libc::c_void);
 
-    success
+    1
 }
 
 // TODO should return bool /rtn
@@ -215,8 +214,8 @@ pub unsafe fn dc_apeerstate_apply_header(
             peerstate.to_save |= 0x2i32
         }
 
-        if peerstate.public_key == Some(header.public_key) {
-            peerstate.public_key = Some(header.public_key);
+        if peerstate.public_key.as_ref() == Some(&header.public_key) {
+            peerstate.public_key = Some(header.public_key.clone());
             dc_apeerstate_recalc_fingerprint(peerstate);
             peerstate.to_save |= 0x2i32;
         }
@@ -241,7 +240,7 @@ pub unsafe fn dc_apeerstate_apply_gossip(
     if message_time > peerstate.gossip_timestamp {
         peerstate.gossip_timestamp = message_time;
         peerstate.to_save |= 0x1i32;
-        if peerstate.gossip_key == Some(gossip_header.public_key) {
+        if peerstate.gossip_key.as_ref() == Some(&gossip_header.public_key) {
             peerstate.gossip_key = Some(gossip_header.public_key.clone());
             dc_apeerstate_recalc_fingerprint(peerstate);
             peerstate.to_save |= 0x2i32
@@ -258,16 +257,19 @@ pub unsafe fn dc_apeerstate_render_gossip_header(
     }
 
     let addr = CStr::from_ptr(peerstate.addr).to_str().unwrap().into();
-    let key = dc_apeerstate_peek_key(peerstate, min_verified).clone();
-    let header = Aheader::new(addr, key, EncryptPreference::NoPreference);
-    let rendered = header.to_string();
-    let rendered_c = CString::new(rendered).unwrap();
+    if let Some(key) = dc_apeerstate_peek_key(peerstate, min_verified) {
+        // TODO: avoid cloning
+        let header = Aheader::new(addr, key.clone(), EncryptPreference::NoPreference);
+        let rendered = header.to_string();
+        let rendered_c = CString::new(rendered).unwrap();
+        return libc::strdup(rendered_c.as_ptr());
+    }
 
-    libc::strdup(rendered_c.as_ptr())
+    std::ptr::null_mut()
 }
 
 pub unsafe fn dc_apeerstate_peek_key<'a>(
-    peerstate: &dc_apeerstate_t<'a>,
+    peerstate: &'a dc_apeerstate_t<'a>,
     min_verified: libc::c_int,
 ) -> Option<&'a Key> {
     if peerstate.public_key.is_none()
@@ -303,7 +305,7 @@ pub unsafe fn dc_apeerstate_set_verified(
             && strcasecmp(peerstate.public_key_fingerprint, fingerprint) == 0
         {
             peerstate.to_save |= 0x2;
-            peerstate.verified_key = Some(peerstate.public_key.clone());
+            peerstate.verified_key = peerstate.public_key.clone();
             peerstate.verified_key_fingerprint = dc_strdup(peerstate.public_key_fingerprint);
             success = 1
         }
@@ -314,7 +316,7 @@ pub unsafe fn dc_apeerstate_set_verified(
             && strcasecmp(peerstate.gossip_key_fingerprint, fingerprint) == 0
         {
             peerstate.to_save |= 0x2;
-            peerstate.verified_key = Some(peerstate.gossip_key.clone());
+            peerstate.verified_key = peerstate.gossip_key.clone();
             peerstate.verified_key_fingerprint = dc_strdup(peerstate.gossip_key_fingerprint);
             success = 1
         }
@@ -364,13 +366,13 @@ unsafe fn dc_apeerstate_set_from_stmt(
         dc_strdup(sqlite3_column_text(stmt, 10) as *mut libc::c_char);
 
     if sqlite3_column_type(stmt, 4) != 5 {
-        peerstate.public_key = Key::from_stmt(stmt, 4, 0);
+        peerstate.public_key = Key::from_stmt(stmt, 4, KeyType::Public);
     }
     if sqlite3_column_type(stmt, 6) != 5 {
-        peerstate.gossip_key = Key::from_stmt(stmt, 6, 0);
+        peerstate.gossip_key = Key::from_stmt(stmt, 6, KeyType::Public);
     }
     if sqlite3_column_type(stmt, 9) != 5 {
-        peerstate.verified_key = Key::from_stmt(stmt, 9, 0);
+        peerstate.verified_key = Key::from_stmt(stmt, 9, KeyType::Public);
     }
 }
 
@@ -434,54 +436,49 @@ pub unsafe fn dc_apeerstate_save_to_db(
         sqlite3_bind_int64(stmt, 1, peerstate.last_seen as sqlite3_int64);
         sqlite3_bind_int64(stmt, 2, peerstate.last_seen_autocrypt as sqlite3_int64);
         sqlite3_bind_int64(stmt, 3, peerstate.prefer_encrypt as sqlite3_int64);
-        sqlite3_bind_blob(
-            stmt,
-            4,
-            if !peerstate.public_key.is_null() {
-                (*peerstate.public_key).binary
-            } else {
-                0 as *mut libc::c_void
-            },
-            if !peerstate.public_key.is_null() {
-                (*peerstate.public_key).bytes
-            } else {
-                0
-            },
-            None,
-        );
+
+        if let Some(ref key) = peerstate.public_key {
+            let b = key.to_bytes();
+            sqlite3_bind_blob(
+                stmt,
+                4,
+                b.as_ptr() as *const _,
+                b.len() as libc::c_int,
+                None,
+            );
+        } else {
+            sqlite3_bind_blob(stmt, 4, std::ptr::null(), 0, None);
+        }
+
         sqlite3_bind_int64(stmt, 5, peerstate.gossip_timestamp as sqlite3_int64);
-        sqlite3_bind_blob(
-            stmt,
-            6,
-            if !peerstate.gossip_key.is_null() {
-                (*peerstate.gossip_key).binary
-            } else {
-                0 as *mut libc::c_void
-            },
-            if !peerstate.gossip_key.is_null() {
-                (*peerstate.gossip_key).bytes
-            } else {
-                0
-            },
-            None,
-        );
+        if let Some(ref key) = peerstate.gossip_key {
+            let b = key.to_bytes();
+            sqlite3_bind_blob(
+                stmt,
+                6,
+                b.as_ptr() as *const _,
+                b.len() as libc::c_int,
+                None,
+            );
+        } else {
+            sqlite3_bind_blob(stmt, 6, std::ptr::null(), 0, None);
+        }
+
         sqlite3_bind_text(stmt, 7, peerstate.public_key_fingerprint, -1, None);
         sqlite3_bind_text(stmt, 8, peerstate.gossip_key_fingerprint, -1, None);
-        sqlite3_bind_blob(
-            stmt,
-            9,
-            if !peerstate.verified_key.is_null() {
-                (*peerstate.verified_key).binary
-            } else {
-                0 as *mut libc::c_void
-            },
-            if !peerstate.verified_key.is_null() {
-                (*peerstate.verified_key).bytes
-            } else {
-                0
-            },
-            None,
-        );
+        if let Some(ref key) = peerstate.verified_key {
+            let b = key.to_bytes();
+            sqlite3_bind_blob(
+                stmt,
+                9,
+                b.as_ptr() as *const _,
+                b.len() as libc::c_int,
+                None,
+            );
+        } else {
+            sqlite3_bind_blob(stmt, 9, std::ptr::null(), 0, None);
+        }
+
         sqlite3_bind_text(stmt, 10, peerstate.verified_key_fingerprint, -1, None);
         sqlite3_bind_text(stmt, 11, peerstate.addr, -1, None);
         if sqlite3_step(stmt) != 101 {

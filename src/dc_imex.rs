@@ -1,3 +1,5 @@
+use std::ffi::{CStr, CString};
+
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -290,7 +292,6 @@ pub unsafe extern "C" fn dc_render_setup_file(
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
 
     let mut passphrase_begin: [libc::c_char; 8] = [0; 8];
-    let mut encr_string: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret_setupfilecontent: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(passphrase.is_null() || strlen(passphrase) < 2) {
         strncpy(passphrase_begin.as_mut_ptr(), passphrase, 2);
@@ -319,22 +320,20 @@ pub unsafe extern "C" fn dc_render_setup_file(
             };
 
             if let Some(payload_key_asc) = curr_private_key.map(|k| k.to_asc_c(headers)) {
-                if !(0
-                    == dc_pgp_symm_encrypt(
-                        context,
-                        passphrase,
-                        payload_key_asc as *const libc::c_void,
-                        strlen(payload_key_asc),
-                        &mut encr_string,
-                    ))
-                {
+                if let Some(encr) = dc_pgp_symm_encrypt(
+                    passphrase,
+                    payload_key_asc as *const libc::c_void,
+                    strlen(payload_key_asc),
+                ) {
+                    let encr_string = CString::new(encr).unwrap();
+
                     free(payload_key_asc as *mut libc::c_void);
                     let  replacement: *mut libc::c_char =
                         dc_mprintf(b"-----BEGIN PGP MESSAGE-----\r\nPassphrase-Format: numeric9x4\r\nPassphrase-Begin: %s\x00"
                                        as *const u8 as *const libc::c_char,
                                    passphrase_begin.as_mut_ptr());
                     dc_str_replace(
-                        &mut encr_string,
+                        &mut (encr_string.as_ptr() as *mut _),
                         b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
                         replacement,
                     );
@@ -355,7 +354,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
                         dc_mprintf(b"<!DOCTYPE html>\r\n<html>\r\n<head>\r\n<title>%s</title>\r\n</head>\r\n<body>\r\n<h1>%s</h1>\r\n<p>%s</p>\r\n<pre>\r\n%s\r\n</pre>\r\n</body>\r\n</html>\r\n\x00"
                                        as *const u8 as *const libc::c_char,
                                    setup_message_title, setup_message_title,
-                                   setup_message_body, encr_string);
+                                   setup_message_body, encr_string.as_ptr());
                     free(setup_message_title as *mut libc::c_void);
                     free(setup_message_body as *mut libc::c_void);
                 }
@@ -364,7 +363,6 @@ pub unsafe extern "C" fn dc_render_setup_file(
     }
     sqlite3_finalize(stmt);
 
-    free(encr_string as *mut libc::c_void);
     free(self_addr as *mut libc::c_void);
 
     ret_setupfilecontent
@@ -519,8 +517,11 @@ unsafe fn set_self_key(
             b"File does not contain a private key.\x00" as *const u8 as *const libc::c_char,
         );
     } else {
-        if let Some((private_key, public_key)) = Key::from_base64(buf_base64, KeyType::Private)
-            .and_then(|k| dc_pgp_split_key(context, &k).map(|pk| (k, pk)))
+        if let Some((private_key, public_key)) = Key::from_base64(
+            CStr::from_ptr(buf_base64).to_str().unwrap(),
+            KeyType::Private,
+        )
+        .and_then(|k| k.split_key().map(|pub_key| (k, pub_key)))
         {
             stmt = dc_sqlite3_prepare(
                 context,
@@ -528,12 +529,20 @@ unsafe fn set_self_key(
                 b"DELETE FROM keypairs WHERE public_key=? OR private_key=?;\x00" as *const u8
                     as *const libc::c_char,
             );
-            sqlite3_bind_blob(stmt, 1i32, (*public_key).binary, (*public_key).bytes, None);
+            let bytes = public_key.to_bytes();
             sqlite3_bind_blob(
                 stmt,
-                2i32,
-                (*private_key).binary,
-                (*private_key).bytes,
+                1,
+                bytes.as_ptr() as *const _,
+                bytes.len() as libc::c_int,
+                None,
+            );
+            let bytes = private_key.to_bytes();
+            sqlite3_bind_blob(
+                stmt,
+                2,
+                bytes.as_ptr() as *const _,
+                bytes.len() as libc::c_int,
                 None,
             );
             sqlite3_step(stmt);
@@ -552,10 +561,10 @@ unsafe fn set_self_key(
                 b"configured_addr\x00" as *const u8 as *const libc::c_char,
                 0 as *const libc::c_char,
             );
-            if 0 == dc_key_save_self_keypair(
+            if !dc_key_save_self_keypair(
                 context,
-                public_key,
-                private_key,
+                &public_key,
+                &private_key,
                 self_addr,
                 set_default,
                 &context.sql.clone().read().unwrap(),
@@ -611,7 +620,7 @@ unsafe fn set_self_key(
 }
 
 pub unsafe fn dc_decrypt_setup_file(
-    context: &dc_context_t,
+    _context: &dc_context_t,
     passphrase: *const libc::c_char,
     filecontent: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -621,8 +630,7 @@ pub unsafe fn dc_decrypt_setup_file(
     let mut binary: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut binary_bytes: size_t = 0i32 as size_t;
     let mut indx: size_t = 0i32 as size_t;
-    let mut plain: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut plain_bytes = 0;
+
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     fc_buf = dc_strdup(filecontent);
     if !(0
@@ -653,21 +661,14 @@ pub unsafe fn dc_decrypt_setup_file(
             || binary_bytes == 0)
         {
             /* decrypt symmetrically */
-            if !(0
-                == dc_pgp_symm_decrypt(
-                    context,
-                    passphrase,
-                    binary as *const libc::c_void,
-                    binary_bytes,
-                    &mut plain,
-                    &mut plain_bytes,
-                ))
+            if let Some(plain) =
+                dc_pgp_symm_decrypt(passphrase, binary as *const libc::c_void, binary_bytes)
             {
-                payload = strndup(plain as *const libc::c_char, plain_bytes as libc::c_ulong)
+                payload = libc::strdup(CString::new(plain).unwrap().as_ptr());
             }
         }
     }
-    free(plain);
+
     free(fc_buf as *mut libc::c_void);
     if !binary.is_null() {
         mmap_string_unref(binary);
@@ -1582,15 +1583,23 @@ unsafe fn export_self_keys(context: &dc_context_t, dir: *const libc::c_char) -> 
     if !stmt.is_null() {
         while sqlite3_step(stmt) == 100i32 {
             id = sqlite3_column_int(stmt, 0i32);
-            let public_key = Key::from_stmt(stmt, 1i32, KeyType::Public);
-            let private_key = Key::from_stmt(stmt, 2i32, KeyType::Private);
+            let public_key = Key::from_stmt(stmt, 1, KeyType::Public);
+            let private_key = Key::from_stmt(stmt, 2, KeyType::Private);
 
             is_default = sqlite3_column_int(stmt, 3i32);
-            if 0 == export_key_to_asc_file(context, dir, id, &public_key, is_default) {
-                export_errors += 1
+            if let Some(key) = public_key {
+                if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
+                    export_errors += 1
+                }
+            } else {
+                export_errors += 1;
             }
-            if 0 == export_key_to_asc_file(context, dir, id, &private_key, is_default) {
-                export_errors += 1
+            if let Some(key) = private_key {
+                if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
+                    export_errors += 1
+                }
+            } else {
+                export_errors += 1;
             }
         }
         if export_errors == 0i32 {
@@ -1619,7 +1628,7 @@ unsafe fn export_key_to_asc_file(
         file_name = dc_mprintf(
             b"%s/%s-key-default.asc\x00" as *const u8 as *const libc::c_char,
             dir,
-            if (*key).type_0 == 0i32 {
+            if key.is_public() {
                 b"public\x00" as *const u8 as *const libc::c_char
             } else {
                 b"private\x00" as *const u8 as *const libc::c_char
@@ -1629,7 +1638,7 @@ unsafe fn export_key_to_asc_file(
         file_name = dc_mprintf(
             b"%s/%s-key-%i.asc\x00" as *const u8 as *const libc::c_char,
             dir,
-            if (*key).type_0 == 0i32 {
+            if key.is_public() {
                 b"public\x00" as *const u8 as *const libc::c_char
             } else {
                 b"private\x00" as *const u8 as *const libc::c_char

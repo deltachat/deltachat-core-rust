@@ -2150,524 +2150,6 @@ unsafe fn stress_functions(context: &dc_context_t) {
         free(setupfile as *mut libc::c_void);
         free(setupcode as *mut libc::c_void);
     }
-    let bad_key: *mut dc_key_t = dc_key_new();
-    let mut bad_data: [libc::c_uchar; 4096] = [0; 4096];
-    let mut i_0: libc::c_int = 0i32;
-    while i_0 < 4096i32 {
-        bad_data[i_0 as usize] = (i_0 & 0xffi32) as libc::c_uchar;
-        i_0 += 1
-    }
-    let mut j: libc::c_int = 0i32;
-    while j < 4096i32 / 40i32 {
-        dc_key_set_from_binary(
-            bad_key,
-            &mut *bad_data.as_mut_ptr().offset(j as isize) as *mut libc::c_uchar
-                as *const libc::c_void,
-            4096i32 / 2i32 + j,
-            if 0 != j & 1i32 { 0i32 } else { 1i32 },
-        );
-        if 0 != (0 != dc_pgp_is_valid_key(context, bad_key)) as libc::c_int as libc::c_long {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                941i32,
-                b"!dc_pgp_is_valid_key(context, bad_key)\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        j += 1
-    }
-    dc_key_unref(bad_key);
-    let public_key: *mut dc_key_t = dc_key_new();
-    let private_key: *mut dc_key_t = dc_key_new();
-    dc_pgp_create_keypair(
-        context,
-        b"foo@bar.de\x00" as *const u8 as *const libc::c_char,
-        public_key,
-        private_key,
-    );
-    if 0 != (0 == dc_pgp_is_valid_key(context, public_key)) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            949i32,
-            b"dc_pgp_is_valid_key(context, public_key)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (0 == dc_pgp_is_valid_key(context, private_key)) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            950i32,
-            b"dc_pgp_is_valid_key(context, private_key)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let test_key: *mut dc_key_t = dc_key_new();
-    if 0 != (0 == dc_pgp_split_key(context, private_key, test_key)) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            956i32,
-            b"dc_pgp_split_key(context, private_key, test_key)\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_key_unref(test_key);
-    let public_key2: *mut dc_key_t = dc_key_new();
-    let private_key2: *mut dc_key_t = dc_key_new();
-    dc_pgp_create_keypair(
-        context,
-        b"two@zwo.de\x00" as *const u8 as *const libc::c_char,
-        public_key2,
-        private_key2,
-    );
-    if 0 != (0 != dc_key_equals(public_key, public_key2)) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            964i32,
-            b"!dc_key_equals(public_key, public_key2)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let original_text: *const libc::c_char =
-        b"This is a test\x00" as *const u8 as *const libc::c_char;
-    let mut ctext_signed: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut ctext_unsigned: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut ctext_signed_bytes: size_t = 0i32 as size_t;
-    let mut ctext_unsigned_bytes: size_t = 0;
-    let mut plain_bytes: size_t = 0i32 as size_t;
-    let keyring: *mut dc_keyring_t = dc_keyring_new();
-    dc_keyring_add(keyring, public_key);
-    dc_keyring_add(keyring, public_key2);
-    let mut ok_0: libc::c_int = dc_pgp_pk_encrypt(
-        context,
-        original_text as *const libc::c_void,
-        strlen(original_text),
-        keyring,
-        private_key,
-        1i32,
-        &mut ctext_signed as *mut *mut libc::c_void,
-        &mut ctext_signed_bytes,
-    );
-    if 0 != !(0 != ok_0 && !ctext_signed.is_null() && ctext_signed_bytes > 0) as libc::c_int
-        as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            975i32,
-            b"ok && ctext_signed && ctext_signed_bytes>0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strncmp(
-        ctext_signed as *mut libc::c_char,
-        b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        27,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            976i32,
-            b"strncmp((char*)ctext_signed, \"-----BEGIN PGP MESSAGE-----\", 27)==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(*(ctext_signed as *mut libc::c_char)
-        .offset(ctext_signed_bytes.wrapping_sub(1) as isize) as libc::c_int
-        != 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            977i32,
-            b"((char*)ctext_signed)[ctext_signed_bytes-1]!=0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    ok_0 = dc_pgp_pk_encrypt(
-        context,
-        original_text as *const libc::c_void,
-        strlen(original_text),
-        keyring,
-        0 as *const dc_key_t,
-        1i32,
-        &mut ctext_unsigned as *mut *mut libc::c_void,
-        &mut ctext_unsigned_bytes,
-    );
-    if 0 != !(0 != ok_0 && !ctext_unsigned.is_null() && ctext_unsigned_bytes > 0) as libc::c_int
-        as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            981i32,
-            b"ok && ctext_unsigned && ctext_unsigned_bytes>0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strncmp(
-        ctext_unsigned as *mut libc::c_char,
-        b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        27,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            982i32,
-            b"strncmp((char*)ctext_unsigned, \"-----BEGIN PGP MESSAGE-----\", 27)==0\x00"
-                as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(ctext_unsigned_bytes < ctext_signed_bytes) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            983i32,
-            b"ctext_unsigned_bytes < ctext_signed_bytes\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_keyring_unref(keyring);
-    let keyring_0: *mut dc_keyring_t = dc_keyring_new();
-    dc_keyring_add(keyring_0, private_key);
-    let public_keyring: *mut dc_keyring_t = dc_keyring_new();
-    dc_keyring_add(public_keyring, public_key);
-    let public_keyring2: *mut dc_keyring_t = dc_keyring_new();
-    dc_keyring_add(public_keyring2, public_key2);
-    let mut plain_0: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut valid_signatures: dc_hash_t = dc_hash_t {
-        keyClass: 0,
-        copyKey: 0,
-        count: 0,
-        first: 0 as *mut dc_hashelem_t,
-        htsize: 0,
-        ht: 0 as *mut _ht,
-    };
-    dc_hash_init(&mut valid_signatures, 3i32, 1i32);
-    let mut ok_1: libc::c_int;
-    ok_1 = dc_pgp_pk_decrypt(
-        context,
-        ctext_signed,
-        ctext_signed_bytes,
-        keyring_0,
-        public_keyring,
-        1i32,
-        &mut plain_0,
-        &mut plain_bytes,
-        &mut valid_signatures,
-    );
-    if 0 != !(0 != ok_1 && !plain_0.is_null() && plain_bytes > 0) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1004i32,
-            b"ok && plain && plain_bytes>0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strncmp(
-        plain_0 as *mut libc::c_char,
-        original_text,
-        strlen(original_text),
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1005i32,
-            b"strncmp((char*)plain, original_text, strlen(original_text))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(valid_signatures.count == 1i32) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1006i32,
-            b"dc_hash_cnt(&valid_signatures) == 1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(plain_0);
-    plain_0 = 0 as *mut libc::c_void;
-    dc_hash_clear(&mut valid_signatures);
-    ok_1 = dc_pgp_pk_decrypt(
-        context,
-        ctext_signed,
-        ctext_signed_bytes,
-        keyring_0,
-        0 as *const dc_keyring_t,
-        1i32,
-        &mut plain_0,
-        &mut plain_bytes,
-        &mut valid_signatures,
-    );
-    if 0 != !(0 != ok_1 && !plain_0.is_null() && plain_bytes > 0) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1011i32,
-            b"ok && plain && plain_bytes>0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strncmp(
-        plain_0 as *mut libc::c_char,
-        original_text,
-        strlen(original_text),
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1012i32,
-            b"strncmp((char*)plain, original_text, strlen(original_text))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(valid_signatures.count == 0i32) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1013i32,
-            b"dc_hash_cnt(&valid_signatures) == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(plain_0);
-    plain_0 = 0 as *mut libc::c_void;
-    dc_hash_clear(&mut valid_signatures);
-    ok_1 = dc_pgp_pk_decrypt(
-        context,
-        ctext_signed,
-        ctext_signed_bytes,
-        keyring_0,
-        public_keyring2,
-        1i32,
-        &mut plain_0,
-        &mut plain_bytes,
-        &mut valid_signatures,
-    );
-    if 0 != !(0 != ok_1 && !plain_0.is_null() && plain_bytes > 0) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1018i32,
-            b"ok && plain && plain_bytes>0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strncmp(
-        plain_0 as *mut libc::c_char,
-        original_text,
-        strlen(original_text),
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1019i32,
-            b"strncmp((char*)plain, original_text, strlen(original_text))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(valid_signatures.count == 0i32) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1020i32,
-            b"dc_hash_cnt(&valid_signatures) == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(plain_0);
-    plain_0 = 0 as *mut libc::c_void;
-    dc_hash_clear(&mut valid_signatures);
-    dc_keyring_add(public_keyring2, public_key);
-    ok_1 = dc_pgp_pk_decrypt(
-        context,
-        ctext_signed,
-        ctext_signed_bytes,
-        keyring_0,
-        public_keyring2,
-        1i32,
-        &mut plain_0,
-        &mut plain_bytes,
-        &mut valid_signatures,
-    );
-    if 0 != !(0 != ok_1 && !plain_0.is_null() && plain_bytes > 0) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1026i32,
-            b"ok && plain && plain_bytes>0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strncmp(
-        plain_0 as *mut libc::c_char,
-        original_text,
-        strlen(original_text),
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1027i32,
-            b"strncmp((char*)plain, original_text, strlen(original_text))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(valid_signatures.count == 1i32) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1028i32,
-            b"dc_hash_cnt(&valid_signatures) == 1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(plain_0);
-    plain_0 = 0 as *mut libc::c_void;
-    dc_hash_clear(&mut valid_signatures);
-    ok_1 = dc_pgp_pk_decrypt(
-        context,
-        ctext_unsigned,
-        ctext_unsigned_bytes,
-        keyring_0,
-        public_keyring,
-        1i32,
-        &mut plain_0,
-        &mut plain_bytes,
-        &mut valid_signatures,
-    );
-    if 0 != !(0 != ok_1 && !plain_0.is_null() && plain_bytes > 0) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1033i32,
-            b"ok && plain && plain_bytes>0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strncmp(
-        plain_0 as *mut libc::c_char,
-        original_text,
-        strlen(original_text),
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1034i32,
-            b"strncmp((char*)plain, original_text, strlen(original_text))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    free(plain_0);
-    dc_hash_clear(&mut valid_signatures);
-    dc_keyring_unref(keyring_0);
-    dc_keyring_unref(public_keyring);
-    dc_keyring_unref(public_keyring2);
-    let keyring_1: *mut dc_keyring_t = dc_keyring_new();
-    dc_keyring_add(keyring_1, private_key2);
-    let public_keyring_0: *mut dc_keyring_t = dc_keyring_new();
-    dc_keyring_add(public_keyring_0, public_key);
-    let mut plain_1: *mut libc::c_void = 0 as *mut libc::c_void;
-    let ok_2: libc::c_int = dc_pgp_pk_decrypt(
-        context,
-        ctext_signed,
-        ctext_signed_bytes,
-        keyring_1,
-        public_keyring_0,
-        1i32,
-        &mut plain_1,
-        &mut plain_bytes,
-        0 as *mut dc_hash_t,
-    );
-    if 0 != !(0 != ok_2 && !plain_1.is_null() && plain_bytes > 0) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1053i32,
-            b"ok && plain && plain_bytes>0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(plain_bytes == strlen(original_text)) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1054i32,
-            b"plain_bytes == strlen(original_text)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strncmp(plain_1 as *const libc::c_char, original_text, plain_bytes) == 0i32)
-        as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            1055i32,
-            b"strncmp(plain, original_text, plain_bytes)==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    free(plain_1);
-    dc_keyring_unref(keyring_1);
-    dc_keyring_unref(public_keyring_0);
-    free(ctext_signed);
-    free(ctext_unsigned);
-    dc_key_unref(public_key2);
-    dc_key_unref(private_key2);
-    dc_key_unref(public_key);
-    dc_key_unref(private_key);
 
     if 0 != dc_is_configured(context) {
         let qr: *mut libc::c_char = dc_get_securejoin_qr(context, 0i32 as uint32_t);
@@ -2751,6 +2233,197 @@ unsafe fn stress_functions(context: &dc_context_t) {
         };
         dc_lot_unref(res);
     };
+}
+
+#[test]
+fn test_encryption_decryption() {
+    unsafe {
+        let mut bad_data: [libc::c_uchar; 4096] = [0; 4096];
+        let mut i_0: libc::c_int = 0i32;
+        while i_0 < 4096i32 {
+            bad_data[i_0 as usize] = (i_0 & 0xffi32) as libc::c_uchar;
+            i_0 += 1
+        }
+        let mut j: libc::c_int = 0i32;
+
+        while j < 4096 / 40 {
+            let bad_key = Key::from_binary(
+                &mut *bad_data.as_mut_ptr().offset(j as isize) as *mut libc::c_uchar
+                    as *const libc::c_void,
+                4096 / 2 + j,
+                if 0 != j & 1 {
+                    KeyType::Public
+                } else {
+                    KeyType::Private
+                },
+            );
+
+            assert!(bad_key.is_none());
+            j += 1
+        }
+
+        let (public_key, private_key) =
+            dc_pgp_create_keypair(b"foo@bar.de\x00" as *const u8 as *const libc::c_char).unwrap();
+
+        private_key.split_key().unwrap();
+
+        let (public_key2, private_key2) =
+            dc_pgp_create_keypair(b"two@zwo.de\x00" as *const u8 as *const libc::c_char).unwrap();
+
+        assert_ne!(public_key, public_key2);
+
+        let original_text: *const libc::c_char =
+            b"This is a test\x00" as *const u8 as *const libc::c_char;
+        let mut keyring = Keyring::default();
+        keyring.add(public_key.clone());
+        keyring.add(public_key2.clone());
+
+        let ctext = dc_pgp_pk_encrypt(
+            original_text as *const libc::c_void,
+            strlen(original_text),
+            &keyring,
+            Some(&private_key),
+        )
+        .unwrap();
+
+        assert!(!ctext.is_empty());
+        assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
+
+        let ctext_signed_bytes = ctext.len();
+        let ctext_signed = CString::new(ctext).unwrap();
+
+        let ctext = dc_pgp_pk_encrypt(
+            original_text as *const libc::c_void,
+            strlen(original_text),
+            &keyring,
+            None,
+        )
+        .unwrap();
+        assert!(!ctext.is_empty());
+        assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
+
+        let ctext_unsigned_bytes = ctext.len();
+        let ctext_unsigned = CString::new(ctext).unwrap();
+
+        let mut keyring = Keyring::default();
+        keyring.add(private_key);
+
+        let mut public_keyring = Keyring::default();
+        public_keyring.add(public_key.clone());
+
+        let mut public_keyring2 = Keyring::default();
+        public_keyring2.add(public_key2.clone());
+
+        let mut valid_signatures = dc_hash_t {
+            keyClass: 0,
+            copyKey: 0,
+            count: 0,
+            first: 0 as *mut dc_hashelem_t,
+            htsize: 0,
+            ht: 0 as *mut _ht,
+        };
+        dc_hash_init(&mut valid_signatures, 3i32, 1i32);
+
+        let plain = dc_pgp_pk_decrypt(
+            ctext_signed.as_ptr() as *const _,
+            ctext_signed_bytes,
+            &keyring,
+            &public_keyring,
+            &mut valid_signatures,
+        )
+        .unwrap();
+
+        assert_eq!(
+            std::str::from_utf8(&plain).unwrap(),
+            CStr::from_ptr(original_text).to_str().unwrap()
+        );
+        assert_eq!(valid_signatures.count, 1);
+
+        dc_hash_clear(&mut valid_signatures);
+
+        let empty_keyring = Keyring::default();
+        let plain = dc_pgp_pk_decrypt(
+            ctext_signed.as_ptr() as *const _,
+            ctext_signed_bytes,
+            &keyring,
+            &empty_keyring,
+            &mut valid_signatures,
+        )
+        .unwrap();
+        assert_eq!(
+            std::str::from_utf8(&plain).unwrap(),
+            CStr::from_ptr(original_text).to_str().unwrap()
+        );
+        assert_eq!(valid_signatures.count, 0);
+
+        dc_hash_clear(&mut valid_signatures);
+
+        let plain = dc_pgp_pk_decrypt(
+            ctext_signed.as_ptr() as *const _,
+            ctext_signed_bytes,
+            &keyring,
+            &public_keyring2,
+            &mut valid_signatures,
+        )
+        .unwrap();
+        assert_eq!(
+            std::str::from_utf8(&plain).unwrap(),
+            CStr::from_ptr(original_text).to_str().unwrap()
+        );
+        assert_eq!(valid_signatures.count, 0);
+
+        dc_hash_clear(&mut valid_signatures);
+
+        public_keyring2.add(public_key.clone());
+
+        let plain = dc_pgp_pk_decrypt(
+            ctext_signed.as_ptr() as *const _,
+            ctext_signed_bytes,
+            &keyring,
+            &public_keyring2,
+            &mut valid_signatures,
+        )
+        .unwrap();
+        assert_eq!(
+            std::str::from_utf8(&plain).unwrap(),
+            CStr::from_ptr(original_text).to_str().unwrap()
+        );
+        assert_eq!(valid_signatures.count, 1);
+
+        dc_hash_clear(&mut valid_signatures);
+        let plain = dc_pgp_pk_decrypt(
+            ctext_unsigned.as_ptr() as *const _,
+            ctext_unsigned_bytes,
+            &keyring,
+            &public_keyring,
+            &mut valid_signatures,
+        )
+        .unwrap();
+        assert_eq!(
+            std::str::from_utf8(&plain).unwrap(),
+            CStr::from_ptr(original_text).to_str().unwrap()
+        );
+
+        dc_hash_clear(&mut valid_signatures);
+
+        let mut keyring = Keyring::default();
+        keyring.add(private_key2);
+        let mut public_keyring = Keyring::default();
+        public_keyring.add(public_key);
+
+        let plain = dc_pgp_pk_decrypt(
+            ctext_signed.as_ptr() as *const _,
+            ctext_signed_bytes,
+            &keyring,
+            &public_keyring,
+            0 as *mut dc_hash_t,
+        )
+        .unwrap();
+        assert_eq!(
+            std::str::from_utf8(&plain).unwrap(),
+            CStr::from_ptr(original_text).to_str().unwrap()
+        );
+    }
 }
 
 unsafe extern "C" fn cb(

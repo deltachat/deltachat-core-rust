@@ -407,7 +407,7 @@ unsafe fn log_msglist(context: &dc_context_t, msglist: *mut dc_array_t) {
 }
 unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t;
-    let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+    let mut peerstate = dc_apeerstate_new(context);
     if !dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
     }
@@ -444,18 +444,21 @@ unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
                     b"addr unset\x00" as *const u8 as *const libc::c_char
                 },
             );
-            let peerstate_ok: libc::c_int =
-                dc_apeerstate_load_by_addr(peerstate, &context.sql.clone().read().unwrap(), addr);
+            let peerstate_ok: libc::c_int = dc_apeerstate_load_by_addr(
+                &mut peerstate,
+                &context.sql.clone().read().unwrap(),
+                addr,
+            );
             if 0 != peerstate_ok && contact_id != 1i32 as libc::c_uint {
                 let pe: *mut libc::c_char;
-                match (*peerstate).prefer_encrypt {
+                match peerstate.prefer_encrypt {
                     1 => pe = dc_strdup(b"mutual\x00" as *const u8 as *const libc::c_char),
                     0 => pe = dc_strdup(b"no-preference\x00" as *const u8 as *const libc::c_char),
                     20 => pe = dc_strdup(b"reset\x00" as *const u8 as *const libc::c_char),
                     _ => {
                         pe = dc_mprintf(
                             b"unknown-value (%i)\x00" as *const u8 as *const libc::c_char,
-                            (*peerstate).prefer_encrypt,
+                            peerstate.prefer_encrypt,
                         )
                     }
                 }
@@ -485,7 +488,7 @@ unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
         }
         i += 1
     }
-    dc_apeerstate_unref(peerstate);
+    dc_apeerstate_unref(&mut peerstate);
 }
 static mut s_is_auth: libc::c_int = 0i32;
 
