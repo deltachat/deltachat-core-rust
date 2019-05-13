@@ -544,30 +544,6 @@ unsafe fn stress_functions(context: &dc_context_t) {
     } else {
     };
     free(mime_0 as *mut libc::c_void);
-    if 0 != !(atol(b"\x00" as *const u8 as *const libc::c_char) == 0i32 as libc::c_long)
-        as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            370i32,
-            b"atol(\"\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(atoi(b"\x00" as *const u8 as *const libc::c_char) == 0i32) as libc::c_int
-        as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            371i32,
-            b"atoi(\"\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
     let f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
     if 0 != !(f > 1.22f64 && f < 1.24f64) as libc::c_int as libc::c_long {
         __assert_rtn(

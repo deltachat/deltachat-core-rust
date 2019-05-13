@@ -76,3 +76,16 @@ pub use libc::atof;
 pub unsafe fn atof(nptr: *mut libc::c_char) -> libc::c_double {
     libc::strtod(nptr, std::ptr::null_mut())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_atox() {
+        unsafe {
+            assert_eq!(atol(b"\x00" as *const u8 as *const libc::c_char), 0);
+            assert_eq!(atoi(b"\x00" as *const u8 as *const libc::c_char), 0);
+        }
+    }
+}
