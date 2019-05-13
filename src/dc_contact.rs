@@ -45,7 +45,7 @@ pub unsafe fn dc_marknoticed_contact(context: &dc_context_t, contact_id: uint32_
     );
 }
 
-// handle contacts
+/// Returns false if addr is an invalid address, otherwise true.
 pub unsafe fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
     if addr.is_null() {
         return false;
@@ -1258,4 +1258,60 @@ pub unsafe fn dc_scaleup_contact_origin(
     sqlite3_bind_int(stmt, 3i32, origin);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_dc_may_be_valid_addr() {
+        unsafe {
+            assert_eq!(dc_may_be_valid_addr(0 as *const libc::c_char), false);
+            assert_eq!(
+                dc_may_be_valid_addr(b"\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"user@domain.tld\x00" as *const u8 as *const libc::c_char),
+                true
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"uuu\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"dd.tt\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"tt.dd@uu\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"u@d\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"u@d.\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"u@d.t\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"u@d.tt\x00" as *const u8 as *const libc::c_char),
+                true
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"u@.tt\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+            assert_eq!(
+                dc_may_be_valid_addr(b"@d.tt\x00" as *const u8 as *const libc::c_char),
+                false
+            );
+        }
+    }
 }
