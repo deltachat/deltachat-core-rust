@@ -1,4 +1,4 @@
-use crate::constants::Event;
+use crate::constants::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_context::*;
@@ -1633,7 +1633,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 40);
+            assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1647,7 +1647,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 40);
+            assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1661,7 +1661,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 50);
+            assert_eq!(type_0, DC_MSG_VIDEO as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1675,7 +1675,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 20);
+            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1689,7 +1689,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 20);
+            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1703,7 +1703,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 20);
+            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1717,7 +1717,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 20);
+            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1731,7 +1731,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 21);
+            assert_eq!(type_0, DC_MSG_GIF as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1745,7 +1745,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, 60);
+            assert_eq!(type_0, DC_MSG_FILE as libc::c_int);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
