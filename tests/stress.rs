@@ -3,8 +3,6 @@
 use std::ffi::{CStr, CString};
 
 use mmime::mailimf_types::*;
-use mmime::mailmime_content::*;
-use mmime::mailmime_types::*;
 use mmime::other::*;
 use tempfile::{tempdir, TempDir};
 
@@ -417,150 +415,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-    let txt: *const libc::c_char =
-        b"FieldA: ValueA\nFieldB: ValueB\n\x00" as *const u8 as *const libc::c_char;
-    let mut mime: *mut mailmime = 0 as *mut mailmime;
-    let mut dummy: size_t = 0i32 as size_t;
-    if 0 != !(mailmime_parse(txt, strlen(txt), &mut dummy, &mut mime)
-        == MAIL_NO_ERROR as libc::c_int) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            286i32,
-            b"mailmime_parse(txt, strlen(txt), &dummy, &mime) == MAIL_NO_ERROR\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != mime.is_null() as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            287i32,
-            b"mime != NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let fields: *mut mailimf_fields = mailmime_find_mailimf_fields(mime);
-    if 0 != fields.is_null() as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            290i32,
-            b"fields != NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let mut of_a: *mut mailimf_optional_field =
-        mailimf_find_optional_field(fields, b"fielda\x00" as *const u8 as *const libc::c_char);
-    if 0 != !(!of_a.is_null() && !(*of_a).fld_value.is_null()) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            293i32,
-            b"of_a && of_a->fld_value\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        (*of_a).fld_name,
-        b"FieldA\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            294i32,
-            b"strcmp(of_a->fld_name, \"FieldA\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        (*of_a).fld_value,
-        b"ValueA\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            295i32,
-            b"strcmp(of_a->fld_value, \"ValueA\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    of_a = mailimf_find_optional_field(fields, b"FIELDA\x00" as *const u8 as *const libc::c_char);
-    if 0 != !(!of_a.is_null() && !(*of_a).fld_value.is_null()) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            298i32,
-            b"of_a && of_a->fld_value\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        (*of_a).fld_name,
-        b"FieldA\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            299i32,
-            b"strcmp(of_a->fld_name, \"FieldA\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        (*of_a).fld_value,
-        b"ValueA\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            300i32,
-            b"strcmp(of_a->fld_value, \"ValueA\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let of_b: *mut mailimf_optional_field =
-        mailimf_find_optional_field(fields, b"FieldB\x00" as *const u8 as *const libc::c_char);
-    if 0 != !(!of_b.is_null() && !(*of_b).fld_value.is_null()) as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            303i32,
-            b"of_b && of_b->fld_value\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        (*of_b).fld_value,
-        b"ValueB\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            304i32,
-            b"strcmp(of_b->fld_value, \"ValueB\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    mailmime_free(mime);
+
     let mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new(context);
     let raw: *const libc::c_char =
         b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00"
@@ -4341,6 +4196,7 @@ fn test_dc_kml_parse() {
         assert!(dc_array_get_longitude((*kml).locations, 1) < 19.5f64);
         assert!(dc_array_get_accuracy((*kml).locations, 1) > 2.4f64);
         assert!(dc_array_get_accuracy((*kml).locations, 1) < 2.6f64);
+
         assert_eq!(dc_array_get_timestamp((*kml).locations, 1), 1544739072);
 
         dc_kml_unref(kml);

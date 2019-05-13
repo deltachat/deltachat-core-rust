@@ -1966,3 +1966,82 @@ pub unsafe fn mailimf_find_optional_field(
 
     0 as *mut mailimf_optional_field
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn test_mailmime_parse() {
+        unsafe {
+            let txt: *const libc::c_char =
+                b"FieldA: ValueA\nFieldB: ValueB\n\x00" as *const u8 as *const libc::c_char;
+            let mut mime: *mut mailmime = 0 as *mut mailmime;
+            let mut dummy: size_t = 0i32 as size_t;
+            let res = mailmime_parse(txt, strlen(txt), &mut dummy, &mut mime);
+
+            assert_eq!(res, MAIL_NO_ERROR as libc::c_int);
+            assert!(!mime.is_null());
+
+            let fields: *mut mailimf_fields = mailmime_find_mailimf_fields(mime);
+            assert!(!fields.is_null());
+
+            let mut of_a: *mut mailimf_optional_field = mailimf_find_optional_field(
+                fields,
+                b"fielda\x00" as *const u8 as *const libc::c_char,
+            );
+
+            assert!(!of_a.is_null());
+            assert!(!(*of_a).fld_value.is_null());
+            assert_eq!(
+                CStr::from_ptr((*of_a).fld_name as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "FieldA",
+            );
+            assert_eq!(
+                CStr::from_ptr((*of_a).fld_value as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "ValueA",
+            );
+
+            of_a = mailimf_find_optional_field(
+                fields,
+                b"FIELDA\x00" as *const u8 as *const libc::c_char,
+            );
+
+            assert!(!of_a.is_null());
+            assert!(!(*of_a).fld_value.is_null());
+            assert_eq!(
+                CStr::from_ptr((*of_a).fld_name as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "FieldA",
+            );
+            assert_eq!(
+                CStr::from_ptr((*of_a).fld_value as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "ValueA",
+            );
+
+            let of_b: *mut mailimf_optional_field = mailimf_find_optional_field(
+                fields,
+                b"FieldB\x00" as *const u8 as *const libc::c_char,
+            );
+
+            assert!(!of_b.is_null());
+            assert!(!(*of_b).fld_value.is_null());
+            assert_eq!(
+                CStr::from_ptr((*of_b).fld_value as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "ValueB",
+            );
+
+            mailmime_free(mime);
+        }
+    }
+}
