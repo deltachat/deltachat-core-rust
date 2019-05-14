@@ -1114,19 +1114,21 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
         }
     } else {
         let mut peerstate = dc_apeerstate_new((*contact).context);
-        let mut res = 0;
 
-        if 0 != dc_apeerstate_load_by_addr(
-            &mut peerstate,
-            &mut (*contact).context.sql.clone().read().unwrap(),
-            (*contact).addr,
-        ) {
-            res = if peerstate.verified_key.is_some() {
+        let res = if 0
+            != dc_apeerstate_load_by_addr(
+                &mut peerstate,
+                &(*contact).context.sql.clone().read().unwrap(),
+                (*contact).addr,
+            ) {
+            if peerstate.verified_key.is_some() {
                 2
             } else {
                 0
-            };
-        }
+            }
+        } else {
+            0
+        };
         dc_apeerstate_unref(&mut peerstate);
 
         res

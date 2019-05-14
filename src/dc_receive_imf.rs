@@ -1896,12 +1896,10 @@ unsafe fn check_verified_properties(
                 );
                 dc_log_warning(context, 0i32, *failure_reason);
                 current_block = 14837890932895028253;
-            } else if 0
-                == dc_apeerstate_has_verified_key(
-                    &peerstate,
-                    (*(*mimeparser).e2ee_helper).signatures,
-                )
-            {
+            } else if !dc_apeerstate_has_verified_key(
+                &peerstate,
+                (*(*mimeparser).e2ee_helper).signatures,
+            ) {
                 *failure_reason = dc_mprintf(
                     b"%s. See \"Info\" for details.\x00" as *const u8 as *const libc::c_char,
                     b"The message was sent with non-verified encryption.\x00" as *const u8

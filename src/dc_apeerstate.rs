@@ -522,15 +522,15 @@ pub unsafe fn dc_apeerstate_save_to_db(
     success
 }
 
-// TODO should return bool /rtn
 pub unsafe fn dc_apeerstate_has_verified_key(
     peerstate: &dc_apeerstate_t,
     fingerprints: *const dc_hash_t,
-) -> libc::c_int {
+) -> bool {
     if fingerprints.is_null() {
-        return 0;
+        return false;
     }
-    if !peerstate.verified_key.is_some()
+
+    if peerstate.verified_key.is_some()
         && !peerstate.verified_key_fingerprint.is_null()
         && !dc_hash_find(
             fingerprints,
@@ -539,8 +539,8 @@ pub unsafe fn dc_apeerstate_has_verified_key(
         )
         .is_null()
     {
-        return 1;
+        return true;
     }
 
-    0
+    false
 }
