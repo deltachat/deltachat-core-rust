@@ -15,14 +15,12 @@
 )]
 
 #[macro_use]
-extern crate failure;
-#[macro_use]
 extern crate num_derive;
+#[macro_use]
+extern crate smallvec;
 
 #[macro_use]
 pub mod dc_log;
-
-mod pgp;
 
 pub mod dc_aheader;
 

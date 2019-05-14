@@ -20,13 +20,13 @@ use crate::dc_mimeparser::*;
 use crate::dc_move::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
+use crate::dc_pgp::dc_hash_sha256;
 use crate::dc_securejoin::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
-use crate::pgp;
 use crate::types::*;
 use crate::x::*;
 
@@ -1756,7 +1756,7 @@ unsafe fn create_adhoc_grp_id(
         i += 1
     }
     /* make sha-256 from the string */
-    let binary_hash: *mut crate::pgp::cvec = pgp::rpgp_hash_sha256(
+    let (binary_hash, binary_hash_len) = dc_hash_sha256(
         member_cs.buf as *const uint8_t,
         strlen(member_cs.buf) as usize,
     );
@@ -1768,11 +1768,11 @@ unsafe fn create_adhoc_grp_id(
                 sprintf(
                     &mut *ret.offset((i * 2i32) as isize) as *mut libc::c_char,
                     b"%02x\x00" as *const u8 as *const libc::c_char,
-                    *pgp::rpgp_cvec_data(binary_hash).offset(i as isize) as libc::c_int,
+                    *binary_hash.offset(i as isize) as libc::c_int,
                 );
                 i += 1
             }
-            pgp::rpgp_cvec_drop(binary_hash);
+            let _v = Vec::from_raw_parts(binary_hash, binary_hash_len, binary_hash_len);
         }
     }
     dc_array_free_ptr(member_addrs);
@@ -1861,7 +1861,7 @@ unsafe fn check_verified_properties(
     let mut current_block: u64;
     let mut everythings_okay: libc::c_int = 0i32;
     let contact: *mut dc_contact_t = dc_contact_new(context);
-    let peerstate: *mut dc_apeerstate_t = dc_apeerstate_new(context);
+    let mut peerstate = dc_apeerstate_new(context);
     let mut to_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -1884,10 +1884,10 @@ unsafe fn check_verified_properties(
         // and results in group-splits otherwise.
         if from_id != 1i32 as libc::c_uint {
             if 0 == dc_apeerstate_load_by_addr(
-                peerstate,
+                &mut peerstate,
                 &context.sql.clone().read().unwrap(),
                 (*contact).addr,
-            ) || dc_contact_is_verified_ex(contact, peerstate) != 2i32
+            ) || dc_contact_is_verified_ex(contact, Some(&peerstate)) != 2i32
             {
                 *failure_reason = dc_mprintf(
                     b"%s. See \"Info\" for details.\x00" as *const u8 as *const libc::c_char,
@@ -1898,7 +1898,7 @@ unsafe fn check_verified_properties(
                 current_block = 14837890932895028253;
             } else if 0
                 == dc_apeerstate_has_verified_key(
-                    peerstate,
+                    &&peerstate,
                     (*(*mimeparser).e2ee_helper).signatures,
                 )
             {
@@ -1940,19 +1940,19 @@ unsafe fn check_verified_properties(
                     )
                     .is_null()
                         && 0 != dc_apeerstate_load_by_addr(
-                            peerstate,
+                            &mut peerstate,
                             &context.sql.clone().read().unwrap(),
                             to_addr,
                         )
                     {
                         if 0 == is_verified
                             || strcmp(
-                                (*peerstate).verified_key_fingerprint,
-                                (*peerstate).public_key_fingerprint,
+                                peerstate.verified_key_fingerprint,
+                                peerstate.public_key_fingerprint,
                             ) != 0i32
                                 && strcmp(
-                                    (*peerstate).verified_key_fingerprint,
-                                    (*peerstate).gossip_key_fingerprint,
+                                    peerstate.verified_key_fingerprint,
+                                    peerstate.gossip_key_fingerprint,
                                 ) != 0i32
                         {
                             dc_log_info(
@@ -1962,14 +1962,10 @@ unsafe fn check_verified_properties(
                                 (*contact).addr,
                                 to_addr,
                             );
-                            dc_apeerstate_set_verified(
-                                peerstate,
-                                0i32,
-                                (*peerstate).gossip_key_fingerprint,
-                                2i32,
-                            );
+                            let fp = peerstate.gossip_key_fingerprint;
+                            dc_apeerstate_set_verified(&mut peerstate, 0i32, fp, 2i32);
                             dc_apeerstate_save_to_db(
-                                peerstate,
+                                &mut peerstate,
                                 &context.sql.clone().read().unwrap(),
                                 0i32,
                             );
@@ -2002,7 +1998,7 @@ unsafe fn check_verified_properties(
     }
     sqlite3_finalize(stmt);
     dc_contact_unref(contact);
-    dc_apeerstate_unref(peerstate);
+    dc_apeerstate_unref(&mut peerstate);
     free(to_ids_str as *mut libc::c_void);
     sqlite3_free(q3 as *mut libc::c_void);
     return everythings_okay;

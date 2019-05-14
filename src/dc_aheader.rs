@@ -4,7 +4,6 @@ use std::str::FromStr;
 use std::{fmt, str};
 
 use mmime::mailimf_types::*;
-use num_traits::ToPrimitive;
 
 use crate::constants::*;
 use crate::dc_contact::*;
@@ -50,12 +49,12 @@ impl str::FromStr for EncryptPreference {
 /// Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
 pub struct Aheader {
     pub addr: String,
-    pub public_key: *mut dc_key_t,
+    pub public_key: Key,
     pub prefer_encrypt: EncryptPreference,
 }
 
 impl Aheader {
-    pub fn new(addr: String, public_key: *mut dc_key_t, prefer_encrypt: EncryptPreference) -> Self {
+    pub fn new(addr: String, public_key: Key, prefer_encrypt: EncryptPreference) -> Self {
         Aheader {
             addr,
             public_key,
@@ -122,7 +121,7 @@ impl fmt::Display for Aheader {
         // adds a whitespace every 78 characters, this allows libEtPan to
         // wrap the lines according to RFC 5322
         // (which may insert a linebreak before every whitespace)
-        let keydata = dc_key_render_base64_string(self.public_key, 78);
+        let keydata = self.public_key.to_base64(78);
         write!(
             fmt,
             "addr={}; prefer-encrypt={}; keydata={}",
@@ -157,19 +156,13 @@ impl str::FromStr for Aheader {
             }
         };
 
-        let public_key = match attributes.remove("keydata") {
-            Some(raw) => {
-                let key = unsafe { dc_key_new() };
-                unsafe {
-                    dc_key_set_from_base64(
-                        key,
-                        CString::new(raw).unwrap().as_ptr(),
-                        Key::Public.to_i32().unwrap(),
-                    )
-                };
-                key
-            }
+        let public_key = match attributes
+            .remove("keydata")
+            .and_then(|raw| Key::from_base64(&raw, KeyType::Public))
+        {
+            Some(key) => key,
             None => {
+                println!("invalid key");
                 return Err(());
             }
         };
@@ -196,22 +189,12 @@ impl str::FromStr for Aheader {
     }
 }
 
-impl Drop for Aheader {
-    fn drop(&mut self) {
-        unsafe {
-            dc_key_unref(self.public_key);
-        }
-        self.public_key = std::ptr::null_mut();
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pgp as rpgp;
 
     fn rawkey() -> String {
-        "mDMEWFUX7RYJKwYBBAHaRw8BAQdACHq6FkRGsHqBMsNpD7d+aQ2jtxVwTO+Y4NhBaQyHaMj+0HWFsaWNlQHRlc3RzdWl0ZS5hdXRvY3J5cHQub3JniJAEExYIADgWIQQmqmdR/XZoxC+kkkr8dE2p/nPD1AUCWFUX7QIbAwULCQgHAgYVCAkKCwIEFgIDAQIeAQIXgAAKCRD8dE2p/nPD1EqOAP0WUDKwko001X7XTSYbWGWmXfR9P1Aw6917EnkVQMsp3gEA86Ii8ArL3jd+E2qS5JSysx/qiVhuTSwWzmC5K6zKdg+4OARYVRfuEgorBgEEAZdVAQUBAQdAv1A88FoCfwz0zSh6NNnUuKuz1p3ctJ3kXMGotsVYjA0DAQgHiHgEGBYIACAWIQQmqmdR/XZoxC+kkkr8dE2p/nPD1AUCWFUX7gIbDAAKCRD8dE2p/nPD1FTOAP4nS14sX7a/nBXBKWAh/oX8iVtkhmZqjy9tG21BcNqb+wEAq73H4+1ncnkscR3Nu4GYzNRSD3NXq68tEESK28kYvw4=".into()
+        "xsBNBFzG3j0BCAC6iNhT8zydvCXi8LI/gFnkadMbfmSE/rTJskRRra/utGbLyDta/yTrJgWL7O3y/g4HdDW/dN2z26Y6W13IMzx9gLInn1KQZChtqWAcr/ReUucXcymwcfg1mdkBGk3TSLeLihN6CJx8Wsv8ig+kgAzte4f5rqEEAJVQ9WZHuti7UiYs6oRzqTo06CRe9owVXxzdMf0VDQtf7ZFm9dpzKKbhH7Lu8880iiotQ9/yRCkDGp9fNThsrLdZiK6OIAcIBAqi2rI89aS1dAmnRbktQieCx5izzyYkR1KvVL3gTTllHOzfKVEC2asmtWu2e4se/+O4WMIS1eGrn7GeWVb0Vwc5ABEBAAHNETxhQEBiLmV4YW1wbGUuZGU+wsCJBBABCAAzAhkBBQJcxt5FAhsDBAsJCAcGFQgJCgsCAxYCARYhBI4xxYKBgH3ANh5cufaKrc9mtiMLAAoJEPaKrc9mtiML938H/18F+3Wf9/JaAy/8hCO1v4S2PVBhxaKCokaNFtkfaMRne2l087LscCFPiFNyb4mv6Z3YeK8Xpxlp2sI0ecvdiqLUOGfnxS6tQrj+83EjtIrZ/hXOk1h121QFWH9Zg2VNHtODXjAgdLDC0NWUrclR0ZOqEDQHeo0ibTILdokVfXFN25wakPmGaYJP2y729cb1ve7RzvIvwn+Dddfxo3ao72rBfLi7l4NQ4S0KsY4cw+/6l5bRCKYCP77wZtvCwUvfVVosLdT43agtSiBI49+ayqvZ8OCvSJa61i+v81brTiEy9GBod4eAp45Ibsuemkw+gon4ZOvUXHTjwFB+h63MrozOwE0EXMbePQEIAL/vauf1zK8JgCu3V+G+SOX0iWw5xUlCPX+ERpBbWfwu3uAqn4wYXD3JDE/fVAF668xiV4eTPtlSUd5h0mn+G7uXMMOtkb+20SoEt50f8zw8TrL9t+ZsV11GKZWJpCar5AhXWsn6EEi8I2hLL5vn55ZZmHuGgN4jjmkRl3ToKCLhaXwTBjCJem7N5EH7F75wErEITa55v4Lb4Nfca7vnvtYrI1OA446xa8gHra0SINelTD09/JM/Fw4sWVPBaRZmJK/Tnu79N23No9XBUubmFPv1pNexZsQclicnTpt/BEWhiun7d6lfGB63K1aoHRTR1pcrWvBuALuuz0gqar2zlI0AEQEAAcLAdgQYAQgAIAUCXMbeRQIbDBYhBI4xxYKBgH3ANh5cufaKrc9mtiMLAAoJEPaKrc9mtiMLKSEIAIyLCRO2OyZ0IYRvRPpMn4p7E+7Pfcz/0mSkOy+1hshgJnqivXurm8zwGrwdMqeV4eslKR9H1RUdWGUQJNbtwmmjrt5DHpIhYHl5t3FpCBaGbV20Omo00Q38lBl9MtrmZkZw+ktEk6X+0xCKssMF+2MADkSOIufbR5HrDVB89VZOHCO9DeXvCUUAw2hyJiL/LHmLzJ40zYoTmb+F//f0k0j+tRdbkefyRoCmwG7YGiT+2hnCdgcezswnzah5J3ZKlrg7jOGo1LxtbvNUzxNBbC6S/aNgwm6qxo7xegRhmEl5uZ16zwyj4qz+xkjGy25Of5mWfUDoNw7OT7sjUbHOOMc=".into()
     }
 
     #[test]
@@ -225,7 +208,6 @@ mod tests {
 
         assert_eq!(h.addr, "me@mail.com");
         assert_eq!(h.prefer_encrypt, EncryptPreference::Mutual);
-        assert!(!h.public_key.is_null());
     }
 
     #[test]
@@ -235,7 +217,6 @@ mod tests {
 
         assert_eq!(h.addr, "me@mail.com");
         assert_eq!(h.prefer_encrypt, EncryptPreference::NoPreference);
-        assert!(!h.public_key.is_null());
     }
 
     #[test]
@@ -253,32 +234,22 @@ mod tests {
 
         let ah = Aheader::from_str(fixed_header).expect("failed to parse");
         assert_eq!(ah.addr, "a@b.example.org");
-        // assert_eq!(unsafe { (*ah.public_key).bytes }, 1212);
-        assert!(valid_key(ah.public_key as *const _));
         assert_eq!(ah.prefer_encrypt, EncryptPreference::Mutual);
 
         let rendered = ah.to_string();
         assert_eq!(rendered, fixed_header);
 
-        let ah = Aheader::from_str(" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = RG VsdGEgQ\r\n2hhdA==").expect("failed to parse");
+        let ah = Aheader::from_str(&format!(" _foo; __FOO=BAR ;;; addr = a@b.example.org ;\r\n   prefer-encrypt = mutual ; keydata = {}", rawkey())).expect("failed to parse");
         assert_eq!(ah.addr, "a@b.example.org");
-        assert_eq!(unsafe { (*ah.public_key).bytes }, 10);
         assert_eq!(ah.prefer_encrypt, EncryptPreference::Mutual);
-        assert_eq!(
-            unsafe {
-                CStr::from_ptr((*ah.public_key).binary as *const _)
-                    .to_str()
-                    .unwrap()
-            },
-            "Delta Chat"
-        );
 
-        Aheader::from_str(
-            "addr=a@b.example.org; prefer-encrypt=ignoreUnknownValues; keydata=RGVsdGEgQ2hhdA==",
-        )
+        Aheader::from_str(&format!(
+            "addr=a@b.example.org; prefer-encrypt=ignoreUnknownValues; keydata={}",
+            rawkey()
+        ))
         .expect("failed to parse");
 
-        Aheader::from_str("addr=a@b.example.org; keydata=RGVsdGEgQ2hhdA==")
+        Aheader::from_str(&format!("addr=a@b.example.org; keydata={}", rawkey()))
             .expect("failed to parse");
     }
 
@@ -289,30 +260,5 @@ mod tests {
         assert!(Aheader::from_str("\n\n\n").is_err());
         assert!(Aheader::from_str(" ;;").is_err());
         assert!(Aheader::from_str("addr=a@t.de; unknwon=1; keydata=jau").is_err());
-    }
-
-    fn valid_key(raw_key: *const dc_key_t) -> bool {
-        let mut key_is_valid = false;
-        unsafe {
-            if !(raw_key.is_null() || (*raw_key).binary.is_null() || (*raw_key).bytes <= 0i32) {
-                let key = rpgp::rpgp_key_from_bytes(
-                    (*raw_key).binary as *const _,
-                    (*raw_key).bytes as usize,
-                );
-
-                if (*raw_key).type_0 == 0i32 && 0 != rpgp::rpgp_key_is_public(key) as libc::c_int {
-                    key_is_valid = true;
-                } else if (*raw_key).type_0 == 1i32
-                    && 0 != rpgp::rpgp_key_is_secret(key) as libc::c_int
-                {
-                    key_is_valid = true;
-                }
-                if !key.is_null() {
-                    rpgp::rpgp_key_drop(key);
-                }
-            }
-        }
-
-        key_is_valid
     }
 }

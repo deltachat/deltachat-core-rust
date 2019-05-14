@@ -121,28 +121,11 @@ pub unsafe fn dc_hash_insert(
     let mut new_elem: *mut dc_hashelem_t;
     /* The hash function */
     let xHash: Option<unsafe fn(_: *const libc::c_void, _: libc::c_int) -> libc::c_int>;
-    if 0 != pH.is_null() as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 15], &[libc::c_char; 15]>(b"dc_hash_insert\x00"))
-                .as_ptr(),
-            b"../src/dc_hash.c\x00" as *const u8 as *const libc::c_char,
-            429i32,
-            b"pH!=0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
+    assert!(!pH.is_null());
     xHash = hashFunction((*pH).keyClass as libc::c_int);
-    if 0 != xHash.is_none() as libc::c_int as libc::c_long {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 15], &[libc::c_char; 15]>(b"dc_hash_insert\x00"))
-                .as_ptr(),
-            b"../src/dc_hash.c\x00" as *const u8 as *const libc::c_char,
-            431i32,
-            b"xHash!=0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
+    assert!(xHash.is_some(), "missing hashing function");
     hraw = xHash.expect("non-null function pointer")(pKey, nKey);
+
     if 0 != !((*pH).htsize & (*pH).htsize - 1i32 == 0i32) as libc::c_int as libc::c_long {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 15], &[libc::c_char; 15]>(b"dc_hash_insert\x00"))
