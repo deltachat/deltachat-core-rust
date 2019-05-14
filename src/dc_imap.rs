@@ -1027,15 +1027,19 @@ impl Imap {
     }
 
     pub fn interrupt_idle(&self) {
-        if let Some(ref mut stream) = self.session.lock().unwrap().1 {
-            match stream.shutdown(net::Shutdown::Both) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("failed to disconnect: {}", err);
+        // only kill the connection, if we are actually ideling
+        if self.session.lock().unwrap().0.is_none() {
+            if let Some(ref mut stream) = self.session.lock().unwrap().1 {
+                match stream.shutdown(net::Shutdown::Both) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("failed to disconnect: {}", err);
+                    }
                 }
             }
         }
 
+        // interrupt fake idle
         let &(ref lock, ref cvar) = &*self.watch.clone();
         let mut watch = lock.lock().unwrap();
 
