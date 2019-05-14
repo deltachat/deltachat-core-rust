@@ -1068,8 +1068,8 @@ impl Imap {
                     // a good value that is also used by other MUAs is 23 minutes.
                     // if needed, the ui can call dc_imap_interrupt_idle() to trigger a reconnect.
                     idle.set_keepalive(Duration::from_secs(23 * 60));
-
                     let res = idle.wait_keepalive();
+
                     // Ignoring the error, as this happens when we try sending after the drop
                     let _send_res = sender.send(res);
 
@@ -1085,30 +1085,26 @@ impl Imap {
         let &(ref lock, ref cvar) = &*self.watch.clone();
         let mut watch = lock.lock().unwrap();
 
-        let handle_res = |res| {
-            info!(context, 0, format!("IMAP-IDLE done: {:?}", res));
-
-            match res {
-                Ok(()) => {
-                    info!(context, 0, "IMAP-IDLE has data.");
-                }
-                Err(err) => match err {
-                    imap::error::Error::ConnectionLost => {
-                        info!(
-                            context,
-                            0, "IMAP-IDLE wait cancelled, we will reconnect soon."
-                        );
-                        self.config.write().unwrap().should_reconnect = true;
-                    }
-                    _ => {
-                        warn!(
-                            context,
-                            0,
-                            format!("IMAP-IDLE returns unknown value: {:?}", err)
-                        );
-                    }
-                },
+        let handle_res = |res| match res {
+            Ok(()) => {
+                info!(context, 0, "IMAP-IDLE has data.");
             }
+            Err(err) => match err {
+                imap::error::Error::ConnectionLost => {
+                    info!(
+                        context,
+                        0, "IMAP-IDLE wait cancelled, we will reconnect soon."
+                    );
+                    self.config.write().unwrap().should_reconnect = true;
+                }
+                _ => {
+                    warn!(
+                        context,
+                        0,
+                        format!("IMAP-IDLE returns unknown value: {:?}", err)
+                    );
+                }
+            },
         };
 
         loop {
