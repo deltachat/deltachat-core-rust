@@ -133,15 +133,24 @@ impl Smtp {
             lettre::smtp::ClientSecurity::Wrapper(tls_parameters)
         };
 
-        let client = lettre::smtp::SmtpClient::new((domain, port), security)
-            .expect("failed to construct stmp client")
-            .smtp_utf8(true)
-            .credentials(creds)
-            .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
-
-        self.transport = Some(client.transport());
-
-        1
+        match lettre::smtp::SmtpClient::new((domain, port), security) {
+            Ok(client) => {
+                let client = client
+                    .smtp_utf8(true)
+                    .credentials(creds)
+                    .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
+                self.transport = Some(client.transport());
+                1
+            }
+            Err(err) => {
+                warn!(
+                    context,
+                    0,
+                    format!("SMTP: failed to establish connection {:?}", err)
+                );
+                0
+            }
+        }
     }
 
     pub fn send<'a>(
