@@ -273,8 +273,8 @@ pub unsafe fn dc_apeerstate_peek_key<'a>(
     min_verified: libc::c_int,
 ) -> Option<&'a Key> {
     if peerstate.public_key.is_none()
-        && !peerstate.gossip_key.is_none()
-        && !peerstate.verified_key.is_none()
+        && peerstate.gossip_key.is_none()
+        && peerstate.verified_key.is_none()
     {
         return None;
     }
@@ -282,7 +282,7 @@ pub unsafe fn dc_apeerstate_peek_key<'a>(
     if 0 != min_verified {
         return peerstate.verified_key.as_ref();
     }
-    if !peerstate.public_key.is_none() {
+    if peerstate.public_key.is_some() {
         return peerstate.public_key.as_ref();
     }
 
