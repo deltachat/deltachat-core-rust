@@ -636,7 +636,6 @@ pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
     let e2ee_enabled;
     let prv_key_cnt;
     let pub_key_cnt;
-    let rpgp_enabled = 1;
 
     let mut ret = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -767,9 +766,6 @@ pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
         b"deltachat_core_version=v%s\n\
           sqlite_version=%s\n\
           sqlite_thread_safe=%i\n\
-          libetpan_version=%i.%i\n\
-          openssl_version=%i.%i.%i%c\n\
-          rpgp_enabled=%i\n\
           compile_date=Apr 26 2019, 00:51:50\n\
           arch=%i\n\
           number_of_chats=%i\n\
@@ -794,19 +790,11 @@ pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
           e2ee_enabled=%i\n\
           private_key_count=%i\n\
           public_key_count=%i\n\
-          fingerprint=%s\n\x00" as *const u8 as *const libc::c_char,
+          fingerprint=%s\n\
+          level=awesome\n\x00" as *const u8 as *const libc::c_char,
         VERSION as *const u8 as *const libc::c_char,
         libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char,
         sqlite3_threadsafe(),
-        // no libetpan
-        0,
-        0,
-        // openssl (none used, so setting to 0)
-        0 as libc::c_int,
-        0 as libc::c_int,
-        0 as libc::c_int,
-        'a' as libc::c_char as libc::c_int,
-        rpgp_enabled,
         // arch
         (::std::mem::size_of::<*mut libc::c_void>()).wrapping_mul(8),
         chats,
