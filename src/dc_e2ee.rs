@@ -673,8 +673,12 @@ pub unsafe fn dc_e2ee_decrypt(
                     dc_handle_degrade_event(context, &peerstate);
                 }
                 // TODO: avoid clone
-                public_keyring_for_validate.add(peerstate.gossip_key.clone().unwrap());
-                public_keyring_for_validate.add(peerstate.public_key.clone().unwrap());
+                if let Some(ref key) = peerstate.gossip_key {
+                    public_keyring_for_validate.add(key.clone());
+                }
+                if let Some(ref key) = peerstate.public_key {
+                    public_keyring_for_validate.add(key.clone());
+                }
                 (*helper).signatures = malloc(::std::mem::size_of::<dc_hash_t>()) as *mut dc_hash_t;
                 dc_hash_init((*helper).signatures, 3i32, 1i32);
                 iterations = 0i32;
