@@ -1898,7 +1898,7 @@ unsafe fn check_verified_properties(
                 current_block = 14837890932895028253;
             } else if 0
                 == dc_apeerstate_has_verified_key(
-                    &&peerstate,
+                    &peerstate,
                     (*(*mimeparser).e2ee_helper).signatures,
                 )
             {
