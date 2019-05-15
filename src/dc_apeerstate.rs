@@ -239,7 +239,7 @@ pub unsafe fn dc_apeerstate_apply_gossip(
     if message_time > peerstate.gossip_timestamp {
         peerstate.gossip_timestamp = message_time;
         peerstate.to_save |= 0x1i32;
-        if peerstate.gossip_key.as_ref() == Some(&gossip_header.public_key) {
+        if peerstate.gossip_key.as_ref() != Some(&gossip_header.public_key) {
             peerstate.gossip_key = Some(gossip_header.public_key.clone());
             dc_apeerstate_recalc_fingerprint(peerstate);
             peerstate.to_save |= 0x2i32
