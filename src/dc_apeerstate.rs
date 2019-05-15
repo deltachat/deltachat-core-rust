@@ -18,7 +18,6 @@ use crate::x::*;
  * @class dc_apeerstate_t
  * Library-internal.
  */
-#[repr(C)]
 pub struct dc_apeerstate_t<'a> {
     pub context: &'a dc_context_t,
     pub addr: *mut libc::c_char,
@@ -214,7 +213,7 @@ pub unsafe fn dc_apeerstate_apply_header(
             peerstate.to_save |= 0x2i32
         }
 
-        if peerstate.public_key.as_ref() == Some(&header.public_key) {
+        if peerstate.public_key.as_ref() != Some(&header.public_key) {
             peerstate.public_key = Some(header.public_key.clone());
             dc_apeerstate_recalc_fingerprint(peerstate);
             peerstate.to_save |= 0x2i32;
