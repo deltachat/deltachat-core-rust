@@ -103,8 +103,7 @@ pub unsafe fn dc_imex_has_backup(
                         b"backup_time\x00" as *const u8 as *const libc::c_char,
                         0i32,
                     ) as time_t;
-                    if curr_backup_time > 0i32 as libc::c_long && curr_backup_time > ret_backup_time
-                    {
+                    if curr_backup_time > 0 && curr_backup_time > ret_backup_time {
                         free(ret as *mut libc::c_void);
                         ret = curr_pathNfilename;
                         ret_backup_time = curr_backup_time;

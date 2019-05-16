@@ -21,12 +21,6 @@ pub type __darwin_ct_rune_t = libc::c_int;
 pub type __darwin_wchar_t = libc::c_int;
 pub type __darwin_rune_t = __darwin_wchar_t;
 pub type uint64_t = libc::c_ulonglong;
-pub type uid_t = libc::uid_t;
-pub type gid_t = libc::gid_t;
-pub type dev_t = libc::dev_t;
-pub type blkcnt_t = libc::blkcnt_t;
-pub type blksize_t = libc::blksize_t;
-pub type nlink_t = __uint16_t;
 
 /**
  * Callback function that should be given to dc_context_new().
@@ -73,7 +67,6 @@ pub type dc_get_config_t = unsafe fn(
 pub type sqlite_int64 = libc::int64_t;
 pub type sqlite3_int64 = sqlite_int64;
 
-pub type useconds_t = libc::useconds_t;
 pub type int32_t = libc::int32_t;
 pub type int64_t = libc::int64_t;
 pub type uintptr_t = libc::uintptr_t;

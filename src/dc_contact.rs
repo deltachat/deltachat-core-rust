@@ -51,12 +51,12 @@ pub unsafe fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
         return false;
     }
     let at: *const libc::c_char = strchr(addr, '@' as i32);
-    if at.is_null() || (at.wrapping_offset_from(addr) as libc::c_long) < 1i32 as libc::c_long {
+    if at.is_null() || at.wrapping_offset_from(addr) < 1 {
         return false;
     }
     let dot: *const libc::c_char = strchr(at, '.' as i32);
     if dot.is_null()
-        || (dot.wrapping_offset_from(at) as libc::c_long) < 2i32 as libc::c_long
+        || dot.wrapping_offset_from(at) < 2
         || *dot.offset(1isize) as libc::c_int == 0i32
         || *dot.offset(2isize) as libc::c_int == 0i32
     {

@@ -4,9 +4,9 @@ use crate::types::*;
 pub use libc::{
     atoi, calloc, close, closedir, exit, fclose, fgets, fopen, fread, free, fseek, ftell, fwrite,
     gmtime, gmtime_r, localtime, localtime_r, malloc, memcmp, memcpy, memmove, memset, mkdir, open,
-    opendir, printf, read, readdir, realloc, remove, snprintf, sprintf, sscanf, strcasecmp, strcat,
-    strchr, strcmp, strcpy, strcspn, strlen, strncasecmp, strncmp, strncpy, strrchr, strspn,
-    strstr, strtol, system, time, tolower, write,
+    opendir, printf, read, readdir, realloc, remove, sprintf, sscanf, strcat, strchr, strcmp,
+    strcpy, strcspn, strlen, strncmp, strncpy, strrchr, strspn, strstr, strtol, system, time,
+    tolower, write,
 };
 
 pub unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {
@@ -61,11 +61,22 @@ extern "C" {
         _: *const libc::c_char,
     ) -> !;
 
+    #[cfg(windows)]
+    pub(crate) fn snprintf(
+        s: *mut libc::c_char,
+        n: libc::size_t,
+        format: *const libc::c_char,
+        _: ...
+    ) -> libc::c_int;
+
     // -- DC Methods
 
     pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
 }
+
+#[cfg(not(windows))]
+pub(crate) use libc::snprintf;
 
 #[cfg(not(target_os = "macos"))]
 pub unsafe extern "C" fn __assert_rtn(
@@ -83,6 +94,41 @@ pub use libc::atof;
 #[cfg(target_os = "android")]
 pub unsafe fn atof(nptr: *mut libc::c_char) -> libc::c_double {
     libc::strtod(nptr, std::ptr::null_mut())
+}
+
+pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
+    let s1 = std::ffi::CStr::from_ptr(s1)
+        .to_string_lossy()
+        .to_lowercase();
+    let s2 = std::ffi::CStr::from_ptr(s2)
+        .to_string_lossy()
+        .to_lowercase();
+    if s1 == s2 {
+        0
+    } else {
+        1
+    }
+}
+
+pub(crate) unsafe fn strncasecmp(
+    s1: *const libc::c_char,
+    s2: *const libc::c_char,
+    n: libc::size_t,
+) -> libc::c_int {
+    let s1 = std::ffi::CStr::from_ptr(s1)
+        .to_string_lossy()
+        .to_lowercase();
+    let s2 = std::ffi::CStr::from_ptr(s2)
+        .to_string_lossy()
+        .to_lowercase();
+    let m1 = std::cmp::min(n, s1.len());
+    let m2 = std::cmp::min(n, s2.len());
+
+    if s1[..m1] == s2[..m2] {
+        0
+    } else {
+        1
+    }
 }
 
 #[cfg(test)]

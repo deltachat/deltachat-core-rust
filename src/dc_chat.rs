@@ -188,9 +188,8 @@ unsafe fn set_from_stmt(mut chat: *mut dc_chat_t, row: *mut sqlite3_stmt) -> lib
     (*chat).gossiped_timestamp = sqlite3_column_int64(row, fresh7) as time_t;
     let fresh8 = row_offset;
     row_offset = row_offset + 1;
-    (*chat).is_sending_locations = (sqlite3_column_int64(row, fresh8)
-        > time(0 as *mut time_t) as libc::c_longlong)
-        as libc::c_int;
+    (*chat).is_sending_locations =
+        (sqlite3_column_int64(row, fresh8) > time(0 as *mut time_t)) as libc::c_int;
     if (*chat).id == 1i32 as libc::c_uint {
         free((*chat).name as *mut libc::c_void);
         (*chat).name = dc_stock_str((*chat).context, 8i32)
@@ -314,7 +313,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
             create_blocked,
             (*contact).addr,
         );
-        if 0 != !('K' as i32 == 'K' as i32) as libc::c_int as libc::c_long {
+        if 0 != !('K' as i32 == 'K' as i32) as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 40], &[libc::c_char; 40]>(
                     b"dc_create_or_lookup_nchat_by_contact_id\x00",
@@ -1227,8 +1226,8 @@ pub unsafe fn dc_get_chat_msgs(
     let mut curr_id: uint32_t;
     let mut curr_local_timestamp: time_t;
     let mut curr_day: libc::c_int;
-    let mut last_day: libc::c_int = 0i32;
-    let cnv_to_local: libc::c_long = dc_gm2local_offset();
+    let mut last_day = 0;
+    let cnv_to_local = dc_gm2local_offset();
     if !ret.is_null() {
         if chat_id == 1i32 as libc::c_uint {
             let show_emails: libc::c_int = dc_sqlite3_get_config_int(
@@ -1264,7 +1263,7 @@ pub unsafe fn dc_get_chat_msgs(
             }
             if 0 != flags & 0x1i32 as libc::c_uint {
                 curr_local_timestamp = sqlite3_column_int64(stmt, 1i32) as time_t + cnv_to_local;
-                curr_day = (curr_local_timestamp / 86400i32 as libc::c_long) as libc::c_int;
+                curr_day = (curr_local_timestamp / 86400) as libc::c_int;
                 if curr_day != last_day {
                     dc_array_add_id(ret, 9i32 as uint32_t);
                     last_day = curr_day

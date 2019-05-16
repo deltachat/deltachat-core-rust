@@ -529,9 +529,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     e2ee_guaranteed = dc_param_get_int((*(*factory).msg).param, 'c' as i32, 0i32)
                 }
             }
-            if (*chat).gossiped_timestamp == 0i32 as libc::c_long
-                || ((*chat).gossiped_timestamp + (2i32 * 24i32 * 60i32 * 60i32) as libc::c_long)
-                    < time(0 as *mut time_t)
+            if (*chat).gossiped_timestamp == 0
+                || ((*chat).gossiped_timestamp + (2 * 24 * 60 * 60)) < time(0 as *mut time_t)
             {
                 do_gossip = 1i32
             }

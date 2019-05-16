@@ -268,15 +268,15 @@ unsafe fn dc_job_delete(context: &dc_context_t, job: &dc_job_t) {
  ******************************************************************************/
 unsafe fn get_backoff_time_offset(c_tries: libc::c_int) -> time_t {
     // results in ~3 weeks for the last backoff timespan
-    let mut N: time_t = pow(2i32 as libc::c_double, (c_tries - 1i32) as libc::c_double) as time_t;
-    N = N * 60i32 as libc::c_long;
+    let mut N = 2_i32.pow((c_tries - 1) as u32);
+    N = N * 60;
     let mut rng = thread_rng();
-    let n: libc::c_long = rng.gen();
-    let mut seconds: time_t = n % (N + 1i32 as libc::c_long);
-    if seconds < 1i32 as libc::c_long {
-        seconds = 1i32 as time_t
+    let n: i32 = rng.gen();
+    let mut seconds = n % (N + 1);
+    if seconds < 1 {
+        seconds = 1;
     }
-    return seconds;
+    seconds as time_t
 }
 unsafe fn dc_job_update(context: &dc_context_t, job: &dc_job_t) {
     let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
@@ -891,7 +891,7 @@ pub unsafe fn dc_job_add(
     sqlite3_bind_int64(
         stmt,
         6i32,
-        (timestamp + delay_seconds as libc::c_long) as sqlite3_int64,
+        (timestamp + delay_seconds as time_t) as sqlite3_int64,
     );
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);

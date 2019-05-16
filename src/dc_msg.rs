@@ -1061,12 +1061,11 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
 }
 
 pub unsafe fn dc_msg_has_deviating_timestamp(msg: *const dc_msg_t) -> libc::c_int {
-    let cnv_to_local: libc::c_long = dc_gm2local_offset();
+    let cnv_to_local = dc_gm2local_offset();
     let sort_timestamp: time_t = dc_msg_get_sort_timestamp(msg) + cnv_to_local;
     let send_timestamp: time_t = dc_msg_get_timestamp(msg) + cnv_to_local;
 
-    (sort_timestamp / 86400i32 as libc::c_long != send_timestamp / 86400i32 as libc::c_long)
-        as libc::c_int
+    (sort_timestamp / 86400 != send_timestamp / 86400) as libc::c_int
 }
 
 // TODO should return bool /rtn

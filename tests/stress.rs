@@ -100,7 +100,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             == dc_file_exist(
                 context,
                 b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -116,7 +116,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             != dc_file_exist(
                 context,
                 b"$BLOBDIR/foobarx\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -131,7 +131,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         if 0 != !(dc_get_filebytes(
             context,
             b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-        ) == 7i32 as libc::c_ulonglong) as libc::c_int as libc::c_long
+        ) == 7i32 as libc::c_ulonglong) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -148,7 +148,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             context.get_blobdir(),
             b"foobar\x00" as *const u8 as *const libc::c_char,
         );
-        if 0 != (0 == dc_is_blobdir_path(context, abs_path)) as libc::c_int as libc::c_long {
+        if 0 != (0 == dc_is_blobdir_path(context, abs_path)) as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -162,7 +162,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             == dc_is_blobdir_path(
                 context,
                 b"$BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -178,7 +178,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             != dc_is_blobdir_path(
                 context,
                 b"/BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -190,7 +190,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             );
         } else {
         };
-        if 0 != (0 == dc_file_exist(context, abs_path)) as libc::c_int as libc::c_long {
+        if 0 != (0 == dc_file_exist(context, abs_path)) as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -206,7 +206,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
                 context,
                 b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
                 b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -221,7 +221,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         if 0 != !(dc_get_filebytes(
             context,
             b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-        ) == 7i32 as libc::c_ulonglong) as libc::c_int as libc::c_long
+        ) == 7i32 as libc::c_ulonglong) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -257,7 +257,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             == dc_delete_file(
                 context,
                 b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -273,7 +273,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             == dc_delete_file(
                 context,
                 b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -289,7 +289,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             == dc_create_folder(
                 context,
                 b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -305,7 +305,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             == dc_file_exist(
                 context,
                 b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -321,7 +321,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             == dc_delete_file(
                 context,
                 b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -338,7 +338,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
         );
-        if 0 != fn0.is_null() as libc::c_int as libc::c_long {
+        if 0 != fn0.is_null() as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -351,7 +351,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         if 0 != !(strcmp(
             fn0,
             b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -374,7 +374,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
         );
-        if 0 != fn1.is_null() as libc::c_int as libc::c_long {
+        if 0 != fn1.is_null() as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -387,7 +387,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         if 0 != !(strcmp(
             fn1,
             b"$BLOBDIR/foobar-1.dadada\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -399,7 +399,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             );
         } else {
         };
-        if 0 != (0 == dc_delete_file(context, fn0)) as libc::c_int as libc::c_long {
+        if 0 != (0 == dc_delete_file(context, fn0)) as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -418,7 +418,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
                    as *const u8 as *const libc::c_char);
     let mut buf2: *mut libc::c_char = strdup(buf1);
     dc_replace_bad_utf8_chars(buf2);
-    if 0 != !(strcmp(buf1, buf2) == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !(strcmp(buf1, buf2) == 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -436,7 +436,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         b"ISO-String with Ae: _\x00" as *const u8 as *const libc::c_char,
         buf2,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -452,7 +452,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     buf1 = strdup(b"\x00" as *const u8 as *const libc::c_char);
     buf2 = strdup(buf1);
     dc_replace_bad_utf8_chars(buf2);
-    if 0 != !(*buf2.offset(0isize) as libc::c_int == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !(*buf2.offset(0isize) as libc::c_int == 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -469,7 +469,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         buf1,
         b"Bj%C3%B6rn+Petersen\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -484,7 +484,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         buf2,
         b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -498,7 +498,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     free(buf1 as *mut libc::c_void);
     free(buf2 as *mut libc::c_void);
     buf1 = dc_create_id();
-    if 0 != !(strlen(buf1) == 11) as libc::c_int as libc::c_long {
+    if 0 != !(strlen(buf1) == 11) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -516,7 +516,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         buf1,
         b"Bj&APY-rn_Petersen\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -531,7 +531,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         buf2,
         b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -544,9 +544,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     };
     free(buf1 as *mut libc::c_void);
     free(buf2 as *mut libc::c_void);
-    if 0 != !(2100i32 == 2100i32 || 2100i32 == 2052i32 || 2100i32 == 2055i32) as libc::c_int
-        as libc::c_long
-    {
+    if 0 != !(2100i32 == 2100i32 || 2100i32 == 2052i32 || 2100i32 == 2055i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -556,9 +554,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(2052i32 == 2100i32 || 2052i32 == 2052i32 || 2052i32 == 2055i32) as libc::c_int
-        as libc::c_long
-    {
+    if 0 != !(2052i32 == 2100i32 || 2052i32 == 2052i32 || 2052i32 == 2055i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -568,9 +564,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (100i32 == 2100i32 || 100i32 == 2052i32 || 100i32 == 2055i32) as libc::c_int
-        as libc::c_long
-    {
+    if 0 != (100i32 == 2100i32 || 100i32 == 2052i32 || 100i32 == 2055i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -580,9 +574,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (300i32 == 2100i32 || 300i32 == 2052i32 || 300i32 == 2055i32) as libc::c_int
-        as libc::c_long
-    {
+    if 0 != (300i32 == 2100i32 || 300i32 == 2052i32 || 300i32 == 2055i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -592,9 +584,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (400i32 == 2100i32 || 400i32 == 2052i32 || 400i32 == 2055i32) as libc::c_int
-        as libc::c_long
-    {
+    if 0 != (400i32 == 2100i32 || 400i32 == 2052i32 || 400i32 == 2055i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -604,7 +594,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(100i32 >= 100i32 && 100i32 <= 499i32) as libc::c_int as libc::c_long {
+    if 0 != !(100i32 >= 100i32 && 100i32 <= 499i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -614,7 +604,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(300i32 >= 100i32 && 300i32 <= 499i32) as libc::c_int as libc::c_long {
+    if 0 != !(300i32 >= 100i32 && 300i32 <= 499i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -624,7 +614,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(400i32 >= 100i32 && 400i32 <= 499i32) as libc::c_int as libc::c_long {
+    if 0 != !(400i32 >= 100i32 && 400i32 <= 499i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -634,7 +624,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (2010i32 >= 100i32 && 2010i32 <= 499i32) as libc::c_int as libc::c_long {
+    if 0 != (2010i32 >= 100i32 && 2010i32 <= 499i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -644,7 +634,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(2091i32 == 2091i32 || 2091i32 == 2100i32) as libc::c_int as libc::c_long {
+    if 0 != !(2091i32 == 2091i32 || 2091i32 == 2100i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -654,7 +644,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(2100i32 == 2091i32 || 2100i32 == 2100i32) as libc::c_int as libc::c_long {
+    if 0 != !(2100i32 == 2091i32 || 2100i32 == 2100i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -664,7 +654,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (100i32 == 2091i32 || 100i32 == 2100i32) as libc::c_int as libc::c_long {
+    if 0 != (100i32 == 2091i32 || 100i32 == 2100i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -674,7 +664,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (300i32 == 2091i32 || 300i32 == 2100i32) as libc::c_int as libc::c_long {
+    if 0 != (300i32 == 2091i32 || 300i32 == 2100i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -684,7 +674,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != (400i32 == 2091i32 || 400i32 == 2100i32) as libc::c_int as libc::c_long {
+    if 0 != (400i32 == 2091i32 || 400i32 == 2100i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -695,8 +685,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     } else {
     };
     if 0 != !(dc_utf8_strlen(b"c\x00" as *const u8 as *const libc::c_char) == 1
-        && strlen(b"c\x00" as *const u8 as *const libc::c_char) == 1) as libc::c_int
-        as libc::c_long
+        && strlen(b"c\x00" as *const u8 as *const libc::c_char) == 1) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -708,8 +697,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     } else {
     };
     if 0 != !(dc_utf8_strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char) == 1
-        && strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char) == 2)
-        as libc::c_int as libc::c_long
+        && strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char) == 2) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -722,7 +710,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     } else {
     };
     let arr = dc_array_new(7i32 as size_t);
-    if 0 != !(dc_array_get_cnt(arr) == 0) as libc::c_int as libc::c_long {
+    if 0 != !(dc_array_get_cnt(arr) == 0) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -737,7 +725,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         dc_array_add_id(arr, (i + 1i32 * 2i32) as uint32_t);
         i += 1
     }
-    if 0 != !(dc_array_get_cnt(arr) == 1000) as libc::c_int as libc::c_long {
+    if 0 != !(dc_array_get_cnt(arr) == 1000) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -749,9 +737,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     };
     i = 0i32;
     while i < 1000i32 {
-        if 0 != !(dc_array_get_id(arr, i as size_t) == (i + 1i32 * 2i32) as libc::c_uint)
-            as libc::c_int as libc::c_long
-        {
+        if 0 != !(dc_array_get_id(arr, i as size_t) == (i + 1i32 * 2i32) as libc::c_uint) as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -763,9 +749,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         };
         i += 1
     }
-    if 0 != !(dc_array_get_id(arr, -1i32 as size_t) == 0i32 as libc::c_uint) as libc::c_int
-        as libc::c_long
-    {
+    if 0 != !(dc_array_get_id(arr, -1i32 as size_t) == 0i32 as libc::c_uint) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -775,9 +759,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(dc_array_get_id(arr, 1000i32 as size_t) == 0i32 as libc::c_uint) as libc::c_int
-        as libc::c_long
-    {
+    if 0 != !(dc_array_get_id(arr, 1000i32 as size_t) == 0i32 as libc::c_uint) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -787,9 +769,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(dc_array_get_id(arr, (1000i32 + 1i32) as size_t) == 0i32 as libc::c_uint)
-        as libc::c_int as libc::c_long
-    {
+    if 0 != !(dc_array_get_id(arr, (1000i32 + 1i32) as size_t) == 0i32 as libc::c_uint) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -800,7 +780,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     } else {
     };
     dc_array_empty(arr);
-    if 0 != !(dc_array_get_cnt(arr) == 0) as libc::c_int as libc::c_long {
+    if 0 != !(dc_array_get_cnt(arr) == 0) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -819,8 +799,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(dc_array_get_id(arr, 0i32 as size_t) == 0i32 as libc::c_uint
         && dc_array_get_id(arr, 1i32 as size_t) == 7i32 as libc::c_uint
         && dc_array_get_id(arr, 2i32 as size_t) == 13i32 as libc::c_uint
-        && dc_array_get_id(arr, 3i32 as size_t) == 666i32 as libc::c_uint)
-        as libc::c_int as libc::c_long
+        && dc_array_get_id(arr, 3i32 as size_t) == 666i32 as libc::c_uint) as usize
     {
         __assert_rtn((*::std::mem::transmute::<&[u8; 17],
                                                &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
@@ -835,7 +814,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         str_0,
         b"0-7-13-666-5000\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -857,7 +836,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         str_0,
         b"0,12,133,1999999\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -890,7 +869,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         b"XX\x00" as *const u8 as *const libc::c_char,
         dc_array_get_ptr(arr, 0i32 as size_t) as *mut libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -905,7 +884,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         b"aaa\x00" as *const u8 as *const libc::c_char,
         dc_array_get_ptr(arr, 1i32 as size_t) as *mut libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -920,7 +899,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         b"bbb\x00" as *const u8 as *const libc::c_char,
         dc_array_get_ptr(arr, 2i32 as size_t) as *mut libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -935,7 +914,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         b"item1\x00" as *const u8 as *const libc::c_char,
         dc_array_get_ptr(arr, 3i32 as size_t) as *mut libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -953,7 +932,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         p1,
         b"\r\n\r\na=1\nb=2\n\nc = 3 \x00" as *const u8 as *const libc::c_char,
     );
-    if 0 != !(dc_param_get_int(p1, 'a' as i32, 0i32) == 1i32) as libc::c_int as libc::c_long {
+    if 0 != !(dc_param_get_int(p1, 'a' as i32, 0i32) == 1i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -963,7 +942,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(dc_param_get_int(p1, 'b' as i32, 0i32) == 2i32) as libc::c_int as libc::c_long {
+    if 0 != !(dc_param_get_int(p1, 'b' as i32, 0i32) == 2i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -973,7 +952,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(dc_param_get_int(p1, 'c' as i32, 0i32) == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !(dc_param_get_int(p1, 'c' as i32, 0i32) == 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -983,7 +962,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !(dc_param_exists(p1, 'c' as i32) == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !(dc_param_exists(p1, 'c' as i32) == 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -994,7 +973,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     } else {
     };
     dc_param_set_int(p1, 'd' as i32, 4i32);
-    if 0 != !(dc_param_get_int(p1, 'd' as i32, 0i32) == 4i32) as libc::c_int as libc::c_long {
+    if 0 != !(dc_param_get_int(p1, 'd' as i32, 0i32) == 4i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1016,7 +995,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         (*p1).packed,
         b"a=foo\nb=2\nd=4\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1053,9 +1032,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         context,
         b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
     );
-    if 0 != !(!keys.is_null() && 0 != *keys.offset(0isize) as libc::c_int) as libc::c_int
-        as libc::c_long
-    {
+    if 0 != !(!keys.is_null() && 0 != *keys.offset(0isize) as libc::c_int) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1083,7 +1060,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" probably_never_a_key \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1095,9 +1072,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != strstr(keys, b" addr \x00" as *const u8 as *const libc::c_char).is_null() as libc::c_int
-        as libc::c_long
-    {
+    if 0 != strstr(keys, b" addr \x00" as *const u8 as *const libc::c_char).is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1111,7 +1086,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" mail_server \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1122,8 +1097,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != strstr(keys, b" mail_user \x00" as *const u8 as *const libc::c_char).is_null()
-        as libc::c_int as libc::c_long
+    if 0 != strstr(keys, b" mail_user \x00" as *const u8 as *const libc::c_char).is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1134,9 +1108,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != strstr(keys, b" mail_pw \x00" as *const u8 as *const libc::c_char).is_null()
-        as libc::c_int as libc::c_long
-    {
+    if 0 != strstr(keys, b" mail_pw \x00" as *const u8 as *const libc::c_char).is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1146,8 +1118,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != strstr(keys, b" mail_port \x00" as *const u8 as *const libc::c_char).is_null()
-        as libc::c_int as libc::c_long
+    if 0 != strstr(keys, b" mail_port \x00" as *const u8 as *const libc::c_char).is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1162,7 +1133,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" send_server \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1173,8 +1144,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != strstr(keys, b" send_user \x00" as *const u8 as *const libc::c_char).is_null()
-        as libc::c_int as libc::c_long
+    if 0 != strstr(keys, b" send_user \x00" as *const u8 as *const libc::c_char).is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1185,9 +1155,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != strstr(keys, b" send_pw \x00" as *const u8 as *const libc::c_char).is_null()
-        as libc::c_int as libc::c_long
-    {
+    if 0 != strstr(keys, b" send_pw \x00" as *const u8 as *const libc::c_char).is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1197,8 +1165,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != strstr(keys, b" send_port \x00" as *const u8 as *const libc::c_char).is_null()
-        as libc::c_int as libc::c_long
+    if 0 != strstr(keys, b" send_port \x00" as *const u8 as *const libc::c_char).is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1213,7 +1180,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" server_flags \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1228,7 +1195,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" imap_folder \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1243,7 +1210,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" displayname \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1258,7 +1225,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" selfstatus \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1273,7 +1240,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" selfavatar \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1288,7 +1255,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" e2ee_enabled \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1303,7 +1270,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" mdns_enabled \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1318,7 +1285,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" save_mime_headers \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1333,7 +1300,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_addr \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1348,7 +1315,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_mail_server \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1364,7 +1331,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_mail_user \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1380,7 +1347,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_mail_pw \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1395,7 +1362,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_mail_port \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1411,7 +1378,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_send_server \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1427,7 +1394,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_send_user \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1443,7 +1410,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_send_pw \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1458,7 +1425,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_send_port \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1474,7 +1441,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         keys,
         b" configured_server_flags \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as libc::c_int as libc::c_long
+    .is_null() as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1505,7 +1472,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as libc::c_int as libc::c_long {
+    if 0 != !(ok == 1i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1519,7 +1486,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1552,7 +1519,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as libc::c_int as libc::c_long {
+    if 0 != !(ok == 1i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1566,7 +1533,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1600,7 +1567,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as libc::c_int as libc::c_long {
+    if 0 != !(ok == 1i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1614,7 +1581,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1626,7 +1593,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !setupcodebegin.is_null() as libc::c_int as libc::c_long {
+    if 0 != !setupcodebegin.is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1655,7 +1622,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !(ok == 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1676,7 +1643,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as libc::c_int as libc::c_long {
+    if 0 != !(ok == 1i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1690,7 +1657,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1706,7 +1673,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             setupcodebegin,
             b"23\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1739,7 +1706,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         &mut preferencrypt,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as libc::c_int as libc::c_long {
+    if 0 != !(ok == 1i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1753,7 +1720,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             headerline,
             b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1769,7 +1736,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             preferencrypt,
             b"mutual\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1796,7 +1763,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         context,
         b"123422343234423452346234723482349234\x00" as *const u8 as *const libc::c_char,
     );
-    if 0 != norm.is_null() as libc::c_int as libc::c_long {
+    if 0 != norm.is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1809,7 +1776,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         norm,
         b"1234-2234-3234-4234-5234-6234-7234-8234-9234\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1827,7 +1794,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         b"\t1 2 3422343234- foo bar-- 423-45 2 34 6234723482349234      \x00" as *const u8
             as *const libc::c_char,
     );
-    if 0 != norm.is_null() as libc::c_int as libc::c_long {
+    if 0 != norm.is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1840,7 +1807,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(strcmp(
         norm,
         b"1234-2234-3234-4234-5234-6234-7234-8234-9234\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as libc::c_int as libc::c_long
+    ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1865,7 +1832,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             &mut setupcodebegin_0,
             &mut preferencrypt_0,
             0 as *mut *const libc::c_char,
-        )) as libc::c_int as libc::c_long
+        )) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1881,7 +1848,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             headerline_0,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1896,7 +1863,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     if 0 != !(!setupcodebegin_0.is_null()
         && strlen(setupcodebegin_0) < strlen(S_EM_SETUPCODE)
         && strncmp(setupcodebegin_0, S_EM_SETUPCODE, strlen(setupcodebegin_0)) == 0i32)
-        as libc::c_int as libc::c_long
+        as usize
     {
         __assert_rtn((*::std::mem::transmute::<&[u8; 17],
                                                &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
@@ -1906,7 +1873,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
                          as *const u8 as *const libc::c_char);
     } else {
     };
-    if 0 != !preferencrypt_0.is_null() as libc::c_int as libc::c_long {
+    if 0 != !preferencrypt_0.is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1918,7 +1885,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
     };
     free(buf_1 as *mut libc::c_void);
     buf_1 = dc_decrypt_setup_file(context, S_EM_SETUPCODE, S_EM_SETUPFILE);
-    if 0 != buf_1.is_null() as libc::c_int as libc::c_long {
+    if 0 != buf_1.is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1936,7 +1903,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             &mut setupcodebegin_0,
             &mut preferencrypt_0,
             0 as *mut *const libc::c_char,
-        )) as libc::c_int as libc::c_long
+        )) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1952,7 +1919,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             headerline_0,
             b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1964,7 +1931,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         );
     } else {
     };
-    if 0 != !setupcodebegin_0.is_null() as libc::c_int as libc::c_long {
+    if 0 != !setupcodebegin_0.is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                 .as_ptr(),
@@ -1978,7 +1945,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         && strcmp(
             preferencrypt_0,
             b"mutual\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as libc::c_int as libc::c_long
+        ) == 0i32) as usize
     {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -1995,7 +1962,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         let setupcode: *mut libc::c_char;
         let setupfile: *mut libc::c_char;
         setupcode = dc_create_setup_code(context);
-        if 0 != setupcode.is_null() as libc::c_int as libc::c_long {
+        if 0 != setupcode.is_null() as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -2006,7 +1973,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             );
         } else {
         };
-        if 0 != !(strlen(setupcode) == 44) as libc::c_int as libc::c_long {
+        if 0 != !(strlen(setupcode) == 44) as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -2023,8 +1990,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             && *setupcode.offset(24isize) as libc::c_int == '-' as i32
             && *setupcode.offset(29isize) as libc::c_int == '-' as i32
             && *setupcode.offset(34isize) as libc::c_int == '-' as i32
-            && *setupcode.offset(39isize) as libc::c_int == '-' as i32)
-            as libc::c_int as libc::c_long
+            && *setupcode.offset(39isize) as libc::c_int == '-' as i32) as usize
         {
             __assert_rtn((*::std::mem::transmute::<&[u8; 17],
                                                    &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
@@ -2035,7 +2001,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         } else {
         };
         setupfile = dc_render_setup_file(context, setupcode);
-        if 0 != setupfile.is_null() as libc::c_int as libc::c_long {
+        if 0 != setupfile.is_null() as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -2056,7 +2022,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
                 &mut setupcodebegin_1,
                 0 as *mut *const libc::c_char,
                 0 as *mut *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -2072,7 +2038,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             && strcmp(
                 headerline_1,
                 b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-            ) == 0i32) as libc::c_int as libc::c_long
+            ) == 0i32) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -2086,8 +2052,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         };
         if 0 != !(!setupcodebegin_1.is_null()
             && strlen(setupcodebegin_1) == 2
-            && strncmp(setupcodebegin_1, setupcode, 2) == 0i32) as libc::c_int
-            as libc::c_long
+            && strncmp(setupcodebegin_1, setupcode, 2) == 0i32) as usize
         {
             __assert_rtn((*::std::mem::transmute::<&[u8; 17],
                                                    &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
@@ -2101,7 +2066,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         let payload: *mut libc::c_char;
         let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
         payload = dc_decrypt_setup_file(context, setupcode, setupfile);
-        if 0 != payload.is_null() as libc::c_int as libc::c_long {
+        if 0 != payload.is_null() as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -2119,7 +2084,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
                 0 as *mut *const libc::c_char,
                 0 as *mut *const libc::c_char,
                 0 as *mut *const libc::c_char,
-            )) as libc::c_int as libc::c_long
+            )) as usize
         {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
@@ -2135,7 +2100,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             && strcmp(
                 headerline_2,
                 b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-            ) == 0i32) as libc::c_int as libc::c_long
+            ) == 0i32) as usize
         {
             __assert_rtn((*::std::mem::transmute::<&[u8; 17],
                                                    &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
@@ -2162,7 +2127,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
                 &mut *qr.offset(52isize),
                 b"#a=\x00" as *const u8 as *const libc::c_char,
                 3,
-            ) == 0i32) as libc::c_int as libc::c_long
+            ) == 0i32) as usize
         {
             __assert_rtn((*::std::mem::transmute::<&[u8; 17],
                                                    &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
@@ -2173,7 +2138,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         } else {
         };
         let mut res: *mut dc_lot_t = dc_check_qr(context, qr);
-        if 0 != res.is_null() as libc::c_int as libc::c_long {
+        if 0 != res.is_null() as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -2184,7 +2149,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
         } else {
         };
         if 0 != !((*res).state == 200i32 || (*res).state == 220i32 || (*res).state == 230i32)
-            as libc::c_int as libc::c_long
+            as usize
         {
             __assert_rtn((*::std::mem::transmute::<&[u8; 17],
                                                    &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
@@ -2200,7 +2165,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             dc_check_qr(context,
                         b"BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD\x00"
                             as *const u8 as *const libc::c_char);
-        if 0 != res.is_null() as libc::c_int as libc::c_long {
+        if 0 != res.is_null() as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -2210,7 +2175,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             );
         } else {
         };
-        if 0 != !((*res).state == 320i32) as libc::c_int as libc::c_long {
+        if 0 != !((*res).state == 320i32) as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),
@@ -2220,7 +2185,7 @@ unsafe fn stress_functions(context: &dc_context_t) {
             );
         } else {
         };
-        if 0 != !((*res).id != 0i32 as libc::c_uint) as libc::c_int as libc::c_long {
+        if 0 != !((*res).id != 0i32 as libc::c_uint) as usize {
             __assert_rtn(
                 (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
                     .as_ptr(),

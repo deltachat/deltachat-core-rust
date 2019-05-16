@@ -291,10 +291,8 @@ pub unsafe fn dc_mimeparser_parse(
             let mut prepend_subject: libc::c_int = 1i32;
             if 0 == (*mimeparser).decrypting_failed {
                 let p: *mut libc::c_char = strchr((*mimeparser).subject, ':' as i32);
-                if p.wrapping_offset_from((*mimeparser).subject) as libc::c_long
-                    == 2i32 as libc::c_long
-                    || p.wrapping_offset_from((*mimeparser).subject) as libc::c_long
-                        == 3i32 as libc::c_long
+                if p.wrapping_offset_from((*mimeparser).subject) == 2
+                    || p.wrapping_offset_from((*mimeparser).subject) == 3
                     || 0 != (*mimeparser).is_send_by_messenger
                     || !strstr(
                         (*mimeparser).subject,

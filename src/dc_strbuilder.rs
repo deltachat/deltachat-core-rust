@@ -40,8 +40,8 @@ pub unsafe fn dc_strbuilder_cat(
         } else {
             (*strbuilder).allocated
         };
-        let old_offset: libc::c_int = (*strbuilder).eos.wrapping_offset_from((*strbuilder).buf)
-            as libc::c_long as libc::c_int;
+        let old_offset: libc::c_int =
+            (*strbuilder).eos.wrapping_offset_from((*strbuilder).buf) as libc::c_int;
         (*strbuilder).allocated = (*strbuilder).allocated + add_bytes;
         (*strbuilder).buf = realloc(
             (*strbuilder).buf as *mut libc::c_void,

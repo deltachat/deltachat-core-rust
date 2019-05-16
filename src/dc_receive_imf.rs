@@ -268,12 +268,8 @@ pub unsafe fn dc_receive_imf(
                                 }
                             }
                             if 0 != incoming {
-                                state = if 0 != flags as libc::c_long & 0x1 {
-                                    16i32
-                                } else {
-                                    10i32
-                                };
-                                to_id = 1i32 as uint32_t;
+                                state = if 0 != flags & 0x1 { 16 } else { 10 };
+                                to_id = 1 as uint32_t;
                                 if !dc_mimeparser_lookup_field(
                                     mime_parser,
                                     b"Secure-Join\x00" as *const u8 as *const libc::c_char,
@@ -454,11 +450,7 @@ pub unsafe fn dc_receive_imf(
                                 chat_id,
                                 from_id,
                                 sent_timestamp,
-                                if 0 != flags as libc::c_long & 0x1 {
-                                    0i32
-                                } else {
-                                    1i32
-                                },
+                                if 0 != flags & 0x1 { 0 } else { 1 },
                                 &mut sort_timestamp,
                                 &mut sent_timestamp,
                                 &mut rcvd_timestamp,
@@ -481,8 +473,7 @@ pub unsafe fn dc_receive_imf(
                                 );
                                 if !p.is_null() {
                                     header_bytes = (p.wrapping_offset_from(imf_raw_not_terminated)
-                                        as libc::c_long
-                                        + 4i32 as libc::c_long)
+                                        + 4)
                                         as libc::c_int
                                 } else {
                                     p = strstr(
@@ -490,11 +481,9 @@ pub unsafe fn dc_receive_imf(
                                         b"\n\n\x00" as *const u8 as *const libc::c_char,
                                     );
                                     if !p.is_null() {
-                                        header_bytes = (p
-                                            .wrapping_offset_from(imf_raw_not_terminated)
-                                            as libc::c_long
-                                            + 2i32 as libc::c_long)
-                                            as libc::c_int
+                                        header_bytes =
+                                            (p.wrapping_offset_from(imf_raw_not_terminated) + 2)
+                                                as libc::c_int
                                     }
                                 }
                             }
@@ -1059,9 +1048,9 @@ unsafe fn calc_timestamps(
         sqlite3_bind_int64(stmt, 3i32, *sort_timestamp as sqlite3_int64);
         if sqlite3_step(stmt) == 100i32 {
             let last_msg_time: time_t = sqlite3_column_int64(stmt, 0i32) as time_t;
-            if last_msg_time > 0i32 as libc::c_long {
+            if last_msg_time > 0 {
                 if *sort_timestamp <= last_msg_time {
-                    *sort_timestamp = last_msg_time + 1i32 as libc::c_long
+                    *sort_timestamp = last_msg_time + 1
                 }
             }
         }

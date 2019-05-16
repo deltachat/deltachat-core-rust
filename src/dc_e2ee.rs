@@ -612,16 +612,14 @@ pub unsafe fn dc_e2ee_decrypt(
                 let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
                 if !orig_date.is_null() {
                     message_time = dc_timestamp_from_date((*orig_date).dt_date_time);
-                    if message_time != -1i32 as libc::c_long
-                        && message_time > time(0 as *mut time_t)
-                    {
+                    if message_time != -1 && message_time > time(0 as *mut time_t) {
                         message_time = time(0 as *mut time_t)
                     }
                 }
             }
         }
         let autocryptheader = Aheader::from_imffields(from, imffields);
-        if message_time > 0i32 as libc::c_long && !from.is_null() {
+        if message_time > 0 && !from.is_null() {
             if 0 != dc_apeerstate_load_by_addr(
                 &mut peerstate,
                 &context.sql.clone().read().unwrap(),
@@ -662,7 +660,7 @@ pub unsafe fn dc_e2ee_decrypt(
                 self_addr,
                 &context.sql.clone().read().unwrap(),
             ) {
-                if peerstate.last_seen == 0i32 as libc::c_long {
+                if peerstate.last_seen == 0 {
                     dc_apeerstate_load_by_addr(
                         &mut peerstate,
                         &context.sql.clone().read().unwrap(),

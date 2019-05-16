@@ -168,7 +168,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                             b"utf-8\x00" as *const u8 as *const libc::c_char,
                             mmapstr,
                             begin,
-                            end.wrapping_offset_from(begin) as libc::c_long as size_t,
+                            end.wrapping_offset_from(begin) as size_t,
                         ) {
                             current_block = 8550051112593613029;
                             continue;
@@ -184,7 +184,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                             if mmap_string_append_len(
                                 mmapstr,
                                 end,
-                                cur.wrapping_offset_from(end) as libc::c_long as size_t,
+                                cur.wrapping_offset_from(end) as size_t,
                             )
                             .is_null()
                             {
@@ -195,7 +195,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                     } else if mmap_string_append_len(
                         mmapstr,
                         begin,
-                        cur.wrapping_offset_from(begin) as libc::c_long as size_t,
+                        cur.wrapping_offset_from(begin) as size_t,
                     )
                     .is_null()
                     {
@@ -256,7 +256,7 @@ unsafe fn quote_word(
             }
         }
         if 0 != do_quote_char {
-            libc::snprintf(
+            snprintf(
                 hex.as_mut_ptr(),
                 4,
                 b"=%2.2X\x00" as *const u8 as *const libc::c_char,
@@ -298,10 +298,7 @@ unsafe fn get_word(
     {
         cur = cur.offset(1isize)
     }
-    *pto_be_quoted = to_be_quoted(
-        begin,
-        cur.wrapping_offset_from(begin) as libc::c_long as size_t,
-    );
+    *pto_be_quoted = to_be_quoted(begin, cur.wrapping_offset_from(begin) as size_t);
     *pend = cur;
 }
 
@@ -683,10 +680,8 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
         p2 = strchr(to_decode, '\'' as i32);
         if !(p2.is_null() || p2 == to_decode) {
             /*no empty charset allowed*/
-            charset = dc_null_terminate(
-                to_decode,
-                p2.wrapping_offset_from(to_decode) as libc::c_long as libc::c_int,
-            );
+            charset =
+                dc_null_terminate(to_decode, p2.wrapping_offset_from(to_decode) as libc::c_int);
             p2 = p2.offset(1isize);
             // skip language
             p2 = strchr(p2, '\'' as i32);

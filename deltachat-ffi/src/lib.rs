@@ -1014,7 +1014,7 @@ pub unsafe extern "C" fn dc_array_get_accuracy(
 pub unsafe extern "C" fn dc_array_get_timestamp(
     array: *const dc_array_t,
     index: libc::size_t,
-) -> libc::c_long {
+) -> libc::time_t {
     dc_array::dc_array_get_timestamp(array, index)
 }
 #[no_mangle]

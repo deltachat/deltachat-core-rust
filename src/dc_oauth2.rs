@@ -326,11 +326,7 @@ pub unsafe fn dc_get_oauth2_access_token(
                                     );
                                     if !expires_in_str.is_null() {
                                         let val: time_t = atol(expires_in_str);
-                                        if val > 20i32 as libc::c_long
-                                            && val
-                                                < (60i32 * 60i32 * 24i32 * 365i32 * 5i32)
-                                                    as libc::c_long
-                                        {
+                                        if val > 20 && val < (60 * 60 * 24 * 365 * 5) {
                                             expires_in = val
                                         }
                                         free(expires_in_str as *mut libc::c_void);
@@ -419,9 +415,9 @@ pub unsafe fn dc_get_oauth2_access_token(
                                     b"oauth2_timestamp_expires\x00" as *const u8
                                         as *const libc::c_char,
                                     (if 0 != expires_in {
-                                        time(0 as *mut time_t) + expires_in - 5i32 as libc::c_long
+                                        time(0 as *mut time_t) + expires_in - 5
                                     } else {
-                                        0i32 as libc::c_long
+                                        0
                                     }) as int64_t,
                                 );
                                 if 0 != update_redirect_uri_on_success {
@@ -495,7 +491,7 @@ unsafe fn is_expired(context: &dc_context_t) -> bool {
         b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
         0i32 as int64_t,
     ) as time_t;
-    if expire_timestamp <= 0i32 as libc::c_long {
+    if expire_timestamp <= 0 {
         return false;
     }
     if expire_timestamp > time(0 as *mut time_t) {
