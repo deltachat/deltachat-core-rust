@@ -4,7 +4,6 @@ use std::io::Cursor;
 use std::slice;
 
 use libc;
-use mmime::other::*;
 use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
@@ -290,7 +289,7 @@ impl Key {
                     context,
                     file,
                     file_content as *const libc::c_void,
-                    strlen(file_content),
+                    libc::strlen(file_content),
                 )
             } {
             error!(context, 0, "Cannot write key to %s", file);
@@ -299,7 +298,7 @@ impl Key {
             true
         };
 
-        unsafe { free(file_content as *mut libc::c_void) };
+        unsafe { libc::free(file_content as *mut libc::c_void) };
 
         success
     }
@@ -384,7 +383,7 @@ pub fn dc_key_save_self_keypair(
             None,
         )
     };
-    unsafe { sqlite3_bind_int64(stmt, 5, time(0 as *mut time_t) as sqlite3_int64) };
+    unsafe { sqlite3_bind_int64(stmt, 5, libc::time(0 as *mut time_t) as sqlite3_int64) };
     let success = if unsafe { sqlite3_step(stmt) } == 101 {
         true
     } else {

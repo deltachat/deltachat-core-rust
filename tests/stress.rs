@@ -3,7 +3,6 @@
 use std::ffi::{CStr, CString};
 
 use mmime::mailimf_types::*;
-use mmime::other::*;
 use tempfile::{tempdir, TempDir};
 
 use deltachat::constants::*;

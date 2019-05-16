@@ -32,11 +32,10 @@ pub unsafe fn dc_urlencode(to_encode: *const libc::c_char) -> *mut libc::c_char 
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
     let buf: *mut libc::c_char =
-        malloc(strlen(to_encode).wrapping_mul(3).wrapping_add(1)) as *mut libc::c_char;
+        libc::malloc(libc::strlen(to_encode).wrapping_mul(3).wrapping_add(1)) as *mut libc::c_char;
     let mut pbuf: *mut libc::c_char = buf;
-    if buf.is_null() {
-        exit(46i32);
-    }
+    assert!(!buf.is_null());
+
     while 0 != *pstr {
         if 0 != isalnum(*pstr as libc::c_int)
             || *pstr as libc::c_int == '-' as i32
@@ -85,11 +84,11 @@ pub unsafe fn dc_urldecode(to_decode: *const libc::c_char) -> *mut libc::c_char 
     if to_decode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let buf: *mut libc::c_char = malloc(strlen(to_decode).wrapping_add(1)) as *mut libc::c_char;
+    let buf: *mut libc::c_char =
+        libc::malloc(libc::strlen(to_decode).wrapping_add(1)) as *mut libc::c_char;
     let mut pbuf: *mut libc::c_char = buf;
-    if buf.is_null() {
-        exit(50i32);
-    }
+    assert!(!buf.is_null());
+
     while 0 != *pstr {
         if *pstr as libc::c_int == '%' as i32 {
             if 0 != *pstr.offset(1isize) as libc::c_int && 0 != *pstr.offset(2isize) as libc::c_int
@@ -214,7 +213,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                     cur = cur.offset(1isize);
                     current_block = 4644295000439058019;
                 } else {
-                    ret_str = strdup((*mmapstr).str_0);
+                    ret_str = libc::strdup((*mmapstr).str_0);
                     current_block = 8550051112593613029;
                 }
             }
@@ -257,7 +256,7 @@ unsafe fn quote_word(
             }
         }
         if 0 != do_quote_char {
-            snprintf(
+            libc::snprintf(
                 hex.as_mut_ptr(),
                 4,
                 b"=%2.2X\x00" as *const u8 as *const libc::c_char,
@@ -340,7 +339,7 @@ pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_
     let r: libc::c_int = mailmime_encoded_phrase_parse(
         b"iso-8859-1\x00" as *const u8 as *const libc::c_char,
         in_0,
-        strlen(in_0),
+        libc::strlen(in_0),
         &mut cur_token,
         b"utf-8\x00" as *const u8 as *const libc::c_char,
         &mut out,
@@ -369,11 +368,11 @@ pub unsafe fn dc_encode_modified_utf7(
     if to_encode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    res = malloc(2usize.wrapping_mul(strlen(to_encode)).wrapping_add(1)) as *mut libc::c_char;
+    res = libc::malloc(2usize.wrapping_mul(libc::strlen(to_encode)).wrapping_add(1))
+        as *mut libc::c_char;
     dst = res;
-    if dst.is_null() {
-        exit(51i32);
-    }
+    assert!(!dst.is_null());
+
     utf7mode = 0i32 as libc::c_uint;
     utf8total = 0i32 as libc::c_uint;
     bitstogo = 0i32 as libc::c_uint;
@@ -520,13 +519,13 @@ pub unsafe fn dc_decode_modified_utf7(
     if to_decode.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    res = malloc(4usize.wrapping_mul(strlen(to_decode)).wrapping_add(1)) as *mut libc::c_char;
+    res = libc::malloc(4usize.wrapping_mul(libc::strlen(to_decode)).wrapping_add(1))
+        as *mut libc::c_char;
     dst = res;
     src = to_decode;
-    if dst.is_null() {
-        exit(52i32);
-    }
-    memset(
+    assert!(!dst.is_null());
+
+    libc::memset(
         base64.as_mut_ptr() as *mut libc::c_void,
         64,
         ::std::mem::size_of::<[libc::c_uchar; 256]>(),
@@ -639,17 +638,16 @@ pub unsafe fn dc_encode_ext_header(to_encode: *const libc::c_char) -> *mut libc:
     if to_encode.is_null() {
         return dc_strdup(b"utf-8\'\'\x00" as *const u8 as *const libc::c_char);
     }
-    let buf: *mut libc::c_char = malloc(
-        strlen(b"utf-8\'\'\x00" as *const u8 as *const libc::c_char)
-            .wrapping_add(strlen(to_encode).wrapping_mul(3))
+    let buf: *mut libc::c_char = libc::malloc(
+        libc::strlen(b"utf-8\'\'\x00" as *const u8 as *const libc::c_char)
+            .wrapping_add(libc::strlen(to_encode).wrapping_mul(3))
             .wrapping_add(1),
     ) as *mut libc::c_char;
-    if buf.is_null() {
-        exit(46i32);
-    }
+    assert!(!buf.is_null());
+
     let mut pbuf: *mut libc::c_char = buf;
-    strcpy(pbuf, b"utf-8\'\'\x00" as *const u8 as *const libc::c_char);
-    pbuf = pbuf.offset(strlen(pbuf) as isize);
+    libc::strcpy(pbuf, b"utf-8\'\'\x00" as *const u8 as *const libc::c_char);
+    pbuf = pbuf.offset(libc::strlen(pbuf) as isize);
     while 0 != *pstr {
         if 0 != isalnum(*pstr as libc::c_int)
             || *pstr as libc::c_int == '-' as i32
@@ -684,7 +682,7 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
     let mut p2: *const libc::c_char;
     if !to_decode.is_null() {
         // get char set
-        p2 = strchr(to_decode, '\'' as i32);
+        p2 = libc::strchr(to_decode, '\'' as i32);
         if !(p2.is_null() || p2 == to_decode) {
             /*no empty charset allowed*/
             charset = dc_null_terminate(
@@ -693,22 +691,24 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
             );
             p2 = p2.offset(1isize);
             // skip language
-            p2 = strchr(p2, '\'' as i32);
+            p2 = libc::strchr(p2, '\'' as i32);
             if !p2.is_null() {
                 p2 = p2.offset(1isize);
                 decoded = dc_urldecode(p2);
                 if !charset.is_null()
-                    && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char) != 0i32
-                    && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char) != 0i32
+                    && libc::strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char)
+                        != 0i32
+                    && libc::strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char)
+                        != 0i32
                 {
                     if let Some(encoding) =
                         Charset::for_label(CStr::from_ptr(charset).to_str().unwrap().as_bytes())
                     {
                         let data =
-                            std::slice::from_raw_parts(decoded as *const u8, strlen(decoded));
+                            std::slice::from_raw_parts(decoded as *const u8, libc::strlen(decoded));
 
                         let (res, _, _) = encoding.decode(data);
-                        free(decoded as *mut libc::c_void);
+                        libc::free(decoded as *mut libc::c_void);
                         let res_c = CString::new(res.as_bytes()).unwrap();
 
                         decoded = libc::strdup(res_c.as_ptr());
@@ -717,7 +717,7 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
             }
         }
     }
-    free(charset as *mut libc::c_void);
+    libc::free(charset as *mut libc::c_void);
     return if !decoded.is_null() {
         decoded
     } else {
@@ -744,54 +744,54 @@ mod tests {
                 b"=?utf-8?B?dGVzdMOkw7bDvC50eHQ=?=\x00" as *const u8 as *const libc::c_char,
             );
             assert_eq!(
-                strcmp(
+                libc::strcmp(
                     buf1,
                     b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\x00" as *const u8 as *const libc::c_char
                 ),
                 0
             );
-            free(buf1 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
 
             buf1 =
                 dc_decode_header_words(b"just ascii test\x00" as *const u8 as *const libc::c_char);
             assert_eq!(CStr::from_ptr(buf1).to_str().unwrap(), "just ascii test");
-            free(buf1 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
 
             buf1 = dc_encode_header_words(b"abcdef\x00" as *const u8 as *const libc::c_char);
             assert_eq!(CStr::from_ptr(buf1).to_str().unwrap(), "abcdef");
-            free(buf1 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
 
             buf1 = dc_encode_header_words(
                 b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\x00" as *const u8 as *const libc::c_char,
             );
             assert_eq!(
-                strncmp(buf1, b"=?utf-8\x00" as *const u8 as *const libc::c_char, 7),
+                libc::strncmp(buf1, b"=?utf-8\x00" as *const u8 as *const libc::c_char, 7),
                 0
             );
 
             let buf2: *mut libc::c_char = dc_decode_header_words(buf1);
             assert_eq!(
-                strcmp(
+                libc::strcmp(
                     buf2,
                     b"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\x00" as *const u8 as *const libc::c_char
                 ),
                 0
             );
-            free(buf1 as *mut libc::c_void);
-            free(buf2 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
+            libc::free(buf2 as *mut libc::c_void);
 
             buf1 = dc_decode_header_words(
                 b"=?ISO-8859-1?Q?attachment=3B=0D=0A_filename=3D?= =?ISO-8859-1?Q?=22test=E4=F6=FC=2Etxt=22=3B=0D=0A_size=3D39?=\x00" as *const u8 as *const libc::c_char
             );
             assert_eq!(
-                strcmp(
+                libc::strcmp(
                     buf1,
                     b"attachment;\r\n filename=\"test\xc3\xa4\xc3\xb6\xc3\xbc.txt\";\r\n size=39\x00" as *const u8 as *const libc::c_char,
 
                 ),
                 0
             );
-            free(buf1 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
         }
     }
 
@@ -807,58 +807,64 @@ mod tests {
             );
             let buf2 = dc_decode_ext_header(buf1);
             assert_eq!(
-                strcmp(
+                libc::strcmp(
                     buf2,
                     b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char,
                 ),
                 0
             );
-            free(buf1 as *mut libc::c_void);
-            free(buf2 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
+            libc::free(buf2 as *mut libc::c_void);
 
             buf1 = dc_decode_ext_header(
                 b"iso-8859-1\'en\'%A3%20rates\x00" as *const u8 as *const libc::c_char,
             );
             assert_eq!(
-                strcmp(
+                libc::strcmp(
                     buf1,
                     b"\xc2\xa3 rates\x00" as *const u8 as *const libc::c_char,
                 ),
                 0
             );
-            free(buf1 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
 
             buf1 = dc_decode_ext_header(b"wrong\'format\x00" as *const u8 as *const libc::c_char);
             assert_eq!(
-                strcmp(
+                libc::strcmp(
                     buf1,
                     b"wrong\'format\x00" as *const u8 as *const libc::c_char,
                 ),
                 0
             );
-            free(buf1 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
 
             buf1 = dc_decode_ext_header(b"\'\'\x00" as *const u8 as *const libc::c_char);
             assert_eq!(
-                strcmp(buf1, b"\'\'\x00" as *const u8 as *const libc::c_char),
+                libc::strcmp(buf1, b"\'\'\x00" as *const u8 as *const libc::c_char),
                 0
             );
-            free(buf1 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
 
             buf1 = dc_decode_ext_header(b"x\'\'\x00" as *const u8 as *const libc::c_char);
-            assert_eq!(strcmp(buf1, b"\x00" as *const u8 as *const libc::c_char), 0);
-            free(buf1 as *mut libc::c_void);
+            assert_eq!(
+                libc::strcmp(buf1, b"\x00" as *const u8 as *const libc::c_char),
+                0
+            );
+            libc::free(buf1 as *mut libc::c_void);
 
             buf1 = dc_decode_ext_header(b"\'\x00" as *const u8 as *const libc::c_char);
             assert_eq!(
-                strcmp(buf1, b"\'\x00" as *const u8 as *const libc::c_char),
+                libc::strcmp(buf1, b"\'\x00" as *const u8 as *const libc::c_char),
                 0
             );
-            free(buf1 as *mut libc::c_void);
+            libc::free(buf1 as *mut libc::c_void);
 
             buf1 = dc_decode_ext_header(b"\x00" as *const u8 as *const libc::c_char);
-            assert_eq!(strcmp(buf1, b"\x00" as *const u8 as *const libc::c_char), 0);
-            free(buf1 as *mut libc::c_void);
+            assert_eq!(
+                libc::strcmp(buf1, b"\x00" as *const u8 as *const libc::c_char),
+                0
+            );
+            libc::free(buf1 as *mut libc::c_void);
         }
     }
 
