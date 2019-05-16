@@ -923,7 +923,7 @@ unsafe fn cat_fingerprint(
 pub unsafe fn dc_delete_contact(context: &dc_context_t, contact_id: uint32_t) -> bool {
     let mut success = false;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !contact_id <= 9i32 as libc::c_uint {
+    if !(contact_id <= 9i32 as libc::c_uint) {
         stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),

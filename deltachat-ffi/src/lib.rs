@@ -1290,7 +1290,7 @@ pub unsafe extern "C" fn dc_msg_get_height(msg: *mut dc_msg::dc_msg_t) -> libc::
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_duration(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
-    dc_msg::dc_msg_get_duration(msg) as libc::c_int
+    dc_msg::dc_msg_get_duration(msg)
 }
 
 #[no_mangle]
