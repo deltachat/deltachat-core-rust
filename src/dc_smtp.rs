@@ -184,7 +184,7 @@ impl Smtp {
                 Err(err) => {
                     let error_msg = format!("SMTP failed to send message: {:?}", err);
                     let msg = CString::new(error_msg).unwrap();
-                    self.error = unsafe { libc::strdup(msg.as_ptr()) };
+                    self.error = unsafe { strdup(msg.as_ptr()) };
 
                     warn!(context, 0, "%s", msg,);
 

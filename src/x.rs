@@ -5,14 +5,22 @@ pub use libc::{
     atoi, calloc, close, closedir, exit, fclose, fgets, fopen, fread, free, fseek, ftell, fwrite,
     gmtime, gmtime_r, localtime, localtime_r, malloc, memcmp, memcpy, memmove, memset, mkdir, open,
     opendir, printf, read, readdir, realloc, remove, sleep, snprintf, sprintf, sscanf, strcasecmp,
-    strcat, strchr, strcmp, strcpy, strcspn, strdup, strlen, strncasecmp, strncmp, strncpy,
-    strrchr, strspn, strstr, strtol, system, time, tolower as __tolower, toupper as __toupper,
-    usleep, write,
+    strcat, strchr, strcmp, strcpy, strcspn, strlen, strncasecmp, strncmp, strncpy, strrchr,
+    strspn, strstr, strtol, system, time, tolower, usleep, write,
 };
 
-extern "C" {
-    // pub static mut _DefaultRuneLocale: _RuneLocale;
+pub unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {
+    let slen = libc::strlen(s);
+    let result = libc::malloc(slen + 1);
+    if result.is_null() {
+        return std::ptr::null_mut();
+    }
 
+    libc::memcpy(result, s as *const _, slen + 1);
+    result as *mut _
+}
+
+extern "C" {
     pub fn clock() -> libc::clock_t;
     pub fn qsort(
         __base: *mut libc::c_void,

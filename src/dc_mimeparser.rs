@@ -1240,7 +1240,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         } else {
                                             decoded_data_bytes = res.len();
                                             let res_c = CString::new(res.as_bytes()).unwrap();
-                                            decoded_data = libc::strdup(res_c.as_ptr());
+                                            decoded_data = strdup(res_c.as_ptr());
                                             current_block = 17788412896529399552;
                                         }
                                     } else {

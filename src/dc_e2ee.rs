@@ -309,7 +309,7 @@ pub unsafe fn dc_e2ee_encrypt(
                             ) {
                                 let ctext_bytes = ctext_v.len();
                                 let ctext_c = CString::new(ctext_v).unwrap();
-                                let ctext = libc::strdup(ctext_c.as_ptr());
+                                let ctext = strdup(ctext_c.as_ptr());
 
                                 (*helper).cdata_to_free = ctext as *mut libc::c_void;
 
@@ -375,7 +375,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 imffields_unprotected,
                                 mailimf_field_new_custom(
                                     strdup(b"Autocrypt\x00" as *const u8 as *const libc::c_char),
-                                    libc::strdup(rendered.as_ptr()),
+                                    strdup(rendered.as_ptr()),
                                 ),
                             );
                         }
@@ -1032,7 +1032,7 @@ unsafe fn decrypt_part(
                     ) {
                         let plain_bytes = plain.len();
                         let plain_c = CString::new(plain).unwrap();
-                        let plain_buf = libc::strdup(plain_c.as_ptr());
+                        let plain_buf = strdup(plain_c.as_ptr());
 
                         let mut index: size_t = 0i32 as size_t;
                         let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;

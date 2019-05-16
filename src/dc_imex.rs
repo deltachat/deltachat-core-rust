@@ -326,7 +326,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
                     strlen(payload_key_asc),
                 ) {
                     let encr_string_c = CString::new(encr).unwrap();
-                    let mut encr_string = libc::strdup(encr_string_c.as_ptr());
+                    let mut encr_string = strdup(encr_string_c.as_ptr());
 
                     free(payload_key_asc as *mut libc::c_void);
                     let  replacement: *mut libc::c_char =
@@ -666,7 +666,7 @@ pub unsafe fn dc_decrypt_setup_file(
             if let Some(plain) =
                 dc_pgp_symm_decrypt(passphrase, binary as *const libc::c_void, binary_bytes)
             {
-                payload = libc::strdup(CString::new(plain).unwrap().as_ptr());
+                payload = strdup(CString::new(plain).unwrap().as_ptr());
             }
         }
     }

@@ -16,6 +16,7 @@ use deltachat::dc_job::{
     dc_perform_smtp_jobs,
 };
 use deltachat::dc_lot::*;
+use deltachat::x::strdup;
 
 extern "C" fn cb(_ctx: &dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
     println!("[{:?}]", event);
@@ -33,7 +34,7 @@ extern "C" fn cb(_ctx: &dc_context_t, event: Event, data1: usize, data2: usize) 
                     let c_res = CString::new(res.text().unwrap()).unwrap();
                     // need to use strdup to allocate the result with malloc
                     // so it can be `free`d later.
-                    unsafe { libc::strdup(c_res.as_ptr()) as usize }
+                    unsafe { strdup(c_res.as_ptr()) as usize }
                 }
                 Err(err) => {
                     println!("failed to download: {}: {:?}", url, err);
