@@ -103,8 +103,7 @@ pub unsafe fn dc_imex_has_backup(
                         b"backup_time\x00" as *const u8 as *const libc::c_char,
                         0i32,
                     ) as time_t;
-                    if curr_backup_time > 0i32 as libc::c_long && curr_backup_time > ret_backup_time
-                    {
+                    if curr_backup_time > 0 && curr_backup_time > ret_backup_time {
                         free(ret as *mut libc::c_void);
                         ret = curr_pathNfilename;
                         ret_backup_time = curr_backup_time;
@@ -243,7 +242,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &dc_context_t) -> *mut libc::c_c
                                             current_block = 6116957410927263949;
                                             break;
                                         }
-                                        sleep(1i32 as libc::c_uint);
+                                        std::thread::sleep(std::time::Duration::from_secs(1));
                                         msg = dc_get_msg(context, msg_id);
                                         if 0 != dc_msg_is_sent(msg) {
                                             current_block = 6450636197030046351;
@@ -326,7 +325,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
                     strlen(payload_key_asc),
                 ) {
                     let encr_string_c = CString::new(encr).unwrap();
-                    let mut encr_string = libc::strdup(encr_string_c.as_ptr());
+                    let mut encr_string = strdup(encr_string_c.as_ptr());
 
                     free(payload_key_asc as *mut libc::c_void);
                     let  replacement: *mut libc::c_char =
@@ -666,7 +665,7 @@ pub unsafe fn dc_decrypt_setup_file(
             if let Some(plain) =
                 dc_pgp_symm_decrypt(passphrase, binary as *const libc::c_void, binary_bytes)
             {
-                payload = libc::strdup(CString::new(plain).unwrap().as_ptr());
+                payload = strdup(CString::new(plain).unwrap().as_ptr());
             }
         }
     }

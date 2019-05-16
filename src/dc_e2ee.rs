@@ -309,7 +309,7 @@ pub unsafe fn dc_e2ee_encrypt(
                             ) {
                                 let ctext_bytes = ctext_v.len();
                                 let ctext_c = CString::new(ctext_v).unwrap();
-                                let ctext = libc::strdup(ctext_c.as_ptr());
+                                let ctext = strdup(ctext_c.as_ptr());
 
                                 (*helper).cdata_to_free = ctext as *mut libc::c_void;
 
@@ -375,7 +375,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 imffields_unprotected,
                                 mailimf_field_new_custom(
                                     strdup(b"Autocrypt\x00" as *const u8 as *const libc::c_char),
-                                    libc::strdup(rendered.as_ptr()),
+                                    strdup(rendered.as_ptr()),
                                 ),
                             );
                         }
@@ -612,16 +612,14 @@ pub unsafe fn dc_e2ee_decrypt(
                 let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
                 if !orig_date.is_null() {
                     message_time = dc_timestamp_from_date((*orig_date).dt_date_time);
-                    if message_time != -1i32 as libc::c_long
-                        && message_time > time(0 as *mut time_t)
-                    {
+                    if message_time != -1 && message_time > time(0 as *mut time_t) {
                         message_time = time(0 as *mut time_t)
                     }
                 }
             }
         }
         let autocryptheader = Aheader::from_imffields(from, imffields);
-        if message_time > 0i32 as libc::c_long && !from.is_null() {
+        if message_time > 0 && !from.is_null() {
             if 0 != dc_apeerstate_load_by_addr(
                 &mut peerstate,
                 &context.sql.clone().read().unwrap(),
@@ -662,7 +660,7 @@ pub unsafe fn dc_e2ee_decrypt(
                 self_addr,
                 &context.sql.clone().read().unwrap(),
             ) {
-                if peerstate.last_seen == 0i32 as libc::c_long {
+                if peerstate.last_seen == 0 {
                     dc_apeerstate_load_by_addr(
                         &mut peerstate,
                         &context.sql.clone().read().unwrap(),
@@ -1032,7 +1030,7 @@ unsafe fn decrypt_part(
                     ) {
                         let plain_bytes = plain.len();
                         let plain_c = CString::new(plain).unwrap();
-                        let plain_buf = libc::strdup(plain_c.as_ptr());
+                        let plain_buf = strdup(plain_c.as_ptr());
 
                         let mut index: size_t = 0i32 as size_t;
                         let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;

@@ -260,7 +260,7 @@ pub fn dc_pgp_pk_decrypt(
                             let fp_r = hex::encode_upper(pkey.fingerprint());
                             let len = fp_r.len() as libc::c_int;
                             let fp_c = CString::new(fp_r).unwrap();
-                            let fp = unsafe { libc::strdup(fp_c.as_ptr()) };
+                            let fp = unsafe { strdup(fp_c.as_ptr()) };
 
                             unsafe {
                                 dc_hash_insert(

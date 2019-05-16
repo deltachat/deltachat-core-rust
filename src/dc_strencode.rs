@@ -1,10 +1,13 @@
-use mmime::charconv::*;
+use std::ffi::{CStr, CString};
+
+use charset::Charset;
 use mmime::mailmime_decode::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
 use crate::dc_tools::*;
 use crate::types::*;
+use crate::x::*;
 
 #[inline]
 pub fn isalnum(mut _c: libc::c_int) -> libc::c_int {
@@ -32,9 +35,8 @@ pub unsafe fn dc_urlencode(to_encode: *const libc::c_char) -> *mut libc::c_char 
     let buf: *mut libc::c_char =
         malloc(strlen(to_encode).wrapping_mul(3).wrapping_add(1)) as *mut libc::c_char;
     let mut pbuf: *mut libc::c_char = buf;
-    if buf.is_null() {
-        exit(46i32);
-    }
+    assert!(!buf.is_null());
+
     while 0 != *pstr {
         if 0 != isalnum(*pstr as libc::c_int)
             || *pstr as libc::c_int == '-' as i32
@@ -85,9 +87,8 @@ pub unsafe fn dc_urldecode(to_decode: *const libc::c_char) -> *mut libc::c_char 
     }
     let buf: *mut libc::c_char = malloc(strlen(to_decode).wrapping_add(1)) as *mut libc::c_char;
     let mut pbuf: *mut libc::c_char = buf;
-    if buf.is_null() {
-        exit(50i32);
-    }
+    assert!(!buf.is_null());
+
     while 0 != *pstr {
         if *pstr as libc::c_int == '%' as i32 {
             if 0 != *pstr.offset(1isize) as libc::c_int && 0 != *pstr.offset(2isize) as libc::c_int
@@ -119,7 +120,7 @@ unsafe fn hex_2_int(ch: libc::c_char) -> libc::c_char {
     return (if 0 != isdigit(ch as libc::c_int) {
         ch as libc::c_int - '0' as i32
     } else {
-        libc::tolower(ch as libc::c_int) - 'a' as i32 + 10i32
+        tolower(ch as libc::c_int) - 'a' as i32 + 10i32
     }) as libc::c_char;
 }
 
@@ -167,7 +168,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                             b"utf-8\x00" as *const u8 as *const libc::c_char,
                             mmapstr,
                             begin,
-                            end.wrapping_offset_from(begin) as libc::c_long as size_t,
+                            end.wrapping_offset_from(begin) as size_t,
                         ) {
                             current_block = 8550051112593613029;
                             continue;
@@ -183,7 +184,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                             if mmap_string_append_len(
                                 mmapstr,
                                 end,
-                                cur.wrapping_offset_from(end) as libc::c_long as size_t,
+                                cur.wrapping_offset_from(end) as size_t,
                             )
                             .is_null()
                             {
@@ -194,7 +195,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                     } else if mmap_string_append_len(
                         mmapstr,
                         begin,
-                        cur.wrapping_offset_from(begin) as libc::c_long as size_t,
+                        cur.wrapping_offset_from(begin) as size_t,
                     )
                     .is_null()
                     {
@@ -297,10 +298,7 @@ unsafe fn get_word(
     {
         cur = cur.offset(1isize)
     }
-    *pto_be_quoted = to_be_quoted(
-        begin,
-        cur.wrapping_offset_from(begin) as libc::c_long as size_t,
-    );
+    *pto_be_quoted = to_be_quoted(begin, cur.wrapping_offset_from(begin) as size_t);
     *pend = cur;
 }
 
@@ -369,9 +367,8 @@ pub unsafe fn dc_encode_modified_utf7(
     }
     res = malloc(2usize.wrapping_mul(strlen(to_encode)).wrapping_add(1)) as *mut libc::c_char;
     dst = res;
-    if dst.is_null() {
-        exit(51i32);
-    }
+    assert!(!dst.is_null());
+
     utf7mode = 0i32 as libc::c_uint;
     utf8total = 0i32 as libc::c_uint;
     bitstogo = 0i32 as libc::c_uint;
@@ -521,10 +518,9 @@ pub unsafe fn dc_decode_modified_utf7(
     res = malloc(4usize.wrapping_mul(strlen(to_decode)).wrapping_add(1)) as *mut libc::c_char;
     dst = res;
     src = to_decode;
-    if dst.is_null() {
-        exit(52i32);
-    }
-    memset(
+    assert!(!dst.is_null());
+
+    libc::memset(
         base64.as_mut_ptr() as *mut libc::c_void,
         64,
         ::std::mem::size_of::<[libc::c_uchar; 256]>(),
@@ -642,9 +638,8 @@ pub unsafe fn dc_encode_ext_header(to_encode: *const libc::c_char) -> *mut libc:
             .wrapping_add(strlen(to_encode).wrapping_mul(3))
             .wrapping_add(1),
     ) as *mut libc::c_char;
-    if buf.is_null() {
-        exit(46i32);
-    }
+    assert!(!buf.is_null());
+
     let mut pbuf: *mut libc::c_char = buf;
     strcpy(pbuf, b"utf-8\'\'\x00" as *const u8 as *const libc::c_char);
     pbuf = pbuf.offset(strlen(pbuf) as isize);
@@ -685,10 +680,8 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
         p2 = strchr(to_decode, '\'' as i32);
         if !(p2.is_null() || p2 == to_decode) {
             /*no empty charset allowed*/
-            charset = dc_null_terminate(
-                to_decode,
-                p2.wrapping_offset_from(to_decode) as libc::c_long as libc::c_int,
-            );
+            charset =
+                dc_null_terminate(to_decode, p2.wrapping_offset_from(to_decode) as libc::c_int);
             p2 = p2.offset(1isize);
             // skip language
             p2 = strchr(p2, '\'' as i32);
@@ -699,19 +692,17 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
                     && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char) != 0i32
                     && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char) != 0i32
                 {
-                    let mut converted: *mut libc::c_char = 0 as *mut libc::c_char;
-                    let r: libc::c_int = charconv(
-                        b"utf-8\x00" as *const u8 as *const libc::c_char,
-                        charset,
-                        decoded,
-                        strlen(decoded),
-                        &mut converted,
-                    );
-                    if r == MAIL_CHARCONV_NO_ERROR as libc::c_int && !converted.is_null() {
+                    if let Some(encoding) =
+                        Charset::for_label(CStr::from_ptr(charset).to_str().unwrap().as_bytes())
+                    {
+                        let data =
+                            std::slice::from_raw_parts(decoded as *const u8, strlen(decoded));
+
+                        let (res, _, _) = encoding.decode(data);
                         free(decoded as *mut libc::c_void);
-                        decoded = converted
-                    } else {
-                        free(converted as *mut libc::c_void);
+                        let res_c = CString::new(res.as_bytes()).unwrap();
+
+                        decoded = strdup(res_c.as_ptr());
                     }
                 }
             }

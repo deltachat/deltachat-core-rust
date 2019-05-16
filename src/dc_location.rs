@@ -60,19 +60,15 @@ pub unsafe fn dc_send_locations_to_chat(
         sqlite3_bind_int64(
             stmt,
             1i32,
-            (if 0 != seconds {
-                now
-            } else {
-                0i32 as libc::c_long
-            }) as sqlite3_int64,
+            (if 0 != seconds { now } else { 0 }) as sqlite3_int64,
         );
         sqlite3_bind_int64(
             stmt,
             2i32,
             (if 0 != seconds {
-                now + seconds as libc::c_long
+                now + seconds as time_t
             } else {
-                0i32 as libc::c_long
+                0
             }) as sqlite3_int64,
         );
         sqlite3_bind_int(stmt, 3i32, chat_id as libc::c_int);
@@ -224,8 +220,8 @@ pub unsafe fn dc_get_locations(
     let ret: *mut dc_array_t = dc_array_new_typed(1i32, 500i32 as size_t);
     let stmt: *mut sqlite3_stmt;
 
-    if timestamp_to == 0i32 as libc::c_long {
-        timestamp_to = time(0 as *mut time_t) + 10i32 as libc::c_long
+    if timestamp_to == 0 {
+        timestamp_to = time(0 as *mut time_t) + 10;
     }
     stmt = dc_sqlite3_prepare(
         context,
@@ -361,7 +357,7 @@ pub unsafe fn dc_get_location_kml(
         locations_last_sent = sqlite3_column_int64(stmt, 2i32) as time_t;
         sqlite3_finalize(stmt);
         stmt = 0 as *mut sqlite3_stmt;
-        if !(locations_send_begin == 0i32 as libc::c_long || now > locations_send_until) {
+        if !(locations_send_begin == 0 || now > locations_send_until) {
             dc_strbuilder_catf(&mut ret as *mut dc_strbuilder_t,
                                    b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"%s\">\n\x00"
                                        as *const u8 as *const libc::c_char,
@@ -806,7 +802,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job
         let locations_last_sent: time_t = sqlite3_column_int64(stmt_chats, 2i32) as time_t;
         continue_streaming = 1i32;
         // be a bit tolerant as the timer may not align exactly with time(NULL)
-        if now - locations_last_sent < (60i32 - 3i32) as libc::c_long {
+        if now - locations_last_sent < (60 - 3) {
             continue;
         }
         if stmt_locations.is_null() {
@@ -875,15 +871,11 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &dc_context_t, job:
         locations_send_until = sqlite3_column_int64(stmt, 1i32) as time_t;
         sqlite3_finalize(stmt);
         stmt = 0 as *mut sqlite3_stmt;
-        if !(locations_send_begin != 0i32 as libc::c_long
-            && time(0 as *mut time_t) <= locations_send_until)
-        {
+        if !(locations_send_begin != 0 && time(0 as *mut time_t) <= locations_send_until) {
             // still streaming -
             // may happen as several calls to dc_send_locations_to_chat()
             // do not un-schedule pending DC_MAYBE_SEND_LOC_ENDED jobs
-            if !(locations_send_begin == 0i32 as libc::c_long
-                && locations_send_until == 0i32 as libc::c_long)
-            {
+            if !(locations_send_begin == 0 && locations_send_until == 0) {
                 // not streaming, device-message already sent
                 stmt =
                     dc_sqlite3_prepare(

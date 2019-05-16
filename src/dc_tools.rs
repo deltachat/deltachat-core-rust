@@ -96,8 +96,8 @@ pub unsafe fn dc_str_replace(
         if p2.is_null() {
             break;
         }
-        start_search_pos = (p2.wrapping_offset_from(*haystack) as libc::c_long
-            + replacement_len as libc::c_long) as libc::c_int;
+        start_search_pos =
+            (p2.wrapping_offset_from(*haystack) + replacement_len as isize) as libc::c_int;
         *p2 = 0i32 as libc::c_char;
         p2 = p2.offset(needle_len as isize);
         let new_string: *mut libc::c_char = dc_mprintf(
@@ -185,7 +185,7 @@ pub unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
     let out: *mut libc::c_char = dc_strdup(in_0);
     let mut p: *mut libc::c_char = out;
     while 0 != *p {
-        *p = libc::tolower(*p as libc::c_int) as libc::c_char;
+        *p = tolower(*p as libc::c_int) as libc::c_char;
         p = p.offset(1isize)
     }
 
@@ -195,7 +195,7 @@ pub unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
 pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
     let mut p: *mut libc::c_char = in_0;
     while 0 != *p {
-        *p = libc::tolower(*p as libc::c_int) as libc::c_char;
+        *p = tolower(*p as libc::c_int) as libc::c_char;
         p = p.offset(1isize)
     }
 }
@@ -593,10 +593,7 @@ pub unsafe fn dc_str_to_clist(
                 clist_insert_after(
                     list,
                     (*list).last,
-                    strndup(
-                        p1,
-                        p2.wrapping_offset_from(p1) as libc::c_long as libc::c_ulong,
-                    ) as *mut libc::c_void,
+                    strndup(p1, p2.wrapping_offset_from(p1) as libc::c_ulong) as *mut libc::c_void,
                 );
                 p1 = p2.offset(strlen(delimiter) as isize)
             }
@@ -725,7 +722,7 @@ pub unsafe fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> time_
         zone_hour = -(-(*date_time).dt_zone / 100i32);
         zone_min = -(-(*date_time).dt_zone % 100i32)
     }
-    timeval -= (zone_hour * 3600i32 + zone_min * 60i32) as libc::c_long;
+    timeval -= (zone_hour * 3600 + zone_min * 60) as time_t;
 
     timeval
 }
@@ -754,18 +751,14 @@ pub unsafe fn mkgmtime(tmp: *mut tm) -> time_t {
     yourtm.tm_sec = 0i32;
     bits = 0i32;
     t = 1i32 as time_t;
-    while t > 0i32 as libc::c_long {
+    while t > 0 {
         bits += 1;
         t <<= 1i32
     }
     if bits > 40i32 {
         bits = 40i32
     }
-    t = if t < 0i32 as libc::c_long {
-        0i32 as libc::c_long
-    } else {
-        (1i32 as time_t) << bits
-    };
+    t = if t < 0 { 0 } else { (1i32 as time_t) << bits };
     loop {
         gmtime_r(&mut t, &mut mytm);
         dir = tmcomp(&mut mytm, &mut yourtm);
@@ -785,7 +778,7 @@ pub unsafe fn mkgmtime(tmp: *mut tm) -> time_t {
             t += (1i32 as time_t) << bits
         }
     }
-    t += saved_seconds as libc::c_long;
+    t += saved_seconds as time_t;
 
     t
 }
@@ -851,7 +844,7 @@ pub unsafe fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c_char {
     );
 }
 
-pub unsafe fn dc_gm2local_offset() -> libc::c_long {
+pub unsafe fn dc_gm2local_offset() -> time_t {
     /* returns the offset that must be _added_ to an UTC/GMT-time to create the localtime.
     the function may return nagative values. */
     let mut gmtime: time_t = time(0 as *mut time_t);
@@ -902,14 +895,15 @@ pub unsafe fn dc_create_smeared_timestamp(context: &dc_context_t) -> time_t {
 
 pub unsafe fn dc_create_smeared_timestamps(context: &dc_context_t, count: libc::c_int) -> time_t {
     /* get a range to timestamps that can be used uniquely */
-    let now: time_t = time(0 as *mut time_t);
-    let mut start: time_t =
-        now + (if count < 5i32 { count } else { 5i32 }) as libc::c_long - count as libc::c_long;
+    let now = time(0 as *mut time_t);
+    let start = now + (if count < 5 { count } else { 5 }) as time_t - count as time_t;
 
     let ts = *context.last_smeared_timestamp.clone().write().unwrap();
-    start = if ts + 1 > start { ts + 1 } else { start };
-
-    start
+    if ts + 1 > start {
+        ts + 1
+    } else {
+        start
+    }
 }
 
 /* Message-ID tools */
@@ -1212,11 +1206,10 @@ pub unsafe fn dc_get_filemeta(
                     as uint32_t;
                 return 1i32;
             }
-            pos += (2i32
-                + ((*buf.offset((pos + 2) as isize) as libc::c_int) << 8i32)
-                + *buf.offset((pos + 3) as isize) as libc::c_int)
-                as libc::c_long;
-            if (pos + 12) > buf_bytes as libc::c_long {
+            pos += 2
+                + ((*buf.offset((pos + 2) as isize) as libc::c_int) << 8)
+                + *buf.offset((pos + 3) as isize) as libc::c_int;
+            if (pos + 12) > buf_bytes as libc::c_int {
                 break;
             }
         }
@@ -1552,10 +1545,10 @@ pub unsafe fn dc_get_fine_pathNfilename(
     while i < 1000i32 {
         /*no deadlocks, please*/
         if 0 != i {
-            let idx: time_t = if i < 100i32 {
-                i as libc::c_long
+            let idx = if i < 100 {
+                i as time_t
             } else {
-                now + i as libc::c_long
+                now + i as time_t
             };
             ret = dc_mprintf(
                 b"%s/%s-%lu%s\x00" as *const u8 as *const libc::c_char,

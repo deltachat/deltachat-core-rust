@@ -261,7 +261,7 @@ pub unsafe fn dc_apeerstate_render_gossip_header(
         let header = Aheader::new(addr, key.clone(), EncryptPreference::NoPreference);
         let rendered = header.to_string();
         let rendered_c = CString::new(rendered).unwrap();
-        return libc::strdup(rendered_c.as_ptr());
+        return strdup(rendered_c.as_ptr());
     }
 
     std::ptr::null_mut()

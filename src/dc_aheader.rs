@@ -162,7 +162,6 @@ impl str::FromStr for Aheader {
         {
             Some(key) => key,
             None => {
-                println!("invalid key");
                 return Err(());
             }
         };

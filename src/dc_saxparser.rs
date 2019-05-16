@@ -103,7 +103,7 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
             call_text_cb(
                 saxparser,
                 last_text_start,
-                p.wrapping_offset_from(last_text_start) as libc::c_long as size_t,
+                p.wrapping_offset_from(last_text_start) as size_t,
                 '&' as i32 as libc::c_char,
             );
             p = p.offset(1isize);
@@ -123,7 +123,7 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
                     call_text_cb(
                         saxparser,
                         text_beg,
-                        p.wrapping_offset_from(text_beg) as libc::c_long as size_t,
+                        p.wrapping_offset_from(text_beg) as size_t,
                         'c' as i32 as libc::c_char,
                     );
                     p = p.offset(3isize)
@@ -341,7 +341,7 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
             call_text_cb(
                 saxparser,
                 last_text_start,
-                p.wrapping_offset_from(last_text_start) as libc::c_long as size_t,
+                p.wrapping_offset_from(last_text_start) as size_t,
                 '&' as i32 as libc::c_char,
             );
         }
@@ -465,7 +465,7 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, type_0: libc::c_char) -> *mut lib
                     s = s.offset(1);
                     *fresh2 = c as libc::c_char
                 } else {
-                    b = 0i32 as libc::c_long;
+                    b = 0;
                     d = c;
                     while 0 != d {
                         b += 1;
@@ -491,7 +491,7 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, type_0: libc::c_char) -> *mut lib
         } else if *s as libc::c_int == '&' as i32
             && (type_0 as libc::c_int == '&' as i32 || type_0 as libc::c_int == ' ' as i32)
         {
-            b = 0i32 as libc::c_long;
+            b = 0;
             while !s_ent[b as usize].is_null()
                 && 0 != strncmp(
                     s.offset(1isize),
@@ -499,7 +499,7 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, type_0: libc::c_char) -> *mut lib
                     strlen(s_ent[b as usize]),
                 )
             {
-                b += 2i32 as libc::c_long
+                b += 2;
             }
             let fresh5 = b;
             b = b + 1;

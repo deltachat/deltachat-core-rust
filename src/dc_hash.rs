@@ -73,7 +73,7 @@ pub unsafe fn dc_hash_init(
     keyClass: libc::c_int,
     mut copyKey: libc::c_int,
 ) {
-    if 0 != pNew.is_null() as libc::c_int as libc::c_long {
+    if 0 != pNew.is_null() as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 13], &[libc::c_char; 13]>(b"dc_hash_init\x00"))
                 .as_ptr(),
@@ -83,7 +83,7 @@ pub unsafe fn dc_hash_init(
         );
     } else {
     };
-    if 0 != !(keyClass >= 1i32 && keyClass <= 4i32) as libc::c_int as libc::c_long {
+    if 0 != !(keyClass >= 1i32 && keyClass <= 4i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 13], &[libc::c_char; 13]>(b"dc_hash_init\x00"))
                 .as_ptr(),
@@ -126,7 +126,7 @@ pub unsafe fn dc_hash_insert(
     assert!(xHash.is_some(), "missing hashing function");
     hraw = xHash.expect("non-null function pointer")(pKey, nKey);
 
-    if 0 != !((*pH).htsize & (*pH).htsize - 1i32 == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !((*pH).htsize & (*pH).htsize - 1i32 == 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 15], &[libc::c_char; 15]>(b"dc_hash_insert\x00"))
                 .as_ptr(),
@@ -178,7 +178,7 @@ pub unsafe fn dc_hash_insert(
     if (*pH).count > (*pH).htsize {
         rehash(pH, (*pH).htsize * 2);
     }
-    if 0 != !((*pH).htsize > 0i32) as libc::c_int as libc::c_long {
+    if 0 != !((*pH).htsize > 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 15], &[libc::c_char; 15]>(b"dc_hash_insert\x00"))
                 .as_ptr(),
@@ -188,7 +188,7 @@ pub unsafe fn dc_hash_insert(
         );
     } else {
     };
-    if 0 != !((*pH).htsize & (*pH).htsize - 1i32 == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !((*pH).htsize & (*pH).htsize - 1i32 == 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 15], &[libc::c_char; 15]>(b"dc_hash_insert\x00"))
                 .as_ptr(),
@@ -248,7 +248,7 @@ unsafe fn rehash(mut pH: *mut dc_hash_t, new_size: libc::c_int) {
     let mut next_elem: *mut dc_hashelem_t;
     /* The hash function */
     let xHash: Option<unsafe fn(_: *const libc::c_void, _: libc::c_int) -> libc::c_int>;
-    if 0 != !(new_size & new_size - 1i32 == 0i32) as libc::c_int as libc::c_long {
+    if 0 != !(new_size & new_size - 1i32 == 0i32) as usize {
         __assert_rtn(
             (*::std::mem::transmute::<&[u8; 7], &[libc::c_char; 7]>(b"rehash\x00")).as_ptr(),
             b"../src/dc_hash.c\x00" as *const u8 as *const libc::c_char,

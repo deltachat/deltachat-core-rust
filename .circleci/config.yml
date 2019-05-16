@@ -15,7 +15,7 @@ jobs:
           name: Setup build environment
           command: |
             apt update
-            apt install -y curl build-essential autoconf libtool git python pkg-config zlib1g-dev libssl-dev libetpan-dev libsasl2-dev
+            apt install -y curl build-essential autoconf libtool git python pkg-config libssl-dev
             # this will pick default toolchain from `rust-toolchain` file
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path --default-toolchain none -y;
             source $HOME/.cargo/env

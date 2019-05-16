@@ -267,7 +267,7 @@ pub unsafe fn dc_join_securejoin(context: &dc_context_t, qr: *const libc::c_char
                     .unwrap()
                     .shall_stop_ongoing)
                 {
-                    usleep((300i32 * 1000i32) as useconds_t);
+                    std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
                 }
             }
         }

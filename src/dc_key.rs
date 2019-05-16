@@ -4,7 +4,6 @@ use std::io::Cursor;
 use std::slice;
 
 use libc;
-use mmime::other::*;
 use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
 use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
@@ -15,6 +14,7 @@ use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
+use crate::x::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Key {
@@ -106,7 +106,7 @@ impl Key {
                 }
             }
             Err(err) => {
-                println!("Invalid key bytes: {:?}\n{}", err, hex::encode(bytes));
+                eprintln!("Invalid key bytes: {:?}\n{}", err, hex::encode(bytes));
                 None
             }
         }
@@ -246,7 +246,7 @@ impl Key {
 
         // need to use strdup to allocate the result with malloc
         // so it can be `free`d later.
-        unsafe { libc::strdup(res_c.as_ptr()) }
+        unsafe { strdup(res_c.as_ptr()) }
     }
 
     pub fn to_armored_string(
@@ -274,7 +274,7 @@ impl Key {
 
         // need to use strdup to allocate the result with malloc
         // so it can be `free`d later.
-        unsafe { libc::strdup(buf_c.as_ptr()) }
+        unsafe { strdup(buf_c.as_ptr()) }
     }
 
     pub fn write_asc_to_file(&self, file: *const libc::c_char, context: &dc_context_t) -> bool {
@@ -314,7 +314,7 @@ impl Key {
     pub fn fingerprint_c(&self) -> *mut libc::c_char {
         let res = CString::new(self.fingerprint()).unwrap();
 
-        unsafe { libc::strdup(res.as_ptr()) }
+        unsafe { strdup(res.as_ptr()) }
     }
 
     pub fn formatted_fingerprint(&self) -> String {
@@ -325,7 +325,7 @@ impl Key {
     pub fn formatted_fingerprint_c(&self) -> *mut libc::c_char {
         let res = CString::new(self.formatted_fingerprint()).unwrap();
 
-        unsafe { libc::strdup(res.as_ptr()) }
+        unsafe { strdup(res.as_ptr()) }
     }
 
     pub fn split_key(&self) -> Option<Key> {
@@ -384,7 +384,7 @@ pub fn dc_key_save_self_keypair(
             None,
         )
     };
-    unsafe { sqlite3_bind_int64(stmt, 5, time(0 as *mut time_t) as sqlite3_int64) };
+    unsafe { sqlite3_bind_int64(stmt, 5, libc::time(0 as *mut time_t) as sqlite3_int64) };
     let success = if unsafe { sqlite3_step(stmt) } == 101 {
         true
     } else {
@@ -419,7 +419,7 @@ pub fn dc_format_fingerprint_c(fp: *const libc::c_char) -> *mut libc::c_char {
     let res = dc_format_fingerprint(input);
     let res_c = CString::new(res).unwrap();
 
-    unsafe { libc::strdup(res_c.as_ptr()) }
+    unsafe { strdup(res_c.as_ptr()) }
 }
 
 /// Bring a human-readable or otherwise formatted fingerprint back to the 40-characters-uppercase-hex format.
@@ -435,7 +435,7 @@ pub fn dc_normalize_fingerprint_c(fp: *const libc::c_char) -> *mut libc::c_char 
     let res = dc_normalize_fingerprint(input);
     let res_c = CString::new(res).unwrap();
 
-    unsafe { libc::strdup(res_c.as_ptr()) }
+    unsafe { strdup(res_c.as_ptr()) }
 }
 
 #[cfg(test)]

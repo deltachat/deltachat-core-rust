@@ -1,4 +1,6 @@
-use mmime::charconv::*;
+use std::ffi::{CStr, CString};
+
+use charset::Charset;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
 use mmime::mailmime::*;
@@ -289,10 +291,8 @@ pub unsafe fn dc_mimeparser_parse(
             let mut prepend_subject: libc::c_int = 1i32;
             if 0 == (*mimeparser).decrypting_failed {
                 let p: *mut libc::c_char = strchr((*mimeparser).subject, ':' as i32);
-                if p.wrapping_offset_from((*mimeparser).subject) as libc::c_long
-                    == 2i32 as libc::c_long
-                    || p.wrapping_offset_from((*mimeparser).subject) as libc::c_long
-                        == 3i32 as libc::c_long
+                if p.wrapping_offset_from((*mimeparser).subject) == 2
+                    || p.wrapping_offset_from((*mimeparser).subject) == 3
                     || 0 != (*mimeparser).is_send_by_messenger
                     || !strstr(
                         (*mimeparser).subject,
@@ -1172,8 +1172,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     let mut raw_mime: *mut libc::c_char = 0 as *mut libc::c_char;
     /* mmap_string_unref()'d if set */
     let mut transfer_decoding_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
-    /* charconv_buffer_free()'d if set (just calls mmap_string_unref()) */
-    let mut charset_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
     /* must not be free()'d */
     let mut decoded_data: *const libc::c_char = 0 as *const libc::c_char;
     let mut decoded_data_bytes = 0;
@@ -1225,32 +1223,34 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         b"UTF-8\x00" as *const u8 as *const libc::c_char,
                                     ) != 0i32
                                 {
-                                    let mut ret_bytes = 0;
-                                    let r: libc::c_int = charconv_buffer(
-                                        b"utf-8\x00" as *const u8 as *const libc::c_char,
-                                        charset,
-                                        decoded_data,
-                                        decoded_data_bytes,
-                                        &mut charset_buffer,
-                                        &mut ret_bytes,
-                                    );
-                                    if r != MAIL_CHARCONV_NO_ERROR as libc::c_int {
-                                        dc_log_warning((*mimeparser).context,
-                                                       0i32,
-                                                       b"Cannot convert %i bytes from \"%s\" to \"utf-8\"; errorcode is %i.\x00"
-                                                           as *const u8 as
-                                                           *const libc::c_char,
-                                                       decoded_data_bytes as
-                                                           libc::c_int,
-                                                       charset,
-                                                       r as libc::c_int);
-                                        current_block = 17788412896529399552;
-                                    } else if charset_buffer.is_null() || ret_bytes <= 0 {
-                                        /* no error - but nothing to add */
-                                        current_block = 8795901732489102124;
+                                    if let Some(encoding) = Charset::for_label(
+                                        CStr::from_ptr(charset).to_str().unwrap().as_bytes(),
+                                    ) {
+                                        let data = std::slice::from_raw_parts(
+                                            decoded_data as *const u8,
+                                            decoded_data_bytes,
+                                        );
+
+                                        let (res, _, _) = encoding.decode(data);
+                                        if res.is_empty() {
+                                            /* no error - but nothing to add */
+                                            current_block = 8795901732489102124;
+                                        } else {
+                                            decoded_data_bytes = res.len();
+                                            let res_c = CString::new(res.as_bytes()).unwrap();
+                                            decoded_data = strdup(res_c.as_ptr());
+                                            current_block = 17788412896529399552;
+                                        }
                                     } else {
-                                        decoded_data = charset_buffer;
-                                        decoded_data_bytes = ret_bytes;
+                                        dc_log_warning(
+                                            (*mimeparser).context,
+                                            0i32,
+                                            b"Cannot convert %i bytes from \"%s\" to \"utf-8\".\x00"
+                                                as *const u8
+                                                as *const libc::c_char,
+                                            decoded_data_bytes as libc::c_int,
+                                            charset,
+                                        );
                                         current_block = 17788412896529399552;
                                     }
                                 } else {
@@ -1484,9 +1484,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     }
     /* add object? (we do not add all objetcs, eg. signatures etc. are ignored) */
     dc_simplify_unref(simplifier);
-    if !charset_buffer.is_null() {
-        charconv_buffer_free(charset_buffer);
-    }
     if !transfer_decoding_buffer.is_null() {
         mmap_string_unref(transfer_decoding_buffer);
     }
