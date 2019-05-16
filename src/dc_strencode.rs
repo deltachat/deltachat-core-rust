@@ -1,4 +1,6 @@
-use mmime::charconv::*;
+use std::ffi::{CStr, CString};
+
+use charset::Charset;
 use mmime::mailmime_decode::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -699,19 +701,17 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
                     && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char) != 0i32
                     && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char) != 0i32
                 {
-                    let mut converted: *mut libc::c_char = 0 as *mut libc::c_char;
-                    let r: libc::c_int = charconv(
-                        b"utf-8\x00" as *const u8 as *const libc::c_char,
-                        charset,
-                        decoded,
-                        strlen(decoded),
-                        &mut converted,
-                    );
-                    if r == MAIL_CHARCONV_NO_ERROR as libc::c_int && !converted.is_null() {
+                    if let Some(encoding) =
+                        Charset::for_label(CStr::from_ptr(charset).to_str().unwrap().as_bytes())
+                    {
+                        let data =
+                            std::slice::from_raw_parts(decoded as *const u8, strlen(decoded));
+
+                        let (res, _, _) = encoding.decode(data);
                         free(decoded as *mut libc::c_void);
-                        decoded = converted
-                    } else {
-                        free(converted as *mut libc::c_void);
+                        let res_c = CString::new(res.as_bytes()).unwrap();
+
+                        decoded = libc::strdup(res_c.as_ptr());
                     }
                 }
             }
