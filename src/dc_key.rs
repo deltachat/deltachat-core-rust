@@ -91,13 +91,24 @@ impl Key {
     }
 
     pub fn from_slice(bytes: &[u8], key_type: KeyType) -> Option<Self> {
-        match key_type {
-            KeyType::Public => SignedPublicKey::from_bytes(Cursor::new(bytes))
-                .map(Into::into)
-                .ok(),
-            KeyType::Private => SignedSecretKey::from_bytes(Cursor::new(bytes))
-                .map(Into::into)
-                .ok(),
+        let res: Result<Key, _> = match key_type {
+            KeyType::Public => SignedPublicKey::from_bytes(Cursor::new(bytes)).map(Into::into),
+            KeyType::Private => SignedSecretKey::from_bytes(Cursor::new(bytes)).map(Into::into),
+        };
+
+        match res {
+            Ok(key) => {
+                if key.verify() {
+                    Some(key)
+                } else {
+                    eprintln!("Invalid key: {:?}", key);
+                    None
+                }
+            }
+            Err(err) => {
+                println!("Invalid key bytes: {:?}\n{}", err, hex::encode(bytes));
+                None
+            }
         }
     }
 
@@ -201,6 +212,13 @@ impl Key {
         match self {
             Key::Public(k) => k.to_bytes().unwrap(),
             Key::Secret(k) => k.to_bytes().unwrap(),
+        }
+    }
+
+    pub fn verify(&self) -> bool {
+        match self {
+            Key::Public(k) => k.verify().is_ok(),
+            Key::Secret(k) => k.verify().is_ok(),
         }
     }
 
@@ -439,5 +457,19 @@ mod tests {
             fingerprint,
             "1234 5678 90AB CDAB CDEF\nABCD EF12 3456 7890 ABCD"
         );
+    }
+
+    #[test]
+    fn test_from_slice_roundtrip() {
+        let (public_key, private_key) =
+            crate::dc_pgp::dc_pgp_create_keypair(CString::new("hello").unwrap().as_ptr()).unwrap();
+
+        let binary = public_key.to_bytes();
+        let public_key2 = Key::from_slice(&binary, KeyType::Public).expect("invalid public key");
+        assert_eq!(public_key, public_key2);
+
+        let binary = private_key.to_bytes();
+        let private_key2 = Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
+        assert_eq!(private_key, private_key2);
     }
 }

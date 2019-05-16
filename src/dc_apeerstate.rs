@@ -436,47 +436,44 @@ pub unsafe fn dc_apeerstate_save_to_db(
         sqlite3_bind_int64(stmt, 2, peerstate.last_seen_autocrypt as sqlite3_int64);
         sqlite3_bind_int64(stmt, 3, peerstate.prefer_encrypt as sqlite3_int64);
 
-        if let Some(ref key) = peerstate.public_key {
-            let b = key.to_bytes();
-            sqlite3_bind_blob(
-                stmt,
-                4,
-                b.as_ptr() as *const _,
-                b.len() as libc::c_int,
-                None,
-            );
-        } else {
-            sqlite3_bind_blob(stmt, 4, std::ptr::null(), 0, None);
-        }
+        let pub_bytes = peerstate.public_key.as_ref().map(|k| k.to_bytes());
+        let gossip_bytes = peerstate.gossip_key.as_ref().map(|k| k.to_bytes());
+        let ver_bytes = peerstate.verified_key.as_ref().map(|k| k.to_bytes());
+
+        sqlite3_bind_blob(
+            stmt,
+            4,
+            pub_bytes
+                .as_ref()
+                .map(|b| b.as_ptr())
+                .unwrap_or_else(|| std::ptr::null()) as *const _,
+            pub_bytes.as_ref().map(|b| b.len()).unwrap_or_else(|| 0) as libc::c_int,
+            None,
+        );
 
         sqlite3_bind_int64(stmt, 5, peerstate.gossip_timestamp as sqlite3_int64);
-        if let Some(ref key) = peerstate.gossip_key {
-            let b = key.to_bytes();
-            sqlite3_bind_blob(
-                stmt,
-                6,
-                b.as_ptr() as *const _,
-                b.len() as libc::c_int,
-                None,
-            );
-        } else {
-            sqlite3_bind_blob(stmt, 6, std::ptr::null(), 0, None);
-        }
-
+        sqlite3_bind_blob(
+            stmt,
+            6,
+            gossip_bytes
+                .as_ref()
+                .map(|b| b.as_ptr())
+                .unwrap_or_else(|| std::ptr::null()) as *const _,
+            gossip_bytes.as_ref().map(|b| b.len()).unwrap_or_else(|| 0) as libc::c_int,
+            None,
+        );
         sqlite3_bind_text(stmt, 7, peerstate.public_key_fingerprint, -1, None);
         sqlite3_bind_text(stmt, 8, peerstate.gossip_key_fingerprint, -1, None);
-        if let Some(ref key) = peerstate.verified_key {
-            let b = key.to_bytes();
-            sqlite3_bind_blob(
-                stmt,
-                9,
-                b.as_ptr() as *const _,
-                b.len() as libc::c_int,
-                None,
-            );
-        } else {
-            sqlite3_bind_blob(stmt, 9, std::ptr::null(), 0, None);
-        }
+        sqlite3_bind_blob(
+            stmt,
+            9,
+            ver_bytes
+                .as_ref()
+                .map(|b| b.as_ptr())
+                .unwrap_or_else(|| std::ptr::null()) as *const _,
+            ver_bytes.as_ref().map(|b| b.len()).unwrap_or_else(|| 0) as libc::c_int,
+            None,
+        );
 
         sqlite3_bind_text(stmt, 10, peerstate.verified_key_fingerprint, -1, None);
         sqlite3_bind_text(stmt, 11, peerstate.addr, -1, None);
