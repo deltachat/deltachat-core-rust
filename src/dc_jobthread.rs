@@ -6,7 +6,6 @@ use crate::dc_imap::Imap;
 use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
-use crate::types::*;
 use crate::x::*;
 
 #[repr(C)]
@@ -67,7 +66,7 @@ pub unsafe fn dc_jobthread_suspend(
             if using_handle == 0 {
                 return;
             }
-            usleep((300i32 * 1000i32) as useconds_t);
+            std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
         }
     } else {
         dc_log_info(

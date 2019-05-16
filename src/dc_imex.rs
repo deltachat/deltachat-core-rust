@@ -243,7 +243,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &dc_context_t) -> *mut libc::c_c
                                             current_block = 6116957410927263949;
                                             break;
                                         }
-                                        sleep(1i32 as libc::c_uint);
+                                        std::thread::sleep(std::time::Duration::from_secs(1));
                                         msg = dc_get_msg(context, msg_id);
                                         if 0 != dc_msg_is_sent(msg) {
                                             current_block = 6450636197030046351;

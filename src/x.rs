@@ -4,9 +4,9 @@ use crate::types::*;
 pub use libc::{
     atoi, calloc, close, closedir, exit, fclose, fgets, fopen, fread, free, fseek, ftell, fwrite,
     gmtime, gmtime_r, localtime, localtime_r, malloc, memcmp, memcpy, memmove, memset, mkdir, open,
-    opendir, printf, read, readdir, realloc, remove, sleep, snprintf, sprintf, sscanf, strcasecmp,
-    strcat, strchr, strcmp, strcpy, strcspn, strlen, strncasecmp, strncmp, strncpy, strrchr,
-    strspn, strstr, strtol, system, time, tolower, usleep, write,
+    opendir, printf, read, readdir, realloc, remove, snprintf, sprintf, sscanf, strcasecmp, strcat,
+    strchr, strcmp, strcpy, strcspn, strlen, strncasecmp, strncmp, strncpy, strrchr, strspn,
+    strstr, strtol, system, time, tolower, write,
 };
 
 pub unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {

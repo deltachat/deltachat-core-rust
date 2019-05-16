@@ -299,7 +299,7 @@ unsafe fn dc_suspend_smtp_thread(context: &dc_context_t, suspend: libc::c_int) {
             if context.smtp_state.0.lock().unwrap().doing_jobs == 0 {
                 return;
             }
-            usleep((300i32 * 1000i32) as libc::useconds_t);
+            std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
         }
     }
 }
