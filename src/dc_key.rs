@@ -97,14 +97,7 @@ impl Key {
         };
 
         match res {
-            Ok(key) => {
-                if key.verify() {
-                    Some(key)
-                } else {
-                    eprintln!("Invalid key: {:?}", key);
-                    None
-                }
-            }
+            Ok(key) => Some(key),
             Err(err) => {
                 eprintln!("Invalid key bytes: {:?}\n{}", err, hex::encode(bytes));
                 None

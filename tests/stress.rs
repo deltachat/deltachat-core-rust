@@ -2239,8 +2239,8 @@ fn test_encryption_decryption() {
         let original_text: *const libc::c_char =
             b"This is a test\x00" as *const u8 as *const libc::c_char;
         let mut keyring = Keyring::default();
-        keyring.add(public_key.clone());
-        keyring.add(public_key2.clone());
+        keyring.add_owned(public_key.clone());
+        keyring.add_ref(&public_key2);
 
         let ctext = dc_pgp_pk_encrypt(
             original_text as *const libc::c_void,
@@ -2270,13 +2270,13 @@ fn test_encryption_decryption() {
         let ctext_unsigned = CString::new(ctext).unwrap();
 
         let mut keyring = Keyring::default();
-        keyring.add(private_key);
+        keyring.add_owned(private_key);
 
         let mut public_keyring = Keyring::default();
-        public_keyring.add(public_key.clone());
+        public_keyring.add_ref(&public_key);
 
         let mut public_keyring2 = Keyring::default();
-        public_keyring2.add(public_key2.clone());
+        public_keyring2.add_owned(public_key2.clone());
 
         let mut valid_signatures = dc_hash_t {
             keyClass: 0,
@@ -2338,7 +2338,7 @@ fn test_encryption_decryption() {
 
         dc_hash_clear(&mut valid_signatures);
 
-        public_keyring2.add(public_key.clone());
+        public_keyring2.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
             ctext_signed.as_ptr() as *const _,
@@ -2371,9 +2371,9 @@ fn test_encryption_decryption() {
         dc_hash_clear(&mut valid_signatures);
 
         let mut keyring = Keyring::default();
-        keyring.add(private_key2);
+        keyring.add_ref(&private_key2);
         let mut public_keyring = Keyring::default();
-        public_keyring.add(public_key);
+        public_keyring.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
             ctext_signed.as_ptr() as *const _,
