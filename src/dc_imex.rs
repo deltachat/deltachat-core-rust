@@ -531,20 +531,20 @@ unsafe fn set_self_key(
                 b"DELETE FROM keypairs WHERE public_key=? OR private_key=?;\x00" as *const u8
                     as *const libc::c_char,
             );
-            let bytes = public_key.to_bytes();
+            let pub_bytes = public_key.to_bytes();
             sqlite3_bind_blob(
                 stmt,
                 1,
-                bytes.as_ptr() as *const _,
-                bytes.len() as libc::c_int,
+                pub_bytes.as_ptr() as *const _,
+                pub_bytes.len() as libc::c_int,
                 None,
             );
-            let bytes = private_key.to_bytes();
+            let priv_bytes = private_key.to_bytes();
             sqlite3_bind_blob(
                 stmt,
                 2,
-                bytes.as_ptr() as *const _,
-                bytes.len() as libc::c_int,
+                priv_bytes.as_ptr() as *const _,
+                priv_bytes.len() as libc::c_int,
                 None,
             );
             sqlite3_step(stmt);
