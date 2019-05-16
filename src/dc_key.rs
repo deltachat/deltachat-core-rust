@@ -105,7 +105,7 @@ impl Key {
                 }
             }
             Err(err) => {
-                println!("Invalid key bytes: {:?}\n{}", err, hex::encode(bytes));
+                eprintln!("Invalid key bytes: {:?}\n{}", err, hex::encode(bytes));
                 None
             }
         }
