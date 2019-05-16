@@ -11,6 +11,7 @@ keywords = ["deltachat", "chat", "openpgp", "email", "encryption"]
 categories = ["cryptography", "std", "email"]
 
 [lib]
+name = "deltachat"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
