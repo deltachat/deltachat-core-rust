@@ -182,6 +182,9 @@ pub fn dc_pgp_create_keypair(addr: *const libc::c_char) -> Option<(Key, Key)> {
         .sign(&private_key, || "".into())
         .expect("failed to sign public key");
 
+    private_key.verify().expect("invalid private key generated");
+    public_key.verify().expect("invalid public key generated");
+
     Some((Key::Public(public_key), Key::Secret(private_key)))
 }
 
@@ -197,8 +200,11 @@ pub fn dc_pgp_pk_encrypt(
     let lit_msg = Message::new_literal_bytes("", bytes);
     let pkeys: Vec<&SignedPublicKey> = public_keys_for_encryption
         .keys()
-        .iter()
-        .filter_map(|key| key.try_into().ok())
+        .into_iter()
+        .filter_map(|key| {
+            let k: &Key = &key;
+            k.try_into().ok()
+        })
         .collect();
 
     let mut rng = thread_rng();
@@ -237,7 +243,10 @@ pub fn dc_pgp_pk_decrypt(
         let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
             .keys()
             .iter()
-            .filter_map(|key| key.try_into().ok())
+            .filter_map(|key| {
+                let k: &Key = &key;
+                k.try_into().ok()
+            })
             .collect();
 
         msg.decrypt(|| "".into(), || "".into(), &skeys[..])
@@ -252,7 +261,10 @@ pub fn dc_pgp_pk_decrypt(
                     let pkeys: Vec<&SignedPublicKey> = public_keys_for_validation
                         .keys()
                         .iter()
-                        .filter_map(|key| key.try_into().ok())
+                        .filter_map(|key| {
+                            let k: &Key = &key;
+                            k.try_into().ok()
+                        })
                         .collect();
 
                     for pkey in &pkeys {

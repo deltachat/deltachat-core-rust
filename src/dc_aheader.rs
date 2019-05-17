@@ -160,7 +160,13 @@ impl str::FromStr for Aheader {
             .remove("keydata")
             .and_then(|raw| Key::from_base64(&raw, KeyType::Public))
         {
-            Some(key) => key,
+            Some(key) => {
+                if key.verify() {
+                    key
+                } else {
+                    return Err(());
+                }
+            }
             None => {
                 return Err(());
             }

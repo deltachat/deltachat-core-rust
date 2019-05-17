@@ -522,6 +522,7 @@ unsafe fn set_self_key(
             CStr::from_ptr(buf_base64).to_str().unwrap(),
             KeyType::Private,
         )
+        .and_then(|k| if k.verify() { Some(k) } else { None })
         .and_then(|k| k.split_key().map(|pub_key| (k, pub_key)))
         {
             stmt = dc_sqlite3_prepare(

@@ -121,11 +121,9 @@ pub unsafe fn dc_e2ee_encrypt(
                                 recipient_addr,
                             ) && (peerstate.prefer_encrypt == 1i32 || 0 != e2ee_guaranteed)
                             {
-                                if let Some(key_to_use) =
-                                    dc_apeerstate_peek_key(&peerstate, min_verified)
+                                if let Some(key) = dc_apeerstate_peek_key(&peerstate, min_verified)
                                 {
-                                    // TODO: avoid clone
-                                    keyring.add(key_to_use.clone());
+                                    keyring.add_owned(key.clone());
                                     peerstates.push(peerstate);
                                 }
                             } else {
@@ -143,8 +141,7 @@ pub unsafe fn dc_e2ee_encrypt(
                     }
                 }
                 let sign_key = if 0 != do_encrypt {
-                    // TODO: avoid clone
-                    keyring.add(public_key.clone());
+                    keyring.add_ref(&public_key);
                     let key =
                         Key::from_self_private(context, addr, &context.sql.clone().read().unwrap());
 
@@ -670,12 +667,11 @@ pub unsafe fn dc_e2ee_decrypt(
                 if 0 != peerstate.degrade_event {
                     dc_handle_degrade_event(context, &peerstate);
                 }
-                // TODO: avoid clone
                 if let Some(ref key) = peerstate.gossip_key {
-                    public_keyring_for_validate.add(key.clone());
+                    public_keyring_for_validate.add_ref(key);
                 }
                 if let Some(ref key) = peerstate.public_key {
-                    public_keyring_for_validate.add(key.clone());
+                    public_keyring_for_validate.add_ref(key);
                 }
                 (*helper).signatures = malloc(::std::mem::size_of::<dc_hash_t>()) as *mut dc_hash_t;
                 dc_hash_init((*helper).signatures, 3i32, 1i32);
