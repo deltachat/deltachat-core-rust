@@ -1523,10 +1523,14 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
 
             match std::fs::metadata(std::ffi::CStr::from_ptr(path).to_str().unwrap()) {
                 Ok(stats) => {
-                    if stats.created().unwrap() > keep_files_newer_than
-                        || stats.modified().unwrap() > keep_files_newer_than
-                        || stats.accessed().unwrap() > keep_files_newer_than
-                    {
+                    let created =
+                        stats.created().is_ok() && stats.created().unwrap() > keep_files_newer_than;
+                    let modified = stats.modified().is_ok()
+                        && stats.modified().unwrap() > keep_files_newer_than;
+                    let accessed = stats.accessed().is_ok()
+                        && stats.accessed().unwrap() > keep_files_newer_than;
+
+                    if created || modified || accessed {
                         dc_log_info(
                             context,
                             0,
