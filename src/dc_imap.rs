@@ -1500,18 +1500,22 @@ impl Imap {
             info!(
                 context,
                 0,
-                "Marking message \"%s\", %s/%i for deletion...",
-                &message_id,
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                *server_uid as libc::c_int
+                format!(
+                    "Marking message \"{}\", {}/{} for deletion...",
+                    message_id.as_ref(),
+                    folder.as_ref(),
+                    server_uid,
+                )
             );
 
             if self.select_folder(context, Some(&folder)) == 0 {
                 warn!(
                     context,
                     0,
-                    "Cannot select folder %s for deleting message.",
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    format!(
+                        "Cannot select folder {} for deleting message.",
+                        folder.as_ref()
+                    )
                 );
             } else {
                 let set = format!("{}", server_uid);
@@ -1531,10 +1535,12 @@ impl Imap {
                                 warn!(
                                     context,
                                     0,
-                                    "Cannot delete on IMAP, %s/%i does not match %s.",
-                                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                                    *server_uid as libc::c_int,
-                                    message_id,
+                                    format!(
+                                        "Cannot delete on IMAP, {}/{} does not match {}.",
+                                        folder.as_ref(),
+                                        server_uid,
+                                        message_id.as_ref(),
+                                    )
                                 );
                                 *server_uid = 0;
                             }
@@ -1545,9 +1551,11 @@ impl Imap {
                             warn!(
                                 context,
                                 0,
-                                "Cannot delete on IMAP, %s/%i not found.",
-                                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                                *server_uid as libc::c_int,
+                                format!(
+                                    "Cannot delete on IMAP, {}/{} not found.",
+                                    folder.as_ref(),
+                                    server_uid,
+                                )
                             );
                             *server_uid = 0;
                         }
