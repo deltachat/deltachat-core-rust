@@ -22,7 +22,6 @@ use std::sync::{Arc, RwLock};
 
 use deltachat::constants::*;
 use deltachat::dc_aheader::*;
-use deltachat::dc_apeerstate::*;
 use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_chatlist::*;
@@ -63,6 +62,7 @@ use deltachat::dc_strbuilder::*;
 use deltachat::dc_strencode::*;
 use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
+use deltachat::peerstate::*;
 use deltachat::types::*;
 use deltachat::x::*;
 mod cmdline;

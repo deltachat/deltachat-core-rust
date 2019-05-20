@@ -7,7 +7,6 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 
 use crate::constants::*;
-use crate::dc_apeerstate::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -27,6 +26,7 @@ use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -1850,7 +1850,6 @@ unsafe fn check_verified_properties(
     let mut current_block: u64;
     let mut everythings_okay: libc::c_int = 0i32;
     let contact: *mut dc_contact_t = dc_contact_new(context);
-    let mut peerstate = dc_apeerstate_new(context);
     let mut to_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -1872,12 +1871,13 @@ unsafe fn check_verified_properties(
         // this check is skipped for SELF as there is no proper SELF-peerstate
         // and results in group-splits otherwise.
         if from_id != 1i32 as libc::c_uint {
-            if 0 == dc_apeerstate_load_by_addr(
-                &mut peerstate,
+            let peerstate = Peerstate::from_addr(
+                context,
                 &context.sql.clone().read().unwrap(),
                 (*contact).addr,
-            ) || dc_contact_is_verified_ex(contact, Some(&peerstate)) != 2i32
-            {
+            );
+
+            if peerstate.is_none() || dc_contact_is_verified_ex(contact, peerstate.as_ref()) != 2 {
                 *failure_reason = dc_mprintf(
                     b"%s. See \"Info\" for details.\x00" as *const u8 as *const libc::c_char,
                     b"The sender of this message is not verified.\x00" as *const u8
@@ -1885,17 +1885,16 @@ unsafe fn check_verified_properties(
                 );
                 dc_log_warning(context, 0i32, *failure_reason);
                 current_block = 14837890932895028253;
-            } else if !dc_apeerstate_has_verified_key(
-                &peerstate,
-                (*(*mimeparser).e2ee_helper).signatures,
-            ) {
-                *failure_reason = dc_mprintf(
-                    b"%s. See \"Info\" for details.\x00" as *const u8 as *const libc::c_char,
-                    b"The message was sent with non-verified encryption.\x00" as *const u8
-                        as *const libc::c_char,
-                );
-                dc_log_warning(context, 0i32, *failure_reason);
-                current_block = 14837890932895028253;
+            } else if let Some(peerstate) = peerstate {
+                if !peerstate.has_verified_key((*(*mimeparser).e2ee_helper).signatures) {
+                    *failure_reason = dc_mprintf(
+                        b"%s. See \"Info\" for details.\x00" as *const u8 as *const libc::c_char,
+                        b"The message was sent with non-verified encryption.\x00" as *const u8
+                            as *const libc::c_char,
+                    );
+                    dc_log_warning(context, 0i32, *failure_reason);
+                    current_block = 14837890932895028253;
+                }
             } else {
                 current_block = 15904375183555213903;
             }
@@ -1920,27 +1919,26 @@ unsafe fn check_verified_properties(
                     let to_addr: *const libc::c_char =
                         sqlite3_column_text(stmt, 0i32) as *const libc::c_char;
                     let mut is_verified: libc::c_int = sqlite3_column_int(stmt, 1i32);
+
+                    let peerstate = Peerstate::from_addr(
+                        context,
+                        &context.sql.clone().read().unwrap(),
+                        to_addr,
+                    );
                     if !dc_hash_find(
                         (*(*mimeparser).e2ee_helper).gossipped_addr,
                         to_addr as *const libc::c_void,
                         strlen(to_addr) as libc::c_int,
                     )
                     .is_null()
-                        && 0 != dc_apeerstate_load_by_addr(
-                            &mut peerstate,
-                            &context.sql.clone().read().unwrap(),
-                            to_addr,
-                        )
+                        && peerstate.is_some()
                     {
+                        let peerstate = peerstate.as_ref().uwnrap();
                         if 0 == is_verified
-                            || strcmp(
-                                peerstate.verified_key_fingerprint,
-                                peerstate.public_key_fingerprint,
-                            ) != 0i32
-                                && strcmp(
-                                    peerstate.verified_key_fingerprint,
-                                    peerstate.gossip_key_fingerprint,
-                                ) != 0i32
+                            || peerstate.verified_key_fingerprint
+                                != peerstate.public_key_fingerprint
+                                && peerstate.verified_key_fingerprint
+                                    != peerstate.gossip_key_fingerprint
                         {
                             dc_log_info(
                                 context,
@@ -1950,12 +1948,8 @@ unsafe fn check_verified_properties(
                                 to_addr,
                             );
                             let fp = peerstate.gossip_key_fingerprint;
-                            dc_apeerstate_set_verified(&mut peerstate, 0i32, fp, 2i32);
-                            dc_apeerstate_save_to_db(
-                                &mut peerstate,
-                                &context.sql.clone().read().unwrap(),
-                                0i32,
-                            );
+                            peerstate.set_verified(0, fp, 2);
+                            peerstate.save_to_db(&context.sql.clone().read().unwrap(), 0);
                             is_verified = 1i32
                         }
                     }
@@ -1985,11 +1979,11 @@ unsafe fn check_verified_properties(
     }
     sqlite3_finalize(stmt);
     dc_contact_unref(contact);
-    dc_apeerstate_unref(&mut peerstate);
     free(to_ids_str as *mut libc::c_void);
     sqlite3_free(q3 as *mut libc::c_void);
-    return everythings_okay;
+    everythings_okay
 }
+
 unsafe fn set_better_msg(mime_parser: *mut dc_mimeparser_t, better_msg: *mut *mut libc::c_char) {
     if !(*better_msg).is_null() && carray_count((*mime_parser).parts) > 0i32 as libc::c_uint {
         let mut part: *mut dc_mimepart_t =

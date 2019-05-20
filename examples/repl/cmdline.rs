@@ -3,7 +3,6 @@ use std::sync::{Arc, RwLock};
 
 use deltachat::constants::*;
 use deltachat::dc_aheader::*;
-use deltachat::dc_apeerstate::*;
 use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_chatlist::*;
@@ -44,6 +43,7 @@ use deltachat::dc_strbuilder::*;
 use deltachat::dc_strencode::*;
 use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
+use deltachat::peerstate::*;
 use deltachat::types::*;
 use deltachat::x::*;
 use num_traits::FromPrimitive;
@@ -407,7 +407,7 @@ unsafe fn log_msglist(context: &dc_context_t, msglist: *mut dc_array_t) {
 }
 unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t;
-    let mut peerstate = dc_apeerstate_new(context);
+    let mut peerstate = None;
     if !dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
     }
@@ -488,8 +488,8 @@ unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
         }
         i += 1
     }
-    dc_apeerstate_unref(&mut peerstate);
 }
+
 static mut s_is_auth: libc::c_int = 0i32;
 
 pub unsafe fn dc_cmdline_skip_auth() {
