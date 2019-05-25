@@ -801,8 +801,8 @@ pub unsafe fn dc_get_contact_encrinfo(
             &context.sql.clone().read().unwrap(),
         );
 
-        if peerstate.is_some() && peerstate.and_then(|p| p.peek_key(0)).is_some() {
-            let peerstate = peerstate.unwrap();
+        if peerstate.is_some() && peerstate.as_ref().and_then(|p| p.peek_key(0)).is_some() {
+            let peerstate = peerstate.as_ref().unwrap();
             p = dc_stock_str(
                 context,
                 if peerstate.prefer_encrypt == EncryptPreference::Mutual {
@@ -1123,7 +1123,7 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
             0
         }
     } else {
-        let mut peerstate = Peerstate::from_addr(
+        let peerstate = Peerstate::from_addr(
             (*contact).context,
             &(*contact).context.sql.clone().read().unwrap(),
             to_str((*contact).addr),

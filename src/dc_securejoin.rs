@@ -355,12 +355,11 @@ unsafe fn fingerprint_equals_sender(
     let contacts: *mut dc_array_t = dc_get_chat_contacts(context, contact_chat_id);
     let contact: *mut dc_contact_t = dc_contact_new(context);
 
-    let mut fingerprint_normalized: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(dc_array_get_cnt(contacts) != 1) {
         let peerstate = Peerstate::from_addr(
             context,
             &context.sql.clone().read().unwrap(),
-            (*contact).addr,
+            to_str((*contact).addr),
         );
         if !(!dc_contact_load_from_db(
             contact,
@@ -369,13 +368,14 @@ unsafe fn fingerprint_equals_sender(
         ) || peerstate.is_some())
         {
             let peerstate = peerstate.as_ref().unwrap();
-            fingerprint_normalized = dc_normalize_fingerprint_c(fingerprint);
-            if strcasecmp(fingerprint_normalized, peerstate.public_key_fingerprint) == 0i32 {
-                fingerprint_equal = 1i32
+            let fingerprint_normalized = dc_normalize_fingerprint(to_str(fingerprint));
+            if peerstate.public_key_fingerprint.is_some()
+                && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
+            {
+                fingerprint_equal = 1;
             }
         }
     }
-    free(fingerprint_normalized as *mut libc::c_void);
     dc_contact_unref(contact);
     dc_array_unref(contacts);
 
@@ -977,13 +977,15 @@ unsafe fn mark_peer_as_verified(
 ) -> libc::c_int {
     let mut success = 0;
 
-    if let Some(ref mut peerstate) =
-        Peerstate::from_fingerprint(context, &context.sql.clone().read().unwrap(), fingerprint)
-    {
-        if 0 != peerstate.set_verified(1, fingerprint, 2) {
+    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(
+        context,
+        &context.sql.clone().read().unwrap(),
+        to_str(fingerprint),
+    ) {
+        if peerstate.set_verified(1, to_str(fingerprint), 2) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = Some(ToSave::All);
-            peerstate.save_to_db(&context.sql.clone().read().unwrap(), 0i32);
+            peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
             success = 1;
         }
     }
@@ -1060,7 +1062,17 @@ pub unsafe fn dc_handle_degrade_event(context: &dc_context_t, peerstate: &Peerst
             &context.sql.clone().read().unwrap(),
             b"SELECT id FROM contacts WHERE addr=?;\x00" as *const u8 as *const libc::c_char,
         );
-        sqlite3_bind_text(stmt, 1i32, peerstate.addr, -1i32, None);
+        let c_addr = peerstate.addr.as_ref().map(to_cstring);
+        sqlite3_bind_text(
+            stmt,
+            1i32,
+            c_addr
+                .as_ref()
+                .map(|a| a.as_ptr())
+                .unwrap_or_else(|| std::ptr::null()),
+            -1i32,
+            None,
+        );
         sqlite3_step(stmt);
         contact_id = sqlite3_column_int(stmt, 0i32) as uint32_t;
         sqlite3_finalize(stmt);
@@ -1072,7 +1084,13 @@ pub unsafe fn dc_handle_degrade_event(context: &dc_context_t, peerstate: &Peerst
                 &mut contact_chat_id,
                 0 as *mut libc::c_int,
             );
-            let msg: *mut libc::c_char = dc_stock_str_repl_string(context, 37i32, peerstate.addr);
+            let msg = dc_stock_str_repl_string(
+                context,
+                37i32,
+                c_addr
+                    .map(|a| a.as_ptr())
+                    .unwrap_or_else(|| std::ptr::null()),
+            );
             dc_add_device_msg(context, contact_chat_id, msg);
             free(msg as *mut libc::c_void);
             (context.cb)(

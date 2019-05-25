@@ -1847,7 +1847,7 @@ unsafe fn check_verified_properties(
     to_ids: *const dc_array_t,
     failure_reason: *mut *mut libc::c_char,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let mut current_block: u64 = 0;
     let mut everythings_okay: libc::c_int = 0i32;
     let contact: *mut dc_contact_t = dc_contact_new(context);
     let mut to_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1920,7 +1920,7 @@ unsafe fn check_verified_properties(
                         sqlite3_column_text(stmt, 0i32) as *const libc::c_char;
                     let mut is_verified: libc::c_int = sqlite3_column_int(stmt, 1i32);
 
-                    let peerstate = Peerstate::from_addr(
+                    let mut peerstate = Peerstate::from_addr(
                         context,
                         &context.sql.clone().read().unwrap(),
                         to_str(to_addr),
@@ -1933,7 +1933,7 @@ unsafe fn check_verified_properties(
                     .is_null()
                         && peerstate.is_some()
                     {
-                        let peerstate = peerstate.as_ref().unwrap();
+                        let peerstate = peerstate.as_mut().unwrap();
                         if 0 == is_verified
                             || peerstate.verified_key_fingerprint
                                 != peerstate.public_key_fingerprint
@@ -1947,8 +1947,9 @@ unsafe fn check_verified_properties(
                                 (*contact).addr,
                                 to_addr,
                             );
-                            if let Some(ref fp) = peerstate.gossip_key_fingerprint {
-                                peerstate.set_verified(0, fp, 2);
+                            let fp = peerstate.gossip_key_fingerprint.clone();
+                            if let Some(fp) = fp {
+                                peerstate.set_verified(0, &fp, 2);
                                 peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
                                 is_verified = 1i32;
                             }

@@ -62,7 +62,7 @@ pub unsafe fn dc_e2ee_encrypt(
     let imffields_unprotected: *mut mailimf_fields;
     let mut keyring = Keyring::default();
     let plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-    let mut peerstates = Vec::new();
+    let mut peerstates: Vec<Peerstate> = Vec::new();
     if !helper.is_null() {
         memset(
             helper as *mut libc::c_void,
@@ -120,7 +120,8 @@ pub unsafe fn dc_e2ee_encrypt(
                                 to_str(recipient_addr),
                             );
                             if peerstate.is_some()
-                                && (peerstate.unwrap().prefer_encrypt == EncryptPreference::Mutual
+                                && (peerstate.as_ref().unwrap().prefer_encrypt
+                                    == EncryptPreference::Mutual
                                     || 0 != e2ee_guaranteed)
                             {
                                 let peerstate = peerstate.unwrap();

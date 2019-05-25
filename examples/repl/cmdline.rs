@@ -407,7 +407,6 @@ unsafe fn log_msglist(context: &dc_context_t, msglist: *mut dc_array_t) {
 }
 unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t;
-    let mut peerstate = None;
     if !dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
     }
@@ -444,29 +443,14 @@ unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
                     b"addr unset\x00" as *const u8 as *const libc::c_char
                 },
             );
-            let peerstate_ok: libc::c_int = dc_apeerstate_load_by_addr(
-                &mut peerstate,
-                &context.sql.clone().read().unwrap(),
-                addr,
-            );
-            if 0 != peerstate_ok && contact_id != 1i32 as libc::c_uint {
-                let pe: *mut libc::c_char;
-                match peerstate.prefer_encrypt {
-                    1 => pe = dc_strdup(b"mutual\x00" as *const u8 as *const libc::c_char),
-                    0 => pe = dc_strdup(b"no-preference\x00" as *const u8 as *const libc::c_char),
-                    20 => pe = dc_strdup(b"reset\x00" as *const u8 as *const libc::c_char),
-                    _ => {
-                        pe = dc_mprintf(
-                            b"unknown-value (%i)\x00" as *const u8 as *const libc::c_char,
-                            peerstate.prefer_encrypt,
-                        )
-                    }
-                }
+            let peerstate =
+                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), to_str(addr));
+            if peerstate.is_some() && contact_id != 1i32 as libc::c_uint {
+                let pe = to_cstring(format!("{}", peerstate.as_ref().unwrap().prefer_encrypt));
                 line2 = dc_mprintf(
                     b", prefer-encrypt=%s\x00" as *const u8 as *const libc::c_char,
-                    pe,
+                    pe.as_ptr(),
                 );
-                free(pe as *mut libc::c_void);
             }
             dc_contact_unref(contact);
             free(name as *mut libc::c_void);

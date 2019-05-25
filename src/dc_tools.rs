@@ -1954,7 +1954,7 @@ mod tests {
 }
 
 pub fn to_cstring<S: AsRef<str>>(s: S) -> std::ffi::CString {
-    unsafe { std::ffi::CString::new(s).unwrap() }
+    std::ffi::CString::new(s.as_ref()).unwrap()
 }
 
 pub fn to_string(str: *const libc::c_char) -> String {

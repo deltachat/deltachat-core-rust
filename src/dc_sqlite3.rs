@@ -909,11 +909,10 @@ pub unsafe fn dc_sqlite3_open(
                                 if let Some(ref mut peerstate) = Peerstate::from_addr(
                                     context,
                                     sql,
-                                    sqlite3_column_text(stmt, 0) as *const libc::c_char,
+                                    to_str(sqlite3_column_text(stmt, 0) as *const libc::c_char),
                                 ) {
-                                    if 0 != peerstate.recalc_fingerprint() {
-                                        peerstate.save_to_db(sql, 0);
-                                    }
+                                    peerstate.recalc_fingerprint();
+                                    peerstate.save_to_db(sql, false);
                                 }
                             }
                             sqlite3_finalize(stmt);

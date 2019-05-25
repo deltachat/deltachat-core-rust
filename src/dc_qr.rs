@@ -245,7 +245,7 @@ pub unsafe fn dc_check_qr(context: &dc_context_t, qr: *const libc::c_char) -> *m
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
-                                            let c_addr = peerstate.addr.map(to_cstring);
+                                            let c_addr = peerstate.addr.as_ref().map(to_cstring);
                                             (*qr_parsed).id = dc_add_or_lookup_contact(
                                                 context,
                                                 0 as *const libc::c_char,
