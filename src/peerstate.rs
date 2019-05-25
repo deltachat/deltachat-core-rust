@@ -1,6 +1,6 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 
-use num_traits::ToPrimitive;
+use num_traits::FromPrimitive;
 
 use crate::constants::*;
 use crate::dc_aheader::*;
@@ -9,6 +9,7 @@ use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
 use crate::dc_key::*;
 use crate::dc_sqlite3::*;
+use crate::dc_tools::{to_cstring, to_string};
 use crate::types::*;
 use crate::x::*;
 
@@ -30,14 +31,14 @@ pub struct Peerstate<'a> {
     pub degrade_event: Option<DegradeEvent>,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum ToSave {
     Timestamps = 0x01,
     All = 0x02,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum DegradeEvent {
     /// Recoverable by an incoming encrypted mail.
@@ -100,14 +101,14 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub fn from_header(context: &dc_context_t, header: &Aheader, message_time: time_t) -> Self {
+    pub fn from_header(context: &'a dc_context_t, header: &Aheader, message_time: u64) -> Self {
         let mut res = Self::new(context);
 
         res.addr = Some(header.addr.clone());
         res.last_seen = message_time;
         res.last_seen_autocrypt = message_time;
         res.to_save = Some(ToSave::All);
-        res.prefer_encrypt = header.prefer_encrypt.to_i32().unwrap();
+        res.prefer_encrypt = header.prefer_encrypt;
         res.public_key = Some(header.public_key.clone());
         res.recalc_fingerprint();
 
@@ -115,13 +116,13 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn from_gossip(
-        context: &dc_context_t,
+        context: &'a dc_context_t,
         gossip_header: &Aheader,
-        message_time: time_t,
+        message_time: u64,
     ) -> Self {
         let mut res = Self::new(context);
 
-        res.addr = Some(gossip_header.addr.clone);
+        res.addr = Some(gossip_header.addr.clone());
         res.gossip_timestamp = message_time;
         res.to_save = Some(ToSave::All);
         res.gossip_key = Some(gossip_header.public_key.clone());
@@ -130,7 +131,7 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_addr(context: &dc_context_t, sql: &dc_sqlite3_t, addr: &str) -> Option<Self> {
+    pub fn from_addr(context: &'a dc_context_t, sql: &dc_sqlite3_t, addr: &str) -> Option<Self> {
         let mut res = None;
 
         let stmt = unsafe {
@@ -141,7 +142,7 @@ impl<'a> Peerstate<'a> {
                     as *const u8 as *const libc::c_char)
         };
         let addr_c = CString::new(addr.as_bytes()).unwrap();
-        unsafe { sqlite3_bind_text(stmt, 1, addr, -1, None) };
+        unsafe { sqlite3_bind_text(stmt, 1, addr_c.as_ptr(), -1, None) };
         if unsafe { sqlite3_step(stmt) } == 100 {
             res = Some(Self::from_stmt(context, stmt));
         }
@@ -151,7 +152,7 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn from_fingerprint(
-        context: &dc_context_t,
+        context: &'a dc_context_t,
         sql: &dc_sqlite3_t,
         fingerprint: &str,
     ) -> Option<Self> {
@@ -180,37 +181,18 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    fn from_stmt(context: &dc_context_t, stmt: *mut sqlite3_stmt) -> Self {
+    fn from_stmt(context: &'a dc_context_t, stmt: *mut sqlite3_stmt) -> Self {
         let mut res = Self::new(context);
 
-        res.addr = unsafe {
-            CStr::from_ptr(sqlite3_column_text(stmt, 0) as *mut libc::c_char)
-                .to_str()
-                .unwrap()
-                .into()
-        };
+        res.addr = Some(to_string(sqlite3_column_text(stmt, 0) as *const _));
         res.last_seen = unsafe { sqlite3_column_int64(stmt, 1) } as u64;
         res.last_seen_autocrypt = unsafe { sqlite3_column_int64(stmt, 2) } as u64;
-        res.prefer_encrypt = unsafe { sqlite3_column_int(stmt, 3).parse().ok() };
+        res.prefer_encrypt =
+            EncryptPreference::from_i32(unsafe { sqlite3_column_int(stmt, 3) }).unwrap_or_default();
         res.gossip_timestamp = unsafe { sqlite3_column_int(stmt, 5) } as u64;
-        res.public_key_fingerprint = unsafe {
-            CStr::from_ptr(sqlite3_column_text(stmt, 7) as *mut libc::c_char)
-                .to_str()
-                .unwrap()
-                .into()
-        };
-        res.gossip_key_fingerprint = unsafe {
-            CStr::from_ptr(sqlite3_column_text(stmt, 8) as *mut libc::c_char)
-                .to_str()
-                .unwrap()
-                .into()
-        };
-        res.verified_key_fingerprint = unsafe {
-            CStr::from_ptr(sqlite3_column_text(stmt, 10) as *mut libc::c_char)
-                .to_str()
-                .unwrap()
-                .into()
-        };
+        res.public_key_fingerprint = Some(to_string(sqlite3_column_text(stmt, 7) as *const _));
+        res.gossip_key_fingerprint = Some(to_string(sqlite3_column_text(stmt, 8) as *const _));
+        res.verified_key_fingerprint = Some(to_string(sqlite3_column_text(stmt, 10) as *const _));
 
         if unsafe { sqlite3_column_type(stmt, 4) } != 5 {
             res.public_key = Key::from_stmt(stmt, 4, KeyType::Public);
@@ -235,7 +217,7 @@ impl<'a> Peerstate<'a> {
     pub fn recalc_fingerprint(&mut self) {
         if let Some(ref public_key) = self.public_key {
             let old_public_fingerprint = self.public_key_fingerprint.take();
-            self.public_key_fingerprint = public_key.fingerprint();
+            self.public_key_fingerprint = Some(public_key.fingerprint());
 
             if old_public_fingerprint.is_none()
                 || self.public_key_fingerprint.is_none()
@@ -250,7 +232,7 @@ impl<'a> Peerstate<'a> {
 
         if let Some(ref gossip_key) = self.gossip_key {
             let old_gossip_fingerprint = self.gossip_key_fingerprint.take();
-            self.gossip_key_fingerprint = gossip_key.fingerprint();
+            self.gossip_key_fingerprint = Some(gossip_key.fingerprint());
 
             if old_gossip_fingerprint.is_none()
                 || self.gossip_key_fingerprint.is_none()
@@ -264,7 +246,7 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub fn degrade_encryption(&mut self, message_time: time_t) {
+    pub fn degrade_encryption(&mut self, message_time: u64) {
         if self.prefer_encrypt == EncryptPreference::Mutual {
             self.degrade_event = Some(DegradeEvent::EncryptionPaused);
         }
@@ -276,7 +258,7 @@ impl<'a> Peerstate<'a> {
 
     pub fn apply_header(&mut self, header: &Aheader, message_time: u64) {
         if self.addr.is_none()
-            || self.addr.to_str().unwrap().to_lowercase() != header.addr.to_lowercase()
+            || self.addr.as_ref().unwrap().to_lowercase() != header.addr.to_lowercase()
         {
             return;
         }
@@ -336,7 +318,7 @@ impl<'a> Peerstate<'a> {
         None
     }
 
-    pub fn peek_key(self: &Peerstate<'a>, min_verified: usize) -> Option<&'a Key> {
+    pub fn peek_key(&self, min_verified: usize) -> Option<&Key> {
         if self.public_key.is_none() && self.gossip_key.is_none() && self.verified_key.is_none() {
             return None;
         }
@@ -358,7 +340,7 @@ impl<'a> Peerstate<'a> {
                 && self.public_key_fingerprint.is_some()
                 && self.public_key_fingerprint.as_ref().unwrap() == fingerprint
             {
-                self.to_save = Some(ToSave::Al);
+                self.to_save = Some(ToSave::All);
                 self.verified_key = VerifiedKey::Public;
                 self.verified_key_fingerprint = self.public_key_fingerprint.clone();
                 success = true;
@@ -443,8 +425,31 @@ impl<'a> Peerstate<'a> {
                     gossip_bytes.as_ref().map(|b| b.len()).unwrap_or_else(|| 0) as libc::c_int,
                     None,
                 );
-                sqlite3_bind_text(stmt, 7, self.public_key_fingerprint, -1, None);
-                sqlite3_bind_text(stmt, 8, self.gossip_key_fingerprint, -1, None);
+                let pkc = self
+                    .public_key_fingerprint
+                    .as_ref()
+                    .map(|fp| to_cstring(fp));
+                let gkc = self
+                    .gossip_key_fingerprint
+                    .as_ref()
+                    .map(|fp| to_cstring(fp));
+
+                sqlite3_bind_text(
+                    stmt,
+                    7,
+                    pkc.map(|fp| fp.as_ptr())
+                        .unwrap_or_else(|| std::ptr::null()),
+                    -1,
+                    None,
+                );
+                sqlite3_bind_text(
+                    stmt,
+                    8,
+                    gkc.map(|fp| fp.as_ptr())
+                        .unwrap_or_else(|| std::ptr::null()),
+                    -1,
+                    None,
+                );
                 sqlite3_bind_blob(
                     stmt,
                     9,
@@ -456,8 +461,29 @@ impl<'a> Peerstate<'a> {
                     None,
                 );
 
-                sqlite3_bind_text(stmt, 10, self.verified_key_fingerprint, -1, None);
-                sqlite3_bind_text(stmt, 11, self.addr, -1, None);
+                let vkc = self
+                    .verified_key_fingerprint
+                    .as_ref()
+                    .map(|fp| to_cstring(fp));
+                let addr_c = self.addr.as_ref().map(|addr| to_cstring(addr));
+
+                sqlite3_bind_text(
+                    stmt,
+                    10,
+                    vkc.map(|fp| fp.as_ptr())
+                        .unwrap_or_else(|| std::ptr::null()),
+                    -1,
+                    None,
+                );
+                sqlite3_bind_text(
+                    stmt,
+                    11,
+                    addr_c
+                        .map(|addr| addr.as_ptr())
+                        .unwrap_or_else(|| std::ptr::null()),
+                    -1,
+                    None,
+                );
             }
 
             if unsafe { sqlite3_step(stmt) } == 101 {
@@ -473,11 +499,21 @@ impl<'a> Peerstate<'a> {
                         as *const u8 as *const libc::c_char)
             };
 
+            let addr_c = self.addr.as_ref().map(|fp| to_cstring(fp));
+
             unsafe {
                 sqlite3_bind_int64(stmt, 1, self.last_seen as sqlite3_int64);
                 sqlite3_bind_int64(stmt, 2, self.last_seen_autocrypt as sqlite3_int64);
                 sqlite3_bind_int64(stmt, 3, self.gossip_timestamp as sqlite3_int64);
-                sqlite3_bind_text(stmt, 4, self.addr, -1, None);
+                sqlite3_bind_text(
+                    stmt,
+                    4,
+                    addr_c
+                        .map(|addr| addr.as_ptr())
+                        .unwrap_or_else(|| std::ptr::null()),
+                    -1,
+                    None,
+                );
             }
 
             if unsafe { sqlite3_step(stmt) } == 101 {
@@ -499,18 +535,18 @@ impl<'a> Peerstate<'a> {
             return false;
         }
 
-        if self.verified_key.is_some()
-            && !self.verified_key_fingerprint.is_null()
-            && !unsafe {
+        if self.verified_key.is_some() && self.verified_key_fingerprint.is_some() {
+            let vkc = to_cstring(self.verified_key_fingerprint.as_ref().unwrap());
+            if !unsafe {
                 dc_hash_find(
                     fingerprints,
-                    self.verified_key_fingerprint as *const libc::c_void,
-                    strlen(self.verified_key_fingerprint) as libc::c_int,
+                    vkc.as_ptr() as *const libc::c_void,
+                    strlen(vkc.as_ptr()) as libc::c_int,
                 )
                 .is_null()
+            } {
+                return true;
             }
-        {
-            return true;
         }
 
         false

@@ -1952,3 +1952,15 @@ mod tests {
         }
     }
 }
+
+pub fn to_cstring<S: AsRef<str>>(s: S) -> std::ffi::CString {
+    unsafe { std::ffi::CString::new(s).unwrap() }
+}
+
+pub fn to_string(str: *const libc::c_char) -> String {
+    unsafe { std::ffi::CStr::from_ptr(str).to_str().unwrap().to_string() }
+}
+
+pub fn to_str<'a>(str: *const libc::c_char) -> &'a str {
+    unsafe { std::ffi::CStr::from_ptr(str).to_str().unwrap() }
+}

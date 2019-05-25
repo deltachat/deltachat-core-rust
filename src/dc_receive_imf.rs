@@ -1874,7 +1874,7 @@ unsafe fn check_verified_properties(
             let peerstate = Peerstate::from_addr(
                 context,
                 &context.sql.clone().read().unwrap(),
-                (*contact).addr,
+                to_str((*contact).addr),
             );
 
             if peerstate.is_none() || dc_contact_is_verified_ex(contact, peerstate.as_ref()) != 2 {
@@ -1923,7 +1923,7 @@ unsafe fn check_verified_properties(
                     let peerstate = Peerstate::from_addr(
                         context,
                         &context.sql.clone().read().unwrap(),
-                        to_addr,
+                        to_str(to_addr),
                     );
                     if !dc_hash_find(
                         (*(*mimeparser).e2ee_helper).gossipped_addr,
@@ -1933,7 +1933,7 @@ unsafe fn check_verified_properties(
                     .is_null()
                         && peerstate.is_some()
                     {
-                        let peerstate = peerstate.as_ref().uwnrap();
+                        let peerstate = peerstate.as_ref().unwrap();
                         if 0 == is_verified
                             || peerstate.verified_key_fingerprint
                                 != peerstate.public_key_fingerprint
@@ -1947,10 +1947,11 @@ unsafe fn check_verified_properties(
                                 (*contact).addr,
                                 to_addr,
                             );
-                            let fp = peerstate.gossip_key_fingerprint;
-                            peerstate.set_verified(0, fp, 2);
-                            peerstate.save_to_db(&context.sql.clone().read().unwrap(), 0);
-                            is_verified = 1i32
+                            if let Some(ref fp) = peerstate.gossip_key_fingerprint {
+                                peerstate.set_verified(0, fp, 2);
+                                peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+                                is_verified = 1i32;
+                            }
                         }
                     }
                     if !(0 == is_verified) {

@@ -9,6 +9,7 @@ use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_oauth2::dc_get_oauth2_access_token;
 use crate::dc_sqlite3::*;
+use crate::dc_tools::{to_str, to_string};
 use crate::types::*;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
@@ -1696,14 +1697,6 @@ impl Imap {
             None
         }
     }
-}
-
-fn to_string(str: *const libc::c_char) -> String {
-    unsafe { CStr::from_ptr(str).to_str().unwrap().to_string() }
-}
-
-fn to_str<'a>(str: *const libc::c_char) -> &'a str {
-    unsafe { CStr::from_ptr(str).to_str().unwrap() }
 }
 
 /// Try to get the folder meaning by the name of the folder only used if the server does not support XLIST.

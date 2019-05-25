@@ -240,15 +240,18 @@ pub unsafe fn dc_check_qr(context: &dc_context_t, qr: *const libc::c_char) -> *m
                                     let peerstate = Peerstate::from_fingerprint(
                                         context,
                                         &context.sql.clone().read().unwrap(),
-                                        fingerprint,
+                                        to_str(fingerprint),
                                     );
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
+                                            let c_addr = peerstate.addr.map(to_cstring);
                                             (*qr_parsed).id = dc_add_or_lookup_contact(
                                                 context,
                                                 0 as *const libc::c_char,
-                                                peerstate.addr,
+                                                c_addr
+                                                    .map(|a| a.as_ptr())
+                                                    .unwrap_or_else(|| std::ptr::null()),
                                                 0x80i32,
                                                 0 as *mut libc::c_int,
                                             );

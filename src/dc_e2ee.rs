@@ -117,13 +117,14 @@ pub unsafe fn dc_e2ee_encrypt(
                             let peerstate = Peerstate::from_addr(
                                 context,
                                 &context.sql.clone().read().unwrap(),
-                                recipient_addr,
+                                to_str(recipient_addr),
                             );
                             if peerstate.is_some()
                                 && (peerstate.unwrap().prefer_encrypt == EncryptPreference::Mutual
                                     || 0 != e2ee_guaranteed)
                             {
-                                if let Some(key) = peerstate.peek_key(min_verified) {
+                                let peerstate = peerstate.unwrap();
+                                if let Some(key) = peerstate.peek_key(min_verified as usize) {
                                     keyring.add_owned(key.clone());
                                     peerstates.push(peerstate);
                                 }
@@ -183,10 +184,11 @@ pub unsafe fn dc_e2ee_encrypt(
                             if iCnt > 1i32 {
                                 let mut i: libc::c_int = 0i32;
                                 while i < iCnt {
-                                    let p =
-                                        peerstates[i as usize].render_gossip_header(min_verified);
+                                    let p = peerstates[i as usize]
+                                        .render_gossip_header(min_verified as usize);
 
                                     if p.is_some() {
+                                        let header = to_cstring(p.unwrap());
                                         mailimf_fields_add(
                                             imffields_encrypted,
                                             mailimf_field_new_custom(
@@ -194,7 +196,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                                     b"Autocrypt-Gossip\x00" as *const u8
                                                         as *const libc::c_char,
                                                 ),
-                                                p,
+                                                strdup(header.as_ptr()),
                                             ),
                                         );
                                     }
@@ -578,7 +580,7 @@ pub unsafe fn dc_e2ee_decrypt(
     (to detect parts that could not be decrypted, simply look for left "multipart/encrypted" MIME types */
     /*just a pointer into mailmime structure, must not be freed*/
     let imffields: *mut mailimf_fields = mailmime_find_mailimf_fields(in_out_message);
-    let mut message_time: time_t = 0i32 as time_t;
+    let mut message_time = 0;
     let mut from: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut private_keyring = Keyring::default();
@@ -612,25 +614,22 @@ pub unsafe fn dc_e2ee_decrypt(
         let mut peerstate = None;
         let autocryptheader = Aheader::from_imffields(from, imffields);
         if message_time > 0 && !from.is_null() {
-            peerstate = Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), from);
+            peerstate =
+                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), to_str(from));
 
             if let Some(ref mut peerstate) = peerstate {
                 if let Some(ref header) = autocryptheader {
-                    peerstate.apply_header(&header, message_time);
-                    peerstate.save_to_db(
-                        &mut peerstate,
-                        &context.sql.clone().read().unwrap(),
-                        0i32,
-                    );
-                } else if message_time > peerstate.last_seen_autocrypt
+                    peerstate.apply_header(&header, message_time as u64);
+                    peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+                } else if message_time as u64 > peerstate.last_seen_autocrypt
                     && 0 == contains_report(in_out_message)
                 {
-                    peerstate.degrade_encryption(message_time);
-                    peerstate.save_to_db(&context.sql.clone().read().unwrap(), 0i32);
+                    peerstate.degrade_encryption(message_time as u64);
+                    peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
                 }
             } else if let Some(ref header) = autocryptheader {
-                let p = Peerstate::from_header(context, header, message_time);
-                p.save_to_db(context.sql.clone().read().unwrap(), 1);
+                let p = Peerstate::from_header(context, header, message_time as u64);
+                p.save_to_db(&context.sql.clone().read().unwrap(), true);
                 peerstate = Some(p);
             }
         }
@@ -648,8 +647,11 @@ pub unsafe fn dc_e2ee_decrypt(
                 &context.sql.clone().read().unwrap(),
             ) {
                 if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-                    peerstate =
-                        Peerstate::from_addr(context & context.sql.clone().read().unwrap(), from);
+                    peerstate = Peerstate::from_addr(
+                        &context,
+                        &context.sql.clone().read().unwrap(),
+                        to_str(from),
+                    );
                 }
                 if let Some(ref peerstate) = peerstate {
                     if peerstate.degrade_event.is_some() {
@@ -743,14 +745,15 @@ unsafe fn update_gossip_peerstates(
                         let mut peerstate = Peerstate::from_addr(
                             context,
                             &context.sql.clone().read().unwrap(),
-                            header.addr,
+                            &header.addr,
                         );
                         if let Some(ref mut peerstate) = peerstate {
-                            peerstate.apply_gossip(header, message_time);
-                            peerstate.save_to_db(&context.sql.clone().read().unwrap(), 0);
+                            peerstate.apply_gossip(header, message_time as u64);
+                            peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
                         } else {
-                            peerstate = Peerstate::from_gossip(context, header, message_time);
-                            peerstate.save_to_db(&context.sql.clone().read().unwrap(), 1);
+                            let p = Peerstate::from_gossip(context, header, message_time as u64);
+                            p.save_to_db(&context.sql.clone().read().unwrap(), true);
+                            peerstate = Some(p);
                         }
                         if let Some(peerstate) = peerstate {
                             if peerstate.degrade_event.is_some() {

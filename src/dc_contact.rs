@@ -787,7 +787,7 @@ pub unsafe fn dc_get_contact_encrinfo(
         let peerstate = Peerstate::from_addr(
             context,
             &context.sql.clone().read().unwrap(),
-            (*contact).addr,
+            to_str((*contact).addr),
         );
         dc_loginparam_read(
             context,
@@ -800,7 +800,9 @@ pub unsafe fn dc_get_contact_encrinfo(
             (*loginparam).addr,
             &context.sql.clone().read().unwrap(),
         );
-        if peerstate.peek_key(0).is_some() {
+
+        if peerstate.is_some() && peerstate.and_then(|p| p.peek_key(0)).is_some() {
+            let peerstate = peerstate.unwrap();
             p = dc_stock_str(
                 context,
                 if peerstate.prefer_encrypt == EncryptPreference::Mutual {
@@ -836,23 +838,30 @@ pub unsafe fn dc_get_contact_encrinfo(
                 .peek_key(0)
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
-            if strcmp((*loginparam).addr, peerstate.addr) < 0i32 {
+            if peerstate.addr.is_some()
+                && to_str((*loginparam).addr) < peerstate.addr.as_ref().unwrap()
+            {
                 cat_fingerprint(
                     &mut ret,
                     (*loginparam).addr,
                     fingerprint_self,
                     0 as *const libc::c_char,
                 );
+                let c_addr = to_cstring(peerstate.addr.as_ref().unwrap());
                 cat_fingerprint(
                     &mut ret,
-                    peerstate.addr,
+                    c_addr.as_ptr(),
                     fingerprint_other_verified,
                     fingerprint_other_unverified,
                 );
             } else {
+                let c_addr = peerstate.addr.as_ref().map(to_cstring);
+
                 cat_fingerprint(
                     &mut ret,
-                    peerstate.addr,
+                    c_addr
+                        .map(|a| a.as_ptr())
+                        .unwrap_or_else(|| std::ptr::null()),
                     fingerprint_other_verified,
                     fingerprint_other_unverified,
                 );
@@ -1108,7 +1117,7 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
     }
 
     if let Some(peerstate) = peerstate {
-        if peerstate.verified_key.is_some() {
+        if peerstate.verified_key().is_some() {
             2
         } else {
             0
@@ -1117,11 +1126,11 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
         let mut peerstate = Peerstate::from_addr(
             (*contact).context,
             &(*contact).context.sql.clone().read().unwrap(),
-            (*contact).addr,
+            to_str((*contact).addr),
         );
 
         let res = if let Some(ps) = peerstate {
-            if ps.verified_key.is_some() {
+            if ps.verified_key().is_some() {
                 2
             } else {
                 0
