@@ -12,9 +12,8 @@ Current commit on deltachat/deltachat-core: `12ef73c8e76185f9b78e844ea673025f56a
 ```sh
 # run example
 $ cargo run --example simple
-# build header file
+# build the C ABI library, libdeltachat_ffi.so.
 $ cargo build -p deltachat_ffi --release
-$ cat deltachat-ffi/deltachat.h
 # run tests
 $ cargo test --all
 ```
