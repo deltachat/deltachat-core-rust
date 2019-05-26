@@ -22,9 +22,13 @@ extern crate smallvec;
 #[macro_use]
 pub mod dc_log;
 
-pub mod dc_aheader;
+pub mod peerstate;
+pub mod types;
+pub mod x;
 
-pub mod dc_apeerstate;
+pub mod constants;
+
+pub mod dc_aheader;
 pub mod dc_array;
 pub mod dc_chat;
 pub mod dc_chatlist;
@@ -64,8 +68,5 @@ pub mod dc_strbuilder;
 pub mod dc_strencode;
 pub mod dc_token;
 pub mod dc_tools;
-pub mod types;
-pub mod x;
 
-pub mod constants;
 pub use self::constants::*;

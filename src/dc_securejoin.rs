@@ -1,7 +1,7 @@
 use mmime::mailimf_types::*;
 
 use crate::constants::Event;
-use crate::dc_apeerstate::*;
+use crate::dc_aheader::EncryptPreference;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
@@ -21,6 +21,7 @@ use crate::dc_stock::*;
 use crate::dc_strencode::*;
 use crate::dc_token::*;
 use crate::dc_tools::*;
+use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -353,27 +354,28 @@ unsafe fn fingerprint_equals_sender(
     let mut fingerprint_equal: libc::c_int = 0i32;
     let contacts: *mut dc_array_t = dc_get_chat_contacts(context, contact_chat_id);
     let contact: *mut dc_contact_t = dc_contact_new(context);
-    let mut peerstate = dc_apeerstate_new(context);
-    let mut fingerprint_normalized: *mut libc::c_char = 0 as *mut libc::c_char;
+
     if !(dc_array_get_cnt(contacts) != 1) {
+        let peerstate = Peerstate::from_addr(
+            context,
+            &context.sql.clone().read().unwrap(),
+            to_str((*contact).addr),
+        );
         if !(!dc_contact_load_from_db(
             contact,
             &context.sql.clone().read().unwrap(),
             dc_array_get_id(contacts, 0i32 as size_t),
-        ) || 0
-            == dc_apeerstate_load_by_addr(
-                &mut peerstate,
-                &context.sql.clone().read().unwrap(),
-                (*contact).addr,
-            ))
+        ) || peerstate.is_some())
         {
-            fingerprint_normalized = dc_normalize_fingerprint_c(fingerprint);
-            if strcasecmp(fingerprint_normalized, peerstate.public_key_fingerprint) == 0i32 {
-                fingerprint_equal = 1i32
+            let peerstate = peerstate.as_ref().unwrap();
+            let fingerprint_normalized = dc_normalize_fingerprint(to_str(fingerprint));
+            if peerstate.public_key_fingerprint.is_some()
+                && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
+            {
+                fingerprint_equal = 1;
             }
         }
     }
-    free(fingerprint_normalized as *mut libc::c_void);
     dc_contact_unref(contact);
     dc_array_unref(contacts);
 
@@ -973,23 +975,20 @@ unsafe fn mark_peer_as_verified(
     context: &dc_context_t,
     fingerprint: *const libc::c_char,
 ) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
-    let mut peerstate = dc_apeerstate_new(context);
-    if !(0
-        == dc_apeerstate_load_by_fingerprint(
-            &mut peerstate,
-            &context.sql.clone().read().unwrap(),
-            fingerprint,
-        ))
-    {
-        if !(0 == dc_apeerstate_set_verified(&mut peerstate, 1i32, fingerprint, 2i32)) {
-            peerstate.prefer_encrypt = 1i32;
-            peerstate.to_save |= 0x2i32;
-            dc_apeerstate_save_to_db(&mut peerstate, &context.sql.clone().read().unwrap(), 0i32);
-            success = 1i32
+    let mut success = 0;
+
+    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(
+        context,
+        &context.sql.clone().read().unwrap(),
+        to_str(fingerprint),
+    ) {
+        if peerstate.set_verified(1, to_str(fingerprint), 2) {
+            peerstate.prefer_encrypt = EncryptPreference::Mutual;
+            peerstate.to_save = Some(ToSave::All);
+            peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+            success = 1;
         }
     }
-    dc_apeerstate_unref(&mut peerstate);
 
     success
 }
@@ -1047,7 +1046,7 @@ unsafe fn encrypted_and_signed(
     1
 }
 
-pub unsafe fn dc_handle_degrade_event(context: &dc_context_t, peerstate: &dc_apeerstate_t) {
+pub unsafe fn dc_handle_degrade_event(context: &dc_context_t, peerstate: &Peerstate) {
     let stmt;
     let contact_id: uint32_t;
     let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
@@ -1057,13 +1056,23 @@ pub unsafe fn dc_handle_degrade_event(context: &dc_context_t, peerstate: &dc_ape
     //   together with DC_DE_FINGERPRINT_CHANGED which is logged, the idea is not to bother
     //   with things they cannot fix, so the user is just kicked from the verified group
     //   (and he will know this and can fix this)
-    if 0 != peerstate.degrade_event & 0x2i32 {
+    if Some(DegradeEvent::FingerprintChanged) == peerstate.degrade_event {
         stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             b"SELECT id FROM contacts WHERE addr=?;\x00" as *const u8 as *const libc::c_char,
         );
-        sqlite3_bind_text(stmt, 1i32, peerstate.addr, -1i32, None);
+        let c_addr = peerstate.addr.as_ref().map(to_cstring);
+        sqlite3_bind_text(
+            stmt,
+            1i32,
+            c_addr
+                .as_ref()
+                .map(|a| a.as_ptr())
+                .unwrap_or_else(|| std::ptr::null()),
+            -1i32,
+            None,
+        );
         sqlite3_step(stmt);
         contact_id = sqlite3_column_int(stmt, 0i32) as uint32_t;
         sqlite3_finalize(stmt);
@@ -1075,7 +1084,13 @@ pub unsafe fn dc_handle_degrade_event(context: &dc_context_t, peerstate: &dc_ape
                 &mut contact_chat_id,
                 0 as *mut libc::c_int,
             );
-            let msg: *mut libc::c_char = dc_stock_str_repl_string(context, 37i32, peerstate.addr);
+            let msg = dc_stock_str_repl_string(
+                context,
+                37i32,
+                c_addr
+                    .map(|a| a.as_ptr())
+                    .unwrap_or_else(|| std::ptr::null()),
+            );
             dc_add_device_msg(context, contact_chat_id, msg);
             free(msg as *mut libc::c_void);
             (context.cb)(

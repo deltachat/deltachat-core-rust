@@ -1,10 +1,10 @@
 use crate::constants::*;
-use crate::dc_apeerstate::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_hash::*;
 use crate::dc_log::*;
 use crate::dc_param::*;
 use crate::dc_tools::*;
+use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -906,16 +906,14 @@ pub unsafe fn dc_sqlite3_open(
                                     as *const libc::c_char,
                             );
                             while sqlite3_step(stmt) == 100 {
-                                let mut peerstate = dc_apeerstate_new(context);
-                                if 0 != dc_apeerstate_load_by_addr(
-                                    &mut peerstate,
+                                if let Some(ref mut peerstate) = Peerstate::from_addr(
+                                    context,
                                     sql,
-                                    sqlite3_column_text(stmt, 0) as *const libc::c_char,
-                                ) && 0 != dc_apeerstate_recalc_fingerprint(&mut peerstate)
-                                {
-                                    dc_apeerstate_save_to_db(&mut peerstate, sql, 0);
+                                    to_str(sqlite3_column_text(stmt, 0) as *const libc::c_char),
+                                ) {
+                                    peerstate.recalc_fingerprint();
+                                    peerstate.save_to_db(sql, false);
                                 }
-                                dc_apeerstate_unref(&mut peerstate);
                             }
                             sqlite3_finalize(stmt);
                         }

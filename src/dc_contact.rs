@@ -1,5 +1,5 @@
 use crate::constants::Event;
-use crate::dc_apeerstate::*;
+use crate::dc_aheader::EncryptPreference;
 use crate::dc_array::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_context::*;
@@ -11,6 +11,7 @@ use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
+use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -769,7 +770,6 @@ pub unsafe fn dc_get_contact_encrinfo(
     let mut ret: dc_strbuilder_t;
     let loginparam: *mut dc_loginparam_t = dc_loginparam_new();
     let contact: *mut dc_contact_t = dc_contact_new(context);
-    let mut peerstate = dc_apeerstate_new(context);
 
     let mut fingerprint_self: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut fingerprint_other_verified: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -784,10 +784,10 @@ pub unsafe fn dc_get_contact_encrinfo(
     };
     dc_strbuilder_init(&mut ret, 0i32);
     if !(!dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)) {
-        dc_apeerstate_load_by_addr(
-            &mut peerstate,
+        let peerstate = Peerstate::from_addr(
+            context,
             &context.sql.clone().read().unwrap(),
-            (*contact).addr,
+            to_str((*contact).addr),
         );
         dc_loginparam_read(
             context,
@@ -800,10 +800,12 @@ pub unsafe fn dc_get_contact_encrinfo(
             (*loginparam).addr,
             &context.sql.clone().read().unwrap(),
         );
-        if dc_apeerstate_peek_key(&peerstate, 0).is_some() {
+
+        if peerstate.is_some() && peerstate.as_ref().and_then(|p| p.peek_key(0)).is_some() {
+            let peerstate = peerstate.as_ref().unwrap();
             p = dc_stock_str(
                 context,
-                if peerstate.prefer_encrypt == 1i32 {
+                if peerstate.prefer_encrypt == EncryptPreference::Mutual {
                     34i32
                 } else {
                     25i32
@@ -828,29 +830,38 @@ pub unsafe fn dc_get_contact_encrinfo(
             fingerprint_self = self_key
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
-            fingerprint_other_verified = dc_apeerstate_peek_key(&peerstate, 2)
+            fingerprint_other_verified = peerstate
+                .peek_key(2)
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
-            fingerprint_other_unverified = dc_apeerstate_peek_key(&peerstate, 0)
+            fingerprint_other_unverified = peerstate
+                .peek_key(0)
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
-            if strcmp((*loginparam).addr, peerstate.addr) < 0i32 {
+            if peerstate.addr.is_some()
+                && to_str((*loginparam).addr) < peerstate.addr.as_ref().unwrap()
+            {
                 cat_fingerprint(
                     &mut ret,
                     (*loginparam).addr,
                     fingerprint_self,
                     0 as *const libc::c_char,
                 );
+                let c_addr = to_cstring(peerstate.addr.as_ref().unwrap());
                 cat_fingerprint(
                     &mut ret,
-                    peerstate.addr,
+                    c_addr.as_ptr(),
                     fingerprint_other_verified,
                     fingerprint_other_unverified,
                 );
             } else {
+                let c_addr = peerstate.addr.as_ref().map(to_cstring);
+
                 cat_fingerprint(
                     &mut ret,
-                    peerstate.addr,
+                    c_addr
+                        .map(|a| a.as_ptr())
+                        .unwrap_or_else(|| std::ptr::null()),
                     fingerprint_other_verified,
                     fingerprint_other_unverified,
                 );
@@ -874,7 +885,6 @@ pub unsafe fn dc_get_contact_encrinfo(
         }
     }
 
-    dc_apeerstate_unref(&mut peerstate);
     dc_contact_unref(contact);
     dc_loginparam_unref(loginparam);
 
@@ -1094,7 +1104,7 @@ pub unsafe fn dc_contact_is_verified(contact: *mut dc_contact_t) -> libc::c_int 
 /// If you do not have the peerstate available, it is loaded automatically.
 pub unsafe fn dc_contact_is_verified_ex<'a>(
     contact: *mut dc_contact_t<'a>,
-    peerstate: Option<&dc_apeerstate_t<'a>>,
+    peerstate: Option<&Peerstate<'a>>,
 ) -> libc::c_int {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
         return 0;
@@ -1107,21 +1117,20 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
     }
 
     if let Some(peerstate) = peerstate {
-        if peerstate.verified_key.is_some() {
+        if peerstate.verified_key().is_some() {
             2
         } else {
             0
         }
     } else {
-        let mut peerstate = dc_apeerstate_new((*contact).context);
+        let peerstate = Peerstate::from_addr(
+            (*contact).context,
+            &(*contact).context.sql.clone().read().unwrap(),
+            to_str((*contact).addr),
+        );
 
-        let res = if 0
-            != dc_apeerstate_load_by_addr(
-                &mut peerstate,
-                &(*contact).context.sql.clone().read().unwrap(),
-                (*contact).addr,
-            ) {
-            if peerstate.verified_key.is_some() {
+        let res = if let Some(ps) = peerstate {
+            if ps.verified_key().is_some() {
                 2
             } else {
                 0
@@ -1129,7 +1138,6 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
         } else {
             0
         };
-        dc_apeerstate_unref(&mut peerstate);
 
         res
     }

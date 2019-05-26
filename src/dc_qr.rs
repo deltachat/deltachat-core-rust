@@ -1,4 +1,3 @@
-use crate::dc_apeerstate::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
@@ -8,6 +7,7 @@ use crate::dc_lot::*;
 use crate::dc_param::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -31,7 +31,6 @@ pub unsafe fn dc_check_qr(context: &dc_context_t, qr: *const libc::c_char) -> *m
     let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut invitenumber: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut peerstate = dc_apeerstate_new(context);
     let mut qr_parsed: *mut dc_lot_t = dc_lot_new();
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut device_msg: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -238,17 +237,21 @@ pub unsafe fn dc_check_qr(context: &dc_context_t, qr: *const libc::c_char) -> *m
                             16562876845594826114 => {}
                             _ => {
                                 if !fingerprint.is_null() {
+                                    let peerstate = Peerstate::from_fingerprint(
+                                        context,
+                                        &context.sql.clone().read().unwrap(),
+                                        to_str(fingerprint),
+                                    );
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
-                                        if 0 != dc_apeerstate_load_by_fingerprint(
-                                            &mut peerstate,
-                                            &context.sql.clone().read().unwrap(),
-                                            fingerprint,
-                                        ) {
+                                        if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
+                                            let c_addr = peerstate.addr.as_ref().map(to_cstring);
                                             (*qr_parsed).id = dc_add_or_lookup_contact(
                                                 context,
                                                 0 as *const libc::c_char,
-                                                peerstate.addr,
+                                                c_addr
+                                                    .map(|a| a.as_ptr())
+                                                    .unwrap_or_else(|| std::ptr::null()),
                                                 0x80i32,
                                                 0 as *mut libc::c_int,
                                             );
@@ -324,7 +327,6 @@ pub unsafe fn dc_check_qr(context: &dc_context_t, qr: *const libc::c_char) -> *m
     }
     free(addr as *mut libc::c_void);
     free(fingerprint as *mut libc::c_void);
-    dc_apeerstate_unref(&mut peerstate);
     free(payload as *mut libc::c_void);
     free(name as *mut libc::c_void);
     free(invitenumber as *mut libc::c_void);
@@ -332,5 +334,6 @@ pub unsafe fn dc_check_qr(context: &dc_context_t, qr: *const libc::c_char) -> *m
     free(device_msg as *mut libc::c_void);
     free(grpname as *mut libc::c_void);
     free(grpid as *mut libc::c_void);
-    return qr_parsed;
+
+    qr_parsed
 }
