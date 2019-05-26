@@ -8,7 +8,8 @@ use crate::constants::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
-use crate::dc_oauth2::*;
+use crate::dc_tools::*;
+use crate::oauth2::*;
 use crate::x::*;
 
 pub struct Smtp {
@@ -106,18 +107,15 @@ impl Smtp {
 
         let creds = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
             // oauth2
-
-            let access_token =
-                unsafe { dc_get_oauth2_access_token(context, lp.addr, lp.send_pw, 0i32) };
-            if access_token.is_null() {
+            let addr = to_str(lp.addr);
+            let send_pw = to_str(lp.send_pw);
+            let access_token = dc_get_oauth2_access_token(context, addr, send_pw, 0);
+            if access_token.is_none() {
                 return 0;
             }
+            let user = to_str(lp.send_user);
 
-            let user = unsafe { CStr::from_ptr(lp.send_user).to_str().unwrap().to_string() };
-            let token = unsafe { CStr::from_ptr(access_token).to_str().unwrap().to_string() };
-            unsafe { free(access_token as *mut libc::c_void) };
-
-            lettre::smtp::authentication::Credentials::new(user, token)
+            lettre::smtp::authentication::Credentials::new(user.into(), access_token.unwrap())
         } else {
             // plain
             let user = unsafe { CStr::from_ptr(lp.send_user).to_str().unwrap().to_string() };

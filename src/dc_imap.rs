@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::net;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, SystemTime};
@@ -7,9 +7,9 @@ use crate::constants::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
-use crate::dc_oauth2::dc_get_oauth2_access_token;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::{to_str, to_string};
+use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
@@ -413,22 +413,17 @@ impl Imap {
                 if (server_flags & DC_LP_AUTH_OAUTH2) != 0 {
                     let addr: &str = config.addr.as_ref();
 
-                    let access_token = unsafe {
-                        CStr::from_ptr(dc_get_oauth2_access_token(
-                            context,
-                            CString::new(addr).unwrap().as_ptr(),
-                            CString::new(imap_pw).unwrap().as_ptr(),
-                            DC_REGENERATE as libc::c_int,
-                        ))
-                        .to_str()
-                        .unwrap()
-                    };
-
-                    let auth = OAuth2 {
-                        user: imap_user.into(),
-                        access_token: access_token.into(),
-                    };
-                    client.authenticate("XOAUTH2", &auth)
+                    if let Some(token) =
+                        dc_get_oauth2_access_token(context, addr, imap_pw, DC_REGENERATE as usize)
+                    {
+                        let auth = OAuth2 {
+                            user: imap_user.into(),
+                            access_token: token,
+                        };
+                        client.authenticate("XOAUTH2", &auth)
+                    } else {
+                        return 0;
+                    }
                 } else {
                     client.login(imap_user, imap_pw)
                 }
