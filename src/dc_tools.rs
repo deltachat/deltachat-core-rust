@@ -1957,10 +1957,14 @@ pub fn to_cstring<S: AsRef<str>>(s: S) -> std::ffi::CString {
     std::ffi::CString::new(s.as_ref()).unwrap()
 }
 
-pub fn to_string(str: *const libc::c_char) -> String {
-    unsafe { std::ffi::CStr::from_ptr(str).to_str().unwrap().to_string() }
+pub fn to_string(s: *const libc::c_char) -> String {
+    if s.is_null() {
+        return "".into();
+    }
+    unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap().to_string() }
 }
 
-pub fn to_str<'a>(str: *const libc::c_char) -> &'a str {
-    unsafe { std::ffi::CStr::from_ptr(str).to_str().unwrap() }
+pub fn to_str<'a>(s: *const libc::c_char) -> &'a str {
+    assert!(!s.is_null(), "cannot be used on null pointers");
+    unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap() }
 }
