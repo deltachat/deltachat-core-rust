@@ -1123,8 +1123,8 @@ time_t          dc_lot_get_timestamp     (const dc_lot_t*);
 
 
 /**
- /* * NOT_USED_ANYMORE */
- /* * */
+ * NOT_USED_ANYMORE
+ *
  * Request a HTTP-file or HTTPS-file from the frontend using HTTP-POST.
  *
  * @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
