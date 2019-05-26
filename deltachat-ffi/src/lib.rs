@@ -123,9 +123,14 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     redirect: *mut libc::c_char,
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
-    let context = &*context;
 
-    dc_oauth2::dc_get_oauth2_url(context, addr, redirect)
+    let context = &*context;
+    let addr = dc_tools::to_string(addr);
+    let redirect = dc_tools::to_string(redirect);
+    match oauth2::dc_get_oauth2_url(context, addr, redirect) {
+        Some(res) => libc::strdup(dc_tools::to_cstring(res).as_ptr()),
+        None => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
