@@ -1,25 +1,15 @@
 use std::collections::HashMap;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 use serde::Deserialize;
 
-use crate::constants::Event;
 use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
-
-#[derive(Debug, Clone)]
-pub struct Oauth2 {
-    client_id: &'static str,
-    get_code: &'static str,
-    init_token: &'static str,
-    refresh_token: &'static str,
-    get_userinfo: Option<&'static str>,
-}
 
 const OAUTH2_GMAIL: Oauth2 = Oauth2 {
     client_id: "959970109878-4mvtgf6feshskf7695nfln6002mom908.apps.googleusercontent.com",
@@ -36,6 +26,15 @@ const OAUTH2_YANDEX: Oauth2 = Oauth2 {
     refresh_token: "https://oauth.yandex.com/token?grant_type=refresh_token&refresh_token=$REFRESH_TOKEN&client_id=$CLIENT_ID&client_secret=58b8c6e94cf44fbe952da8511955dacf",
     get_userinfo: None,
 };
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Oauth2 {
+    client_id: &'static str,
+    get_code: &'static str,
+    init_token: &'static str,
+    refresh_token: &'static str,
+    get_userinfo: Option<&'static str>,
+}
 
 #[derive(Debug, Deserialize)]
 struct Response {
@@ -66,100 +65,6 @@ pub fn dc_get_oauth2_url(
     } else {
         None
     }
-}
-
-impl Oauth2 {
-    fn from_address(addr: impl AsRef<str>) -> Option<Self> {
-        let addr_normalized = normalize_addr(addr.as_ref());
-        if let Some(domain) = addr_normalized
-            .find('@')
-            .map(|index| addr_normalized.split_at(index).1)
-        {
-            match domain {
-                "gmail.com" | "googlemail.com" => Some(OAUTH2_GMAIL),
-                "yandex.com" | "yandex.ru" | "yandex.ua" => Some(OAUTH2_YANDEX),
-                _ => None,
-            }
-        } else {
-            None
-        }
-    }
-
-    fn get_addr(&self, context: &dc_context_t, access_token: impl AsRef<str>) -> Option<String> {
-        let userinfo_url = self.get_userinfo.unwrap_or_else(|| "");
-        let userinfo_url = replace_in_uri(&userinfo_url, "$ACCESS_TOKEN", access_token);
-
-        let url_c = to_cstring(userinfo_url);
-        let json_c = unsafe {
-            (context.cb)(
-                context,
-                Event::HTTP_GET,
-                url_c.as_ptr() as uintptr_t,
-                0 as uintptr_t,
-            ) as *mut libc::c_char
-        };
-
-        if json_c.is_null() {
-            warn!(context, 0, "Error getting userinfo.");
-            return None;
-        }
-
-        let json = unsafe { CStr::from_ptr(json_c).to_string_lossy() };
-        let parsed: serde_json::Result<HashMap<&str, &str>> = serde_json::from_str(json.as_ref());
-        if let Ok(response) = parsed {
-            let addr = response.get("email");
-            if addr.is_none() {
-                warn!(context, 0, "E-mail missing in userinfo.");
-            }
-
-            addr.map(|addr| addr.to_string())
-        } else {
-            warn!(context, 0, "Failed to parse userinfo.");
-            None
-        }
-    }
-}
-
-fn get_config(context: &dc_context_t, key: &str) -> Option<String> {
-    let key_c = CString::new(key).unwrap();
-    let res = unsafe {
-        dc_sqlite3_get_config(
-            context,
-            &context.sql.clone().read().unwrap(),
-            key_c.as_ptr(),
-            std::ptr::null(),
-        )
-    };
-    if res.is_null() {
-        return None;
-    }
-
-    Some(to_string(res))
-}
-
-fn set_config(context: &dc_context_t, key: &str, value: &str) {
-    let key_c = CString::new(key).unwrap();
-    let value_c = CString::new(value).unwrap();
-    unsafe {
-        dc_sqlite3_set_config(
-            context,
-            &context.sql.clone().read().unwrap(),
-            key_c.as_ptr(),
-            value_c.as_ptr(),
-        )
-    };
-}
-
-fn set_config_int64(context: &dc_context_t, key: &str, value: i64) {
-    let key_c = CString::new(key).unwrap();
-    unsafe {
-        dc_sqlite3_set_config_int64(
-            context,
-            &context.sql.clone().read().unwrap(),
-            key_c.as_ptr(),
-            value,
-        )
-    };
 }
 
 // The following function may block due http-requests;
@@ -217,21 +122,30 @@ pub fn dc_get_oauth2_access_token(
             token_url = replace_in_uri(&token_url, "$REFRESH_TOKEN", token);
         }
 
-        let token_url_c = to_cstring(&token_url);
-        let json_c = unsafe {
-            (context.cb)(
+        let response = reqwest::Client::new().post(&token_url).send();
+        if response.is_err() {
+            warn!(
                 context,
-                Event::HTTP_POST,
-                token_url_c.as_ptr() as uintptr_t,
-                0 as uintptr_t,
-            ) as *mut libc::c_char
-        };
-        if json_c.is_null() {
-            warn!(context, 0, format!("Error calling OAuth2 at {}", token_url));
+                0,
+                format!("Error calling OAuth2 at {}: {:?}", token_url, response)
+            );
             return None;
         }
-        let json = unsafe { CStr::from_ptr(json_c).to_string_lossy() };
-        let parsed: serde_json::Result<Response> = serde_json::from_str(json.as_ref());
+        let mut response = response.unwrap();
+        if !response.status().is_success() {
+            warn!(
+                context,
+                0,
+                format!(
+                    "Error calling OAuth2 at {}: {:?}",
+                    token_url,
+                    response.status()
+                )
+            );
+            return None;
+        }
+
+        let parsed: reqwest::Result<Response> = response.json();
         if parsed.is_err() {
             warn!(
                 context,
@@ -243,7 +157,7 @@ pub fn dc_get_oauth2_access_token(
             );
             return None;
         }
-
+        println!("response: {:?}", &parsed);
         let response = parsed.unwrap();
         if let Some(ref token) = response.refresh_token {
             set_config(context, "oauth2_refresh_token", token);
@@ -274,26 +188,6 @@ pub fn dc_get_oauth2_access_token(
 
         None
     }
-}
-
-fn is_expired(context: &dc_context_t) -> bool {
-    let expire_timestamp = unsafe {
-        dc_sqlite3_get_config_int64(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
-            0i32 as int64_t,
-        )
-    } as time_t;
-
-    if expire_timestamp <= 0 {
-        return false;
-    }
-    if expire_timestamp > unsafe { time(0 as *mut time_t) } {
-        return false;
-    }
-
-    true
 }
 
 pub fn dc_get_oauth2_addr(
@@ -328,6 +222,131 @@ pub fn dc_get_oauth2_addr(
     }
 }
 
+impl Oauth2 {
+    fn from_address(addr: impl AsRef<str>) -> Option<Self> {
+        let addr_normalized = normalize_addr(addr.as_ref());
+        if let Some(domain) = addr_normalized
+            .find('@')
+            .map(|index| addr_normalized.split_at(index + 1).1)
+        {
+            match domain {
+                "gmail.com" | "googlemail.com" => Some(OAUTH2_GMAIL),
+                "yandex.com" | "yandex.ru" | "yandex.ua" => Some(OAUTH2_YANDEX),
+                _ => None,
+            }
+        } else {
+            None
+        }
+    }
+
+    fn get_addr(&self, context: &dc_context_t, access_token: impl AsRef<str>) -> Option<String> {
+        let userinfo_url = self.get_userinfo.unwrap_or_else(|| "");
+        let userinfo_url = replace_in_uri(&userinfo_url, "$ACCESS_TOKEN", access_token);
+
+        let response = reqwest::Client::new().post(&userinfo_url).send();
+        if response.is_err() {
+            warn!(
+                context,
+                0,
+                format!("Error getting userinfo: {:?}", response)
+            );
+            return None;
+        }
+        let mut response = response.unwrap();
+        if !response.status().is_success() {
+            warn!(
+                context,
+                0,
+                format!("Error getting userinfo: {:?}", response.status())
+            );
+            return None;
+        }
+
+        let parsed: reqwest::Result<HashMap<String, String>> = response.json();
+        if parsed.is_err() {
+            warn!(
+                context,
+                0,
+                format!("Failed to parse userinfo JSON response: {:?}", parsed)
+            );
+            return None;
+        }
+        if let Ok(response) = parsed {
+            let addr = response.get("email");
+            if addr.is_none() {
+                warn!(context, 0, "E-mail missing in userinfo.");
+            }
+
+            addr.map(|addr| addr.to_string())
+        } else {
+            warn!(context, 0, "Failed to parse userinfo.");
+            None
+        }
+    }
+}
+
+fn get_config(context: &dc_context_t, key: &str) -> Option<String> {
+    let key_c = CString::new(key).unwrap();
+    let res = unsafe {
+        dc_sqlite3_get_config(
+            context,
+            &context.sql.clone().read().unwrap(),
+            key_c.as_ptr(),
+            std::ptr::null(),
+        )
+    };
+    if res.is_null() {
+        return None;
+    }
+
+    Some(to_string(res))
+}
+
+fn set_config(context: &dc_context_t, key: &str, value: &str) {
+    let key_c = CString::new(key).unwrap();
+    let value_c = CString::new(value).unwrap();
+    unsafe {
+        dc_sqlite3_set_config(
+            context,
+            &context.sql.clone().read().unwrap(),
+            key_c.as_ptr(),
+            value_c.as_ptr(),
+        )
+    };
+}
+
+fn set_config_int64(context: &dc_context_t, key: &str, value: i64) {
+    let key_c = CString::new(key).unwrap();
+    unsafe {
+        dc_sqlite3_set_config_int64(
+            context,
+            &context.sql.clone().read().unwrap(),
+            key_c.as_ptr(),
+            value,
+        )
+    };
+}
+
+fn is_expired(context: &dc_context_t) -> bool {
+    let expire_timestamp = unsafe {
+        dc_sqlite3_get_config_int64(
+            context,
+            &context.sql.clone().read().unwrap(),
+            b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
+            0i32 as int64_t,
+        )
+    } as time_t;
+
+    if expire_timestamp <= 0 {
+        return false;
+    }
+    if expire_timestamp > unsafe { time(0 as *mut time_t) } {
+        return false;
+    }
+
+    true
+}
+
 fn replace_in_uri(uri: impl AsRef<str>, key: impl AsRef<str>, value: impl AsRef<str>) -> String {
     let value_urlencoded = utf8_percent_encode(value.as_ref(), DEFAULT_ENCODE_SET).to_string();
     uri.as_ref().replace(key.as_ref(), &value_urlencoded)
@@ -354,5 +373,21 @@ mod tests {
             replace_in_uri("helloworld", "world", "a-b c"),
             "helloa-b%20c"
         );
+    }
+
+    #[test]
+    fn test_oauth_from_address() {
+        assert_eq!(Oauth2::from_address("hello@gmail.com"), Some(OAUTH2_GMAIL));
+        assert_eq!(
+            Oauth2::from_address("hello@googlemail.com"),
+            Some(OAUTH2_GMAIL)
+        );
+        assert_eq!(
+            Oauth2::from_address("hello@yandex.com"),
+            Some(OAUTH2_YANDEX)
+        );
+        assert_eq!(Oauth2::from_address("hello@yandex.ru"), Some(OAUTH2_YANDEX));
+
+        assert_eq!(Oauth2::from_address("hello@web.de"), None);
     }
 }
