@@ -24,6 +24,7 @@ use deltachat::dc_securejoin::*;
 use deltachat::dc_strbuilder::*;
 use deltachat::dc_strencode::*;
 use deltachat::dc_tools::*;
+use deltachat::oauth2::*;
 use deltachat::types::*;
 use deltachat::x::*;
 use libc;
@@ -2517,6 +2518,36 @@ fn test_dc_mimeparser_with_context() {
 
         dc_mimeparser_unref(mimeparser);
     }
+}
+
+#[test]
+fn test_dc_get_oauth2_url() {
+    let ctx = unsafe { create_test_context() };
+    let addr = "dignifiedquire@gmail.com";
+    let redirect_uri = "chat.delta:/com.b44t.messenger";
+    let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri);
+
+    assert_eq!(res, Some("https://accounts.google.com/o/oauth2/auth?client_id=959970109878-4mvtgf6feshskf7695nfln6002mom908.apps.googleusercontent.com&redirect_uri=chat.delta:/com.b44t.messenger&response_type=code&scope=https%3A%2F%2Fmail.google.com%2F%20email&access_type=offline".into()));
+}
+
+#[test]
+fn test_dc_get_oauth2_addr() {
+    let ctx = unsafe { create_test_context() };
+    let addr = "dignifiedquire@gmail.com";
+    let code = "fail";
+    let res = dc_get_oauth2_addr(&ctx.ctx, addr, code);
+    // this should fail as it is an invalid password
+    assert_eq!(res, None);
+}
+
+#[test]
+fn test_dc_get_oauth2_token() {
+    let ctx = unsafe { create_test_context() };
+    let addr = "dignifiedquire@gmail.com";
+    let code = "fail";
+    let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, 0);
+    // this should fail as it is an invalid password
+    assert_eq!(res, None);
 }
 
 #[test]

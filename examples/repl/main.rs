@@ -35,7 +35,6 @@ use deltachat::dc_imap::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_job::*;
 use deltachat::dc_jobthread::*;
-use deltachat::dc_jsmn::*;
 use deltachat::dc_key::*;
 use deltachat::dc_keyhistory::*;
 use deltachat::dc_keyring::*;
@@ -47,7 +46,6 @@ use deltachat::dc_mimefactory::*;
 use deltachat::dc_mimeparser::*;
 use deltachat::dc_move::*;
 use deltachat::dc_msg::*;
-use deltachat::dc_oauth2::*;
 use deltachat::dc_param::*;
 use deltachat::dc_pgp::*;
 use deltachat::dc_qr::*;
@@ -62,6 +60,7 @@ use deltachat::dc_strbuilder::*;
 use deltachat::dc_strencode::*;
 use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
+use deltachat::oauth2::*;
 use deltachat::peerstate::*;
 use deltachat::types::*;
 use deltachat::x::*;
@@ -427,22 +426,19 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
             if addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32 {
                 printf(b"oauth2: set addr first.\n\x00" as *const u8 as *const libc::c_char);
             } else {
-                let oauth2_url: *mut libc::c_char = dc_get_oauth2_url(
+                let oauth2_url = dc_get_oauth2_url(
                     &ctx.read().unwrap(),
-                    addr,
-                    b"chat.delta:/com.b44t.messenger\x00" as *const u8 as *const libc::c_char,
+                    to_str(addr),
+                    "chat.delta:/com.b44t.messenger",
                 );
-                if oauth2_url.is_null() {
+                if oauth2_url.is_none() {
                     printf(
                         b"OAuth2 not available for %s.\n\x00" as *const u8 as *const libc::c_char,
                         addr,
                     );
                 } else {
-                    printf(b"Open the following url, set mail_pw to the generated token and server_flags to 2:\n%s\n\x00"
-                               as *const u8 as *const libc::c_char,
-                           oauth2_url);
+                    println!("Open the following url, set mail_pw to the generated token and server_flags to 2:\n{}", oauth2_url.unwrap());
                 }
-                free(oauth2_url as *mut libc::c_void);
             }
             free(addr as *mut libc::c_void);
         } else if strcmp(cmd, b"clear\x00" as *const u8 as *const libc::c_char) == 0i32 {

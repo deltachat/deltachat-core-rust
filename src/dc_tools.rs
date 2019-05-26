@@ -1645,6 +1645,22 @@ pub unsafe fn dc_make_rel_and_copy(
     success
 }
 
+pub fn to_cstring<S: AsRef<str>>(s: S) -> std::ffi::CString {
+    std::ffi::CString::new(s.as_ref()).unwrap()
+}
+
+pub fn to_string(s: *const libc::c_char) -> String {
+    if s.is_null() {
+        return "".into();
+    }
+    unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap().to_string() }
+}
+
+pub fn to_str<'a>(s: *const libc::c_char) -> &'a str {
+    assert!(!s.is_null(), "cannot be used on null pointers");
+    unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap() }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1951,20 +1967,4 @@ mod tests {
             free(str as *mut libc::c_void);
         }
     }
-}
-
-pub fn to_cstring<S: AsRef<str>>(s: S) -> std::ffi::CString {
-    std::ffi::CString::new(s.as_ref()).unwrap()
-}
-
-pub fn to_string(s: *const libc::c_char) -> String {
-    if s.is_null() {
-        return "".into();
-    }
-    unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap().to_string() }
-}
-
-pub fn to_str<'a>(s: *const libc::c_char) -> &'a str {
-    assert!(!s.is_null(), "cannot be used on null pointers");
-    unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap() }
 }

@@ -22,6 +22,7 @@ extern crate smallvec;
 #[macro_use]
 pub mod dc_log;
 
+pub mod oauth2;
 pub mod peerstate;
 pub mod types;
 pub mod x;
@@ -42,7 +43,6 @@ pub mod dc_imap;
 pub mod dc_imex;
 pub mod dc_job;
 pub mod dc_jobthread;
-pub mod dc_jsmn;
 pub mod dc_key;
 pub mod dc_keyhistory;
 pub mod dc_keyring;
@@ -53,7 +53,6 @@ pub mod dc_mimefactory;
 pub mod dc_mimeparser;
 pub mod dc_move;
 pub mod dc_msg;
-pub mod dc_oauth2;
 pub mod dc_param;
 pub mod dc_pgp;
 pub mod dc_qr;

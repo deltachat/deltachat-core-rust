@@ -839,7 +839,7 @@ pub unsafe fn dc_get_contact_encrinfo(
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
             if peerstate.addr.is_some()
-                && to_str((*loginparam).addr) < peerstate.addr.as_ref().unwrap()
+                && to_str((*loginparam).addr) < peerstate.addr.as_ref().unwrap().as_str()
             {
                 cat_fingerprint(
                     &mut ret,

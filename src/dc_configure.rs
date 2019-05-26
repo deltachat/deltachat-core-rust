@@ -5,11 +5,11 @@ use crate::dc_imap::*;
 use crate::dc_job::*;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
-use crate::dc_oauth2::*;
 use crate::dc_saxparser::*;
 use crate::dc_sqlite3::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::oauth2::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -205,11 +205,14 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
                                 }) as uintptr_t,
                                 0i32 as uintptr_t,
                             );
-                            let oauth2_addr: *mut libc::c_char =
-                                dc_get_oauth2_addr(context, (*param).addr, (*param).mail_pw);
-                            if !oauth2_addr.is_null() {
+                            let oauth2_addr = dc_get_oauth2_addr(
+                                context,
+                                to_str((*param).addr),
+                                to_str((*param).mail_pw),
+                            );
+                            if oauth2_addr.is_some() {
                                 free((*param).addr as *mut libc::c_void);
-                                (*param).addr = oauth2_addr;
+                                (*param).addr = strdup(to_cstring(oauth2_addr.unwrap()).as_ptr());
                                 dc_sqlite3_set_config(
                                     context,
                                     &context.sql.clone().read().unwrap(),
