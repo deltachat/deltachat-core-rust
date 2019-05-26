@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::ffi::CString;
 
 use num_traits::FromPrimitive;
@@ -6,12 +7,10 @@ use crate::constants::*;
 use crate::dc_aheader::*;
 use crate::dc_chat::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_hash::*;
 use crate::dc_key::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::{to_cstring, to_string};
 use crate::types::*;
-use crate::x::*;
 
 /// Peerstate represents the state of an Autocrypt peer.
 pub struct Peerstate<'a> {
@@ -540,21 +539,10 @@ impl<'a> Peerstate<'a> {
         success
     }
 
-    pub fn has_verified_key(&self, fingerprints: *const dc_hash_t) -> bool {
-        if fingerprints.is_null() {
-            return false;
-        }
-
+    pub fn has_verified_key(&self, fingerprints: &HashSet<String>) -> bool {
         if self.verified_key.is_some() && self.verified_key_fingerprint.is_some() {
-            let vkc = to_cstring(self.verified_key_fingerprint.as_ref().unwrap());
-            if !unsafe {
-                dc_hash_find(
-                    fingerprints,
-                    vkc.as_ptr() as *const libc::c_void,
-                    strlen(vkc.as_ptr()) as libc::c_int,
-                )
-                .is_null()
-            } {
+            let vkc = self.verified_key_fingerprint.as_ref().unwrap();
+            if fingerprints.contains(vkc) {
                 return true;
             }
         }

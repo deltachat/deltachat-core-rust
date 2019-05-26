@@ -1,5 +1,6 @@
+use std::collections::HashSet;
 use std::convert::TryInto;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::io::Cursor;
 
 use pgp::composed::{
@@ -11,7 +12,6 @@ use pgp::types::{CompressionAlgorithm, KeyTrait, SecretKeyTrait, StringToKey};
 use rand::thread_rng;
 use sha2::{Digest, Sha256};
 
-use crate::dc_hash::*;
 use crate::dc_key::*;
 use crate::dc_keyring::*;
 use crate::dc_tools::*;
@@ -232,7 +232,7 @@ pub fn dc_pgp_pk_decrypt(
     ctext_bytes: size_t,
     private_keys_for_decryption: &Keyring,
     public_keys_for_validation: &Keyring,
-    ret_signature_fingerprints: *mut dc_hash_t,
+    ret_signature_fingerprints: Option<&mut HashSet<String>>,
 ) -> Option<Vec<u8>> {
     assert!(!ctext.is_null() && ctext_bytes > 0, "invalid input");
 
@@ -255,33 +255,22 @@ pub fn dc_pgp_pk_decrypt(
                 decryptor.next().expect("no message")
             })
             .and_then(|dec_msg| {
-                if !ret_signature_fingerprints.is_null()
-                    && !public_keys_for_validation.keys().is_empty()
-                {
-                    let pkeys: Vec<&SignedPublicKey> = public_keys_for_validation
-                        .keys()
-                        .iter()
-                        .filter_map(|key| {
-                            let k: &Key = &key;
-                            k.try_into().ok()
-                        })
-                        .collect();
+                if let Some(ret_signature_fingerprints) = ret_signature_fingerprints {
+                    if !public_keys_for_validation.keys().is_empty() {
+                        let pkeys: Vec<&SignedPublicKey> = public_keys_for_validation
+                            .keys()
+                            .iter()
+                            .filter_map(|key| {
+                                let k: &Key = &key;
+                                k.try_into().ok()
+                            })
+                            .collect();
 
-                    for pkey in &pkeys {
-                        if dec_msg.verify(&pkey.primary_key).is_ok() {
-                            let fp_r = hex::encode_upper(pkey.fingerprint());
-                            let len = fp_r.len() as libc::c_int;
-                            let fp_c = CString::new(fp_r).unwrap();
-                            let fp = unsafe { strdup(fp_c.as_ptr()) };
-
-                            unsafe {
-                                dc_hash_insert(
-                                    ret_signature_fingerprints,
-                                    fp as *const _,
-                                    len,
-                                    1 as *mut _,
-                                )
-                            };
+                        for pkey in &pkeys {
+                            if dec_msg.verify(&pkey.primary_key).is_ok() {
+                                let fp = hex::encode_upper(pkey.fingerprint());
+                                ret_signature_fingerprints.insert(fp);
+                            }
                         }
                     }
                 }

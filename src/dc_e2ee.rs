@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::ffi::{CStr, CString};
 use std::str::FromStr;
 
@@ -16,7 +17,6 @@ use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
 
 use crate::dc_aheader::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_hash::*;
 use crate::dc_key::*;
 use crate::dc_keyring::*;
 use crate::dc_log::*;
@@ -35,14 +35,25 @@ use crate::x::*;
 // as an upper limit, we double the size; the core won't send messages larger than this
 // to get the netto sizes, we substract 1 mb header-overhead and the base64-overhead.
 // some defaults
-#[derive(Copy, Clone)]
-#[repr(C)]
+#[derive(Clone)]
 pub struct dc_e2ee_helper_t {
     pub encryption_successfull: libc::c_int,
     pub cdata_to_free: *mut libc::c_void,
     pub encrypted: libc::c_int,
-    pub signatures: *mut dc_hash_t,
-    pub gossipped_addr: *mut dc_hash_t,
+    pub signatures: HashSet<String>,
+    pub gossipped_addr: HashSet<String>,
+}
+
+impl Default for dc_e2ee_helper_t {
+    fn default() -> Self {
+        dc_e2ee_helper_t {
+            encryption_successfull: 0,
+            cdata_to_free: std::ptr::null_mut(),
+            encrypted: 0,
+            signatures: Default::default(),
+            gossipped_addr: Default::default(),
+        }
+    }
 }
 
 pub unsafe fn dc_e2ee_encrypt(
@@ -53,7 +64,7 @@ pub unsafe fn dc_e2ee_encrypt(
     min_verified: libc::c_int,
     do_gossip: libc::c_int,
     mut in_out_message: *mut mailmime,
-    mut helper: *mut dc_e2ee_helper_t,
+    helper: &mut dc_e2ee_helper_t,
 ) {
     let mut current_block: u64 = 0;
     let mut col: libc::c_int = 0i32;
@@ -63,19 +74,12 @@ pub unsafe fn dc_e2ee_encrypt(
     let mut keyring = Keyring::default();
     let plain: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     let mut peerstates: Vec<Peerstate> = Vec::new();
-    if !helper.is_null() {
-        memset(
-            helper as *mut libc::c_void,
-            0,
-            ::std::mem::size_of::<dc_e2ee_helper_t>(),
-        );
-    }
+    *helper = Default::default();
 
     if !(recipients_addr.is_null()
         || in_out_message.is_null()
         || !(*in_out_message).mm_parent.is_null()
-        || plain.is_null()
-        || helper.is_null())
+        || plain.is_null())
     {
         /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
         let prefer_encrypt = if 0
@@ -574,7 +578,7 @@ unsafe fn load_or_generate_self_public_key(
 pub unsafe fn dc_e2ee_decrypt(
     context: &dc_context_t,
     in_out_message: *mut mailmime,
-    mut helper: *mut dc_e2ee_helper_t,
+    helper: &mut dc_e2ee_helper_t,
 ) {
     let mut iterations: libc::c_int;
     /* return values: 0=nothing to decrypt/cannot decrypt, 1=sth. decrypted
@@ -587,14 +591,7 @@ pub unsafe fn dc_e2ee_decrypt(
     let mut private_keyring = Keyring::default();
     let mut public_keyring_for_validate = Keyring::default();
     let mut gossip_headers: *mut mailimf_fields = 0 as *mut mailimf_fields;
-    if !helper.is_null() {
-        memset(
-            helper as *mut libc::c_void,
-            0i32,
-            ::std::mem::size_of::<dc_e2ee_helper_t>(),
-        );
-    }
-    if !(in_out_message.is_null() || helper.is_null() || imffields.is_null()) {
+    if !(in_out_message.is_null() || imffields.is_null()) {
         if !imffields.is_null() {
             let mut field: *mut mailimf_field =
                 mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
@@ -665,8 +662,6 @@ pub unsafe fn dc_e2ee_decrypt(
                         public_keyring_for_validate.add_ref(key);
                     }
                 }
-                (*helper).signatures = malloc(::std::mem::size_of::<dc_hash_t>()) as *mut dc_hash_t;
-                dc_hash_init((*helper).signatures, 3i32, 1i32);
                 iterations = 0i32;
                 while iterations < 10i32 {
                     let mut has_unencrypted_parts: libc::c_int = 0i32;
@@ -675,19 +670,19 @@ pub unsafe fn dc_e2ee_decrypt(
                         in_out_message,
                         &private_keyring,
                         &public_keyring_for_validate,
-                        (*helper).signatures,
+                        &mut helper.signatures,
                         &mut gossip_headers,
                         &mut has_unencrypted_parts,
                     ) {
                         break;
                     }
                     if iterations == 0i32 && 0 == has_unencrypted_parts {
-                        (*helper).encrypted = 1i32
+                        helper.encrypted = 1i32
                     }
                     iterations += 1
                 }
                 if !gossip_headers.is_null() {
-                    (*helper).gossipped_addr =
+                    helper.gossipped_addr =
                         update_gossip_peerstates(context, message_time, imffields, gossip_headers)
                 }
             }
@@ -707,10 +702,10 @@ unsafe fn update_gossip_peerstates(
     message_time: time_t,
     imffields: *mut mailimf_fields,
     gossip_headers: *const mailimf_fields,
-) -> *mut dc_hash_t {
+) -> HashSet<String> {
     let mut cur1: *mut clistiter;
-    let mut recipients: *mut dc_hash_t = 0 as *mut dc_hash_t;
-    let mut gossipped_addr: *mut dc_hash_t = 0 as *mut dc_hash_t;
+    let mut recipients: Option<HashSet<String>> = None;
+    let mut gossipped_addr: HashSet<String> = Default::default();
     cur1 = (*(*gossip_headers).fld_list).first;
     while !cur1.is_null() {
         let field: *mut mailimf_field = (if !cur1.is_null() {
@@ -733,16 +728,10 @@ unsafe fn update_gossip_peerstates(
                     .unwrap();
                 let gossip_header = Aheader::from_str(value);
                 if let Ok(ref header) = gossip_header {
-                    if recipients.is_null() {
-                        recipients = mailimf_get_recipients(imffields)
+                    if recipients.is_none() {
+                        recipients = Some(mailimf_get_recipients(imffields));
                     }
-                    if !dc_hash_find(
-                        recipients,
-                        CString::new(header.addr.clone()).unwrap().as_ptr() as *const libc::c_void,
-                        header.addr.len() as i32,
-                    )
-                    .is_null()
-                    {
+                    if recipients.as_ref().unwrap().contains(&header.addr) {
                         let mut peerstate = Peerstate::from_addr(
                             context,
                             &context.sql.clone().read().unwrap(),
@@ -762,18 +751,7 @@ unsafe fn update_gossip_peerstates(
                             }
                         }
 
-                        if gossipped_addr.is_null() {
-                            gossipped_addr =
-                                malloc(::std::mem::size_of::<dc_hash_t>()) as *mut dc_hash_t;
-                            dc_hash_init(gossipped_addr, 3i32, 1i32);
-                        }
-                        dc_hash_insert(
-                            gossipped_addr,
-                            CString::new(header.addr.clone()).unwrap().as_ptr()
-                                as *const libc::c_void,
-                            header.addr.len() as libc::c_int,
-                            1i32 as *mut libc::c_void,
-                        );
+                        gossipped_addr.insert(header.addr.clone());
                     } else {
                         dc_log_info(
                             context,
@@ -792,10 +770,6 @@ unsafe fn update_gossip_peerstates(
             0 as *mut clistcell
         }
     }
-    if !recipients.is_null() {
-        dc_hash_clear(recipients);
-        free(recipients as *mut libc::c_void);
-    }
 
     gossipped_addr
 }
@@ -806,7 +780,7 @@ unsafe fn decrypt_recursive(
     mime: *mut mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
-    ret_valid_signatures: *mut dc_hash_t,
+    ret_valid_signatures: &mut HashSet<String>,
     ret_gossip_headers: *mut *mut mailimf_fields,
     ret_has_unencrypted_parts: *mut libc::c_int,
 ) -> libc::c_int {
@@ -839,7 +813,7 @@ unsafe fn decrypt_recursive(
                     ret_valid_signatures,
                     &mut decrypted_mime,
                 ) {
-                    if (*ret_gossip_headers).is_null() && (*ret_valid_signatures).count > 0i32 {
+                    if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
                         let mut dummy: size_t = 0i32 as size_t;
                         let mut test: *mut mailimf_fields = 0 as *mut mailimf_fields;
                         if mailimf_envelope_and_optional_fields_parse(
@@ -913,10 +887,9 @@ unsafe fn decrypt_part(
     mime: *mut mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
-    ret_valid_signatures: *mut dc_hash_t,
+    ret_valid_signatures: &mut HashSet<String>,
     ret_decrypted_mime: *mut *mut mailmime,
 ) -> libc::c_int {
-    let add_signatures: *mut dc_hash_t;
     let current_block: u64;
     let mime_data: *mut mailmime_data;
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
@@ -996,13 +969,13 @@ unsafe fn decrypt_part(
                 /* encrypted, decoded data in decoded_data now ... */
                 if !(0 == has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int))
                 {
-                    add_signatures = if (*ret_valid_signatures).count <= 0i32 {
-                        ret_valid_signatures
+                    let add_signatures = if ret_valid_signatures.is_empty() {
+                        Some(ret_valid_signatures)
                     } else {
-                        0 as *mut dc_hash_t
+                        None
                     };
-                    /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
 
+                    /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
                     if let Some(plain) = dc_pgp_pk_decrypt(
                         decoded_data as *const libc::c_void,
                         decoded_data_bytes,
@@ -1134,22 +1107,9 @@ unsafe fn contains_report(mime: *mut mailmime) -> libc::c_int {
 }
 
 /* frees data referenced by "mailmime" but not freed by mailmime_free(). After calling this function, in_out_message cannot be used any longer! */
-pub unsafe fn dc_e2ee_thanks(mut helper: *mut dc_e2ee_helper_t) {
-    if helper.is_null() {
-        return;
-    }
-    free((*helper).cdata_to_free);
-    (*helper).cdata_to_free = 0 as *mut libc::c_void;
-    if !(*helper).gossipped_addr.is_null() {
-        dc_hash_clear((*helper).gossipped_addr);
-        free((*helper).gossipped_addr as *mut libc::c_void);
-        (*helper).gossipped_addr = 0 as *mut dc_hash_t
-    }
-    if !(*helper).signatures.is_null() {
-        dc_hash_clear((*helper).signatures);
-        free((*helper).signatures as *mut libc::c_void);
-        (*helper).signatures = 0 as *mut dc_hash_t
-    };
+pub unsafe fn dc_e2ee_thanks(helper: &mut dc_e2ee_helper_t) {
+    free(helper.cdata_to_free);
+    helper.cdata_to_free = 0 as *mut libc::c_void;
 }
 
 /* makes sure, the private key exists, needed only for exporting keys and the case no message was sent before */

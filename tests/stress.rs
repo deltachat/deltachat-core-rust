@@ -1,5 +1,6 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
+use std::collections::HashSet;
 use std::ffi::{CStr, CString};
 
 use mmime::mailimf_types::*;
@@ -9,7 +10,6 @@ use deltachat::constants::*;
 use deltachat::dc_array::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_context::*;
-use deltachat::dc_hash::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_key::*;
 use deltachat::dc_keyring::*;
@@ -2279,22 +2279,14 @@ fn test_encryption_decryption() {
         let mut public_keyring2 = Keyring::default();
         public_keyring2.add_owned(public_key2.clone());
 
-        let mut valid_signatures = dc_hash_t {
-            keyClass: 0,
-            copyKey: 0,
-            count: 0,
-            first: 0 as *mut dc_hashelem_t,
-            htsize: 0,
-            ht: 0 as *mut _ht,
-        };
-        dc_hash_init(&mut valid_signatures, 3i32, 1i32);
+        let mut valid_signatures: HashSet<String> = Default::default();
 
         let plain = dc_pgp_pk_decrypt(
             ctext_signed.as_ptr() as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring,
-            &mut valid_signatures,
+            Some(&mut valid_signatures),
         )
         .unwrap();
 
@@ -2302,9 +2294,9 @@ fn test_encryption_decryption() {
             std::str::from_utf8(&plain).unwrap(),
             CStr::from_ptr(original_text).to_str().unwrap()
         );
-        assert_eq!(valid_signatures.count, 1);
+        assert_eq!(valid_signatures.len(), 1);
 
-        dc_hash_clear(&mut valid_signatures);
+        valid_signatures.clear();
 
         let empty_keyring = Keyring::default();
         let plain = dc_pgp_pk_decrypt(
@@ -2312,32 +2304,32 @@ fn test_encryption_decryption() {
             ctext_signed_bytes,
             &keyring,
             &empty_keyring,
-            &mut valid_signatures,
+            Some(&mut valid_signatures),
         )
         .unwrap();
         assert_eq!(
             std::str::from_utf8(&plain).unwrap(),
             CStr::from_ptr(original_text).to_str().unwrap()
         );
-        assert_eq!(valid_signatures.count, 0);
+        assert_eq!(valid_signatures.len(), 0);
 
-        dc_hash_clear(&mut valid_signatures);
+        valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
             ctext_signed.as_ptr() as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring2,
-            &mut valid_signatures,
+            Some(&mut valid_signatures),
         )
         .unwrap();
         assert_eq!(
             std::str::from_utf8(&plain).unwrap(),
             CStr::from_ptr(original_text).to_str().unwrap()
         );
-        assert_eq!(valid_signatures.count, 0);
+        assert_eq!(valid_signatures.len(), 0);
 
-        dc_hash_clear(&mut valid_signatures);
+        valid_signatures.clear();
 
         public_keyring2.add_ref(&public_key);
 
@@ -2346,22 +2338,23 @@ fn test_encryption_decryption() {
             ctext_signed_bytes,
             &keyring,
             &public_keyring2,
-            &mut valid_signatures,
+            Some(&mut valid_signatures),
         )
         .unwrap();
         assert_eq!(
             std::str::from_utf8(&plain).unwrap(),
             CStr::from_ptr(original_text).to_str().unwrap()
         );
-        assert_eq!(valid_signatures.count, 1);
+        assert_eq!(valid_signatures.len(), 1);
 
-        dc_hash_clear(&mut valid_signatures);
+        valid_signatures.clear();
+
         let plain = dc_pgp_pk_decrypt(
             ctext_unsigned.as_ptr() as *const _,
             ctext_unsigned_bytes,
             &keyring,
             &public_keyring,
-            &mut valid_signatures,
+            Some(&mut valid_signatures),
         )
         .unwrap();
         assert_eq!(
@@ -2369,7 +2362,7 @@ fn test_encryption_decryption() {
             CStr::from_ptr(original_text).to_str().unwrap()
         );
 
-        dc_hash_clear(&mut valid_signatures);
+        valid_signatures.clear();
 
         let mut keyring = Keyring::default();
         keyring.add_ref(&private_key2);
@@ -2381,7 +2374,7 @@ fn test_encryption_decryption() {
             ctext_signed_bytes,
             &keyring,
             &public_keyring,
-            0 as *mut dc_hash_t,
+            None,
         )
         .unwrap();
         assert_eq!(
@@ -2469,21 +2462,21 @@ fn test_dc_mimeparser_with_context() {
     unsafe {
         let context = create_test_context();
 
-        let mimeparser: *mut dc_mimeparser_t = dc_mimeparser_new(&context.ctx);
+        let mut mimeparser = dc_mimeparser_new(&context.ctx);
         let raw: *const libc::c_char =
         b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00"
             as *const u8 as *const libc::c_char;
 
-        dc_mimeparser_parse(mimeparser, raw, strlen(raw));
+        dc_mimeparser_parse(&mut mimeparser, raw, strlen(raw));
         assert_eq!(
-            CStr::from_ptr((*mimeparser).subject as *const libc::c_char)
+            CStr::from_ptr(mimeparser.subject as *const libc::c_char)
                 .to_str()
                 .unwrap(),
             "inner-subject",
         );
 
         let mut of: *mut mailimf_optional_field = dc_mimeparser_lookup_optional_field(
-            mimeparser,
+            &mimeparser,
             b"X-Special-A\x00" as *const u8 as *const libc::c_char,
         );
         assert_eq!(
@@ -2494,7 +2487,7 @@ fn test_dc_mimeparser_with_context() {
         );
 
         of = dc_mimeparser_lookup_optional_field(
-            mimeparser,
+            &mimeparser,
             b"Foo\x00" as *const u8 as *const libc::c_char,
         );
         assert_eq!(
@@ -2505,7 +2498,7 @@ fn test_dc_mimeparser_with_context() {
         );
 
         of = dc_mimeparser_lookup_optional_field(
-            mimeparser,
+            &mimeparser,
             b"Chat-Version\x00" as *const u8 as *const libc::c_char,
         );
         assert_eq!(
@@ -2514,9 +2507,9 @@ fn test_dc_mimeparser_with_context() {
                 .unwrap(),
             "1.0",
         );
-        assert_eq!(carray_count((*mimeparser).parts), 1);
+        assert_eq!(carray_count(mimeparser.parts), 1);
 
-        dc_mimeparser_unref(mimeparser);
+        dc_mimeparser_unref(&mut mimeparser);
     }
 }
 

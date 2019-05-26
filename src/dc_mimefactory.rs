@@ -12,7 +12,6 @@ use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
-use crate::dc_hash::*;
 use crate::dc_location::*;
 use crate::dc_log::*;
 use crate::dc_msg::*;
@@ -352,18 +351,14 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
     let mut force_plaintext: libc::c_int = 0i32;
     let mut do_gossip: libc::c_int = 0i32;
     let mut grpimage: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut e2ee_helper: dc_e2ee_helper_t = dc_e2ee_helper_t {
+    let mut e2ee_helper = dc_e2ee_helper_t {
         encryption_successfull: 0,
         cdata_to_free: 0 as *mut libc::c_void,
         encrypted: 0,
-        signatures: 0 as *mut dc_hash_t,
-        gossipped_addr: 0 as *mut dc_hash_t,
+        signatures: Default::default(),
+        gossipped_addr: Default::default(),
     };
-    memset(
-        &mut e2ee_helper as *mut dc_e2ee_helper_t as *mut libc::c_void,
-        0,
-        ::std::mem::size_of::<dc_e2ee_helper_t>(),
-    );
+
     if factory.is_null()
         || (*factory).loaded as libc::c_uint == DC_MF_NOTHING_LOADED as libc::c_int as libc::c_uint
         || !(*factory).out.is_null()
