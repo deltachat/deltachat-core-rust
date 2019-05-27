@@ -1614,3 +1614,61 @@ unsafe fn maybe_add_from_param(
     sqlite3_finalize(stmt);
     dc_param_unref(param);
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_maybe_add_file() {
+        let mut files = Default::default();
+        unsafe { maybe_add_file(&mut files, b"$BLOBDIR/hello\x00" as *const u8 as *const _) };
+        unsafe {
+            maybe_add_file(
+                &mut files,
+                b"$BLOBDIR/world.txt\x00" as *const u8 as *const _,
+            )
+        };
+        unsafe { maybe_add_file(&mut files, b"world2.txt\x00" as *const u8 as *const _) };
+
+        assert!(files.contains("hello"));
+        assert!(files.contains("world.txt"));
+        assert!(!files.contains("world2.txt"));
+    }
+
+    #[test]
+    fn test_is_file_in_use() {
+        let mut files = Default::default();
+        unsafe { maybe_add_file(&mut files, b"$BLOBDIR/hello\x00" as *const u8 as *const _) };
+        unsafe {
+            maybe_add_file(
+                &mut files,
+                b"$BLOBDIR/world.txt\x00" as *const u8 as *const _,
+            )
+        };
+        unsafe { maybe_add_file(&mut files, b"world2.txt\x00" as *const u8 as *const _) };
+
+        println!("{:?}", files);
+        assert!(unsafe {
+            is_file_in_use(
+                &mut files,
+                std::ptr::null(),
+                b"hello\x00" as *const u8 as *const _,
+            )
+        });
+        assert!(!unsafe {
+            is_file_in_use(
+                &mut files,
+                b".txt\x00" as *const u8 as *const _,
+                b"hello\x00" as *const u8 as *const _,
+            )
+        });
+        assert!(unsafe {
+            is_file_in_use(
+                &mut files,
+                b"-suffix\x00" as *const u8 as *const _,
+                b"world.txt-suffix\x00" as *const u8 as *const _,
+            )
+        });
+    }
+}
