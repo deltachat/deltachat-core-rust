@@ -27,7 +27,7 @@ pub struct dc_chat_t<'a> {
     pub grpid: *mut libc::c_char,
     pub blocked: libc::c_int,
     pub param: *mut dc_param_t,
-    pub gossiped_timestamp: time_t,
+    pub gossiped_timestamp: i64,
     pub is_sending_locations: libc::c_int,
 }
 
@@ -108,7 +108,7 @@ pub unsafe fn dc_chat_empty(mut chat: *mut dc_chat_t) {
     free((*chat).grpid as *mut libc::c_void);
     (*chat).grpid = 0 as *mut libc::c_char;
     (*chat).blocked = 0i32;
-    (*chat).gossiped_timestamp = 0i32 as time_t;
+    (*chat).gossiped_timestamp = 0;
     dc_param_set_packed((*chat).param, 0 as *const libc::c_char);
 }
 
@@ -185,11 +185,11 @@ unsafe fn set_from_stmt(mut chat: *mut dc_chat_t, row: *mut sqlite3_stmt) -> lib
     (*chat).blocked = sqlite3_column_int(row, fresh6);
     let fresh7 = row_offset;
     row_offset = row_offset + 1;
-    (*chat).gossiped_timestamp = sqlite3_column_int64(row, fresh7) as time_t;
+    (*chat).gossiped_timestamp = sqlite3_column_int64(row, fresh7) as i64;
     let fresh8 = row_offset;
     row_offset = row_offset + 1;
     (*chat).is_sending_locations =
-        (sqlite3_column_int64(row, fresh8) > time(0 as *mut time_t)) as libc::c_int;
+        (sqlite3_column_int64(row, fresh8) as i64 > time()) as libc::c_int;
     if (*chat).id == 1i32 as libc::c_uint {
         free((*chat).name as *mut libc::c_void);
         (*chat).name = dc_stock_str((*chat).context, 8i32)
@@ -530,7 +530,7 @@ unsafe fn prepare_msg_raw(
     context: &Context,
     chat: *mut dc_chat_t,
     msg: *const dc_msg_t,
-    timestamp: time_t,
+    timestamp: i64,
 ) -> uint32_t {
     let mut do_guarantee_e2ee: libc::c_int;
     let e2ee_enabled: libc::c_int;
@@ -1141,7 +1141,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                                            *const libc::c_char);
                 sqlite3_bind_int(stmt, 1i32, chat_id as libc::c_int);
                 sqlite3_bind_int(stmt, 2i32, 1i32);
-                sqlite3_bind_int64(stmt, 3i32, time(0 as *mut time_t) as sqlite3_int64);
+                sqlite3_bind_int64(stmt, 3i32, time() as sqlite3_int64);
                 sqlite3_bind_int(stmt, 4i32, (*msg).type_0);
                 sqlite3_bind_int(stmt, 5i32, 19i32);
                 sqlite3_bind_text(
@@ -1214,7 +1214,7 @@ pub unsafe fn dc_get_chat_msgs(
     let ret: *mut dc_array_t = dc_array_new(512i32 as size_t);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut curr_id: uint32_t;
-    let mut curr_local_timestamp: time_t;
+    let mut curr_local_timestamp: i64;
     let mut curr_day: libc::c_int;
     let mut last_day = 0;
     let cnv_to_local = dc_gm2local_offset();
@@ -1252,7 +1252,8 @@ pub unsafe fn dc_get_chat_msgs(
                 dc_array_add_id(ret, 1i32 as uint32_t);
             }
             if 0 != flags & 0x1i32 as libc::c_uint {
-                curr_local_timestamp = sqlite3_column_int64(stmt, 1i32) as time_t + cnv_to_local;
+                curr_local_timestamp =
+                    (sqlite3_column_int64(stmt, 1i32) as i64 + cnv_to_local) as i64;
                 curr_day = (curr_local_timestamp / 86400) as libc::c_int;
                 if curr_day != last_day {
                     dc_array_add_id(ret, 9i32 as uint32_t);
@@ -1828,10 +1829,10 @@ unsafe fn real_group_exists(context: &Context, chat_id: uint32_t) -> libc::c_int
 }
 
 pub unsafe fn dc_reset_gossiped_timestamp(context: &Context, chat_id: uint32_t) {
-    dc_set_gossiped_timestamp(context, chat_id, 0i32 as time_t);
+    dc_set_gossiped_timestamp(context, chat_id, 0);
 }
 
-pub unsafe fn dc_set_gossiped_timestamp(context: &Context, chat_id: uint32_t, timestamp: time_t) {
+pub unsafe fn dc_set_gossiped_timestamp(context: &Context, chat_id: uint32_t, timestamp: i64) {
     let stmt: *mut sqlite3_stmt;
     if 0 != chat_id {
         dc_log_info(
@@ -2149,7 +2150,7 @@ pub unsafe fn dc_forward_msgs(
     let mut idsstr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut curr_timestamp: time_t;
+    let mut curr_timestamp: i64;
     let original_param: *mut dc_param_t = dc_param_new();
     if !(msg_ids.is_null() || msg_cnt <= 0i32 || chat_id <= 9i32 as libc::c_uint) {
         dc_unarchive_chat(context, chat_id);

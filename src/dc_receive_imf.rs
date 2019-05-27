@@ -58,9 +58,9 @@ pub unsafe fn dc_receive_imf(
     let mut icnt: size_t;
     /* Message-ID from the header */
     let mut rfc724_mid: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut sort_timestamp: time_t = -1i32 as time_t;
-    let mut sent_timestamp: time_t = -1i32 as time_t;
-    let mut rcvd_timestamp: time_t = -1i32 as time_t;
+    let mut sort_timestamp = 0;
+    let mut sent_timestamp = 0;
+    let mut rcvd_timestamp = 0;
     let mut mime_parser = dc_mimeparser_new(context);
     let mut field: *const mailimf_field;
     let mut mime_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -686,8 +686,8 @@ pub unsafe fn dc_receive_imf(
                     }
                 }
             } else {
-                if sent_timestamp > time(0 as *mut time_t) {
-                    sent_timestamp = time(0 as *mut time_t)
+                if sent_timestamp > time() {
+                    sent_timestamp = time()
                 }
                 current_block = 18330534242458572360;
             }
@@ -1017,13 +1017,13 @@ unsafe fn calc_timestamps(
     context: &Context,
     chat_id: uint32_t,
     from_id: uint32_t,
-    message_timestamp: time_t,
+    message_timestamp: i64,
     is_fresh_msg: libc::c_int,
-    sort_timestamp: *mut time_t,
-    sent_timestamp: *mut time_t,
-    rcvd_timestamp: *mut time_t,
+    sort_timestamp: *mut i64,
+    sent_timestamp: *mut i64,
+    rcvd_timestamp: *mut i64,
 ) {
-    *rcvd_timestamp = time(0 as *mut time_t);
+    *rcvd_timestamp = time();
     *sent_timestamp = message_timestamp;
     if *sent_timestamp > *rcvd_timestamp {
         *sent_timestamp = *rcvd_timestamp
@@ -1040,7 +1040,7 @@ unsafe fn calc_timestamps(
         sqlite3_bind_int(stmt, 2i32, from_id as libc::c_int);
         sqlite3_bind_int64(stmt, 3i32, *sort_timestamp as sqlite3_int64);
         if sqlite3_step(stmt) == 100i32 {
-            let last_msg_time: time_t = sqlite3_column_int64(stmt, 0i32) as time_t;
+            let last_msg_time = sqlite3_column_int64(stmt, 0i32) as i64;
             if last_msg_time > 0 {
                 if *sort_timestamp <= last_msg_time {
                     *sort_timestamp = last_msg_time + 1

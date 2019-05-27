@@ -923,7 +923,13 @@ pub unsafe extern "C" fn dc_get_locations(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_location::dc_get_locations(context, chat_id, contact_id, timestamp_begin, timestamp_end)
+    dc_location::dc_get_locations(
+        context,
+        chat_id,
+        contact_id,
+        timestamp_begin as i64,
+        timestamp_end as i64,
+    )
 }
 
 #[no_mangle]

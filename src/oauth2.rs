@@ -9,7 +9,6 @@ use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
-use crate::x::*;
 
 const OAUTH2_GMAIL: Oauth2 = Oauth2 {
     client_id: "959970109878-4mvtgf6feshskf7695nfln6002mom908.apps.googleusercontent.com",
@@ -171,9 +170,9 @@ pub fn dc_get_oauth2_access_token(
             let expires_in = response
                 .expires_in
                 // refresh a bet before
-                .map(|t| unsafe { time(0 as *mut time_t) as u64 } + t - 5)
+                .map(|t| time() + t as i64 - 5)
                 .unwrap_or_else(|| 0);
-            set_config_int64(context, "oauth2_timestamp_expires", expires_in as i64);
+            set_config_int64(context, "oauth2_timestamp_expires", expires_in);
 
             if update_redirect_uri_on_success {
                 set_config(context, "oauth2_redirect_uri", redirect_uri.as_ref());
@@ -342,12 +341,12 @@ fn is_expired(context: &Context) -> bool {
             b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
             0i32 as int64_t,
         )
-    } as time_t;
+    } as i64;
 
     if expire_timestamp <= 0 {
         return false;
     }
-    if expire_timestamp > unsafe { time(0 as *mut time_t) } {
+    if expire_timestamp > time() {
         return false;
     }
 

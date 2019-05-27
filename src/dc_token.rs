@@ -2,7 +2,6 @@ use crate::context::Context;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
-use crate::x::*;
 
 // Token namespaces
 pub type dc_tokennamespc_t = libc::c_uint;
@@ -27,7 +26,7 @@ pub unsafe fn dc_token_save(
         sqlite3_bind_int(stmt, 1i32, namespc as libc::c_int);
         sqlite3_bind_int(stmt, 2i32, foreign_id as libc::c_int);
         sqlite3_bind_text(stmt, 3i32, token, -1i32, None);
-        sqlite3_bind_int64(stmt, 4i32, time(0 as *mut time_t) as sqlite3_int64);
+        sqlite3_bind_int64(stmt, 4i32, time() as sqlite3_int64);
         sqlite3_step(stmt);
     }
     sqlite3_finalize(stmt);

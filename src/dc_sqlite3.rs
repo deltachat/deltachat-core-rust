@@ -1289,7 +1289,7 @@ pub unsafe fn dc_sqlite3_set_config_int64(
 ) -> libc::c_int {
     let value_str = dc_mprintf(
         b"%lld\x00" as *const u8 as *const libc::c_char,
-        value as time_t,
+        value as i64,
     );
     if value_str.is_null() {
         return 0;

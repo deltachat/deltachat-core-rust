@@ -49,7 +49,7 @@ pub unsafe fn dc_imex_has_backup(
     dir_name: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut ret_backup_time: time_t = 0i32 as time_t;
+    let mut ret_backup_time = 0;
     let dir_handle: *mut DIR;
     let mut dir_entry: *mut dirent;
     let prefix_len = strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char);
@@ -97,12 +97,12 @@ pub unsafe fn dc_imex_has_backup(
                 }
                 let mut sql = dc_sqlite3_new();
                 if 0 != dc_sqlite3_open(context, &mut sql, curr_pathNfilename, 0x1i32) {
-                    let curr_backup_time: time_t = dc_sqlite3_get_config_int(
+                    let curr_backup_time = dc_sqlite3_get_config_int(
                         context,
                         &mut sql,
                         b"backup_time\x00" as *const u8 as *const libc::c_char,
                         0i32,
-                    ) as time_t;
+                    ) as u64;
                     if curr_backup_time > 0 && curr_backup_time > ret_backup_time {
                         free(ret as *mut libc::c_void);
                         ret = curr_pathNfilename;
@@ -1141,7 +1141,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     let mut success: libc::c_int = 0i32;
     let mut closed: libc::c_int = 0i32;
     let dest_pathNfilename: *mut libc::c_char;
-    let mut now = time(0 as *mut time_t);
+    let now = time();
     let mut dir_handle: *mut DIR = 0 as *mut DIR;
     let mut dir_entry: *mut dirent;
     let prefix_len = strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char);
@@ -1156,16 +1156,11 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     let mut dest_sql: Option<dc_sqlite3_t> = None;
     /* get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete. however, currently it is not clear it the import exists in the long run (may be replaced by a restore-from-imap)*/
-    let timeinfo: *mut tm;
-    let mut buffer: [libc::c_char; 256] = [0; 256];
-    timeinfo = localtime(&mut now);
-    strftime(
-        buffer.as_mut_ptr(),
-        256i32 as size_t,
-        b"delta-chat-%Y-%m-%d.bak\x00" as *const u8 as *const libc::c_char,
-        timeinfo,
-    );
-    dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_mut_ptr());
+    let res = chrono::NaiveDateTime::from_timestamp(now as i64, 0)
+        .format("delta-chat-%Y-%m-%d.bak")
+        .to_string();
+    let buffer = to_cstring(res);
+    dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
     if dest_pathNfilename.is_null() {
         dc_log_error(
             context,

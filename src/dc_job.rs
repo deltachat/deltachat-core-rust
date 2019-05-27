@@ -1,7 +1,7 @@
 use mmime::mmapstring::*;
 
 use std::ffi::CStr;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 
 use rand::{thread_rng, Rng};
 
@@ -40,8 +40,8 @@ pub struct dc_job_t {
     pub job_id: uint32_t,
     pub action: libc::c_int,
     pub foreign_id: uint32_t,
-    pub desired_timestamp: time_t,
-    pub added_timestamp: time_t,
+    pub desired_timestamp: i64,
+    pub added_timestamp: i64,
     pub tries: libc::c_int,
     pub param: *mut dc_param_t,
     pub try_again: libc::c_int,
@@ -89,7 +89,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 b"SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;\x00"
                     as *const u8 as *const libc::c_char);
         sqlite3_bind_int64(select_stmt, 1i32, thread as sqlite3_int64);
-        sqlite3_bind_int64(select_stmt, 2i32, time(0 as *mut time_t) as sqlite3_int64);
+        sqlite3_bind_int64(select_stmt, 2i32, time() as sqlite3_int64);
     } else {
         select_stmt =
             dc_sqlite3_prepare(
@@ -107,8 +107,8 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             job.param,
             sqlite3_column_text(select_stmt, 3i32) as *mut libc::c_char,
         );
-        job.added_timestamp = sqlite3_column_int64(select_stmt, 4i32) as time_t;
-        job.desired_timestamp = sqlite3_column_int64(select_stmt, 5i32) as time_t;
+        job.added_timestamp = sqlite3_column_int64(select_stmt, 4i32) as i64;
+        job.desired_timestamp = sqlite3_column_int64(select_stmt, 5i32) as i64;
         job.tries = sqlite3_column_int(select_stmt, 6i32);
         dc_log_info(
             context,
@@ -204,7 +204,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             let tries_0: libc::c_int = job.tries + 1i32;
             if tries_0 < 17i32 {
                 job.tries = tries_0;
-                let time_offset: time_t = get_backoff_time_offset(tries_0);
+                let time_offset = get_backoff_time_offset(tries_0);
                 job.desired_timestamp = job.added_timestamp + time_offset;
                 dc_job_update(context, &mut job);
                 dc_log_info(context, 0i32,
@@ -219,7 +219,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                                 }, job.job_id as libc::c_int, tries_0,
                                 time_offset,
                                 job.added_timestamp + time_offset -
-                                    time(0 as *mut time_t));
+                                    time());
                 if thread == 5000i32 && tries_0 < 17i32 - 1i32 {
                     context
                         .smtp_state
@@ -266,7 +266,7 @@ unsafe fn dc_job_delete(context: &Context, job: &dc_job_t) {
 /* ******************************************************************************
  * Tools
  ******************************************************************************/
-unsafe fn get_backoff_time_offset(c_tries: libc::c_int) -> time_t {
+unsafe fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
     // results in ~3 weeks for the last backoff timespan
     let mut N = 2_i32.pow((c_tries - 1) as u32);
     N = N * 60;
@@ -276,8 +276,9 @@ unsafe fn get_backoff_time_offset(c_tries: libc::c_int) -> time_t {
     if seconds < 1 {
         seconds = 1;
     }
-    seconds as time_t
+    seconds as i64
 }
+
 unsafe fn dc_job_update(context: &Context, job: &dc_job_t) {
     let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
@@ -857,7 +858,7 @@ pub unsafe fn dc_job_add(
     param: *const libc::c_char,
     delay_seconds: libc::c_int,
 ) {
-    let timestamp: time_t = time(0 as *mut time_t);
+    let timestamp = time();
     let stmt: *mut sqlite3_stmt;
     let thread: libc::c_int;
     if action >= 100i32 && action < 100i32 + 1000i32 {
@@ -891,7 +892,7 @@ pub unsafe fn dc_job_add(
     sqlite3_bind_int64(
         stmt,
         6i32,
-        (timestamp + delay_seconds as time_t) as sqlite3_int64,
+        (timestamp + delay_seconds as i64) as sqlite3_int64,
     );
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -1225,14 +1226,11 @@ unsafe fn get_next_wakeup_time(context: &Context, thread: libc::c_int) -> Durati
     let mut wakeup_time = Duration::new(10 * 60, 0);
 
     if sqlite3_step(stmt) == 100 {
-        let t = sqlite3_column_int(stmt, 0) as u64;
-        let now = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap();
+        let t = sqlite3_column_int(stmt, 0) as i64;
+        let now = time();
         if t > 0 {
-            let t = Duration::new(t, 0);
             if t > now {
-                wakeup_time = t - now;
+                wakeup_time = Duration::new((t - now) as u64, 0);
             } else {
                 wakeup_time = Duration::new(0, 0);
             }
@@ -1380,18 +1378,10 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 );
             }
             if 0 != mimefactory.out_gossiped {
-                dc_set_gossiped_timestamp(
-                    context,
-                    (*mimefactory.msg).chat_id,
-                    time(0 as *mut time_t),
-                );
+                dc_set_gossiped_timestamp(context, (*mimefactory.msg).chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
-                dc_set_kml_sent_timestamp(
-                    context,
-                    (*mimefactory.msg).chat_id,
-                    time(0 as *mut time_t),
-                );
+                dc_set_kml_sent_timestamp(context, (*mimefactory.msg).chat_id, time());
                 if 0 == (*mimefactory.msg).hidden {
                     dc_set_msg_location_id(
                         context,
@@ -1409,7 +1399,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
             dc_add_to_keyhistory(
                 context,
                 0 as *const libc::c_char,
-                0i32 as time_t,
+                0,
                 0 as *const libc::c_char,
                 0 as *const libc::c_char,
             );

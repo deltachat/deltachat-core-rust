@@ -1,3 +1,4 @@
+use chrono::TimeZone;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
 use mmime::mailmime_disposition::*;
@@ -31,7 +32,7 @@ pub struct dc_mimefactory_t<'a> {
     pub selfstatus: *mut libc::c_char,
     pub recipients_names: *mut clist,
     pub recipients_addr: *mut clist,
-    pub timestamp: time_t,
+    pub timestamp: i64,
     pub rfc724_mid: *mut libc::c_char,
     pub loaded: dc_mimefactory_loaded_t,
     pub msg: *mut dc_msg_t<'a>,
@@ -103,7 +104,7 @@ pub unsafe fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
     (*factory).loaded = DC_MF_NOTHING_LOADED;
     free((*factory).error as *mut libc::c_void);
     (*factory).error = 0 as *mut libc::c_char;
-    (*factory).timestamp = 0i32 as time_t;
+    (*factory).timestamp = 0;
 }
 
 pub unsafe fn dc_mimefactory_load_msg(
@@ -445,7 +446,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             )
         }
         imf_fields = mailimf_fields_new_with_data_all(
-            mailimf_get_date((*factory).timestamp),
+            mailimf_get_date((*factory).timestamp as i64),
             from,
             0 as *mut mailimf_mailbox,
             0 as *mut mailimf_address_list,
@@ -522,7 +523,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 }
             }
             if (*chat).gossiped_timestamp == 0
-                || ((*chat).gossiped_timestamp + (2 * 24 * 60 * 60)) < time(0 as *mut time_t)
+                || ((*chat).gossiped_timestamp + (2 * 24 * 60 * 60)) < time()
             {
                 do_gossip = 1i32
             }
@@ -1135,39 +1136,20 @@ unsafe fn build_body_file(
     let mut filename_encoded: *mut libc::c_char = 0 as *mut libc::c_char;
     if !pathNfilename.is_null() {
         if (*msg).type_0 == 41i32 {
-            let mut wanted_struct: tm = tm {
-                tm_sec: 0,
-                tm_min: 0,
-                tm_hour: 0,
-                tm_mday: 0,
-                tm_mon: 0,
-                tm_year: 0,
-                tm_wday: 0,
-                tm_yday: 0,
-                tm_isdst: 0,
-                tm_gmtoff: 0,
-                tm_zone: 0 as *mut libc::c_char,
+            let ts = chrono::Utc.timestamp((*msg).timestamp_sort as i64, 0);
+
+            let suffix = if !suffix.is_null() {
+                to_string(suffix)
+            } else {
+                "dat".into()
             };
-            memcpy(
-                &mut wanted_struct as *mut tm as *mut libc::c_void,
-                localtime(&(*msg).timestamp_sort) as *const libc::c_void,
-                ::std::mem::size_of::<tm>(),
-            );
-            filename_to_send = dc_mprintf(
-                b"voice-message_%04i-%02i-%02i_%02i-%02i-%02i.%s\x00" as *const u8
-                    as *const libc::c_char,
-                wanted_struct.tm_year as libc::c_int + 1900i32,
-                wanted_struct.tm_mon as libc::c_int + 1i32,
-                wanted_struct.tm_mday as libc::c_int,
-                wanted_struct.tm_hour as libc::c_int,
-                wanted_struct.tm_min as libc::c_int,
-                wanted_struct.tm_sec as libc::c_int,
-                if !suffix.is_null() {
+            let res = ts
+                .format(&format!(
+                    "voice-message_%04i-%02i-%02i_%02i-%02i-%02i.{}",
                     suffix
-                } else {
-                    b"dat\x00" as *const u8 as *const libc::c_char
-                },
-            )
+                ))
+                .to_string();
+            filename_to_send = strdup(to_cstring(res).as_ptr());
         } else if (*msg).type_0 == 40i32 {
             filename_to_send = dc_get_filename(pathNfilename)
         } else if (*msg).type_0 == 20i32 || (*msg).type_0 == 21i32 {
