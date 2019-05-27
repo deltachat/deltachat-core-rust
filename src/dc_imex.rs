@@ -124,35 +124,6 @@ pub unsafe fn dc_imex_has_backup(
     ret
 }
 
-pub unsafe fn dc_check_password(context: &Context, test_pw: *const libc::c_char) -> libc::c_int {
-    /* Check if the given password matches the configured mail_pw.
-    This is to prompt the user before starting eg. an export; this is mainly to avoid doing people bad thinkgs if they have short access to the device.
-    When we start supporting OAuth some day, we should think this over, maybe force the user to re-authenticate himself with the Android password. */
-    let loginparam: *mut dc_loginparam_t = dc_loginparam_new();
-    let mut success: libc::c_int = 0i32;
-
-    dc_loginparam_read(
-        context,
-        loginparam,
-        &context.sql.clone().read().unwrap(),
-        b"configured_\x00" as *const u8 as *const libc::c_char,
-    );
-    if ((*loginparam).mail_pw.is_null()
-        || *(*loginparam).mail_pw.offset(0isize) as libc::c_int == 0i32)
-        && (test_pw.is_null() || *test_pw.offset(0isize) as libc::c_int == 0i32)
-    {
-        success = 1i32
-    } else if (*loginparam).mail_pw.is_null() || test_pw.is_null() {
-        success = 0i32
-    } else if strcmp((*loginparam).mail_pw, test_pw) == 0i32 {
-        success = 1i32
-    }
-
-    dc_loginparam_unref(loginparam);
-
-    success
-}
-
 pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
     let current_block: u64;
     let mut success: libc::c_int = 0i32;

@@ -339,7 +339,6 @@ dc_contact_t*   dc_get_contact               (dc_context_t*, uint32_t contact_id
 #define         DC_IMEX_IMPORT_BACKUP        12 // param1 is the file with the backup to import
 void            dc_imex                      (dc_context_t*, int what, const char* param1, const char* param2);
 char*           dc_imex_has_backup           (dc_context_t*, const char* dir);
-int             dc_check_password            (dc_context_t*, const char* pw);
 char*           dc_initiate_key_transfer     (dc_context_t*);
 int             dc_continue_key_transfer     (dc_context_t*, uint32_t msg_id, const char* setup_code);
 void            dc_stop_ongoing_process      (dc_context_t*);
