@@ -2,8 +2,8 @@ use std::borrow::Cow;
 
 use crate::constants::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_key::*;
 use crate::dc_sqlite3::*;
+use crate::key::*;
 use crate::types::*;
 
 #[derive(Default, Clone, Debug)]

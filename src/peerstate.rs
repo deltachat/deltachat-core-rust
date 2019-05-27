@@ -3,13 +3,13 @@ use std::ffi::CString;
 
 use num_traits::FromPrimitive;
 
+use crate::aheader::*;
 use crate::constants::*;
-use crate::dc_aheader::*;
 use crate::dc_chat::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_key::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::{to_cstring, to_string};
+use crate::key::*;
 use crate::types::*;
 
 /// Peerstate represents the state of an Autocrypt peer.

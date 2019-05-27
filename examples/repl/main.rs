@@ -6,7 +6,6 @@
 //! all further options can be set using the set-command (type ? for help).
 
 #![allow(
-    unused_imports,
     mutable_transmutes,
     non_camel_case_types,
     non_snake_case,
@@ -21,50 +20,16 @@ use std::io::{self, Write};
 use std::sync::{Arc, RwLock};
 
 use deltachat::constants::*;
-use deltachat::dc_aheader::*;
-use deltachat::dc_array::*;
-use deltachat::dc_chat::*;
-use deltachat::dc_chatlist::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_contact::*;
 use deltachat::dc_context::*;
-use deltachat::dc_dehtml::*;
-use deltachat::dc_e2ee::*;
-use deltachat::dc_imap::*;
-use deltachat::dc_imex::*;
 use deltachat::dc_job::*;
-use deltachat::dc_jobthread::*;
-use deltachat::dc_key::*;
-use deltachat::dc_keyhistory::*;
-use deltachat::dc_keyring::*;
-use deltachat::dc_location::*;
-use deltachat::dc_log::*;
-use deltachat::dc_loginparam::*;
-use deltachat::dc_lot::*;
-use deltachat::dc_mimefactory::*;
-use deltachat::dc_mimeparser::*;
-use deltachat::dc_move::*;
-use deltachat::dc_msg::*;
-use deltachat::dc_param::*;
-use deltachat::dc_pgp::*;
-use deltachat::dc_qr::*;
-use deltachat::dc_receive_imf::*;
-use deltachat::dc_saxparser::*;
 use deltachat::dc_securejoin::*;
-use deltachat::dc_simplify::*;
-use deltachat::dc_smtp::*;
-use deltachat::dc_sqlite3::*;
-use deltachat::dc_stock::*;
-use deltachat::dc_strbuilder::*;
-use deltachat::dc_strencode::*;
-use deltachat::dc_token::*;
 use deltachat::dc_tools::*;
 use deltachat::oauth2::*;
-use deltachat::peerstate::*;
 use deltachat::types::*;
 use deltachat::x::*;
-mod cmdline;
 
+mod cmdline;
 use self::cmdline::*;
 
 /* ******************************************************************************

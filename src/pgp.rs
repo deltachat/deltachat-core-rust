@@ -12,9 +12,9 @@ use pgp::types::{CompressionAlgorithm, KeyTrait, SecretKeyTrait, StringToKey};
 use rand::thread_rng;
 use sha2::{Digest, Sha256};
 
-use crate::dc_key::*;
 use crate::dc_keyring::*;
 use crate::dc_tools::*;
+use crate::key::*;
 use crate::types::*;
 use crate::x::*;
 

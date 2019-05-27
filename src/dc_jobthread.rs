@@ -2,10 +2,10 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_imap::Imap;
 use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
+use crate::imap::Imap;
 use crate::x::*;
 
 #[repr(C)]

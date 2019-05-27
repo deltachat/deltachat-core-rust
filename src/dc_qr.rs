@@ -1,12 +1,12 @@
 use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_key::*;
 use crate::dc_log::*;
 use crate::dc_lot::*;
 use crate::dc_param::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::key::*;
 use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;

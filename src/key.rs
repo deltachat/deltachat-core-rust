@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn test_from_slice_roundtrip() {
         let (public_key, private_key) =
-            crate::dc_pgp::dc_pgp_create_keypair(CString::new("hello").unwrap().as_ptr()).unwrap();
+            crate::pgp::dc_pgp_create_keypair(CString::new("hello").unwrap().as_ptr()).unwrap();
 
         let binary = public_key.to_bytes();
         let public_key2 = Key::from_slice(&binary, KeyType::Public).expect("invalid public key");

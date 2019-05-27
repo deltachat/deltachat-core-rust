@@ -11,16 +11,16 @@ use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
 use crate::dc_job::*;
-use crate::dc_key::*;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_pgp::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
+use crate::key::*;
+use crate::pgp::*;
 use crate::types::*;
 use crate::x::*;
 

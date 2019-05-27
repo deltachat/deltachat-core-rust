@@ -1,7 +1,6 @@
 use crate::constants::Event;
 use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
-use crate::dc_imap::*;
 use crate::dc_job::*;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
@@ -9,6 +8,7 @@ use crate::dc_saxparser::*;
 use crate::dc_sqlite3::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::imap::*;
 use crate::oauth2::*;
 use crate::types::*;
 use crate::x::*;

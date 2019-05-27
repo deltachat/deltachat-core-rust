@@ -7,7 +7,7 @@ use mmime::mailimf_types::*;
 
 use crate::constants::*;
 use crate::dc_contact::*;
-use crate::dc_key::*;
+use crate::key::*;
 
 /// Possible values for encryption preference
 #[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive, ToPrimitive)]

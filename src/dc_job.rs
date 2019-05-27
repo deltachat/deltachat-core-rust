@@ -9,7 +9,6 @@ use crate::constants::Event;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_imap::*;
 use crate::dc_imex::*;
 use crate::dc_jobthread::*;
 use crate::dc_keyhistory::*;
@@ -21,6 +20,7 @@ use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
+use crate::imap::*;
 use crate::types::*;
 use crate::x::*;
 

@@ -7,11 +7,11 @@ use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
 use crate::dc_param::*;
-use crate::dc_pgp::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
+use crate::pgp::*;
 use crate::types::*;
 use crate::x::*;
 

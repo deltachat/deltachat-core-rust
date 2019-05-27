@@ -1,14 +1,13 @@
 use mmime::mailimf_types::*;
 
+use crate::aheader::EncryptPreference;
 use crate::constants::Event;
-use crate::dc_aheader::EncryptPreference;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
-use crate::dc_key::*;
 use crate::dc_log::*;
 use crate::dc_lot::*;
 use crate::dc_mimeparser::*;
@@ -20,6 +19,7 @@ use crate::dc_stock::*;
 use crate::dc_strencode::*;
 use crate::dc_token::*;
 use crate::dc_tools::*;
+use crate::key::*;
 use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;

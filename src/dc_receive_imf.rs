@@ -18,7 +18,6 @@ use crate::dc_mimeparser::*;
 use crate::dc_move::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_pgp::dc_hash_sha256;
 use crate::dc_securejoin::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
@@ -26,6 +25,7 @@ use crate::dc_strbuilder::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::peerstate::*;
+use crate::pgp::dc_hash_sha256;
 use crate::types::*;
 use crate::x::*;
 
