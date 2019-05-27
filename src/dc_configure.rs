@@ -1521,34 +1521,24 @@ unsafe fn moz_autoconfigure_starttag_cb(
         (*moz_ac).tag_config = 12i32
     };
 }
-unsafe fn read_autoconf_file(
-    context: &dc_context_t,
-    url: *const libc::c_char,
-) -> *mut libc::c_char {
-    let filecontent: *mut libc::c_char;
-    dc_log_info(
-        context,
-        0i32,
-        b"Testing %s ...\x00" as *const u8 as *const libc::c_char,
-        url,
-    );
-    filecontent = (context.cb)(
-        context,
-        Event::HTTP_GET,
-        url as uintptr_t,
-        0i32 as uintptr_t,
-    ) as *mut libc::c_char;
-    if filecontent.is_null() || *filecontent.offset(0isize) as libc::c_int == 0i32 {
-        free(filecontent as *mut libc::c_void);
-        dc_log_info(
-            context,
-            0i32,
-            b"Can\'t read file.\x00" as *const u8 as *const libc::c_char,
-        );
-        return 0 as *mut libc::c_char;
+
+fn read_autoconf_file(context: &dc_context_t, url: *const libc::c_char) -> *mut libc::c_char {
+    info!(context, 0, "Testing %s ...", url);
+
+    match reqwest::Client::new()
+        .get(to_str(url))
+        .send()
+        .and_then(|mut res| res.text())
+    {
+        Ok(res) => unsafe { libc::strdup(to_cstring(res).as_ptr()) },
+        Err(_err) => {
+            info!(context, 0, "Can\'t read file.",);
+
+            std::ptr::null_mut()
+        }
     }
-    return filecontent;
 }
+
 unsafe fn outlk_autodiscover(
     context: &dc_context_t,
     url__: *const libc::c_char,

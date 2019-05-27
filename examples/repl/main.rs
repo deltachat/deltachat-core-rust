@@ -73,7 +73,7 @@ use self::cmdline::*;
  ******************************************************************************/
 
 unsafe extern "C" fn receive_event(
-    context: &dc_context_t,
+    _context: &dc_context_t,
     event: Event,
     data1: uintptr_t,
     data2: uintptr_t,
@@ -131,58 +131,6 @@ unsafe extern "C" fn receive_event(
                     as *const libc::c_char,
                 data2 as *mut libc::c_char,
             );
-        }
-        2100 | 2110 => {
-            let url: *mut libc::c_char = dc_strdup(data1 as *mut libc::c_char);
-            let mut param: *mut libc::c_char = strchr(url, '?' as i32);
-
-            if !param.is_null() {
-                *param = 0i32 as libc::c_char;
-                param = param.offset(1isize)
-            } else {
-                param = b"\x00" as *const u8 as *const libc::c_char as *mut libc::c_char
-            }
-            let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
-            let tempFile: *mut libc::c_char = dc_get_fine_pathNfilename(
-                context,
-                context.get_blobdir(),
-                b"curl.result\x00" as *const u8 as *const libc::c_char,
-            );
-            let cmd: *mut libc::c_char = if event == Event::HTTP_GET {
-                dc_mprintf(
-                    b"curl --silent --location --fail --insecure %s%s%s > %s\x00" as *const u8
-                        as *const libc::c_char,
-                    url,
-                    if 0 != *param.offset(0isize) as libc::c_int {
-                        b"?\x00" as *const u8 as *const libc::c_char
-                    } else {
-                        b"\x00" as *const u8 as *const libc::c_char
-                    },
-                    param,
-                    tempFile,
-                )
-            } else {
-                dc_mprintf(
-                    b"curl --silent -d \"%s\" %s > %s\x00" as *const u8 as *const libc::c_char,
-                    param,
-                    url,
-                    tempFile,
-                )
-            };
-            let error: libc::c_int = system(cmd);
-            if error == 0i32 {
-                let mut bytes: size_t = 0i32 as size_t;
-                dc_read_file(
-                    context,
-                    tempFile,
-                    &mut ret as *mut *mut libc::c_char as *mut *mut libc::c_void,
-                    &mut bytes,
-                );
-            }
-            free(cmd as *mut libc::c_void);
-            free(tempFile as *mut libc::c_void);
-            free(url as *mut libc::c_void);
-            return ret as uintptr_t;
         }
         2081 => {
             printf(
