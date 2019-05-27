@@ -1101,46 +1101,6 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
  */
 #define DC_EVENT_GET_STRING               2091
 
-
-/**
- * NOT_USED_ANYMORE
- *
- * Request a HTTP-file or HTTPS-file from the frontend using HTTP-GET.
- *
- * @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
- *     The string starts with https:// or http://.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @param data2 0
- * @return (const char*) The content of the requested file as a null-terminated UTF-8 string;
- *     Response headers, encodings etc. must be stripped.
- *     Only the raw file should be returned.
- *     CAVE: The string will be free()'d by the core,
- *     so make sure it is allocated using malloc() or a compatible function.
- *     If you cannot provide the content, just return 0 or an empty string.
- */
-#define DC_EVENT_HTTP_GET                 2100
-
-
-/**
- * NOT_USED_ANYMORE
- *
- * Request a HTTP-file or HTTPS-file from the frontend using HTTP-POST.
- *
- * @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
- *     The string starts with https:// or http://.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- *     Parameter to POST are added to the url after `?`.
- * @param data2 0
- * @return (const char*) The content of the requested file as a null-terminated UTF-8 string;
- *     Response headers, encodings etc. must be stripped.
- *     Only the raw file should be returned.
- *     CAVE: The string will be free()'d by the core,
- *     so make sure it is allocated using malloc() or a compatible function.
- *     If you cannot provide the content, just return 0 or an empty string.
- */
-#define DC_EVENT_HTTP_POST                2110
-
-
 /**
  * @}
  */
@@ -1150,10 +1110,10 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
 #define DC_ERROR_SEE_STRING          0    // deprecated
 #define DC_ERROR_SELF_NOT_IN_GROUP   1    // deprecated
 #define DC_STR_SELFNOTINGRP          21   // deprecated
-#define DC_EVENT_DATA1_IS_STRING(e)  ((e)==DC_EVENT_HTTP_GET || (e)==DC_EVENT_IMEX_FILE_WRITTEN || (e)==DC_EVENT_FILE_COPIED)
+#define DC_EVENT_DATA1_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || (e)==DC_EVENT_FILE_COPIED)
 #define DC_EVENT_DATA2_IS_STRING(e)  ((e)>=100 && (e)<=499)
 #define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE)
-#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING || (e)==DC_EVENT_HTTP_GET)
+#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING)
 
 
 /*
