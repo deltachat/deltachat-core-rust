@@ -1,6 +1,6 @@
+use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_lot::*;
 use crate::dc_param::*;
@@ -21,7 +21,7 @@ use crate::x::*;
 // text1=text
 // text1=URL
 // text1=error string
-pub unsafe fn dc_check_qr(context: &dc_context_t, qr: *const libc::c_char) -> *mut dc_lot_t {
+pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc_lot_t {
     let mut current_block: u64;
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     // must be normalized, if set

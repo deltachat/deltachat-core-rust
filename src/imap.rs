@@ -4,7 +4,7 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, SystemTime};
 
 use crate::constants::*;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_sqlite3::*;
@@ -371,7 +371,7 @@ impl Imap {
         self.config.read().unwrap().should_reconnect
     }
 
-    fn setup_handle_if_needed(&self, context: &dc_context_t) -> libc::c_int {
+    fn setup_handle_if_needed(&self, context: &Context) -> libc::c_int {
         if self.should_reconnect() {
             self.unsetup_handle(context);
         }
@@ -475,7 +475,7 @@ impl Imap {
         }
     }
 
-    fn unsetup_handle(&self, context: &dc_context_t) {
+    fn unsetup_handle(&self, context: &Context) {
         let session = self.session.lock().unwrap().0.take();
         if session.is_some() {
             match session.unwrap().close() {
@@ -516,7 +516,7 @@ impl Imap {
         cfg.watch_folder = None;
     }
 
-    pub fn connect(&self, context: &dc_context_t, lp: *const dc_loginparam_t) -> libc::c_int {
+    pub fn connect(&self, context: &Context, lp: *const dc_loginparam_t) -> libc::c_int {
         if lp.is_null() {
             return 0;
         }
@@ -585,7 +585,7 @@ impl Imap {
         }
     }
 
-    pub fn disconnect(&self, context: &dc_context_t) {
+    pub fn disconnect(&self, context: &Context) {
         if self.is_connected() {
             self.unsetup_handle(context);
             self.free_connect_params();
@@ -597,7 +597,7 @@ impl Imap {
         self.config.write().unwrap().watch_folder = Some(to_string(watch_folder));
     }
 
-    pub fn fetch(&self, context: &dc_context_t) -> libc::c_int {
+    pub fn fetch(&self, context: &Context) -> libc::c_int {
         if !self.is_connected() {
             return 0;
         }
@@ -621,7 +621,7 @@ impl Imap {
         }
     }
 
-    fn select_folder<S: AsRef<str>>(&self, context: &dc_context_t, folder: Option<S>) -> usize {
+    fn select_folder<S: AsRef<str>>(&self, context: &Context, folder: Option<S>) -> usize {
         if self.session.lock().unwrap().0.is_none() {
             let mut cfg = self.config.write().unwrap();
             cfg.selected_folder = None;
@@ -695,11 +695,7 @@ impl Imap {
         1
     }
 
-    fn get_config_last_seen_uid<S: AsRef<str>>(
-        &self,
-        context: &dc_context_t,
-        folder: S,
-    ) -> (u32, u32) {
+    fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {
         let key = format!("imap.mailbox.{}", folder.as_ref());
         let val1 = unsafe {
             (self.get_config)(
@@ -721,7 +717,7 @@ impl Imap {
         )
     }
 
-    fn fetch_from_single_folder<S: AsRef<str>>(&self, context: &dc_context_t, folder: S) -> usize {
+    fn fetch_from_single_folder<S: AsRef<str>>(&self, context: &Context, folder: S) -> usize {
         if !self.is_connected() {
             info!(
                 context,
@@ -916,7 +912,7 @@ impl Imap {
 
     fn set_config_last_seen_uid<S: AsRef<str>>(
         &self,
-        context: &dc_context_t,
+        context: &Context,
         folder: S,
         uidvalidity: u32,
         lastseenuid: u32,
@@ -935,7 +931,7 @@ impl Imap {
 
     fn fetch_single_msg<S: AsRef<str>>(
         &self,
-        context: &dc_context_t,
+        context: &Context,
         folder: S,
         server_uid: u32,
     ) -> usize {
@@ -1031,7 +1027,7 @@ impl Imap {
         }
     }
 
-    pub fn idle(&self, context: &dc_context_t) {
+    pub fn idle(&self, context: &Context) {
         if !self.config.read().unwrap().can_idle {
             return self.fake_idle(context);
         }
@@ -1126,7 +1122,7 @@ impl Imap {
         *watch = false;
     }
 
-    fn fake_idle(&self, context: &dc_context_t) {
+    fn fake_idle(&self, context: &Context) {
         // Idle using timeouts. This is also needed if we're not yet configured -
         // in this case, we're waiting for a configure job
         let fake_idle_start_time = SystemTime::now();
@@ -1194,7 +1190,7 @@ impl Imap {
 
     pub fn mv<S1: AsRef<str>, S2: AsRef<str>>(
         &self,
-        context: &dc_context_t,
+        context: &Context,
         folder: S1,
         uid: u32,
         dest_folder: S2,
@@ -1325,7 +1321,7 @@ impl Imap {
         }
     }
 
-    pub fn set_seen<S: AsRef<str>>(&self, context: &dc_context_t, folder: S, uid: u32) -> usize {
+    pub fn set_seen<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> usize {
         let mut res = DC_RETRY_LATER;
 
         if uid == 0 {
@@ -1366,7 +1362,7 @@ impl Imap {
         }
     }
 
-    pub fn set_mdnsent<S: AsRef<str>>(&self, context: &dc_context_t, folder: S, uid: u32) -> usize {
+    pub fn set_mdnsent<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> usize {
         // returns 0=job should be retried later, 1=job done, 2=job done and flag just set
         let mut res = DC_RETRY_LATER;
         let set = format!("{}", uid);
@@ -1484,7 +1480,7 @@ impl Imap {
     // only returns 0 on connection problems; we should try later again in this case *
     pub fn delete_msg<S1: AsRef<str>, S2: AsRef<str>>(
         &self,
-        context: &dc_context_t,
+        context: &Context,
         message_id: S1,
         folder: S2,
         server_uid: &mut u32,
@@ -1575,7 +1571,7 @@ impl Imap {
         }
     }
 
-    pub fn configure_folders(&self, context: &dc_context_t, flags: libc::c_int) {
+    pub fn configure_folders(&self, context: &Context, flags: libc::c_int) {
         if !self.is_connected() {
             return;
         }
@@ -1670,7 +1666,7 @@ impl Imap {
 
     fn list_folders(
         &self,
-        context: &dc_context_t,
+        context: &Context,
     ) -> Option<imap::types::ZeroCopy<Vec<imap::types::Name>>> {
         if let Some(ref mut session) = self.session.lock().unwrap().0 {
             // TODO: use xlist when available

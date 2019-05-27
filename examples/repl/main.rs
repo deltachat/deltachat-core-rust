@@ -20,8 +20,8 @@ use std::io::{self, Write};
 use std::sync::{Arc, RwLock};
 
 use deltachat::constants::*;
+use deltachat::context::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_context::*;
 use deltachat::dc_job::*;
 use deltachat::dc_securejoin::*;
 use deltachat::dc_tools::*;
@@ -37,7 +37,7 @@ use self::cmdline::*;
  ******************************************************************************/
 
 unsafe extern "C" fn receive_event(
-    _context: &dc_context_t,
+    _context: &Context,
     event: Event,
     data1: uintptr_t,
     data2: uintptr_t,
@@ -176,7 +176,7 @@ unsafe extern "C" fn receive_event(
 static mut run_threads: libc::c_int = 0i32;
 
 unsafe fn start_threads(
-    c: Arc<RwLock<dc_context_t>>,
+    c: Arc<RwLock<Context>>,
 ) -> (
     std::thread::JoinHandle<()>,
     std::thread::JoinHandle<()>,
@@ -234,7 +234,7 @@ unsafe fn start_threads(
 }
 
 unsafe fn stop_threads(
-    context: &dc_context_t,
+    context: &Context,
     handles: Option<(
         std::thread::JoinHandle<()>,
         std::thread::JoinHandle<()>,

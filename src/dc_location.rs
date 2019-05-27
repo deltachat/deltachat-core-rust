@@ -1,7 +1,7 @@
 use crate::constants::Event;
+use crate::context::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
-use crate::dc_context::*;
 use crate::dc_job::*;
 use crate::dc_log::*;
 use crate::dc_msg::*;
@@ -40,7 +40,7 @@ pub struct dc_kml_t {
 
 // location streaming
 pub unsafe fn dc_send_locations_to_chat(
-    context: &dc_context_t,
+    context: &Context,
     chat_id: uint32_t,
     seconds: libc::c_int,
 ) {
@@ -119,16 +119,13 @@ pub unsafe fn dc_send_locations_to_chat(
 /*******************************************************************************
  * job to send locations out to all chats that want them
  ******************************************************************************/
-unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &dc_context_t, flags: libc::c_int) {
+unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: libc::c_int) {
     if 0 != flags & 0x1i32 || 0 == dc_job_action_exists(context, 5005i32) {
         dc_job_add(context, 5005i32, 0i32, 0 as *const libc::c_char, 60i32);
     };
 }
 
-pub unsafe fn dc_is_sending_locations_to_chat(
-    context: &dc_context_t,
-    chat_id: uint32_t,
-) -> libc::c_int {
+pub unsafe fn dc_is_sending_locations_to_chat(context: &Context, chat_id: uint32_t) -> libc::c_int {
     let mut is_sending_locations: libc::c_int = 0i32;
     let stmt: *mut sqlite3_stmt;
 
@@ -159,7 +156,7 @@ pub unsafe fn dc_is_sending_locations_to_chat(
 }
 
 pub unsafe fn dc_set_location(
-    context: &dc_context_t,
+    context: &Context,
     latitude: libc::c_double,
     longitude: libc::c_double,
     accuracy: libc::c_double,
@@ -211,7 +208,7 @@ pub unsafe fn dc_set_location(
 }
 
 pub unsafe fn dc_get_locations(
-    context: &dc_context_t,
+    context: &Context,
     chat_id: uint32_t,
     contact_id: uint32_t,
     timestamp_from: time_t,
@@ -298,7 +295,7 @@ unsafe fn is_marker(txt: *const libc::c_char) -> libc::c_int {
     0
 }
 
-pub unsafe fn dc_delete_all_locations(context: &dc_context_t) {
+pub unsafe fn dc_delete_all_locations(context: &Context) {
     let stmt: *mut sqlite3_stmt;
 
     stmt = dc_sqlite3_prepare(
@@ -318,7 +315,7 @@ pub unsafe fn dc_delete_all_locations(context: &dc_context_t) {
 }
 
 pub unsafe fn dc_get_location_kml(
-    context: &dc_context_t,
+    context: &Context,
     chat_id: uint32_t,
     last_added_location_id: *mut uint32_t,
 ) -> *mut libc::c_char {
@@ -488,11 +485,7 @@ pub unsafe fn dc_get_message_kml(
     ret
 }
 
-pub unsafe fn dc_set_kml_sent_timestamp(
-    context: &dc_context_t,
-    chat_id: uint32_t,
-    timestamp: time_t,
-) {
+pub unsafe fn dc_set_kml_sent_timestamp(context: &Context, chat_id: uint32_t, timestamp: time_t) {
     let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
@@ -506,11 +499,7 @@ pub unsafe fn dc_set_kml_sent_timestamp(
     sqlite3_finalize(stmt);
 }
 
-pub unsafe fn dc_set_msg_location_id(
-    context: &dc_context_t,
-    msg_id: uint32_t,
-    location_id: uint32_t,
-) {
+pub unsafe fn dc_set_msg_location_id(context: &Context, msg_id: uint32_t, location_id: uint32_t) {
     let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
@@ -524,7 +513,7 @@ pub unsafe fn dc_set_msg_location_id(
 }
 
 pub unsafe fn dc_save_locations(
-    context: &dc_context_t,
+    context: &Context,
     chat_id: uint32_t,
     contact_id: uint32_t,
     locations: *const dc_array_t,
@@ -588,7 +577,7 @@ pub unsafe fn dc_save_locations(
 }
 
 pub unsafe fn dc_kml_parse(
-    context: &dc_context_t,
+    context: &Context,
     content: *const libc::c_char,
     content_bytes: size_t,
 ) -> *mut dc_kml_t {
@@ -777,7 +766,7 @@ pub unsafe fn dc_kml_unref(kml: *mut dc_kml_t) {
     free(kml as *mut libc::c_void);
 }
 
-pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job: *mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mut dc_job_t) {
     let stmt_chats: *mut sqlite3_stmt;
     let mut stmt_locations: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let now: time_t = time(0 as *mut time_t);
@@ -850,7 +839,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &dc_context_t, _job
     sqlite3_finalize(stmt_locations);
 }
 
-pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &dc_context_t, job: &mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut dc_job_t) {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.

@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::constants::*;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_sqlite3::*;
 use crate::key::*;
 use crate::types::*;
@@ -30,7 +30,7 @@ impl<'a> Keyring<'a> {
 
     pub fn load_self_private_for_decrypting(
         &mut self,
-        context: &dc_context_t,
+        context: &Context,
         self_addr: *const libc::c_char,
         sql: &dc_sqlite3_t,
     ) -> bool {

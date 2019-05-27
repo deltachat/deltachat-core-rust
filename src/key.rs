@@ -9,7 +9,7 @@ use pgp::ser::Serialize;
 use pgp::types::{KeyTrait, SecretKeyTrait};
 
 use crate::constants::*;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
@@ -143,7 +143,7 @@ impl Key {
     }
 
     pub fn from_self_public(
-        context: &dc_context_t,
+        context: &Context,
         self_addr: *const libc::c_char,
         sql: &dc_sqlite3_t,
     ) -> Option<Self> {
@@ -173,7 +173,7 @@ impl Key {
     }
 
     pub fn from_self_private(
-        context: &dc_context_t,
+        context: &Context,
         self_addr: *const libc::c_char,
         sql: &dc_sqlite3_t,
     ) -> Option<Self> {
@@ -270,7 +270,7 @@ impl Key {
         unsafe { strdup(buf_c.as_ptr()) }
     }
 
-    pub fn write_asc_to_file(&self, file: *const libc::c_char, context: &dc_context_t) -> bool {
+    pub fn write_asc_to_file(&self, file: *const libc::c_char, context: &Context) -> bool {
         if file.is_null() {
             return false;
         }
@@ -333,7 +333,7 @@ impl Key {
 }
 
 pub fn dc_key_save_self_keypair(
-    context: &dc_context_t,
+    context: &Context,
     public_key: &Key,
     private_key: &Key,
     addr: *const libc::c_char,

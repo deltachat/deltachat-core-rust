@@ -3,15 +3,15 @@ use std::fs;
 use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
 
+use crate::context::Context;
 use crate::dc_array::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_strbuilder::*;
 use crate::types::*;
 use crate::x::*;
 
 /* Some tools and enhancements to the used libraries, there should be
-no references to dc_context_t and other "larger" classes here. */
+no references to Context and other "larger" classes here. */
 // for carray etc.
 /* ** library-private **********************************************************/
 /* math tools */
@@ -867,7 +867,7 @@ pub unsafe fn dc_gm2local_offset() -> time_t {
 }
 
 /* timesmearing */
-pub unsafe fn dc_smeared_time(context: &dc_context_t) -> time_t {
+pub unsafe fn dc_smeared_time(context: &Context) -> time_t {
     /* function returns a corrected time(NULL) */
     let mut now: time_t = time(0 as *mut time_t);
     let ts = *context.last_smeared_timestamp.clone().read().unwrap();
@@ -878,7 +878,7 @@ pub unsafe fn dc_smeared_time(context: &dc_context_t) -> time_t {
     now
 }
 
-pub unsafe fn dc_create_smeared_timestamp(context: &dc_context_t) -> time_t {
+pub unsafe fn dc_create_smeared_timestamp(context: &Context) -> time_t {
     let now: time_t = time(0 as *mut time_t);
     let mut ret: time_t = now;
 
@@ -893,7 +893,7 @@ pub unsafe fn dc_create_smeared_timestamp(context: &dc_context_t) -> time_t {
     ret
 }
 
-pub unsafe fn dc_create_smeared_timestamps(context: &dc_context_t, count: libc::c_int) -> time_t {
+pub unsafe fn dc_create_smeared_timestamps(context: &Context, count: libc::c_int) -> time_t {
     /* get a range to timestamps that can be used uniquely */
     let now = time(0 as *mut time_t);
     let start = now + (if count < 5 { count } else { 5 }) as time_t - count as time_t;
@@ -1252,7 +1252,7 @@ pub unsafe fn dc_get_filemeta(
 }
 
 pub unsafe fn dc_get_abs_path(
-    context: &dc_context_t,
+    context: &Context,
     pathNfilename: *const libc::c_char,
 ) -> *mut libc::c_char {
     let current_block: u64;
@@ -1292,10 +1292,7 @@ pub unsafe fn dc_get_abs_path(
     pathNfilename_abs
 }
 
-pub unsafe fn dc_file_exist(
-    context: &dc_context_t,
-    pathNfilename: *const libc::c_char,
-) -> libc::c_int {
+pub unsafe fn dc_file_exist(context: &Context, pathNfilename: *const libc::c_char) -> libc::c_int {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     if pathNfilename_abs.is_null() {
         return 0;
@@ -1314,10 +1311,7 @@ pub unsafe fn dc_file_exist(
     exist as libc::c_int
 }
 
-pub unsafe fn dc_get_filebytes(
-    context: &dc_context_t,
-    pathNfilename: *const libc::c_char,
-) -> uint64_t {
+pub unsafe fn dc_get_filebytes(context: &Context, pathNfilename: *const libc::c_char) -> uint64_t {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     if pathNfilename_abs.is_null() {
         return 0;
@@ -1334,10 +1328,7 @@ pub unsafe fn dc_get_filebytes(
     filebytes as uint64_t
 }
 
-pub unsafe fn dc_delete_file(
-    context: &dc_context_t,
-    pathNfilename: *const libc::c_char,
-) -> libc::c_int {
+pub unsafe fn dc_delete_file(context: &Context, pathNfilename: *const libc::c_char) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     if pathNfilename_abs.is_null() {
@@ -1374,7 +1365,7 @@ pub unsafe fn dc_delete_file(
 }
 
 pub unsafe fn dc_copy_file(
-    context: &dc_context_t,
+    context: &Context,
     src: *const libc::c_char,
     dest: *const libc::c_char,
 ) -> libc::c_int {
@@ -1411,7 +1402,7 @@ pub unsafe fn dc_copy_file(
 }
 
 pub unsafe fn dc_create_folder(
-    context: &dc_context_t,
+    context: &Context,
     pathNfilename: *const libc::c_char,
 ) -> libc::c_int {
     let mut success = 0;
@@ -1443,7 +1434,7 @@ pub unsafe fn dc_create_folder(
 }
 
 pub unsafe fn dc_write_file(
-    context: &dc_context_t,
+    context: &Context,
     pathNfilename: *const libc::c_char,
     buf: *const libc::c_void,
     buf_bytes: size_t,
@@ -1480,7 +1471,7 @@ pub unsafe fn dc_write_file(
 }
 
 pub unsafe fn dc_read_file(
-    context: &dc_context_t,
+    context: &Context,
     pathNfilename: *const libc::c_char,
     buf: *mut *mut libc::c_void,
     buf_bytes: *mut size_t,
@@ -1526,7 +1517,7 @@ pub unsafe fn dc_read_file(
 }
 
 pub unsafe fn dc_get_fine_pathNfilename(
-    context: &dc_context_t,
+    context: &Context,
     pathNfolder: *const libc::c_char,
     desired_filenameNsuffix__: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -1583,7 +1574,7 @@ pub unsafe fn dc_get_fine_pathNfilename(
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_is_blobdir_path(context: &dc_context_t, path: *const libc::c_char) -> libc::c_int {
+pub unsafe fn dc_is_blobdir_path(context: &Context, path: *const libc::c_char) -> libc::c_int {
     if strncmp(path, context.get_blobdir(), strlen(context.get_blobdir())) == 0i32
         || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0i32
     {
@@ -1593,7 +1584,7 @@ pub unsafe fn dc_is_blobdir_path(context: &dc_context_t, path: *const libc::c_ch
     0
 }
 
-pub unsafe fn dc_make_rel_path(context: &dc_context_t, path: *mut *mut libc::c_char) {
+pub unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) {
     if path.is_null() || (*path).is_null() {
         return;
     }
@@ -1607,10 +1598,7 @@ pub unsafe fn dc_make_rel_path(context: &dc_context_t, path: *mut *mut libc::c_c
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_make_rel_and_copy(
-    context: &dc_context_t,
-    path: *mut *mut libc::c_char,
-) -> libc::c_int {
+pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_char) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut blobdir_path: *mut libc::c_char = 0 as *mut libc::c_char;

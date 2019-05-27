@@ -5,7 +5,7 @@ use lettre::*;
 
 use crate::constants::Event;
 use crate::constants::*;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_tools::*;
@@ -48,7 +48,7 @@ impl Smtp {
     }
 
     /// Connect using the provided login params
-    pub fn connect(&mut self, context: &dc_context_t, lp: *const dc_loginparam_t) -> usize {
+    pub fn connect(&mut self, context: &Context, lp: *const dc_loginparam_t) -> usize {
         if lp.is_null() {
             return 0;
         }
@@ -153,7 +153,7 @@ impl Smtp {
 
     pub fn send<'a>(
         &mut self,
-        context: &dc_context_t,
+        context: &Context,
         recipients: Vec<EmailAddress>,
         body: Vec<u8>,
     ) -> usize {

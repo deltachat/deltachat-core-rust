@@ -8,9 +8,9 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 
 use crate::constants::VERSION;
+use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_log::*;
@@ -45,7 +45,7 @@ pub struct dc_mimefactory_t<'a> {
     pub out_gossiped: libc::c_int,
     pub out_last_added_location_id: uint32_t,
     pub error: *mut libc::c_char,
-    pub context: &'a dc_context_t,
+    pub context: &'a Context,
 }
 
 pub type dc_mimefactory_loaded_t = libc::c_uint;
@@ -53,10 +53,7 @@ pub const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
 pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;
 pub const DC_MF_NOTHING_LOADED: dc_mimefactory_loaded_t = 0;
 
-pub unsafe fn dc_mimefactory_init<'a>(
-    factory: *mut dc_mimefactory_t<'a>,
-    context: &'a dc_context_t,
-) {
+pub unsafe fn dc_mimefactory_init<'a>(factory: *mut dc_mimefactory_t<'a>, context: &'a Context) {
     if factory.is_null() {
         return;
     }

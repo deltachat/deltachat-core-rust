@@ -1,8 +1,8 @@
 use crate::aheader::EncryptPreference;
 use crate::constants::Event;
+use crate::context::Context;
+use crate::context::*;
 use crate::dc_array::*;
-use crate::dc_context::dc_context_t;
-use crate::dc_context::*;
 use crate::dc_e2ee::*;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
@@ -19,7 +19,7 @@ use crate::x::*;
 #[repr(C)]
 pub struct dc_contact_t<'a> {
     pub magic: uint32_t,
-    pub context: &'a dc_context_t,
+    pub context: &'a Context,
     pub id: uint32_t,
     pub name: *mut libc::c_char,
     pub authname: *mut libc::c_char,
@@ -28,7 +28,7 @@ pub struct dc_contact_t<'a> {
     pub origin: libc::c_int,
 }
 
-pub unsafe fn dc_marknoticed_contact(context: &dc_context_t, contact_id: uint32_t) {
+pub unsafe fn dc_marknoticed_contact(context: &Context, contact_id: uint32_t) {
     let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
@@ -68,7 +68,7 @@ pub unsafe fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
 }
 
 pub unsafe fn dc_lookup_contact_id_by_addr(
-    context: &dc_context_t,
+    context: &Context,
     addr: *const libc::c_char,
 ) -> uint32_t {
     let mut contact_id: libc::c_int = 0i32;
@@ -131,7 +131,7 @@ pub unsafe fn dc_addr_normalize(addr: *const libc::c_char) -> *mut libc::c_char 
 }
 
 pub unsafe fn dc_create_contact(
-    context: &dc_context_t,
+    context: &Context,
     name: *const libc::c_char,
     addr: *const libc::c_char,
 ) -> uint32_t {
@@ -159,11 +159,7 @@ pub unsafe fn dc_create_contact(
     contact_id
 }
 
-pub unsafe fn dc_block_contact(
-    context: &dc_context_t,
-    contact_id: uint32_t,
-    new_blocking: libc::c_int,
-) {
+pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_blocking: libc::c_int) {
     let current_block: u64;
     let mut send_event: libc::c_int = 0i32;
     let contact: *mut dc_contact_t = dc_contact_new(context);
@@ -241,7 +237,7 @@ pub unsafe fn dc_block_contact(
  * dc_create_contact() or dc_add_address_book())
  * only affect the given-name.
  */
-pub unsafe fn dc_contact_new<'a>(context: &'a dc_context_t) -> *mut dc_contact_t<'a> {
+pub unsafe fn dc_contact_new<'a>(context: &'a Context) -> *mut dc_contact_t<'a> {
     let mut contact: *mut dc_contact_t;
     contact = calloc(1, ::std::mem::size_of::<dc_contact_t>()) as *mut dc_contact_t;
     if contact.is_null() {
@@ -346,7 +342,7 @@ pub unsafe fn dc_contact_load_from_db(
     success
 }
 
-pub unsafe fn dc_is_contact_blocked(context: &dc_context_t, contact_id: uint32_t) -> bool {
+pub unsafe fn dc_is_contact_blocked(context: &Context, contact_id: uint32_t) -> bool {
     let mut is_blocked = false;
     let contact: *mut dc_contact_t = dc_contact_new(context);
     if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
@@ -361,7 +357,7 @@ pub unsafe fn dc_is_contact_blocked(context: &dc_context_t, contact_id: uint32_t
 
 /*can be NULL*/
 pub unsafe fn dc_add_or_lookup_contact(
-    context: &dc_context_t,
+    context: &Context,
     name: *const libc::c_char,
     addr__: *const libc::c_char,
     origin: libc::c_int,
@@ -548,10 +544,7 @@ pub unsafe fn dc_add_or_lookup_contact(
     row_id
 }
 
-pub unsafe fn dc_add_address_book(
-    context: &dc_context_t,
-    adr_book: *const libc::c_char,
-) -> libc::c_int {
+pub unsafe fn dc_add_address_book(context: &Context, adr_book: *const libc::c_char) -> libc::c_int {
     let mut lines: *mut carray = 0 as *mut carray;
     let mut i: size_t;
     let iCnt: size_t;
@@ -625,7 +618,7 @@ pub unsafe fn dc_normalize_name(full_name: *mut libc::c_char) {
 }
 
 pub unsafe fn dc_get_contacts(
-    context: &dc_context_t,
+    context: &Context,
     listflags: uint32_t,
     query: *const libc::c_char,
 ) -> *mut dc_array_t {
@@ -725,7 +718,7 @@ pub unsafe fn dc_get_contacts(
     ret
 }
 
-pub unsafe fn dc_get_blocked_cnt(context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
     let stmt: *mut sqlite3_stmt;
 
@@ -744,7 +737,7 @@ pub unsafe fn dc_get_blocked_cnt(context: &dc_context_t) -> libc::c_int {
     ret
 }
 
-pub unsafe fn dc_get_blocked_contacts(context: &dc_context_t) -> *mut dc_array_t {
+pub unsafe fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
     let ret: *mut dc_array_t = dc_array_new(100i32 as size_t);
     let stmt: *mut sqlite3_stmt;
 
@@ -764,7 +757,7 @@ pub unsafe fn dc_get_blocked_contacts(context: &dc_context_t) -> *mut dc_array_t
 }
 
 pub unsafe fn dc_get_contact_encrinfo(
-    context: &dc_context_t,
+    context: &Context,
     contact_id: uint32_t,
 ) -> *mut libc::c_char {
     let mut ret: dc_strbuilder_t;
@@ -930,7 +923,7 @@ unsafe fn cat_fingerprint(
     };
 }
 
-pub unsafe fn dc_delete_contact(context: &dc_context_t, contact_id: uint32_t) -> bool {
+pub unsafe fn dc_delete_contact(context: &Context, contact_id: uint32_t) -> bool {
     let mut success = false;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(contact_id <= 9i32 as libc::c_uint) {
@@ -976,7 +969,7 @@ pub unsafe fn dc_delete_contact(context: &dc_context_t, contact_id: uint32_t) ->
     success
 }
 
-pub unsafe fn dc_get_contact(context: &dc_context_t, contact_id: uint32_t) -> *mut dc_contact_t {
+pub unsafe fn dc_get_contact(context: &Context, contact_id: uint32_t) -> *mut dc_contact_t {
     let mut ret: *mut dc_contact_t = dc_contact_new(context);
     if !dc_contact_load_from_db(ret, &context.sql.clone().read().unwrap(), contact_id) {
         dc_contact_unref(ret);
@@ -1153,10 +1146,7 @@ pub unsafe fn dc_addr_cmp(addr1: *const libc::c_char, addr2: *const libc::c_char
     ret
 }
 
-pub unsafe fn dc_addr_equals_self(
-    context: &dc_context_t,
-    addr: *const libc::c_char,
-) -> libc::c_int {
+pub unsafe fn dc_addr_equals_self(context: &Context, addr: *const libc::c_char) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
     let mut normalized_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1182,7 +1172,7 @@ pub unsafe fn dc_addr_equals_self(
 }
 
 pub unsafe fn dc_addr_equals_contact(
-    context: &dc_context_t,
+    context: &Context,
     addr: *const libc::c_char,
     contact_id: uint32_t,
 ) -> bool {
@@ -1204,7 +1194,7 @@ pub unsafe fn dc_addr_equals_contact(
 }
 
 // Context functions to work with contacts
-pub unsafe fn dc_get_real_contact_cnt(context: &dc_context_t) -> size_t {
+pub unsafe fn dc_get_real_contact_cnt(context: &Context) -> size_t {
     let mut ret: size_t = 0i32 as size_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !context.sql.clone().read().unwrap().cobj.is_null() {
@@ -1223,7 +1213,7 @@ pub unsafe fn dc_get_real_contact_cnt(context: &dc_context_t) -> size_t {
 }
 
 pub unsafe fn dc_get_contact_origin(
-    context: &dc_context_t,
+    context: &Context,
     contact_id: uint32_t,
     mut ret_blocked: *mut libc::c_int,
 ) -> libc::c_int {
@@ -1246,7 +1236,7 @@ pub unsafe fn dc_get_contact_origin(
     ret
 }
 
-pub unsafe fn dc_real_contact_exists(context: &dc_context_t, contact_id: uint32_t) -> bool {
+pub unsafe fn dc_real_contact_exists(context: &Context, contact_id: uint32_t) -> bool {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut ret = false;
     if !(context.sql.clone().read().unwrap().cobj.is_null() || contact_id <= 9i32 as libc::c_uint) {
@@ -1265,7 +1255,7 @@ pub unsafe fn dc_real_contact_exists(context: &dc_context_t, contact_id: uint32_
 }
 
 pub unsafe fn dc_scaleup_contact_origin(
-    context: &dc_context_t,
+    context: &Context,
     contact_id: uint32_t,
     origin: libc::c_int,
 ) {

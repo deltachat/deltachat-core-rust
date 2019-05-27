@@ -16,7 +16,7 @@ use mmime::mmapstring::*;
 use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
 
 use crate::aheader::*;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_keyring::*;
 use crate::dc_log::*;
 use crate::dc_mimeparser::*;
@@ -57,7 +57,7 @@ impl Default for dc_e2ee_helper_t {
 }
 
 pub unsafe fn dc_e2ee_encrypt(
-    context: &dc_context_t,
+    context: &Context,
     recipients_addr: *const clist,
     force_unencrypted: libc::c_int,
     e2ee_guaranteed: libc::c_int,
@@ -506,7 +506,7 @@ unsafe fn new_data_part(
  * Generate Keypairs
  ******************************************************************************/
 unsafe fn load_or_generate_self_public_key(
-    context: &dc_context_t,
+    context: &Context,
     self_addr: *const libc::c_char,
     _random_data_mime: *mut mailmime,
 ) -> Option<Key> {
@@ -576,7 +576,7 @@ unsafe fn load_or_generate_self_public_key(
 
 /* returns 1 if sth. was decrypted, 0 in other cases */
 pub unsafe fn dc_e2ee_decrypt(
-    context: &dc_context_t,
+    context: &Context,
     in_out_message: *mut mailmime,
     helper: &mut dc_e2ee_helper_t,
 ) {
@@ -698,7 +698,7 @@ pub unsafe fn dc_e2ee_decrypt(
 }
 
 unsafe fn update_gossip_peerstates(
-    context: &dc_context_t,
+    context: &Context,
     message_time: time_t,
     imffields: *mut mailimf_fields,
     gossip_headers: *const mailimf_fields,
@@ -776,7 +776,7 @@ unsafe fn update_gossip_peerstates(
 
 // TODO should return bool /rtn
 unsafe fn decrypt_recursive(
-    context: &dc_context_t,
+    context: &Context,
     mime: *mut mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
@@ -883,7 +883,7 @@ unsafe fn decrypt_recursive(
 }
 
 unsafe fn decrypt_part(
-    _context: &dc_context_t,
+    _context: &Context,
     mime: *mut mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
@@ -1114,7 +1114,7 @@ pub unsafe fn dc_e2ee_thanks(helper: &mut dc_e2ee_helper_t) {
 
 /* makes sure, the private key exists, needed only for exporting keys and the case no message was sent before */
 // TODO should return bool /rtn
-pub unsafe fn dc_ensure_secret_key_exists(context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_ensure_secret_key_exists(context: &Context) -> libc::c_int {
     /* normally, the key is generated as soon as the first mail is send
     (this is to gain some extra-random-seed by the message content and the timespan between program start and message sending) */
     let mut success: libc::c_int = 0i32;

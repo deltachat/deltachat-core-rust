@@ -5,8 +5,8 @@ use num_traits::FromPrimitive;
 
 use crate::aheader::*;
 use crate::constants::*;
+use crate::context::Context;
 use crate::dc_chat::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::{to_cstring, to_string};
 use crate::key::*;
@@ -14,7 +14,7 @@ use crate::types::*;
 
 /// Peerstate represents the state of an Autocrypt peer.
 pub struct Peerstate<'a> {
-    pub context: &'a dc_context_t,
+    pub context: &'a Context,
     pub addr: Option<String>,
     pub last_seen: u64,
     pub last_seen_autocrypt: u64,
@@ -73,7 +73,7 @@ impl VerifiedKey {
 }
 
 impl<'a> Peerstate<'a> {
-    pub fn new(context: &'a dc_context_t) -> Self {
+    pub fn new(context: &'a Context) -> Self {
         Peerstate {
             context,
             addr: None,
@@ -100,7 +100,7 @@ impl<'a> Peerstate<'a> {
         }
     }
 
-    pub fn from_header(context: &'a dc_context_t, header: &Aheader, message_time: u64) -> Self {
+    pub fn from_header(context: &'a Context, header: &Aheader, message_time: u64) -> Self {
         let mut res = Self::new(context);
 
         res.addr = Some(header.addr.clone());
@@ -114,11 +114,7 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_gossip(
-        context: &'a dc_context_t,
-        gossip_header: &Aheader,
-        message_time: u64,
-    ) -> Self {
+    pub fn from_gossip(context: &'a Context, gossip_header: &Aheader, message_time: u64) -> Self {
         let mut res = Self::new(context);
 
         res.addr = Some(gossip_header.addr.clone());
@@ -130,7 +126,7 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_addr(context: &'a dc_context_t, sql: &dc_sqlite3_t, addr: &str) -> Option<Self> {
+    pub fn from_addr(context: &'a Context, sql: &dc_sqlite3_t, addr: &str) -> Option<Self> {
         let mut res = None;
 
         let stmt = unsafe {
@@ -151,7 +147,7 @@ impl<'a> Peerstate<'a> {
     }
 
     pub fn from_fingerprint(
-        context: &'a dc_context_t,
+        context: &'a Context,
         sql: &dc_sqlite3_t,
         fingerprint: &str,
     ) -> Option<Self> {
@@ -180,7 +176,7 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    fn from_stmt(context: &'a dc_context_t, stmt: *mut sqlite3_stmt) -> Self {
+    fn from_stmt(context: &'a Context, stmt: *mut sqlite3_stmt) -> Self {
         let mut res = Self::new(context);
 
         res.addr = Some(to_string(unsafe {

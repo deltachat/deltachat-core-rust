@@ -7,10 +7,10 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 
 use crate::constants::*;
+use crate::context::Context;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_job::*;
 use crate::dc_location::*;
 use crate::dc_log::*;
@@ -30,7 +30,7 @@ use crate::types::*;
 use crate::x::*;
 
 pub unsafe fn dc_receive_imf(
-    context: &dc_context_t,
+    context: &Context,
     imf_raw_not_terminated: *const libc::c_char,
     imf_raw_bytes: size_t,
     server_folder: *const libc::c_char,
@@ -1014,7 +1014,7 @@ pub unsafe fn dc_receive_imf(
  * Misc. Tools
  ******************************************************************************/
 unsafe fn calc_timestamps(
-    context: &dc_context_t,
+    context: &Context,
     chat_id: uint32_t,
     from_id: uint32_t,
     message_timestamp: time_t,
@@ -1066,7 +1066,7 @@ which tries to create or find out the chat_id by:
 So when the function returns, the caller has the group id matching the current
 state of the group. */
 unsafe fn create_or_lookup_group(
-    context: &dc_context_t,
+    context: &Context,
     mime_parser: &mut dc_mimeparser_t,
     allow_creation: libc::c_int,
     create_blocked: libc::c_int,
@@ -1531,7 +1531,7 @@ unsafe fn create_or_lookup_group(
  * Handle groups for received messages
  ******************************************************************************/
 unsafe fn create_or_lookup_adhoc_group(
-    context: &dc_context_t,
+    context: &Context,
     mime_parser: &dc_mimeparser_t,
     allow_creation: libc::c_int,
     create_blocked: libc::c_int,
@@ -1645,7 +1645,7 @@ unsafe fn create_or_lookup_adhoc_group(
     };
 }
 unsafe fn create_group_record(
-    context: &dc_context_t,
+    context: &Context,
     grpid: *const libc::c_char,
     grpname: *const libc::c_char,
     create_blocked: libc::c_int,
@@ -1679,10 +1679,7 @@ unsafe fn create_group_record(
     sqlite3_finalize(stmt);
     return chat_id;
 }
-unsafe fn create_adhoc_grp_id(
-    context: &dc_context_t,
-    member_ids: *mut dc_array_t,
-) -> *mut libc::c_char {
+unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) -> *mut libc::c_char {
     /* algorithm:
     - sort normalized, lowercased, e-mail addresses alphabetically
     - put all e-mail addresses into a single string, separate the addresss by a single comma
@@ -1766,7 +1763,7 @@ unsafe fn create_adhoc_grp_id(
     return ret;
 }
 unsafe fn search_chat_ids_by_contact_ids(
-    context: &dc_context_t,
+    context: &Context,
     unsorted_contact_ids: *const dc_array_t,
 ) -> *mut dc_array_t {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
@@ -1834,7 +1831,7 @@ unsafe fn search_chat_ids_by_contact_ids(
     return chat_ids;
 }
 unsafe fn check_verified_properties(
-    context: &dc_context_t,
+    context: &Context,
     mimeparser: &dc_mimeparser_t,
     from_id: uint32_t,
     to_ids: *const dc_array_t,
@@ -1989,7 +1986,7 @@ unsafe fn set_better_msg(mime_parser: &dc_mimeparser_t, better_msg: *mut *mut li
     };
 }
 unsafe fn dc_is_reply_to_known_message(
-    context: &dc_context_t,
+    context: &Context,
     mime_parser: &dc_mimeparser_t,
 ) -> libc::c_int {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
@@ -2037,10 +2034,7 @@ unsafe fn dc_is_reply_to_known_message(
     }
     return 0i32;
 }
-unsafe fn is_known_rfc724_mid_in_list(
-    context: &dc_context_t,
-    mid_list: *const clist,
-) -> libc::c_int {
+unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> libc::c_int {
     if !mid_list.is_null() {
         let mut cur: *mut clistiter;
         cur = (*mid_list).first;
@@ -2067,10 +2061,7 @@ unsafe fn is_known_rfc724_mid_in_list(
 /* ******************************************************************************
  * Check if a message is a reply to a known message (messenger or non-messenger)
  ******************************************************************************/
-unsafe fn is_known_rfc724_mid(
-    context: &dc_context_t,
-    rfc724_mid: *const libc::c_char,
-) -> libc::c_int {
+unsafe fn is_known_rfc724_mid(context: &Context, rfc724_mid: *const libc::c_char) -> libc::c_int {
     let mut is_known: libc::c_int = 0i32;
     if !rfc724_mid.is_null() {
         let  stmt: *mut sqlite3_stmt =
@@ -2086,7 +2077,7 @@ unsafe fn is_known_rfc724_mid(
     return is_known;
 }
 unsafe fn dc_is_reply_to_messenger_message(
-    context: &dc_context_t,
+    context: &Context,
     mime_parser: &dc_mimeparser_t,
 ) -> libc::c_int {
     /* function checks, if the message defined by mime_parser references a message send by us from Delta Chat.
@@ -2127,10 +2118,7 @@ unsafe fn dc_is_reply_to_messenger_message(
     }
     return 0i32;
 }
-unsafe fn is_msgrmsg_rfc724_mid_in_list(
-    context: &dc_context_t,
-    mid_list: *const clist,
-) -> libc::c_int {
+unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> libc::c_int {
     if !mid_list.is_null() {
         let mut cur: *mut clistiter = (*mid_list).first;
         while !cur.is_null() {
@@ -2156,10 +2144,7 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(
 /* ******************************************************************************
  * Check if a message is a reply to any messenger message
  ******************************************************************************/
-unsafe fn is_msgrmsg_rfc724_mid(
-    context: &dc_context_t,
-    rfc724_mid: *const libc::c_char,
-) -> libc::c_int {
+unsafe fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: *const libc::c_char) -> libc::c_int {
     let mut is_msgrmsg: libc::c_int = 0i32;
     if !rfc724_mid.is_null() {
         let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
@@ -2177,7 +2162,7 @@ unsafe fn is_msgrmsg_rfc724_mid(
     return is_msgrmsg;
 }
 unsafe fn dc_add_or_lookup_contacts_by_address_list(
-    context: &dc_context_t,
+    context: &Context,
     adr_list: *const mailimf_address_list,
     origin: libc::c_int,
     ids: *mut dc_array_t,
@@ -2227,7 +2212,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
     }
 }
 unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
-    context: &dc_context_t,
+    context: &Context,
     mb_list: *const mailimf_mailbox_list,
     origin: libc::c_int,
     ids: *mut dc_array_t,
@@ -2264,7 +2249,7 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
  * Add contacts to database on receiving messages
  ******************************************************************************/
 unsafe fn add_or_lookup_contact_by_addr(
-    context: &dc_context_t,
+    context: &Context,
     display_name_enc: *const libc::c_char,
     addr_spec: *const libc::c_char,
     origin: libc::c_int,

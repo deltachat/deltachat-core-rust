@@ -24,6 +24,7 @@ pub mod dc_log;
 
 pub mod aheader;
 pub mod constants;
+pub mod context;
 pub mod imap;
 pub mod key;
 pub mod oauth2;
@@ -32,8 +33,6 @@ pub mod pgp;
 pub mod smtp;
 pub mod types;
 pub mod x;
-
-pub mod dc_context;
 
 pub mod dc_array;
 pub mod dc_chat;

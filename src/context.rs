@@ -23,7 +23,7 @@ use crate::types::*;
 use crate::x::*;
 
 #[repr(C)]
-pub struct dc_context_t {
+pub struct Context {
     pub userdata: *mut libc::c_void,
     pub dbfile: Arc<RwLock<*mut libc::c_char>>,
     pub blobdir: Arc<RwLock<*mut libc::c_char>>,
@@ -44,8 +44,8 @@ pub struct dc_context_t {
     pub running_state: Arc<RwLock<RunningState>>,
 }
 
-unsafe impl std::marker::Send for dc_context_t {}
-unsafe impl std::marker::Sync for dc_context_t {}
+unsafe impl std::marker::Send for Context {}
+unsafe impl std::marker::Sync for Context {}
 
 #[derive(Debug)]
 pub struct RunningState {
@@ -53,7 +53,7 @@ pub struct RunningState {
     pub shall_stop_ongoing: bool,
 }
 
-impl dc_context_t {
+impl Context {
     pub fn has_dbfile(&self) -> bool {
         !self.get_dbfile().is_null()
     }
@@ -127,8 +127,8 @@ pub fn dc_context_new(
     cb: dc_callback_t,
     userdata: *mut libc::c_void,
     os_name: *const libc::c_char,
-) -> dc_context_t {
-    dc_context_t {
+) -> Context {
+    Context {
         blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
         dbfile: Arc::new(RwLock::new(std::ptr::null_mut())),
         inbox: Arc::new(RwLock::new({
@@ -180,7 +180,7 @@ pub fn dc_context_new(
 }
 
 unsafe fn cb_receive_imf(
-    context: &dc_context_t,
+    context: &Context,
     imf_raw_not_terminated: *const libc::c_char,
     imf_raw_bytes: size_t,
     server_folder: *const libc::c_char,
@@ -198,7 +198,7 @@ unsafe fn cb_receive_imf(
 }
 
 unsafe fn cb_precheck_imf(
-    context: &dc_context_t,
+    context: &Context,
     rfc724_mid: *const libc::c_char,
     server_folder: *const libc::c_char,
     server_uid: uint32_t,
@@ -253,11 +253,7 @@ unsafe fn cb_precheck_imf(
     return rfc724_mid_exists;
 }
 
-unsafe fn cb_set_config(
-    context: &dc_context_t,
-    key: *const libc::c_char,
-    value: *const libc::c_char,
-) {
+unsafe fn cb_set_config(context: &Context, key: *const libc::c_char, value: *const libc::c_char) {
     dc_sqlite3_set_config(context, &context.sql.clone().read().unwrap(), key, value);
 }
 
@@ -266,17 +262,17 @@ unsafe fn cb_set_config(
  * and to handle received messages. As the imap-functions are typically used in
  * a separate user-thread, also these functions may be called from a different thread.
  *
- * @private @memberof dc_context_t
+ * @private @memberof Context
  */
 unsafe fn cb_get_config(
-    context: &dc_context_t,
+    context: &Context,
     key: *const libc::c_char,
     def: *const libc::c_char,
 ) -> *mut libc::c_char {
     dc_sqlite3_get_config(context, &context.sql.clone().read().unwrap(), key, def)
 }
 
-pub unsafe fn dc_context_unref(context: &mut dc_context_t) {
+pub unsafe fn dc_context_unref(context: &mut Context) {
     if 0 != dc_is_open(context) {
         dc_close(context);
     }
@@ -288,7 +284,7 @@ pub unsafe fn dc_context_unref(context: &mut dc_context_t) {
     free(context.os_name as *mut libc::c_void);
 }
 
-pub unsafe fn dc_close(context: &dc_context_t) {
+pub unsafe fn dc_close(context: &Context) {
     context.inbox.read().unwrap().disconnect(context);
     context
         .sentbox_thread
@@ -316,16 +312,16 @@ pub unsafe fn dc_close(context: &dc_context_t) {
     *blobdir = 0 as *mut libc::c_char;
 }
 
-pub unsafe fn dc_is_open(context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_is_open(context: &Context) -> libc::c_int {
     dc_sqlite3_is_open(&context.sql.clone().read().unwrap())
 }
 
-pub unsafe fn dc_get_userdata(context: &mut dc_context_t) -> *mut libc::c_void {
+pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
     context.userdata as *mut _
 }
 
 pub unsafe fn dc_open(
-    context: &dc_context_t,
+    context: &Context,
     dbfile: *const libc::c_char,
     blobdir: *const libc::c_char,
 ) -> libc::c_int {
@@ -355,12 +351,12 @@ pub unsafe fn dc_open(
     success
 }
 
-pub unsafe fn dc_get_blobdir(context: &dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_get_blobdir(context: &Context) -> *mut libc::c_char {
     dc_strdup(*context.blobdir.clone().read().unwrap())
 }
 
 pub unsafe fn dc_set_config(
-    context: &dc_context_t,
+    context: &Context,
     key: *const libc::c_char,
     value: *const libc::c_char,
 ) -> libc::c_int {
@@ -463,7 +459,7 @@ static mut config_keys: [*const libc::c_char; 33] = [
     b"configured\x00" as *const u8 as *const libc::c_char,
 ];
 
-pub unsafe fn dc_get_config(context: &dc_context_t, key: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_get_config(context: &Context, key: *const libc::c_char) -> *mut libc::c_char {
     let mut value = 0 as *mut libc::c_char;
     if !key.is_null()
         && *key.offset(0isize) as libc::c_int == 's' as i32
@@ -610,7 +606,7 @@ unsafe fn get_config_keys_str() -> *mut libc::c_char {
     ret.buf
 }
 
-pub unsafe fn dc_get_info(context: &dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let unset = b"0\x00" as *const u8 as *const libc::c_char;
     let displayname;
     let temp;
@@ -852,7 +848,7 @@ pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
     dc_strdup(VERSION as *const u8 as *const libc::c_char)
 }
 
-pub unsafe fn dc_get_fresh_msgs(context: &dc_context_t) -> *mut dc_array_t {
+pub unsafe fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
     let show_deaddrop = 0;
     let ret = dc_array_new(128 as size_t);
     let mut stmt = 0 as *mut sqlite3_stmt;
@@ -880,7 +876,7 @@ pub unsafe fn dc_get_fresh_msgs(context: &dc_context_t) -> *mut dc_array_t {
 }
 
 pub unsafe fn dc_search_msgs(
-    context: &dc_context_t,
+    context: &Context,
     chat_id: uint32_t,
     query: *const libc::c_char,
 ) -> *mut dc_array_t {
@@ -951,10 +947,7 @@ pub unsafe fn dc_search_msgs(
     }
 }
 
-pub unsafe fn dc_is_inbox(
-    _context: &dc_context_t,
-    folder_name: *const libc::c_char,
-) -> libc::c_int {
+pub unsafe fn dc_is_inbox(_context: &Context, folder_name: *const libc::c_char) -> libc::c_int {
     let mut is_inbox = 0;
     if !folder_name.is_null() {
         is_inbox = if strcasecmp(
@@ -970,10 +963,7 @@ pub unsafe fn dc_is_inbox(
     is_inbox
 }
 
-pub unsafe fn dc_is_sentbox(
-    context: &dc_context_t,
-    folder_name: *const libc::c_char,
-) -> libc::c_int {
+pub unsafe fn dc_is_sentbox(context: &Context, folder_name: *const libc::c_char) -> libc::c_int {
     let sentbox_name = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
@@ -992,7 +982,7 @@ pub unsafe fn dc_is_sentbox(
     is_sentbox
 }
 
-pub unsafe fn dc_is_mvbox(context: &dc_context_t, folder_name: *const libc::c_char) -> libc::c_int {
+pub unsafe fn dc_is_mvbox(context: &Context, folder_name: *const libc::c_char) -> libc::c_int {
     let mvbox_name = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),

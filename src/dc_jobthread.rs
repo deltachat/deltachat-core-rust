@@ -1,7 +1,7 @@
 use std::sync::{Arc, Condvar, Mutex};
 
+use crate::context::Context;
 use crate::dc_configure::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
@@ -45,7 +45,7 @@ pub unsafe fn dc_jobthread_exit(jobthread: &mut dc_jobthread_t) {
 }
 
 pub unsafe fn dc_jobthread_suspend(
-    context: &dc_context_t,
+    context: &Context,
     jobthread: &dc_jobthread_t,
     suspend: libc::c_int,
 ) {
@@ -85,7 +85,7 @@ pub unsafe fn dc_jobthread_suspend(
     }
 }
 
-pub unsafe fn dc_jobthread_interrupt_idle(context: &dc_context_t, jobthread: &dc_jobthread_t) {
+pub unsafe fn dc_jobthread_interrupt_idle(context: &Context, jobthread: &dc_jobthread_t) {
     {
         jobthread.state.0.lock().unwrap().jobs_needed = 1;
     }
@@ -107,7 +107,7 @@ pub unsafe fn dc_jobthread_interrupt_idle(context: &dc_context_t, jobthread: &dc
 }
 
 pub unsafe fn dc_jobthread_fetch(
-    context: &dc_context_t,
+    context: &Context,
     jobthread: &mut dc_jobthread_t,
     use_network: libc::c_int,
 ) {
@@ -162,7 +162,7 @@ pub unsafe fn dc_jobthread_fetch(
  * the typical fetch, idle, interrupt-idle
  ******************************************************************************/
 
-unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &dc_jobthread_t) -> libc::c_int {
+unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc::c_int {
     let mut ret_connected: libc::c_int;
     let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
 
@@ -200,7 +200,7 @@ unsafe fn connect_to_imap(context: &dc_context_t, jobthread: &dc_jobthread_t) ->
 }
 
 pub unsafe fn dc_jobthread_idle(
-    context: &dc_context_t,
+    context: &Context,
     jobthread: &dc_jobthread_t,
     use_network: libc::c_int,
 ) {

@@ -6,9 +6,9 @@ use mmime::other::*;
 use rand::{thread_rng, Rng};
 
 use crate::constants::*;
+use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
 use crate::dc_job::*;
 use crate::dc_log::*;
@@ -30,7 +30,7 @@ use crate::x::*;
 // param1 is a directory where the backup is written to
 // param1 is the file with the backup to import
 pub unsafe fn dc_imex(
-    context: &dc_context_t,
+    context: &Context,
     what: libc::c_int,
     param1: *const libc::c_char,
     param2: *const libc::c_char,
@@ -45,7 +45,7 @@ pub unsafe fn dc_imex(
 }
 
 pub unsafe fn dc_imex_has_backup(
-    context: &dc_context_t,
+    context: &Context,
     dir_name: *const libc::c_char,
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -124,10 +124,7 @@ pub unsafe fn dc_imex_has_backup(
     ret
 }
 
-pub unsafe fn dc_check_password(
-    context: &dc_context_t,
-    test_pw: *const libc::c_char,
-) -> libc::c_int {
+pub unsafe fn dc_check_password(context: &Context, test_pw: *const libc::c_char) -> libc::c_int {
     /* Check if the given password matches the configured mail_pw.
     This is to prompt the user before starting eg. an export; this is mainly to avoid doing people bad thinkgs if they have short access to the device.
     When we start supporting OAuth some day, we should think this over, maybe force the user to re-authenticate himself with the Android password. */
@@ -156,7 +153,7 @@ pub unsafe fn dc_check_password(
     success
 }
 
-pub unsafe fn dc_initiate_key_transfer(context: &dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
     let current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut setup_code: *mut libc::c_char;
@@ -284,7 +281,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &dc_context_t) -> *mut libc::c_c
 }
 
 pub unsafe extern "C" fn dc_render_setup_file(
-    context: &dc_context_t,
+    context: &Context,
     passphrase: *const libc::c_char,
 ) -> *mut libc::c_char {
     let stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
@@ -369,7 +366,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
     ret_setupfilecontent
 }
 
-pub unsafe fn dc_create_setup_code(_context: &dc_context_t) -> *mut libc::c_char {
+pub unsafe fn dc_create_setup_code(_context: &Context) -> *mut libc::c_char {
     let mut random_val: uint16_t;
     let mut i: libc::c_int;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
@@ -407,7 +404,7 @@ pub unsafe fn dc_create_setup_code(_context: &dc_context_t) -> *mut libc::c_char
 
 // TODO should return bool /rtn
 pub unsafe fn dc_continue_key_transfer(
-    context: &dc_context_t,
+    context: &Context,
     msg_id: uint32_t,
     setup_code: *const libc::c_char,
 ) -> libc::c_int {
@@ -485,7 +482,7 @@ pub unsafe fn dc_continue_key_transfer(
 
 // TODO should return bool /rtn
 unsafe fn set_self_key(
-    context: &dc_context_t,
+    context: &Context,
     armored: *const libc::c_char,
     set_default: libc::c_int,
 ) -> libc::c_int {
@@ -622,7 +619,7 @@ unsafe fn set_self_key(
 }
 
 pub unsafe fn dc_decrypt_setup_file(
-    _context: &dc_context_t,
+    _context: &Context,
     passphrase: *const libc::c_char,
     filecontent: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -680,7 +677,7 @@ pub unsafe fn dc_decrypt_setup_file(
 }
 
 pub unsafe fn dc_normalize_setup_code(
-    _context: &dc_context_t,
+    _context: &Context,
     in_0: *const libc::c_char,
 ) -> *mut libc::c_char {
     if in_0.is_null() {
@@ -721,7 +718,7 @@ pub unsafe fn dc_normalize_setup_code(
     out.buf
 }
 
-pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &dc_context_t, job: *mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut ongoing_allocated_here: libc::c_int = 0i32;
@@ -981,10 +978,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &dc_context_t, job: *mut dc_jo
  ******************************************************************************/
 
 // TODO should return bool /rtn
-unsafe fn import_backup(
-    context: &dc_context_t,
-    backup_to_import: *const libc::c_char,
-) -> libc::c_int {
+unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> libc::c_int {
     let current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut processed_files_cnt: libc::c_int = 0i32;
@@ -1142,7 +1136,7 @@ unsafe fn import_backup(
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
 // TODO should return bool /rtn
-unsafe fn export_backup(context: &dc_context_t, dir: *const libc::c_char) -> libc::c_int {
+unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut closed: libc::c_int = 0i32;
@@ -1440,7 +1434,7 @@ unsafe fn export_backup(context: &dc_context_t, dir: *const libc::c_char) -> lib
 /*******************************************************************************
  * Classic key import
  ******************************************************************************/
-unsafe fn import_self_keys(context: &dc_context_t, dir_name: *const libc::c_char) -> libc::c_int {
+unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> libc::c_int {
     /* hint: even if we switch to import Autocrypt Setup Files, we should leave the possibility to import
     plain ASC keys, at least keys without a password, if we do not want to implement a password entry function.
     Importing ASC keys is useful to use keys in Delta Chat used by any other non-Autocrypt-PGP implementation.
@@ -1571,7 +1565,7 @@ unsafe fn import_self_keys(context: &dc_context_t, dir_name: *const libc::c_char
 }
 
 // TODO should return bool /rtn
-unsafe fn export_self_keys(context: &dc_context_t, dir: *const libc::c_char) -> libc::c_int {
+unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let mut export_errors: libc::c_int = 0i32;
     let mut id: libc::c_int;
@@ -1618,7 +1612,7 @@ unsafe fn export_self_keys(context: &dc_context_t, dir: *const libc::c_char) -> 
  ******************************************************************************/
 // TODO should return bool /rtn
 unsafe fn export_key_to_asc_file(
-    context: &dc_context_t,
+    context: &Context,
     dir: *const libc::c_char,
     id: libc::c_int,
     key: &Key,

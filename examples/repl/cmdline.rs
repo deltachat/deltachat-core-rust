@@ -1,12 +1,12 @@
 use std::ffi::{CStr, CString};
 
 use deltachat::constants::*;
+use deltachat::context::*;
 use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_chatlist::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_contact::*;
-use deltachat::dc_context::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_job::*;
 use deltachat::dc_location::*;
@@ -31,7 +31,7 @@ use num_traits::FromPrimitive;
  *
  * e.g. bitmask 7 triggers actions definded with bits 1, 2 and 4.
  */
-pub unsafe fn dc_reset_tables(context: &dc_context_t, bits: libc::c_int) -> libc::c_int {
+pub unsafe fn dc_reset_tables(context: &Context, bits: libc::c_int) -> libc::c_int {
     dc_log_info(
         context,
         0i32,
@@ -120,7 +120,7 @@ pub unsafe fn dc_reset_tables(context: &dc_context_t, bits: libc::c_int) -> libc
     );
     return 1i32;
 }
-unsafe fn dc_poke_eml_file(context: &dc_context_t, filename: *const libc::c_char) -> libc::c_int {
+unsafe fn dc_poke_eml_file(context: &Context, filename: *const libc::c_char) -> libc::c_int {
     /* mainly for testing, may be called by dc_import_spec() */
     let mut success: libc::c_int = 0i32;
     let mut data: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -150,12 +150,12 @@ unsafe fn dc_poke_eml_file(context: &dc_context_t, filename: *const libc::c_char
  * For testing, import a folder with eml-files, a single eml-file, e-mail plus public key and so on.
  * For normal importing, use dc_imex().
  *
- * @private @memberof dc_context_t
+ * @private @memberof Context
  * @param context The context as created by dc_context_new().
  * @param spec The file or directory to import. NULL for the last command.
  * @return 1=success, 0=error.
  */
-unsafe fn poke_spec(context: &dc_context_t, spec: *const libc::c_char) -> libc::c_int {
+unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let mut real_spec: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -287,7 +287,7 @@ unsafe fn poke_spec(context: &dc_context_t, spec: *const libc::c_char) -> libc::
     free(suffix as *mut libc::c_void);
     return success;
 }
-unsafe fn log_msg(context: &dc_context_t, prefix: *const libc::c_char, msg: *mut dc_msg_t) {
+unsafe fn log_msg(context: &Context, prefix: *const libc::c_char, msg: *mut dc_msg_t) {
     let contact: *mut dc_contact_t = dc_get_contact(context, dc_msg_get_from_id(msg));
     let contact_name: *mut libc::c_char = dc_contact_get_name(contact);
     let contact_id: libc::c_int = dc_contact_get_id(contact) as libc::c_int;
@@ -348,7 +348,7 @@ unsafe fn log_msg(context: &dc_context_t, prefix: *const libc::c_char, msg: *mut
     dc_contact_unref(contact);
 }
 
-unsafe fn log_msglist(context: &dc_context_t, msglist: *mut dc_array_t) {
+unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
     let mut i: libc::c_int = 0;
     let cnt: libc::c_int = dc_array_get_cnt(msglist) as libc::c_int;
     let mut lines_out: libc::c_int = 0i32;
@@ -381,7 +381,7 @@ unsafe fn log_msglist(context: &dc_context_t, msglist: *mut dc_array_t) {
         );
     };
 }
-unsafe fn log_contactlist(context: &dc_context_t, contacts: *mut dc_array_t) {
+unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t;
     if !dc_array_search_id(contacts, 1i32 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1i32 as uint32_t);
@@ -465,7 +465,7 @@ unsafe fn chat_prefix(chat: *const dc_chat_t) -> *const libc::c_char {
     };
 }
 
-pub unsafe fn dc_cmdline(context: &dc_context_t, cmdline: &str) -> *mut libc::c_char {
+pub unsafe fn dc_cmdline(context: &Context, cmdline: &str) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 1i32 as *mut libc::c_char;
     let chat_id = *context.cmdline_sel_chat_id.read().unwrap();
 

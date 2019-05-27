@@ -4,7 +4,7 @@ use std::ffi::CString;
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 use serde::Deserialize;
 
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
@@ -48,7 +48,7 @@ struct Response {
 }
 
 pub fn dc_get_oauth2_url(
-    context: &dc_context_t,
+    context: &Context,
     addr: impl AsRef<str>,
     redirect_uri: impl AsRef<str>,
 ) -> Option<String> {
@@ -70,7 +70,7 @@ pub fn dc_get_oauth2_url(
 // The following function may block due http-requests;
 // must not be called from the main thread or by the ui!
 pub fn dc_get_oauth2_access_token(
-    context: &dc_context_t,
+    context: &Context,
     addr: impl AsRef<str>,
     code: impl AsRef<str>,
     flags: usize,
@@ -191,7 +191,7 @@ pub fn dc_get_oauth2_access_token(
 }
 
 pub fn dc_get_oauth2_addr(
-    context: &dc_context_t,
+    context: &Context,
     addr: impl AsRef<str>,
     code: impl AsRef<str>,
 ) -> Option<String> {
@@ -239,7 +239,7 @@ impl Oauth2 {
         }
     }
 
-    fn get_addr(&self, context: &dc_context_t, access_token: impl AsRef<str>) -> Option<String> {
+    fn get_addr(&self, context: &Context, access_token: impl AsRef<str>) -> Option<String> {
         let userinfo_url = self.get_userinfo.unwrap_or_else(|| "");
         let userinfo_url = replace_in_uri(&userinfo_url, "$ACCESS_TOKEN", access_token);
 
@@ -292,7 +292,7 @@ impl Oauth2 {
     }
 }
 
-fn get_config(context: &dc_context_t, key: &str) -> Option<String> {
+fn get_config(context: &Context, key: &str) -> Option<String> {
     let key_c = CString::new(key).unwrap();
     let res = unsafe {
         dc_sqlite3_get_config(
@@ -309,7 +309,7 @@ fn get_config(context: &dc_context_t, key: &str) -> Option<String> {
     Some(to_string(res))
 }
 
-fn set_config(context: &dc_context_t, key: &str, value: &str) {
+fn set_config(context: &Context, key: &str, value: &str) {
     let key_c = CString::new(key).unwrap();
     let value_c = CString::new(value).unwrap();
     unsafe {
@@ -322,7 +322,7 @@ fn set_config(context: &dc_context_t, key: &str, value: &str) {
     };
 }
 
-fn set_config_int64(context: &dc_context_t, key: &str, value: i64) {
+fn set_config_int64(context: &Context, key: &str, value: i64) {
     let key_c = CString::new(key).unwrap();
     unsafe {
         dc_sqlite3_set_config_int64(
@@ -334,7 +334,7 @@ fn set_config_int64(context: &dc_context_t, key: &str, value: i64) {
     };
 }
 
-fn is_expired(context: &dc_context_t) -> bool {
+fn is_expired(context: &Context) -> bool {
     let expire_timestamp = unsafe {
         dc_sqlite3_get_config_int64(
             context,

@@ -6,18 +6,18 @@ use std::{thread, time};
 use tempfile::tempdir;
 
 use deltachat::constants::Event;
+use deltachat::context::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_chatlist::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_contact::*;
-use deltachat::dc_context::*;
 use deltachat::dc_job::{
     dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs, dc_perform_smtp_idle,
     dc_perform_smtp_jobs,
 };
 use deltachat::dc_lot::*;
 
-extern "C" fn cb(_ctx: &dc_context_t, event: Event, data1: usize, data2: usize) -> usize {
+extern "C" fn cb(_ctx: &Context, event: Event, data1: usize, data2: usize) -> usize {
     println!("[{:?}]", event);
 
     match event {

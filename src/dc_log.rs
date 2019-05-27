@@ -1,11 +1,11 @@
 use crate::constants::Event;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
 pub unsafe extern "C" fn dc_log_event(
-    context: &dc_context_t,
+    context: &Context,
     event_code: Event,
     data1: libc::c_int,
     msg: *const libc::c_char,
@@ -22,7 +22,7 @@ usually not reported using dc_log_error() - its up to the caller to
 decide, what should be reported or done.  However, these "Normal" errors
 are usually logged by dc_log_warning(). */
 unsafe fn log_vprintf(
-    context: &dc_context_t,
+    context: &Context,
     event: Event,
     data1: libc::c_int,
     msg_format: *const libc::c_char,
@@ -49,7 +49,7 @@ unsafe fn log_vprintf(
 }
 
 pub unsafe extern "C" fn dc_log_event_seq(
-    context: &dc_context_t,
+    context: &Context,
     event_code: Event,
     sequence_start: *mut libc::c_int,
     msg: *const libc::c_char,
@@ -63,7 +63,7 @@ pub unsafe extern "C" fn dc_log_event_seq(
 }
 
 pub unsafe extern "C" fn dc_log_error(
-    context: &dc_context_t,
+    context: &Context,
     data1: libc::c_int,
     msg: *const libc::c_char,
     va_1: ...
@@ -72,7 +72,7 @@ pub unsafe extern "C" fn dc_log_error(
 }
 
 pub unsafe extern "C" fn dc_log_warning(
-    context: &dc_context_t,
+    context: &Context,
     data1: libc::c_int,
     msg: *const libc::c_char,
     va_2: ...
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn dc_log_warning(
 }
 
 pub unsafe extern "C" fn dc_log_info(
-    context: &dc_context_t,
+    context: &Context,
     data1: libc::c_int,
     msg: *const libc::c_char,
     va_3: ...

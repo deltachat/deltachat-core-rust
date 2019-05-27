@@ -1,12 +1,12 @@
 use crate::constants::*;
-use crate::dc_context::*;
+use crate::context::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_sqlite3::*;
 use crate::types::*;
 
 pub unsafe fn dc_do_heuristics_moves(
-    context: &dc_context_t,
+    context: &Context,
     folder: *const libc::c_char,
     msg_id: uint32_t,
 ) {
