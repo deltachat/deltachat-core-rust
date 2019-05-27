@@ -364,7 +364,7 @@ uint32_t        dc_join_securejoin           (dc_context_t*, const char* qr);
 void        dc_send_locations_to_chat       (dc_context_t*, uint32_t chat_id, int seconds);
 int         dc_is_sending_locations_to_chat (dc_context_t*, uint32_t chat_id);
 int         dc_set_location                 (dc_context_t*, double latitude, double longitude, double accuracy);
-dc_array_t* dc_get_locations                (dc_context_t*, uint32_t chat_id, uint32_t contact_id, time_t timestamp_begin, time_t timestamp_end);
+dc_array_t* dc_get_locations                (dc_context_t*, uint32_t chat_id, uint32_t contact_id, int64_t timestamp_begin, int64_t timestamp_end);
 void        dc_delete_all_locations         (dc_context_t*);
 
 
@@ -389,7 +389,7 @@ void*            dc_array_get_ptr            (const dc_array_t*, size_t index);
 double           dc_array_get_latitude       (const dc_array_t*, size_t index);
 double           dc_array_get_longitude      (const dc_array_t*, size_t index);
 double           dc_array_get_accuracy       (const dc_array_t*, size_t index);
-time_t           dc_array_get_timestamp      (const dc_array_t*, size_t index);
+int64_t           dc_array_get_timestamp      (const dc_array_t*, size_t index);
 uint32_t         dc_array_get_chat_id        (const dc_array_t*, size_t index);
 uint32_t         dc_array_get_contact_id     (const dc_array_t*, size_t index);
 uint32_t         dc_array_get_msg_id         (const dc_array_t*, size_t index);
@@ -524,9 +524,9 @@ uint32_t        dc_msg_get_from_id            (const dc_msg_t*);
 uint32_t        dc_msg_get_chat_id            (const dc_msg_t*);
 int             dc_msg_get_viewtype           (const dc_msg_t*);
 int             dc_msg_get_state              (const dc_msg_t*);
-time_t          dc_msg_get_timestamp          (const dc_msg_t*);
-time_t          dc_msg_get_received_timestamp (const dc_msg_t*);
-time_t          dc_msg_get_sort_timestamp     (const dc_msg_t*);
+int64_t          dc_msg_get_timestamp          (const dc_msg_t*);
+int64_t          dc_msg_get_received_timestamp (const dc_msg_t*);
+int64_t          dc_msg_get_sort_timestamp     (const dc_msg_t*);
 char*           dc_msg_get_text               (const dc_msg_t*);
 char*           dc_msg_get_file               (const dc_msg_t*);
 char*           dc_msg_get_filename           (const dc_msg_t*);
@@ -617,7 +617,7 @@ char*           dc_lot_get_text2         (const dc_lot_t*);
 int             dc_lot_get_text1_meaning (const dc_lot_t*);
 int             dc_lot_get_state         (const dc_lot_t*);
 uint32_t        dc_lot_get_id            (const dc_lot_t*);
-time_t          dc_lot_get_timestamp     (const dc_lot_t*);
+int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
 
 
 /**
