@@ -1,6 +1,7 @@
+use std::collections::HashSet;
+
 use crate::constants::*;
 use crate::dc_context::dc_context_t;
-use crate::dc_hash::*;
 use crate::dc_log::*;
 use crate::dc_param::*;
 use crate::dc_tools::*;
@@ -1405,17 +1406,10 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
     let stmt;
     let dir_handle;
     let mut dir_entry;
-    let mut files_in_use = dc_hash_t {
-        keyClass: 0,
-        copyKey: 0,
-        count: 0,
-        first: 0 as *mut dc_hashelem_t,
-        htsize: 0,
-        ht: 0 as *mut _ht,
-    };
+    let mut files_in_use = HashSet::new();
     let mut path = 0 as *mut libc::c_char;
     let mut unreferenced_count = 0;
-    dc_hash_init(&mut files_in_use, 3, 1);
+
     dc_log_info(
         context,
         0,
@@ -1461,7 +1455,7 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
         context,
         0,
         b"%i files in use.\x00" as *const u8 as *const libc::c_char,
-        files_in_use.count as libc::c_int,
+        files_in_use.len() as libc::c_int,
     );
     /* go through directory and delete unused files */
     dir_handle = opendir(context.get_blobdir());
@@ -1492,18 +1486,18 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
             {
                 continue;
             }
-            if 0 != is_file_in_use(&mut files_in_use, 0 as *const libc::c_char, name)
-                || 0 != is_file_in_use(
+            if is_file_in_use(&mut files_in_use, 0 as *const libc::c_char, name)
+                || is_file_in_use(
                     &mut files_in_use,
                     b".increation\x00" as *const u8 as *const libc::c_char,
                     name,
                 )
-                || 0 != is_file_in_use(
+                || is_file_in_use(
                     &mut files_in_use,
                     b".waveform\x00" as *const u8 as *const libc::c_char,
                     name,
                 )
-                || 0 != is_file_in_use(
+                || is_file_in_use(
                     &mut files_in_use,
                     b"-preview.jpg\x00" as *const u8 as *const libc::c_char,
                     name,
@@ -1557,7 +1551,7 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
         closedir(dir_handle);
     }
     sqlite3_finalize(stmt);
-    dc_hash_clear(&mut files_in_use);
+
     free(path as *mut libc::c_void);
     dc_log_info(
         context,
@@ -1567,10 +1561,10 @@ pub unsafe fn dc_housekeeping(context: &dc_context_t) {
 }
 
 unsafe fn is_file_in_use(
-    files_in_use: *mut dc_hash_t,
+    files_in_use: &HashSet<String>,
     namespc: *const libc::c_char,
     name: *const libc::c_char,
-) -> libc::c_int {
+) -> bool {
     let name_to_check = dc_strdup(name);
     if !namespc.is_null() {
         let name_len: libc::c_int = strlen(name) as libc::c_int;
@@ -1578,20 +1572,17 @@ unsafe fn is_file_in_use(
         if name_len <= namespc_len
             || strcmp(&*name.offset((name_len - namespc_len) as isize), namespc) != 0
         {
-            return 0;
+            return false;
         }
         *name_to_check.offset((name_len - namespc_len) as isize) = 0 as libc::c_char
     }
-    let ret: libc::c_int = (dc_hash_find(
-        files_in_use,
-        name_to_check as *const libc::c_void,
-        strlen(name_to_check) as libc::c_int,
-    ) != 0 as *mut libc::c_void) as libc::c_int;
+
+    let contains = files_in_use.contains(to_str(name_to_check));
     free(name_to_check as *mut libc::c_void);
-    ret
+    contains
 }
 
-unsafe fn maybe_add_file(files_in_use: *mut dc_hash_t, file: *const libc::c_char) {
+unsafe fn maybe_add_file(files_in_use: &mut HashSet<String>, file: *const libc::c_char) {
     if strncmp(
         file,
         b"$BLOBDIR/\x00" as *const u8 as *const libc::c_char,
@@ -1600,18 +1591,13 @@ unsafe fn maybe_add_file(files_in_use: *mut dc_hash_t, file: *const libc::c_char
     {
         return;
     }
-    let raw_name = &*file.offset(9isize) as *const libc::c_char;
-    dc_hash_insert(
-        files_in_use,
-        raw_name as *const libc::c_void,
-        strlen(raw_name) as libc::c_int,
-        1 as *mut libc::c_void,
-    );
+    let raw_name = to_string(&*file.offset(9isize) as *const libc::c_char);
+    files_in_use.insert(raw_name);
 }
 
 unsafe fn maybe_add_from_param(
     context: &dc_context_t,
-    files_in_use: *mut dc_hash_t,
+    files_in_use: &mut HashSet<String>,
     query: *const libc::c_char,
     param_id: libc::c_int,
 ) {

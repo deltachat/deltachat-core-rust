@@ -30,7 +30,6 @@ use deltachat::dc_contact::*;
 use deltachat::dc_context::*;
 use deltachat::dc_dehtml::*;
 use deltachat::dc_e2ee::*;
-use deltachat::dc_hash::*;
 use deltachat::dc_imap::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_job::*;

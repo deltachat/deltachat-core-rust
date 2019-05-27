@@ -8,7 +8,6 @@ use crate::dc_configure::*;
 use crate::dc_contact::*;
 use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
-use crate::dc_hash::*;
 use crate::dc_key::*;
 use crate::dc_log::*;
 use crate::dc_lot::*;
@@ -385,7 +384,7 @@ unsafe fn fingerprint_equals_sender(
 /* library private: secure-join */
 pub unsafe fn dc_handle_securejoin_handshake(
     context: &dc_context_t,
-    mimeparser: *mut dc_mimeparser_t,
+    mimeparser: &dc_mimeparser_t,
     contact_id: uint32_t,
 ) -> libc::c_int {
     let mut current_block: u64;
@@ -399,7 +398,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_int = 0i32;
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
-    if !(mimeparser.is_null() || contact_id <= 9i32 as libc::c_uint) {
+    if !(contact_id <= 9i32 as libc::c_uint) {
         step = lookup_field(
             mimeparser,
             b"Secure-Join\x00" as *const u8 as *const libc::c_char,
@@ -515,7 +514,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
-                            if 0 != (*(*mimeparser).e2ee_helper).encrypted {
+                            if 0 != mimeparser.e2ee_helper.encrypted {
                                 b"No valid signature.\x00" as *const u8 as *const libc::c_char
                             } else {
                                 b"Not encrypted.\x00" as *const u8 as *const libc::c_char
@@ -924,7 +923,7 @@ unsafe fn secure_connection_established(context: &dc_context_t, contact_chat_id:
 }
 
 unsafe fn lookup_field(
-    mimeparser: *mut dc_mimeparser_t,
+    mimeparser: &dc_mimeparser_t,
     key: *const libc::c_char,
 ) -> *const libc::c_char {
     let mut value: *const libc::c_char = 0 as *const libc::c_char;
@@ -999,20 +998,20 @@ unsafe fn mark_peer_as_verified(
 
 // TODO should return bool
 unsafe fn encrypted_and_signed(
-    mimeparser: *mut dc_mimeparser_t,
+    mimeparser: &dc_mimeparser_t,
     expected_fingerprint: *const libc::c_char,
 ) -> libc::c_int {
-    if 0 == (*(*mimeparser).e2ee_helper).encrypted {
+    if 0 == mimeparser.e2ee_helper.encrypted {
         dc_log_warning(
-            (*mimeparser).context,
+            mimeparser.context,
             0i32,
             b"Message not encrypted.\x00" as *const u8 as *const libc::c_char,
         );
         return 0i32;
     }
-    if (*(*(*mimeparser).e2ee_helper).signatures).count <= 0i32 {
+    if mimeparser.e2ee_helper.signatures.len() <= 0 {
         dc_log_warning(
-            (*mimeparser).context,
+            mimeparser.context,
             0i32,
             b"Message not signed.\x00" as *const u8 as *const libc::c_char,
         );
@@ -1020,21 +1019,19 @@ unsafe fn encrypted_and_signed(
     }
     if expected_fingerprint.is_null() {
         dc_log_warning(
-            (*mimeparser).context,
+            mimeparser.context,
             0i32,
             b"Fingerprint for comparison missing.\x00" as *const u8 as *const libc::c_char,
         );
         return 0i32;
     }
-    if dc_hash_find(
-        (*(*mimeparser).e2ee_helper).signatures,
-        expected_fingerprint as *const libc::c_void,
-        strlen(expected_fingerprint) as libc::c_int,
-    )
-    .is_null()
+    if !mimeparser
+        .e2ee_helper
+        .signatures
+        .contains(to_str(expected_fingerprint))
     {
         dc_log_warning(
-            (*mimeparser).context,
+            mimeparser.context,
             0i32,
             b"Message does not match expected fingerprint %s.\x00" as *const u8
                 as *const libc::c_char,

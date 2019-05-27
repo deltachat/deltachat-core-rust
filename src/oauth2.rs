@@ -243,7 +243,14 @@ impl Oauth2 {
         let userinfo_url = self.get_userinfo.unwrap_or_else(|| "");
         let userinfo_url = replace_in_uri(&userinfo_url, "$ACCESS_TOKEN", access_token);
 
-        let response = reqwest::Client::new().post(&userinfo_url).send();
+        // should returns sth. as
+        // {
+        //   "id": "100000000831024152393",
+        //   "email": "NAME@gmail.com",
+        //   "verified_email": true,
+        //   "picture": "https://lh4.googleusercontent.com/-Gj5jh_9R0BY/AAAAAAAAAAI/AAAAAAAAAAA/IAjtjfjtjNA/photo.jpg"
+        // }
+        let response = reqwest::Client::new().get(&userinfo_url).send();
         if response.is_err() {
             warn!(
                 context,
