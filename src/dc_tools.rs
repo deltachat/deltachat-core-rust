@@ -1323,11 +1323,14 @@ pub unsafe fn dc_get_filebytes(
         return 0;
     }
 
-    let filebytes = {
-        let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
-            .to_str()
-            .unwrap();
-        fs::metadata(p).unwrap().len()
+    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
+        .to_str()
+        .unwrap();
+    let filebytes = match fs::metadata(p) {
+        Ok(meta) => meta.len(),
+        Err(_err) => {
+            return 0;
+        }
     };
 
     free(pathNfilename_abs as *mut libc::c_void);
