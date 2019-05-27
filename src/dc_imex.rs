@@ -12,7 +12,6 @@ use crate::dc_configure::*;
 use crate::dc_e2ee::*;
 use crate::dc_job::*;
 use crate::dc_log::*;
-use crate::dc_loginparam::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
