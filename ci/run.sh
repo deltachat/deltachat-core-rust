@@ -17,9 +17,9 @@ if [[ $TARGET = *"windows"* ]] || [[ $TARGET == "x86_64-unknown-linux-gnu" ]] ||
 fi
 
 # Install cross if necessary:
-#if [[ $CARGO_CMD == "cross" ]]; then
-   # cargo install cross --force
-#fi
+if [[ $CARGO_CMD == "cross" ]]; then
+    cargo install cross --force
+fi
 
 # Make sure TARGET is installed when using cargo:
 if [[ $CARGO_CMD == "cargo" ]]; then
