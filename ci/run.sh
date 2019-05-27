@@ -7,7 +7,6 @@ export RUST_BACKTRACE=1
 export RUST_TEST_NOCAPTURE=1
 export OPT="--target=$TARGET"
 export OPT_RELEASE="--release ${OPT}"
-export OPT_RELEASE_IGNORED="--release ${OPT} -- --ignored"
 export OPT_FFI_RELEASE="--manifest-path=deltachat-ffi/Cargo.toml --release"
 
 # Select cargo command: use cross by default
@@ -33,10 +32,8 @@ if [[ $NORUN == "1" ]]; then
     export CARGO_SUBCMD="build"
 else
     export CARGO_SUBCMD="test"
-    # If the tests should be run, always dump all test output.
     export OPT="${OPT} "
     export OPT_RELEASE="${OPT_RELEASE} "
-    export OPT_RELEASE_IGNORED="${OPT_RELEASE_IGNORED} "
 fi
 
 # Run all the test configurations:
@@ -46,8 +43,3 @@ $CARGO_CMD $CARGO_SUBCMD $OPT_RELEASE_IGNORED
 
 # Build the ffi lib
 $CARGO_CMD $CARGO_SUBCMD $OPT_FFI_RELEASE
-
-# Run documentation and clippy:
-if [[ $CARGO_CMD == "cargo" ]] && [[ $TARGET != *"ios"* ]]; then
-    cargo doc
-fi
