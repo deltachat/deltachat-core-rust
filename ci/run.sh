@@ -18,7 +18,7 @@ fi
 
 # Install cross if necessary:
 if [[ $CARGO_CMD == "cross" ]]; then
-    cargo install cross --force
+    cargo install --git https://github.com/dignifiedquire/cross --rev fix-tty --force
 fi
 
 # Make sure TARGET is installed when using cargo:
