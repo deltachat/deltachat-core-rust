@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use crate::constants::*;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_log::*;
 use crate::dc_param::*;
 use crate::dc_tools::*;
@@ -23,13 +23,13 @@ pub fn dc_sqlite3_new() -> dc_sqlite3_t {
     }
 }
 
-pub unsafe fn dc_sqlite3_unref(context: &dc_context_t, sql: &mut dc_sqlite3_t) {
+pub unsafe fn dc_sqlite3_unref(context: &Context, sql: &mut dc_sqlite3_t) {
     if !sql.cobj.is_null() {
         dc_sqlite3_close(context, sql);
     }
 }
 
-pub unsafe fn dc_sqlite3_close(context: &dc_context_t, sql: &mut dc_sqlite3_t) {
+pub unsafe fn dc_sqlite3_close(context: &Context, sql: &mut dc_sqlite3_t) {
     if !sql.cobj.is_null() {
         sqlite3_close(sql.cobj);
         sql.cobj = 0 as *mut sqlite3
@@ -43,7 +43,7 @@ pub unsafe fn dc_sqlite3_close(context: &dc_context_t, sql: &mut dc_sqlite3_t) {
 }
 
 pub unsafe fn dc_sqlite3_open(
-    context: &dc_context_t,
+    context: &Context,
     sql: &mut dc_sqlite3_t,
     dbfile: *const libc::c_char,
     flags: libc::c_int,
@@ -1000,7 +1000,7 @@ pub unsafe fn dc_sqlite3_open(
 
 // handle configurations, private
 pub unsafe fn dc_sqlite3_set_config(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     value: *const libc::c_char,
@@ -1089,7 +1089,7 @@ pub unsafe fn dc_sqlite3_set_config(
 /* tools, these functions are compatible to the corresponding sqlite3_* functions */
 /* the result mus be freed using sqlite3_finalize() */
 pub unsafe fn dc_sqlite3_prepare(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     querystr: *const libc::c_char,
 ) -> *mut sqlite3_stmt {
@@ -1117,7 +1117,7 @@ pub unsafe fn dc_sqlite3_prepare(
 }
 
 pub unsafe extern "C" fn dc_sqlite3_log_error(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     msg_format: *const libc::c_char,
     va: ...
@@ -1156,7 +1156,7 @@ pub unsafe fn dc_sqlite3_is_open(sql: &dc_sqlite3_t) -> libc::c_int {
 
 /* the returned string must be free()'d, returns NULL on errors */
 pub unsafe fn dc_sqlite3_get_config(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     def: *const libc::c_char,
@@ -1184,7 +1184,7 @@ pub unsafe fn dc_sqlite3_get_config(
 }
 
 pub unsafe fn dc_sqlite3_execute(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     querystr: *const libc::c_char,
 ) -> libc::c_int {
@@ -1209,7 +1209,7 @@ pub unsafe fn dc_sqlite3_execute(
 }
 
 pub unsafe fn dc_sqlite3_set_config_int(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     value: int32_t,
@@ -1228,7 +1228,7 @@ pub unsafe fn dc_sqlite3_set_config_int(
 }
 
 pub unsafe fn dc_sqlite3_get_config_int(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     def: int32_t,
@@ -1243,7 +1243,7 @@ pub unsafe fn dc_sqlite3_get_config_int(
 }
 
 pub unsafe fn dc_sqlite3_table_exists(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     name: *const libc::c_char,
 ) -> libc::c_int {
@@ -1282,7 +1282,7 @@ pub unsafe fn dc_sqlite3_table_exists(
 }
 
 pub unsafe fn dc_sqlite3_set_config_int64(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     value: int64_t,
@@ -1300,7 +1300,7 @@ pub unsafe fn dc_sqlite3_set_config_int64(
 }
 
 pub unsafe fn dc_sqlite3_get_config_int64(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     key: *const libc::c_char,
     def: int64_t,
@@ -1320,7 +1320,7 @@ pub unsafe fn dc_sqlite3_get_config_int64(
 }
 
 pub unsafe fn dc_sqlite3_try_execute(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     querystr: *const libc::c_char,
 ) -> libc::c_int {
@@ -1347,7 +1347,7 @@ pub unsafe fn dc_sqlite3_try_execute(
 }
 
 pub unsafe fn dc_sqlite3_get_rowid(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     table: *const libc::c_char,
     field: *const libc::c_char,
@@ -1373,7 +1373,7 @@ pub unsafe fn dc_sqlite3_get_rowid(
 }
 
 pub unsafe fn dc_sqlite3_get_rowid2(
-    context: &dc_context_t,
+    context: &Context,
     sql: &dc_sqlite3_t,
     table: *const libc::c_char,
     field: *const libc::c_char,
@@ -1402,7 +1402,7 @@ pub unsafe fn dc_sqlite3_get_rowid2(
     id
 }
 
-pub unsafe fn dc_housekeeping(context: &dc_context_t) {
+pub unsafe fn dc_housekeeping(context: &Context) {
     let stmt;
     let dir_handle;
     let mut dir_entry;
@@ -1596,7 +1596,7 @@ unsafe fn maybe_add_file(files_in_use: &mut HashSet<String>, file: *const libc::
 }
 
 unsafe fn maybe_add_from_param(
-    context: &dc_context_t,
+    context: &Context,
     files_in_use: &mut HashSet<String>,
     query: *const libc::c_char,
     param_id: libc::c_int,

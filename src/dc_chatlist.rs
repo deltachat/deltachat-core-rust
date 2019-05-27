@@ -1,7 +1,7 @@
+use crate::context::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
-use crate::dc_context::*;
 use crate::dc_lot::*;
 use crate::dc_msg::*;
 use crate::dc_sqlite3::*;
@@ -15,14 +15,14 @@ use crate::x::*;
 #[repr(C)]
 pub struct dc_chatlist_t<'a> {
     pub magic: uint32_t,
-    pub context: &'a dc_context_t,
+    pub context: &'a Context,
     pub cnt: size_t,
     pub chatNlastmsg_ids: *mut dc_array_t,
 }
 
 // handle chatlists
 pub unsafe fn dc_get_chatlist<'a>(
-    context: &'a dc_context_t,
+    context: &'a Context,
     listflags: libc::c_int,
     query_str: *const libc::c_char,
     query_id: uint32_t,
@@ -80,7 +80,7 @@ pub unsafe fn dc_get_chatlist<'a>(
  * Rendering the deaddrop in the described way
  * would not add extra work in the UI then.
  */
-pub unsafe fn dc_chatlist_new(context: &dc_context_t) -> *mut dc_chatlist_t {
+pub unsafe fn dc_chatlist_new(context: &Context) -> *mut dc_chatlist_t {
     let mut chatlist: *mut dc_chatlist_t;
     chatlist = calloc(1, ::std::mem::size_of::<dc_chatlist_t>()) as *mut dc_chatlist_t;
     if chatlist.is_null() {
@@ -233,7 +233,7 @@ unsafe fn dc_chatlist_load_from_db(
 }
 
 // Context functions to work with chatlist
-pub unsafe fn dc_get_archived_cnt(context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_get_archived_cnt(context: &Context) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
     let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
@@ -248,7 +248,7 @@ pub unsafe fn dc_get_archived_cnt(context: &dc_context_t) -> libc::c_int {
     ret
 }
 
-unsafe fn get_last_deaddrop_fresh_msg(context: &dc_context_t) -> uint32_t {
+unsafe fn get_last_deaddrop_fresh_msg(context: &Context) -> uint32_t {
     let mut ret: uint32_t = 0i32 as uint32_t;
     let stmt: *mut sqlite3_stmt;
     stmt =

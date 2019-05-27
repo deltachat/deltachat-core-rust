@@ -1,7 +1,6 @@
 use crate::constants::Event;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_e2ee::*;
-use crate::dc_imap::*;
 use crate::dc_job::*;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
@@ -9,6 +8,7 @@ use crate::dc_saxparser::*;
 use crate::dc_sqlite3::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::imap::*;
 use crate::oauth2::*;
 use crate::types::*;
 use crate::x::*;
@@ -55,7 +55,7 @@ pub struct outlk_autodiscover_t {
     pub redirect: *mut libc::c_char,
 }
 // connect
-pub unsafe fn dc_configure(context: &dc_context_t) {
+pub unsafe fn dc_configure(context: &Context) {
     if 0 != dc_has_ongoing(context) {
         dc_log_warning(
             context,
@@ -68,7 +68,7 @@ pub unsafe fn dc_configure(context: &dc_context_t) {
     dc_job_kill_action(context, 900i32);
     dc_job_add(context, 900i32, 0i32, 0 as *const libc::c_char, 0i32);
 }
-pub unsafe fn dc_has_ongoing(context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_has_ongoing(context: &Context) -> libc::c_int {
     let s_a = context.running_state.clone();
     let s = s_a.read().unwrap();
 
@@ -78,7 +78,7 @@ pub unsafe fn dc_has_ongoing(context: &dc_context_t) -> libc::c_int {
         0
     }
 }
-pub unsafe fn dc_is_configured(context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_is_configured(context: &Context) -> libc::c_int {
     return if 0
         != dc_sqlite3_get_config_int(
             context,
@@ -91,7 +91,7 @@ pub unsafe fn dc_is_configured(context: &dc_context_t) -> libc::c_int {
         0i32
     };
 }
-pub unsafe fn dc_stop_ongoing_process(context: &dc_context_t) {
+pub unsafe fn dc_stop_ongoing_process(context: &Context) {
     let s_a = context.running_state.clone();
     let mut s = s_a.write().unwrap();
 
@@ -111,7 +111,7 @@ pub unsafe fn dc_stop_ongoing_process(context: &dc_context_t) {
     };
 }
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
-pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_job_t) {
     let flags: libc::c_int;
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
@@ -1295,7 +1295,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &dc_context_t, _job: *mut
     );
 }
 
-pub unsafe fn dc_free_ongoing(context: &dc_context_t) {
+pub unsafe fn dc_free_ongoing(context: &Context) {
     let s_a = context.running_state.clone();
     let mut s = s_a.write().unwrap();
 
@@ -1304,7 +1304,7 @@ pub unsafe fn dc_free_ongoing(context: &dc_context_t) {
 }
 
 unsafe fn moz_autoconfigure(
-    context: &dc_context_t,
+    context: &Context,
     url: *const libc::c_char,
     param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
@@ -1522,7 +1522,7 @@ unsafe fn moz_autoconfigure_starttag_cb(
     };
 }
 
-fn read_autoconf_file(context: &dc_context_t, url: *const libc::c_char) -> *mut libc::c_char {
+fn read_autoconf_file(context: &Context, url: *const libc::c_char) -> *mut libc::c_char {
     info!(context, 0, "Testing %s ...", url);
 
     match reqwest::Client::new()
@@ -1540,7 +1540,7 @@ fn read_autoconf_file(context: &dc_context_t, url: *const libc::c_char) -> *mut 
 }
 
 unsafe fn outlk_autodiscover(
-    context: &dc_context_t,
+    context: &Context,
     url__: *const libc::c_char,
     param_in: *const dc_loginparam_t,
 ) -> *mut dc_loginparam_t {
@@ -1719,7 +1719,7 @@ unsafe fn outlk_autodiscover_starttag_cb(
         (*outlk_ad).tag_config = 5i32
     };
 }
-pub unsafe fn dc_alloc_ongoing(context: &dc_context_t) -> libc::c_int {
+pub unsafe fn dc_alloc_ongoing(context: &Context) -> libc::c_int {
     if 0 != dc_has_ongoing(context) {
         dc_log_warning(
             context,
@@ -1738,7 +1738,7 @@ pub unsafe fn dc_alloc_ongoing(context: &dc_context_t) -> libc::c_int {
     1
 }
 
-pub unsafe fn dc_connect_to_configured_imap(context: &dc_context_t, imap: &Imap) -> libc::c_int {
+pub unsafe fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_int {
     let mut ret_connected: libc::c_int = 0i32;
     let param: *mut dc_loginparam_t = dc_loginparam_new();
     if imap.is_connected() {

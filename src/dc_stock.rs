@@ -1,21 +1,17 @@
 use crate::constants::Event;
+use crate::context::Context;
 use crate::dc_contact::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
 /* Return the string with the given ID by calling DC_EVENT_GET_STRING.
 The result must be free()'d! */
-pub unsafe fn dc_stock_str(context: &dc_context_t, id: libc::c_int) -> *mut libc::c_char {
+pub unsafe fn dc_stock_str(context: &Context, id: libc::c_int) -> *mut libc::c_char {
     return get_string(context, id, 0i32);
 }
 
-unsafe fn get_string(
-    context: &dc_context_t,
-    id: libc::c_int,
-    qty: libc::c_int,
-) -> *mut libc::c_char {
+unsafe fn get_string(context: &Context, id: libc::c_int, qty: libc::c_int) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char;
 
     ret = ((*context).cb)(
@@ -216,7 +212,7 @@ unsafe fn default_string(id: libc::c_int) -> *mut libc::c_char {
 /* Replaces the first `%1$s` in the given String-ID by the given value.
 The result must be free()'d! */
 pub unsafe fn dc_stock_str_repl_string(
-    context: &dc_context_t,
+    context: &Context,
     id: libc::c_int,
     to_insert: *const libc::c_char,
 ) -> *mut libc::c_char {
@@ -236,7 +232,7 @@ pub unsafe fn dc_stock_str_repl_string(
 }
 
 pub unsafe fn dc_stock_str_repl_int(
-    context: &dc_context_t,
+    context: &Context,
     id: libc::c_int,
     to_insert_int: libc::c_int,
 ) -> *mut libc::c_char {
@@ -263,7 +259,7 @@ pub unsafe fn dc_stock_str_repl_int(
 /* Replaces the first `%1$s` and `%2$s` in the given String-ID by the two given strings.
 The result must be free()'d! */
 pub unsafe fn dc_stock_str_repl_string2(
-    context: &dc_context_t,
+    context: &Context,
     id: libc::c_int,
     to_insert: *const libc::c_char,
     to_insert2: *const libc::c_char,
@@ -295,7 +291,7 @@ pub unsafe fn dc_stock_str_repl_string2(
 
 /* Misc. */
 pub unsafe fn dc_stock_system_msg(
-    context: &dc_context_t,
+    context: &Context,
     str_id: libc::c_int,
     mut param1: *const libc::c_char,
     param2: *const libc::c_char,

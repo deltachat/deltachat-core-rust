@@ -1,6 +1,6 @@
+use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_msg::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
@@ -129,7 +129,7 @@ pub unsafe fn dc_lot_fill(
     msg: *const dc_msg_t,
     chat: *const dc_chat_t,
     contact: *const dc_contact_t,
-    context: &dc_context_t,
+    context: &Context,
 ) {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint || msg.is_null() {
         return;

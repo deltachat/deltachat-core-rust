@@ -1,4 +1,4 @@
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_sqlite3::*;
 use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
@@ -63,7 +63,7 @@ pub unsafe fn dc_loginparam_empty(mut loginparam: *mut dc_loginparam_t) {
 }
 
 pub unsafe fn dc_loginparam_read(
-    context: &dc_context_t,
+    context: &Context,
     loginparam: *mut dc_loginparam_t,
     sql: &dc_sqlite3_t,
     prefix: *const libc::c_char,
@@ -144,7 +144,7 @@ pub unsafe fn dc_loginparam_read(
 }
 
 pub unsafe fn dc_loginparam_write(
-    context: &dc_context_t,
+    context: &Context,
     loginparam: *const dc_loginparam_t,
     sql: &dc_sqlite3_t,
     prefix: *const libc::c_char,

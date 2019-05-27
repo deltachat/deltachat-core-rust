@@ -1,4 +1,4 @@
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
@@ -10,7 +10,7 @@ pub const DC_TOKEN_AUTH: dc_tokennamespc_t = 110;
 pub const DC_TOKEN_INVITENUMBER: dc_tokennamespc_t = 100;
 // Functions to read/write token from/to the database. A token is any string associated with a key.
 pub unsafe fn dc_token_save(
-    context: &dc_context_t,
+    context: &Context,
     namespc: dc_tokennamespc_t,
     foreign_id: uint32_t,
     token: *const libc::c_char,
@@ -33,7 +33,7 @@ pub unsafe fn dc_token_save(
     sqlite3_finalize(stmt);
 }
 pub unsafe fn dc_token_lookup(
-    context: &dc_context_t,
+    context: &Context,
     namespc: dc_tokennamespc_t,
     foreign_id: uint32_t,
 ) -> *mut libc::c_char {
@@ -55,7 +55,7 @@ pub unsafe fn dc_token_lookup(
 }
 
 pub unsafe fn dc_token_exists(
-    context: &dc_context_t,
+    context: &Context,
     namespc: dc_tokennamespc_t,
     token: *const libc::c_char,
 ) -> libc::c_int {

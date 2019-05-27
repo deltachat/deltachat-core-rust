@@ -11,8 +11,8 @@ use mmime::mailmime_types::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
+use crate::context::Context;
 use crate::dc_contact::*;
-use crate::dc_context::dc_context_t;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_log::*;
@@ -26,8 +26,8 @@ use crate::types::*;
 use crate::x::*;
 
 /* Parse MIME body; this is the text part of an IMF, see https://tools.ietf.org/html/rfc5322
-dc_mimeparser_t has no deep dependencies to dc_context_t or to the database
-(dc_context_t is used for logging only). */
+dc_mimeparser_t has no deep dependencies to Context or to the database
+(Context is used for logging only). */
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_mimepart_t {
@@ -55,7 +55,7 @@ pub struct dc_mimeparser_t<'a> {
     pub decrypting_failed: libc::c_int,
     pub e2ee_helper: dc_e2ee_helper_t,
     pub is_forwarded: libc::c_int,
-    pub context: &'a dc_context_t,
+    pub context: &'a Context,
     pub reports: *mut carray,
     pub is_system_message: libc::c_int,
     pub location_kml: *mut dc_kml_t,
@@ -70,7 +70,7 @@ pub unsafe fn dc_no_compound_msgs() {
 // deprecated: flag to switch generation of compound messages on and off.
 static mut s_generate_compound_msgs: libc::c_int = 1i32;
 
-pub unsafe fn dc_mimeparser_new(context: &dc_context_t) -> dc_mimeparser_t {
+pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
     dc_mimeparser_t {
         parts: carray_new(16i32 as libc::c_uint),
         mimeroot: std::ptr::null_mut(),
@@ -825,7 +825,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
 unsafe fn hash_header(
     out: &mut HashMap<String, *mut mailimf_field>,
     in_0: *const mailimf_fields,
-    _context: &dc_context_t,
+    _context: &Context,
 ) {
     if in_0.is_null() {
         return;

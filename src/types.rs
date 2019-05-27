@@ -1,5 +1,5 @@
 use crate::constants::Event;
-use crate::dc_context::dc_context_t;
+use crate::context::Context;
 
 pub use libc::{dirent, tm, DIR, FILE};
 pub use libsqlite3_sys::*;
@@ -25,7 +25,7 @@ pub type uint64_t = libc::c_ulonglong;
 /**
  * Callback function that should be given to dc_context_new().
  *
- * @memberof dc_context_t
+ * @memberof Context
  * @param context The context object as returned by dc_context_new().
  * @param event one of the @ref DC_EVENT constants
  * @param data1 depends on the event parameter
@@ -33,12 +33,12 @@ pub type uint64_t = libc::c_ulonglong;
  * @return return 0 unless stated otherwise in the event parameter documentation
  */
 pub type dc_callback_t =
-    unsafe extern "C" fn(_: &dc_context_t, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
+    unsafe extern "C" fn(_: &Context, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
 
 pub type dc_move_state_t = u32;
 
 pub type dc_receive_imf_t = unsafe fn(
-    _: &dc_context_t,
+    _: &Context,
     _: *const libc::c_char,
     _: size_t,
     _: *const libc::c_char,
@@ -47,22 +47,15 @@ pub type dc_receive_imf_t = unsafe fn(
 ) -> ();
 
 /* Purpose: Reading from IMAP servers with no dependencies to the database.
-dc_context_t is only used for logging and to get information about
+Context is only used for logging and to get information about
 the online state. */
 
-pub type dc_precheck_imf_t = unsafe fn(
-    _: &dc_context_t,
-    _: *const libc::c_char,
-    _: *const libc::c_char,
-    _: u32,
-) -> libc::c_int;
+pub type dc_precheck_imf_t =
+    unsafe fn(_: &Context, _: *const libc::c_char, _: *const libc::c_char, _: u32) -> libc::c_int;
 pub type dc_set_config_t =
-    unsafe fn(_: &dc_context_t, _: *const libc::c_char, _: *const libc::c_char) -> ();
-pub type dc_get_config_t = unsafe fn(
-    _: &dc_context_t,
-    _: *const libc::c_char,
-    _: *const libc::c_char,
-) -> *mut libc::c_char;
+    unsafe fn(_: &Context, _: *const libc::c_char, _: *const libc::c_char) -> ();
+pub type dc_get_config_t =
+    unsafe fn(_: &Context, _: *const libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
 
 pub type sqlite_int64 = libc::int64_t;
 pub type sqlite3_int64 = sqlite_int64;
