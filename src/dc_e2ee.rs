@@ -17,13 +17,13 @@ use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
 
 use crate::aheader::*;
 use crate::context::Context;
-use crate::dc_keyring::*;
 use crate::dc_log::*;
 use crate::dc_mimeparser::*;
 use crate::dc_securejoin::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::key::*;
+use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp::*;
 use crate::types::*;

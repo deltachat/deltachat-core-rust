@@ -11,7 +11,6 @@ use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_imex::*;
 use crate::dc_jobthread::*;
-use crate::dc_keyhistory::*;
 use crate::dc_location::*;
 use crate::dc_log::*;
 use crate::dc_loginparam::*;
@@ -21,6 +20,7 @@ use crate::dc_param::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::imap::*;
+use crate::keyhistory::*;
 use crate::types::*;
 use crate::x::*;
 
