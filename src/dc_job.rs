@@ -538,10 +538,10 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
 /* ******************************************************************************
  * IMAP-jobs
  ******************************************************************************/
-unsafe fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
+fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
     let ret_connected: libc::c_int;
 
-    ret_connected = dc_connect_to_configured_imap(context, inbox);
+    ret_connected = unsafe { dc_connect_to_configured_imap(context, inbox) };
     if !(0 == ret_connected) {
         inbox.set_watch_folder(b"INBOX\x00" as *const u8 as *const libc::c_char);
     }
@@ -1042,31 +1042,21 @@ pub unsafe fn dc_perform_imap_fetch(context: &Context) {
     );
 }
 
-pub unsafe fn dc_perform_imap_idle(context: &Context) {
+pub fn dc_perform_imap_idle(context: &Context) {
     let inbox = context.inbox.read().unwrap();
 
     connect_to_inbox(context, &inbox);
 
     if 0 != *context.perform_inbox_jobs_needed.clone().read().unwrap() {
-        dc_log_info(
+        info!(
             context,
-            0i32,
-            b"INBOX-IDLE will not be started because of waiting jobs.\x00" as *const u8
-                as *const libc::c_char,
+            0, "INBOX-IDLE will not be started because of waiting jobs."
         );
         return;
     }
-    dc_log_info(
-        context,
-        0i32,
-        b"INBOX-IDLE started...\x00" as *const u8 as *const libc::c_char,
-    );
+    info!(context, 0, "INBOX-IDLE started...");
     inbox.idle(context);
-    dc_log_info(
-        context,
-        0i32,
-        b"INBOX-IDLE ended.\x00" as *const u8 as *const libc::c_char,
-    );
+    info!(context, 0, "INBOX-IDLE ended.");
 }
 
 pub unsafe fn dc_perform_mvbox_fetch(context: &Context) {
