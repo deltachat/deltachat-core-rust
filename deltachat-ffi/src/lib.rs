@@ -1122,6 +1122,11 @@ pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat::dc_chat_t) {
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn dc_chat_empty(chat: *mut dc_chat::dc_chat_t) {
+    dc_chat::dc_chat_empty(chat)
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat::dc_chat_t) -> libc::uint32_t {
     dc_chat::dc_chat_get_id(chat)
 }
@@ -1409,6 +1414,11 @@ pub type dc_contact_t<'a> = dc_contact::dc_contact_t<'a>;
 #[no_mangle]
 pub unsafe extern "C" fn dc_contact_unref(contact: *mut dc_contact::dc_contact_t) {
     dc_contact::dc_contact_unref(contact)
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_contact_empty(contact: *mut dc_contact::dc_contact_t) {
+    dc_contact::dc_contact_empty(contact)
 }
 
 #[no_mangle]
