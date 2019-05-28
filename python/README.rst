@@ -55,9 +55,9 @@ in the ``deltachat_ffi`` directory. These files are needed for
 creating the python bindings for deltachat::
 
     cd python
-    CFLAGS=I../deltachat-ffi pip install -e .
+    CFLAGS=I`pwd`/../deltachat-ffi pip install -e .
 
-You then need to set a the dynamic load library path in your shell::
+You then need to set the load-dynamic-library path in your shell::
 
     export LD_LIBRARY_PATH=`pwd`/../target/release
 
@@ -86,6 +86,8 @@ Running tests
 Get a checkout of the `deltachat-core github repository`_ and type::
 
     cd python
+    export CFLAGS=I`pwd`/../deltachat-ffi
+    export LD_LIBRARY_PATH=`pwd`/../target/release
     pip install tox
     tox
 

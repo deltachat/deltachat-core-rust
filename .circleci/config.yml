@@ -42,8 +42,51 @@ jobs:
             export RUST_BACKTRACE=1
             cargo build --release -p deltachat_ffi
 
+  build_test_docs_wheel:
+    machine: True
+    steps:
+      - checkout
+      # - run: docker pull deltachat/doxygen 
+      - run: docker pull deltachat/coredeps
+      - run: 
+          name: build docs, run tests and build wheels 
+          command: ci_scripts/ci_run.sh
+          environment:
+            DOCS: 1
+            TESTS: 1
+
+      - run: 
+           name: copying docs and wheels to workspace 
+           command: |
+             mkdir -p workspace/python
+             # cp -av docs workspace/c-docs
+             cp -av python/.docker-tox/wheelhouse workspace/
+             cp -av python/doc/_build/ workspace/py-docs
+
+      - persist_to_workspace: 
+          root: workspace 
+          paths: 
+            # - c-docs
+            - py-docs
+            - wheelhouse
+
+  upload_docs_wheels:
+    machine: True
+    steps:
+      - checkout
+      - attach_workspace:
+          at: workspace
+      - run: ls -laR workspace 
+      - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse
+
+
 workflows:
   version: 2.1
   build:
     jobs:
+      - build_test_docs_wheel
       - build
+      - upload_docs_wheels:
+          requires:
+              - build_test_docs_wheel
+              - build
