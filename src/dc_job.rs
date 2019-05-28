@@ -485,48 +485,51 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                     0 as *const libc::c_char,
                 );
 
-                let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
-                match inbox.mv(
-                    context,
-                    server_folder,
-                    (*msg).server_uid,
-                    CStr::from_ptr(dest_folder).to_str().unwrap(),
-                    &mut dest_uid,
-                ) as libc::c_uint
-                {
-                    1 => {
-                        current_block = 6379107252614456477;
-                        match current_block {
-                            12072121998757195963 => {
-                                dc_update_server_uid(
-                                    context,
-                                    (*msg).rfc724_mid,
-                                    dest_folder,
-                                    dest_uid,
-                                );
-                            }
-                            _ => {
-                                dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-                            }
-                        }
-                    }
-                    3 => {
-                        current_block = 12072121998757195963;
-                        match current_block {
-                            12072121998757195963 => {
-                                dc_update_server_uid(
-                                    context,
-                                    (*msg).rfc724_mid,
-                                    dest_folder,
-                                    dest_uid,
-                                );
-                            }
-                            _ => {
-                                dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+                if !dest_folder.is_null() {
+                    let server_folder = to_str((*msg).server_folder);
+
+                    match inbox.mv(
+                        context,
+                        server_folder,
+                        (*msg).server_uid,
+                        to_str(dest_folder),
+                        &mut dest_uid,
+                    ) as libc::c_uint
+                    {
+                        1 => {
+                            current_block = 6379107252614456477;
+                            match current_block {
+                                12072121998757195963 => {
+                                    dc_update_server_uid(
+                                        context,
+                                        (*msg).rfc724_mid,
+                                        dest_folder,
+                                        dest_uid,
+                                    );
+                                }
+                                _ => {
+                                    dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+                                }
                             }
                         }
+                        3 => {
+                            current_block = 12072121998757195963;
+                            match current_block {
+                                12072121998757195963 => {
+                                    dc_update_server_uid(
+                                        context,
+                                        (*msg).rfc724_mid,
+                                        dest_folder,
+                                        dest_uid,
+                                    );
+                                }
+                                _ => {
+                                    dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+                                }
+                            }
+                        }
+                        0 | 2 | _ => {}
                     }
-                    0 | 2 | _ => {}
                 }
             }
         }
@@ -589,12 +592,13 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
                     b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
                     0 as *const libc::c_char,
                 );
-                let dest_folder = CStr::from_ptr(dest_folder).to_str().unwrap();
-                match inbox.mv(context, folder, uid, dest_folder, &mut dest_uid) as libc::c_uint {
-                    1 => {
-                        dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+                if !dest_folder.is_null() {
+                    let dest_folder = to_str(dest_folder);
+                    if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
+                        as libc::c_uint
+                    {
+                        dc_job_try_again_later(job, 3, 0 as *const libc::c_char);
                     }
-                    0 | _ => {}
                 }
             }
         }

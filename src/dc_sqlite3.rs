@@ -1299,23 +1299,19 @@ pub unsafe fn dc_sqlite3_set_config_int64(
     ret
 }
 
-pub unsafe fn dc_sqlite3_get_config_int64(
+pub fn dc_sqlite3_get_config_int64(
     context: &Context,
     sql: &dc_sqlite3_t,
     key: *const libc::c_char,
-    def: int64_t,
-) -> int64_t {
-    let str = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
-    if str.is_null() {
+    def: i64,
+) -> i64 {
+    let s = unsafe { dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char) };
+    if s.is_null() {
         return def;
     }
-    let mut ret = 0 as int64_t;
-    sscanf(
-        str,
-        b"%lld\x00" as *const u8 as *const libc::c_char,
-        &mut ret as *mut int64_t,
-    );
-    free(str as *mut libc::c_void);
+
+    let ret: i64 = to_str(s).parse().unwrap_or_default();
+    unsafe { free(s as *mut libc::c_void) };
     ret
 }
 
