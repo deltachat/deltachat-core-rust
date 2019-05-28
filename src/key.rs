@@ -106,8 +106,9 @@ impl Key {
     }
 
     pub fn from_binary(data: *const u8, len: libc::c_int, key_type: KeyType) -> Option<Self> {
-        assert!(!data.is_null(), "missing data");
-        assert!(len > 0);
+        if data.is_null() || len == 0 {
+            return None;
+        }
 
         let bytes = unsafe { slice::from_raw_parts(data, len as usize) };
         Self::from_slice(bytes, key_type)
