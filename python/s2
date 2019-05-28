@@ -1,0 +1,9 @@
+set -e
+set -x
+
+export ORIGIN=/home/hpk/delta/core-rust
+export CFLAGS=-I$ORIGIN/deltachat-ffi 
+#export LDFLAGS=-L$ORIGIN/target/release/ 
+export LDFLAGS='-Wl,-rpath=$ORIGIN/target/release -Wl,--enable-new-dtags'
+pip install -e .
+

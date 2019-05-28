@@ -1,0 +1,73 @@
+0.9.1-dev
+---------
+
+- use docker image for building wheels
+- fix code documentation links 
+
+0.9.0
+-----
+
+- build against latest deltachat core (0.41 ++) with RPGP compiled in
+- streamline package building
+- allow installing from devpi.net package index
+
+
+0.8.2
+-----
+
+- adapt to deleted and new event names 
+
+0.8.1
+-----
+
+- changed license to MPL 2.0, see https://github.com/deltachat/deltachat-core/issues/403
+  for the confirmation from contributors. 
+
+
+0.8.0
+-----
+
+- now depends on core tagged as v0.23.0
+
+- drop send_image and other helper methods in favor of 
+  just a Chat.send_file() that takes all kinds of media types
+
+- introduce Message.get_mime_headers() which returns 
+  the headers for an incoming message if the ``save_mime_headers``
+  config option is set. 
+
+- add Message.time_received attribute, now returning an unaware
+  datetime
+
+- set_config() and get_config() now throw an error if a config option
+  does not exist 
+
+- some API renames
+
+0.7.1
+-----
+
+- add Account.get_infostring() to show low-level info about account state
+
+
+0.7
+---
+
+- add Chat.delete(), Chat.send_image() and Chat.send_file()
+
+- renamed Chat.send_text_message to Chat.send_text()
+  (all other send methods also have no "_msg" at the end
+  as it's pretty clear Chat.send_X is going to send a message
+  to the chat)
+
+- new Account.create_message() to create new messages 
+  that are not in the database (yet) 
+
+- refined logging of events which now shows relative timestamps
+  
+
+0.6
+---
+
+- initial release with full low level C-API, and a first
+  high level API
