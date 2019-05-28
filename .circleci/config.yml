@@ -133,7 +133,6 @@ jobs:
           name: build docs, run tests and build wheels 
           command: ci_scripts/ci_run.sh
           environment:
-            DOCS: 1
             TESTS: 1
 
       - run: 

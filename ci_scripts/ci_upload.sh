@@ -21,10 +21,10 @@ rsync -avz \
   delta@py.delta.chat:build/${BRANCH}
 
 # C docs to c.delta.chat
-rsync -avz \
-  -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
-  "$DOXYDOCDIR/html/" \
-  delta@py.delta.chat:build-c/${BRANCH}
+#rsync -avz \
+#  -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
+#  "$DOXYDOCDIR/html/" \
+#  delta@py.delta.chat:build-c/${BRANCH}
 
 echo -----------------------
 echo upload wheels 
