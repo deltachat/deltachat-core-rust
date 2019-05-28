@@ -35,7 +35,7 @@ Installing a wheel from a PR/branch
 ---------------------------------------
 
 For Linux, we automatically build wheels for all github PR branches
-and push them to a python package index. To install the latest github master::
+and push them to a python package index. To install the latest github ``master`` branch::
 
     pip install -i https://m.devpi.net/dc/master deltachat
 
@@ -43,10 +43,29 @@ and push them to a python package index. To install the latest github master::
 Installing bindings from source
 ===============================
 
-If you can't use "binary" method above then you will need
-to `install the delta-core C-library <https://github.com/deltachat/deltachat-core/blob/master/README.md>`_ and then invoke installation of the source bindings::
+If you can't use "binary" method above then you need to compile
+to core deltachat library::
 
-    pip install --no-binary :all: deltachat
+    git clone https://github.com/deltachat/deltachat-core-rust
+    cd deltachat-core-rust
+    cargo build -p deltachat_ffi --release
+
+This will result in a ``libdeltachat.so`` and ``deltachat.h`` file
+in the ``deltachat_ffi`` directory. These files are needed for
+creating the python bindings for deltachat::
+
+    cd python
+    CFLAGS=I../deltachat-ffi pip install -e .
+
+You then need to set a the dynamic load library path in your shell::
+
+    export LD_LIBRARY_PATH=`pwd`/../target/release
+
+so that importing the bindings finds the correct library::
+
+    python -c 'import deltachat ; print(deltachat.__version__)'
+
+This should print your deltachat bindings version.
 
 .. note::
 

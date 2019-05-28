@@ -24,10 +24,8 @@ def pytest_report_header(config, startdir):
         del ac
     finally:
         os.remove(t)
-    return "Deltachat core={} rpgp={} openssl={} sqlite={}".format(
-        info["deltachat_core_version"],
-        info["rpgp_enabled"],
-        info['openssl_version'],
+    return "Deltachat core={} sqlite={}".format(
+        info['deltachat_core_version'],
         info['sqlite_version'],
     )
 
