@@ -10,12 +10,12 @@ pkg-config = "0.3"
 
 [dependencies]
 libc = "0.2.51"
-pgp = "0.2.0"
+pgp = "0.2"
 hex = "0.3.2"
 sha2 = "0.8.0"
 rand = "0.6.5"
 smallvec = "0.6.9"
-libsqlite3-sys = { version = "0.14.0", features = ["bundled"] }
+libsqlite3-sys = { version = "0.14.0", features = ["bundled", "min_sqlite_version_3_7_16"] }
 reqwest = "0.9.15"
 num-derive = "0.2.5"
 num-traits = "0.2.6"
@@ -28,9 +28,12 @@ charset = "0.1"
 percent-encoding = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+chrono = "0.4.6"
 
 [dev-dependencies]
 tempfile = "3.0"
+pretty_assertions = "0.6.1"
+pretty_env_logger = "0.3.0"
 
 [workspace]
 members = [
@@ -46,5 +49,6 @@ path = "examples/repl/main.rs"
 
 
 [features]
-default = []
-vendored = ["native-tls/vendored"]
+default = ["nightly"]
+vendored = ["native-tls/vendored", "reqwest/default-tls-vendored"]
+nightly = ["pgp/nightly"]

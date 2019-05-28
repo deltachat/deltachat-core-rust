@@ -361,7 +361,7 @@ uint32_t        dc_join_securejoin           (dc_context_t*, const char* qr);
 void        dc_send_locations_to_chat       (dc_context_t*, uint32_t chat_id, int seconds);
 int         dc_is_sending_locations_to_chat (dc_context_t*, uint32_t chat_id);
 int         dc_set_location                 (dc_context_t*, double latitude, double longitude, double accuracy);
-dc_array_t* dc_get_locations                (dc_context_t*, uint32_t chat_id, uint32_t contact_id, time_t timestamp_begin, time_t timestamp_end);
+dc_array_t* dc_get_locations                (dc_context_t*, uint32_t chat_id, uint32_t contact_id, int64_t timestamp_begin, int64_t timestamp_end);
 void        dc_delete_all_locations         (dc_context_t*);
 
 
@@ -386,7 +386,7 @@ void*            dc_array_get_ptr            (const dc_array_t*, size_t index);
 double           dc_array_get_latitude       (const dc_array_t*, size_t index);
 double           dc_array_get_longitude      (const dc_array_t*, size_t index);
 double           dc_array_get_accuracy       (const dc_array_t*, size_t index);
-time_t           dc_array_get_timestamp      (const dc_array_t*, size_t index);
+int64_t           dc_array_get_timestamp      (const dc_array_t*, size_t index);
 uint32_t         dc_array_get_chat_id        (const dc_array_t*, size_t index);
 uint32_t         dc_array_get_contact_id     (const dc_array_t*, size_t index);
 uint32_t         dc_array_get_msg_id         (const dc_array_t*, size_t index);
@@ -518,9 +518,9 @@ uint32_t        dc_msg_get_from_id            (const dc_msg_t*);
 uint32_t        dc_msg_get_chat_id            (const dc_msg_t*);
 int             dc_msg_get_viewtype           (const dc_msg_t*);
 int             dc_msg_get_state              (const dc_msg_t*);
-time_t          dc_msg_get_timestamp          (const dc_msg_t*);
-time_t          dc_msg_get_received_timestamp (const dc_msg_t*);
-time_t          dc_msg_get_sort_timestamp     (const dc_msg_t*);
+int64_t          dc_msg_get_timestamp          (const dc_msg_t*);
+int64_t          dc_msg_get_received_timestamp (const dc_msg_t*);
+int64_t          dc_msg_get_sort_timestamp     (const dc_msg_t*);
 char*           dc_msg_get_text               (const dc_msg_t*);
 char*           dc_msg_get_file               (const dc_msg_t*);
 char*           dc_msg_get_filename           (const dc_msg_t*);
@@ -609,7 +609,7 @@ char*           dc_lot_get_text2         (const dc_lot_t*);
 int             dc_lot_get_text1_meaning (const dc_lot_t*);
 int             dc_lot_get_state         (const dc_lot_t*);
 uint32_t        dc_lot_get_id            (const dc_lot_t*);
-time_t          dc_lot_get_timestamp     (const dc_lot_t*);
+int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
 
 
 /**
@@ -1094,46 +1094,6 @@ time_t          dc_lot_get_timestamp     (const dc_lot_t*);
  */
 #define DC_EVENT_GET_STRING               2091
 
-
-/**
- * NOT_USED_ANYMORE
- *
- * Request a HTTP-file or HTTPS-file from the frontend using HTTP-GET.
- *
- * @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
- *     The string starts with https:// or http://.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- * @param data2 0
- * @return (const char*) The content of the requested file as a null-terminated UTF-8 string;
- *     Response headers, encodings etc. must be stripped.
- *     Only the raw file should be returned.
- *     CAVE: The string will be free()'d by the core,
- *     so make sure it is allocated using malloc() or a compatible function.
- *     If you cannot provide the content, just return 0 or an empty string.
- */
-#define DC_EVENT_HTTP_GET                 2100
-
-
-/**
- * NOT_USED_ANYMORE
- *
- * Request a HTTP-file or HTTPS-file from the frontend using HTTP-POST.
- *
- * @param data1 (const char*) Null-terminated UTF-8 string containing the URL.
- *     The string starts with https:// or http://.
- *     Must not be free()'d or modified and is valid only until the callback returns.
- *     Parameter to POST are added to the url after `?`.
- * @param data2 0
- * @return (const char*) The content of the requested file as a null-terminated UTF-8 string;
- *     Response headers, encodings etc. must be stripped.
- *     Only the raw file should be returned.
- *     CAVE: The string will be free()'d by the core,
- *     so make sure it is allocated using malloc() or a compatible function.
- *     If you cannot provide the content, just return 0 or an empty string.
- */
-#define DC_EVENT_HTTP_POST                2110
-
-
 /**
  * @}
  */
@@ -1143,10 +1103,10 @@ time_t          dc_lot_get_timestamp     (const dc_lot_t*);
 #define DC_ERROR_SEE_STRING          0    // deprecated
 #define DC_ERROR_SELF_NOT_IN_GROUP   1    // deprecated
 #define DC_STR_SELFNOTINGRP          21   // deprecated
-#define DC_EVENT_DATA1_IS_STRING(e)  ((e)==DC_EVENT_HTTP_GET || (e)==DC_EVENT_IMEX_FILE_WRITTEN || (e)==DC_EVENT_FILE_COPIED)
+#define DC_EVENT_DATA1_IS_STRING(e)  ((e)==DC_EVENT_IMEX_FILE_WRITTEN || (e)==DC_EVENT_FILE_COPIED)
 #define DC_EVENT_DATA2_IS_STRING(e)  ((e)>=100 && (e)<=499)
 #define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE)
-#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING || (e)==DC_EVENT_HTTP_GET)
+#define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING)
 
 
 /*

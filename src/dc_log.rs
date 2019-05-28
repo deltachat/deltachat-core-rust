@@ -139,3 +139,21 @@ macro_rules! error {
         }
     };
 }
+
+#[macro_export]
+macro_rules! log_event {
+    ($ctx:expr, $data1:expr, $msg:expr) => {
+        log_event!($ctx, $data1, $msg,)
+    };
+    ($ctx:expr, $event:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        unsafe {
+            dc_log_event(
+                $ctx,
+                $event,
+                $data1,
+                std::ffi::CString::new($msg).unwrap().as_ptr(),
+                $($args),*
+            )
+        }
+    };
+}

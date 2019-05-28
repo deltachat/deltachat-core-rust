@@ -15,7 +15,7 @@ pub struct dc_lot_t {
     pub text1_meaning: libc::c_int,
     pub text1: *mut libc::c_char,
     pub text2: *mut libc::c_char,
-    pub timestamp: time_t,
+    pub timestamp: i64,
     pub state: libc::c_int,
     pub id: uint32_t,
     pub fingerprint: *mut libc::c_char,
@@ -60,7 +60,7 @@ pub unsafe fn dc_lot_empty(mut lot: *mut dc_lot_t) {
     (*lot).invitenumber = 0 as *mut libc::c_char;
     free((*lot).auth as *mut libc::c_void);
     (*lot).auth = 0 as *mut libc::c_char;
-    (*lot).timestamp = 0i32 as time_t;
+    (*lot).timestamp = 0;
     (*lot).state = 0i32;
     (*lot).id = 0i32 as uint32_t;
 }
@@ -114,9 +114,9 @@ pub unsafe fn dc_lot_get_id(lot: *const dc_lot_t) -> uint32_t {
     (*lot).id
 }
 
-pub unsafe fn dc_lot_get_timestamp(lot: *const dc_lot_t) -> time_t {
+pub unsafe fn dc_lot_get_timestamp(lot: *const dc_lot_t) -> i64 {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
-        return 0i32 as time_t;
+        return 0;
     }
 
     (*lot).timestamp

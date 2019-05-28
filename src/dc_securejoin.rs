@@ -350,23 +350,27 @@ unsafe fn fingerprint_equals_sender(
     fingerprint: *const libc::c_char,
     contact_chat_id: uint32_t,
 ) -> libc::c_int {
+    if fingerprint.is_null() {
+        return 0;
+    }
     let mut fingerprint_equal: libc::c_int = 0i32;
     let contacts: *mut dc_array_t = dc_get_chat_contacts(context, contact_chat_id);
     let contact: *mut dc_contact_t = dc_contact_new(context);
 
     if !(dc_array_get_cnt(contacts) != 1) {
-        let peerstate = Peerstate::from_addr(
-            context,
-            &context.sql.clone().read().unwrap(),
-            to_str((*contact).addr),
-        );
-        if !(!dc_contact_load_from_db(
+        if !dc_contact_load_from_db(
             contact,
             &context.sql.clone().read().unwrap(),
             dc_array_get_id(contacts, 0i32 as size_t),
-        ) || peerstate.is_some())
-        {
-            let peerstate = peerstate.as_ref().unwrap();
+        ) {
+            return 0;
+        }
+
+        if let Some(peerstate) = Peerstate::from_addr(
+            context,
+            &context.sql.clone().read().unwrap(),
+            to_str((*contact).addr),
+        ) {
             let fingerprint_normalized = dc_normalize_fingerprint(to_str(fingerprint));
             if peerstate.public_key_fingerprint.is_some()
                 && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()

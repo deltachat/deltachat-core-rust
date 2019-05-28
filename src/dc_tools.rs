@@ -1,5 +1,7 @@
 use std::fs;
+use std::time::SystemTime;
 
+use chrono::{Local, TimeZone};
 use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
 
@@ -682,194 +684,52 @@ pub unsafe fn clist_search_string_nocase(
 
 /* date/time tools */
 /* the result is UTC or DC_INVALID_TIMESTAMP */
-pub unsafe fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> time_t {
-    let mut tmval: tm = tm {
-        tm_sec: 0,
-        tm_min: 0,
-        tm_hour: 0,
-        tm_mday: 0,
-        tm_mon: 0,
-        tm_year: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_gmtoff: 0,
-        tm_zone: 0 as *mut libc::c_char,
-    };
-    let mut timeval: time_t;
-    let zone_min: libc::c_int;
-    let zone_hour: libc::c_int;
-    memset(
-        &mut tmval as *mut tm as *mut libc::c_void,
-        0,
-        ::std::mem::size_of::<tm>(),
+pub unsafe fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
+    let sec = (*date_time).dt_sec;
+    let min = (*date_time).dt_min;
+    let hour = (*date_time).dt_hour;
+    let day = (*date_time).dt_day;
+    let month = (*date_time).dt_month;
+    let year = (*date_time).dt_year;
+
+    let ts = chrono::NaiveDateTime::new(
+        chrono::NaiveDate::from_ymd(year, month as u32, day as u32),
+        chrono::NaiveTime::from_hms(hour as u32, min as u32, sec as u32),
     );
-    tmval.tm_sec = (*date_time).dt_sec;
-    tmval.tm_min = (*date_time).dt_min;
-    tmval.tm_hour = (*date_time).dt_hour;
-    tmval.tm_mday = (*date_time).dt_day;
-    tmval.tm_mon = (*date_time).dt_month - 1i32;
-    if (*date_time).dt_year < 1000i32 {
-        tmval.tm_year = (*date_time).dt_year + 2000i32 - 1900i32
-    } else {
-        tmval.tm_year = (*date_time).dt_year - 1900i32
-    }
-    timeval = mkgmtime(&mut tmval);
-    if (*date_time).dt_zone >= 0i32 {
-        zone_hour = (*date_time).dt_zone / 100i32;
-        zone_min = (*date_time).dt_zone % 100i32
-    } else {
-        zone_hour = -(-(*date_time).dt_zone / 100i32);
-        zone_min = -(-(*date_time).dt_zone % 100i32)
-    }
-    timeval -= (zone_hour * 3600 + zone_min * 60) as time_t;
 
-    timeval
-}
-
-pub unsafe fn mkgmtime(tmp: *mut tm) -> time_t {
-    let mut dir: libc::c_int;
-    let mut bits: libc::c_int;
-    let saved_seconds: libc::c_int;
-    let mut t: time_t;
-    let mut yourtm: tm;
-    let mut mytm: tm = tm {
-        tm_sec: 0,
-        tm_min: 0,
-        tm_hour: 0,
-        tm_mday: 0,
-        tm_mon: 0,
-        tm_year: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_gmtoff: 0,
-        tm_zone: 0 as *mut libc::c_char,
+    let (zone_hour, zone_min) = if (*date_time).dt_zone >= 0 {
+        ((*date_time).dt_zone / 100i32, (*date_time).dt_zone % 100i32)
+    } else {
+        (
+            -(-(*date_time).dt_zone / 100i32),
+            -(-(*date_time).dt_zone % 100i32),
+        )
     };
-    yourtm = *tmp;
-    saved_seconds = yourtm.tm_sec;
-    yourtm.tm_sec = 0i32;
-    bits = 0i32;
-    t = 1i32 as time_t;
-    while t > 0 {
-        bits += 1;
-        t <<= 1i32
-    }
-    if bits > 40i32 {
-        bits = 40i32
-    }
-    t = if t < 0 { 0 } else { (1i32 as time_t) << bits };
-    loop {
-        gmtime_r(&mut t, &mut mytm);
-        dir = tmcomp(&mut mytm, &mut yourtm);
-        if !(dir != 0i32) {
-            break;
-        }
-        let fresh2 = bits;
-        bits = bits - 1;
-        if fresh2 < 0i32 {
-            return -1i32 as time_t;
-        }
-        if bits < 0i32 {
-            t -= 1
-        } else if dir > 0i32 {
-            t -= (1i32 as time_t) << bits
-        } else {
-            t += (1i32 as time_t) << bits
-        }
-    }
-    t += saved_seconds as time_t;
 
-    t
+    ts.timestamp() - (zone_hour * 3600 + zone_min * 60) as i64
 }
 
 /* ******************************************************************************
  * date/time tools
  ******************************************************************************/
-unsafe fn tmcomp(atmp: *mut tm, btmp: *mut tm) -> libc::c_int {
-    let mut result: libc::c_int;
-    result = (*atmp).tm_year - (*btmp).tm_year;
-    if result == 0i32
-        && {
-            result = (*atmp).tm_mon - (*btmp).tm_mon;
-            result == 0i32
-        }
-        && {
-            result = (*atmp).tm_mday - (*btmp).tm_mday;
-            result == 0i32
-        }
-        && {
-            result = (*atmp).tm_hour - (*btmp).tm_hour;
-            result == 0i32
-        }
-        && {
-            result = (*atmp).tm_min - (*btmp).tm_min;
-            result == 0i32
-        }
-    {
-        result = (*atmp).tm_sec - (*btmp).tm_sec
-    }
-
-    result
-}
 
 /* the return value must be free()'d */
-pub unsafe fn dc_timestamp_to_str(mut wanted: time_t) -> *mut libc::c_char {
-    let mut wanted_struct: tm = tm {
-        tm_sec: 0,
-        tm_min: 0,
-        tm_hour: 0,
-        tm_mday: 0,
-        tm_mon: 0,
-        tm_year: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_gmtoff: 0,
-        tm_zone: 0 as *mut libc::c_char,
-    };
-    memcpy(
-        &mut wanted_struct as *mut tm as *mut libc::c_void,
-        localtime(&mut wanted) as *const libc::c_void,
-        ::std::mem::size_of::<tm>(),
-    );
-    return dc_mprintf(
-        b"%02i.%02i.%04i %02i:%02i:%02i\x00" as *const u8 as *const libc::c_char,
-        wanted_struct.tm_mday as libc::c_int,
-        wanted_struct.tm_mon as libc::c_int + 1i32,
-        wanted_struct.tm_year as libc::c_int + 1900i32,
-        wanted_struct.tm_hour as libc::c_int,
-        wanted_struct.tm_min as libc::c_int,
-        wanted_struct.tm_sec as libc::c_int,
-    );
+pub unsafe fn dc_timestamp_to_str(wanted: i64) -> *mut libc::c_char {
+    let ts = chrono::Utc.timestamp(wanted, 0);
+    let res = ts.format("%Y.%m.%d %H:%M:%S").to_string();
+
+    strdup(to_cstring(res).as_ptr())
 }
 
-pub unsafe fn dc_gm2local_offset() -> time_t {
-    /* returns the offset that must be _added_ to an UTC/GMT-time to create the localtime.
-    the function may return nagative values. */
-    let mut gmtime: time_t = time(0 as *mut time_t);
-    let mut timeinfo: tm = tm {
-        tm_sec: 0i32,
-        tm_min: 0,
-        tm_hour: 0,
-        tm_mday: 0,
-        tm_mon: 0,
-        tm_year: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_gmtoff: 0,
-        tm_zone: 0 as *mut libc::c_char,
-    };
-    localtime_r(&mut gmtime, &mut timeinfo);
-
-    timeinfo.tm_gmtoff
+pub fn dc_gm2local_offset() -> i64 {
+    let lt = Local::now();
+    ((lt.offset().local_minus_utc() / (60 * 60)) * 100) as i64
 }
 
 /* timesmearing */
-pub unsafe fn dc_smeared_time(context: &Context) -> time_t {
+pub unsafe fn dc_smeared_time(context: &Context) -> i64 {
     /* function returns a corrected time(NULL) */
-    let mut now: time_t = time(0 as *mut time_t);
+    let mut now = time();
     let ts = *context.last_smeared_timestamp.clone().read().unwrap();
     if ts >= now {
         now = ts + 1;
@@ -878,9 +738,9 @@ pub unsafe fn dc_smeared_time(context: &Context) -> time_t {
     now
 }
 
-pub unsafe fn dc_create_smeared_timestamp(context: &Context) -> time_t {
-    let now: time_t = time(0 as *mut time_t);
-    let mut ret: time_t = now;
+pub unsafe fn dc_create_smeared_timestamp(context: &Context) -> i64 {
+    let now = time();
+    let mut ret = now;
 
     let ts = *context.last_smeared_timestamp.clone().write().unwrap();
     if ret <= ts {
@@ -893,10 +753,10 @@ pub unsafe fn dc_create_smeared_timestamp(context: &Context) -> time_t {
     ret
 }
 
-pub unsafe fn dc_create_smeared_timestamps(context: &Context, count: libc::c_int) -> time_t {
+pub unsafe fn dc_create_smeared_timestamps(context: &Context, count: libc::c_int) -> i64 {
     /* get a range to timestamps that can be used uniquely */
-    let now = time(0 as *mut time_t);
-    let start = now + (if count < 5 { count } else { 5 }) as time_t - count as time_t;
+    let now = time();
+    let start = now + (if count < 5 { count } else { 5 }) as i64 - count as i64;
 
     let ts = *context.last_smeared_timestamp.clone().write().unwrap();
     if ts + 1 > start {
@@ -962,7 +822,7 @@ unsafe fn encode_66bits_as_base64(v1: uint32_t, v2: uint32_t, fill: uint32_t) ->
 }
 
 pub unsafe fn dc_create_incoming_rfc724_mid(
-    message_timestamp: time_t,
+    message_timestamp: i64,
     contact_id_from: uint32_t,
     contact_ids_to: *mut dc_array_t,
 ) -> *mut libc::c_char {
@@ -1529,7 +1389,7 @@ pub unsafe fn dc_get_fine_pathNfilename(
     let filenameNsuffix: *mut libc::c_char;
     let mut basename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut dotNSuffix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let now: time_t = time(0 as *mut time_t);
+    let now = time();
     let mut i: libc::c_int = 0i32;
     pathNfolder_wo_slash = dc_strdup(pathNfolder);
     dc_ensure_no_slash(pathNfolder_wo_slash);
@@ -1539,11 +1399,7 @@ pub unsafe fn dc_get_fine_pathNfilename(
     while i < 1000i32 {
         /*no deadlocks, please*/
         if 0 != i {
-            let idx = if i < 100 {
-                i as time_t
-            } else {
-                now + i as time_t
-            };
+            let idx = if i < 100 { i as i64 } else { now + i as i64 };
             ret = dc_mprintf(
                 b"%s/%s-%lu%s\x00" as *const u8 as *const libc::c_char,
                 pathNfolder_wo_slash,
@@ -1650,6 +1506,13 @@ pub fn to_string(s: *const libc::c_char) -> String {
 pub fn to_str<'a>(s: *const libc::c_char) -> &'a str {
     assert!(!s.is_null(), "cannot be used on null pointers");
     unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap() }
+}
+
+pub fn time() -> i64 {
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64
 }
 
 #[cfg(test)]

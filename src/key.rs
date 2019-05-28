@@ -99,21 +99,18 @@ impl Key {
         match res {
             Ok(key) => Some(key),
             Err(err) => {
-                eprintln!("Invalid key bytes: {:?}\n{}", err, hex::encode(bytes));
+                eprintln!("Invalid key bytes: {:?}", err);
                 None
             }
         }
     }
 
-    pub fn from_binary(
-        data: *const libc::c_void,
-        len: libc::c_int,
-        key_type: KeyType,
-    ) -> Option<Self> {
-        assert!(!data.is_null(), "missing data");
-        assert!(len > 0);
+    pub fn from_binary(data: *const u8, len: libc::c_int, key_type: KeyType) -> Option<Self> {
+        if data.is_null() || len == 0 {
+            return None;
+        }
 
-        let bytes = unsafe { slice::from_raw_parts(data as *const u8, len as usize) };
+        let bytes = unsafe { slice::from_raw_parts(data, len as usize) };
         Self::from_slice(bytes, key_type)
     }
 
@@ -124,9 +121,7 @@ impl Key {
     ) -> Option<Self> {
         assert!(!stmt.is_null(), "missing statement");
 
-        let data = unsafe {
-            sqlite3_column_blob(stmt, index) as *mut libc::c_uchar as *const libc::c_void
-        };
+        let data = unsafe { sqlite3_column_blob(stmt, index) as *const u8 };
         let len = unsafe { sqlite3_column_bytes(stmt, index) };
 
         Self::from_binary(data, len, key_type)
@@ -377,7 +372,7 @@ pub fn dc_key_save_self_keypair(
             None,
         )
     };
-    unsafe { sqlite3_bind_int64(stmt, 5, libc::time(0 as *mut time_t) as sqlite3_int64) };
+    unsafe { sqlite3_bind_int64(stmt, 5, time() as sqlite3_int64) };
     let success = if unsafe { sqlite3_step(stmt) } == 101 {
         true
     } else {

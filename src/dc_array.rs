@@ -146,14 +146,14 @@ pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> 
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).accuracy
 }
 
-pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) -> time_t {
+pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) -> i64 {
     if array.is_null()
         || (*array).magic != 0xa11aai32 as libc::c_uint
         || index >= (*array).count
         || (*array).type_0 != 1i32
         || *(*array).array.offset(index as isize) == 0
     {
-        return 0i32 as time_t;
+        return 0;
     }
     (*(*(*array).array.offset(index as isize) as *mut _dc_location)).timestamp
 }

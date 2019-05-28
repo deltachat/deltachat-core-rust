@@ -17,3 +17,6 @@ crate-type = ["cdylib", "staticlib"]
 [dependencies]
 deltachat = { path = "../" }
 libc = "0.2"
+
+[features]
+default = ["deltachat/vendored"]
