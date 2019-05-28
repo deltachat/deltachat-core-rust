@@ -14,7 +14,7 @@ export TOXWORKDIR=.docker-tox
 
 export PATH=/root/.cargo/bin:$PATH
 cargo build --release -p deltachat_ffi
-cargo test --all --all-features
+# cargo test --all --all-features
 
 # make sure subsequent compiler invocations find header and libraries
 export CFLAGS=-I`pwd`/deltachat-ffi
