@@ -139,9 +139,9 @@ workflows:
             - cargo_fetch
 
       # Linux Desktop
-      - test_aarch64-linux-android:
-          requires:
-            - cargo_fetch
+      # - test_aarch64-linux-android:
+      #     requires:
+      #       - cargo_fetch
 
       # Desktop Apple
       # - test_macos:
