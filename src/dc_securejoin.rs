@@ -208,10 +208,12 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                 .shall_stop_ongoing)
             {
                 join_vg = ((*qr_scan).state == 202i32) as libc::c_int;
-                let bob_a = context.bob.clone();
-                let mut bob = bob_a.write().unwrap();
-                bob.status = 0;
-                bob.qr_scan = qr_scan;
+                {
+                    let bob_a = context.bob.clone();
+                    let mut bob = bob_a.write().unwrap();
+                    bob.status = 0;
+                    bob.qr_scan = qr_scan;
+                }
                 if 0 != fingerprint_equals_sender(context, (*qr_scan).fingerprint, contact_chat_id)
                 {
                     dc_log_info(
@@ -219,7 +221,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         0i32,
                         b"Taking protocol shortcut.\x00" as *const u8 as *const libc::c_char,
                     );
-                    bob.expects = 6;
+                    context.bob.clone().write().unwrap().expects = 6;
                     (context.cb)(
                         context,
                         Event::SECUREJOIN_JOINER_PROGRESS,
@@ -245,7 +247,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                     );
                     free(own_fingerprint as *mut libc::c_void);
                 } else {
-                    bob.expects = 2;
+                    context.bob.clone().write().unwrap().expects = 2;
                     send_handshake_msg(
                         context,
                         contact_chat_id,
@@ -259,6 +261,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         0 as *const libc::c_char,
                     );
                 }
+
                 // Bob -> Alice
                 while !(context
                     .running_state
@@ -267,7 +270,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                     .unwrap()
                     .shall_stop_ongoing)
                 {
-                    std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
+                    std::thread::sleep(std::time::Duration::new(0, 3_000_000));
                 }
             }
         }
