@@ -1,11 +1,14 @@
 import distutils.ccompiler
 import distutils.sysconfig
 import tempfile
+import os
 import cffi
 
-ORIGIN="/home/hpk/p/delta/core-rust"
-HEADERDIR=ORIGIN + "/deltachat-ffi"
-LIBDIR=ORIGIN + "/target/release"
+# XXX hack out the header and library dirs
+# relying on CFLAGS and LD_LIBRARY_PATH being set properly is not good
+# (but we also don't want to rely on global installs of headers and libs)
+HEADERDIR = os.environ["CFLAGS"].split("-I", 1)[1]
+LIBDIR = os.environ["LD_LIBRARY_PATH"]
 
 
 def ffibuilder():

@@ -112,7 +112,7 @@ class Chat(object):
         :returns: one of const.DC_CHAT_TYPE_*
         """
         return lib.dc_chat_get_type(self._dc_chat)
-    
+
     # ------  chat messaging API ------------------------------
 
     def send_text(self, text):
