@@ -208,10 +208,12 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                 .shall_stop_ongoing)
             {
                 join_vg = ((*qr_scan).state == 202i32) as libc::c_int;
-                let bob_a = context.bob.clone();
-                let mut bob = bob_a.write().unwrap();
-                bob.status = 0;
-                bob.qr_scan = qr_scan;
+                {
+                    let bob_a = context.bob.clone();
+                    let mut bob = bob_a.write().unwrap();
+                    bob.status = 0;
+                    bob.qr_scan = qr_scan;
+                }
                 if 0 != fingerprint_equals_sender(context, (*qr_scan).fingerprint, contact_chat_id)
                 {
                     dc_log_info(
@@ -219,7 +221,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         0i32,
                         b"Taking protocol shortcut.\x00" as *const u8 as *const libc::c_char,
                     );
-                    bob.expects = 6;
+                    context.bob.clone().write().unwrap().expects = 6;
                     (context.cb)(
                         context,
                         Event::SECUREJOIN_JOINER_PROGRESS,
@@ -245,7 +247,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                     );
                     free(own_fingerprint as *mut libc::c_void);
                 } else {
-                    bob.expects = 2;
+                    context.bob.clone().write().unwrap().expects = 2;
                     send_handshake_msg(
                         context,
                         contact_chat_id,
@@ -259,6 +261,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         0 as *const libc::c_char,
                     );
                 }
+
                 // Bob -> Alice
                 while !(context
                     .running_state
@@ -267,7 +270,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                     .unwrap()
                     .shall_stop_ongoing)
                 {
-                    std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
+                    std::thread::sleep(std::time::Duration::new(0, 3_000_000));
                 }
             }
         }
@@ -495,11 +498,14 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     b"vc-auth-required\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
             {
-                let bob_a = context.bob.clone();
-                let bob = bob_a.read().unwrap();
-                let scan = bob.qr_scan;
-                if scan.is_null() || bob.expects != 2i32 || 0 != join_vg && (*scan).state != 202i32
-                {
+                let cond = {
+                    let bob_a = context.bob.clone();
+                    let bob = bob_a.read().unwrap();
+                    let scan = bob.qr_scan;
+                    scan.is_null() || bob.expects != 2 || 0 != join_vg && (*scan).state != 202
+                };
+
+                if cond {
                     dc_log_warning(
                         context,
                         0i32,
@@ -509,10 +515,13 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     // no error, just aborted somehow or a mail from another handshake
                     current_block = 4378276786830486580;
                 } else {
-                    scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
-                    auth = dc_strdup((*scan).auth);
-                    if 0 != join_vg {
-                        grpid = dc_strdup((*scan).text2)
+                    {
+                        let scan = context.bob.clone().read().unwrap().qr_scan;
+                        scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
+                        auth = dc_strdup((*scan).auth);
+                        if 0 != join_vg {
+                            grpid = dc_strdup((*scan).text2)
+                        }
                     }
                     if 0 == encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
                         could_not_establish_secure_connection(
@@ -735,8 +744,11 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     );
                     current_block = 4378276786830486580;
                 } else {
-                    let scan = context.bob.clone().read().unwrap().qr_scan;
-                    if scan.is_null() || 0 != join_vg && (*scan).state != 202i32 {
+                    let cond = {
+                        let scan = context.bob.clone().read().unwrap().qr_scan;
+                        scan.is_null() || 0 != join_vg && (*scan).state != 202
+                    };
+                    if cond {
                         dc_log_warning(
                             context,
                             0i32,
@@ -745,9 +757,12 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         );
                         current_block = 4378276786830486580;
                     } else {
-                        scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
-                        if 0 != join_vg {
-                            grpid = dc_strdup((*scan).text2)
+                        {
+                            let scan = context.bob.clone().read().unwrap().qr_scan;
+                            scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
+                            if 0 != join_vg {
+                                grpid = dc_strdup((*scan).text2)
+                            }
                         }
                         let mut vg_expect_encrypted: libc::c_int = 1i32;
                         if 0 != join_vg {
