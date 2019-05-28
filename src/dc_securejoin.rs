@@ -498,11 +498,14 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     b"vc-auth-required\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
             {
-                let bob_a = context.bob.clone();
-                let bob = bob_a.read().unwrap();
-                let scan = bob.qr_scan;
-                if scan.is_null() || bob.expects != 2i32 || 0 != join_vg && (*scan).state != 202i32
-                {
+                let cond = {
+                    let bob_a = context.bob.clone();
+                    let bob = bob_a.read().unwrap();
+                    let scan = bob.qr_scan;
+                    scan.is_null() || bob.expects != 2 || 0 != join_vg && (*scan).state != 202
+                };
+
+                if cond {
                     dc_log_warning(
                         context,
                         0i32,
@@ -512,10 +515,13 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     // no error, just aborted somehow or a mail from another handshake
                     current_block = 4378276786830486580;
                 } else {
-                    scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
-                    auth = dc_strdup((*scan).auth);
-                    if 0 != join_vg {
-                        grpid = dc_strdup((*scan).text2)
+                    {
+                        let scan = context.bob.clone().read().unwrap().qr_scan;
+                        scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
+                        auth = dc_strdup((*scan).auth);
+                        if 0 != join_vg {
+                            grpid = dc_strdup((*scan).text2)
+                        }
                     }
                     if 0 == encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
                         could_not_establish_secure_connection(
@@ -738,8 +744,11 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     );
                     current_block = 4378276786830486580;
                 } else {
-                    let scan = context.bob.clone().read().unwrap().qr_scan;
-                    if scan.is_null() || 0 != join_vg && (*scan).state != 202i32 {
+                    let cond = {
+                        let scan = context.bob.clone().read().unwrap().qr_scan;
+                        scan.is_null() || 0 != join_vg && (*scan).state != 202
+                    };
+                    if cond {
                         dc_log_warning(
                             context,
                             0i32,
@@ -748,9 +757,12 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         );
                         current_block = 4378276786830486580;
                     } else {
-                        scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
-                        if 0 != join_vg {
-                            grpid = dc_strdup((*scan).text2)
+                        {
+                            let scan = context.bob.clone().read().unwrap().qr_scan;
+                            scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
+                            if 0 != join_vg {
+                                grpid = dc_strdup((*scan).text2)
+                            }
                         }
                         let mut vg_expect_encrypted: libc::c_int = 1i32;
                         if 0 != join_vg {
