@@ -47,7 +47,7 @@ pub struct Context {
 unsafe impl std::marker::Send for Context {}
 unsafe impl std::marker::Sync for Context {}
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct RunningState {
     pub ongoing_running: bool,
     pub shall_stop_ongoing: bool,
@@ -80,7 +80,7 @@ impl Default for RunningState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BobStatus {
     pub expects: i32,
     pub status: i32,

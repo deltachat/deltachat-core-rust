@@ -2213,8 +2213,7 @@ fn test_encryption_decryption() {
 
         while j < 4096 / 40 {
             let bad_key = Key::from_binary(
-                &mut *bad_data.as_mut_ptr().offset(j as isize) as *mut libc::c_uchar
-                    as *const libc::c_void,
+                &mut *bad_data.as_mut_ptr().offset(j as isize) as *const u8,
                 4096 / 2 + j,
                 if 0 != j & 1 {
                     KeyType::Public
