@@ -134,6 +134,7 @@ jobs:
           command: ci_scripts/ci_run.sh
           environment:
             TESTS: 1
+            DOCS: 1
 
       - run: 
            name: copying docs and wheels to workspace 
