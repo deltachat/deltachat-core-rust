@@ -69,71 +69,8 @@ Single#10: yourfriends@email.org [yourfriends@email.org]
 Message sent.
 ```
 
-For more commands type `> help`:
+For more commands type `> help`.
 
 ```
 > help
-==========================Database commands==
-info
-open <file to open or create>
-close
-set <configuration-key> [<value>]
-get <configuration-key>
-oauth2
-configure
-connect
-disconnect
-maybenetwork
-housekeeping
-help imex (Import/Export)
-==============================Chat commands==
-listchats [<query>]
-listarchived
-chat [<chat-id>|0]
-createchat <contact-id>
-createchatbymsg <msg-id>
-creategroup <name>
-createverified <name>
-addmember <contact-id>
-removemember <contact-id>
-groupname <name>
-groupimage [<file>]
-chatinfo
-sendlocations <seconds>
-setlocation <lat> <lng>
-dellocations
-getlocations [<contact-id>]
-send <text>
-sendimage <file> [<text>]
-sendfile <file>
-draft [<text>]
-listmedia
-archive <chat-id>
-unarchive <chat-id>
-delchat <chat-id>
-===========================Message commands==
-listmsgs <query>
-msginfo <msg-id>
-listfresh
-forward <msg-id> <chat-id>
-markseen <msg-id>
-star <msg-id>
-unstar <msg-id>
-delmsg <msg-id>
-===========================Contact commands==
-listcontacts [<query>]
-listverified [<query>]
-addcontact [<name>] <addr>
-contactinfo <contact-id>
-delcontact <contact-id>
-cleanupcontacts
-======================================Misc.==
-getqr [<chat-id>]
-getbadqr
-checkqr <qr-content>
-event <event-id to test>
-fileinfo <file>
-clear -- clear screen
-exit
-=============================================
 ```
