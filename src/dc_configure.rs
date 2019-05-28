@@ -1764,7 +1764,7 @@ pub unsafe fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> l
         );
         /*the trailing underscore is correct*/
         if !(0 == imap.connect(context, param)) {
-            ret_connected = 2i32
+            ret_connected = 2i32;
         }
     }
     dc_loginparam_unref(param);

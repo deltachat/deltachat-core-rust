@@ -124,7 +124,7 @@ pub unsafe fn dc_jobthread_fetch(
         state.using_handle = 1;
     }
 
-    if !0 == use_network {
+    if 0 != use_network {
         start = clock();
         if !(0 == connect_to_imap(context, jobthread)) {
             dc_log_info(
@@ -167,7 +167,7 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
     let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
 
     if jobthread.imap.is_connected() {
-        ret_connected = 1
+        ret_connected = 1;
     } else {
         ret_connected = dc_connect_to_configured_imap(context, &jobthread.imap);
         if !(0 == ret_connected) {

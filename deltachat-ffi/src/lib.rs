@@ -917,13 +917,19 @@ pub unsafe extern "C" fn dc_get_locations(
     context: *mut dc_context_t,
     chat_id: libc::uint32_t,
     contact_id: libc::uint32_t,
-    timestamp_begin: libc::time_t,
-    timestamp_end: libc::time_t,
+    timestamp_begin: i64,
+    timestamp_end: i64,
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_location::dc_get_locations(context, chat_id, contact_id, timestamp_begin, timestamp_end)
+    dc_location::dc_get_locations(
+        context,
+        chat_id,
+        contact_id,
+        timestamp_begin as i64,
+        timestamp_end as i64,
+    )
 }
 
 #[no_mangle]
@@ -1007,7 +1013,7 @@ pub unsafe extern "C" fn dc_array_get_accuracy(
 pub unsafe extern "C" fn dc_array_get_timestamp(
     array: *const dc_array_t,
     index: libc::size_t,
-) -> libc::time_t {
+) -> i64 {
     dc_array::dc_array_get_timestamp(array, index)
 }
 #[no_mangle]
@@ -1232,17 +1238,17 @@ pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg::dc_msg_t) -> libc::c
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::time_t {
+pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
     dc_msg::dc_msg_get_timestamp(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_received_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::time_t {
+pub unsafe extern "C" fn dc_msg_get_received_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
     dc_msg::dc_msg_get_received_timestamp(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::time_t {
+pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
     dc_msg::dc_msg_get_sort_timestamp(msg)
 }
 
@@ -1527,6 +1533,6 @@ pub unsafe extern "C" fn dc_lot_get_id(lot: *mut dc_lot::dc_lot_t) -> libc::uint
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot::dc_lot_t) -> libc::time_t {
+pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot::dc_lot_t) -> i64 {
     dc_lot::dc_lot_get_timestamp(lot)
 }

@@ -603,8 +603,8 @@ pub unsafe fn dc_e2ee_decrypt(
                 let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
                 if !orig_date.is_null() {
                     message_time = dc_timestamp_from_date((*orig_date).dt_date_time);
-                    if message_time != -1 && message_time > time(0 as *mut time_t) {
-                        message_time = time(0 as *mut time_t)
+                    if message_time != 0 && message_time > time() {
+                        message_time = time()
                     }
                 }
             }
@@ -699,7 +699,7 @@ pub unsafe fn dc_e2ee_decrypt(
 
 unsafe fn update_gossip_peerstates(
     context: &Context,
-    message_time: time_t,
+    message_time: i64,
     imffields: *mut mailimf_fields,
     gossip_headers: *const mailimf_fields,
 ) -> HashSet<String> {

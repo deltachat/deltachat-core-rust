@@ -28,9 +28,9 @@ pub struct dc_msg_t<'a> {
     pub type_0: libc::c_int,
     pub state: libc::c_int,
     pub hidden: libc::c_int,
-    pub timestamp_sort: time_t,
-    pub timestamp_sent: time_t,
-    pub timestamp_rcvd: time_t,
+    pub timestamp_sort: i64,
+    pub timestamp_sent: i64,
+    pub timestamp_rcvd: i64,
     pub text: *mut libc::c_char,
     pub context: &'a Context,
     pub rfc724_mid: *mut libc::c_char,
@@ -125,7 +125,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
             sqlite3_bind_int(stmt, 1i32, msg_id as libc::c_int);
             while sqlite3_step(stmt) == 100i32 {
                 dc_strbuilder_cat(&mut ret, b"Read: \x00" as *const u8 as *const libc::c_char);
-                p = dc_timestamp_to_str(sqlite3_column_int64(stmt, 1i32) as time_t);
+                p = dc_timestamp_to_str(sqlite3_column_int64(stmt, 1i32) as i64);
                 dc_strbuilder_cat(&mut ret, p);
                 free(p as *mut libc::c_void);
                 dc_strbuilder_cat(&mut ret, b" by \x00" as *const u8 as *const libc::c_char);
@@ -490,9 +490,9 @@ pub unsafe fn dc_msg_set_location(
     );
 }
 
-pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> time_t {
+pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> i64 {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32 as time_t;
+        return 0;
     }
     return if 0 != (*msg).timestamp_sent {
         (*msg).timestamp_sent
@@ -565,13 +565,13 @@ unsafe fn dc_msg_set_from_stmt(
     (*msg).to_id = sqlite3_column_int(row, fresh8) as uint32_t;
     let fresh9 = row_offset;
     row_offset = row_offset + 1;
-    (*msg).timestamp_sort = sqlite3_column_int64(row, fresh9) as time_t;
+    (*msg).timestamp_sort = sqlite3_column_int64(row, fresh9) as i64;
     let fresh10 = row_offset;
     row_offset = row_offset + 1;
-    (*msg).timestamp_sent = sqlite3_column_int64(row, fresh10) as time_t;
+    (*msg).timestamp_sent = sqlite3_column_int64(row, fresh10) as i64;
     let fresh11 = row_offset;
     row_offset = row_offset + 1;
-    (*msg).timestamp_rcvd = sqlite3_column_int64(row, fresh11) as time_t;
+    (*msg).timestamp_rcvd = sqlite3_column_int64(row, fresh11) as i64;
     let fresh12 = row_offset;
     row_offset = row_offset + 1;
     (*msg).type_0 = sqlite3_column_int(row, fresh12);
@@ -818,17 +818,17 @@ pub unsafe fn dc_msg_get_state(msg: *const dc_msg_t) -> libc::c_int {
     (*msg).state
 }
 
-pub unsafe fn dc_msg_get_received_timestamp(msg: *const dc_msg_t) -> time_t {
+pub unsafe fn dc_msg_get_received_timestamp(msg: *const dc_msg_t) -> i64 {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32 as time_t;
+        return 0;
     }
 
     (*msg).timestamp_rcvd
 }
 
-pub unsafe fn dc_msg_get_sort_timestamp(msg: *const dc_msg_t) -> time_t {
+pub unsafe fn dc_msg_get_sort_timestamp(msg: *const dc_msg_t) -> i64 {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32 as time_t;
+        return 0;
     }
 
     (*msg).timestamp_sort
@@ -1051,8 +1051,8 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
 
 pub unsafe fn dc_msg_has_deviating_timestamp(msg: *const dc_msg_t) -> libc::c_int {
     let cnv_to_local = dc_gm2local_offset();
-    let sort_timestamp: time_t = dc_msg_get_sort_timestamp(msg) + cnv_to_local;
-    let send_timestamp: time_t = dc_msg_get_timestamp(msg) + cnv_to_local;
+    let sort_timestamp = dc_msg_get_sort_timestamp(msg) as i64 + cnv_to_local;
+    let send_timestamp = dc_msg_get_timestamp(msg) as i64 + cnv_to_local;
 
     (sort_timestamp / 86400 != send_timestamp / 86400) as libc::c_int
 }
@@ -1372,7 +1372,7 @@ pub unsafe fn dc_mdn_from_ext(
     context: &Context,
     from_id: uint32_t,
     rfc724_mid: *const libc::c_char,
-    timestamp_sent: time_t,
+    timestamp_sent: i64,
     ret_chat_id: *mut uint32_t,
     ret_msg_id: *mut uint32_t,
 ) -> libc::c_int {

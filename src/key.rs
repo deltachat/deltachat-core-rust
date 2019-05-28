@@ -377,7 +377,7 @@ pub fn dc_key_save_self_keypair(
             None,
         )
     };
-    unsafe { sqlite3_bind_int64(stmt, 5, libc::time(0 as *mut time_t) as sqlite3_int64) };
+    unsafe { sqlite3_bind_int64(stmt, 5, time() as sqlite3_int64) };
     let success = if unsafe { sqlite3_step(stmt) } == 101 {
         true
     } else {

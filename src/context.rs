@@ -40,7 +40,7 @@ pub struct Context {
     pub os_name: *mut libc::c_char,
     pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
     pub bob: Arc<RwLock<BobStatus>>,
-    pub last_smeared_timestamp: Arc<RwLock<time_t>>,
+    pub last_smeared_timestamp: Arc<RwLock<i64>>,
     pub running_state: Arc<RwLock<RunningState>>,
 }
 
@@ -114,7 +114,7 @@ pub struct _dc_location {
     pub latitude: libc::c_double,
     pub longitude: libc::c_double,
     pub accuracy: libc::c_double,
-    pub timestamp: time_t,
+    pub timestamp: i64,
     pub contact_id: uint32_t,
     pub msg_id: uint32_t,
     pub chat_id: uint32_t,
@@ -148,7 +148,7 @@ pub fn dc_context_new(
         smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
         oauth2_critical: Arc::new(Mutex::new(())),
         bob: Arc::new(RwLock::new(Default::default())),
-        last_smeared_timestamp: Arc::new(RwLock::new(0 as time_t)),
+        last_smeared_timestamp: Arc::new(RwLock::new(0)),
         cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
         sentbox_thread: Arc::new(RwLock::new(unsafe {
             dc_jobthread_init(

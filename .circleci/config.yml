@@ -1,49 +1,149 @@
-# copied from http://koushiro.me/2019/04/30/Building-and-Testing-Rust-projects-on-CircleCI/
-
 version: 2.1
-jobs:
-  build:
+
+executors:
+  default:
     docker:
-      - image: ubuntu:18.04
+      - image: filecoin/rust:latest
+    working_directory: /mnt/crate
 
-    working_directory: ~/deltachat-core-rust
+restore-workspace: &restore-workspace
+  attach_workspace:
+    at: /mnt
 
+restore-cache: &restore-cache
+  restore_cache:
+    keys:
+      - cargo-v0-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+      - repo-source-{{ .Branch }}-{{ .Revision }}
+
+commands:
+  test_target:
+    parameters:
+      target:
+        type: string
+    steps:
+      - *restore-workspace
+      - *restore-cache
+      - setup_remote_docker:
+          docker_layer_caching: true
+      # TODO: move into image
+      - run:
+          name: Install Docker client
+          command: |
+            set -x
+            VER="18.09.2"
+            curl -L -o /tmp/docker-$VER.tgz https://download.docker.com/linux/static/stable/x86_64/docker-$VER.tgz
+            tar -xz -C /tmp -f /tmp/docker-$VER.tgz
+            mv /tmp/docker/* /usr/bin
+      - run:
+          name: Test (<< parameters.target >>)
+          command: TARGET=<< parameters.target >> ci/run.sh
+          no_output_timeout: 15m
+
+jobs:
+  cargo_fetch:
+    executor: default
     steps:
       - checkout
-
       - run:
-          name: Setup build environment
-          command: |
-            apt update
-            apt install -y curl build-essential autoconf libtool git python pkg-config libssl-dev
-            # this will pick default toolchain from `rust-toolchain` file
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --no-modify-path --default-toolchain none -y;
-            source $HOME/.cargo/env
-          no_output_timeout: 1800s
-
+          name: Update submodules
+          command: git submodule update --init --recursive
       - run:
-          name: Format
-          command: |
-            export PATH=~/.cargo/bin:$PATH
-            rustup component add rustfmt
-            cargo fmt -- --check
+          name: Calculate dependencies
+          command: cargo generate-lockfile
+      - restore_cache:
+          keys:
+            - cargo-v0-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+      - run: rustup install $(cat rust-toolchain)
+      - run: rustup default $(cat rust-toolchain)
+      - run: rustup component add --toolchain $(cat rust-toolchain) rustfmt
+      - run: cargo update
+      - run: cargo fetch
+      - run: rustc +stable --version
+      - run: rustc +$(cat rust-toolchain) --version
+      - run: rm -rf .git
+      - persist_to_workspace:
+          root: /mnt
+          paths:
+            - crate
+      - save_cache:
+          key: cargo-v0-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+          paths:
+            - "~/.cargo"
+            - "~/.rustup"
 
+  rustfmt:
+    executor: default
+    steps:
+      - *restore-workspace
+      - *restore-cache
+      - run:
+          name: Run cargo fmt
+          command: cargo fmt --all -- --check
+
+  test_macos:
+    macos:
+      xcode: "10.0.0"
+    working_directory: ~/crate
+    steps:
+      - run:
+          name: Configure environment variables
+          command: |
+            echo 'export PATH="${HOME}/.cargo/bin:${HOME}/.bin:${PATH}"' >> $BASH_ENV
+            echo 'export CIRCLE_ARTIFACTS="/tmp"' >> $BASH_ENV
+      - checkout
+      - run:
+          name: Install Rust
+          command: |
+            curl https://sh.rustup.rs -sSf | sh -s -- -y
+      - run: rustup install $(cat rust-toolchain)
+      - run: rustup default $(cat rust-toolchain)
+      - run: cargo update
+      - run: cargo fetch
       - run:
           name: Test
-          command: |
-            export PATH=~/.cargo/bin:$PATH
-            export RUST_BACKTRACE=1
-            cargo test
+          command: TARGET=x86_64-apple-darwin ci/run.sh
 
-      - run:
-          name: Build deltachat-ffi
-          command: |
-            export PATH=~/.cargo/bin:$PATH
-            export RUST_BACKTRACE=1
-            cargo build --release -p deltachat_ffi
+  test_x86_64-unknown-linux-gnu:
+    executor: default
+    steps:
+      - test_target:
+          target: "x86_64-unknown-linux-gnu"
+
+  test_i686-unknown-linux-gnu:
+    executor: default
+    steps:
+      - test_target:
+          target: "i686-unknown-linux-gnu"
+
+  test_aarch64-linux-android:
+    executor: default
+    steps:
+      - test_target:
+          target: "aarch64-linux-android"
+
 
 workflows:
   version: 2.1
-  build:
+
+  test:
     jobs:
-      - build
+      - cargo_fetch
+      - rustfmt:
+          requires:
+            - cargo_fetch
+
+      # Linux Desktop
+      - test_x86_64-unknown-linux-gnu:
+          requires:
+            - cargo_fetch
+
+      # Linux Desktop
+      # - test_aarch64-linux-android:
+      #     requires:
+      #       - cargo_fetch
+
+      # Desktop Apple
+      # - test_macos:
+      #     requires:
+      #       - cargo_fetch

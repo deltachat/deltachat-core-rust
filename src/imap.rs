@@ -372,6 +372,10 @@ impl Imap {
     }
 
     fn setup_handle_if_needed(&self, context: &Context) -> libc::c_int {
+        if self.config.read().unwrap().imap_server.is_empty() {
+            return 0;
+        }
+
         if self.should_reconnect() {
             self.unsetup_handle(context);
         }
@@ -433,18 +437,15 @@ impl Imap {
                 let imap_server: &str = config.imap_server.as_ref();
                 let imap_port = config.imap_port;
 
-                eprintln!("failed to connect: {:?}", err);
-                unsafe {
-                    dc_log_event_seq(
-                        context,
-                        Event::ERROR_NETWORK,
-                        &mut 0 as *mut i32,
-                        b"Could not connect to IMAP-server %s:%i.\x00" as *const u8
-                            as *const libc::c_char,
-                        imap_server,
-                        imap_port as usize as libc::c_int,
-                    )
-                };
+                log_event!(
+                    context,
+                    Event::ERROR_NETWORK,
+                    0,
+                    format!(
+                        "Could not connect to IMAP-server {}:{}. ({})",
+                        imap_server, imap_port, err
+                    ),
+                );
 
                 return 0;
             }
@@ -458,15 +459,12 @@ impl Imap {
                 1
             }
             Err((err, _)) => {
-                eprintln!("failed to login: {:?}", err);
-                unsafe {
-                    dc_log_event_seq(
-                        context,
-                        Event::ERROR_NETWORK,
-                        &mut 0 as *mut i32,
-                        b"Cannot login\x00" as *const u8 as *const libc::c_char,
-                    )
-                };
+                log_event!(
+                    context,
+                    Event::ERROR_NETWORK,
+                    0,
+                    format!("Cannot login ({})", err),
+                );
 
                 self.unsetup_handle(context);
 
@@ -547,6 +545,7 @@ impl Imap {
         }
 
         if self.setup_handle_if_needed(context) == 0 {
+            self.free_connect_params();
             return 0;
         }
 

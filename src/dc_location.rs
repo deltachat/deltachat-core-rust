@@ -22,7 +22,7 @@ pub struct dc_location_t {
     pub latitude: libc::c_double,
     pub longitude: libc::c_double,
     pub accuracy: libc::c_double,
-    pub timestamp: time_t,
+    pub timestamp: i64,
     pub contact_id: uint32_t,
     pub msg_id: uint32_t,
     pub chat_id: uint32_t,
@@ -45,7 +45,7 @@ pub unsafe fn dc_send_locations_to_chat(
     seconds: libc::c_int,
 ) {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let now: time_t = time(0 as *mut time_t);
+    let now = time();
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let mut stock_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let is_sending_locations_before: libc::c_int;
@@ -66,7 +66,7 @@ pub unsafe fn dc_send_locations_to_chat(
             stmt,
             2i32,
             (if 0 != seconds {
-                now + seconds as time_t
+                now + seconds as i64
             } else {
                 0
             }) as sqlite3_int64,
@@ -145,7 +145,7 @@ pub unsafe fn dc_is_sending_locations_to_chat(context: &Context, chat_id: uint32
         },
     );
     sqlite3_bind_int(stmt, 2i32, chat_id as libc::c_int);
-    sqlite3_bind_int64(stmt, 3i32, time(0 as *mut time_t) as sqlite3_int64);
+    sqlite3_bind_int64(stmt, 3i32, time() as sqlite3_int64);
     if !(sqlite3_step(stmt) != 100i32) {
         is_sending_locations = 1i32
     }
@@ -173,7 +173,7 @@ pub unsafe fn dc_set_location(
             b"SELECT id FROM chats WHERE locations_send_until>?;\x00" as *const u8
                 as *const libc::c_char,
         );
-        sqlite3_bind_int64(stmt_chats, 1i32, time(0 as *mut time_t) as sqlite3_int64);
+        sqlite3_bind_int64(stmt_chats, 1i32, time() as sqlite3_int64);
         while sqlite3_step(stmt_chats) == 100i32 {
             let chat_id: uint32_t = sqlite3_column_int(stmt_chats, 0i32) as uint32_t;
             stmt_insert =
@@ -185,7 +185,7 @@ pub unsafe fn dc_set_location(
             sqlite3_bind_double(stmt_insert, 1i32, latitude);
             sqlite3_bind_double(stmt_insert, 2i32, longitude);
             sqlite3_bind_double(stmt_insert, 3i32, accuracy);
-            sqlite3_bind_int64(stmt_insert, 4i32, time(0 as *mut time_t) as sqlite3_int64);
+            sqlite3_bind_int64(stmt_insert, 4i32, time() as sqlite3_int64);
             sqlite3_bind_int(stmt_insert, 5i32, chat_id as libc::c_int);
             sqlite3_bind_int(stmt_insert, 6i32, 1i32);
             sqlite3_step(stmt_insert);
@@ -211,14 +211,14 @@ pub unsafe fn dc_get_locations(
     context: &Context,
     chat_id: uint32_t,
     contact_id: uint32_t,
-    timestamp_from: time_t,
-    mut timestamp_to: time_t,
+    timestamp_from: i64,
+    mut timestamp_to: i64,
 ) -> *mut dc_array_t {
     let ret: *mut dc_array_t = dc_array_new_typed(1i32, 500i32 as size_t);
     let stmt: *mut sqlite3_stmt;
 
     if timestamp_to == 0 {
-        timestamp_to = time(0 as *mut time_t) + 10;
+        timestamp_to = time() + 10;
     }
     stmt = dc_sqlite3_prepare(
         context,
@@ -263,7 +263,7 @@ pub unsafe fn dc_get_locations(
         (*loc).latitude = sqlite3_column_double(stmt, 1i32);
         (*loc).longitude = sqlite3_column_double(stmt, 2i32);
         (*loc).accuracy = sqlite3_column_double(stmt, 3i32);
-        (*loc).timestamp = sqlite3_column_int64(stmt, 4i32) as time_t;
+        (*loc).timestamp = sqlite3_column_int64(stmt, 4i32) as i64;
         (*loc).independent = sqlite3_column_int(stmt, 5i32) as uint32_t;
         (*loc).msg_id = sqlite3_column_int(stmt, 6i32) as uint32_t;
         (*loc).contact_id = sqlite3_column_int(stmt, 7i32) as uint32_t;
@@ -322,10 +322,10 @@ pub unsafe fn dc_get_location_kml(
     let mut success: libc::c_int = 0i32;
     let mut stmt: *mut sqlite3_stmt;
     let self_addr: *mut libc::c_char;
-    let now: time_t = time(0 as *mut time_t);
-    let locations_send_begin: time_t;
-    let locations_send_until: time_t;
-    let locations_last_sent: time_t;
+    let now = time();
+    let locations_send_begin: i64;
+    let locations_send_until: i64;
+    let locations_last_sent: i64;
     let mut location_count: libc::c_int = 0i32;
     let mut ret: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
@@ -349,9 +349,9 @@ pub unsafe fn dc_get_location_kml(
                 as *const u8 as *const libc::c_char);
     sqlite3_bind_int(stmt, 1i32, chat_id as libc::c_int);
     if !(sqlite3_step(stmt) != 100i32) {
-        locations_send_begin = sqlite3_column_int64(stmt, 0i32) as time_t;
-        locations_send_until = sqlite3_column_int64(stmt, 1i32) as time_t;
-        locations_last_sent = sqlite3_column_int64(stmt, 2i32) as time_t;
+        locations_send_begin = sqlite3_column_int64(stmt, 0i32) as i64;
+        locations_send_until = sqlite3_column_int64(stmt, 1i32) as i64;
+        locations_last_sent = sqlite3_column_int64(stmt, 2i32) as i64;
         sqlite3_finalize(stmt);
         stmt = 0 as *mut sqlite3_stmt;
         if !(locations_send_begin == 0 || now > locations_send_until) {
@@ -382,7 +382,7 @@ pub unsafe fn dc_get_location_kml(
                 let longitude: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 2i32));
                 let accuracy: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 3i32));
                 let timestamp: *mut libc::c_char =
-                    get_kml_timestamp(sqlite3_column_int64(stmt, 4i32) as time_t);
+                    get_kml_timestamp(sqlite3_column_int64(stmt, 4i32) as i64);
                 dc_strbuilder_catf(&mut ret as *mut dc_strbuilder_t,
                                        b"<Placemark><Timestamp><when>%s</when></Timestamp><Point><coordinates accuracy=\"%s\">%s,%s</coordinates></Point></Placemark>\n\x00"
                                            as *const u8 as
@@ -422,40 +422,16 @@ pub unsafe fn dc_get_location_kml(
 /*******************************************************************************
  * create kml-files
  ******************************************************************************/
-unsafe fn get_kml_timestamp(mut utc: time_t) -> *mut libc::c_char {
+unsafe fn get_kml_timestamp(utc: i64) -> *mut libc::c_char {
     // Returns a string formatted as YYYY-MM-DDTHH:MM:SSZ. The trailing `Z` indicates UTC.
-    let mut wanted_struct: tm = tm {
-        tm_sec: 0,
-        tm_min: 0,
-        tm_hour: 0,
-        tm_mday: 0,
-        tm_mon: 0,
-        tm_year: 0,
-        tm_wday: 0,
-        tm_yday: 0,
-        tm_isdst: 0,
-        tm_gmtoff: 0,
-        tm_zone: 0 as *mut libc::c_char,
-    };
-    memcpy(
-        &mut wanted_struct as *mut tm as *mut libc::c_void,
-        gmtime(&mut utc) as *const libc::c_void,
-        ::std::mem::size_of::<tm>(),
-    );
-
-    dc_mprintf(
-        b"%04i-%02i-%02iT%02i:%02i:%02iZ\x00" as *const u8 as *const libc::c_char,
-        wanted_struct.tm_year as libc::c_int + 1900i32,
-        wanted_struct.tm_mon as libc::c_int + 1i32,
-        wanted_struct.tm_mday as libc::c_int,
-        wanted_struct.tm_hour as libc::c_int,
-        wanted_struct.tm_min as libc::c_int,
-        wanted_struct.tm_sec as libc::c_int,
-    )
+    let res = chrono::NaiveDateTime::from_timestamp(utc, 0)
+        .format("%Y-%m-%dT%H:%M:%SZ")
+        .to_string();
+    strdup(to_cstring(res).as_ptr())
 }
 
 pub unsafe fn dc_get_message_kml(
-    timestamp: time_t,
+    timestamp: i64,
     latitude: libc::c_double,
     longitude: libc::c_double,
 ) -> *mut libc::c_char {
@@ -485,9 +461,8 @@ pub unsafe fn dc_get_message_kml(
     ret
 }
 
-pub unsafe fn dc_set_kml_sent_timestamp(context: &Context, chat_id: uint32_t, timestamp: time_t) {
-    let stmt: *mut sqlite3_stmt;
-    stmt = dc_sqlite3_prepare(
+pub unsafe fn dc_set_kml_sent_timestamp(context: &Context, chat_id: uint32_t, timestamp: i64) {
+    let stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"UPDATE chats SET locations_last_sent=? WHERE id=?;\x00" as *const u8
@@ -521,7 +496,7 @@ pub unsafe fn dc_save_locations(
 ) -> uint32_t {
     let mut stmt_test: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut stmt_insert: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut newest_timestamp: time_t = 0i32 as time_t;
+    let mut newest_timestamp = 0;
     let mut newest_location_id: uint32_t = 0i32 as uint32_t;
     if !(chat_id <= 9i32 as libc::c_uint || locations.is_null()) {
         stmt_test = dc_sqlite3_prepare(
@@ -643,39 +618,19 @@ unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _l
             b"\x00" as *const u8 as *const libc::c_char,
         );
         if 0 != (*kml).tag & 0x4 && strlen(val) >= 19 {
-            let mut tmval: tm = tm {
-                tm_sec: 0,
-                tm_min: 0,
-                tm_hour: 0,
-                tm_mday: 0,
-                tm_mon: 0,
-                tm_year: 0,
-                tm_wday: 0,
-                tm_yday: 0,
-                tm_isdst: 0,
-                tm_gmtoff: 0,
-                tm_zone: 0 as *mut libc::c_char,
-            };
-            memset(
-                &mut tmval as *mut tm as *mut libc::c_void,
-                0,
-                ::std::mem::size_of::<tm>(),
-            );
-            *val.offset(4isize) = 0i32 as libc::c_char;
-            tmval.tm_year = atoi(val) - 1900i32;
-            *val.offset(7isize) = 0i32 as libc::c_char;
-            tmval.tm_mon = atoi(val.offset(5isize)) - 1i32;
-            *val.offset(10isize) = 0i32 as libc::c_char;
-            tmval.tm_mday = atoi(val.offset(8isize));
-            *val.offset(13isize) = 0i32 as libc::c_char;
-            tmval.tm_hour = atoi(val.offset(11isize));
-            *val.offset(16isize) = 0i32 as libc::c_char;
-            tmval.tm_min = atoi(val.offset(14isize));
-            *val.offset(19isize) = 0i32 as libc::c_char;
-            tmval.tm_sec = atoi(val.offset(17isize));
-            (*kml).curr.timestamp = mkgmtime(&mut tmval);
-            if (*kml).curr.timestamp > time(0 as *mut time_t) {
-                (*kml).curr.timestamp = time(0 as *mut time_t)
+            // YYYY-MM-DDTHH:MM:SSZ
+            // 0   4  7  10 13 16 19
+            let val_r = to_str(val);
+            match chrono::NaiveDateTime::parse_from_str(val_r, "%Y-%m-%dT%H:%M:%SZ") {
+                Ok(res) => {
+                    (*kml).curr.timestamp = res.timestamp();
+                    if (*kml).curr.timestamp > time() {
+                        (*kml).curr.timestamp = time();
+                    }
+                }
+                Err(_err) => {
+                    (*kml).curr.timestamp = time();
+                }
             }
         } else if 0 != (*kml).tag & 0x10i32 {
             let mut comma: *mut libc::c_char = strchr(val, ',' as i32);
@@ -729,7 +684,7 @@ unsafe fn kml_starttag_cb(
         }
     } else if strcmp(tag, b"placemark\x00" as *const u8 as *const libc::c_char) == 0i32 {
         (*kml).tag = 0x1i32;
-        (*kml).curr.timestamp = 0i32 as time_t;
+        (*kml).curr.timestamp = 0;
         (*kml).curr.latitude = 0i32 as libc::c_double;
         (*kml).curr.longitude = 0.0f64;
         (*kml).curr.accuracy = 0.0f64
@@ -769,7 +724,7 @@ pub unsafe fn dc_kml_unref(kml: *mut dc_kml_t) {
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mut dc_job_t) {
     let stmt_chats: *mut sqlite3_stmt;
     let mut stmt_locations: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let now: time_t = time(0 as *mut time_t);
+    let now = time();
     let mut continue_streaming: libc::c_int = 1i32;
     dc_log_info(
         context,
@@ -787,8 +742,8 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
     sqlite3_bind_int64(stmt_chats, 1i32, now as sqlite3_int64);
     while sqlite3_step(stmt_chats) == 100i32 {
         let chat_id: uint32_t = sqlite3_column_int(stmt_chats, 0i32) as uint32_t;
-        let locations_send_begin: time_t = sqlite3_column_int64(stmt_chats, 1i32) as time_t;
-        let locations_last_sent: time_t = sqlite3_column_int64(stmt_chats, 2i32) as time_t;
+        let locations_send_begin = sqlite3_column_int64(stmt_chats, 1i32) as i64;
+        let locations_last_sent = sqlite3_column_int64(stmt_chats, 2i32) as i64;
         continue_streaming = 1i32;
         // be a bit tolerant as the timer may not align exactly with time(NULL)
         if now - locations_last_sent < (60 - 3) {
@@ -844,8 +799,8 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.
     let chat_id: uint32_t = (*job).foreign_id;
-    let locations_send_begin: time_t;
-    let locations_send_until: time_t;
+    let locations_send_begin: i64;
+    let locations_send_until: i64;
     let mut stmt;
     let mut stock_str: *mut libc::c_char = 0 as *mut libc::c_char;
     stmt = dc_sqlite3_prepare(
@@ -856,11 +811,11 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
     );
     sqlite3_bind_int(stmt, 1i32, chat_id as libc::c_int);
     if !(sqlite3_step(stmt) != 100i32) {
-        locations_send_begin = sqlite3_column_int64(stmt, 0i32) as time_t;
-        locations_send_until = sqlite3_column_int64(stmt, 1i32) as time_t;
+        locations_send_begin = sqlite3_column_int64(stmt, 0i32) as i64;
+        locations_send_until = sqlite3_column_int64(stmt, 1i32) as i64;
         sqlite3_finalize(stmt);
         stmt = 0 as *mut sqlite3_stmt;
-        if !(locations_send_begin != 0 && time(0 as *mut time_t) <= locations_send_until) {
+        if !(locations_send_begin != 0 && time() <= locations_send_until) {
             // still streaming -
             // may happen as several calls to dc_send_locations_to_chat()
             // do not un-schedule pending DC_MAYBE_SEND_LOC_ENDED jobs

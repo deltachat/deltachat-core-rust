@@ -1098,8 +1098,8 @@ pub unsafe fn dc_cmdline(context: &Context, cmdline: &str) -> *mut libc::c_char 
             context,
             dc_chat_get_id(sel_chat),
             contact_id_2 as uint32_t,
-            0i32 as time_t,
-            0i32 as time_t,
+            0,
+            0,
         );
         let mut j = 0;
         while j < dc_array_get_cnt(loc) {
