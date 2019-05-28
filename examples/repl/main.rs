@@ -418,6 +418,8 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
 }
 
 pub fn main() {
+    let _ = pretty_env_logger::try_init();
+
     let mut args: Vec<*mut libc::c_char> = Vec::new();
     for arg in ::std::env::args() {
         args.push(

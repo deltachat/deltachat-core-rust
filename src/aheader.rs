@@ -47,6 +47,7 @@ impl str::FromStr for EncryptPreference {
 }
 
 /// Parse and create [Autocrypt-headers](https://autocrypt.org/en/latest/level1.html#the-autocrypt-header).
+#[derive(Debug)]
 pub struct Aheader {
     pub addr: String,
     pub public_key: Key,
