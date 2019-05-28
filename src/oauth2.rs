@@ -334,14 +334,12 @@ fn set_config_int64(context: &Context, key: &str, value: i64) {
 }
 
 fn is_expired(context: &Context) -> bool {
-    let expire_timestamp = unsafe {
-        dc_sqlite3_get_config_int64(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
-            0i32 as int64_t,
-        )
-    } as i64;
+    let expire_timestamp = dc_sqlite3_get_config_int64(
+        context,
+        &context.sql.clone().read().unwrap(),
+        b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
+        0i32 as int64_t,
+    );
 
     if expire_timestamp <= 0 {
         return false;
