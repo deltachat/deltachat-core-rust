@@ -310,18 +310,6 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
             create_blocked,
             (*contact).addr,
         );
-        if 0 != !('K' as i32 == 'K' as i32) as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 40], &[libc::c_char; 40]>(
-                    b"dc_create_or_lookup_nchat_by_contact_id\x00",
-                ))
-                .as_ptr(),
-                b"../src/dc_chat.c\x00" as *const u8 as *const libc::c_char,
-                1386i32,
-                b"DC_PARAM_SELFTALK==\'K\'\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
         stmt = dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(), q);
         if !stmt.is_null() {
             if !(sqlite3_step(stmt) != 101i32) {

@@ -726,58 +726,11 @@ pub unsafe fn dc_sqlite3_open(
                                     as *const u8
                                     as *const libc::c_char,
                             );
-                            if 0 != !(DC_MOVE_STATE_UNDEFINED as libc::c_int == 0) as usize {
-                                __assert_rtn(
-                                    (*::std::mem::transmute::<&[u8; 16], &[libc::c_char; 16]>(
-                                        b"dc_sqlite3_open\x00",
-                                    ))
-                                    .as_ptr(),
-                                    b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    559,
-                                    b"DC_MOVE_STATE_UNDEFINED == 0\x00" as *const u8
-                                        as *const libc::c_char,
-                                );
-                            } else {
-                            };
-                            if 0 != !(DC_MOVE_STATE_PENDING as libc::c_int == 1) as usize {
-                                __assert_rtn(
-                                    (*::std::mem::transmute::<&[u8; 16], &[libc::c_char; 16]>(
-                                        b"dc_sqlite3_open\x00",
-                                    ))
-                                    .as_ptr(),
-                                    b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    560,
-                                    b"DC_MOVE_STATE_PENDING == 1\x00" as *const u8
-                                        as *const libc::c_char,
-                                );
-                            } else {
-                            };
-                            if 0 != !(DC_MOVE_STATE_STAY as libc::c_int == 2) as usize {
-                                __assert_rtn(
-                                    (*::std::mem::transmute::<&[u8; 16], &[libc::c_char; 16]>(
-                                        b"dc_sqlite3_open\x00",
-                                    ))
-                                    .as_ptr(),
-                                    b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    561,
-                                    b"DC_MOVE_STATE_STAY == 2\x00" as *const u8
-                                        as *const libc::c_char,
-                                );
-                            } else {
-                            };
-                            if 0 != !(DC_MOVE_STATE_MOVING as libc::c_int == 3) as usize {
-                                __assert_rtn(
-                                    (*::std::mem::transmute::<&[u8; 16], &[libc::c_char; 16]>(
-                                        b"dc_sqlite3_open\x00",
-                                    ))
-                                    .as_ptr(),
-                                    b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    562,
-                                    b"DC_MOVE_STATE_MOVING == 3\x00" as *const u8
-                                        as *const libc::c_char,
-                                );
-                            } else {
-                            };
+                            assert_eq!(DC_MOVE_STATE_UNDEFINED as libc::c_int, 0);
+                            assert_eq!(DC_MOVE_STATE_PENDING as libc::c_int, 1);
+                            assert_eq!(DC_MOVE_STATE_STAY as libc::c_int, 2);
+                            assert_eq!(DC_MOVE_STATE_MOVING as libc::c_int, 3);
+
                             dbversion = 48;
                             dc_sqlite3_set_config_int(
                                 context,
@@ -926,18 +879,7 @@ pub unsafe fn dc_sqlite3_open(
                                 context.get_blobdir(),
                             );
                             dc_ensure_no_slash(repl_from);
-                            if 0 != !('f' as i32 == 'f' as i32) as usize {
-                                __assert_rtn(
-                                    (*::std::mem::transmute::<&[u8; 16], &[libc::c_char; 16]>(
-                                        b"dc_sqlite3_open\x00",
-                                    ))
-                                    .as_ptr(),
-                                    b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    656,
-                                    b"\'f\'==DC_PARAM_FILE\x00" as *const u8 as *const libc::c_char,
-                                );
-                            } else {
-                            };
+
                             let mut q3: *mut libc::c_char =
                                 sqlite3_mprintf(b"UPDATE msgs SET param=replace(param, \'f=%q/\', \'f=$BLOBDIR/\');\x00"
                                                 as *const u8 as
@@ -945,19 +887,6 @@ pub unsafe fn dc_sqlite3_open(
                                                 repl_from);
                             dc_sqlite3_execute(context, sql, q3);
                             sqlite3_free(q3 as *mut libc::c_void);
-                            if 0 != !('i' as i32 == 'i' as i32) as usize {
-                                __assert_rtn(
-                                    (*::std::mem::transmute::<&[u8; 16], &[libc::c_char; 16]>(
-                                        b"dc_sqlite3_open\x00",
-                                    ))
-                                    .as_ptr(),
-                                    b"../src/dc_sqlite3.c\x00" as *const u8 as *const libc::c_char,
-                                    661,
-                                    b"\'i\'==DC_PARAM_PROFILE_IMAGE\x00" as *const u8
-                                        as *const libc::c_char,
-                                );
-                            } else {
-                            };
                             q3 =
                                 sqlite3_mprintf(b"UPDATE chats SET param=replace(param, \'i=%q/\', \'i=$BLOBDIR/\');\x00"
                                                 as *const u8 as
