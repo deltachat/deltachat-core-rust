@@ -543,22 +543,17 @@ impl<'a> Peerstate<'a> {
                         as *const u8 as *const libc::c_char)
             };
 
-            let addr_c = self.addr.as_ref().map(|fp| to_cstring(fp));
+            let c_addr = self.addr.as_ref().map(to_cstring).unwrap_or_default();
+            let addr_ptr = if self.addr.is_some() {
+                c_addr.as_ptr()
+            } else {
+                std::ptr::null()
+            };
 
             unsafe { sqlite3_bind_int64(stmt, 1, self.last_seen as sqlite3_int64) };
             unsafe { sqlite3_bind_int64(stmt, 2, self.last_seen_autocrypt as sqlite3_int64) };
             unsafe { sqlite3_bind_int64(stmt, 3, self.gossip_timestamp as sqlite3_int64) };
-            unsafe {
-                sqlite3_bind_text(
-                    stmt,
-                    4,
-                    addr_c
-                        .map(|addr| addr.as_ptr())
-                        .unwrap_or_else(|| std::ptr::null()),
-                    -1,
-                    SQLITE_TRANSIENT(),
-                )
-            };
+            unsafe { sqlite3_bind_text(stmt, 4, addr_ptr, -1, SQLITE_TRANSIENT()) };
 
             if unsafe { sqlite3_step(stmt) } == 101 {
                 success = true;
