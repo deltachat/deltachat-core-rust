@@ -898,4 +898,62 @@ mod tests {
         unsafe { print_hex(hex.as_mut_ptr(), cur) };
         assert_eq!(to_string(hex.as_ptr() as *const _), "=3A");
     }
+
+    #[test]
+    fn test_dc_urlencode_urldecode() {
+        unsafe {
+            let buf1 =
+                dc_urlencode(b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char);
+
+            assert_eq!(
+                CStr::from_ptr(buf1 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "Bj%C3%B6rn+Petersen"
+            );
+
+            let buf2 = dc_urldecode(buf1);
+
+            assert_eq!(
+                strcmp(
+                    buf2,
+                    b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char
+                ),
+                0
+            );
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_encode_decode_modified_utf7() {
+        unsafe {
+            let buf1 = dc_encode_modified_utf7(
+                b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char,
+                1,
+            );
+
+            assert_eq!(
+                CStr::from_ptr(buf1 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "Bj&APY-rn_Petersen"
+            );
+
+            let buf2 = dc_decode_modified_utf7(buf1, 1);
+
+            assert_eq!(
+                strcmp(
+                    buf2,
+                    b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char
+                ),
+                0
+            );
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
 }

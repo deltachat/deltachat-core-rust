@@ -1816,4 +1816,84 @@ mod tests {
 
         unsafe { free(raw as *mut _) };
     }
+
+    #[test]
+    fn test_dc_replace_bad_utf8_chars_1() {
+        unsafe {
+            let buf1 = strdup(b"ol\xc3\xa1 mundo <>\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\x00" as *const u8 as *const libc::c_char);
+            let buf2 = strdup(buf1);
+
+            dc_replace_bad_utf8_chars(buf2);
+
+            assert_eq!(strcmp(buf1, buf2), 0);
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_replace_bad_utf8_chars_2() {
+        unsafe {
+            let buf1 = strdup(b"ISO-String with Ae: \xc4\x00" as *const u8 as *const libc::c_char);
+            let buf2 = strdup(buf1);
+
+            dc_replace_bad_utf8_chars(buf2);
+
+            assert_eq!(
+                CStr::from_ptr(buf2 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "ISO-String with Ae: _"
+            );
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_replace_bad_utf8_chars_3() {
+        unsafe {
+            let buf1 = strdup(b"\x00" as *const u8 as *const libc::c_char);
+            let buf2 = strdup(buf1);
+
+            dc_replace_bad_utf8_chars(buf2);
+
+            assert_eq!(*buf2.offset(0), 0);
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_replace_bad_utf8_chars_4() {
+        unsafe {
+            dc_replace_bad_utf8_chars(0 as *mut libc::c_char);
+        }
+    }
+
+    #[test]
+    fn test_dc_create_id() {
+        unsafe {
+            let buf = dc_create_id();
+            assert_eq!(strlen(buf), 11);
+            free(buf as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_utf8_strlen() {
+        unsafe {
+            assert_eq!(
+                dc_utf8_strlen(b"c\x00" as *const u8 as *const libc::c_char),
+                1
+            );
+            assert_eq!(
+                dc_utf8_strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char),
+                1
+            );
+        }
+    }
 }

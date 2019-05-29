@@ -372,3 +372,68 @@ pub unsafe fn dc_param_set_float(param: *mut dc_param_t, key: libc::c_int, value
     dc_param_set(param, key, value_str);
     free(value_str as *mut libc::c_void);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn test_dc_param() {
+        unsafe {
+            let p1: *mut dc_param_t = dc_param_new();
+            dc_param_set_packed(
+                p1,
+                b"\r\n\r\na=1\nb=2\n\nc = 3 \x00" as *const u8 as *const libc::c_char,
+            );
+
+            assert_eq!(dc_param_get_int(p1, 'a' as i32, 0), 1);
+            assert_eq!(dc_param_get_int(p1, 'b' as i32, 0), 2);
+            assert_eq!(dc_param_get_int(p1, 'c' as i32, 0), 0);
+            assert_eq!(dc_param_exists(p1, 'c' as i32), 0);
+
+            dc_param_set_int(p1, 'd' as i32, 4i32);
+
+            assert_eq!(dc_param_get_int(p1, 'd' as i32, 0), 4);
+
+            dc_param_empty(p1);
+            dc_param_set(
+                p1,
+                'a' as i32,
+                b"foo\x00" as *const u8 as *const libc::c_char,
+            );
+            dc_param_set_int(p1, 'b' as i32, 2i32);
+            dc_param_set(p1, 'c' as i32, 0 as *const libc::c_char);
+            dc_param_set_int(p1, 'd' as i32, 4i32);
+
+            assert_eq!(
+                CStr::from_ptr((*p1).packed as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "a=foo\nb=2\nd=4"
+            );
+
+            dc_param_set(p1, 'b' as i32, 0 as *const libc::c_char);
+
+            assert_eq!(
+                CStr::from_ptr((*p1).packed as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "a=foo\nd=4",
+            );
+
+            dc_param_set(p1, 'a' as i32, 0 as *const libc::c_char);
+            dc_param_set(p1, 'd' as i32, 0 as *const libc::c_char);
+
+            assert_eq!(
+                CStr::from_ptr((*p1).packed as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "",
+            );
+
+            dc_param_unref(p1);
+        }
+    }
+
+}
