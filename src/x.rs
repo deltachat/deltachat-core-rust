@@ -34,7 +34,7 @@ extern "C" {
         _: *mut libc::c_char,
         _: size_t,
         _: *const libc::c_char,
-        _: *const tm,
+        _: *const libc::tm,
     ) -> size_t;
     pub fn atol(_: *const libc::c_char) -> libc::c_long;
     pub fn vsnprintf(

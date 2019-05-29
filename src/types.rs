@@ -1,7 +1,6 @@
 use crate::constants::Event;
 use crate::context::Context;
 
-pub use libc::{dirent, tm, DIR, FILE};
 pub use libsqlite3_sys::*;
 pub use mmime::carray::*;
 pub use mmime::clist::*;
