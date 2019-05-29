@@ -243,28 +243,13 @@ pub unsafe fn dc_null_terminate(
 }
 
 pub unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut libc::c_char {
-    let mut hex: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut i;
-    if !(buf.is_null() || bytes <= 0) {
-        hex = calloc(
-            ::std::mem::size_of::<libc::c_char>(),
-            bytes.wrapping_mul(2).wrapping_add(1),
-        ) as *mut libc::c_char;
-        if !hex.is_null() {
-            i = 0;
-            while i < bytes {
-                snprintf(
-                    &mut *hex.offset((i * 2) as isize) as *mut libc::c_char,
-                    3,
-                    b"%02X\x00" as *const u8 as *const libc::c_char,
-                    *buf.offset(i as isize) as libc::c_int,
-                );
-                i += 1
-            }
-        }
+    if buf.is_null() || bytes == 0 {
+        return std::ptr::null_mut();
     }
 
-    hex
+    let buf = std::slice::from_raw_parts(buf, bytes);
+    let raw = hex::encode_upper(buf);
+    strdup(to_cstring(raw).as_ptr())
 }
 
 /* remove all \r characters from string */
@@ -1819,5 +1804,16 @@ mod tests {
             clist_free(list);
             free(str as *mut libc::c_void);
         }
+    }
+
+    #[test]
+    fn test_dc_binary_to_uc_hex() {
+        let buf = vec![0, 1, 2, 3, 255];
+
+        let raw = unsafe { dc_binary_to_uc_hex(buf.as_ptr(), buf.len()) };
+        let res = to_string(raw);
+        assert_eq!(res, "00010203FF");
+
+        unsafe { free(raw as *mut _) };
     }
 }

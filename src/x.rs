@@ -1,4 +1,5 @@
 use crate::dc_strbuilder::dc_strbuilder_t;
+use crate::dc_tools::*;
 use crate::types::*;
 
 pub use libc::{
@@ -8,14 +9,28 @@ pub use libc::{
 };
 
 pub unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {
-    let slen = libc::strlen(s);
-    let result = libc::malloc(slen + 1);
+    if s.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let slen = strlen(s);
+    let result = malloc(slen + 1);
     if result.is_null() {
         return std::ptr::null_mut();
     }
 
-    libc::memcpy(result, s as *const _, slen + 1);
+    memcpy(result, s as *const _, slen + 1);
     result as *mut _
+}
+
+pub fn strndup(s: *const libc::c_char, n: libc::c_ulong) -> *mut libc::c_char {
+    if s.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let s_r = to_str(s);
+    let end = std::cmp::min(n as usize, s_r.len());
+    unsafe { strdup(to_cstring(&s_r[..end]).as_ptr()) }
 }
 
 extern "C" {
@@ -29,7 +44,6 @@ extern "C" {
         >,
     );
     pub fn pow(_: libc::c_double, _: libc::c_double) -> libc::c_double;
-    pub fn strndup(_: *const libc::c_char, _: libc::c_ulong) -> *mut libc::c_char;
     pub fn strftime(
         _: *mut libc::c_char,
         _: size_t,
@@ -59,22 +73,11 @@ extern "C" {
         _: *const libc::c_char,
     ) -> !;
 
-    #[cfg(windows)]
-    pub(crate) fn snprintf(
-        s: *mut libc::c_char,
-        n: libc::size_t,
-        format: *const libc::c_char,
-        _: ...
-    ) -> libc::c_int;
-
     // -- DC Methods
 
     pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
 }
-
-#[cfg(not(windows))]
-pub(crate) use libc::snprintf;
 
 #[cfg(not(target_os = "macos"))]
 pub unsafe extern "C" fn __assert_rtn(
@@ -132,12 +135,26 @@ pub(crate) unsafe fn strncasecmp(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::dc_tools::to_string;
 
     #[test]
     fn test_atox() {
         unsafe {
             assert_eq!(atol(b"\x00" as *const u8 as *const libc::c_char), 0);
             assert_eq!(atoi(b"\x00" as *const u8 as *const libc::c_char), 0);
+        }
+    }
+
+    #[test]
+    fn test_strndup() {
+        unsafe {
+            let res = strndup(b"helloworld\x00" as *const u8 as *const libc::c_char, 4);
+            assert_eq!(
+                to_string(res),
+                to_string(b"hell\x00" as *const u8 as *const libc::c_char)
+            );
+            assert_eq!(strlen(res), 4);
+            free(res as *mut _);
         }
     }
 }
