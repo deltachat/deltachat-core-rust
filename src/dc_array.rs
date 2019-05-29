@@ -358,65 +358,46 @@ pub unsafe fn dc_array_get_string(
     array: *const dc_array_t,
     sep: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let ret: *mut libc::c_char;
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || sep.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut i = 0;
-    ret = malloc(
-        (*array)
-            .count
-            .wrapping_mul((11usize).wrapping_add(strlen(sep)))
-            .wrapping_add(1),
-    ) as *mut libc::c_char;
-    if ret.is_null() {
-        exit(35i32);
-    }
-    *ret.offset(0isize) = 0i32 as libc::c_char;
-    while i < (*array).count {
-        if 0 != i {
-            strcat(ret, sep);
-        }
-        sprintf(
-            &mut *ret.offset(strlen(ret) as isize) as *mut libc::c_char,
-            b"%lu\x00" as *const u8 as *const libc::c_char,
-            *(*array).array.offset(i as isize) as libc::c_ulong,
-        );
-        i += 1
-    }
+    let cnt = (*array).count as usize;
+    let slice = std::slice::from_raw_parts((*array).array, cnt);
+    let sep = to_str(sep);
 
-    ret
+    let res = slice
+        .iter()
+        .enumerate()
+        .fold(String::with_capacity(2 * cnt), |mut res, (i, n)| {
+            if i == 0 {
+                res += &n.to_string();
+            } else {
+                res += sep;
+                res += &n.to_string();
+            }
+            res
+        });
+    strdup(to_cstring(res).as_ptr())
 }
 
+/// return comma-separated value-string from integer array
 pub unsafe fn dc_arr_to_string(arr: *const uint32_t, cnt: libc::c_int) -> *mut libc::c_char {
-    /* return comma-separated value-string from integer array */
-    let ret: *mut libc::c_char;
-    let sep: *const libc::c_char = b",\x00" as *const u8 as *const libc::c_char;
-    if arr.is_null() || cnt <= 0i32 {
+    if arr.is_null() || cnt == 0 {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut i: libc::c_int;
-    ret = malloc(
-        (cnt as usize)
-            .wrapping_mul((11usize).wrapping_add(strlen(sep)))
-            .wrapping_add(0usize),
-    ) as *mut libc::c_char;
-    if ret.is_null() {
-        exit(35i32);
-    }
-    *ret.offset(0isize) = 0i32 as libc::c_char;
-    i = 0i32;
-    while i < cnt {
-        if 0 != i {
-            strcat(ret, sep);
-        }
-        sprintf(
-            &mut *ret.offset(strlen(ret) as isize) as *mut libc::c_char,
-            b"%lu\x00" as *const u8 as *const libc::c_char,
-            *arr.offset(i as isize) as libc::c_ulong,
-        );
-        i += 1
-    }
 
-    ret
+    let slice = std::slice::from_raw_parts(arr, cnt as usize);
+    let res = slice.iter().enumerate().fold(
+        String::with_capacity(2 * cnt as usize),
+        |mut res, (i, n)| {
+            if i == 0 {
+                res += &n.to_string();
+            } else {
+                res += ",";
+                res += &n.to_string();
+            }
+            res
+        },
+    );
+    strdup(to_cstring(res).as_ptr())
 }

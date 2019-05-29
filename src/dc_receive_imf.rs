@@ -5,6 +5,7 @@ use mmime::mailmime_content::*;
 use mmime::mailmime_types::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
+use sha2::{Digest, Sha256};
 
 use crate::constants::*;
 use crate::context::Context;
@@ -25,7 +26,6 @@ use crate::dc_strbuilder::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::peerstate::*;
-use crate::pgp::dc_hash_sha256;
 use crate::types::*;
 use crate::x::*;
 
@@ -1694,7 +1694,6 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     let mut addr: *mut libc::c_char;
     let mut i: libc::c_int;
     let iCnt: libc::c_int;
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut member_cs: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,
@@ -1734,34 +1733,31 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
         );
         i += 1
     }
-    /* make sha-256 from the string */
-    let (binary_hash, binary_hash_len) = dc_hash_sha256(
-        member_cs.buf as *const uint8_t,
-        strlen(member_cs.buf) as usize,
-    );
-    if !binary_hash.is_null() {
-        ret = calloc(1, 256) as *mut libc::c_char;
-        if !ret.is_null() {
-            i = 0;
-            while i < 8 {
-                sprintf(
-                    &mut *ret.offset((i * 2i32) as isize) as *mut libc::c_char,
-                    b"%02x\x00" as *const u8 as *const libc::c_char,
-                    *binary_hash.offset(i as isize) as libc::c_int,
-                );
-                i += 1
-            }
-            let _v = Vec::from_raw_parts(binary_hash, binary_hash_len, binary_hash_len);
-        }
-    }
+
+    let ret = hex_hash(member_cs.buf as *const _, strlen(member_cs.buf));
     dc_array_free_ptr(member_addrs);
     dc_array_unref(member_addrs);
     free(member_ids_str as *mut libc::c_void);
     sqlite3_finalize(stmt);
     sqlite3_free(q3 as *mut libc::c_void);
     free(member_cs.buf as *mut libc::c_void);
-    return ret;
+
+    ret as *mut _
 }
+
+fn hex_hash(bytes_ptr: *const u8, bytes_len: libc::size_t) -> *const libc::c_char {
+    if bytes_ptr.is_null() || bytes_len == 0 {
+        return std::ptr::null();
+    }
+
+    let bytes = unsafe { std::slice::from_raw_parts(bytes_ptr, bytes_len) };
+    let result = Sha256::digest(bytes);
+    let result_hex = hex::encode(&result[..8]);
+    let result_cstring = to_cstring(result_hex);
+
+    unsafe { strdup(result_cstring.as_ptr()) }
+}
+
 unsafe fn search_chat_ids_by_contact_ids(
     context: &Context,
     unsorted_contact_ids: *const dc_array_t,
@@ -2298,4 +2294,18 @@ unsafe fn add_or_lookup_contact_by_addr(
             dc_array_add_id(ids, row_id);
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hex_hash() {
+        let data = b"hello world\x00" as *const u8 as *const libc::c_char;
+
+        let res_c = hex_hash(data as *const _, unsafe { strlen(data) });
+        let res = to_string(res_c);
+        assert_eq!(res, "b94d27b9934d3e08");
+    }
 }
