@@ -810,8 +810,7 @@ unsafe fn stress_functions(context: &Context) {
                          as *const u8 as *const libc::c_char);
     } else {
     };
-    let mut str_0: *mut libc::c_char =
-        dc_array_get_string(arr, b"-\x00" as *const u8 as *const libc::c_char);
+    let str_0 = dc_array_get_string(arr, b"-\x00" as *const u8 as *const libc::c_char);
     if 0 != !(strcmp(
         str_0,
         b"0-7-13-666-5000\x00" as *const u8 as *const libc::c_char,
@@ -823,28 +822,6 @@ unsafe fn stress_functions(context: &Context) {
             b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
             660i32,
             b"strcmp(str, \"0-7-13-666-5000\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(str_0 as *mut libc::c_void);
-    let arr2: [uint32_t; 4] = [
-        0i32 as uint32_t,
-        12i32 as uint32_t,
-        133i32 as uint32_t,
-        1999999i32 as uint32_t,
-    ];
-    str_0 = dc_arr_to_string(arr2.as_ptr(), 4i32);
-    if 0 != !(strcmp(
-        str_0,
-        b"0,12,133,1999999\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            665i32,
-            b"strcmp(str, \"0,12,133,1999999\")==0\x00" as *const u8 as *const libc::c_char,
         );
     } else {
     };
@@ -2548,4 +2525,18 @@ fn test_stress_tests() {
         let context = create_test_context();
         stress_functions(&context.ctx);
     }
+}
+
+#[test]
+fn test_arr_to_string() {
+    let arr2: [uint32_t; 4] = [
+        0i32 as uint32_t,
+        12i32 as uint32_t,
+        133i32 as uint32_t,
+        1999999i32 as uint32_t,
+    ];
+
+    let str_0 = unsafe { dc_arr_to_string(arr2.as_ptr(), 4i32) };
+    assert_eq!(to_string(str_0), "0,12,133,1999999");
+    unsafe { free(str_0 as *mut _) };
 }

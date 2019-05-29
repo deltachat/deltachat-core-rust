@@ -10,7 +10,6 @@ use pgp::composed::{
 use pgp::crypto::{HashAlgorithm, SymmetricKeyAlgorithm};
 use pgp::types::{CompressionAlgorithm, KeyTrait, SecretKeyTrait, StringToKey};
 use rand::thread_rng;
-use sha2::{Digest, Sha256};
 
 use crate::dc_tools::*;
 use crate::key::*;
@@ -328,22 +327,4 @@ pub fn dc_pgp_symm_decrypt(
         .and_then(|msg| msg.get_content())
         .ok()
         .and_then(|content| content)
-}
-
-/// Calculate the SHA256 hash of the given bytes.
-pub fn dc_hash_sha256(bytes_ptr: *const u8, bytes_len: libc::size_t) -> (*mut u8, libc::size_t) {
-    assert!(!bytes_ptr.is_null());
-    assert!(bytes_len > 0);
-
-    let bytes = unsafe { std::slice::from_raw_parts(bytes_ptr, bytes_len) };
-    let result = Sha256::digest(bytes);
-
-    let mut r = result.to_vec();
-    r.shrink_to_fit();
-
-    let ptr = r.as_ptr();
-    let len = r.len();
-    std::mem::forget(r);
-
-    (ptr as *mut _, len)
 }
