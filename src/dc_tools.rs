@@ -1271,21 +1271,20 @@ pub unsafe fn dc_create_folder(
     let mut success = 0;
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     {
-        let p = std::path::Path::new(
-            std::ffi::CStr::from_ptr(pathNfilename_abs)
-                .to_str()
-                .unwrap(),
-        );
+        let p = std::path::Path::new(to_str(pathNfilename_abs));
         if !p.exists() {
-            if mkdir(pathNfilename_abs, 0o755i32 as libc::mode_t) != 0i32 {
-                dc_log_warning(
-                    context,
-                    0i32,
-                    b"Cannot create directory \"%s\".\x00" as *const u8 as *const libc::c_char,
-                    pathNfilename,
-                );
-            } else {
-                success = 1;
+            match fs::create_dir_all(p) {
+                Ok(_) => {
+                    success = 1;
+                }
+                Err(_err) => {
+                    dc_log_warning(
+                        context,
+                        0i32,
+                        b"Cannot create directory \"%s\".\x00" as *const u8 as *const libc::c_char,
+                        pathNfilename,
+                    );
+                }
             }
         } else {
             success = 1;

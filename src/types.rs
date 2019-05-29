@@ -68,7 +68,6 @@ pub type __uint16_t = libc::uint16_t;
 pub type __int32_t = libc::int32_t;
 pub type __uint64_t = libc::uint64_t;
 
-pub type pid_t = libc::pid_t;
 pub type size_t = libc::size_t;
 pub type ssize_t = libc::ssize_t;
 pub type uint32_t = libc::c_uint;

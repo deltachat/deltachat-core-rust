@@ -1400,8 +1400,6 @@ pub unsafe fn dc_sqlite3_get_rowid2(
 
 pub unsafe fn dc_housekeeping(context: &Context) {
     let stmt;
-    let dir_handle;
-    let mut dir_entry;
     let mut files_in_use = HashSet::new();
     let mut path = 0 as *mut libc::c_char;
     let mut unreferenced_count = 0;
@@ -1454,8 +1452,9 @@ pub unsafe fn dc_housekeeping(context: &Context) {
         files_in_use.len() as libc::c_int,
     );
     /* go through directory and delete unused files */
-    dir_handle = opendir(context.get_blobdir());
-    if dir_handle.is_null() {
+    let p = std::path::Path::new(to_str(context.get_blobdir()));
+    let dir_handle = std::fs::read_dir(p);
+    if dir_handle.is_err() {
         dc_log_warning(
             context,
             0,
@@ -1463,40 +1462,34 @@ pub unsafe fn dc_housekeeping(context: &Context) {
             context.get_blobdir(),
         );
     } else {
+        let dir_handle = dir_handle.unwrap();
         /* avoid deletion of files that are just created to build a message object */
         let diff = std::time::Duration::from_secs(60 * 60);
         let keep_files_newer_than = std::time::SystemTime::now().checked_sub(diff).unwrap();
 
-        loop {
-            dir_entry = readdir(dir_handle);
-            if dir_entry.is_null() {
+        for entry in dir_handle {
+            if entry.is_err() {
                 break;
             }
-            /* name without path or `.` or `..` */
-            let name: *const libc::c_char = (*dir_entry).d_name.as_mut_ptr();
-            let name_len: libc::c_int = strlen(name) as libc::c_int;
-            if name_len == 1 && *name.offset(0isize) as libc::c_int == '.' as i32
-                || name_len == 2
-                    && *name.offset(0isize) as libc::c_int == '.' as i32
-                    && *name.offset(1isize) as libc::c_int == '.' as i32
-            {
-                continue;
-            }
-            if is_file_in_use(&mut files_in_use, 0 as *const libc::c_char, name)
+            let entry = entry.unwrap();
+            let name_f = entry.file_name();
+            let name_c = to_cstring(name_f.to_string_lossy());
+
+            if is_file_in_use(&mut files_in_use, 0 as *const libc::c_char, name_c.as_ptr())
                 || is_file_in_use(
                     &mut files_in_use,
                     b".increation\x00" as *const u8 as *const libc::c_char,
-                    name,
+                    name_c.as_ptr(),
                 )
                 || is_file_in_use(
                     &mut files_in_use,
                     b".waveform\x00" as *const u8 as *const libc::c_char,
-                    name,
+                    name_c.as_ptr(),
                 )
                 || is_file_in_use(
                     &mut files_in_use,
                     b"-preview.jpg\x00" as *const u8 as *const libc::c_char,
-                    name,
+                    name_c.as_ptr(),
                 )
             {
                 continue;
@@ -1506,7 +1499,7 @@ pub unsafe fn dc_housekeeping(context: &Context) {
             path = dc_mprintf(
                 b"%s/%s\x00" as *const u8 as *const libc::c_char,
                 context.get_blobdir(),
-                name,
+                name_c.as_ptr(),
             );
 
             match std::fs::metadata(std::ffi::CStr::from_ptr(path).to_str().unwrap()) {
@@ -1525,7 +1518,7 @@ pub unsafe fn dc_housekeeping(context: &Context) {
                             b"Housekeeping: Keeping new unreferenced file #%i: %s\x00" as *const u8
                                 as *const libc::c_char,
                             unreferenced_count,
-                            name,
+                            name_c.as_ptr(),
                         );
                         continue;
                     }
@@ -1538,14 +1531,12 @@ pub unsafe fn dc_housekeeping(context: &Context) {
                 b"Housekeeping: Deleting unreferenced file #%i: %s\x00" as *const u8
                     as *const libc::c_char,
                 unreferenced_count,
-                name,
+                name_c.as_ptr(),
             );
             dc_delete_file(context, path);
         }
     }
-    if !dir_handle.is_null() {
-        closedir(dir_handle);
-    }
+
     sqlite3_finalize(stmt);
 
     free(path as *mut libc::c_void);

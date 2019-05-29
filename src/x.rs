@@ -2,10 +2,9 @@ use crate::dc_strbuilder::dc_strbuilder_t;
 use crate::types::*;
 
 pub use libc::{
-    atoi, calloc, close, closedir, exit, fclose, fgets, fopen, fread, free, fseek, ftell, fwrite,
-    malloc, memcmp, memcpy, memmove, memset, mkdir, open, opendir, read, readdir, realloc, remove,
-    strcat, strchr, strcmp, strcpy, strcspn, strlen, strncmp, strncpy, strrchr, strspn, strstr,
-    strtol, system, tolower, write,
+    atoi, calloc, exit, free, malloc, memcmp, memcpy, memmove, memset, realloc, strcat, strchr,
+    strcmp, strcpy, strcspn, strlen, strncmp, strncpy, strrchr, strspn, strstr, strtol, system,
+    tolower, write,
 };
 
 pub unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {

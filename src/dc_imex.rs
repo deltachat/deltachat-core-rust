@@ -49,73 +49,63 @@ pub unsafe fn dc_imex_has_backup(
 ) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret_backup_time = 0;
-    let dir_handle: *mut DIR;
-    let mut dir_entry: *mut dirent;
-    let prefix_len = strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char);
-    let suffix_len = strlen(b"bak\x00" as *const u8 as *const libc::c_char);
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut test_sql: Option<dc_sqlite3_t> = None;
-    dir_handle = opendir(dir_name);
-    if dir_handle.is_null() {
-        dc_log_info(
-            context,
-            0i32,
-            b"Backup check: Cannot open directory \"%s\".\x00" as *const u8 as *const libc::c_char,
-            dir_name,
-        );
-    } else {
-        loop {
-            dir_entry = readdir(dir_handle);
-            if dir_entry.is_null() {
-                break;
-            }
-            let name: *const libc::c_char = (*dir_entry).d_name.as_mut_ptr();
-            let name_len = strlen(name);
-            if name_len > prefix_len
-                && strncmp(
-                    name,
-                    b"delta-chat\x00" as *const u8 as *const libc::c_char,
-                    prefix_len,
-                ) == 0i32
-                && name_len > suffix_len
-                && strncmp(
-                    &*name.offset((name_len - suffix_len - 1) as isize),
-                    b".bak\x00" as *const u8 as *const libc::c_char,
-                    suffix_len,
-                ) == 0i32
-            {
-                free(curr_pathNfilename as *mut libc::c_void);
-                curr_pathNfilename = dc_mprintf(
-                    b"%s/%s\x00" as *const u8 as *const libc::c_char,
-                    dir_name,
-                    name,
-                );
-                if test_sql.is_some() {
-                    let mut test_sql = test_sql.take().unwrap();
-                    dc_sqlite3_unref(context, &mut test_sql);
-                }
-                let mut sql = dc_sqlite3_new();
-                if 0 != dc_sqlite3_open(context, &mut sql, curr_pathNfilename, 0x1i32) {
-                    let curr_backup_time = dc_sqlite3_get_config_int(
-                        context,
-                        &mut sql,
-                        b"backup_time\x00" as *const u8 as *const libc::c_char,
-                        0i32,
-                    ) as u64;
-                    if curr_backup_time > 0 && curr_backup_time > ret_backup_time {
-                        free(ret as *mut libc::c_void);
-                        ret = curr_pathNfilename;
-                        ret_backup_time = curr_backup_time;
-                        curr_pathNfilename = 0 as *mut libc::c_char
+
+    let dir = std::path::Path::new(to_str(dir_name));
+
+    if dir.is_dir() {
+        match std::fs::read_dir(dir) {
+            Ok(dir_handle) => {
+                for entry in dir_handle {
+                    if entry.is_err() {
+                        continue;
+                    }
+                    let entry = entry.unwrap();
+                    let name_f = entry.file_name();
+                    let name = name_f.to_string_lossy();
+                    if name.starts_with("delta-chat") && name.ends_with(".bak") {
+                        free(curr_pathNfilename as *mut libc::c_void);
+                        curr_pathNfilename = dc_mprintf(
+                            b"%s/%s\x00" as *const u8 as *const libc::c_char,
+                            dir_name,
+                            to_cstring(name).as_ptr(),
+                        );
+                        if test_sql.is_some() {
+                            let mut test_sql = test_sql.take().unwrap();
+                            dc_sqlite3_unref(context, &mut test_sql);
+                        }
+                        let mut sql = dc_sqlite3_new();
+                        if 0 != dc_sqlite3_open(context, &mut sql, curr_pathNfilename, 0x1i32) {
+                            let curr_backup_time = dc_sqlite3_get_config_int(
+                                context,
+                                &mut sql,
+                                b"backup_time\x00" as *const u8 as *const libc::c_char,
+                                0,
+                            ) as u64;
+                            if curr_backup_time > 0 && curr_backup_time > ret_backup_time {
+                                free(ret as *mut libc::c_void);
+                                ret = curr_pathNfilename;
+                                ret_backup_time = curr_backup_time;
+                                curr_pathNfilename = 0 as *mut libc::c_char
+                            }
+                        }
+                        test_sql = Some(sql);
                     }
                 }
-                test_sql = Some(sql);
+            }
+            Err(_) => {
+                dc_log_info(
+                    context,
+                    0i32,
+                    b"Backup check: Cannot open directory \"%s\".\x00" as *const u8
+                        as *const libc::c_char,
+                    dir_name,
+                );
             }
         }
     }
-    if !dir_handle.is_null() {
-        closedir(dir_handle);
-    }
+
     free(curr_pathNfilename as *mut libc::c_void);
     if let Some(ref mut sql) = test_sql {
         dc_sqlite3_unref(context, sql);
@@ -1109,269 +1099,239 @@ The macro avoids weird values of 0% or 100% while still working. */
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
-    let mut closed: libc::c_int = 0i32;
-    let dest_pathNfilename: *mut libc::c_char;
-    let now = time();
-    let mut dir_handle: *mut DIR = 0 as *mut DIR;
-    let mut dir_entry: *mut dirent;
-    let prefix_len = strlen(b"delta-chat\x00" as *const u8 as *const libc::c_char);
-    let suffix_len = strlen(b"bak\x00" as *const u8 as *const libc::c_char);
+    let mut closed: libc::c_int;
+
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut buf_bytes: size_t = 0i32 as size_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut total_files_cnt: libc::c_int;
-    let mut processed_files_cnt: libc::c_int = 0i32;
     let mut delete_dest_file: libc::c_int = 0i32;
     let mut dest_sql: Option<dc_sqlite3_t> = None;
-    /* get a fine backup file name (the name includes the date so that multiple backup instances are possible)
-    FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete. however, currently it is not clear it the import exists in the long run (may be replaced by a restore-from-imap)*/
+    // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
+    // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete. however, currently it is not clear it the import exists in the long run (may be replaced by a restore-from-imap)
+    let now = time();
     let res = chrono::NaiveDateTime::from_timestamp(now as i64, 0)
         .format("delta-chat-%Y-%m-%d.bak")
         .to_string();
     let buffer = to_cstring(res);
-    dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
+    let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
     if dest_pathNfilename.is_null() {
         dc_log_error(
             context,
             0i32,
             b"Cannot get backup file name.\x00" as *const u8 as *const libc::c_char,
         );
-    } else {
-        dc_housekeeping(context);
-        dc_sqlite3_try_execute(
+
+        return success;
+    }
+
+    dc_housekeeping(context);
+    dc_sqlite3_try_execute(
+        context,
+        &context.sql.clone().read().unwrap(),
+        b"VACUUM;\x00" as *const u8 as *const libc::c_char,
+    );
+    dc_sqlite3_close(context, &mut context.sql.clone().write().unwrap());
+    closed = 1i32;
+    dc_log_info(
+        context,
+        0i32,
+        b"Backup \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
+        context.get_dbfile(),
+        dest_pathNfilename,
+    );
+    if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
+        /* error already logged */
+        dc_sqlite3_open(
             context,
-            &context.sql.clone().read().unwrap(),
-            b"VACUUM;\x00" as *const u8 as *const libc::c_char,
-        );
-        dc_sqlite3_close(context, &mut context.sql.clone().write().unwrap());
-        closed = 1i32;
-        dc_log_info(
-            context,
-            0i32,
-            b"Backup \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
+            &mut context.sql.clone().write().unwrap(),
             context.get_dbfile(),
-            dest_pathNfilename,
+            0i32,
         );
-        if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
+        closed = 0i32;
+        /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
+        /*for logging only*/
+        let mut sql = dc_sqlite3_new();
+        if 0 != dc_sqlite3_open(context, &mut sql, dest_pathNfilename, 0i32) {
             /* error already logged */
-            dc_sqlite3_open(
+            if 0 == dc_sqlite3_table_exists(
                 context,
-                &mut context.sql.clone().write().unwrap(),
-                context.get_dbfile(),
-                0i32,
-            );
-            closed = 0i32;
-            /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
-            /*for logging only*/
-            let mut sql = dc_sqlite3_new();
-            if 0 != dc_sqlite3_open(context, &mut sql, dest_pathNfilename, 0i32) {
-                /* error already logged */
-                if 0 == dc_sqlite3_table_exists(
-                    context,
-                    &mut sql,
-                    b"backup_blobs\x00" as *const u8 as *const libc::c_char,
-                ) {
-                    if 0 ==
-                           dc_sqlite3_execute(context, &mut sql,
-                                              b"CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);\x00"
-                                                  as *const u8 as
-                                                  *const libc::c_char) {
+                &mut sql,
+                b"backup_blobs\x00" as *const u8 as *const libc::c_char,
+            ) {
+                if 0 ==
+                    dc_sqlite3_execute(context, &mut sql,
+                                       b"CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);\x00"
+                                       as *const u8 as
+                                       *const libc::c_char) {
                         /* error already logged */
                         current_block = 11487273724841241105;
                     } else { current_block = 14648156034262866959; }
-                } else {
-                    current_block = 14648156034262866959;
-                }
-                match current_block {
-                    11487273724841241105 => {}
-                    _ => {
-                        total_files_cnt = 0i32;
-                        dir_handle = opendir(context.get_blobdir());
-                        if dir_handle.is_null() {
-                            dc_log_error(
+            } else {
+                current_block = 14648156034262866959;
+            }
+            match current_block {
+                11487273724841241105 => {}
+                _ => {
+                    let mut total_files_cnt = 0;
+                    let dir = std::path::Path::new(to_str(context.get_blobdir()));
+                    let dir_handle = std::fs::read_dir(dir);
+                    if dir_handle.is_err() {
+                        dc_log_error(
+                            context,
+                            0i32,
+                            b"Backup: Cannot get info for blob-directory \"%s\".\x00" as *const u8
+                                as *const libc::c_char,
+                            context.get_blobdir(),
+                        );
+                    } else {
+                        let dir_handle = dir_handle.unwrap();
+                        total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
+
+                        if total_files_cnt > 0 {
+                            // scan directory, pass 2: copy files
+                            let dir_handle = std::fs::read_dir(dir);
+                            if dir_handle.is_err() {
+                                dc_log_error(
+                                    context,
+                                    0i32,
+                                    b"Backup: Cannot copy from blob-directory \"%s\".\x00"
+                                        as *const u8
+                                        as *const libc::c_char,
+                                    context.get_blobdir(),
+                                );
+                            } else {
+                                let dir_handle = dir_handle.unwrap();
+                                stmt = dc_sqlite3_prepare(
                                 context,
-                                0i32,
-                                b"Backup: Cannot get info for blob-directory \"%s\".\x00"
-                                    as *const u8
-                                    as *const libc::c_char,
-                                context.get_blobdir(),
+                                &mut sql,
+                                b"INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);\x00"
+                                    as *const u8 as
+                                    *const libc::c_char
                             );
-                        } else {
-                            loop {
-                                dir_entry = readdir(dir_handle);
-                                if dir_entry.is_null() {
-                                    break;
-                                }
-                                total_files_cnt += 1
-                            }
-                            closedir(dir_handle);
-                            dir_handle = 0 as *mut DIR;
-                            if total_files_cnt > 0i32 {
-                                /* scan directory, pass 2: copy files */
-                                dir_handle = opendir(context.get_blobdir());
-                                if dir_handle.is_null() {
-                                    dc_log_error(
-                                        context,
-                                        0i32,
-                                        b"Backup: Cannot copy from blob-directory \"%s\".\x00"
-                                            as *const u8
-                                            as *const libc::c_char,
-                                        context.get_blobdir(),
-                                    );
-                                    current_block = 11487273724841241105;
-                                } else {
-                                    stmt =
-                                        dc_sqlite3_prepare(
-                                            context,
-                                            &mut sql,
-                                            b"INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);\x00"
-                                                as *const u8 as
-                                                *const libc::c_char);
-                                    loop {
-                                        dir_entry = readdir(dir_handle);
-                                        if dir_entry.is_null() {
-                                            current_block = 2631791190359682872;
-                                            break;
+
+                                let mut processed_files_cnt = 0;
+                                for entry in dir_handle {
+                                    if entry.is_err() {
+                                        current_block = 2631791190359682872;
+                                        break;
+                                    }
+                                    let entry = entry.unwrap();
+                                    if context
+                                        .running_state
+                                        .clone()
+                                        .read()
+                                        .unwrap()
+                                        .shall_stop_ongoing
+                                    {
+                                        delete_dest_file = 1;
+                                        current_block = 11487273724841241105;
+                                        break;
+                                    } else {
+                                        processed_files_cnt += 1;
+                                        let mut permille =
+                                            processed_files_cnt * 1000 / total_files_cnt;
+                                        if permille < 10 {
+                                            permille = 10;
                                         }
-                                        if context
-                                            .running_state
-                                            .clone()
-                                            .read()
-                                            .unwrap()
-                                            .shall_stop_ongoing
-                                        {
-                                            delete_dest_file = 1i32;
-                                            current_block = 11487273724841241105;
-                                            break;
-                                        } else {
-                                            processed_files_cnt += 1;
-                                            let mut permille: libc::c_int =
-                                                processed_files_cnt * 1000i32 / total_files_cnt;
-                                            if permille < 10i32 {
-                                                permille = 10i32
-                                            }
-                                            if permille > 990i32 {
-                                                permille = 990i32
-                                            }
-                                            (context.cb)(
-                                                context,
-                                                Event::IMEX_PROGRESS,
-                                                permille as uintptr_t,
-                                                0i32 as uintptr_t,
+                                        if permille > 990 {
+                                            permille = 990;
+                                        }
+                                        (context.cb)(
+                                            context,
+                                            Event::IMEX_PROGRESS,
+                                            permille as uintptr_t,
+                                            0i32 as uintptr_t,
+                                        );
+
+                                        let name_f = entry.file_name();
+                                        let name = name_f.to_string_lossy();
+                                        if name.starts_with("delt-chat") && name.ends_with(".bak") {
+                                            // dc_log_info(context, 0, "Backup: Skipping \"%s\".", name);
+                                            free(curr_pathNfilename as *mut libc::c_void);
+                                            let name_c = to_cstring(name);
+                                            curr_pathNfilename = dc_mprintf(
+                                                b"%s/%s\x00" as *const u8 as *const libc::c_char,
+                                                context.get_blobdir(),
+                                                name_c.as_ptr(),
                                             );
-                                            /* name without path; may also be `.` or `..` */
-                                            let name: *mut libc::c_char =
-                                                (*dir_entry).d_name.as_mut_ptr();
-                                            let name_len = strlen(name);
-                                            if !(name_len == 1
-                                                && *name.offset(0isize) as libc::c_int
-                                                    == '.' as i32
-                                                || name_len == 2
-                                                    && *name.offset(0isize) as libc::c_int
-                                                        == '.' as i32
-                                                    && *name.offset(1isize) as libc::c_int
-                                                        == '.' as i32
-                                                || name_len > prefix_len
-                                                    && strncmp(
-                                                        name,
-                                                        b"delta-chat\x00" as *const u8
-                                                            as *const libc::c_char,
-                                                        prefix_len,
-                                                    ) == 0i32
-                                                    && name_len > suffix_len
-                                                    && strncmp(
-                                                        &mut *name.offset(
-                                                            (name_len - suffix_len - 1) as isize,
-                                                        ),
-                                                        b".bak\x00" as *const u8
-                                                            as *const libc::c_char,
-                                                        suffix_len,
-                                                    ) == 0i32)
+                                            free(buf);
+                                            if 0 == dc_read_file(
+                                                context,
+                                                curr_pathNfilename,
+                                                &mut buf,
+                                                &mut buf_bytes,
+                                            ) || buf.is_null()
+                                                || buf_bytes <= 0
                                             {
-                                                //dc_log_info(context, 0, "Backup: Skipping \"%s\".", name);
-                                                free(curr_pathNfilename as *mut libc::c_void);
-                                                curr_pathNfilename = dc_mprintf(
-                                                    b"%s/%s\x00" as *const u8
-                                                        as *const libc::c_char,
-                                                    context.get_blobdir(),
-                                                    name,
-                                                );
-                                                free(buf);
-                                                if 0 == dc_read_file(
-                                                    context,
-                                                    curr_pathNfilename,
-                                                    &mut buf,
-                                                    &mut buf_bytes,
-                                                ) || buf.is_null()
-                                                    || buf_bytes <= 0
-                                                {
-                                                    continue;
-                                                }
-                                                sqlite3_bind_text(stmt, 1i32, name, -1i32, None);
-                                                sqlite3_bind_blob(
-                                                    stmt,
-                                                    2i32,
-                                                    buf,
-                                                    buf_bytes as libc::c_int,
-                                                    None,
-                                                );
-                                                if sqlite3_step(stmt) != 101i32 {
-                                                    dc_log_error(context,
-                                                                 0i32,
-                                                                 b"Disk full? Cannot add file \"%s\" to backup.\x00"
-                                                                     as
-                                                                     *const u8
-                                                                     as
-                                                                     *const libc::c_char,
-                                                                 curr_pathNfilename);
-                                                    /* this is not recoverable! writing to the sqlite database should work! */
-                                                    current_block = 11487273724841241105;
-                                                    break;
-                                                } else {
-                                                    sqlite3_reset(stmt);
-                                                }
+                                                continue;
+                                            }
+                                            sqlite3_bind_text(
+                                                stmt,
+                                                1i32,
+                                                name_c.as_ptr(),
+                                                -1i32,
+                                                None,
+                                            );
+                                            sqlite3_bind_blob(
+                                                stmt,
+                                                2i32,
+                                                buf,
+                                                buf_bytes as libc::c_int,
+                                                None,
+                                            );
+                                            if sqlite3_step(stmt) != 101i32 {
+                                                dc_log_error(
+                                                context,
+                                                0i32,
+                                                b"Disk full? Cannot add file \"%s\" to backup.\x00"
+                                                    as *const u8
+                                                    as *const libc::c_char,
+                                                curr_pathNfilename,
+                                            );
+                                                /* this is not recoverable! writing to the sqlite database should work! */
+                                                current_block = 11487273724841241105;
+                                                break;
+                                            } else {
+                                                sqlite3_reset(stmt);
                                             }
                                         }
                                     }
                                 }
-                            } else {
-                                dc_log_info(
-                                    context,
-                                    0i32,
-                                    b"Backup: No files to copy.\x00" as *const u8
-                                        as *const libc::c_char,
-                                    context.get_blobdir(),
-                                );
-                                current_block = 2631791190359682872;
                             }
-                            match current_block {
-                                11487273724841241105 => {}
-                                _ => {
-                                    dc_sqlite3_set_config_int(
-                                        context,
-                                        &mut sql,
-                                        b"backup_time\x00" as *const u8 as *const libc::c_char,
-                                        now as int32_t,
-                                    );
-                                    (context.cb)(
-                                        context,
-                                        Event::IMEX_FILE_WRITTEN,
-                                        dest_pathNfilename as uintptr_t,
-                                        0i32 as uintptr_t,
-                                    );
-                                    success = 1i32
-                                }
+                        } else {
+                            dc_log_info(
+                                context,
+                                0i32,
+                                b"Backup: No files to copy.\x00" as *const u8
+                                    as *const libc::c_char,
+                                context.get_blobdir(),
+                            );
+                            current_block = 2631791190359682872;
+                        }
+                        match current_block {
+                            11487273724841241105 => {}
+                            _ => {
+                                dc_sqlite3_set_config_int(
+                                    context,
+                                    &mut sql,
+                                    b"backup_time\x00" as *const u8 as *const libc::c_char,
+                                    now as int32_t,
+                                );
+                                (context.cb)(
+                                    context,
+                                    Event::IMEX_FILE_WRITTEN,
+                                    dest_pathNfilename as uintptr_t,
+                                    0i32 as uintptr_t,
+                                );
+                                success = 1i32
                             }
                         }
                     }
                 }
             }
-            dest_sql = Some(sql);
         }
-    }
-    if !dir_handle.is_null() {
-        closedir(dir_handle);
+        dest_sql = Some(sql);
     }
     if 0 != closed {
         dc_sqlite3_open(
@@ -1407,8 +1367,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
     let mut imported_cnt: libc::c_int = 0i32;
-    let mut dir_handle = 0 as *mut DIR;
-    let mut dir_entry: *mut dirent;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut set_default: libc::c_int;
@@ -1420,8 +1378,9 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     // a pointer inside buf2, MUST NOT be free()'d
     let mut buf2_headerline: *const libc::c_char = 0 as *const libc::c_char;
     if !dir_name.is_null() {
-        dir_handle = opendir(dir_name);
-        if dir_handle.is_null() {
+        let dir = std::path::Path::new(to_str(dir_name));
+        let dir_handle = std::fs::read_dir(dir);
+        if dir_handle.is_err() {
             dc_log_error(
                 context,
                 0i32,
@@ -1429,13 +1388,16 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 dir_name,
             );
         } else {
-            loop {
-                dir_entry = readdir(dir_handle);
-                if dir_entry.is_null() {
+            let dir_handle = dir_handle.unwrap();
+            for entry in dir_handle {
+                if entry.is_err() {
                     break;
                 }
+                let entry = entry.unwrap();
                 free(suffix as *mut libc::c_void);
-                suffix = dc_get_filesuffix_lc((*dir_entry).d_name.as_mut_ptr());
+                let name_f = entry.file_name();
+                let name_c = to_cstring(name_f.to_string_lossy());
+                suffix = dc_get_filesuffix_lc(name_c.as_ptr());
                 if suffix.is_null()
                     || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0i32
                 {
@@ -1445,7 +1407,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 path_plus_name = dc_mprintf(
                     b"%s/%s\x00" as *const u8 as *const libc::c_char,
                     dir_name,
-                    (*dir_entry).d_name.as_mut_ptr(),
+                    name_c.as_ptr(),
                 );
                 dc_log_info(
                     context,
@@ -1489,7 +1451,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 }
                 set_default = 1i32;
                 if !strstr(
-                    (*dir_entry).d_name.as_mut_ptr(),
+                    name_c.as_ptr(),
                     b"legacy\x00" as *const u8 as *const libc::c_char,
                 )
                 .is_null()
@@ -1518,9 +1480,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
             }
         }
     }
-    if !dir_handle.is_null() {
-        closedir(dir_handle);
-    }
+
     free(suffix as *mut libc::c_void);
     free(path_plus_name as *mut libc::c_void);
     free(buf as *mut libc::c_void);
