@@ -1078,17 +1078,15 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
             &context.sql.clone().read().unwrap(),
             b"SELECT id FROM contacts WHERE addr=?;\x00" as *const u8 as *const libc::c_char,
         );
-        let c_addr = peerstate.addr.as_ref().map(to_cstring);
-        sqlite3_bind_text(
-            stmt,
-            1i32,
-            c_addr
-                .as_ref()
-                .map(|a| a.as_ptr())
-                .unwrap_or_else(|| std::ptr::null()),
-            -1i32,
-            None,
-        );
+        let c_addr = peerstate.addr.as_ref().map(to_cstring).unwrap_or_default();
+
+        let c_addr_ptr = if peerstate.addr.is_some() {
+            c_addr.as_ptr()
+        } else {
+            std::ptr::null()
+        };
+
+        sqlite3_bind_text(stmt, 1i32, c_addr_ptr, -1i32, None);
         sqlite3_step(stmt);
         contact_id = sqlite3_column_int(stmt, 0i32) as uint32_t;
         sqlite3_finalize(stmt);
@@ -1100,13 +1098,7 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
                 &mut contact_chat_id,
                 0 as *mut libc::c_int,
             );
-            let msg = dc_stock_str_repl_string(
-                context,
-                37i32,
-                c_addr
-                    .map(|a| a.as_ptr())
-                    .unwrap_or_else(|| std::ptr::null()),
-            );
+            let msg = dc_stock_str_repl_string(context, 37i32, c_addr_ptr);
             dc_add_device_msg(context, contact_chat_id, msg);
             free(msg as *mut libc::c_void);
             (context.cb)(
