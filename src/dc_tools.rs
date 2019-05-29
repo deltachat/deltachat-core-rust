@@ -1882,4 +1882,18 @@ mod tests {
             free(buf as *mut libc::c_void);
         }
     }
+
+    #[test]
+    fn test_dc_utf8_strlen() {
+        unsafe {
+            assert_eq!(
+                dc_utf8_strlen(b"c\x00" as *const u8 as *const libc::c_char),
+                1
+            );
+            assert_eq!(
+                dc_utf8_strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char),
+                1
+            );
+        }
+    }
 }

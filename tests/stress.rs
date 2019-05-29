@@ -19,7 +19,6 @@ use deltachat::dc_qr::*;
 use deltachat::dc_saxparser::*;
 use deltachat::dc_securejoin::*;
 use deltachat::dc_strbuilder::*;
-use deltachat::dc_strencode::*;
 use deltachat::dc_tools::*;
 use deltachat::key::*;
 use deltachat::keyring::*;
@@ -413,31 +412,6 @@ unsafe fn stress_functions(context: &Context) {
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-    if 0 != !(dc_utf8_strlen(b"c\x00" as *const u8 as *const libc::c_char) == 1
-        && strlen(b"c\x00" as *const u8 as *const libc::c_char) == 1) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            623i32,
-            b"dc_utf8_strlen(\"c\")==1 && strlen(\"c\")==1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_utf8_strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char) == 1
-        && strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char) == 2) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            624i32,
-            b"dc_utf8_strlen(\"\xc3\xa4\")==1 && strlen(\"\xc3\xa4\")==2\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
     let arr = dc_array_new(7i32 as size_t);
     if 0 != !(dc_array_get_cnt(arr) == 0) as usize {
         __assert_rtn(
