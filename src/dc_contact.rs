@@ -240,9 +240,8 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
 pub unsafe fn dc_contact_new<'a>(context: &'a Context) -> *mut dc_contact_t<'a> {
     let mut contact: *mut dc_contact_t;
     contact = calloc(1, ::std::mem::size_of::<dc_contact_t>()) as *mut dc_contact_t;
-    if contact.is_null() {
-        exit(19i32);
-    }
+    assert!(!contact.is_null());
+
     (*contact).magic = 0xc047ac7i32 as uint32_t;
     (*contact).context = context;
 

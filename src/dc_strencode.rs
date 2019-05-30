@@ -10,18 +10,9 @@ use crate::types::*;
 use crate::x::*;
 
 #[inline]
-pub fn isalnum(mut _c: libc::c_int) -> libc::c_int {
-    if _c < std::u8::MAX as libc::c_int {
-        (_c as u8 as char).is_ascii_alphanumeric() as libc::c_int
-    } else {
-        0
-    }
-}
-
-#[inline]
-pub fn isdigit(mut _c: libc::c_int) -> libc::c_int {
-    if _c < std::u8::MAX as libc::c_int {
-        (_c as u8 as char).is_ascii_digit() as libc::c_int
+pub fn isalnum(c: libc::c_int) -> libc::c_int {
+    if c < std::u8::MAX as libc::c_int {
+        (c as u8 as char).is_ascii_alphanumeric() as libc::c_int
     } else {
         0
     }
@@ -116,12 +107,16 @@ pub unsafe fn dc_urldecode(to_decode: *const libc::c_char) -> *mut libc::c_char 
     buf
 }
 
-unsafe fn hex_2_int(ch: libc::c_char) -> libc::c_char {
-    return (if 0 != isdigit(ch as libc::c_int) {
-        ch as libc::c_int - '0' as i32
-    } else {
-        tolower(ch as libc::c_int) - 'a' as i32 + 10i32
-    }) as libc::c_char;
+fn hex_2_int(ch: libc::c_char) -> libc::c_char {
+    let ch = ch as u8 as char;
+    if !ch.is_ascii_hexdigit() {
+        return (ch.to_ascii_lowercase() as i32 - 'a' as i32 + 10) as libc::c_char;
+    }
+
+    match ch.to_digit(16) {
+        Some(res) => res as libc::c_char,
+        None => 0,
+    }
 }
 
 pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut libc::c_char {
@@ -955,5 +950,12 @@ mod tests {
             free(buf1 as *mut libc::c_void);
             free(buf2 as *mut libc::c_void);
         }
+    }
+    #[test]
+    fn test_hex_to_int() {
+        assert_eq!(hex_2_int(b'A' as libc::c_char), 10);
+        assert_eq!(hex_2_int(b'a' as libc::c_char), 10);
+        assert_eq!(hex_2_int(b'4' as libc::c_char), 4);
+        assert_eq!(hex_2_int(b'K' as libc::c_char), 20);
     }
 }

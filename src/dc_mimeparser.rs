@@ -360,7 +360,7 @@ pub unsafe fn dc_mimeparser_parse(
                     b"Chat-Duration\x00" as *const u8 as *const libc::c_char,
                 );
                 if !field_0.is_null() {
-                    let duration_ms: libc::c_int = atoi((*field_0).fld_value);
+                    let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
                     if duration_ms > 0i32 && duration_ms < 24i32 * 60i32 * 60i32 * 1000i32 {
                         dc_param_set_int((*part_3).param, 'd' as i32, duration_ms);
                     }
@@ -439,9 +439,7 @@ pub unsafe fn dc_mimeparser_parse(
 unsafe fn dc_mimepart_new() -> *mut dc_mimepart_t {
     let mut mimepart: *mut dc_mimepart_t;
     mimepart = calloc(1, ::std::mem::size_of::<dc_mimepart_t>()) as *mut dc_mimepart_t;
-    if mimepart.is_null() {
-        exit(33i32);
-    }
+    assert!(!mimepart.is_null());
     (*mimepart).type_0 = 0i32;
     (*mimepart).param = dc_param_new();
     mimepart

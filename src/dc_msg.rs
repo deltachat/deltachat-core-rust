@@ -302,9 +302,7 @@ pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> 
 pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: libc::c_int) -> *mut dc_msg_t<'a> {
     let mut msg: *mut dc_msg_t;
     msg = calloc(1, ::std::mem::size_of::<dc_msg_t>()) as *mut dc_msg_t;
-    if msg.is_null() {
-        exit(15i32);
-    }
+    assert!(!msg.is_null());
     (*msg).context = context;
     (*msg).magic = 0x11561156i32 as uint32_t;
     (*msg).type_0 = viewtype;
