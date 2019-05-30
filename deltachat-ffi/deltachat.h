@@ -229,8 +229,6 @@ char*           dc_get_config                (dc_context_t*, const char* key);
 char*           dc_get_info                  (dc_context_t*);
 char*           dc_get_oauth2_url            (dc_context_t*, const char* addr, const char* redirect);
 char*           dc_get_version_str           (void);
-void            dc_openssl_init_not_required (void);
-void            dc_no_compound_msgs          (void); // deprecated
 
 
 // connect
@@ -437,8 +435,7 @@ const uintptr_t* dc_array_get_raw            (const dc_array_t*);
  * Rendering the deaddrop in the described way
  * would not add extra work in the UI then.
  */
-dc_chatlist_t*   dc_chatlist_new             (dc_context_t*);
-void             dc_chatlist_empty           (dc_chatlist_t*);
+// dc_chatlist_t*   dc_chatlist_new             (dc_context_t*);
 void             dc_chatlist_unref           (dc_chatlist_t*);
 size_t           dc_chatlist_get_cnt         (const dc_chatlist_t*);
 uint32_t         dc_chatlist_get_chat_id     (const dc_chatlist_t*, size_t index);
@@ -470,8 +467,6 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t*);
 #define         DC_CHAT_TYPE_VERIFIED_GROUP  130
 
 
-dc_chat_t*      dc_chat_new                  (dc_context_t*);
-void            dc_chat_empty                (dc_chat_t*);
 void            dc_chat_unref                (dc_chat_t*);
 
 uint32_t        dc_chat_get_id               (const dc_chat_t*);
@@ -578,8 +573,6 @@ void            dc_msg_latefiling_mediasize   (dc_msg_t*, int width, int height,
 #define         DC_CONTACT_ID_LAST_SPECIAL   9
 
 
-dc_contact_t*   dc_contact_new               (dc_context_t*);
-void            dc_contact_empty             (dc_contact_t*);
 void            dc_contact_unref             (dc_contact_t*);
 uint32_t        dc_contact_get_id            (const dc_contact_t*);
 char*           dc_contact_get_addr          (const dc_contact_t*);

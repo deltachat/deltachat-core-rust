@@ -1,0 +1,4 @@
+doc/_build/
+build/
+dist/
+src/deltachat/capi.abi3.so

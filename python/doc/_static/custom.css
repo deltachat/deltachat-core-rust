@@ -1,0 +1,17 @@
+/* customizations to Alabaster theme . */
+
+div.document {
+    width: 1480px;
+}
+
+div.body {
+    max-width: 1280px;
+}
+
+div.globaltoc {
+    font-size: 1.4em;
+}
+
+img.logo {
+    height: 120px;
+}
