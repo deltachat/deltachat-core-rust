@@ -96,10 +96,10 @@ macro_rules! info {
     };
     ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {{
         let formatted = format!($msg, $($args),*);
-        let formatted_c = crate::dc_tools::to_cstring(formatted);
+        let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
-            ($ctx.cb)($ctx, crate::constants::Event::INFO, $data1 as uintptr_t,
-            crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
+            ($ctx.cb)($ctx, $crate::constants::Event::INFO, $data1 as uintptr_t,
+            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
         }
     }};
 }
@@ -111,10 +111,10 @@ macro_rules! warn {
     };
     ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
         let formatted = format!($msg, $($args),*);
-        let formatted_c = crate::dc_tools::to_cstring(formatted);
+        let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
-            ($ctx.cb)($ctx, crate::constants::Event::WARNING, $data1 as libc::uintptr_t,
-            crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as libc::uintptr_t)
+            ($ctx.cb)($ctx, $crate::constants::Event::WARNING, $data1 as libc::uintptr_t,
+            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as libc::uintptr_t)
         }
     };
 }
@@ -126,10 +126,10 @@ macro_rules! error {
     };
     ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
         let formatted = format!($msg, $($args),*);
-        let formatted_c = crate::dc_tools::to_cstring(formatted);
+        let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
-            ($ctx.cb)($ctx, crate::constants::Event::ERROR, $data1 as uintptr_t,
-            crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
+            ($ctx.cb)($ctx, $crate::constants::Event::ERROR, $data1 as uintptr_t,
+            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
         }
     };
 }
@@ -141,10 +141,10 @@ macro_rules! log_event {
     };
     ($ctx:expr, $event:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
         let formatted = format!($msg, $($args),*);
-        let formatted_c = crate::dc_tools::to_cstring(formatted);
+        let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
             ($ctx.cb)($ctx, $event, $data1 as uintptr_t,
-            crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
+            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
         }
     };
 }

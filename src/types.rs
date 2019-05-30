@@ -38,15 +38,15 @@ pub type dc_set_config_t =
 pub type dc_get_config_t =
     unsafe fn(_: &Context, _: *const libc::c_char, _: *const libc::c_char) -> *mut libc::c_char;
 
-pub type sqlite_int64 = libc::int64_t;
+pub type sqlite_int64 = i64;
 pub type sqlite3_int64 = sqlite_int64;
 
-pub type int32_t = libc::int32_t;
-pub type int64_t = libc::int64_t;
+pub type int32_t = i32;
+pub type int64_t = i64;
 pub type uintptr_t = libc::uintptr_t;
 pub type size_t = libc::size_t;
 pub type ssize_t = libc::ssize_t;
 pub type uint32_t = libc::c_uint;
 pub type uint8_t = libc::c_uchar;
 pub type uint16_t = libc::c_ushort;
-pub type uint64_t = libc::uint64_t;
+pub type uint64_t = u64;
