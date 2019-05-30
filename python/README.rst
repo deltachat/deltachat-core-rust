@@ -2,7 +2,7 @@
 deltachat python bindings
 =========================
 
-This package provides bindings to the deltachat-core_ C-library
+This package provides bindings to the deltachat-core_ Rust -library
 which provides imap/smtp/crypto handling as well as chat/group/messages
 handling to Android, Desktop and IO user interfaces.
 
@@ -108,8 +108,8 @@ You can now run tests with this ``liveconfig`` file::
     tox -- --liveconfig liveconfig
 
 
-.. _`deltachat-core github repository`: https://github.com/deltachat/deltachat-core
-.. _`deltachat-core`: https://github.com/deltachat/deltachat-core
+.. _`deltachat-core github repository`: https://github.com/deltachat/deltachat-core-rust
+.. _`deltachat-core`: https://github.com/deltachat/deltachat-core-rust
 
 
 Building manylinux1 wheels
