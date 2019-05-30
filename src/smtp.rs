@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 
 use lettre::smtp::client::net::*;
 use lettre::*;
@@ -10,7 +10,6 @@ use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_tools::*;
 use crate::oauth2::*;
-use crate::x::*;
 
 pub struct Smtp {
     transport: Option<lettre::smtp::SmtpTransport>,
@@ -141,11 +140,7 @@ impl Smtp {
                 1
             }
             Err(err) => {
-                warn!(
-                    context,
-                    0,
-                    format!("SMTP: failed to establish connection {:?}", err)
-                );
+                warn!(context, 0, "SMTP: failed to establish connection {:?}", err);
                 0
             }
         }
@@ -180,11 +175,7 @@ impl Smtp {
                     1
                 }
                 Err(err) => {
-                    let error_msg = format!("SMTP failed to send message: {:?}", err);
-                    let msg = CString::new(error_msg).unwrap();
-                    self.error = unsafe { strdup(msg.as_ptr()) };
-
-                    warn!(context, 0, "%s", msg,);
+                    warn!(context, 0, "SMTP failed to send message: {}", err);
 
                     0
                 }

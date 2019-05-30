@@ -43,13 +43,6 @@ extern "C" {
             unsafe extern "C" fn(_: *const libc::c_void, _: *const libc::c_void) -> libc::c_int,
         >,
     );
-    pub fn pow(_: libc::c_double, _: libc::c_double) -> libc::c_double;
-    pub fn strftime(
-        _: *mut libc::c_char,
-        _: size_t,
-        _: *const libc::c_char,
-        _: *const libc::tm,
-    ) -> size_t;
     pub fn atol(_: *const libc::c_char) -> libc::c_long;
     pub fn vsnprintf(
         _: *mut libc::c_char,

@@ -1523,7 +1523,7 @@ unsafe fn moz_autoconfigure_starttag_cb(
 }
 
 fn read_autoconf_file(context: &Context, url: *const libc::c_char) -> *mut libc::c_char {
-    info!(context, 0, "Testing %s ...", url);
+    info!(context, 0, "Testing {} ...", to_string(url));
 
     match reqwest::Client::new()
         .get(to_str(url))

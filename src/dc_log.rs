@@ -94,16 +94,14 @@ macro_rules! info {
     ($ctx:expr, $data1:expr, $msg:expr) => {
         info!($ctx, $data1, $msg,)
     };
-    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {{
+        let formatted = format!($msg, $($args),*);
+        let formatted_c = crate::dc_tools::to_cstring(formatted);
         unsafe {
-            dc_log_info(
-                $ctx,
-                $data1,
-                std::ffi::CString::new($msg).unwrap().as_ptr(),
-                $($args),*
-            )
+            ($ctx.cb)($ctx, crate::constants::Event::INFO, $data1 as uintptr_t,
+            crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
         }
-    };
+    }};
 }
 
 #[macro_export]
@@ -112,13 +110,11 @@ macro_rules! warn {
         warn!($ctx, $data1, $msg,)
     };
     ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        let formatted = format!($msg, $($args),*);
+        let formatted_c = crate::dc_tools::to_cstring(formatted);
         unsafe {
-            dc_log_warning(
-                $ctx,
-                $data1,
-                std::ffi::CString::new($msg).unwrap().as_ptr(),
-                $($args),*
-            )
+            ($ctx.cb)($ctx, crate::constants::Event::WARNING, $data1 as libc::uintptr_t,
+            crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as libc::uintptr_t)
         }
     };
 }
@@ -129,13 +125,11 @@ macro_rules! error {
         error!($ctx, $data1, $msg,)
     };
     ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        let formatted = format!($msg, $($args),*);
+        let formatted_c = crate::dc_tools::to_cstring(formatted);
         unsafe {
-            dc_log_error(
-                $ctx,
-                $data1,
-                std::ffi::CString::new($msg).unwrap().as_ptr(),
-                $($args),*
-            )
+            ($ctx.cb)($ctx, crate::constants::Event::ERROR, $data1 as uintptr_t,
+            crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
         }
     };
 }
@@ -146,14 +140,11 @@ macro_rules! log_event {
         log_event!($ctx, $data1, $msg,)
     };
     ($ctx:expr, $event:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+        let formatted = format!($msg, $($args),*);
+        let formatted_c = crate::dc_tools::to_cstring(formatted);
         unsafe {
-            dc_log_event(
-                $ctx,
-                $event,
-                $data1,
-                std::ffi::CString::new($msg).unwrap().as_ptr(),
-                $($args),*
-            )
+            ($ctx.cb)($ctx, $event, $data1 as uintptr_t,
+            crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
         }
     };
 }

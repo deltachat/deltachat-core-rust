@@ -5,7 +5,6 @@ use std::time::{Duration, SystemTime};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::{to_str, to_string};
@@ -441,10 +440,10 @@ impl Imap {
                     context,
                     Event::ERROR_NETWORK,
                     0,
-                    format!(
-                        "Could not connect to IMAP-server {}:{}. ({})",
-                        imap_server, imap_port, err
-                    ),
+                    "Could not connect to IMAP-server {}:{}. ({})",
+                    imap_server,
+                    imap_port,
+                    err
                 );
 
                 return 0;
@@ -459,13 +458,7 @@ impl Imap {
                 1
             }
             Err((err, _)) => {
-                log_event!(
-                    context,
-                    Event::ERROR_NETWORK,
-                    0,
-                    format!("Cannot login ({})", err),
-                );
-
+                log_event!(context, Event::ERROR_NETWORK, 0, "Cannot login ({})", err);
                 self.unsetup_handle(context);
 
                 0
@@ -560,9 +553,8 @@ impl Imap {
                         s += c;
                         s
                     });
-                    let caps_list_c = std::ffi::CString::new(caps_list).unwrap();
 
-                    info!(context, 0, "IMAP-capabilities:%s", caps_list_c.as_ptr());
+                    info!(context, 0, "IMAP-capabilities:{}", caps_list);
 
                     let mut config = self.config.write().unwrap();
                     config.can_idle = can_idle;
@@ -641,12 +633,7 @@ impl Imap {
         // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
         if self.config.read().unwrap().selected_folder_needs_expunge {
             if let Some(ref folder) = self.config.read().unwrap().selected_folder {
-                info!(
-                    context,
-                    0,
-                    "Expunge messages in \"%s\".",
-                    CString::new(folder.to_owned()).unwrap().as_ptr()
-                );
+                info!(context, 0, "Expunge messages in \"{}\".", folder);
 
                 // A CLOSE-SELECT is considerably faster than an EXPUNGE-SELECT, see
                 // https://tools.ietf.org/html/rfc3501#section-6.4.2
@@ -677,7 +664,9 @@ impl Imap {
                         info!(
                             context,
                             0,
-                            format!("Cannot select folder: {}; {:?}.", folder.as_ref(), err)
+                            "Cannot select folder: {}; {:?}.",
+                            folder.as_ref(),
+                            err
                         );
 
                         let mut config = self.config.write().unwrap();
@@ -721,8 +710,8 @@ impl Imap {
             info!(
                 context,
                 0,
-                "Cannot fetch from \"%s\" - not connected.",
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                "Cannot fetch from \"{}\" - not connected.",
+                folder.as_ref()
             );
 
             return 0;
@@ -732,8 +721,8 @@ impl Imap {
             info!(
                 context,
                 0,
-                "Cannot select folder \"%s\" for fetching.",
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                "Cannot select folder \"{}\" for fetching.",
+                folder.as_ref()
             );
 
             return 0;
@@ -749,8 +738,8 @@ impl Imap {
             error!(
                 context,
                 0,
-                "Cannot get UIDVALIDITY for folder \"%s\".",
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                "Cannot get UIDVALIDITY for folder \"{}\".",
+                folder.as_ref(),
             );
 
             return 0;
@@ -760,12 +749,7 @@ impl Imap {
             // first time this folder is selected or UIDVALIDITY has changed, init lastseenuid and save it to config
 
             if mailbox.exists == 0 {
-                info!(
-                    context,
-                    0,
-                    "Folder \"%s\" is empty.",
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr()
-                );
+                info!(context, 0, "Folder \"{}\" is empty.", folder.as_ref());
 
                 // set lastseenuid=0 for empty folders.
                 // id we do not do this here, we'll miss the first message
@@ -780,15 +764,13 @@ impl Imap {
                 let set = format!("{}", mailbox.exists);
                 match session.fetch(set, PREFETCH_FLAGS) {
                     Ok(list) => list,
-                    Err(err) => {
+                    Err(_err) => {
                         self.config.write().unwrap().should_reconnect = true;
-
-                        eprintln!("fetch error: {:?}", err);
                         info!(
                             context,
                             0,
-                            "No result returned for folder \"%s\".",
-                            CString::new(folder.as_ref().to_owned()).unwrap().as_ptr()
+                            "No result returned for folder \"{}\".",
+                            folder.as_ref()
                         );
 
                         return 0;
@@ -810,10 +792,10 @@ impl Imap {
             info!(
                 context,
                 0,
-                "lastseenuid initialized to %i for %s@%i",
-                last_seen_uid as libc::c_int,
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                uid_validity as libc::c_int
+                "lastseenuid initialized to {} for {}@{}",
+                last_seen_uid,
+                folder.as_ref(),
+                uid_validity,
             );
         }
 
@@ -858,9 +840,9 @@ impl Imap {
                         info!(
                             context,
                             0,
-                            "Read error for message %s from \"%s\", trying over later.",
-                            message_id_c.as_ptr(),
-                            folder_c.as_ptr()
+                            "Read error for message {} from \"{}\", trying over later.",
+                            message_id,
+                            folder.as_ref()
                         );
 
                         read_errors += 1;
@@ -870,9 +852,9 @@ impl Imap {
                     info!(
                         context,
                         0,
-                        "Skipping message %s from \"%s\" by precheck.",
-                        message_id_c.as_ptr(),
-                        folder_c.as_ptr()
+                        "Skipping message {} from \"{}\" by precheck.",
+                        message_id,
+                        folder.as_ref(),
                     );
                 }
                 if cur_uid > new_last_seen_uid {
@@ -891,18 +873,18 @@ impl Imap {
             warn!(
                 context,
                 0,
-                "%i mails read from \"%s\" with %i errors.",
-                read_cnt as libc::c_int,
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                read_errors as libc::c_int,
+                "{} mails read from \"{}\" with {} errors.",
+                read_cnt,
+                folder.as_ref(),
+                read_errors
             );
         } else {
             info!(
                 context,
                 0,
-                "%i mails read from \"%s\".",
-                read_cnt as libc::c_int,
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr()
+                "{} mails read from \"{}\".",
+                read_cnt,
+                folder.as_ref()
             );
         }
 
@@ -953,13 +935,11 @@ impl Imap {
                     warn!(
                         context,
                         0,
-                        format!(
-                            "Error on fetching message #%i from folder \"%s\"; retry=%i; error={}.",
-                            err
-                        ),
-                        server_uid as libc::c_int,
-                        CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                        self.should_reconnect() as libc::c_int,
+                        "Error on fetching message #{} from folder \"{}\"; retry={}; error={}.",
+                        server_uid,
+                        folder.as_ref(),
+                        self.should_reconnect(),
+                        err
                     );
 
                     if self.should_reconnect() {
@@ -978,9 +958,9 @@ impl Imap {
             warn!(
                 context,
                 0,
-                "Message #%i does not exist in folder \"%s\".",
-                server_uid as libc::c_int,
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                "Message #{} does not exist in folder \"{}\".",
+                server_uid,
+                folder.as_ref()
             );
         } else {
             let msg = &msgs[0];
@@ -1089,11 +1069,7 @@ impl Imap {
                     self.config.write().unwrap().should_reconnect = true;
                 }
                 _ => {
-                    warn!(
-                        context,
-                        0,
-                        format!("IMAP-IDLE returns unknown value: {:?}", err)
-                    );
+                    warn!(context, 0, "IMAP-IDLE returns unknown value: {}", err);
                 }
             },
         };
@@ -1204,12 +1180,10 @@ impl Imap {
             info!(
                 context,
                 0,
-                "Skip moving message; message %s/%i is already in %s...",
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                uid as libc::c_int,
-                CString::new(dest_folder.as_ref().to_owned())
-                    .unwrap()
-                    .as_ptr()
+                "Skip moving message; message {}/{} is already in {}...",
+                folder.as_ref(),
+                uid,
+                dest_folder.as_ref()
             );
 
             res = DC_ALREADY_DONE;
@@ -1217,20 +1191,18 @@ impl Imap {
             info!(
                 context,
                 0,
-                "Moving message %s/%i to %s...",
-                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                uid as libc::c_int,
-                CString::new(dest_folder.as_ref().to_owned())
-                    .unwrap()
-                    .as_ptr()
+                "Moving message {}/{} to {}...",
+                folder.as_ref(),
+                uid,
+                dest_folder.as_ref()
             );
 
             if self.select_folder(context, Some(folder.as_ref())) == 0 {
                 warn!(
                     context,
                     0,
-                    "Cannot select folder %s for moving message.",
-                    CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
+                    "Cannot select folder {} for moving message.",
+                    folder.as_ref()
                 );
             } else {
                 let moved = if let Some(ref mut session) = self.session.lock().unwrap().0 {
@@ -1240,16 +1212,14 @@ impl Imap {
                             true
                         }
                         Err(err) => {
-                            eprintln!("move error: {:?}", err);
                             info!(
                                 context,
                                 0,
-                                "Cannot move message, fallback to COPY/DELETE %s/%i to %s...",
-                                CString::new(folder.as_ref().to_owned()).unwrap().as_ptr(),
-                                uid as libc::c_int,
-                                CString::new(dest_folder.as_ref().to_owned())
-                                    .unwrap()
-                                    .as_ptr()
+                                "Cannot move message, fallback to COPY/DELETE {}/{} to {}: {}",
+                                folder.as_ref(),
+                                uid,
+                                dest_folder.as_ref(),
+                                err
                             );
 
                             false
@@ -1326,22 +1296,20 @@ impl Imap {
         if uid == 0 {
             res = DC_FAILED
         } else if self.is_connected() {
-            let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
-
             info!(
                 context,
                 0,
-                "Marking message %s/%i as seen...",
-                folder_c.as_ptr(),
-                uid as libc::c_int
+                "Marking message {}/{} as seen...",
+                folder.as_ref(),
+                uid,
             );
 
-            if self.select_folder(context, Some(folder)) == 0 {
+            if self.select_folder(context, Some(folder.as_ref())) == 0 {
                 warn!(
                     context,
                     0,
-                    "Cannot select folder %s for setting SEEN flag.",
-                    folder_c.as_ptr(),
+                    "Cannot select folder {} for setting SEEN flag.",
+                    folder.as_ref(),
                 );
             } else if self.add_flag(uid, "\\Seen") == 0 {
                 warn!(context, 0, "Cannot mark message as seen.",);
@@ -1369,21 +1337,20 @@ impl Imap {
         if uid == 0 {
             res = DC_FAILED;
         } else if self.is_connected() {
-            let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
             info!(
                 context,
                 0,
-                "Marking message %s/%i as $MDNSent...",
-                folder_c.as_ptr(),
-                uid as libc::c_int
+                "Marking message {}/{} as $MDNSent...",
+                folder.as_ref(),
+                uid,
             );
 
-            if self.select_folder(context, Some(folder)) == 0 {
+            if self.select_folder(context, Some(folder.as_ref())) == 0 {
                 warn!(
                     context,
                     0,
-                    "Cannot select folder %s for setting $MDNSent flag.",
-                    folder_c.as_ptr(),
+                    "Cannot select folder {} for setting $MDNSent flag.",
+                    folder.as_ref()
                 );
             } else {
                 // Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not
@@ -1447,13 +1414,11 @@ impl Imap {
                             res
                         };
 
-                        let msg = if res == DC_SUCCESS {
-                            "$MDNSent just set and MDN will be sent."
+                        if res == DC_SUCCESS {
+                            info!(context, 0, "$MDNSent just set and MDN will be sent.");
                         } else {
-                            "$MDNSent already set and MDN already sent."
-                        };
-
-                        info!(context, 0, msg);
+                            info!(context, 0, "$MDNSent already set and MDN already sent.");
+                        }
                     }
                 } else {
                     res = DC_SUCCESS;
@@ -1491,22 +1456,18 @@ impl Imap {
             info!(
                 context,
                 0,
-                format!(
-                    "Marking message \"{}\", {}/{} for deletion...",
-                    message_id.as_ref(),
-                    folder.as_ref(),
-                    server_uid,
-                )
+                "Marking message \"{}\", {}/{} for deletion...",
+                message_id.as_ref(),
+                folder.as_ref(),
+                server_uid,
             );
 
             if self.select_folder(context, Some(&folder)) == 0 {
                 warn!(
                     context,
                     0,
-                    format!(
-                        "Cannot select folder {} for deleting message.",
-                        folder.as_ref()
-                    )
+                    "Cannot select folder {} for deleting message.",
+                    folder.as_ref()
                 );
             } else {
                 let set = format!("{}", server_uid);
@@ -1526,12 +1487,10 @@ impl Imap {
                                 warn!(
                                     context,
                                     0,
-                                    format!(
-                                        "Cannot delete on IMAP, {}/{} does not match {}.",
-                                        folder.as_ref(),
-                                        server_uid,
-                                        message_id.as_ref(),
-                                    )
+                                    "Cannot delete on IMAP, {}/{} does not match {}.",
+                                    folder.as_ref(),
+                                    server_uid,
+                                    message_id.as_ref(),
                                 );
                                 *server_uid = 0;
                             }
@@ -1542,11 +1501,9 @@ impl Imap {
                             warn!(
                                 context,
                                 0,
-                                format!(
-                                    "Cannot delete on IMAP, {}/{} not found.",
-                                    folder.as_ref(),
-                                    server_uid,
-                                )
+                                "Cannot delete on IMAP, {}/{} not found.",
+                                folder.as_ref(),
+                                server_uid,
                             );
                             *server_uid = 0;
                         }
@@ -1594,12 +1551,7 @@ impl Imap {
             });
 
         if mvbox_folder.is_none() && 0 != (flags as usize & DC_CREATE_MVBOX) {
-            info!(
-                context,
-                0,
-                "Creating MVBOX-folder \"%s\"...",
-                b"DeltaChat\x00" as *const u8 as *const libc::c_char
-            );
+            info!(context, 0, "Creating MVBOX-folder \"DeltaChat\"...",);
 
             if let Some(ref mut session) = self.session.lock().unwrap().0 {
                 match session.create("DeltaChat") {
