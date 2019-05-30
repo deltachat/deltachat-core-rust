@@ -848,13 +848,16 @@ pub unsafe fn dc_get_contact_encrinfo(
                     fingerprint_other_unverified,
                 );
             } else {
-                let c_addr = peerstate.addr.as_ref().map(to_cstring);
+                let c_addr = peerstate.addr.as_ref().map(to_cstring).unwrap_or_default();
+                let addr_ptr = if peerstate.addr.is_some() {
+                    c_addr.as_ptr()
+                } else {
+                    std::ptr::null()
+                };
 
                 cat_fingerprint(
                     &mut ret,
-                    c_addr
-                        .map(|a| a.as_ptr())
-                        .unwrap_or_else(|| std::ptr::null()),
+                    addr_ptr,
                     fingerprint_other_verified,
                     fingerprint_other_unverified,
                 );

@@ -245,13 +245,20 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
-                                            let c_addr = peerstate.addr.as_ref().map(to_cstring);
+                                            let c_addr = peerstate
+                                                .addr
+                                                .as_ref()
+                                                .map(to_cstring)
+                                                .unwrap_or_default();
+                                            let addr_ptr = if peerstate.addr.is_some() {
+                                                c_addr.as_ptr()
+                                            } else {
+                                                std::ptr::null()
+                                            };
                                             (*qr_parsed).id = dc_add_or_lookup_contact(
                                                 context,
                                                 0 as *const libc::c_char,
-                                                c_addr
-                                                    .map(|a| a.as_ptr())
-                                                    .unwrap_or_else(|| std::ptr::null()),
+                                                addr_ptr,
                                                 0x80i32,
                                                 0 as *mut libc::c_int,
                                             );

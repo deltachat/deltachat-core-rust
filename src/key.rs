@@ -10,7 +10,6 @@ use pgp::types::{KeyTrait, SecretKeyTrait};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
@@ -281,7 +280,7 @@ impl Key {
                     strlen(file_content),
                 )
             } {
-            error!(context, 0, "Cannot write key to %s", file);
+            error!(context, 0, "Cannot write key to {}", to_string(file));
             false
         } else {
             true

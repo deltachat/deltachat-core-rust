@@ -5,7 +5,6 @@ use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 use serde::Deserialize;
 
 use crate::context::Context;
-use crate::dc_log::*;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
@@ -125,8 +124,7 @@ pub fn dc_get_oauth2_access_token(
         if response.is_err() {
             warn!(
                 context,
-                0,
-                format!("Error calling OAuth2 at {}: {:?}", token_url, response)
+                0, "Error calling OAuth2 at {}: {:?}", token_url, response
             );
             return None;
         }
@@ -135,11 +133,9 @@ pub fn dc_get_oauth2_access_token(
             warn!(
                 context,
                 0,
-                format!(
-                    "Error calling OAuth2 at {}: {:?}",
-                    token_url,
-                    response.status()
-                )
+                "Error calling OAuth2 at {}: {:?}",
+                token_url,
+                response.status()
             );
             return None;
         }
@@ -148,11 +144,7 @@ pub fn dc_get_oauth2_access_token(
         if parsed.is_err() {
             warn!(
                 context,
-                0,
-                format!(
-                    "Failed to parse OAuth2 JSON response from {}: error: {:?}",
-                    token_url, parsed
-                )
+                0, "Failed to parse OAuth2 JSON response from {}: error: {:?}", token_url, parsed
             );
             return None;
         }
@@ -251,11 +243,7 @@ impl Oauth2 {
         // }
         let response = reqwest::Client::new().get(&userinfo_url).send();
         if response.is_err() {
-            warn!(
-                context,
-                0,
-                format!("Error getting userinfo: {:?}", response)
-            );
+            warn!(context, 0, "Error getting userinfo: {:?}", response);
             return None;
         }
         let mut response = response.unwrap();
@@ -263,7 +251,8 @@ impl Oauth2 {
             warn!(
                 context,
                 0,
-                format!("Error getting userinfo: {:?}", response.status())
+                "Error getting userinfo: {:?}",
+                response.status()
             );
             return None;
         }
@@ -272,8 +261,7 @@ impl Oauth2 {
         if parsed.is_err() {
             warn!(
                 context,
-                0,
-                format!("Failed to parse userinfo JSON response: {:?}", parsed)
+                0, "Failed to parse userinfo JSON response: {:?}", parsed
             );
             return None;
         }

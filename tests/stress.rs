@@ -14,12 +14,10 @@ use deltachat::dc_imex::*;
 use deltachat::dc_location::*;
 use deltachat::dc_lot::*;
 use deltachat::dc_mimeparser::*;
-use deltachat::dc_param::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_saxparser::*;
 use deltachat::dc_securejoin::*;
 use deltachat::dc_strbuilder::*;
-use deltachat::dc_strencode::*;
 use deltachat::dc_tools::*;
 use deltachat::key::*;
 use deltachat::keyring::*;
@@ -97,143 +95,65 @@ unsafe fn stress_functions(context: &Context) {
             b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
             7i32 as size_t,
         );
-        if 0 != (0
-            == dc_file_exist(
+        assert_ne!(
+            0,
+            dc_file_exist(
                 context,
                 b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                237i32,
-                b"dc_file_exist(context, \"$BLOBDIR/foobar\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            != dc_file_exist(
+            )
+        );
+        assert_eq!(
+            0,
+            dc_file_exist(
                 context,
                 b"$BLOBDIR/foobarx\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                238i32,
-                b"!dc_file_exist(context, \"$BLOBDIR/foobarx\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(dc_get_filebytes(
-            context,
-            b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-        ) == 7i32 as libc::c_ulonglong) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                239i32,
-                b"dc_get_filebytes(context, \"$BLOBDIR/foobar\")==7\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
+            )
+        );
+        assert_eq!(
+            dc_get_filebytes(
+                context,
+                b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
+            ),
+            7i32 as libc::c_ulonglong
+        );
+
         let abs_path: *mut libc::c_char = dc_mprintf(
             b"%s/%s\x00" as *const u8 as *const libc::c_char,
             context.get_blobdir(),
             b"foobar\x00" as *const u8 as *const libc::c_char,
         );
-        if 0 != (0 == dc_is_blobdir_path(context, abs_path)) as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                242i32,
-                b"dc_is_blobdir_path(context, abs_path)\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_is_blobdir_path(
+        assert_ne!(0, dc_is_blobdir_path(context, abs_path));
+        assert_ne!(
+            0,
+            dc_is_blobdir_path(
                 context,
                 b"$BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                243i32,
-                b"dc_is_blobdir_path(context, \"$BLOBDIR/fofo\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            != dc_is_blobdir_path(
+            )
+        );
+        assert_eq!(
+            0,
+            dc_is_blobdir_path(
                 context,
                 b"/BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                244i32,
-                b"!dc_is_blobdir_path(context, \"/BLOBDIR/fofo\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0 == dc_file_exist(context, abs_path)) as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                245i32,
-                b"dc_file_exist(context, abs_path)\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
+            )
+        );
+        assert_ne!(0, dc_file_exist(context, abs_path));
         free(abs_path as *mut libc::c_void);
-        if 0 != (0
-            == dc_copy_file(
+        assert_ne!(
+            0,
+            dc_copy_file(
                 context,
                 b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
                 b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                248i32,
-                b"dc_copy_file(context, \"$BLOBDIR/foobar\", \"$BLOBDIR/dada\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(dc_get_filebytes(
-            context,
-            b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-        ) == 7i32 as libc::c_ulonglong) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                249i32,
-                b"dc_get_filebytes(context, \"$BLOBDIR/dada\")==7\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
+            )
+        );
+        assert_eq!(
+            dc_get_filebytes(
+                context,
+                b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
+            ),
+            7
+        );
 
         let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
         let mut buf_bytes: size_t = 0;
@@ -254,116 +174,54 @@ unsafe fn stress_functions(context: &Context) {
         );
 
         free(buf);
-        if 0 != (0
-            == dc_delete_file(
+        assert_ne!(
+            0,
+            dc_delete_file(
                 context,
                 b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                258i32,
-                b"dc_delete_file(context, \"$BLOBDIR/foobar\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_delete_file(
+            )
+        );
+        assert_ne!(
+            0,
+            dc_delete_file(
                 context,
                 b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                259i32,
-                b"dc_delete_file(context, \"$BLOBDIR/dada\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_create_folder(
+            )
+        );
+        assert_ne!(
+            0,
+            dc_create_folder(
                 context,
                 b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                261i32,
-                b"dc_create_folder(context, \"$BLOBDIR/foobar-folder\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_file_exist(
+            )
+        );
+        assert_ne!(
+            0,
+            dc_file_exist(
                 context,
                 b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                262i32,
-                b"dc_file_exist(context, \"$BLOBDIR/foobar-folder\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_delete_file(
+            )
+        );
+        assert_ne!(
+            0,
+            dc_delete_file(
                 context,
                 b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                263i32,
-                b"dc_delete_file(context, \"$BLOBDIR/foobar-folder\")\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
+            )
+        );
         let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
         );
-        if 0 != fn0.is_null() as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                266i32,
-                b"fn0\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(strcmp(
-            fn0,
-            b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                267i32,
-                b"strcmp(fn0, \"$BLOBDIR/foobar.dadada\")==0\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
+        assert!(!fn0.is_null());
+        assert_eq!(
+            strcmp(
+                fn0,
+                b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
+            ),
+            0
+        );
         dc_write_file(
             context,
             fn0,
@@ -375,651 +233,25 @@ unsafe fn stress_functions(context: &Context) {
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
         );
-        if 0 != fn1.is_null() as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                271i32,
-                b"fn1\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(strcmp(
-            fn1,
-            b"$BLOBDIR/foobar-1.dadada\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                272i32,
-                b"strcmp(fn1, \"$BLOBDIR/foobar-1.dadada\")==0\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0 == dc_delete_file(context, fn0)) as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                274i32,
-                b"dc_delete_file(context, fn0)\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
+        assert!(!fn1.is_null());
+        assert_eq!(
+            strcmp(
+                fn1,
+                b"$BLOBDIR/foobar-1.dadada\x00" as *const u8 as *const libc::c_char,
+            ),
+            0
+        );
+        assert_ne!(0, dc_delete_file(context, fn0));
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-
-    let mut buf1: *mut libc::c_char =
-        strdup(b"ol\xc3\xa1 mundo <>\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\x00"
-                   as *const u8 as *const libc::c_char);
-    let mut buf2: *mut libc::c_char = strdup(buf1);
-    dc_replace_bad_utf8_chars(buf2);
-    if 0 != !(strcmp(buf1, buf2) == 0i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            512i32,
-            b"strcmp(buf1, buf2)==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(buf1 as *mut libc::c_void);
-    free(buf2 as *mut libc::c_void);
-    buf1 = strdup(b"ISO-String with Ae: \xc4\x00" as *const u8 as *const libc::c_char);
-    buf2 = strdup(buf1);
-    dc_replace_bad_utf8_chars(buf2);
-    if 0 != !(strcmp(
-        b"ISO-String with Ae: _\x00" as *const u8 as *const libc::c_char,
-        buf2,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            517i32,
-            b"strcmp(\"ISO-String with Ae: _\", buf2)==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(buf1 as *mut libc::c_void);
-    free(buf2 as *mut libc::c_void);
-    buf1 = strdup(b"\x00" as *const u8 as *const libc::c_char);
-    buf2 = strdup(buf1);
-    dc_replace_bad_utf8_chars(buf2);
-    if 0 != !(*buf2.offset(0isize) as libc::c_int == 0i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            522i32,
-            b"buf2[0]==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(buf1 as *mut libc::c_void);
-    free(buf2 as *mut libc::c_void);
-    dc_replace_bad_utf8_chars(0 as *mut libc::c_char);
-    buf1 = dc_urlencode(b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char);
-    if 0 != !(strcmp(
-        buf1,
-        b"Bj%C3%B6rn+Petersen\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            528i32,
-            b"strcmp(buf1, \"Bj%C3%B6rn+Petersen\") == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    buf2 = dc_urldecode(buf1);
-    if 0 != !(strcmp(
-        buf2,
-        b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            530i32,
-            b"strcmp(buf2, \"Bj\xc3\xb6rn Petersen\") == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(buf1 as *mut libc::c_void);
-    free(buf2 as *mut libc::c_void);
-    buf1 = dc_create_id();
-    if 0 != !(strlen(buf1) == 11) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            534i32,
-            b"strlen(buf1) == DC_CREATE_ID_LEN\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(buf1 as *mut libc::c_void);
-    buf1 = dc_encode_modified_utf7(
-        b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char,
-        1i32,
-    );
-    if 0 != !(strcmp(
-        buf1,
-        b"Bj&APY-rn_Petersen\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            600i32,
-            b"strcmp(buf1, \"Bj&APY-rn_Petersen\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    buf2 = dc_decode_modified_utf7(buf1, 1i32);
-    if 0 != !(strcmp(
-        buf2,
-        b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            602i32,
-            b"strcmp(buf2, \"Bj\xc3\xb6rn Petersen\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(buf1 as *mut libc::c_void);
-    free(buf2 as *mut libc::c_void);
-    if 0 != !(2100i32 == 2100i32 || 2100i32 == 2052i32 || 2100i32 == 2055i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            606i32,
-            b"DC_EVENT_DATA1_IS_STRING(2100)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(2052i32 == 2100i32 || 2052i32 == 2052i32 || 2052i32 == 2055i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            607i32,
-            b"DC_EVENT_DATA1_IS_STRING(2052)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (100i32 == 2100i32 || 100i32 == 2052i32 || 100i32 == 2055i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            608i32,
-            b"!DC_EVENT_DATA1_IS_STRING(100)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (300i32 == 2100i32 || 300i32 == 2052i32 || 300i32 == 2055i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            609i32,
-            b"!DC_EVENT_DATA1_IS_STRING(300)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (400i32 == 2100i32 || 400i32 == 2052i32 || 400i32 == 2055i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            610i32,
-            b"!DC_EVENT_DATA1_IS_STRING(400)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(100i32 >= 100i32 && 100i32 <= 499i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            612i32,
-            b"DC_EVENT_DATA2_IS_STRING(100)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(300i32 >= 100i32 && 300i32 <= 499i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            613i32,
-            b"DC_EVENT_DATA2_IS_STRING(300)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(400i32 >= 100i32 && 400i32 <= 499i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            614i32,
-            b"DC_EVENT_DATA2_IS_STRING(400)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (2010i32 >= 100i32 && 2010i32 <= 499i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            615i32,
-            b"!DC_EVENT_DATA2_IS_STRING(2010)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(2091i32 == 2091i32 || 2091i32 == 2100i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            617i32,
-            b"DC_EVENT_RETURNS_STRING(2091)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(2100i32 == 2091i32 || 2100i32 == 2100i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            618i32,
-            b"DC_EVENT_RETURNS_STRING(2100)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (100i32 == 2091i32 || 100i32 == 2100i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            619i32,
-            b"!DC_EVENT_RETURNS_STRING(100)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (300i32 == 2091i32 || 300i32 == 2100i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            620i32,
-            b"!DC_EVENT_RETURNS_STRING(300)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (400i32 == 2091i32 || 400i32 == 2100i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            621i32,
-            b"!DC_EVENT_RETURNS_STRING(400)\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_utf8_strlen(b"c\x00" as *const u8 as *const libc::c_char) == 1
-        && strlen(b"c\x00" as *const u8 as *const libc::c_char) == 1) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            623i32,
-            b"dc_utf8_strlen(\"c\")==1 && strlen(\"c\")==1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_utf8_strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char) == 1
-        && strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char) == 2) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            624i32,
-            b"dc_utf8_strlen(\"\xc3\xa4\")==1 && strlen(\"\xc3\xa4\")==2\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    let arr = dc_array_new(7i32 as size_t);
-    if 0 != !(dc_array_get_cnt(arr) == 0) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            633i32,
-            b"dc_array_get_cnt(arr) == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    let mut i: libc::c_int = 0;
-    while i < 1000i32 {
-        dc_array_add_id(arr, (i + 1i32 * 2i32) as uint32_t);
-        i += 1
-    }
-    if 0 != !(dc_array_get_cnt(arr) == 1000) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            639i32,
-            b"dc_array_get_cnt(arr) == TEST_CNT\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    i = 0i32;
-    while i < 1000i32 {
-        if 0 != !(dc_array_get_id(arr, i as size_t) == (i + 1i32 * 2i32) as libc::c_uint) as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                642i32,
-                b"dc_array_get_id(arr, i) == i+1*2\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        i += 1
-    }
-    if 0 != !(dc_array_get_id(arr, -1i32 as size_t) == 0i32 as libc::c_uint) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            644i32,
-            b"dc_array_get_id(arr, -1) == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_array_get_id(arr, 1000i32 as size_t) == 0i32 as libc::c_uint) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            645i32,
-            b"dc_array_get_id(arr, TEST_CNT) == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_array_get_id(arr, (1000i32 + 1i32) as size_t) == 0i32 as libc::c_uint) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            646i32,
-            b"dc_array_get_id(arr, TEST_CNT+1) == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_array_empty(arr);
-    if 0 != !(dc_array_get_cnt(arr) == 0) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            649i32,
-            b"dc_array_get_cnt(arr) == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_array_add_id(arr, 13i32 as uint32_t);
-    dc_array_add_id(arr, 7i32 as uint32_t);
-    dc_array_add_id(arr, 666i32 as uint32_t);
-    dc_array_add_id(arr, 0i32 as uint32_t);
-    dc_array_add_id(arr, 5000i32 as uint32_t);
-    dc_array_sort_ids(arr);
-    if 0 != !(dc_array_get_id(arr, 0i32 as size_t) == 0i32 as libc::c_uint
-        && dc_array_get_id(arr, 1i32 as size_t) == 7i32 as libc::c_uint
-        && dc_array_get_id(arr, 2i32 as size_t) == 13i32 as libc::c_uint
-        && dc_array_get_id(arr, 3i32 as size_t) == 666i32 as libc::c_uint) as usize
-    {
-        __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                               &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                     b"../cmdline/stress.c\x00" as *const u8 as
-                         *const libc::c_char, 657i32,
-                     b"dc_array_get_id(arr, 0)==0 && dc_array_get_id(arr, 1)==7 && dc_array_get_id(arr, 2)==13 && dc_array_get_id(arr, 3)==666\x00"
-                         as *const u8 as *const libc::c_char);
-    } else {
-    };
-    let str_0 = dc_array_get_string(arr, b"-\x00" as *const u8 as *const libc::c_char);
-    if 0 != !(strcmp(
-        str_0,
-        b"0-7-13-666-5000\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            660i32,
-            b"strcmp(str, \"0-7-13-666-5000\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    free(str_0 as *mut libc::c_void);
-    dc_array_empty(arr);
-    dc_array_add_ptr(
-        arr,
-        b"XX\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
-    );
-    dc_array_add_ptr(
-        arr,
-        b"item1\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
-    );
-    dc_array_add_ptr(
-        arr,
-        b"bbb\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
-    );
-    dc_array_add_ptr(
-        arr,
-        b"aaa\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
-    );
-    dc_array_sort_strings(arr);
-    if 0 != !(strcmp(
-        b"XX\x00" as *const u8 as *const libc::c_char,
-        dc_array_get_ptr(arr, 0i32 as size_t) as *mut libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            674i32,
-            b"strcmp(\"XX\", (char*)dc_array_get_ptr(arr, 0))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        b"aaa\x00" as *const u8 as *const libc::c_char,
-        dc_array_get_ptr(arr, 1i32 as size_t) as *mut libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            675i32,
-            b"strcmp(\"aaa\", (char*)dc_array_get_ptr(arr, 1))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        b"bbb\x00" as *const u8 as *const libc::c_char,
-        dc_array_get_ptr(arr, 2i32 as size_t) as *mut libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            676i32,
-            b"strcmp(\"bbb\", (char*)dc_array_get_ptr(arr, 2))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        b"item1\x00" as *const u8 as *const libc::c_char,
-        dc_array_get_ptr(arr, 3i32 as size_t) as *mut libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            677i32,
-            b"strcmp(\"item1\", (char*)dc_array_get_ptr(arr, 3))==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_array_unref(arr);
-    let p1: *mut dc_param_t = dc_param_new();
-    dc_param_set_packed(
-        p1,
-        b"\r\n\r\na=1\nb=2\n\nc = 3 \x00" as *const u8 as *const libc::c_char,
-    );
-    if 0 != !(dc_param_get_int(p1, 'a' as i32, 0i32) == 1i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            690i32,
-            b"dc_param_get_int(p1, \'a\', 0)==1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_param_get_int(p1, 'b' as i32, 0i32) == 2i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            691i32,
-            b"dc_param_get_int(p1, \'b\', 0)==2\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_param_get_int(p1, 'c' as i32, 0i32) == 0i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            692i32,
-            b"dc_param_get_int(p1, \'c\', 0)==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(dc_param_exists(p1, 'c' as i32) == 0i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            693i32,
-            b"dc_param_exists (p1, \'c\')==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_param_set_int(p1, 'd' as i32, 4i32);
-    if 0 != !(dc_param_get_int(p1, 'd' as i32, 0i32) == 4i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            696i32,
-            b"dc_param_get_int(p1, \'d\', 0)==4\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    dc_param_empty(p1);
-    dc_param_set(
-        p1,
-        'a' as i32,
-        b"foo\x00" as *const u8 as *const libc::c_char,
-    );
-    dc_param_set_int(p1, 'b' as i32, 2i32);
-    dc_param_set(p1, 'c' as i32, 0 as *const libc::c_char);
-    dc_param_set_int(p1, 'd' as i32, 4i32);
-    if 0 != !(strcmp(
-        (*p1).packed,
-        b"a=foo\nb=2\nd=4\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            703i32,
-            b"strcmp(p1->packed, \"a=foo\\nb=2\\nd=4\")==0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-
-    dc_param_set(p1, 'b' as i32, 0 as *const libc::c_char);
-
-    assert_eq!(
-        CStr::from_ptr((*p1).packed as *const libc::c_char)
-            .to_str()
-            .unwrap(),
-        "a=foo\nd=4",
-    );
-
-    dc_param_set(p1, 'a' as i32, 0 as *const libc::c_char);
-    dc_param_set(p1, 'd' as i32, 0 as *const libc::c_char);
-
-    assert_eq!(
-        CStr::from_ptr((*p1).packed as *const libc::c_char)
-            .to_str()
-            .unwrap(),
-        "",
-    );
-
-    dc_param_unref(p1);
-
     let mut keys: *mut libc::c_char = dc_get_config(
         context,
         b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
     );
-    if 0 != !(!keys.is_null() && 0 != *keys.offset(0isize) as libc::c_int) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            720i32,
-            b"keys && keys[0]\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
+    assert!(!keys.is_null());
+    assert_ne!(0, *keys.offset(0isize) as libc::c_int);
+
     let mut sb: dc_strbuilder_t = dc_strbuilder_t {
         buf: 0 as *mut libc::c_char,
         allocated: 0,
@@ -1034,403 +266,118 @@ unsafe fn stress_functions(context: &Context) {
     );
     free(keys as *mut libc::c_void);
     keys = sb.buf;
-    if 0 != !strstr(
+    assert!(strstr(
         keys,
         b" probably_never_a_key \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            728i32,
-            b"strstr(keys, \" probably_never_a_key \")==NULL\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(keys, b" addr \x00" as *const u8 as *const libc::c_char).is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            729i32,
-            b"strstr(keys, \" addr \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(keys, b" addr \x00" as *const u8 as *const libc::c_char).is_null());
+    assert!(!strstr(
         keys,
         b" mail_server \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            730i32,
-            b"strstr(keys, \" mail_server \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(keys, b" mail_user \x00" as *const u8 as *const libc::c_char).is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            731i32,
-            b"strstr(keys, \" mail_user \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(keys, b" mail_pw \x00" as *const u8 as *const libc::c_char).is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            732i32,
-            b"strstr(keys, \" mail_pw \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(keys, b" mail_port \x00" as *const u8 as *const libc::c_char).is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            733i32,
-            b"strstr(keys, \" mail_port \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(keys, b" mail_user \x00" as *const u8 as *const libc::c_char).is_null());
+    assert!(!strstr(keys, b" mail_pw \x00" as *const u8 as *const libc::c_char).is_null());
+    assert!(!strstr(keys, b" mail_port \x00" as *const u8 as *const libc::c_char).is_null());
+    assert!(!strstr(
         keys,
         b" send_server \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            734i32,
-            b"strstr(keys, \" send_server \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(keys, b" send_user \x00" as *const u8 as *const libc::c_char).is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            735i32,
-            b"strstr(keys, \" send_user \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(keys, b" send_pw \x00" as *const u8 as *const libc::c_char).is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            736i32,
-            b"strstr(keys, \" send_pw \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(keys, b" send_port \x00" as *const u8 as *const libc::c_char).is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            737i32,
-            b"strstr(keys, \" send_port \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(keys, b" send_user \x00" as *const u8 as *const libc::c_char).is_null());
+    assert!(!strstr(keys, b" send_pw \x00" as *const u8 as *const libc::c_char).is_null());
+    assert!(!strstr(keys, b" send_port \x00" as *const u8 as *const libc::c_char).is_null());
+    assert!(!strstr(
         keys,
         b" server_flags \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            738i32,
-            b"strstr(keys, \" server_flags \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" imap_folder \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            739i32,
-            b"strstr(keys, \" imap_folder \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" displayname \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            740i32,
-            b"strstr(keys, \" displayname \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" selfstatus \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            741i32,
-            b"strstr(keys, \" selfstatus \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" selfavatar \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            742i32,
-            b"strstr(keys, \" selfavatar \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" e2ee_enabled \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            743i32,
-            b"strstr(keys, \" e2ee_enabled \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" mdns_enabled \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            744i32,
-            b"strstr(keys, \" mdns_enabled \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" save_mime_headers \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            745i32,
-            b"strstr(keys, \" save_mime_headers \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_addr \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            746i32,
-            b"strstr(keys, \" configured_addr \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_mail_server \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            747i32,
-            b"strstr(keys, \" configured_mail_server \")!=NULL\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_mail_user \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            748i32,
-            b"strstr(keys, \" configured_mail_user \")!=NULL\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_mail_pw \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            749i32,
-            b"strstr(keys, \" configured_mail_pw \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_mail_port \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            750i32,
-            b"strstr(keys, \" configured_mail_port \")!=NULL\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_send_server \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            751i32,
-            b"strstr(keys, \" configured_send_server \")!=NULL\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_send_user \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            752i32,
-            b"strstr(keys, \" configured_send_user \")!=NULL\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_send_pw \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            753i32,
-            b"strstr(keys, \" configured_send_pw \")!=NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_send_port \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            754i32,
-            b"strstr(keys, \" configured_send_port \")!=NULL\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != strstr(
+    .is_null());
+    assert!(!strstr(
         keys,
         b" configured_server_flags \x00" as *const u8 as *const libc::c_char,
     )
-    .is_null() as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            755i32,
-            b"strstr(keys, \" configured_server_flags \")!=NULL\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
+    .is_null());
     free(keys as *mut libc::c_void);
 
     let mut ok: libc::c_int;
@@ -1450,32 +397,15 @@ unsafe fn stress_functions(context: &Context) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            821i32,
-            b"ok == 1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!headerline.is_null()
-        && strcmp(
+    assert_eq!(ok, 1);
+    assert!(!headerline.is_null());
+    assert_eq!(
+        strcmp(
             headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            822i32,
-            b"headerline && strcmp(headerline, \"-----BEGIN PGP MESSAGE-----\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
+        ),
+        0
+    );
 
     assert!(!base64.is_null());
     assert_eq!(
@@ -1497,32 +427,16 @@ unsafe fn stress_functions(context: &Context) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            828i32,
-            b"ok == 1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!headerline.is_null()
-        && strcmp(
+
+    assert_eq!(ok, 1);
+    assert!(!headerline.is_null());
+    assert_eq!(
+        strcmp(
             headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            829i32,
-            b"headerline && strcmp(headerline, \"-----BEGIN PGP MESSAGE-----\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
+        ),
+        0
+    );
 
     assert!(!base64.is_null());
     assert_eq!(
@@ -1545,42 +459,17 @@ unsafe fn stress_functions(context: &Context) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            835i32,
-            b"ok == 1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!headerline.is_null()
-        && strcmp(
+
+    assert_eq!(ok, 1);
+    assert!(!headerline.is_null());
+    assert_eq!(
+        strcmp(
             headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            836i32,
-            b"headerline && strcmp(headerline, \"-----BEGIN PGP MESSAGE-----\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !setupcodebegin.is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            837i32,
-            b"setupcodebegin == NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
+        ),
+        0
+    );
+    assert!(setupcodebegin.is_null());
 
     assert!(!base64.is_null());
     assert_eq!(
@@ -1600,16 +489,8 @@ unsafe fn stress_functions(context: &Context) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 0i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            843i32,
-            b"ok == 0\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
+
+    assert_eq!(ok, 0);
     free(buf_0 as *mut libc::c_void);
     buf_0 =
         strdup(b"foo \n -----BEGIN PGP MESSAGE-----\n  Passphrase-BeGIN  :  23 \n  \n base64-567 \r\n abc \n  -----END PGP MESSAGE-----\n\n\n\x00"
@@ -1621,48 +502,24 @@ unsafe fn stress_functions(context: &Context) {
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            848i32,
-            b"ok == 1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!headerline.is_null()
-        && strcmp(
+    assert_eq!(ok, 1);
+    assert!(!headerline.is_null());
+    assert_eq!(
+        strcmp(
             headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            849i32,
-            b"headerline && strcmp(headerline, \"-----BEGIN PGP MESSAGE-----\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!setupcodebegin.is_null()
-        && strcmp(
+        ),
+        0
+    );
+
+    assert!(!setupcodebegin.is_null());
+    assert_eq!(
+        strcmp(
             setupcodebegin,
             b"23\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            850i32,
-            b"setupcodebegin && strcmp(setupcodebegin, \"23\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
+        ),
+        0
+    );
 
     assert!(!base64.is_null());
     assert_eq!(
@@ -1684,48 +541,24 @@ unsafe fn stress_functions(context: &Context) {
         &mut preferencrypt,
         &mut base64,
     );
-    if 0 != !(ok == 1i32) as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            856i32,
-            b"ok == 1\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!headerline.is_null()
-        && strcmp(
+    assert_eq!(ok, 1);
+    assert!(!headerline.is_null());
+    assert_eq!(
+        strcmp(
             headerline,
             b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            857i32,
-            b"headerline && strcmp(headerline, \"-----BEGIN PGP PRIVATE KEY BLOCK-----\")==0\x00"
-                as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!preferencrypt.is_null()
-        && strcmp(
+        ),
+        0
+    );
+
+    assert!(!preferencrypt.is_null());
+    assert_eq!(
+        strcmp(
             preferencrypt,
             b"mutual\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            858i32,
-            b"preferencrypt && strcmp(preferencrypt, \"mutual\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
+        ),
+        0
+    );
 
     assert!(!base64.is_null());
     assert_eq!(
@@ -1741,353 +574,159 @@ unsafe fn stress_functions(context: &Context) {
         context,
         b"123422343234423452346234723482349234\x00" as *const u8 as *const libc::c_char,
     );
-    if 0 != norm.is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            868i32,
-            b"norm\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        norm,
-        b"1234-2234-3234-4234-5234-6234-7234-8234-9234\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            869i32,
-            b"strcmp(norm, \"1234-2234-3234-4234-5234-6234-7234-8234-9234\") == 0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
+    assert!(!norm.is_null());
+    assert_eq!(
+        0,
+        strcmp(
+            norm,
+            b"1234-2234-3234-4234-5234-6234-7234-8234-9234\x00" as *const u8 as *const libc::c_char,
+        )
+    );
     free(norm as *mut libc::c_void);
     norm = dc_normalize_setup_code(
         context,
         b"\t1 2 3422343234- foo bar-- 423-45 2 34 6234723482349234      \x00" as *const u8
             as *const libc::c_char,
     );
-    if 0 != norm.is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            873i32,
-            b"norm\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(strcmp(
-        norm,
-        b"1234-2234-3234-4234-5234-6234-7234-8234-9234\x00" as *const u8 as *const libc::c_char,
-    ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            874i32,
-            b"strcmp(norm, \"1234-2234-3234-4234-5234-6234-7234-8234-9234\") == 0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
+    assert!(!norm.is_null());
+    assert_eq!(
+        0,
+        strcmp(
+            norm,
+            b"1234-2234-3234-4234-5234-6234-7234-8234-9234\x00" as *const u8 as *const libc::c_char,
+        )
+    );
     free(norm as *mut libc::c_void);
     let mut buf_1: *mut libc::c_char;
     let mut headerline_0: *const libc::c_char = 0 as *const libc::c_char;
     let mut setupcodebegin_0: *const libc::c_char = 0 as *const libc::c_char;
     let mut preferencrypt_0: *const libc::c_char = 0 as *const libc::c_char;
     buf_1 = strdup(S_EM_SETUPFILE);
-    if 0 != (0
-        == dc_split_armored_data(
+    assert_ne!(
+        0,
+        dc_split_armored_data(
             buf_1,
             &mut headerline_0,
             &mut setupcodebegin_0,
             &mut preferencrypt_0,
             0 as *mut *const libc::c_char,
-        )) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            883i32,
-            b"dc_split_armored_data(buf, &headerline, &setupcodebegin, &preferencrypt, NULL)\x00"
-                as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!headerline_0.is_null()
-        && strcmp(
+        )
+    );
+    assert!(!headerline_0.is_null());
+    assert_eq!(
+        0,
+        strcmp(
             headerline_0,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            884i32,
-            b"headerline && strcmp(headerline, \"-----BEGIN PGP MESSAGE-----\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!setupcodebegin_0.is_null()
-        && strlen(setupcodebegin_0) < strlen(S_EM_SETUPCODE)
-        && strncmp(setupcodebegin_0, S_EM_SETUPCODE, strlen(setupcodebegin_0)) == 0i32)
-        as usize
-    {
-        __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                               &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                     b"../cmdline/stress.c\x00" as *const u8 as
-                         *const libc::c_char, 885i32,
-                     b"setupcodebegin && strlen(setupcodebegin)<strlen(s_em_setupcode) && strncmp(setupcodebegin, s_em_setupcode, strlen(setupcodebegin))==0\x00"
-                         as *const u8 as *const libc::c_char);
-    } else {
-    };
-    if 0 != !preferencrypt_0.is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            886i32,
-            b"preferencrypt==NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
+        )
+    );
+    assert!(!setupcodebegin_0.is_null());
+    assert!(strlen(setupcodebegin_0) < strlen(S_EM_SETUPCODE));
+    assert_eq!(
+        strncmp(setupcodebegin_0, S_EM_SETUPCODE, strlen(setupcodebegin_0)),
+        0
+    );
+
+    assert!(preferencrypt_0.is_null());
     free(buf_1 as *mut libc::c_void);
     buf_1 = dc_decrypt_setup_file(context, S_EM_SETUPCODE, S_EM_SETUPFILE);
-    if 0 != buf_1.is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            889i32,
-            b"(buf=dc_decrypt_setup_file(context, s_em_setupcode, s_em_setupfile)) != NULL\x00"
-                as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != (0
-        == dc_split_armored_data(
+    assert!(!buf_1.is_null());
+    assert_ne!(
+        0,
+        dc_split_armored_data(
             buf_1,
             &mut headerline_0,
             &mut setupcodebegin_0,
             &mut preferencrypt_0,
             0 as *mut *const libc::c_char,
-        )) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            890i32,
-            b"dc_split_armored_data(buf, &headerline, &setupcodebegin, &preferencrypt, NULL)\x00"
-                as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!headerline_0.is_null()
-        && strcmp(
+        )
+    );
+    assert!(!headerline_0.is_null());
+    assert_eq!(
+        strcmp(
             headerline_0,
             b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            891i32,
-            b"headerline && strcmp(headerline, \"-----BEGIN PGP PRIVATE KEY BLOCK-----\")==0\x00"
-                as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !setupcodebegin_0.is_null() as usize {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            892i32,
-            b"setupcodebegin==NULL\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-    };
-    if 0 != !(!preferencrypt_0.is_null()
-        && strcmp(
+        ),
+        0
+    );
+    assert!(setupcodebegin_0.is_null());
+    assert!(!preferencrypt_0.is_null());
+    assert_eq!(
+        strcmp(
             preferencrypt_0,
             b"mutual\x00" as *const u8 as *const libc::c_char,
-        ) == 0i32) as usize
-    {
-        __assert_rtn(
-            (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                .as_ptr(),
-            b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-            893i32,
-            b"preferencrypt && strcmp(preferencrypt, \"mutual\")==0\x00" as *const u8
-                as *const libc::c_char,
-        );
-    } else {
-    };
+        ),
+        0
+    );
     free(buf_1 as *mut libc::c_void);
     if 0 != dc_is_configured(context) {
         let setupcode: *mut libc::c_char;
         let setupfile: *mut libc::c_char;
         setupcode = dc_create_setup_code(context);
-        if 0 != setupcode.is_null() as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                901i32,
-                b"(setupcode=dc_create_setup_code(context)) != NULL\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(strlen(setupcode) == 44) as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                902i32,
-                b"strlen(setupcode) == 44\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(*setupcode.offset(4isize) as libc::c_int == '-' as i32
-            && *setupcode.offset(9isize) as libc::c_int == '-' as i32
-            && *setupcode.offset(14isize) as libc::c_int == '-' as i32
-            && *setupcode.offset(19isize) as libc::c_int == '-' as i32
-            && *setupcode.offset(24isize) as libc::c_int == '-' as i32
-            && *setupcode.offset(29isize) as libc::c_int == '-' as i32
-            && *setupcode.offset(34isize) as libc::c_int == '-' as i32
-            && *setupcode.offset(39isize) as libc::c_int == '-' as i32) as usize
-        {
-            __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                                   &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                         b"../cmdline/stress.c\x00" as *const u8 as
-                             *const libc::c_char, 903i32,
-                         b"setupcode[4]==\'-\' && setupcode[9]==\'-\' && setupcode[14]==\'-\' && setupcode[19]==\'-\' && setupcode[24]==\'-\' && setupcode[29]==\'-\' && setupcode[34]==\'-\' && setupcode[39]==\'-\'\x00"
-                             as *const u8 as *const libc::c_char);
-        } else {
-        };
+        assert!(!setupcode.is_null());
+        assert_eq!(strlen(setupcode), 44);
+        assert!(
+            0 != !(*setupcode.offset(4isize) as libc::c_int == '-' as i32
+                && *setupcode.offset(9isize) as libc::c_int == '-' as i32
+                && *setupcode.offset(14isize) as libc::c_int == '-' as i32
+                && *setupcode.offset(19isize) as libc::c_int == '-' as i32
+                && *setupcode.offset(24isize) as libc::c_int == '-' as i32
+                && *setupcode.offset(29isize) as libc::c_int == '-' as i32
+                && *setupcode.offset(34isize) as libc::c_int == '-' as i32
+                && *setupcode.offset(39isize) as libc::c_int == '-' as i32)
+                as usize
+        );
         setupfile = dc_render_setup_file(context, setupcode);
-        if 0 != setupfile.is_null() as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                905i32,
-                b"(setupfile=dc_render_setup_file(context, setupcode)) != NULL\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
+        assert!(!setupfile.is_null());
         let buf_2: *mut libc::c_char = dc_strdup(setupfile);
         let mut headerline_1: *const libc::c_char = 0 as *const libc::c_char;
         let mut setupcodebegin_1: *const libc::c_char = 0 as *const libc::c_char;
-        if 0 != (0
-            == dc_split_armored_data(
+        assert_eq!(
+            0,
+            dc_split_armored_data(
                 buf_2,
                 &mut headerline_1,
                 &mut setupcodebegin_1,
                 0 as *mut *const libc::c_char,
                 0 as *mut *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                910i32,
-                b"dc_split_armored_data(buf, &headerline, &setupcodebegin, NULL, NULL)\x00"
-                    as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(!headerline_1.is_null()
-            && strcmp(
+            )
+        );
+        assert!(!headerline_1.is_null());
+        assert_eq!(
+            strcmp(
                 headerline_1,
                 b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-            ) == 0i32) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                911i32,
-                b"headerline && strcmp(headerline, \"-----BEGIN PGP MESSAGE-----\")==0\x00"
-                    as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(!setupcodebegin_1.is_null()
-            && strlen(setupcodebegin_1) == 2
-            && strncmp(setupcodebegin_1, setupcode, 2) == 0i32) as usize
-        {
-            __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                                   &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                         b"../cmdline/stress.c\x00" as *const u8 as
-                             *const libc::c_char, 912i32,
-                         b"setupcodebegin && strlen(setupcodebegin)==2 && strncmp(setupcodebegin, setupcode, 2)==0\x00"
-                             as *const u8 as *const libc::c_char);
-        } else {
-        };
+            ),
+            0
+        );
+        assert!(
+            !(!setupcodebegin_1.is_null()
+                && strlen(setupcodebegin_1) == 2
+                && strncmp(setupcodebegin_1, setupcode, 2) == 0i32)
+        );
         free(buf_2 as *mut libc::c_void);
         let payload: *mut libc::c_char;
         let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
         payload = dc_decrypt_setup_file(context, setupcode, setupfile);
-        if 0 != payload.is_null() as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                919i32,
-                b"(payload=dc_decrypt_setup_file(context, setupcode, setupfile))!=NULL\x00"
-                    as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != (0
-            == dc_split_armored_data(
+        assert!(payload.is_null());
+        assert_eq!(
+            0,
+            dc_split_armored_data(
                 payload,
                 &mut headerline_2,
                 0 as *mut *const libc::c_char,
                 0 as *mut *const libc::c_char,
                 0 as *mut *const libc::c_char,
-            )) as usize
-        {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                920i32,
-                b"dc_split_armored_data(payload, &headerline, NULL, NULL, NULL)\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !(!headerline_2.is_null()
-            && strcmp(
+            )
+        );
+        assert!(!headerline_2.is_null());
+        assert_eq!(
+            strcmp(
                 headerline_2,
                 b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-            ) == 0i32) as usize
-        {
-            __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                                   &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                         b"../cmdline/stress.c\x00" as *const u8 as
-                             *const libc::c_char, 921i32,
-                         b"headerline && strcmp(headerline, \"-----BEGIN PGP PRIVATE KEY BLOCK-----\")==0\x00"
-                             as *const u8 as *const libc::c_char);
-        } else {
-        };
+            ),
+            0
+        );
         free(payload as *mut libc::c_void);
         free(setupfile as *mut libc::c_void);
         free(setupcode as *mut libc::c_void);
@@ -2095,84 +734,32 @@ unsafe fn stress_functions(context: &Context) {
 
     if 0 != dc_is_configured(context) {
         let qr: *mut libc::c_char = dc_get_securejoin_qr(context, 0i32 as uint32_t);
-        if 0 != !(strlen(qr) > 55
-            && strncmp(
-                qr,
-                b"OPENPGP4FPR:\x00" as *const u8 as *const libc::c_char,
-                12,
-            ) == 0i32
-            && strncmp(
-                &mut *qr.offset(52isize),
-                b"#a=\x00" as *const u8 as *const libc::c_char,
-                3,
-            ) == 0i32) as usize
-        {
-            __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                                   &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                         b"../cmdline/stress.c\x00" as *const u8 as
-                             *const libc::c_char, 1084i32,
-                         b"strlen(qr)>55 && strncmp(qr, \"OPENPGP4FPR:\", 12)==0 && strncmp(&qr[52], \"#a=\", 3)==0\x00"
-                             as *const u8 as *const libc::c_char);
-        } else {
-        };
+        assert!(
+            !(strlen(qr) > 55
+                && strncmp(
+                    qr,
+                    b"OPENPGP4FPR:\x00" as *const u8 as *const libc::c_char,
+                    12,
+                ) == 0i32
+                && strncmp(
+                    &mut *qr.offset(52isize),
+                    b"#a=\x00" as *const u8 as *const libc::c_char,
+                    3,
+                ) == 0i32)
+        );
         let mut res: *mut dc_lot_t = dc_check_qr(context, qr);
-        if 0 != res.is_null() as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                1087i32,
-                b"res\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !((*res).state == 200i32 || (*res).state == 220i32 || (*res).state == 230i32)
-            as usize
-        {
-            __assert_rtn((*::std::mem::transmute::<&[u8; 17],
-                                                   &[libc::c_char; 17]>(b"stress_functions\x00")).as_ptr(),
-                         b"../cmdline/stress.c\x00" as *const u8 as
-                             *const libc::c_char, 1088i32,
-                         b"res->state == DC_QR_ASK_VERIFYCONTACT || res->state == DC_QR_FPR_MISMATCH || res->state == DC_QR_FPR_WITHOUT_ADDR\x00"
-                             as *const u8 as *const libc::c_char);
-        } else {
-        };
+        assert!(res.is_null());
+        assert!(!((*res).state == 200i32 || (*res).state == 220i32 || (*res).state == 230i32));
+
         dc_lot_unref(res);
         free(qr as *mut libc::c_void);
         res =
             dc_check_qr(context,
                         b"BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD\x00"
                             as *const u8 as *const libc::c_char);
-        if 0 != res.is_null() as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                1094i32,
-                b"res\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !((*res).state == 320i32) as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                1095i32,
-                b"res->state == DC_QR_ADDR\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
-        if 0 != !((*res).id != 0i32 as libc::c_uint) as usize {
-            __assert_rtn(
-                (*::std::mem::transmute::<&[u8; 17], &[libc::c_char; 17]>(b"stress_functions\x00"))
-                    .as_ptr(),
-                b"../cmdline/stress.c\x00" as *const u8 as *const libc::c_char,
-                1096i32,
-                b"res->id != 0\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-        };
+        assert!(res.is_null());
+        assert!(!((*res).state == 320i32));
+        assert!(!((*res).id != 0i32 as libc::c_uint));
         dc_lot_unref(res);
     };
 }
