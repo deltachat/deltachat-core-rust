@@ -3,9 +3,8 @@ use crate::dc_tools::*;
 use crate::types::*;
 
 pub use libc::{
-    atoi, calloc, exit, free, malloc, memcmp, memcpy, memmove, memset, realloc, strcat, strchr,
-    strcmp, strcpy, strcspn, strlen, strncmp, strncpy, strrchr, strspn, strstr, strtol, system,
-    tolower, write,
+    calloc, exit, free, malloc, memcmp, memcpy, memmove, memset, realloc, strcat, strchr, strcmp,
+    strcpy, strcspn, strlen, strncmp, strncpy, strrchr, strspn, strstr, strtol, system,
 };
 
 pub unsafe fn strdup(s: *const libc::c_char) -> *mut libc::c_char {
@@ -43,7 +42,6 @@ extern "C" {
             unsafe extern "C" fn(_: *const libc::c_void, _: *const libc::c_void) -> libc::c_int,
         >,
     );
-    pub fn atol(_: *const libc::c_char) -> libc::c_long;
     pub fn vsnprintf(
         _: *mut libc::c_char,
         _: libc::c_ulong,
@@ -55,14 +53,6 @@ extern "C" {
 
     pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
-}
-
-#[cfg(not(target_os = "android"))]
-pub use libc::atof;
-
-#[cfg(target_os = "android")]
-pub unsafe fn atof(nptr: *mut libc::c_char) -> libc::c_double {
-    libc::strtod(nptr, std::ptr::null_mut())
 }
 
 pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
@@ -104,14 +94,6 @@ pub(crate) unsafe fn strncasecmp(
 mod tests {
     use super::*;
     use crate::dc_tools::to_string;
-
-    #[test]
-    fn test_atox() {
-        unsafe {
-            assert_eq!(atol(b"\x00" as *const u8 as *const libc::c_char), 0);
-            assert_eq!(atoi(b"\x00" as *const u8 as *const libc::c_char), 0);
-        }
-    }
 
     #[test]
     fn test_strndup() {

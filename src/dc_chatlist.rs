@@ -83,15 +83,12 @@ pub unsafe fn dc_get_chatlist<'a>(
 pub unsafe fn dc_chatlist_new(context: &Context) -> *mut dc_chatlist_t {
     let mut chatlist: *mut dc_chatlist_t;
     chatlist = calloc(1, ::std::mem::size_of::<dc_chatlist_t>()) as *mut dc_chatlist_t;
-    if chatlist.is_null() {
-        exit(20i32);
-    }
+    assert!(!chatlist.is_null());
+
     (*chatlist).magic = 0xc4a71157u32;
     (*chatlist).context = context;
     (*chatlist).chatNlastmsg_ids = dc_array_new(128i32 as size_t);
-    if (*chatlist).chatNlastmsg_ids.is_null() {
-        exit(32i32);
-    }
+    assert!(!(*chatlist).chatNlastmsg_ids.is_null());
     chatlist
 }
 

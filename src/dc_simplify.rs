@@ -15,9 +15,7 @@ pub struct dc_simplify_t {
 pub unsafe fn dc_simplify_new() -> *mut dc_simplify_t {
     let simplify: *mut dc_simplify_t;
     simplify = calloc(1, ::std::mem::size_of::<dc_simplify_t>()) as *mut dc_simplify_t;
-    if simplify.is_null() {
-        exit(31i32);
-    }
+    assert!(!simplify.is_null());
 
     simplify
 }

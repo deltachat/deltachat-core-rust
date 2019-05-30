@@ -320,10 +320,8 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
             || strcmp(cmd, b"getbadqr\x00" as *const u8 as *const libc::c_char) == 0i32
         {
             handles = Some(start_threads(ctx.clone()));
-            let qrstr: *mut libc::c_char = dc_get_securejoin_qr(
-                &ctx.read().unwrap(),
-                (if !arg1.is_null() { atoi(arg1) } else { 0i32 }) as uint32_t,
-            );
+            let qrstr: *mut libc::c_char =
+                dc_get_securejoin_qr(&ctx.read().unwrap(), dc_atoi_null_is_0(arg1) as u32);
             if !qrstr.is_null() && 0 != *qrstr.offset(0isize) as libc::c_int {
                 if strcmp(cmd, b"getbadqr\x00" as *const u8 as *const libc::c_char) == 0i32
                     && strlen(qrstr) > 40

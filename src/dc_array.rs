@@ -62,9 +62,7 @@ pub unsafe fn dc_array_add_uint(mut array: *mut dc_array_t, item: uintptr_t) {
             (*array).array as *mut libc::c_void,
             (newsize).wrapping_mul(::std::mem::size_of::<uintptr_t>()),
         ) as *mut uintptr_t;
-        if (*array).array.is_null() {
-            exit(49i32);
-        }
+        assert!(!(*array).array.is_null());
         (*array).allocated = newsize as size_t
     }
     *(*array).array.offset((*array).count as isize) = item;
@@ -266,9 +264,8 @@ pub unsafe fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
 pub unsafe fn dc_array_new_typed(type_0: libc::c_int, initsize: size_t) -> *mut dc_array_t {
     let mut array: *mut dc_array_t;
     array = calloc(1, ::std::mem::size_of::<dc_array_t>()) as *mut dc_array_t;
-    if array.is_null() {
-        exit(47i32);
-    }
+    assert!(!array.is_null());
+
     (*array).magic = 0xa11aai32 as uint32_t;
     (*array).count = 0i32 as size_t;
     (*array).allocated = if initsize < 1 { 1 } else { initsize };
