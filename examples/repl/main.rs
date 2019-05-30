@@ -15,6 +15,11 @@
     non_snake_case
 )]
 
+#[macro_use]
+extern crate deltachat;
+#[macro_use]
+extern crate failure;
+
 use std::ffi::CString;
 use std::io::{self, Write};
 use std::sync::{Arc, RwLock};
@@ -351,10 +356,9 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
                 break;
             }
             if !(*cmd.offset(0isize) as libc::c_int == 0i32) {
-                let execute_result: *mut libc::c_char = dc_cmdline(&ctx.read().unwrap(), &cmdline);
-                if !execute_result.is_null() {
-                    println!("{}", to_string(execute_result as *const _));
-                    free(execute_result as *mut libc::c_void);
+                match dc_cmdline(&ctx.read().unwrap(), &cmdline) {
+                    Ok(_) => {}
+                    Err(err) => println!("ERROR: {}"),
                 }
             }
         }
