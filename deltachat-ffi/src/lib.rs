@@ -7,8 +7,8 @@
     non_snake_case
 )]
 
-extern crate deltachat;
-extern crate libc;
+#[macro_use]
+extern crate human_panic;
 
 use deltachat::*;
 
@@ -28,6 +28,8 @@ pub unsafe extern "C" fn dc_context_new(
     userdata: *mut libc::c_void,
     os_name: *const libc::c_char,
 ) -> *mut dc_context_t {
+    setup_panic!();
+
     let ctx = context::dc_context_new(cb, userdata, os_name);
     Box::into_raw(Box::new(ctx))
 }
