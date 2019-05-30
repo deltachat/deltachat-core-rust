@@ -243,28 +243,13 @@ pub unsafe fn dc_null_terminate(
 }
 
 pub unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut libc::c_char {
-    let mut hex: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut i;
-    if !(buf.is_null() || bytes <= 0) {
-        hex = calloc(
-            ::std::mem::size_of::<libc::c_char>(),
-            bytes.wrapping_mul(2).wrapping_add(1),
-        ) as *mut libc::c_char;
-        if !hex.is_null() {
-            i = 0;
-            while i < bytes {
-                snprintf(
-                    &mut *hex.offset((i * 2) as isize) as *mut libc::c_char,
-                    3,
-                    b"%02X\x00" as *const u8 as *const libc::c_char,
-                    *buf.offset(i as isize) as libc::c_int,
-                );
-                i += 1
-            }
-        }
+    if buf.is_null() || bytes == 0 {
+        return std::ptr::null_mut();
     }
 
-    hex
+    let buf = std::slice::from_raw_parts(buf, bytes);
+    let raw = hex::encode_upper(buf);
+    strdup(to_cstring(raw).as_ptr())
 }
 
 /* remove all \r characters from string */
@@ -1271,21 +1256,20 @@ pub unsafe fn dc_create_folder(
     let mut success = 0;
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     {
-        let p = std::path::Path::new(
-            std::ffi::CStr::from_ptr(pathNfilename_abs)
-                .to_str()
-                .unwrap(),
-        );
+        let p = std::path::Path::new(to_str(pathNfilename_abs));
         if !p.exists() {
-            if mkdir(pathNfilename_abs, 0o755i32 as libc::mode_t) != 0i32 {
-                dc_log_warning(
-                    context,
-                    0i32,
-                    b"Cannot create directory \"%s\".\x00" as *const u8 as *const libc::c_char,
-                    pathNfilename,
-                );
-            } else {
-                success = 1;
+            match fs::create_dir_all(p) {
+                Ok(_) => {
+                    success = 1;
+                }
+                Err(_err) => {
+                    dc_log_warning(
+                        context,
+                        0i32,
+                        b"Cannot create directory \"%s\".\x00" as *const u8 as *const libc::c_char,
+                        pathNfilename,
+                    );
+                }
             }
         } else {
             success = 1;
@@ -1819,6 +1803,97 @@ mod tests {
             clist_free_content(list);
             clist_free(list);
             free(str as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_binary_to_uc_hex() {
+        let buf = vec![0, 1, 2, 3, 255];
+
+        let raw = unsafe { dc_binary_to_uc_hex(buf.as_ptr(), buf.len()) };
+        let res = to_string(raw);
+        assert_eq!(res, "00010203FF");
+
+        unsafe { free(raw as *mut _) };
+    }
+
+    #[test]
+    fn test_dc_replace_bad_utf8_chars_1() {
+        unsafe {
+            let buf1 = strdup(b"ol\xc3\xa1 mundo <>\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\x00" as *const u8 as *const libc::c_char);
+            let buf2 = strdup(buf1);
+
+            dc_replace_bad_utf8_chars(buf2);
+
+            assert_eq!(strcmp(buf1, buf2), 0);
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_replace_bad_utf8_chars_2() {
+        unsafe {
+            let buf1 = strdup(b"ISO-String with Ae: \xc4\x00" as *const u8 as *const libc::c_char);
+            let buf2 = strdup(buf1);
+
+            dc_replace_bad_utf8_chars(buf2);
+
+            assert_eq!(
+                CStr::from_ptr(buf2 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "ISO-String with Ae: _"
+            );
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_replace_bad_utf8_chars_3() {
+        unsafe {
+            let buf1 = strdup(b"\x00" as *const u8 as *const libc::c_char);
+            let buf2 = strdup(buf1);
+
+            dc_replace_bad_utf8_chars(buf2);
+
+            assert_eq!(*buf2.offset(0), 0);
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_replace_bad_utf8_chars_4() {
+        unsafe {
+            dc_replace_bad_utf8_chars(0 as *mut libc::c_char);
+        }
+    }
+
+    #[test]
+    fn test_dc_create_id() {
+        unsafe {
+            let buf = dc_create_id();
+            assert_eq!(strlen(buf), 11);
+            free(buf as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_utf8_strlen() {
+        unsafe {
+            assert_eq!(
+                dc_utf8_strlen(b"c\x00" as *const u8 as *const libc::c_char),
+                1
+            );
+            assert_eq!(
+                dc_utf8_strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char),
+                1
+            );
         }
     }
 }

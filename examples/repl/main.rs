@@ -46,125 +46,94 @@ unsafe extern "C" fn receive_event(
         2091 => {}
         100 => {
             /* do not show the event as this would fill the screen */
-            printf(
-                b"%s\n\x00" as *const u8 as *const libc::c_char,
-                data2 as *mut libc::c_char,
-            );
+            println!("{}", to_string(data2 as *const _),);
         }
         101 => {
-            printf(
-                b"[DC_EVENT_SMTP_CONNECTED] %s\n\x00" as *const u8 as *const libc::c_char,
-                data2 as *mut libc::c_char,
-            );
+            println!("[DC_EVENT_SMTP_CONNECTED] {}", to_string(data2 as *const _));
         }
         102 => {
-            printf(
-                b"[DC_EVENT_IMAP_CONNECTED] %s\n\x00" as *const u8 as *const libc::c_char,
-                data2 as *mut libc::c_char,
-            );
+            println!("[DC_EVENT_IMAP_CONNECTED] {}", to_string(data2 as *const _),);
         }
         103 => {
-            printf(
-                b"[DC_EVENT_SMTP_MESSAGE_SENT] %s\n\x00" as *const u8 as *const libc::c_char,
-                data2 as *mut libc::c_char,
+            println!(
+                "[DC_EVENT_SMTP_MESSAGE_SENT] {}",
+                to_string(data2 as *const _),
             );
         }
         300 => {
-            printf(
-                b"[Warning] %s\n\x00" as *const u8 as *const libc::c_char,
-                data2 as *mut libc::c_char,
-            );
+            println!("[Warning] {}", to_string(data2 as *const _),);
         }
         400 => {
-            printf(
-                b"\x1b[31m[DC_EVENT_ERROR] %s\x1b[0m\n\x00" as *const u8 as *const libc::c_char,
-                data2 as *mut libc::c_char,
+            println!(
+                "\x1b[31m[DC_EVENT_ERROR] {}\x1b[0m",
+                to_string(data2 as *const _),
             );
         }
         401 => {
-            printf(
-                b"\x1b[31m[DC_EVENT_ERROR_NETWORK] first=%i, msg=%s\x1b[0m\n\x00" as *const u8
-                    as *const libc::c_char,
+            println!(
+                "\x1b[31m[DC_EVENT_ERROR_NETWORK] first={}, msg={}\x1b[0m",
                 data1 as libc::c_int,
-                data2 as *mut libc::c_char,
+                to_string(data2 as *const _),
             );
         }
         410 => {
-            printf(
-                b"\x1b[31m[DC_EVENT_ERROR_SELF_NOT_IN_GROUP] %s\x1b[0m\n\x00" as *const u8
-                    as *const libc::c_char,
-                data2 as *mut libc::c_char,
+            println!(
+                "\x1b[31m[DC_EVENT_ERROR_SELF_NOT_IN_GROUP] {}\x1b[0m",
+                to_string(data2 as *const _),
             );
         }
         2081 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_IS_OFFLINE()}}\n\x1b[0m\x00" as *const u8
-                    as *const libc::c_char,
-            );
+            print!("\x1b[33m{{Received DC_EVENT_IS_OFFLINE()}}\n\x1b[0m");
         }
         2000 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_MSGS_CHANGED(%i, %i)}}\n\x1b[0m\x00" as *const u8
-                    as *const libc::c_char,
-                data1 as libc::c_int,
-                data2 as libc::c_int,
+            print!(
+                "\x1b[33m{{Received DC_EVENT_MSGS_CHANGED({}, {})}}\n\x1b[0m",
+                data1 as libc::c_int, data2 as libc::c_int,
             );
         }
         2030 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_CONTACTS_CHANGED()}}\n\x1b[0m\x00" as *const u8
-                    as *const libc::c_char,
-            );
+            print!("\x1b[33m{{Received DC_EVENT_CONTACTS_CHANGED()}}\n\x1b[0m");
         }
         2035 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_LOCATION_CHANGED(contact=%i)}}\n\x1b[0m\x00"
-                    as *const u8 as *const libc::c_char,
+            print!(
+                "\x1b[33m{{Received DC_EVENT_LOCATION_CHANGED(contact={})}}\n\x1b[0m",
                 data1 as libc::c_int,
             );
         }
         2041 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_CONFIGURE_PROGRESS(%i \xe2\x80\xb0)}}\n\x1b[0m\x00"
-                    as *const u8 as *const libc::c_char,
+            print!(
+                "\x1b[33m{{Received DC_EVENT_CONFIGURE_PROGRESS({} ‰)}}\n\x1b[0m",
                 data1 as libc::c_int,
             );
         }
         2051 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_IMEX_PROGRESS(%i \xe2\x80\xb0)}}\n\x1b[0m\x00"
-                    as *const u8 as *const libc::c_char,
+            print!(
+                "\x1b[33m{{Received DC_EVENT_IMEX_PROGRESS({} ‰)}}\n\x1b[0m",
                 data1 as libc::c_int,
             );
         }
         2052 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_IMEX_FILE_WRITTEN(%s)}}\n\x1b[0m\x00" as *const u8
-                    as *const libc::c_char,
-                data1 as *mut libc::c_char,
+            print!(
+                "\x1b[33m{{Received DC_EVENT_IMEX_FILE_WRITTEN({})}}\n\x1b[0m",
+                to_string(data1 as *const _)
             );
         }
         2055 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_FILE_COPIED(%s)}}\n\x1b[0m\x00" as *const u8
-                    as *const libc::c_char,
-                data1 as *mut libc::c_char,
+            print!(
+                "\x1b[33m{{Received DC_EVENT_FILE_COPIED({})}}\n\x1b[0m",
+                to_string(data1 as *const _)
             );
         }
         2020 => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_CHAT_MODIFIED(%i)}}\n\x1b[0m\x00" as *const u8
-                    as *const libc::c_char,
+            print!(
+                "\x1b[33m{{Received DC_EVENT_CHAT_MODIFIED({})}}\n\x1b[0m",
                 data1 as libc::c_int,
             );
         }
         _ => {
-            printf(
-                b"\x1b[33m{{Received DC_EVENT_%i(%i, %i)}}\n\x1b[0m\x00" as *const u8
-                    as *const libc::c_char,
-                event as libc::c_int,
-                data1 as libc::c_int,
-                data2 as libc::c_int,
+            print!(
+                "\x1b[33m{{Received DC_EVENT_{}({}, {})}}\n\x1b[0m",
+                event as libc::c_int, data1 as libc::c_int, data2 as libc::c_int,
             );
         }
     }
@@ -279,16 +248,16 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
 
     if argc == 2i32 {
         if 0 == dc_open(&mut context, *argv.offset(1isize), 0 as *const libc::c_char) {
-            printf(
-                b"ERROR: Cannot open %s.\n\x00" as *const u8 as *const libc::c_char,
-                *argv.offset(1isize),
+            println!(
+                "ERROR: Cannot open {}.",
+                to_string(*argv.offset(1isize) as *const _)
             );
         }
     } else if argc != 1i32 {
-        printf(b"ERROR: Bad arguments\n\x00" as *const u8 as *const libc::c_char);
+        println!("ERROR: Bad arguments");
     }
 
-    printf(b"Delta Chat Core is awaiting your commands.\n\x00" as *const u8 as *const libc::c_char);
+    println!("Delta Chat Core is awaiting your commands.");
 
     let mut handles = None;
 
@@ -311,19 +280,13 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
             handles = None;
         } else if strcmp(cmd, b"smtp-jobs\x00" as *const u8 as *const libc::c_char) == 0i32 {
             if 0 != run_threads {
-                printf(
-                    b"smtp-jobs are already running in a thread.\n\x00" as *const u8
-                        as *const libc::c_char,
-                );
+                println!("smtp-jobs are already running in a thread.",);
             } else {
                 dc_perform_smtp_jobs(&ctx.read().unwrap());
             }
         } else if strcmp(cmd, b"imap-jobs\x00" as *const u8 as *const libc::c_char) == 0i32 {
             if 0 != run_threads {
-                printf(
-                    b"imap-jobs are already running in a thread.\n\x00" as *const u8
-                        as *const libc::c_char,
-                );
+                println!("imap-jobs are already running in a thread.");
             } else {
                 dc_perform_imap_jobs(&ctx.read().unwrap());
             }
@@ -336,7 +299,7 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
                 b"addr\x00" as *const u8 as *const libc::c_char,
             );
             if addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32 {
-                printf(b"oauth2: set addr first.\n\x00" as *const u8 as *const libc::c_char);
+                println!("oauth2: set addr first.");
             } else {
                 let oauth2_url = dc_get_oauth2_url(
                     &ctx.read().unwrap(),
@@ -344,18 +307,15 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
                     "chat.delta:/com.b44t.messenger",
                 );
                 if oauth2_url.is_none() {
-                    printf(
-                        b"OAuth2 not available for %s.\n\x00" as *const u8 as *const libc::c_char,
-                        addr,
-                    );
+                    println!("OAuth2 not available for {}.", to_string(addr));
                 } else {
                     println!("Open the following url, set mail_pw to the generated token and server_flags to 2:\n{}", oauth2_url.unwrap());
                 }
             }
             free(addr as *mut libc::c_void);
         } else if strcmp(cmd, b"clear\x00" as *const u8 as *const libc::c_char) == 0i32 {
-            printf(b"\n\n\n\n\x00" as *const u8 as *const libc::c_char);
-            printf(b"\x1b[1;1H\x1b[2J\x00" as *const u8 as *const libc::c_char);
+            println!("\n\n\n");
+            print!("\x1b[1;1H\x1b[2J");
         } else if strcmp(cmd, b"getqr\x00" as *const u8 as *const libc::c_char) == 0i32
             || strcmp(cmd, b"getbadqr\x00" as *const u8 as *const libc::c_char) == 0i32
         {
@@ -374,7 +334,7 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
                         i += 1
                     }
                 }
-                printf(b"%s\n\x00" as *const u8 as *const libc::c_char, qrstr);
+                println!("{}", to_string(qrstr as *const _));
                 let syscmd: *mut libc::c_char = dc_mprintf(
                     b"qrencode -t ansiutf8 \"%s\" -o -\x00" as *const u8 as *const libc::c_char,
                     qrstr,
@@ -395,10 +355,7 @@ unsafe fn main_0(argc: libc::c_int, argv: *mut *mut libc::c_char) -> libc::c_int
             if !(*cmd.offset(0isize) as libc::c_int == 0i32) {
                 let execute_result: *mut libc::c_char = dc_cmdline(&ctx.read().unwrap(), &cmdline);
                 if !execute_result.is_null() {
-                    printf(
-                        b"%s\n\x00" as *const u8 as *const libc::c_char,
-                        execute_result,
-                    );
+                    println!("{}", to_string(execute_result as *const _));
                     free(execute_result as *mut libc::c_void);
                 }
             }

@@ -245,23 +245,18 @@ unsafe fn quote_word(
     // col = (*mmapstr).len as libc::c_int;
     cur = word;
     while i < size {
-        let mut do_quote_char: libc::c_int = 0;
-        match *cur as libc::c_int {
-            44 | 58 | 33 | 34 | 35 | 36 | 64 | 91 | 92 | 93 | 94 | 96 | 123 | 124 | 125 | 126
-            | 61 | 63 | 95 => do_quote_char = 1i32,
+        let mut do_quote_char = false;
+        match *cur as u8 as char {
+            ',' | ':' | '!' | '"' | '#' | '$' | '@' | '[' | '\\' | ']' | '^' | '`' | '{' | '|'
+            | '}' | '~' | '=' | '?' | '_' => do_quote_char = true,
             _ => {
-                if *cur as libc::c_uchar as libc::c_int >= 128i32 {
-                    do_quote_char = 1i32
+                if *cur as u8 >= 128 {
+                    do_quote_char = true;
                 }
             }
         }
-        if 0 != do_quote_char {
-            snprintf(
-                hex.as_mut_ptr(),
-                4,
-                b"=%2.2X\x00" as *const u8 as *const libc::c_char,
-                *cur as libc::c_uchar as libc::c_int,
-            );
+        if do_quote_char {
+            print_hex(hex.as_mut_ptr(), cur);
             if mmap_string_append(mmapstr, hex.as_mut_ptr()).is_null() {
                 return false;
             }
@@ -716,6 +711,15 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
     };
 }
 
+unsafe fn print_hex(target: *mut libc::c_char, cur: *const libc::c_char) {
+    assert!(!target.is_null());
+    assert!(!cur.is_null());
+
+    let bytes = std::slice::from_raw_parts(cur as *const _, strlen(cur));
+    let raw = to_cstring(format!("={}", &hex::encode_upper(bytes)[..2]));
+    libc::memcpy(target as *mut _, raw.as_ptr() as *const _, 4);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -880,6 +884,76 @@ mod tests {
                 dc_needs_ext_header(0 as *const u8 as *const libc::c_char),
                 false
             );
+        }
+    }
+
+    #[test]
+    fn test_print_hex() {
+        let mut hex: [libc::c_char; 4] = [0; 4];
+        let cur = b"helloworld" as *const u8 as *const libc::c_char;
+        unsafe { print_hex(hex.as_mut_ptr(), cur) };
+        assert_eq!(to_string(hex.as_ptr() as *const _), "=68");
+
+        let cur = b":" as *const u8 as *const libc::c_char;
+        unsafe { print_hex(hex.as_mut_ptr(), cur) };
+        assert_eq!(to_string(hex.as_ptr() as *const _), "=3A");
+    }
+
+    #[test]
+    fn test_dc_urlencode_urldecode() {
+        unsafe {
+            let buf1 =
+                dc_urlencode(b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char);
+
+            assert_eq!(
+                CStr::from_ptr(buf1 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "Bj%C3%B6rn+Petersen"
+            );
+
+            let buf2 = dc_urldecode(buf1);
+
+            assert_eq!(
+                strcmp(
+                    buf2,
+                    b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char
+                ),
+                0
+            );
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    fn test_dc_encode_decode_modified_utf7() {
+        unsafe {
+            let buf1 = dc_encode_modified_utf7(
+                b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char,
+                1,
+            );
+
+            assert_eq!(
+                CStr::from_ptr(buf1 as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "Bj&APY-rn_Petersen"
+            );
+
+            let buf2 = dc_decode_modified_utf7(buf1, 1);
+
+            assert_eq!(
+                strcmp(
+                    buf2,
+                    b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char
+                ),
+                0
+            );
+
+            free(buf1 as *mut libc::c_void);
+            free(buf2 as *mut libc::c_void);
         }
     }
 }

@@ -358,65 +358,141 @@ pub unsafe fn dc_array_get_string(
     array: *const dc_array_t,
     sep: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let ret: *mut libc::c_char;
     if array.is_null() || (*array).magic != 0xa11aai32 as libc::c_uint || sep.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut i = 0;
-    ret = malloc(
-        (*array)
-            .count
-            .wrapping_mul((11usize).wrapping_add(strlen(sep)))
-            .wrapping_add(1),
-    ) as *mut libc::c_char;
-    if ret.is_null() {
-        exit(35i32);
-    }
-    *ret.offset(0isize) = 0i32 as libc::c_char;
-    while i < (*array).count {
-        if 0 != i {
-            strcat(ret, sep);
-        }
-        sprintf(
-            &mut *ret.offset(strlen(ret) as isize) as *mut libc::c_char,
-            b"%lu\x00" as *const u8 as *const libc::c_char,
-            *(*array).array.offset(i as isize) as libc::c_ulong,
-        );
-        i += 1
-    }
+    let cnt = (*array).count as usize;
+    let slice = std::slice::from_raw_parts((*array).array, cnt);
+    let sep = to_str(sep);
 
-    ret
+    let res = slice
+        .iter()
+        .enumerate()
+        .fold(String::with_capacity(2 * cnt), |mut res, (i, n)| {
+            if i == 0 {
+                res += &n.to_string();
+            } else {
+                res += sep;
+                res += &n.to_string();
+            }
+            res
+        });
+    strdup(to_cstring(res).as_ptr())
 }
 
+/// return comma-separated value-string from integer array
 pub unsafe fn dc_arr_to_string(arr: *const uint32_t, cnt: libc::c_int) -> *mut libc::c_char {
-    /* return comma-separated value-string from integer array */
-    let ret: *mut libc::c_char;
-    let sep: *const libc::c_char = b",\x00" as *const u8 as *const libc::c_char;
-    if arr.is_null() || cnt <= 0i32 {
+    if arr.is_null() || cnt == 0 {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let mut i: libc::c_int;
-    ret = malloc(
-        (cnt as usize)
-            .wrapping_mul((11usize).wrapping_add(strlen(sep)))
-            .wrapping_add(0usize),
-    ) as *mut libc::c_char;
-    if ret.is_null() {
-        exit(35i32);
-    }
-    *ret.offset(0isize) = 0i32 as libc::c_char;
-    i = 0i32;
-    while i < cnt {
-        if 0 != i {
-            strcat(ret, sep);
+
+    let slice = std::slice::from_raw_parts(arr, cnt as usize);
+    let res = slice.iter().enumerate().fold(
+        String::with_capacity(2 * cnt as usize),
+        |mut res, (i, n)| {
+            if i == 0 {
+                res += &n.to_string();
+            } else {
+                res += ",";
+                res += &n.to_string();
+            }
+            res
+        },
+    );
+    strdup(to_cstring(res).as_ptr())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::ffi::CStr;
+
+    #[test]
+    fn test_dc_array() {
+        unsafe {
+            let arr = dc_array_new(7 as size_t);
+            assert_eq!(dc_array_get_cnt(arr), 0);
+
+            let mut i: libc::c_int = 0;
+            while i < 1000 {
+                dc_array_add_id(arr, (i + 2) as uint32_t);
+                i += 1
+            }
+
+            assert_eq!(dc_array_get_cnt(arr), 1000);
+
+            i = 0;
+
+            while i < 1000i32 {
+                assert_eq!(
+                    dc_array_get_id(arr, i as size_t),
+                    (i + 1i32 * 2i32) as libc::c_uint
+                );
+                i += 1
+            }
+
+            assert_eq!(dc_array_get_id(arr, -1i32 as size_t), 0);
+            assert_eq!(dc_array_get_id(arr, 1000 as size_t), 0);
+            assert_eq!(dc_array_get_id(arr, 1001 as size_t), 0);
+
+            dc_array_empty(arr);
+
+            assert_eq!(dc_array_get_cnt(arr), 0);
+
+            dc_array_add_id(arr, 13 as uint32_t);
+            dc_array_add_id(arr, 7 as uint32_t);
+            dc_array_add_id(arr, 666 as uint32_t);
+            dc_array_add_id(arr, 0 as uint32_t);
+            dc_array_add_id(arr, 5000 as uint32_t);
+
+            dc_array_sort_ids(arr);
+
+            assert_eq!(dc_array_get_id(arr, 0 as size_t), 0);
+            assert_eq!(dc_array_get_id(arr, 1 as size_t), 7);
+            assert_eq!(dc_array_get_id(arr, 2 as size_t), 13);
+            assert_eq!(dc_array_get_id(arr, 3 as size_t), 666);
+
+            let str = dc_array_get_string(arr, b"-\x00" as *const u8 as *const libc::c_char);
+            assert_eq!(
+                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
+                "0-7-13-666-5000"
+            );
+            free(str as *mut libc::c_void);
+
+            dc_array_empty(arr);
+
+            dc_array_add_ptr(
+                arr,
+                b"XX\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
+            );
+            dc_array_add_ptr(
+                arr,
+                b"item1\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
+            );
+            dc_array_add_ptr(
+                arr,
+                b"bbb\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
+            );
+            dc_array_add_ptr(
+                arr,
+                b"aaa\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
+            );
+            dc_array_sort_strings(arr);
+
+            let str = dc_array_get_ptr(arr, 0 as size_t) as *mut libc::c_char;
+            assert_eq!(CStr::from_ptr(str).to_str().unwrap(), "XX");
+
+            let str = dc_array_get_ptr(arr, 1 as size_t) as *mut libc::c_char;
+            assert_eq!(CStr::from_ptr(str).to_str().unwrap(), "aaa");
+
+            let str = dc_array_get_ptr(arr, 2 as size_t) as *mut libc::c_char;
+            assert_eq!(CStr::from_ptr(str).to_str().unwrap(), "bbb");
+
+            let str = dc_array_get_ptr(arr, 3 as size_t) as *mut libc::c_char;
+            assert_eq!(CStr::from_ptr(str).to_str().unwrap(), "item1");
+
+            dc_array_unref(arr);
         }
-        sprintf(
-            &mut *ret.offset(strlen(ret) as isize) as *mut libc::c_char,
-            b"%lu\x00" as *const u8 as *const libc::c_char,
-            *arr.offset(i as isize) as libc::c_ulong,
-        );
-        i += 1
     }
 
-    ret
 }

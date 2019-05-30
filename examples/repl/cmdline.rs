@@ -160,10 +160,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     let mut success: libc::c_int = 0i32;
     let mut real_spec: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut dir: *mut DIR = 0 as *mut DIR;
-    let mut dir_entry: *mut dirent;
     let mut read_cnt: libc::c_int = 0i32;
-    let mut name: *mut libc::c_char;
     if 0 == dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
         dc_log_error(
             context,
@@ -212,8 +209,9 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                     current_block = 1622411330066726685;
                 } else {
                     /* import a directory */
-                    dir = opendir(real_spec);
-                    if dir.is_null() {
+                    let dir_name = std::path::Path::new(to_str(real_spec));
+                    let dir = std::fs::read_dir(dir_name);
+                    if dir.is_err() {
                         dc_log_error(
                             context,
                             0i32,
@@ -223,22 +221,19 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                         );
                         current_block = 8522321847195001863;
                     } else {
-                        loop {
-                            dir_entry = readdir(dir);
-                            if dir_entry.is_null() {
+                        let dir = dir.unwrap();
+                        for entry in dir {
+                            if entry.is_err() {
                                 break;
                             }
-                            name = (*dir_entry).d_name.as_mut_ptr();
-                            if strlen(name) >= 4
-                                && strcmp(
-                                    &mut *name.offset(strlen(name).wrapping_sub(4) as isize),
-                                    b".eml\x00" as *const u8 as *const libc::c_char,
-                                ) == 0i32
-                            {
+                            let entry = entry.unwrap();
+                            let name_f = entry.file_name();
+                            let name = name_f.to_string_lossy();
+                            if name.ends_with(".eml") {
                                 let path_plus_name: *mut libc::c_char = dc_mprintf(
                                     b"%s/%s\x00" as *const u8 as *const libc::c_char,
                                     real_spec,
-                                    name,
+                                    to_cstring(name).as_ptr(),
                                 );
                                 dc_log_info(
                                     context,
@@ -280,13 +275,11 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
             }
         }
     }
-    if !dir.is_null() {
-        closedir(dir);
-    }
     free(real_spec as *mut libc::c_void);
     free(suffix as *mut libc::c_void);
-    return success;
+    success
 }
+
 unsafe fn log_msg(context: &Context, prefix: *const libc::c_char, msg: *mut dc_msg_t) {
     let contact: *mut dc_contact_t = dc_get_contact(context, dc_msg_get_from_id(msg));
     let contact_name: *mut libc::c_char = dc_contact_get_name(contact);
