@@ -1245,7 +1245,7 @@ impl Imap {
                     };
 
                     if copied {
-                        if self.add_flag(uid, "\\Deleted") == 0 {
+                        if self.add_flag(context, uid, "\\Deleted") == 0 {
                             warn!(context, 0, "Cannot mark message as \"Deleted\".",);
                         }
                         self.config.write().unwrap().selected_folder_needs_expunge = true;
@@ -1271,18 +1271,26 @@ impl Imap {
         }
     }
 
-    fn add_flag<S: AsRef<str>>(&self, server_uid: u32, flag: S) -> usize {
+    fn add_flag<S: AsRef<str>>(&self, context: &Context, server_uid: u32, flag: S) -> usize {
+        if server_uid == 0 {
+            return 0;
+        }
         if let Some(ref mut session) = self.session.lock().unwrap().0 {
             let set = format!("{}", server_uid);
             let query = format!("+FLAGS ({})", flag.as_ref());
             match session.uid_store(&set, &query) {
                 Ok(_) => {}
                 Err(err) => {
-                    eprintln!("imap store error: ({}, {}) {:?}", set, query, err);
+                    warn!(
+                        context,
+                        0, "IMAP failed to store: ({}, {}) {:?}", set, query, err
+                    );
                 }
             }
         }
 
+        // All non-connection states are treated as success - the mail may
+        // already be deleted or moved away on the server.
         if self.should_reconnect() {
             0
         } else {
@@ -1311,7 +1319,7 @@ impl Imap {
                     "Cannot select folder {} for setting SEEN flag.",
                     folder.as_ref(),
                 );
-            } else if self.add_flag(uid, "\\Seen") == 0 {
+            } else if self.add_flag(context, uid, "\\Seen") == 0 {
                 warn!(context, 0, "Cannot mark message as seen.",);
             } else {
                 res = DC_SUCCESS
@@ -1408,7 +1416,7 @@ impl Imap {
 
                         res = if flag_set {
                             DC_ALREADY_DONE
-                        } else if self.add_flag(uid, "$MDNSent") != 0 {
+                        } else if self.add_flag(context, uid, "$MDNSent") != 0 {
                             DC_SUCCESS
                         } else {
                             res
@@ -1511,7 +1519,7 @@ impl Imap {
                 }
 
                 // mark the message for deletion
-                if self.add_flag(*server_uid, "\\Deleted") == 0 {
+                if self.add_flag(context, *server_uid, "\\Deleted") == 0 {
                     warn!(context, 0, "Cannot mark message as \"Deleted\".");
                 } else {
                     self.config.write().unwrap().selected_folder_needs_expunge = true;
