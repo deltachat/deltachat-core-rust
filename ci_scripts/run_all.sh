@@ -39,7 +39,7 @@ if [ -n "$TESTS" ]; then
     export PYTHONDONTWRITEBYTECODE=1
 
     # run tox 
-    tox --workdir "$TOXWORKDIR" -e py27,py35,py36,py37
+    tox --workdir "$TOXWORKDIR" -e py27,py35,py36,py37,auditwheels
     popd
 fi
 
