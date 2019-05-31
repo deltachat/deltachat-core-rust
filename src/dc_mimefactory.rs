@@ -1144,10 +1144,7 @@ unsafe fn build_body_file(
                 "dat".into()
             };
             let res = ts
-                .format(&format!(
-                    "voice-message_%04i-%02i-%02i_%02i-%02i-%02i.{}",
-                    suffix
-                ))
+                .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
                 .to_string();
             filename_to_send = strdup(to_cstring(res).as_ptr());
         } else if (*msg).type_0 == 40i32 {
