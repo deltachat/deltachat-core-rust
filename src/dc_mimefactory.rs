@@ -1145,7 +1145,7 @@ unsafe fn build_body_file(
             };
             let res = ts
                 .format(&format!(
-                    "voice-message_%04i-%02i-%02i_%02i-%02i-%02i.{}",
+                    "voice-message_%Y-%m-%d_%H-%M-%S.{}",
                     suffix
                 ))
                 .to_string();
