@@ -1102,17 +1102,12 @@ pub unsafe fn dc_cmdline(context: &Context, cmdline: &str) -> Result<(), failure
             dc_array_unref(msglist_1);
         }
         "forward" => {
-            if !arg1.is_empty() && !arg2.is_empty() {
-                let mut msg_ids: [uint32_t; 1] = [0; 1];
-                let chat_id_5: uint32_t = arg2.parse().unwrap();
-                msg_ids[0usize] = arg1.parse().unwrap();
-                dc_forward_msgs(context, msg_ids.as_mut_ptr(), 1, chat_id_5);
-            } else {
-                ret = dc_strdup(
-                    b"ERROR: Arguments <msg-id> <chat-id> expected.\x00" as *const u8
-                        as *const libc::c_char,
-                )
-            }
+            ensure!(!arg1.is_empty() && arg2.is_empty(), "Arguments <msg-id> <chat-id> expected");
+
+            let mut msg_ids = [0; 1];
+            let chat_id = arg2.parse().unwrap();
+            msg_ids[0] = arg1.parse().unwrap();
+            dc_forward_msgs(context, msg_ids.as_mut_ptr(), 1, chat_id_5);
         }
         "markseen" => {
             ensure!(!arg1.is_empty());
