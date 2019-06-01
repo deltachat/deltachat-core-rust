@@ -917,15 +917,10 @@ pub unsafe fn dc_cmdline(context: &Context, cmdline: &str) -> Result<(), failure
                 dc_is_sending_locations_to_chat(context, dc_chat_get_id(sel_chat)),
             );
             dc_array_unref(contacts);
-
         }
         "getlocations" => {
-            let contact_id_2: libc::c_int = ensure!(!arg1.is_empty());
-                arg1.parse().unwrap()
-            } else {
-                0
-            };
-            let loc: *mut dc_array_t = dc_get_locations(
+            let contact_id_2 = arg1.parse().unwrap_or_default();
+            let loc = dc_get_locations(
                 context,
                 dc_chat_get_id(sel_chat),
                 contact_id_2 as uint32_t,
@@ -934,9 +929,9 @@ pub unsafe fn dc_cmdline(context: &Context, cmdline: &str) -> Result<(), failure
             );
             let mut j = 0;
             while j < dc_array_get_cnt(loc) {
-                let timestr_0: *mut libc::c_char =
+                let timestr_0 =
                     dc_timestamp_to_str(dc_array_get_timestamp(loc, j as size_t));
-                let marker: *mut libc::c_char = dc_array_get_marker(loc, j as size_t);
+                let marker = dc_array_get_marker(loc, j as size_t);
                 info!(
                     context,
                     0,
@@ -965,219 +960,146 @@ pub unsafe fn dc_cmdline(context: &Context, cmdline: &str) -> Result<(), failure
             dc_array_unref(loc);
         }
         "sendlocations" => {
-            if !sel_chat.is_null() {
-                ensure!(!arg1.is_empty());
-                    let seconds: libc::c_int = arg1.parse().unwrap();
-                    dc_send_locations_to_chat(context, dc_chat_get_id(sel_chat), seconds);
-                    ret =
-                        dc_mprintf(b"Locations will be sent to Chat#%i for %i seconds. Use \'setlocation <lat> <lng>\' to play around.\x00"
-                                   as *const u8 as *const libc::c_char,
-                                   dc_chat_get_id(sel_chat), seconds)
-                } else {
-                    ret = dc_strdup(
-                        b"ERROR: No timeout given.\x00" as *const u8 as *const libc::c_char,
-                    )
-                }
-            } else {
-                ret = dc_strdup(b"No chat selected.\x00" as *const u8 as *const libc::c_char)
-            }
+            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(!arg1.is_empty(), "No timeout given.");
+
+            let seconds = arg1.parse().unwrap();
+            dc_send_locations_to_chat(context, dc_chat_get_id(sel_chat), seconds);
+            println!("Locations will be sent to Chat#%i for %i seconds. Use \'setlocation <lat> <lng>\' to play around.", dc_chat_get_id(sel_chat), seconds);
         }
         "setlocation" => {
-            if !arg1.is_empty() && !arg2.is_empty() {
-                let latitude: libc::c_double = arg1.parse().unwrap();
-                let longitude: libc::c_double = arg2.parse().unwrap();
-                let continue_streaming: libc::c_int =
-                    dc_set_location(context, latitude, longitude, 0.0f64);
-                ret = dc_strdup(if 0 != continue_streaming {
-                    b"Success, streaming should be continued.\x00" as *const u8
-                        as *const libc::c_char
-                } else {
-                    b"Success, streaming can be stoppped.\x00" as *const u8 as *const libc::c_char
-                })
+            ensure!(!arg1.is_empty() && !arg2.is_empty(), "Latitude or longitude not given.");
+            let latitude = arg1.parse().unwrap();
+            let longitude = arg2.parse().unwrap();
+
+            let continue_streaming = dc_set_location(context, latitude, longitude, 0.);
+            if 0 != continue_streaming {
+                println!("Success, streaming should be continued.");
             } else {
-                ret = dc_strdup(
-                    b"ERROR: Latitude or longitude not given.\x00" as *const u8
-                        as *const libc::c_char,
-                )
+                println!("Success, streaming can be stoppped.");
             }
         }
         "dellocations" => {
             dc_delete_all_locations(context);
         }
         "send" => {
-            if !sel_chat.is_null() {
-                ensure!(!arg1.is_empty());
-                    if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), arg1_c_ptr) {
-                        ret = dc_strdup(b"Message sent.\x00" as *const u8 as *const libc::c_char)
-                    } else {
-                        ret = dc_strdup(
-                            b"ERROR: Sending failed.\x00" as *const u8 as *const libc::c_char,
-                        )
-                    }
-                } else {
-                    ret = dc_strdup(
-                        b"ERROR: No message text given.\x00" as *const u8 as *const libc::c_char,
-                    )
-                }
+            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(!arg1.is_empty(), "No message text given.");
+
+            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), arg1_c_ptr) {
+                println!("Message sent.");
             } else {
-                ret = dc_strdup(b"No chat selected.\x00" as *const u8 as *const libc::c_char)
+                bail!("Sending failed.");
             }
         }
         "sendempty" => {
-            if !sel_chat.is_null() {
-                if 0 != dc_send_text_msg(
-                    context,
-                    dc_chat_get_id(sel_chat),
-                    b"\x00" as *const u8 as *const libc::c_char,
-                ) {
-                    ret = dc_strdup(b"Message sent.\x00" as *const u8 as *const libc::c_char)
-                } else {
-                    ret =
-                        dc_strdup(b"ERROR: Sending failed.\x00" as *const u8 as *const libc::c_char)
-                }
+            ensure!(!sel_chat.is_null(), "No chat selected.");
+            if 0 != dc_send_text_msg(
+                context,
+                dc_chat_get_id(sel_chat),
+                b"\x00" as *const u8 as *const libc::c_char,
+            ) {
+                println!("Message sent.");
             } else {
-                ret = dc_strdup(b"No chat selected.\x00" as *const u8 as *const libc::c_char)
+                bail!("Sending failed.");
             }
         }
         "sendimage" | "sendfile" => {
-            if !sel_chat.is_null() {
-                if !arg1.is_empty() && !arg2.is_empty() {
-                    let msg_0: *mut dc_msg_t = dc_msg_new(
-                        context,
-                        if strcmp(cmd, b"sendimage\x00" as *const u8 as *const libc::c_char) == 0 {
-                            20
-                        } else {
-                            60
-                        },
-                    );
-                    dc_msg_set_file(msg_0, arg1_c_ptr, 0 as *const libc::c_char);
-                    dc_msg_set_text(msg_0, arg2_c.as_ptr());
-                    dc_send_msg(context, dc_chat_get_id(sel_chat), msg_0);
-                    dc_msg_unref(msg_0);
+            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(!arg1.is_empty() && !arg2.is_empty(), "No file given.");
+
+            let msg_0 = dc_msg_new(
+                context,
+                if cmdline == "sendimage" {
+                    20
                 } else {
-                    ret =
-                        dc_strdup(b"ERROR: No file given.\x00" as *const u8 as *const libc::c_char)
-                }
-            } else {
-                ret = dc_strdup(b"No chat selected.\x00" as *const u8 as *const libc::c_char)
-            }
+                    60
+                },
+            );
+            dc_msg_set_file(msg_0, arg1_c_ptr, 0 as *const libc::c_char);
+            dc_msg_set_text(msg_0, arg2_c.as_ptr());
+            dc_send_msg(context, dc_chat_get_id(sel_chat), msg_0);
+            dc_msg_unref(msg_0);
         }
         "listmsgs" => {
-            ensure!(!arg1.is_empty());
-                let msglist_0: *mut dc_array_t = dc_search_msgs(
-                    context,
-                    if !sel_chat.is_null() {
-                        dc_chat_get_id(sel_chat)
-                    } else {
-                        0 as libc::c_uint
-                    },
-                    arg1_c_ptr,
-                );
-                if !msglist_0.is_null() {
-                    log_msglist(context, msglist_0);
-                    ret = dc_mprintf(
-                        b"%i messages.\x00" as *const u8 as *const libc::c_char,
-                        dc_array_get_cnt(msglist_0) as libc::c_int,
-                    );
-                    dc_array_unref(msglist_0);
-                }
+            ensure!(!arg1.is_empty(), "Argument <query> missing.");
+
+            let chat = if !sel_chat.is_null() {
+                dc_chat_get_id(sel_chat)
             } else {
-                ret = dc_strdup(
-                    b"ERROR: Argument <query> missing.\x00" as *const u8 as *const libc::c_char,
-                )
+                0 as libc::c_uint
+            };
+
+            let msglist_0 = dc_search_msgs(
+                context,
+                chat,
+                arg1_c_ptr,
+            );
+
+            if !msglist_0.is_null() {
+                log_msglist(context, msglist_0);
+                println!("{} messages.", dc_array_get_cnt(msglist_0));
+                dc_array_unref(msglist_0);
             }
         }
         "draft" => {
-            if !sel_chat.is_null() {
-                ensure!(!arg1.is_empty());
-                    let draft_0: *mut dc_msg_t = dc_msg_new(context, 10);
-                    dc_msg_set_text(draft_0, arg1_c_ptr);
-                    dc_set_draft(context, dc_chat_get_id(sel_chat), draft_0);
-                    dc_msg_unref(draft_0);
-                    ret = dc_strdup(b"Draft saved.\x00" as *const u8 as *const libc::c_char)
-                } else {
-                    dc_set_draft(context, dc_chat_get_id(sel_chat), 0 as *mut dc_msg_t);
-                    ret = dc_strdup(b"Draft deleted.\x00" as *const u8 as *const libc::c_char)
-                }
+            ensure!(!sel_chat.is_null(), "No chat selected.");
+
+            if !arg1.is_empty() {
+                let draft_0 = dc_msg_new(context, 10);
+                dc_msg_set_text(draft_0, arg1_c_ptr);
+                dc_set_draft(context, dc_chat_get_id(sel_chat), draft_0);
+                dc_msg_unref(draft_0);
+                println!("Draft saved.");
             } else {
-                ret = dc_strdup(b"No chat selected.\x00" as *const u8 as *const libc::c_char)
+                dc_set_draft(context, dc_chat_get_id(sel_chat), 0 as *mut dc_msg_t);
+                println!("Draft deleted.");
             }
         }
         "listmedia" => {
-            if !sel_chat.is_null() {
-                let images: *mut dc_array_t =
-                    dc_get_chat_media(context, dc_chat_get_id(sel_chat), 20, 21, 50);
-                let mut i_0: libc::c_int;
-                let icnt: libc::c_int = dc_array_get_cnt(images) as libc::c_int;
-                ret = dc_mprintf(
-                    b"%i images or videos: \x00" as *const u8 as *const libc::c_char,
-                    icnt,
-                );
-                i_0 = 0;
-                while i_0 < icnt {
-                    let temp: *mut libc::c_char = dc_mprintf(
-                        b"%s%sMsg#%i\x00" as *const u8 as *const libc::c_char,
-                        if 0 != i_0 {
-                            b", \x00" as *const u8 as *const libc::c_char
-                        } else {
-                            b"\x00" as *const u8 as *const libc::c_char
-                        },
-                        ret,
-                        dc_array_get_id(images, i_0 as size_t) as libc::c_int,
-                    );
-                    free(ret as *mut libc::c_void);
-                    ret = temp;
-                    i_0 += 1
+            ensure!(!sel_chat.is_null(), "No chat selected.");
+
+            let images = dc_get_chat_media(context, dc_chat_get_id(sel_chat), 20, 21, 50);
+            let icnt: libc::c_int = dc_array_get_cnt(images) as libc::c_int;
+            println!("{} images or videos: " icnt);
+            for i in 0..icnt {
+                let data = dc_array_get_id(images, i as size_t);
+                if 0 == i {
+                    print!("Msg#{}", data);
+                } else {
+                    print!(", Msg#{}", data);
                 }
-                dc_array_unref(images);
-            } else {
-                ret = dc_strdup(b"No chat selected.\x00" as *const u8 as *const libc::c_char)
             }
+            print!("\n");
+            dc_array_unref(images);
         }
         "archive" | "unarchive" => {
-            ensure!(!arg1.is_empty());
-                let chat_id_3: libc::c_int = arg1.parse().unwrap();
-                dc_archive_chat(
-                    context,
-                    chat_id_3 as uint32_t,
-                    if strcmp(cmd, b"archive") == 0 { 1 } else { 0 },
-                );
-            } else {
-                ret = dc_strdup(
-                    b"ERROR: Argument <chat-id> missing.\x00" as *const u8 as *const libc::c_char,
-                )
-            }
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = arg1.parse().unwrap();
+            dc_archive_chat(
+                context,
+                chat_id as uint32_t,
+                if cmdline == "archive" { 1 } else { 0 },
+            );
         }
         "delchat" => {
-            ensure!(!arg1.is_empty());
-                let chat_id_4: libc::c_int = arg1.parse().unwrap();
-                dc_delete_chat(context, chat_id_4 as uint32_t);
-            } else {
-                ret = dc_strdup(
-                    b"ERROR: Argument <chat-id> missing.\x00" as *const u8 as *const libc::c_char,
-                )
-            }
+            ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
+            let chat_id = arg1.parse().unwrap();
+            dc_delete_chat(context, chat_id as uint32_t);
         }
         "msginfo" => {
-            ensure!(!arg1.is_empty());
-                let id: libc::c_int = arg1.parse().unwrap();
-                ret = dc_get_msg_info(context, id as uint32_t)
-            } else {
-                ret = dc_strdup(
-                    b"ERROR: Argument <msg-id> missing.\x00" as *const u8 as *const libc::c_char,
-                )
-            }
+            ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
+            let id = arg1.parse().unwrap();
+            let res = dc_get_msg_info(context, id as uint32_t);
+            println!("{}", to_str(res));
         }
         "listfresh" => {
-            let msglist_1: *mut dc_array_t = dc_get_fresh_msgs(context);
-            if !msglist_1.is_null() {
-                log_msglist(context, msglist_1);
-                ret = dc_mprintf(
-                    b"%i fresh messages.\x00" as *const u8 as *const libc::c_char,
-                    dc_array_get_cnt(msglist_1) as libc::c_int,
-                );
-                dc_array_unref(msglist_1);
-            }
+            let msglist = dc_get_fresh_msgs(context);
+            ensure!(!msglist.is_null());
+
+            log_msglist(context, msglist_1);
+            print!("{} fresh messages.", dc_array_get_cnt(msglist));
+            dc_array_unref(msglist_1);
         }
         "forward" => {
             if !arg1.is_empty() && !arg2.is_empty() {
