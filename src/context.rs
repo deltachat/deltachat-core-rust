@@ -607,41 +607,9 @@ unsafe fn get_config_keys_str() -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
-    let unset = b"0\x00" as *const u8 as *const libc::c_char;
-    let displayname;
-    let temp;
-    let l_readable_str;
-    let l2_readable_str;
-    let fingerprint_str;
-    let l;
-    let l2;
-    let inbox_watch;
-    let sentbox_watch;
-    let mvbox_watch;
-    let mvbox_move;
-    let folders_configured;
-    let configured_sentbox_folder;
-    let configured_mvbox_folder;
-    let contacts;
-    let chats;
-    let real_msgs;
-    let deaddrop_msgs;
-    let is_configured;
-    let dbversion;
-    let mdns_enabled;
-    let e2ee_enabled;
-    let prv_key_cnt;
-    let pub_key_cnt;
-
-    let mut ret = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut ret, 0);
-    l = dc_loginparam_new();
-    l2 = dc_loginparam_new();
+    let unset = "0";
+    let l = dc_loginparam_new();
+    let l2 = dc_loginparam_new();
     dc_loginparam_read(
         context,
         l,
@@ -654,47 +622,47 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         &context.sql.clone().read().unwrap(),
         b"configured_\x00" as *const u8 as *const libc::c_char,
     );
-    displayname = dc_sqlite3_get_config(
+    let displayname = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         b"displayname\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
-    chats = dc_get_chat_cnt(context) as libc::c_int;
-    real_msgs = dc_get_real_msg_cnt(context) as libc::c_int;
-    deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as libc::c_int;
-    contacts = dc_get_real_contact_cnt(context) as libc::c_int;
-    is_configured = dc_sqlite3_get_config_int(
+    let chats = dc_get_chat_cnt(context) as usize;
+    let real_msgs = dc_get_real_msg_cnt(context) as usize;
+    let deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as usize;
+    let contacts = dc_get_real_contact_cnt(context) as usize;
+    let is_configured = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"configured\x00" as *const u8 as *const libc::c_char,
         0,
     );
-    dbversion = dc_sqlite3_get_config_int(
+    let dbversion = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"dbversion\x00" as *const u8 as *const libc::c_char,
         0,
     );
-    e2ee_enabled = dc_sqlite3_get_config_int(
+    let e2ee_enabled = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
         1,
     );
-    mdns_enabled = dc_sqlite3_get_config_int(
+    let mdns_enabled = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
         1,
     );
-    let mut stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
+    let mut stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         b"SELECT COUNT(*) FROM keypairs;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_step(stmt);
-    prv_key_cnt = sqlite3_column_int(stmt, 0);
+    let prv_key_cnt = sqlite3_column_int(stmt, 0);
     sqlite3_finalize(stmt);
     stmt = dc_sqlite3_prepare(
         context,
@@ -702,94 +670,93 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         b"SELECT COUNT(*) FROM acpeerstates;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_step(stmt);
-    pub_key_cnt = sqlite3_column_int(stmt, 0);
+    let pub_key_cnt = sqlite3_column_int(stmt, 0);
     sqlite3_finalize(stmt);
-    if let Some(key) =
+    let fingerprint_str = if let Some(key) =
         Key::from_self_public(context, (*l2).addr, &context.sql.clone().read().unwrap())
     {
-        fingerprint_str = key.fingerprint_c();
+        key.fingerprint()
     } else {
-        fingerprint_str =
-            dc_strdup(b"<Not yet calculated>\x00" as *const u8 as *const libc::c_char);
-    }
+        "<Not yet calculated>".into()
+    };
 
-    l_readable_str = dc_loginparam_get_readable(l);
-    l2_readable_str = dc_loginparam_get_readable(l2);
-    inbox_watch = dc_sqlite3_get_config_int(
+    let l_readable_str = dc_loginparam_get_readable(l);
+    let l2_readable_str = dc_loginparam_get_readable(l2);
+    let inbox_watch = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"inbox_watch\x00" as *const u8 as *const libc::c_char,
         1,
     );
-    sentbox_watch = dc_sqlite3_get_config_int(
+    let sentbox_watch = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"sentbox_watch\x00" as *const u8 as *const libc::c_char,
         1,
     );
-    mvbox_watch = dc_sqlite3_get_config_int(
+    let mvbox_watch = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"mvbox_watch\x00" as *const u8 as *const libc::c_char,
         1,
     );
-    mvbox_move = dc_sqlite3_get_config_int(
+    let mvbox_move = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"mvbox_move\x00" as *const u8 as *const libc::c_char,
         1,
     );
-    folders_configured = dc_sqlite3_get_config_int(
+    let folders_configured = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
         b"folders_configured\x00" as *const u8 as *const libc::c_char,
         0,
     );
-    configured_sentbox_folder = dc_sqlite3_get_config(
+    let configured_sentbox_folder = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
         b"<unset>\x00" as *const u8 as *const libc::c_char,
     );
-    configured_mvbox_folder = dc_sqlite3_get_config(
+    let configured_mvbox_folder = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
         b"<unset>\x00" as *const u8 as *const libc::c_char,
     );
 
-    temp = dc_mprintf(
-        b"deltachat_core_version=v%s\n\
-          sqlite_version=%s\n\
-          sqlite_thread_safe=%i\n\
-          compile_date=Apr 26 2019, 00:51:50\n\
-          arch=%i\n\
-          number_of_chats=%i\n\
-          number_of_chat_messages=%i\n\
-          messages_in_contact_requests=%i\n\
-          number_of_contacts=%i\n\
-          database_dir=%s\n\
-          database_version=%i\n\
-          blobdir=%s\n\
-          display_name=%s\n\
-          is_configured=%i\n\
-          entered_account_settings=%s\n\
-          used_account_settings=%s\n\
-          inbox_watch=%i\n\
-          sentbox_watch=%i\n\
-          mvbox_watch=%i\n\
-          mvbox_move=%i\n\
-          folders_configured=%i\n\
-          configured_sentbox_folder=%s\n\
-          configured_mvbox_folder=%s\n\
-          mdns_enabled=%i\n\
-          e2ee_enabled=%i\n\
-          private_key_count=%i\n\
-          public_key_count=%i\n\
-          fingerprint=%s\n\
-          level=awesome\n\x00" as *const u8 as *const libc::c_char,
-        VERSION as *const u8 as *const libc::c_char,
-        libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char,
+    let res = format!(
+        "deltachat_core_version=v{}\n\
+         sqlite_version={}\n\
+         sqlite_thread_safe={}\n\
+         compile_date=Apr 26 2019, 00:51:50\n\
+         arch={}\n\
+         number_of_chats={}\n\
+         number_of_chat_messages={}\n\
+         messages_in_contact_requests={}\n\
+         number_of_contacts={}\n\
+         database_dir={}\n\
+         database_version={}\n\
+         blobdir={}\n\
+         display_name={}\n\
+         is_configured={}\n\
+         entered_account_settings={}\n\
+         used_account_settings={}\n\
+         inbox_watch={}\n\
+         sentbox_watch={}\n\
+         mvbox_watch={}\n\
+         mvbox_move={}\n\
+         folders_configured={}\n\
+         configured_sentbox_folder={}\n\
+         configured_mvbox_folder={}\n\
+         mdns_enabled={}\n\
+         e2ee_enabled={}\n\
+         private_key_count={}\n\
+         public_key_count={}\n\
+         fingerprint={}\n\
+         level=awesome\n",
+        to_str(VERSION as *const u8 as *const _),
+        to_str(libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char),
         sqlite3_threadsafe(),
         // arch
         (::std::mem::size_of::<*mut libc::c_void>()).wrapping_mul(8),
@@ -798,31 +765,31 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         deaddrop_msgs,
         contacts,
         if context.has_dbfile() {
-            context.get_dbfile()
+            to_str(context.get_dbfile())
         } else {
             unset
         },
         dbversion,
         if context.has_blobdir() {
-            context.get_blobdir()
+            to_str(context.get_blobdir())
         } else {
             unset
         },
         if !displayname.is_null() {
-            displayname
+            to_str(displayname)
         } else {
             unset
         },
         is_configured,
-        l_readable_str,
-        l2_readable_str,
+        to_str(l_readable_str),
+        to_str(l2_readable_str),
         inbox_watch,
         sentbox_watch,
         mvbox_watch,
         mvbox_move,
         folders_configured,
-        configured_sentbox_folder,
-        configured_mvbox_folder,
+        to_str(configured_sentbox_folder),
+        to_str(configured_mvbox_folder),
         mdns_enabled,
         e2ee_enabled,
         prv_key_cnt,
@@ -830,8 +797,6 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         fingerprint_str,
     );
 
-    dc_strbuilder_cat(&mut ret, temp);
-    free(temp as *mut libc::c_void);
     dc_loginparam_unref(l);
     dc_loginparam_unref(l2);
     free(displayname as *mut libc::c_void);
@@ -839,9 +804,8 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     free(l2_readable_str as *mut libc::c_void);
     free(configured_sentbox_folder as *mut libc::c_void);
     free(configured_mvbox_folder as *mut libc::c_void);
-    free(fingerprint_str as *mut libc::c_void);
 
-    ret.buf
+    strdup(to_cstring(res).as_ptr())
 }
 
 pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
