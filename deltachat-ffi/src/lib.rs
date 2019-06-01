@@ -1538,3 +1538,8 @@ pub unsafe extern "C" fn dc_lot_get_id(lot: *mut dc_lot::dc_lot_t) -> libc::uint
 pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot::dc_lot_t) -> i64 {
     dc_lot::dc_lot_get_timestamp(lot)
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
+    libc::free(s as *mut _)
+}
