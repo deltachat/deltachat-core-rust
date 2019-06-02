@@ -22,9 +22,9 @@ extern crate failure;
 extern crate lazy_static;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
-use crossbeam::channel::bounded;
 use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_configure::*;
@@ -46,9 +46,7 @@ use rustyline::{
 mod cmdline;
 use self::cmdline::*;
 
-/* ******************************************************************************
- * Event Handler
- ******************************************************************************/
+// Event Handler
 
 unsafe extern "C" fn receive_event(
     _context: &Context,
@@ -159,6 +157,7 @@ unsafe extern "C" fn receive_event(
 
 lazy_static! {
     static ref HANDLE: Arc<Mutex<Option<Handle>>> = Arc::new(Mutex::new(None));
+    static ref IS_RUNNING: AtomicBool = AtomicBool::new(true);
 }
 
 struct Handle {
@@ -166,20 +165,14 @@ struct Handle {
     handle_mvbox: Option<std::thread::JoinHandle<()>>,
     handle_sentbox: Option<std::thread::JoinHandle<()>>,
     handle_smtp: Option<std::thread::JoinHandle<()>>,
-    interrupt_chan: crossbeam::channel::Sender<()>,
 }
 
 macro_rules! while_running {
-    ($chan:expr, $code:block) => {
-        match $chan.try_recv() {
-            Ok(()) => break,
-            Err(err) => {
-                if err.is_empty() {
-                    $code
-                } else {
-                    break;
-                }
-            }
+    ($code:block) => {
+        if IS_RUNNING.load(Ordering::Relaxed) {
+            $code
+        } else {
+            break;
         }
     };
 }
@@ -190,57 +183,48 @@ fn start_threads(c: Arc<RwLock<Context>>) {
     }
 
     println!("Starting threads");
-    let (tx, r) = bounded(1);
+    IS_RUNNING.store(true, Ordering::Relaxed);
 
-    let rx = r.clone();
     let ctx = c.clone();
     let handle_imap = std::thread::spawn(move || loop {
-        println!("reading");
-        while_running!(rx, {
-            println!("locking");
-            let context = ctx.read().unwrap();
+        while_running!({
             unsafe {
-                dc_perform_imap_jobs(&context);
-                dc_perform_imap_fetch(&context);
+                dc_perform_imap_jobs(&ctx.read().unwrap());
+                dc_perform_imap_fetch(&ctx.read().unwrap());
             }
-            while_running!(rx, {
+            while_running!({
+                let context = ctx.read().unwrap();
                 dc_perform_imap_idle(&context);
             });
         });
     });
 
-    let rx = r.clone();
     let ctx = c.clone();
     let handle_mvbox = std::thread::spawn(move || loop {
-        while_running!(rx, {
-            let context = ctx.read().unwrap();
-            unsafe { dc_perform_mvbox_fetch(&context) };
-            while_running!(rx, {
-                unsafe { dc_perform_mvbox_idle(&context) };
+        while_running!({
+            unsafe { dc_perform_mvbox_fetch(&ctx.read().unwrap()) };
+            while_running!({
+                unsafe { dc_perform_mvbox_idle(&ctx.read().unwrap()) };
             });
         });
     });
 
-    let rx = r.clone();
     let ctx = c.clone();
     let handle_sentbox = std::thread::spawn(move || loop {
-        while_running!(rx, {
-            let context = ctx.read().unwrap();
-            unsafe { dc_perform_sentbox_fetch(&context) };
-            while_running!(rx, {
-                unsafe { dc_perform_sentbox_idle(&context) };
+        while_running!({
+            unsafe { dc_perform_sentbox_fetch(&ctx.read().unwrap()) };
+            while_running!({
+                unsafe { dc_perform_sentbox_idle(&ctx.read().unwrap()) };
             });
         });
     });
 
-    let rx = r;
     let ctx = c;
     let handle_smtp = std::thread::spawn(move || loop {
-        while_running!(rx, {
-            let context = ctx.read().unwrap();
-            unsafe { dc_perform_smtp_jobs(&context) };
-            while_running!(rx, {
-                unsafe { dc_perform_smtp_idle(&context) };
+        while_running!({
+            unsafe { dc_perform_smtp_jobs(&ctx.read().unwrap()) };
+            while_running!({
+                unsafe { dc_perform_smtp_idle(&ctx.read().unwrap()) };
             });
         });
     });
@@ -250,17 +234,13 @@ fn start_threads(c: Arc<RwLock<Context>>) {
         handle_mvbox: Some(handle_mvbox),
         handle_sentbox: Some(handle_sentbox),
         handle_smtp: Some(handle_smtp),
-        interrupt_chan: tx,
     });
 }
 
 fn stop_threads(context: &Context) {
     if let Some(ref mut handle) = *HANDLE.clone().lock().unwrap() {
         println!("Stopping threads");
-        handle
-            .interrupt_chan
-            .send(())
-            .expect("failed to send interrupt");
+        IS_RUNNING.store(false, Ordering::Relaxed);
 
         unsafe {
             dc_interrupt_imap_idle(context);
@@ -480,7 +460,8 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
             Ok(line) => {
                 // TODO: ignore "set mail_pw"
                 rl.add_history_entry(line.as_str());
-                match unsafe { handle_cmd(line.as_str(), ctx.clone()) } {
+                let ctx = ctx.clone();
+                match unsafe { handle_cmd(line.as_str(), ctx) } {
                     Ok(ExitResult::Continue) => {}
                     Ok(ExitResult::Exit) => break,
                     Err(err) => println!("Error: {}", err),
@@ -499,10 +480,10 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     rl.save_history(".dc-history.txt")?;
     println!("history saved");
     {
-        let mut ctx = ctx.write().unwrap();
+        stop_threads(&ctx.read().unwrap());
+
         unsafe {
-            println!("stopping threads");
-            stop_threads(&ctx);
+            let mut ctx = ctx.write().unwrap();
             dc_close(&mut ctx);
             dc_context_unref(&mut ctx);
         }
