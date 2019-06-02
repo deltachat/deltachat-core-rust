@@ -382,19 +382,20 @@ unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
     }
 }
 
-static mut s_is_auth: libc::c_int = 0;
+static mut S_IS_AUTH: libc::c_int = 0;
 
 pub unsafe fn dc_cmdline_skip_auth() {
-    s_is_auth = 1;
+    S_IS_AUTH = 1;
 }
-unsafe fn chat_prefix(chat: *const dc_chat_t) -> *const libc::c_char {
+
+unsafe fn chat_prefix(chat: *const dc_chat_t) -> &'static str {
     if (*chat).type_0 == 120 {
-        return b"Group\x00" as *const u8 as *const libc::c_char;
+        "Group"
     } else if (*chat).type_0 == 130 {
-        return b"VerifiedGroup\x00" as *const u8 as *const libc::c_char;
+        "VerifiedGroup"
     } else {
-        return b"Single\x00" as *const u8 as *const libc::c_char;
-    };
+        "Single"
+    }
 }
 
 pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
@@ -508,11 +509,11 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ),
         },
         "auth" => {
-            if 0 == s_is_auth {
+            if 0 == S_IS_AUTH {
                 let is_pw =
                     dc_get_config(context, b"mail_pw\x00" as *const u8 as *const libc::c_char);
                 if arg1 == to_str(is_pw) {
-                    s_is_auth = 1;
+                    S_IS_AUTH = 1;
                 } else {
                     println!("Bad password.");
                 }
@@ -673,7 +674,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         context,
                         0,
                         "{}#{}: {} [{}] [{} fresh]",
-                        to_str(chat_prefix(chat)),
+                        chat_prefix(chat),
                         dc_chat_get_id(chat) as libc::c_int,
                         to_str(temp_name),
                         to_str(temp_subtitle),
@@ -753,7 +754,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 context,
                 0,
                 "{}#{}: {} [{}]{}",
-                to_str(chat_prefix(sel_chat)),
+                chat_prefix(sel_chat),
                 dc_chat_get_id(sel_chat),
                 to_str(temp_name),
                 to_str(temp2),
@@ -804,7 +805,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 let chat_0: *mut dc_chat_t = dc_get_chat(context, chat_id_0 as uint32_t);
                 println!(
                     "{}#{} created successfully.",
-                    to_str(chat_prefix(chat_0)),
+                    chat_prefix(chat_0),
                     chat_id_0,
                 );
                 dc_chat_unref(chat_0);
@@ -1151,13 +1152,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
             dc_strbuilder_init(&mut strbuilder, 0);
             let contact = dc_get_contact(context, contact_id);
-            let nameNaddr = dc_contact_get_name_n_addr(contact);
+            let name_n_addr = dc_contact_get_name_n_addr(contact);
             dc_strbuilder_catf(
                 &mut strbuilder as *mut dc_strbuilder_t,
                 b"Contact info for: %s:\n\n\x00" as *const u8 as *const libc::c_char,
-                nameNaddr,
+                name_n_addr,
             );
-            free(nameNaddr as *mut libc::c_void);
+            free(name_n_addr as *mut libc::c_void);
             dc_contact_unref(contact);
             let encrinfo = dc_get_contact_encrinfo(context, contact_id);
             dc_strbuilder_cat(&mut strbuilder, encrinfo);
@@ -1185,7 +1186,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     dc_strbuilder_catf(
                         &mut strbuilder as *mut dc_strbuilder_t,
                         b"%s#%i\x00" as *const u8 as *const libc::c_char,
-                        chat_prefix(chat_1),
+                        to_cstring(chat_prefix(chat_1)).as_ptr(),
                         dc_chat_get_id(chat_1),
                     );
                     dc_chat_unref(chat_1);
