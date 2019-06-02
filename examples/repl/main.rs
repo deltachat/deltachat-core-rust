@@ -4,16 +4,6 @@
 //! Usage:  cargo run --example repl --release -- <databasefile>
 //! All further options can be set using the set-command (type ? for help).
 
-#![allow(
-    mutable_transmutes,
-    non_camel_case_types,
-    non_snake_case,
-    non_upper_case_globals,
-    non_upper_case_globals,
-    non_camel_case_types,
-    non_snake_case
-)]
-
 #[macro_use]
 extern crate deltachat;
 #[macro_use]
