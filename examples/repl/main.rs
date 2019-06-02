@@ -44,98 +44,89 @@ unsafe extern "C" fn receive_event(
     data1: uintptr_t,
     data2: uintptr_t,
 ) -> uintptr_t {
-    match event as u32 {
-        2091 => {}
-        100 => {
+    match event {
+        Event::GET_STRING => {}
+        Event::INFO => {
             /* do not show the event as this would fill the screen */
             println!("{}", to_string(data2 as *const _),);
         }
-        101 => {
+        Event::SMTP_CONNECTED => {
             println!("[DC_EVENT_SMTP_CONNECTED] {}", to_string(data2 as *const _));
         }
-        102 => {
+        Event::IMAP_CONNECTED => {
             println!("[DC_EVENT_IMAP_CONNECTED] {}", to_string(data2 as *const _),);
         }
-        103 => {
+        Event::SMTP_MESSAGE_SENT => {
             println!(
                 "[DC_EVENT_SMTP_MESSAGE_SENT] {}",
                 to_string(data2 as *const _),
             );
         }
-        300 => {
+        Event::WARNING => {
             println!("[Warning] {}", to_string(data2 as *const _),);
         }
-        400 => {
+        Event::ERROR => {
             println!(
                 "\x1b[31m[DC_EVENT_ERROR] {}\x1b[0m",
                 to_string(data2 as *const _),
             );
         }
-        401 => {
+        Event::ERROR_NETWORK => {
             println!(
                 "\x1b[31m[DC_EVENT_ERROR_NETWORK] first={}, msg={}\x1b[0m",
-                data1 as libc::c_int,
+                data1 as usize,
                 to_string(data2 as *const _),
             );
         }
-        410 => {
+        Event::ERROR_SELF_NOT_IN_GROUP => {
             println!(
                 "\x1b[31m[DC_EVENT_ERROR_SELF_NOT_IN_GROUP] {}\x1b[0m",
                 to_string(data2 as *const _),
             );
         }
-        2081 => {
-            print!("\x1b[33m{{Received DC_EVENT_IS_OFFLINE()}}\n\x1b[0m");
-        }
-        2000 => {
+        Event::MSGS_CHANGED => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_MSGS_CHANGED({}, {})}}\n\x1b[0m",
-                data1 as libc::c_int, data2 as libc::c_int,
+                data1 as usize, data2 as usize,
             );
         }
-        2030 => {
+        Event::CONTACTS_CHANGED => {
             print!("\x1b[33m{{Received DC_EVENT_CONTACTS_CHANGED()}}\n\x1b[0m");
         }
-        2035 => {
+        Event::LOCATION_CHANGED => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_LOCATION_CHANGED(contact={})}}\n\x1b[0m",
-                data1 as libc::c_int,
+                data1 as usize,
             );
         }
-        2041 => {
+        Event::CONFIGURE_PROGRESS => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_CONFIGURE_PROGRESS({} ‰)}}\n\x1b[0m",
-                data1 as libc::c_int,
+                data1 as usize,
             );
         }
-        2051 => {
+        Event::IMEX_PROGRESS => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_IMEX_PROGRESS({} ‰)}}\n\x1b[0m",
-                data1 as libc::c_int,
+                data1 as usize,
             );
         }
-        2052 => {
+        Event::IMEX_FILE_WRITTEN => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_IMEX_FILE_WRITTEN({})}}\n\x1b[0m",
                 to_string(data1 as *const _)
             );
         }
-        2055 => {
-            print!(
-                "\x1b[33m{{Received DC_EVENT_FILE_COPIED({})}}\n\x1b[0m",
-                to_string(data1 as *const _)
-            );
-        }
-        2020 => {
+        Event::CHAT_MODIFIED => {
             print!(
                 "\x1b[33m{{Received DC_EVENT_CHAT_MODIFIED({})}}\n\x1b[0m",
-                data1 as libc::c_int,
+                data1 as usize,
             );
         }
         _ => {
             print!(
-                "\x1b[33m{{Received DC_EVENT_{}({}, {})}}\n\x1b[0m",
-                event as libc::c_int, data1 as libc::c_int, data2 as libc::c_int,
+                "\x1b[33m{{Received {:?}({}, {})}}\n\x1b[0m",
+                event, data1 as usize, data2 as usize,
             );
         }
     }
@@ -551,7 +542,8 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
         }
         "getqr" | "getbadqr" => {
             start_threads(ctx.clone());
-            let qrstr = dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse()?);
+            let qrstr =
+                dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse().unwrap_or_default());
             if !qrstr.is_null() && 0 != *qrstr.offset(0isize) as libc::c_int {
                 if arg0 == "getbadqr" && strlen(qrstr) > 40 {
                     let mut i: libc::c_int = 12i32;

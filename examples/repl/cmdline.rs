@@ -12,9 +12,7 @@ use deltachat::dc_lot::*;
 use deltachat::dc_msg::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_receive_imf::*;
-use deltachat::dc_securejoin::*;
 use deltachat::dc_sqlite3::*;
-use deltachat::dc_strbuilder::*;
 use deltachat::dc_tools::*;
 use deltachat::peerstate::*;
 use deltachat::types::*;
@@ -235,7 +233,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     success
 }
 
-unsafe fn log_msg(context: &Context, prefix: *const libc::c_char, msg: *mut dc_msg_t) {
+unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t) {
     let contact: *mut dc_contact_t = dc_get_contact(context, dc_msg_get_from_id(msg));
     let contact_name: *mut libc::c_char = dc_contact_get_name(contact);
     let contact_id: libc::c_int = dc_contact_get_id(contact) as libc::c_int;
@@ -252,7 +250,7 @@ unsafe fn log_msg(context: &Context, prefix: *const libc::c_char, msg: *mut dc_m
         context,
         0,
         "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{} [{}]",
-        to_str(prefix),
+        prefix.as_ref(),
         dc_msg_get_id(msg) as libc::c_int,
         if 0 != dc_msg_get_showpadlock(msg) {
             "🔒"
@@ -292,11 +290,10 @@ unsafe fn log_msg(context: &Context, prefix: *const libc::c_char, msg: *mut dc_m
 }
 
 unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
-    let mut i: libc::c_int = 0;
-    let cnt: libc::c_int = dc_array_get_cnt(msglist) as libc::c_int;
-    let mut lines_out: libc::c_int = 0;
-    while i < cnt {
-        let msg_id: uint32_t = dc_array_get_id(msglist, i as size_t);
+    let cnt = dc_array_get_cnt(msglist) as usize;
+    let mut lines_out = 0;
+    for i in 0..cnt {
+        let msg_id = dc_array_get_id(msglist, i as size_t);
         if msg_id == 9 as libc::c_uint {
             info!(
                 context,
@@ -313,27 +310,27 @@ unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
                 );
                 lines_out += 1
             }
-            let msg: *mut dc_msg_t = dc_get_msg(context, msg_id);
-            log_msg(context, b"Msg\x00" as *const u8 as *const libc::c_char, msg);
+            let msg = dc_get_msg(context, msg_id);
+            log_msg(context, "Msg", msg);
             dc_msg_unref(msg);
         }
-        i += 1
     }
     if lines_out > 0 {
         info!(
             context,
             0, "--------------------------------------------------------------------------------"
         );
-    };
+    }
 }
+
 unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
     let mut contact: *mut dc_contact_t;
     if !dc_array_search_id(contacts, 1 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1 as uint32_t);
     }
-    let mut i = 0;
-    while i < dc_array_get_cnt(contacts) {
-        let contact_id: uint32_t = dc_array_get_id(contacts, i as size_t);
+    let cnt = dc_array_get_cnt(contacts);
+    for i in 0..cnt {
+        let contact_id = dc_array_get_id(contacts, i as size_t);
         let line;
         let mut line2 = "".to_string();
         contact = dc_get_contact(context, contact_id);
@@ -367,18 +364,16 @@ unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
             let peerstate =
                 Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), to_str(addr));
             if peerstate.is_some() && contact_id != 1 as libc::c_uint {
-                let pe = to_cstring(format!("{}", peerstate.as_ref().unwrap().prefer_encrypt));
-                line2 = format!(", prefer-encrypt={}", to_str(pe.as_ptr()));
+                line2 = format!(
+                    ", prefer-encrypt={}",
+                    peerstate.as_ref().unwrap().prefer_encrypt
+                );
             }
             dc_contact_unref(contact);
             free(name as *mut libc::c_void);
             free(addr as *mut libc::c_void);
-            info!(
-                context,
-                0, "Contact#{}: {}{}", contact_id as libc::c_int, line, line2
-            );
+            info!(context, 0, "Contact#{}: {}{}", contact_id, line, line2);
         }
-        i += 1
     }
 }
 
@@ -624,7 +619,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <bits> missing: 1=jobs, 2=peerstates, 4=private keys, 8=rest but server config");
             let bits: libc::c_int = arg1.parse().unwrap();
             ensure!(bits > 15, "<bits> must be lower than 16.");
-            ensure!(0 != dc_reset_tables(context, bits), "Resete failed");
+            ensure!(0 != dc_reset_tables(context, bits), "Reset failed");
         }
         "stop" => {
             dc_stop_ongoing_process(context);
@@ -772,11 +767,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
             let draft = dc_get_draft(context, dc_chat_get_id(sel_chat));
             if !draft.is_null() {
-                log_msg(
-                    context,
-                    b"Draft\x00" as *const u8 as *const libc::c_char,
-                    draft,
-                );
+                log_msg(context, "Draft", draft);
                 dc_msg_unref(draft);
             }
             println!(
@@ -1143,76 +1134,40 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
             let contact_id = arg1.parse().unwrap();
-            let mut strbuilder: dc_strbuilder_t = dc_strbuilder_t {
-                buf: 0 as *mut libc::c_char,
-                allocated: 0,
-                free: 0,
-                eos: 0 as *mut libc::c_char,
-            };
-
-            dc_strbuilder_init(&mut strbuilder, 0);
             let contact = dc_get_contact(context, contact_id);
             let name_n_addr = dc_contact_get_name_n_addr(contact);
-            dc_strbuilder_catf(
-                &mut strbuilder as *mut dc_strbuilder_t,
-                b"Contact info for: %s:\n\n\x00" as *const u8 as *const libc::c_char,
-                name_n_addr,
-            );
+
+            let mut res = format!("Contact info for: {}:\n\n", to_str(name_n_addr),);
             free(name_n_addr as *mut libc::c_void);
             dc_contact_unref(contact);
+
             let encrinfo = dc_get_contact_encrinfo(context, contact_id);
-            dc_strbuilder_cat(&mut strbuilder, encrinfo);
+            res += to_str(encrinfo);
             free(encrinfo as *mut libc::c_void);
+
             let chatlist = dc_get_chatlist(context, 0, 0 as *const libc::c_char, contact_id);
             let chatlist_cnt = dc_chatlist_get_cnt(chatlist) as libc::c_int;
             if chatlist_cnt > 0 {
-                dc_strbuilder_catf(
-                    &mut strbuilder as *mut dc_strbuilder_t,
-                    b"\n\n%i chats shared with Contact#%i: \x00" as *const u8
-                        as *const libc::c_char,
-                    chatlist_cnt,
-                    contact_id,
+                res += &format!(
+                    "\n\n{} chats shared with Contact#{}: ",
+                    chatlist_cnt, contact_id,
                 );
-                let mut i_1: libc::c_int = 0;
-                while i_1 < chatlist_cnt {
-                    if 0 != i_1 {
-                        dc_strbuilder_cat(
-                            &mut strbuilder,
-                            b", \x00" as *const u8 as *const libc::c_char,
-                        );
+                for i in 0..chatlist_cnt {
+                    if 0 != i {
+                        res += ", ";
                     }
-                    let chat_1 =
-                        dc_get_chat(context, dc_chatlist_get_chat_id(chatlist, i_1 as size_t));
-                    dc_strbuilder_catf(
-                        &mut strbuilder as *mut dc_strbuilder_t,
-                        b"%s#%i\x00" as *const u8 as *const libc::c_char,
-                        to_cstring(chat_prefix(chat_1)).as_ptr(),
-                        dc_chat_get_id(chat_1),
-                    );
-                    dc_chat_unref(chat_1);
-                    i_1 += 1
+                    let chat = dc_get_chat(context, dc_chatlist_get_chat_id(chatlist, i as size_t));
+                    res += &format!("{}#{}", chat_prefix(chat), dc_chat_get_id(chat));
+                    dc_chat_unref(chat);
                 }
             }
             dc_chatlist_unref(chatlist);
-            println!("{}", to_str(strbuilder.buf));
+            println!("{}", res);
         }
         "delcontact" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             if !dc_delete_contact(context, arg1.parse().unwrap()) {
                 bail!("Failed to delete contact");
-            }
-        }
-        "getqr" => {
-            let val = if !arg1.is_empty() {
-                arg1.parse().unwrap()
-            } else {
-                0
-            };
-
-            let ret = dc_get_securejoin_qr(context, val);
-            if ret.is_null() || *ret.offset(0isize) as libc::c_int == 0 {
-                free(ret as *mut libc::c_void);
-                bail!("Failed to execute securejoin");
             }
         }
         "checkqr" => {
