@@ -10,3 +10,4 @@ Cargo.lock
 include
 .dc-history.txt
 *.db
+*.db-blobs
