@@ -1,5 +1,4 @@
 use crate::dc_strbuilder::dc_strbuilder_t;
-use crate::dc_tools::*;
 use crate::types::*;
 
 pub use libc::{
@@ -27,9 +26,14 @@ pub fn strndup(s: *const libc::c_char, n: libc::c_ulong) -> *mut libc::c_char {
         return std::ptr::null_mut();
     }
 
-    let s_r = to_str(s);
-    let end = std::cmp::min(n as usize, s_r.len());
-    unsafe { strdup(to_cstring(&s_r[..end]).as_ptr()) }
+    let end = std::cmp::min(n as usize, unsafe { strlen(s) });
+    unsafe {
+        let result = malloc(end + 1);
+        memcpy(result, s as *const _, end);
+        std::ptr::write_bytes(result.offset(end as isize), b'\x00', 1);
+
+        result as *mut _
+    }
 }
 
 extern "C" {
