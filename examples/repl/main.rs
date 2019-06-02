@@ -1,9 +1,8 @@
 //! This is a CLI program and a little testing frame.  This file must not be
 //! included when using Delta Chat Core as a library.
 //!
-//! Usage:  messenger-backend <databasefile>
-//! (for "Code::Blocks, use Project / Set programs' arguments")
-//! all further options can be set using the set-command (type ? for help).
+//! Usage:  cargo run --example repl --release -- <databasefile>
+//! All further options can be set using the set-command (type ? for help).
 
 #![allow(
     mutable_transmutes,
@@ -19,10 +18,13 @@
 extern crate deltachat;
 #[macro_use]
 extern crate failure;
+#[macro_use]
+extern crate lazy_static;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
+use crossbeam::channel::bounded;
 use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_configure::*;
@@ -149,91 +151,128 @@ unsafe extern "C" fn receive_event(
             );
         }
     }
-    return 0i32 as uintptr_t;
+
+    0
 }
 
 // Threads for waiting for messages and for jobs
 
-static mut run_threads: i32 = 0;
-
-unsafe fn start_threads(
-    c: Arc<RwLock<Context>>,
-) -> (
-    std::thread::JoinHandle<()>,
-    std::thread::JoinHandle<()>,
-    std::thread::JoinHandle<()>,
-    std::thread::JoinHandle<()>,
-) {
-    run_threads = 1;
-
-    let ctx = c.clone();
-    let h1 = std::thread::spawn(move || {
-        let context = ctx.read().unwrap();
-        while 0 != run_threads {
-            dc_perform_imap_jobs(&context);
-            dc_perform_imap_fetch(&context);
-            if 0 != run_threads {
-                dc_perform_imap_idle(&context);
-            }
-        }
-    });
-
-    let ctx = c.clone();
-    let h2 = std::thread::spawn(move || {
-        let context = ctx.read().unwrap();
-        while 0 != run_threads {
-            dc_perform_mvbox_fetch(&context);
-            if 0 != run_threads {
-                dc_perform_mvbox_idle(&context);
-            }
-        }
-    });
-
-    let ctx = c.clone();
-    let h3 = std::thread::spawn(move || {
-        let context = ctx.read().unwrap();
-        while 0 != run_threads {
-            dc_perform_sentbox_fetch(&context);
-            if 0 != run_threads {
-                dc_perform_sentbox_idle(&context);
-            }
-        }
-    });
-
-    let ctx = c.clone();
-    let h4 = std::thread::spawn(move || {
-        let context = ctx.read().unwrap();
-        while 0 != run_threads {
-            dc_perform_smtp_jobs(&context);
-            if 0 != run_threads {
-                dc_perform_smtp_idle(&context);
-            }
-        }
-    });
-
-    (h1, h2, h3, h4)
+lazy_static! {
+    static ref HANDLE: Arc<Mutex<Option<Handle>>> = Arc::new(Mutex::new(None));
 }
 
-unsafe fn stop_threads(
-    context: &Context,
-    handles: &mut Option<(
-        std::thread::JoinHandle<()>,
-        std::thread::JoinHandle<()>,
-        std::thread::JoinHandle<()>,
-        std::thread::JoinHandle<()>,
-    )>,
-) {
-    run_threads = 0;
-    dc_interrupt_imap_idle(context);
-    dc_interrupt_mvbox_idle(context);
-    dc_interrupt_sentbox_idle(context);
-    dc_interrupt_smtp_idle(context);
+struct Handle {
+    handle_imap: Option<std::thread::JoinHandle<()>>,
+    handle_mvbox: Option<std::thread::JoinHandle<()>>,
+    handle_sentbox: Option<std::thread::JoinHandle<()>>,
+    handle_smtp: Option<std::thread::JoinHandle<()>>,
+    interrupt_chan: crossbeam::channel::Sender<()>,
+}
 
-    if let Some((h1, h2, h3, h4)) = handles.take() {
-        h1.join().unwrap();
-        h2.join().unwrap();
-        h3.join().unwrap();
-        h4.join().unwrap();
+macro_rules! while_running {
+    ($chan:expr, $code:block) => {
+        match $chan.try_recv() {
+            Ok(()) => break,
+            Err(err) => {
+                if err.is_empty() {
+                    $code
+                } else {
+                    break;
+                }
+            }
+        }
+    };
+}
+
+fn start_threads(c: Arc<RwLock<Context>>) {
+    if HANDLE.clone().lock().unwrap().is_some() {
+        return;
+    }
+
+    println!("Starting threads");
+    let (tx, r) = bounded(1);
+
+    let rx = r.clone();
+    let ctx = c.clone();
+    let handle_imap = std::thread::spawn(move || loop {
+        println!("reading");
+        while_running!(rx, {
+            println!("locking");
+            let context = ctx.read().unwrap();
+            unsafe {
+                dc_perform_imap_jobs(&context);
+                dc_perform_imap_fetch(&context);
+            }
+            while_running!(rx, {
+                dc_perform_imap_idle(&context);
+            });
+        });
+    });
+
+    let rx = r.clone();
+    let ctx = c.clone();
+    let handle_mvbox = std::thread::spawn(move || loop {
+        while_running!(rx, {
+            let context = ctx.read().unwrap();
+            unsafe { dc_perform_mvbox_fetch(&context) };
+            while_running!(rx, {
+                unsafe { dc_perform_mvbox_idle(&context) };
+            });
+        });
+    });
+
+    let rx = r.clone();
+    let ctx = c.clone();
+    let handle_sentbox = std::thread::spawn(move || loop {
+        while_running!(rx, {
+            let context = ctx.read().unwrap();
+            unsafe { dc_perform_sentbox_fetch(&context) };
+            while_running!(rx, {
+                unsafe { dc_perform_sentbox_idle(&context) };
+            });
+        });
+    });
+
+    let rx = r;
+    let ctx = c;
+    let handle_smtp = std::thread::spawn(move || loop {
+        while_running!(rx, {
+            let context = ctx.read().unwrap();
+            unsafe { dc_perform_smtp_jobs(&context) };
+            while_running!(rx, {
+                unsafe { dc_perform_smtp_idle(&context) };
+            });
+        });
+    });
+
+    *HANDLE.clone().lock().unwrap() = Some(Handle {
+        handle_imap: Some(handle_imap),
+        handle_mvbox: Some(handle_mvbox),
+        handle_sentbox: Some(handle_sentbox),
+        handle_smtp: Some(handle_smtp),
+        interrupt_chan: tx,
+    });
+}
+
+fn stop_threads(context: &Context) {
+    if let Some(ref mut handle) = *HANDLE.clone().lock().unwrap() {
+        println!("Stopping threads");
+        handle
+            .interrupt_chan
+            .send(())
+            .expect("failed to send interrupt");
+
+        unsafe {
+            dc_interrupt_imap_idle(context);
+            dc_interrupt_mvbox_idle(context);
+            dc_interrupt_sentbox_idle(context);
+            dc_interrupt_smtp_idle(context);
+        }
+
+        handle.handle_imap.take().unwrap().join().unwrap();
+        handle.handle_mvbox.take().unwrap().join().unwrap();
+        handle.handle_sentbox.take().unwrap().join().unwrap();
+        handle.handle_smtp.take().unwrap().join().unwrap();
     }
 }
 
@@ -411,8 +450,6 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
 
     println!("Delta Chat Core is awaiting your commands.");
 
-    let mut handles = None;
-
     let ctx = Arc::new(RwLock::new(context));
 
     let config = Config::builder()
@@ -443,7 +480,7 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
             Ok(line) => {
                 // TODO: ignore "set mail_pw"
                 rl.add_history_entry(line.as_str());
-                match unsafe { handle_cmd(line.as_str(), ctx.clone(), &mut handles) } {
+                match unsafe { handle_cmd(line.as_str(), ctx.clone()) } {
                     Ok(ExitResult::Continue) => {}
                     Ok(ExitResult::Exit) => break,
                     Err(err) => println!("Error: {}", err),
@@ -465,7 +502,7 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
         let mut ctx = ctx.write().unwrap();
         unsafe {
             println!("stopping threads");
-            stop_threads(&ctx, &mut handles);
+            stop_threads(&ctx);
             dc_close(&mut ctx);
             dc_context_unref(&mut ctx);
         }
@@ -480,16 +517,7 @@ enum ExitResult {
     Exit,
 }
 
-unsafe fn handle_cmd(
-    line: &str,
-    ctx: Arc<RwLock<Context>>,
-    handles: &mut Option<(
-        std::thread::JoinHandle<()>,
-        std::thread::JoinHandle<()>,
-        std::thread::JoinHandle<()>,
-        std::thread::JoinHandle<()>,
-    )>,
-) -> Result<ExitResult, failure::Error> {
+unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult, failure::Error> {
     let mut args = line.splitn(2, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
@@ -502,28 +530,27 @@ unsafe fn handle_cmd(
 
     match arg0 {
         "connect" => {
-            *handles = Some(start_threads(ctx));
+            start_threads(ctx);
         }
         "disconnect" => {
-            stop_threads(&ctx.read().unwrap(), handles);
-            *handles = None;
+            stop_threads(&ctx.read().unwrap());
         }
         "smtp-jobs" => {
-            if 0 != run_threads {
+            if HANDLE.clone().lock().unwrap().is_some() {
                 println!("smtp-jobs are already running in a thread.",);
             } else {
                 dc_perform_smtp_jobs(&ctx.read().unwrap());
             }
         }
         "imap-jobs" => {
-            if 0 != run_threads {
+            if HANDLE.clone().lock().unwrap().is_some() {
                 println!("imap-jobs are already running in a thread.");
             } else {
                 dc_perform_imap_jobs(&ctx.read().unwrap());
             }
         }
         "configure" => {
-            *handles = Some(start_threads(ctx.clone()));
+            start_threads(ctx.clone());
             dc_configure(&ctx.read().unwrap());
         }
         "oauth2" => {
@@ -552,7 +579,7 @@ unsafe fn handle_cmd(
             print!("\x1b[1;1H\x1b[2J");
         }
         "getqr" | "getbadqr" => {
-            *handles = Some(start_threads(ctx.clone()));
+            start_threads(ctx.clone());
             let qrstr = dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse()?);
             if !qrstr.is_null() && 0 != *qrstr.offset(0isize) as libc::c_int {
                 if arg0 == "getbadqr" && strlen(qrstr) > 40 {
@@ -573,7 +600,7 @@ unsafe fn handle_cmd(
             free(qrstr as *mut libc::c_void);
         }
         "joinqr" => {
-            *handles = Some(start_threads(ctx.clone()));
+            start_threads(ctx.clone());
             if !arg0.is_empty() {
                 dc_join_securejoin(&ctx.read().unwrap(), arg1_c_ptr);
             }
