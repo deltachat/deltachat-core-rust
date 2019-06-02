@@ -29,6 +29,9 @@ percent-encoding = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = "0.4.6"
+failure = "0.1.5"
+# TODO: make optional
+rustyline = { git = "https://github.com/kkawakam/rustyline/" }
 
 [dev-dependencies]
 tempfile = "3.0"

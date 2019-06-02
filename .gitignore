@@ -8,3 +8,5 @@ Cargo.lock
 *.swo
 
 include
+.dc-history.txt
+*.db
