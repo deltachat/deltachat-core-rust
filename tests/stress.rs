@@ -17,7 +17,6 @@ use deltachat::dc_mimeparser::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_saxparser::*;
 use deltachat::dc_securejoin::*;
-use deltachat::dc_strbuilder::*;
 use deltachat::dc_tools::*;
 use deltachat::key::*;
 use deltachat::keyring::*;
@@ -252,18 +251,7 @@ unsafe fn stress_functions(context: &Context) {
     assert!(!keys.is_null());
     assert_ne!(0, *keys.offset(0isize) as libc::c_int);
 
-    let mut sb: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut sb, 200i32);
-    dc_strbuilder_catf(
-        &mut sb as *mut dc_strbuilder_t,
-        b" %s \x00" as *const u8 as *const libc::c_char,
-        keys,
-    );
+    let mut res = format!(" {} ", to_str(keys));
     free(keys as *mut libc::c_void);
     keys = sb.buf;
     assert!(strstr(

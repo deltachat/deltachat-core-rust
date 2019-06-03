@@ -14,7 +14,6 @@ use crate::dc_msg::*;
 use crate::dc_receive_imf::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::imap::*;
 use crate::key::*;

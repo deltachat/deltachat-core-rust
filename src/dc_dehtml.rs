@@ -1,12 +1,11 @@
 use crate::dc_saxparser::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::x::*;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dehtml_t {
-    pub strbuilder: dc_strbuilder_t,
+    pub strbuilder: String,
     pub add_text: libc::c_int,
     pub last_href: *mut libc::c_char,
 }
@@ -16,15 +15,10 @@ pub struct dehtml_t {
 pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char {
     dc_trim(buf_terminated);
     if *buf_terminated.offset(0isize) as libc::c_int == 0i32 {
-        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
+        dc_strdup(b"\x00" as *const u8 as *const libc::c_char)
     } else {
         let mut dehtml: dehtml_t = dehtml_t {
-            strbuilder: dc_strbuilder_t {
-                buf: 0 as *mut libc::c_char,
-                allocated: 0,
-                free: 0,
-                eos: 0 as *mut libc::c_char,
-            },
+            strbuilder: String::with_capacity(strlen(buf_terminated)),
             add_text: 0,
             last_href: 0 as *mut libc::c_char,
         };
@@ -40,10 +34,6 @@ pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char 
             ::std::mem::size_of::<dehtml_t>(),
         );
         dehtml.add_text = 1i32;
-        dc_strbuilder_init(
-            &mut dehtml.strbuilder,
-            strlen(buf_terminated) as libc::c_int,
-        );
         dc_saxparser_init(
             &mut saxparser,
             &mut dehtml as *mut dehtml_t as *mut libc::c_void,
@@ -56,9 +46,11 @@ pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char 
         dc_saxparser_set_text_handler(&mut saxparser, Some(dehtml_text_cb));
         dc_saxparser_parse(&mut saxparser, buf_terminated);
         free(dehtml.last_href as *mut libc::c_void);
-        return dehtml.strbuilder.buf;
-    };
+
+        strdup(to_cstring(strbuilder).as_ptr())
+    }
 }
+
 unsafe fn dehtml_text_cb(
     userdata: *mut libc::c_void,
     text: *const libc::c_char,

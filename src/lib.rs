@@ -57,7 +57,6 @@ pub mod dc_securejoin;
 pub mod dc_simplify;
 pub mod dc_sqlite3;
 pub mod dc_stock;
-pub mod dc_strbuilder;
 pub mod dc_strencode;
 pub mod dc_token;
 pub mod dc_tools;
