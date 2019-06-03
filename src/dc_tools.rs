@@ -1455,19 +1455,12 @@ pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_ch
     success
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Fail, PartialEq)]
 pub enum CStringError {
+    #[fail(display = "String contains an interior null byte")]
     InteriorNullByte,
+    #[fail(display = "String is not valid unicode")]
     NotUnicode,
-}
-
-impl std::fmt::Display for CStringError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            CStringError::InteriorNullByte => write!(f, "String contains an interior null byte"),
-            CStringError::NotUnicode => write!(f, "String is not valid unicode"),
-        }
-    }
 }
 
 /// Extra convenience methods on `std::ffi::OsStr` to work with `*libc::c_char`
