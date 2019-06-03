@@ -22,7 +22,7 @@ use num_traits::FromPrimitive;
 /// Reset database tables. This function is called from Core cmdline.
 /// Argument is a bitmask, executing single or multiple actions in one call.
 /// e.g. bitmask 7 triggers actions definded with bits 1, 2 and 4.
-pub unsafe fn dc_reset_tables(context: &Context, bits: libc::c_int) -> libc::c_int {
+pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     info!(context, 0, "Resetting tables ({})...", bits);
     if 0 != bits & 1 {
         dc_sqlite3_execute(
@@ -32,7 +32,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: libc::c_int) -> libc::c_i
         );
         info!(context, 0, "(1) Jobs reset.");
     }
-    if 0 != bits & 2i32 {
+    if 0 != bits & 2 {
         dc_sqlite3_execute(
             context,
             &context.sql.clone().read().unwrap(),
@@ -40,7 +40,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: libc::c_int) -> libc::c_i
         );
         info!(context, 0, "(2) Peerstates reset.");
     }
-    if 0 != bits & 4i32 {
+    if 0 != bits & 4 {
         dc_sqlite3_execute(
             context,
             &context.sql.clone().read().unwrap(),
@@ -48,7 +48,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: libc::c_int) -> libc::c_i
         );
         info!(context, 0, "(4) Private keypairs reset.");
     }
-    if 0 != bits & 8i32 {
+    if 0 != bits & 8 {
         dc_sqlite3_execute(
             context,
             &context.sql.clone().read().unwrap(),
@@ -86,8 +86,8 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: libc::c_int) -> libc::c_i
     (context.cb)(
         context,
         Event::MSGS_CHANGED,
-        0i32 as uintptr_t,
-        0i32 as uintptr_t,
+        0 as uintptr_t,
+        0 as uintptr_t,
     );
 
     1
@@ -617,8 +617,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "reset" => {
             ensure!(!arg1.is_empty(), "Argument <bits> missing: 1=jobs, 2=peerstates, 4=private keys, 8=rest but server config");
-            let bits: libc::c_int = arg1.parse().unwrap();
-            ensure!(bits > 15, "<bits> must be lower than 16.");
+            let bits: i32 = arg1.parse().unwrap();
+            ensure!(bits < 16, "<bits> must be lower than 16.");
             ensure!(0 != dc_reset_tables(context, bits), "Reset failed");
         }
         "stop" => {
