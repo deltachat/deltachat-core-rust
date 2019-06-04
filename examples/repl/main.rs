@@ -442,7 +442,7 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
                 // TODO: ignore "set mail_pw"
                 rl.add_history_entry(line.as_str());
                 let ctx = ctx.clone();
-                match unsafe { handle_cmd(line.as_str(), ctx) } {
+                match unsafe { handle_cmd(line.trim(), ctx) } {
                     Ok(ExitResult::Continue) => {}
                     Ok(ExitResult::Exit) => break,
                     Err(err) => println!("Error: {}", err),
