@@ -1455,21 +1455,29 @@ pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_ch
     success
 }
 
+/// Error type for the [OsStrExt] trait
 #[derive(Debug, Fail, PartialEq)]
 pub enum CStringError {
+    /// The string contains an interior null byte
     #[fail(display = "String contains an interior null byte")]
     InteriorNullByte,
+    /// The string is not valid Unicode
     #[fail(display = "String is not valid unicode")]
     NotUnicode,
 }
 
-/// Extra convenience methods on `std::ffi::OsStr` to work with `*libc::c_char`
+/// Extra convenience methods on [std::ffi::OsStr] to work with `*libc::c_char`.
 ///
 /// The primary function of this trait is to more easily convert
-/// `std::ffi::OsStr` or `std::ffi::OsString` into pointers to C
-/// strings.  This always allocates a new string since it is very
-/// common for the source string not to have the required terminal
-/// null byte.
+/// [OsStr] or [OsString] into pointers to C strings.  This always
+/// allocates a new string since it is very common for the source
+/// string not to have the required terminal null byte.
+///
+/// For convenience this trait is also implemented on
+/// [std::path::Path] which can be implicitly converted to [OsStr].
+///
+/// [OsStr]: std::ffi::OsStr
+/// [OsString]: std::ffi::OsString
 ///
 /// # Example
 ///
@@ -1482,32 +1490,42 @@ pub enum CStringError {
 /// }
 /// ```
 pub trait OsStrExt {
+    /// Convert a  [std::ffi::OsStr] to an [std::ffi::CString]
+    ///
+    /// This is useful to convert e.g. a [std::path::Path] to
+    /// [*libc::c_char] by using
+    /// [Path::as_os_str()](std::path::Path::as_os_str) and
+    /// [CStr::as_ptr()](std::ffi::CStr::as_ptr).
+    ///
+    /// This returns [CString] and not [&CStr] because not all [OsStr]
+    /// slices end with a null byte, particularly those coming from
+    /// [Path] do not have a null byte and having to handle this as
+    /// the caller would defeat the point of this function.
+    ///
+    /// On Windows this requires that the [OsStr] contains valid
+    /// unicode, which should normally be the case for a [Path].
+    ///
+    /// [CString]: std::ffi::CString
+    /// [CStr]: std::ffi::CStr
+    /// [OsStr]: std::ffi::OsStr
+    /// [Path]: std::path::Path
+    ///
+    /// # Errors
+    ///
+    /// Since a C `*char` is terminated by a NULL byte this conversion
+    /// will fail, when the [OsStr] has an interior null byte.  The
+    /// function will return
+    /// `[Err]([CStringError::InteriorNullByte])`.  When converting
+    /// from a [Path] it should be safe to
+    /// [`.unwrap()`](std::result::Result::unwrap) this anyway since a
+    /// [Path] should not contain interior null bytes.
+    ///
+    /// On windows when the string contains invalid Unicode
+    /// `[Err]([CStringError::NotUnicode])` is returned.
     fn to_c_string(&self) -> Result<std::ffi::CString, CStringError>;
 }
 
 impl OsStrExt for std::ffi::OsStr {
-    /// Convert a `std::ffi::OsStr` to an `std::ffi::CString`
-    ///
-    /// This is useful to convert e.g. a `std::path::Path` to `*libc::c_char`
-    /// by using `Path::as_os_str()` and `CString::as_ptr()`.
-    ///
-    /// This returns `CString` and not `&CStr` because not all `OsStr`
-    /// slices end with a null byte, particularly those coming from `Path`
-    /// do not have a null byte and having to handle this as the caller
-    /// would defeat the point of this function.
-    ///
-    /// On Windows this requires that the `OsStr` contains valid unicode,
-    /// which should normally be the case for a `Path`.
-    ///
-    /// # Errors
-    ///
-    /// When the `OsStr` has interior null bytes this will fail and
-    /// return `Err(CStringError::InteriorNullByte)`.  When converting
-    /// from a `Path` it should be safe to `.unwrap()` this anyway
-    /// since a `Path` should not contain interior null bytes.
-    ///
-    /// On windows when the string contains invalid Unicode
-    /// `Err(CStringError::NotUnicode)` is returned.
     #[cfg(not(target_os = "windows"))]
     fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
         use std::os::unix::ffi::OsStrExt;
@@ -1516,31 +1534,24 @@ impl OsStrExt for std::ffi::OsStr {
         })
     }
 
-    /// Convert a `std::ffi::OsStr` to an `std::ffi::CString`
-    ///
-    /// This is useful to convert e.g. a `std::path::Path` to `*libc::c_char`
-    /// by using `Path::as_os_str()` and `CString::as_ptr()`.
-    ///
-    /// This returns `CString` and not `&CStr` because not all `OsStr`
-    /// slices end with a null byte, particularly those coming from `Path`
-    /// do not have a null byte and having to handle this as the caller
-    /// would defeat the point of this function.
-    ///
-    /// On Windows this requires that the `OsStr` contains valid unicode,
-    /// which should normally be the case for a `Path`.
-    ///
-    /// # Errors
-    ///
-    /// When the `OsStr` has interior null bytes this will fail and
-    /// return `Err(CStringError::InteriorNullByte)`.  When converting
-    /// from a `Path` it should be safe to `.unwrap()` this anyway
-    /// since a `Path` should not contain interior null bytes.
-    ///
-    /// On windows when the string contains invalid Unicode
-    /// `Err(CStringError::NotUnicode)` is returned.
     #[cfg(target_os = "windows")]
-    fn os_str_to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
+    fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
         self.to_c_string_unicode()
+    }
+}
+
+impl OsStrExt for std::path::Path {
+    #[cfg(not(target_os = "windows"))]
+    fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
+        use std::os::unix::ffi::OsStrExt;
+        std::ffi::CString::new(self.as_os_str().as_bytes()).map_err(|err| match err {
+            std::ffi::NulError { .. } => CStringError::InteriorNullByte,
+        })
+    }
+
+    #[cfg(target_os = "windows")]
+    fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
+        self.as_os_str().to_c_string_unicode()
     }
 }
 
@@ -1997,5 +2008,39 @@ mod tests {
             some_str.to_c_string().err().unwrap(),
             CStringError::InteriorNullByte
         )
+    }
+
+    #[test]
+    fn test_path_to_c_string_cwd() {
+        let some_dir = std::env::current_dir().unwrap();
+        some_dir.to_c_string().unwrap();
+    }
+
+    #[test]
+    fn test_path_to_c_string_unicode() {
+        let some_str = String::from("/some/valid/utf8");
+        let some_dir = std::path::Path::new(&some_str);
+        assert_eq!(
+            some_dir.as_os_str().to_c_string().unwrap(),
+            std::ffi::CString::new("/some/valid/utf8").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_os_str_to_c_string_unicode_fn() {
+        let some_str = std::ffi::OsString::from("foo");
+        assert_eq!(
+            os_str_to_c_string_unicode(&some_str).unwrap(),
+            std::ffi::CString::new("foo").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_os_str_to_c_string_unicode_fn_nul() {
+        let some_str = std::ffi::OsString::from("fooz\x00bar");
+        assert_eq!(
+            os_str_to_c_string_unicode(&some_str).err().unwrap(),
+            CStringError::InteriorNullByte
+        );
     }
 }
