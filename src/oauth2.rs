@@ -148,16 +148,18 @@ pub fn dc_get_oauth2_access_token(
             return None;
         }
 
-        let parsed: reqwest::Result<Response> = response.json();
-        if parsed.is_err() {
+        let response: reqwest::Result<Response> = response.json();
+        if response.is_err() {
             warn!(
                 context,
-                0, "Failed to parse OAuth2 JSON response from {}: error: {:?}", token_url, parsed
+                0, "Failed to parse OAuth2 JSON response from {}: error: {:?}", token_url, response
             );
             return None;
         }
-        println!("response: {:?}", &parsed);
-        let response = parsed.unwrap();
+        println!("response: {:?}", &response);
+
+        // see whats in the json we got
+        let response = response.unwrap();
         if let Some(ref token) = response.refresh_token {
             set_config(context, "oauth2_refresh_token", token);
             set_config(context, "oauth2_refresh_token_for", code.as_ref());
