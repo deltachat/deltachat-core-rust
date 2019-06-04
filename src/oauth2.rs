@@ -39,7 +39,6 @@ struct Response {
     // Should always be there according to: https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/
     // but previous code handled its abscense.
     access_token: Option<String>,
-    token_type: String,
     expires_in: Option<u64>,
     refresh_token: Option<String>,
     scope: Option<String>,
@@ -86,6 +85,7 @@ pub fn dc_get_oauth2_access_token(
             }
         }
 
+        // generate new token: build & call auth url
         let refresh_token = get_config(context, "oauth2_refresh_token");
         let refresh_token_for =
             get_config(context, "oauth2_refresh_token_for").unwrap_or_else(|| "unset".into());
@@ -113,6 +113,9 @@ pub fn dc_get_oauth2_access_token(
                     false,
                 )
             };
+
+        // create url to query as `domain?param1=value1&param2=value2`
+        // (this format allows easier printing, handling and is compatible with GET)
         let mut token_url = replace_in_uri(&token_url, "$CLIENT_ID", oauth2.client_id);
         token_url = replace_in_uri(&token_url, "$REDIRECT_URI", &redirect_uri);
         token_url = replace_in_uri(&token_url, "$CODE", code.as_ref());
@@ -120,22 +123,27 @@ pub fn dc_get_oauth2_access_token(
             token_url = replace_in_uri(&token_url, "$REFRESH_TOKEN", token);
         }
 
-        let response = reqwest::Client::new().post(&token_url).send();
+        // split url into domain an parameters and POST
+        let parts: Vec<&str> = token_url.split('?').collect();
+        let post_url = parts[0];
+        let parts = parts[1].split('&');
+        let mut post_param: Vec<(&str,&str)> = Vec::new();
+        for part in parts {
+            let part: Vec<&str> = part.split('=').collect();
+            post_param.push((part[0], part[1]));
+        }
+        println!("{} {:#?}", post_url, post_param);
+
+        let response = reqwest::Client::new().post(post_url).form(&post_param).send();
         if response.is_err() {
-            warn!(
-                context,
-                0, "Error calling OAuth2 at {}: {:?}", token_url, response
-            );
+            warn!(context, 0, "Error calling OAuth2 at {}: {:?}", token_url, response);
             return None;
         }
+
         let mut response = response.unwrap();
         if !response.status().is_success() {
-            warn!(
-                context,
-                0,
-                "Error calling OAuth2 at {}: {:?}",
-                token_url,
-                response.status()
+            warn!(context, 0, "Error calling OAuth2 at {}: {:?}: {:?}",
+                  token_url, response.status(), response.text()
             );
             return None;
         }
