@@ -1536,7 +1536,7 @@ impl OsStrExt for std::ffi::OsStr {
 
     #[cfg(target_os = "windows")]
     fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
-        self.to_c_string_unicode()
+        os_str_to_c_string_unicode(&self)
     }
 }
 
@@ -1551,7 +1551,7 @@ impl OsStrExt for std::path::Path {
 
     #[cfg(target_os = "windows")]
     fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
-        self.as_os_str().to_c_string_unicode()
+        os_str_to_c_string_unicode(&self.as_os_str())
     }
 }
 
