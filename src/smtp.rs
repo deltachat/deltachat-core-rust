@@ -108,7 +108,7 @@ impl Smtp {
             // oauth2
             let addr = to_str(lp.addr);
             let send_pw = to_str(lp.send_pw);
-            let access_token = dc_get_oauth2_access_token(context, addr, send_pw, 0);
+            let access_token = dc_get_oauth2_access_token(context, addr, send_pw, false);
             if access_token.is_none() {
                 return 0;
             }

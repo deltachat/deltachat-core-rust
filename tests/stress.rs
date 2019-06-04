@@ -1101,7 +1101,7 @@ fn test_dc_get_oauth2_token() {
     let ctx = unsafe { create_test_context() };
     let addr = "dignifiedquire@gmail.com";
     let code = "fail";
-    let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, 0);
+    let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, false);
     // this should fail as it is an invalid password
     assert_eq!(res, None);
 }

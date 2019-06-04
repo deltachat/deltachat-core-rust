@@ -71,14 +71,14 @@ pub fn dc_get_oauth2_access_token(
     context: &Context,
     addr: impl AsRef<str>,
     code: impl AsRef<str>,
-    flags: usize,
+    regenerate: bool,
 ) -> Option<String> {
     if let Some(oauth2) = Oauth2::from_address(addr) {
         let lock = context.oauth2_critical.clone();
         let _l = lock.lock().unwrap();
 
         // read generated token
-        if 0 == flags & 0x1 && !is_expired(context) {
+        if !regenerate && !is_expired(context) {
             let access_token = get_config(context, "oauth2_access_token");
             if access_token.is_some() {
                 // success
@@ -195,12 +195,12 @@ pub fn dc_get_oauth2_addr(
         return None;
     }
 
-    if let Some(access_token) = dc_get_oauth2_access_token(context, addr.as_ref(), code.as_ref(), 0)
+    if let Some(access_token) = dc_get_oauth2_access_token(context, addr.as_ref(), code.as_ref(), false)
     {
         let addr_out = oauth2.get_addr(context, access_token);
         if addr_out.is_none() {
             // regenerate
-            if let Some(access_token) = dc_get_oauth2_access_token(context, addr, code, 0x1) {
+            if let Some(access_token) = dc_get_oauth2_access_token(context, addr, code, true) {
                 oauth2.get_addr(context, access_token)
             } else {
                 None
