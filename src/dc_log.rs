@@ -98,8 +98,11 @@ macro_rules! info {
         let formatted = format!($msg, $($args),*);
         let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
-            ($ctx.cb)($ctx, $crate::constants::Event::INFO, $data1 as uintptr_t,
-            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
+            // TODO: looks to me as if the result of dc_strdup() is not freed.
+            // probably a simple as_ptr() is sufficient
+            // as the pointer is only needed to be valid until ($ctx.cb)() returns /r10s
+            ($ctx.cb)($ctx, $crate::constants::Event::INFO, $data1 as libc::uintptr_t,
+            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as libc::uintptr_t)
         }
     }};
 }
