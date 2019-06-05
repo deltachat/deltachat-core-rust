@@ -2,7 +2,7 @@
 
 if [ -z "$DEVPI_LOGIN" ] ; then 
     echo "required: password for 'dc' user on https://m.devpi/net/dc index"
-    exit 1
+    exit 0
 fi
 
 set -xe
