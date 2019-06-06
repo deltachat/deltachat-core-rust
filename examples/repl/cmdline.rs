@@ -83,12 +83,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
         info!(context, 0, "(8) Rest but server config reset.");
     }
 
-    (context.cb)(
-        context,
-        Event::MSGS_CHANGED,
-        0 as uintptr_t,
-        0 as uintptr_t,
-    );
+    (context.cb)(context, Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
 
     1
 }
