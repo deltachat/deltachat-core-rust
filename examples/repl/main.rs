@@ -243,7 +243,6 @@ struct DcHelper {
     completer: FilenameCompleter,
     highlighter: MatchingBracketHighlighter,
     hinter: HistoryHinter,
-    colored_prompt: String,
 }
 
 impl Completer for DcHelper {
@@ -358,14 +357,13 @@ impl Hinter for DcHelper {
     }
 }
 
+static COLORED_PROMPT: &'static str = "\x1b[1;32m> \x1b[0m";
+static PROMPT: &'static str = "> ";
+
 impl Highlighter for DcHelper {
-    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
-        &'s self,
-        prompt: &'p str,
-        default: bool,
-    ) -> Cow<'b, str> {
-        if default {
-            Borrowed(&self.colored_prompt)
+    fn highlight_prompt<'p>(&self, prompt: &'p str) -> Cow<'p, str> {
+        if prompt == PROMPT {
+            Borrowed(COLORED_PROMPT)
         } else {
             Borrowed(prompt)
         }
@@ -423,7 +421,6 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
         completer: FilenameCompleter::new(),
         highlighter: MatchingBracketHighlighter::new(),
         hinter: HistoryHinter {},
-        colored_prompt: "".to_owned(),
     };
     let mut rl = Editor::with_config(config);
     rl.set_helper(Some(h));
@@ -435,7 +432,6 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
 
     loop {
         let p = "> ";
-        rl.helper_mut().unwrap().colored_prompt = format!("\x1b[1;32m{}\x1b[0m", p);
         let readline = rl.readline(&p);
         match readline {
             Ok(line) => {
