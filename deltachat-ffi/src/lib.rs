@@ -12,8 +12,6 @@ extern crate human_panic;
 
 use deltachat::*;
 
-pub const DC_VERSION_STR: &'static str = "0.43.0\x00";
-
 // TODO: constants
 
 // dc_context_t

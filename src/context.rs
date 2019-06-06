@@ -549,7 +549,7 @@ static mut sys_config_keys: [*const libc::c_char; 3] = [
 
 unsafe fn get_sys_config_str(key: *const libc::c_char) -> *mut libc::c_char {
     if strcmp(key, b"sys.version\x00" as *const u8 as *const libc::c_char) == 0 {
-        return dc_strdup(VERSION as *const u8 as *const libc::c_char);
+        return dc_strdup(DC_VERSION_STR as *const u8 as *const libc::c_char);
     } else if strcmp(
         key,
         b"sys.msgsize_max_recommended\x00" as *const u8 as *const libc::c_char,
@@ -755,7 +755,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
          public_key_count={}\n\
          fingerprint={}\n\
          level=awesome\n",
-        to_str(VERSION as *const u8 as *const _),
+        to_str(DC_VERSION_STR as *const u8 as *const _),
         to_str(libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char),
         sqlite3_threadsafe(),
         // arch
@@ -809,7 +809,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
-    dc_strdup(VERSION as *const u8 as *const libc::c_char)
+    dc_strdup(DC_VERSION_STR as *const u8 as *const libc::c_char)
 }
 
 pub unsafe fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {

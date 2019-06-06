@@ -8,7 +8,7 @@ use mmime::mailmime_write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
-use crate::constants::VERSION;
+use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -464,7 +464,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 strdup(b"X-Mailer\x00" as *const u8 as *const libc::c_char),
                 dc_mprintf(
                     b"Delta Chat Core %s%s%s\x00" as *const u8 as *const libc::c_char,
-                    VERSION as *const u8 as *const libc::c_char,
+                    DC_VERSION_STR as *const u8 as *const libc::c_char,
                     if !(*(*factory).context).os_name.is_null() {
                         b"/\x00" as *const u8 as *const libc::c_char
                     } else {
@@ -957,7 +957,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             message_text2 =
                 dc_mprintf(b"Reporting-UA: Delta Chat %s\r\nOriginal-Recipient: rfc822;%s\r\nFinal-Recipient: rfc822;%s\r\nOriginal-Message-ID: <%s>\r\nDisposition: manual-action/MDN-sent-automatically; displayed\r\n\x00"
                                as *const u8 as *const libc::c_char,
-                           VERSION as *const u8 as *const libc::c_char,
+                           DC_VERSION_STR as *const u8 as *const libc::c_char,
                            (*factory).from_addr, (*factory).from_addr,
                            (*(*factory).msg).rfc724_mid);
             let content_type_0: *mut mailmime_content = mailmime_content_new_with_str(
