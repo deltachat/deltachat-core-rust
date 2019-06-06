@@ -36,9 +36,8 @@ pub struct dc_lot_t {
 pub unsafe fn dc_lot_new() -> *mut dc_lot_t {
     let mut lot: *mut dc_lot_t;
     lot = calloc(1, ::std::mem::size_of::<dc_lot_t>()) as *mut dc_lot_t;
-    if lot.is_null() {
-        exit(27i32);
-    }
+    assert!(!lot.is_null());
+
     (*lot).magic = 0x107107i32 as uint32_t;
     (*lot).text1_meaning = 0i32;
 

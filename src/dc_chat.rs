@@ -740,7 +740,7 @@ unsafe fn prepare_msg_raw(
                               VALUES (?,?,?, ?,?,1);\x00" as *const u8
                                 as *const libc::c_char,
                         );
-                        sqlite3_bind_int64(stmt, 1, timestamp as libc::int64_t);
+                        sqlite3_bind_int64(stmt, 1, timestamp as i64);
                         sqlite3_bind_int(stmt, 2, DC_CONTACT_ID_SELF as libc::c_int);
                         sqlite3_bind_int(stmt, 3, (*chat).id as libc::c_int);
                         sqlite3_bind_double(

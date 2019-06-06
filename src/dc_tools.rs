@@ -27,14 +27,10 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     let ret: *mut libc::c_char;
     if !s.is_null() {
         ret = strdup(s);
-        if ret.is_null() {
-            exit(16i32);
-        }
+        assert!(!ret.is_null());
     } else {
         ret = calloc(1, 1) as *mut libc::c_char;
-        if ret.is_null() {
-            exit(17i32);
-        }
+        assert!(!ret.is_null());
     }
 
     ret
@@ -50,24 +46,19 @@ pub unsafe fn dc_strdup_keep_null(s: *const libc::c_char) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_atoi_null_is_0(s: *const libc::c_char) -> libc::c_int {
-    return if !s.is_null() { atoi(s) } else { 0i32 };
+    if !s.is_null() {
+        to_str(s).parse().unwrap_or_default()
+    } else {
+        0
+    }
 }
 
-pub unsafe fn dc_atof(str: *const libc::c_char) -> libc::c_double {
-    // hack around atof() that may accept only `,` as decimal point on mac
-    let test: *mut libc::c_char = dc_mprintf(b"%f\x00" as *const u8 as *const libc::c_char, 1.2f64);
-    *test.offset(2isize) = 0i32 as libc::c_char;
-    let mut str_locale: *mut libc::c_char = dc_strdup(str);
-    dc_str_replace(
-        &mut str_locale,
-        b".\x00" as *const u8 as *const libc::c_char,
-        test.offset(1isize),
-    );
-    let f: libc::c_double = atof(str_locale);
-    free(test as *mut libc::c_void);
-    free(str_locale as *mut libc::c_void);
+pub fn dc_atof(s: *const libc::c_char) -> libc::c_double {
+    if s.is_null() {
+        return 0.;
+    }
 
-    f
+    to_str(s).parse().unwrap_or_default()
 }
 
 pub unsafe fn dc_str_replace(
@@ -184,22 +175,14 @@ pub unsafe fn dc_trim(buf: *mut libc::c_char) {
 
 /* the result must be free()'d */
 pub unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
-    let out: *mut libc::c_char = dc_strdup(in_0);
-    let mut p: *mut libc::c_char = out;
-    while 0 != *p {
-        *p = tolower(*p as libc::c_int) as libc::c_char;
-        p = p.offset(1isize)
-    }
-
-    out
+    let raw = to_cstring(to_string(in_0).to_lowercase());
+    strdup(raw.as_ptr())
 }
 
 pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
-    let mut p: *mut libc::c_char = in_0;
-    while 0 != *p {
-        *p = tolower(*p as libc::c_int) as libc::c_char;
-        p = p.offset(1isize)
-    }
+    let raw = to_cstring(to_string(in_0).to_lowercase());
+    assert_eq!(strlen(in_0), strlen(raw.as_ptr()));
+    memcpy(in_0 as *mut _, raw.as_ptr() as *const _, strlen(in_0));
 }
 
 pub unsafe fn dc_str_contains(
@@ -231,9 +214,7 @@ pub unsafe fn dc_null_terminate(
     bytes: libc::c_int,
 ) -> *mut libc::c_char {
     let out: *mut libc::c_char = malloc(bytes as usize + 1) as *mut libc::c_char;
-    if out.is_null() {
-        exit(45i32);
-    }
+    assert!(!out.is_null());
     if !in_0.is_null() && bytes > 0i32 {
         strncpy(out, in_0, bytes as usize);
     }
@@ -566,9 +547,8 @@ pub unsafe fn dc_str_to_clist(
     delimiter: *const libc::c_char,
 ) -> *mut clist {
     let list: *mut clist = clist_new();
-    if list.is_null() {
-        exit(54i32);
-    }
+    assert!(!list.is_null());
+
     if !str.is_null() && !delimiter.is_null() && strlen(delimiter) >= 1 {
         let mut p1: *const libc::c_char = str;
         loop {
@@ -779,9 +759,8 @@ unsafe fn encode_66bits_as_base64(v1: uint32_t, v2: uint32_t, fill: uint32_t) ->
     hex:    64 bit, 4 bits/character, length = 64/4 = 16 characters
     base64: 64 bit, 6 bits/character, length = 64/6 = 11 characters (plus 2 additional bits) */
     let ret: *mut libc::c_char = malloc(12) as *mut libc::c_char;
-    if ret.is_null() {
-        exit(34i32);
-    }
+    assert!(!ret.is_null());
+
     static mut chars: [libc::c_char; 65] = [
         65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87,
         88, 89, 90, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112,
@@ -1554,11 +1533,9 @@ mod tests {
 
     #[test]
     fn test_dc_atof() {
-        unsafe {
-            let f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
-            assert!(f > 1.22f64);
-            assert!(f < 1.24f64);
-        }
+        let f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
+        assert!(f > 1.22f64);
+        assert!(f < 1.24f64);
     }
 
     #[test]

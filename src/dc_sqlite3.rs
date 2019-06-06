@@ -1166,7 +1166,7 @@ pub unsafe fn dc_sqlite3_get_config_int(
     if str.is_null() {
         return def;
     }
-    let ret = atoi(str) as int32_t;
+    let ret = dc_atoi_null_is_0(str);
     free(str as *mut libc::c_void);
     ret
 }

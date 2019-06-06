@@ -1406,7 +1406,7 @@ unsafe fn moz_autoconfigure_text_cb(
                 (*(*moz_ac).out).mail_server = val;
                 val = 0 as *mut libc::c_char
             }
-            11 => (*(*moz_ac).out).mail_port = atoi(val),
+            11 => (*(*moz_ac).out).mail_port = dc_atoi_null_is_0(val),
             12 => {
                 free((*(*moz_ac).out).mail_user as *mut libc::c_void);
                 (*(*moz_ac).out).mail_user = val;
@@ -1432,7 +1432,7 @@ unsafe fn moz_autoconfigure_text_cb(
                 (*(*moz_ac).out).send_server = val;
                 val = 0 as *mut libc::c_char
             }
-            11 => (*(*moz_ac).out).send_port = atoi(val),
+            11 => (*(*moz_ac).out).send_port = to_str(val).parse().unwrap_or_default(),
             12 => {
                 free((*(*moz_ac).out).send_user as *mut libc::c_void);
                 (*(*moz_ac).out).send_user = val;

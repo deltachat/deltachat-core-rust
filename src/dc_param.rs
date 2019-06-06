@@ -164,7 +164,7 @@ pub unsafe fn dc_param_get_int(
     if str.is_null() {
         return def;
     }
-    let ret: int32_t = atol(str) as int32_t;
+    let ret: int32_t = to_str(str).parse().unwrap_or_default();
     free(str as *mut libc::c_void);
 
     ret
@@ -300,9 +300,7 @@ pub unsafe fn dc_param_set_int(param: *mut dc_param_t, key: libc::c_int, value: 
 pub unsafe fn dc_param_new() -> *mut dc_param_t {
     let mut param: *mut dc_param_t;
     param = calloc(1, ::std::mem::size_of::<dc_param_t>()) as *mut dc_param_t;
-    if param.is_null() {
-        exit(28i32);
-    }
+    assert!(!param.is_null());
     (*param).packed = calloc(1, 1) as *mut libc::c_char;
 
     param
