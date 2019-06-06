@@ -1469,22 +1469,24 @@ pub enum CStringError {
 /// Extra convenience methods on [std::ffi::OsStr] to work with `*libc::c_char`.
 ///
 /// The primary function of this trait is to more easily convert
-/// [OsStr] or [OsString] into pointers to C strings.  This always
+/// [OsStr], [OsString] or [Path] into pointers to C strings.  This always
 /// allocates a new string since it is very common for the source
 /// string not to have the required terminal null byte.
 ///
-/// For convenience this trait is also implemented on
-/// [std::path::Path] which can be implicitly converted to [OsStr].
+/// It is implemented for `AsRef<std::ffi::OsStr>>` trait, which
+/// allows any type which implements this trait to transparently use
+/// this.  This is how the conversion for [Path] works.
 ///
 /// [OsStr]: std::ffi::OsStr
 /// [OsString]: std::ffi::OsString
+/// [Path]: std::path::Path
 ///
 /// # Example
 ///
 /// ```
 /// use deltachat::dc_tools::{dc_strdup, OsStrExt};
 /// let path = std::path::Path::new("/some/path");
-/// let path_c = path.as_os_str().to_c_string().unwrap();
+/// let path_c = path.to_c_string().unwrap();
 /// unsafe {
 ///     let mut c_ptr: *mut libc::c_char = dc_strdup(path_c.as_ptr());
 /// }
@@ -1525,11 +1527,11 @@ pub trait OsStrExt {
     fn to_c_string(&self) -> Result<std::ffi::CString, CStringError>;
 }
 
-impl OsStrExt for std::ffi::OsStr {
+impl<T: AsRef<std::ffi::OsStr>> OsStrExt for T {
     #[cfg(not(target_os = "windows"))]
     fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
         use std::os::unix::ffi::OsStrExt;
-        std::ffi::CString::new(self.as_bytes()).map_err(|err| match err {
+        std::ffi::CString::new(self.as_ref().as_bytes()).map_err(|err| match err {
             std::ffi::NulError { .. } => CStringError::InteriorNullByte,
         })
     }
@@ -1540,25 +1542,10 @@ impl OsStrExt for std::ffi::OsStr {
     }
 }
 
-impl OsStrExt for std::path::Path {
-    #[cfg(not(target_os = "windows"))]
-    fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
-        use std::os::unix::ffi::OsStrExt;
-        std::ffi::CString::new(self.as_os_str().as_bytes()).map_err(|err| match err {
-            std::ffi::NulError { .. } => CStringError::InteriorNullByte,
-        })
-    }
-
-    #[cfg(target_os = "windows")]
-    fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
-        os_str_to_c_string_unicode(&self.as_os_str())
-    }
-}
-
 // Implementation for os_str_to_c_string on windows.
 #[allow(dead_code)]
-fn os_str_to_c_string_unicode(os_str: &std::ffi::OsStr) -> Result<std::ffi::CString, CStringError> {
-    match os_str.to_str() {
+fn os_str_to_c_string_unicode(os_str: &AsRef<std::ffi::OsStr>) -> Result<std::ffi::CString, CStringError> {
+    match os_str.as_ref().to_str() {
         Some(val) => std::ffi::CString::new(val.as_bytes()).map_err(|err| match err {
             std::ffi::NulError { .. } => CStringError::InteriorNullByte,
         }),
@@ -2032,6 +2019,16 @@ mod tests {
         assert_eq!(
             os_str_to_c_string_unicode(&some_str).unwrap(),
             std::ffi::CString::new("foo").unwrap()
+        );
+    }
+
+    #[test]
+    fn test_path_to_c_string_unicode_fn() {
+        let some_str = String::from("/some/path");
+        let some_path = std::path::Path::new(&some_str);
+        assert_eq!(
+            os_str_to_c_string_unicode(&some_path).unwrap(),
+            std::ffi::CString::new("/some/path").unwrap()
         );
     }
 
