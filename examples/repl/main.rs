@@ -521,7 +521,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             } else {
                 let oauth2_url = dc_get_oauth2_url(
                     &ctx.read().unwrap(),
-                    to_str(addr),
+                    as_str(addr),
                     "chat.delta:/com.b44t.messenger",
                 );
                 if oauth2_url.is_none() {

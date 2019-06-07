@@ -755,8 +755,8 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
          public_key_count={}\n\
          fingerprint={}\n\
          level=awesome\n",
-        to_str(DC_VERSION_STR as *const u8 as *const _),
-        to_str(libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char),
+        as_str(DC_VERSION_STR as *const u8 as *const _),
+        as_str(libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char),
         sqlite3_threadsafe(),
         // arch
         (::std::mem::size_of::<*mut libc::c_void>()).wrapping_mul(8),
@@ -765,31 +765,31 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         deaddrop_msgs,
         contacts,
         if context.has_dbfile() {
-            to_str(context.get_dbfile())
+            as_str(context.get_dbfile())
         } else {
             unset
         },
         dbversion,
         if context.has_blobdir() {
-            to_str(context.get_blobdir())
+            as_str(context.get_blobdir())
         } else {
             unset
         },
         if !displayname.is_null() {
-            to_str(displayname)
+            as_str(displayname)
         } else {
             unset
         },
         is_configured,
-        to_str(l_readable_str),
-        to_str(l2_readable_str),
+        as_str(l_readable_str),
+        as_str(l2_readable_str),
         inbox_watch,
         sentbox_watch,
         mvbox_watch,
         mvbox_move,
         folders_configured,
-        to_str(configured_sentbox_folder),
-        to_str(configured_mvbox_folder),
+        as_str(configured_sentbox_folder),
+        as_str(configured_mvbox_folder),
         mdns_enabled,
         e2ee_enabled,
         prv_key_cnt,

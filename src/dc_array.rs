@@ -360,7 +360,7 @@ pub unsafe fn dc_array_get_string(
     }
     let cnt = (*array).count as usize;
     let slice = std::slice::from_raw_parts((*array).array, cnt);
-    let sep = to_str(sep);
+    let sep = as_str(sep);
 
     let res = slice
         .iter()

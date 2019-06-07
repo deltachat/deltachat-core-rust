@@ -172,14 +172,14 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                 current_block = 1622411330066726685;
             } else {
                 /* import a directory */
-                let dir_name = std::path::Path::new(to_str(real_spec));
+                let dir_name = std::path::Path::new(as_str(real_spec));
                 let dir = std::fs::read_dir(dir_name);
                 if dir.is_err() {
                     error!(
                         context,
                         0,
                         "Import: Cannot open directory \"{}\".",
-                        to_str(real_spec),
+                        as_str(real_spec),
                     );
                     current_block = 8522321847195001863;
                 } else {
@@ -192,7 +192,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                         let name_f = entry.file_name();
                         let name = name_f.to_string_lossy();
                         if name.ends_with(".eml") {
-                            let path_plus_name = format!("{}/{}", to_str(real_spec), name);
+                            let path_plus_name = format!("{}/{}", as_str(real_spec), name);
                             info!(context, 0, "Import: {}", path_plus_name);
                             let path_plus_name_c = to_cstring(path_plus_name);
 
@@ -212,7 +212,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                         0,
                         "Import: {} items read from \"{}\".",
                         read_cnt,
-                        to_str(real_spec)
+                        as_str(real_spec)
                     );
                     if read_cnt > 0 {
                         (context.cb)(context, Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
@@ -253,9 +253,9 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
             ""
         },
         if dc_msg_has_location(msg) { "📍" } else { "" },
-        to_str(contact_name),
+        as_str(contact_name),
         contact_id,
-        to_str(msgtext),
+        as_str(msgtext),
         if 0 != dc_msg_is_starred(msg) {
             "★"
         } else {
@@ -276,7 +276,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
             ""
         },
         statestr,
-        to_str(temp2),
+        as_str(temp2),
     );
     free(msgtext as *mut libc::c_void);
     free(temp2 as *mut libc::c_void);
@@ -345,19 +345,19 @@ unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
             line = format!(
                 "{}{} <{}>",
                 if !name.is_null() && 0 != *name.offset(0isize) as libc::c_int {
-                    to_str(name)
+                    as_str(name)
                 } else {
                     "<name unset>"
                 },
                 verified_str,
                 if !addr.is_null() && 0 != *addr.offset(0isize) as libc::c_int {
-                    to_str(addr)
+                    as_str(addr)
                 } else {
                     "addr unset"
                 }
             );
             let peerstate =
-                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), to_str(addr));
+                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), as_str(addr));
             if peerstate.is_some() && contact_id != 1 as libc::c_uint {
                 line2 = format!(
                     ", prefer-encrypt={}",
@@ -502,7 +502,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             if 0 == S_IS_AUTH {
                 let is_pw =
                     dc_get_config(context, b"mail_pw\x00" as *const u8 as *const libc::c_char);
-                if arg1 == to_str(is_pw) {
+                if arg1 == as_str(is_pw) {
                     S_IS_AUTH = 1;
                 } else {
                     println!("Bad password.");
@@ -527,7 +527,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             if !setup_code.is_null() {
                 println!(
                     "Setup code for the transferred setup message: {}",
-                    to_str(setup_code),
+                    as_str(setup_code),
                 );
                 free(setup_code as *mut libc::c_void);
             } else {
@@ -543,7 +543,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 println!(
                     "The setup code for setup message Msg#{} starts with: {}",
                     msg_id,
-                    to_str(setupcodebegin),
+                    as_str(setupcodebegin),
                 );
                 free(setupcodebegin as *mut libc::c_void);
             } else {
@@ -597,8 +597,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             {
                 println!(
                     "Setup message written to: {}\nSetup code: {}",
-                    to_str(file_name),
-                    to_str(setup_code),
+                    as_str(file_name),
+                    as_str(setup_code),
                 )
             } else {
                 bail!("");
@@ -666,8 +666,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         "{}#{}: {} [{}] [{} fresh]",
                         chat_prefix(chat),
                         dc_chat_get_id(chat) as libc::c_int,
-                        to_str(temp_name),
-                        to_str(temp_subtitle),
+                        as_str(temp_name),
+                        as_str(temp_subtitle),
                         dc_get_fresh_msg_cnt(context, dc_chat_get_id(chat)) as libc::c_int,
                     );
                     free(temp_subtitle as *mut libc::c_void);
@@ -695,7 +695,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         if !text1.is_null() { ": " } else { "" },
                         to_string(text2),
                         statestr,
-                        to_str(timestr),
+                        as_str(timestr),
                         if 0 != dc_chat_is_sending_locations(chat) {
                             "📍"
                         } else {
@@ -746,8 +746,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 "{}#{}: {} [{}]{}",
                 chat_prefix(sel_chat),
                 dc_chat_get_id(sel_chat),
-                to_str(temp_name),
-                to_str(temp2),
+                as_str(temp_name),
+                as_str(temp2),
                 if 0 != dc_chat_is_sending_locations(sel_chat) {
                     "📍"
                 } else {
@@ -902,7 +902,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     0,
                     "Loc#{}: {}: lat={} lng={} acc={} Chat#{} Contact#{} Msg#{} {}",
                     dc_array_get_id(loc, j as size_t),
-                    to_str(timestr_0),
+                    as_str(timestr_0),
                     dc_array_get_latitude(loc, j as size_t),
                     dc_array_get_longitude(loc, j as size_t),
                     dc_array_get_accuracy(loc, j as size_t),
@@ -910,7 +910,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     dc_array_get_contact_id(loc, j as size_t),
                     dc_array_get_msg_id(loc, j as size_t),
                     if !marker.is_null() {
-                        to_str(marker)
+                        as_str(marker)
                     } else {
                         "-"
                     },
@@ -1046,7 +1046,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let id = arg1.parse().unwrap();
             let res = dc_get_msg_info(context, id);
-            println!("{}", to_str(res));
+            println!("{}", as_str(res));
         }
         "listfresh" => {
             let msglist = dc_get_fresh_msgs(context);
@@ -1132,12 +1132,12 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let contact = dc_get_contact(context, contact_id);
             let name_n_addr = dc_contact_get_name_n_addr(contact);
 
-            let mut res = format!("Contact info for: {}:\n\n", to_str(name_n_addr),);
+            let mut res = format!("Contact info for: {}:\n\n", as_str(name_n_addr),);
             free(name_n_addr as *mut libc::c_void);
             dc_contact_unref(contact);
 
             let encrinfo = dc_get_contact_encrinfo(context, contact_id);
-            res += to_str(encrinfo);
+            res += as_str(encrinfo);
             free(encrinfo as *mut libc::c_void);
 
             let chatlist = dc_get_chatlist(context, 0, 0 as *const libc::c_char, contact_id);

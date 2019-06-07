@@ -620,7 +620,7 @@ unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _l
         if 0 != (*kml).tag & 0x4 && strlen(val) >= 19 {
             // YYYY-MM-DDTHH:MM:SSZ
             // 0   4  7  10 13 16 19
-            let val_r = to_str(val);
+            let val_r = as_str(val);
             match chrono::NaiveDateTime::parse_from_str(val_r, "%Y-%m-%dT%H:%M:%SZ") {
                 Ok(res) => {
                     (*kml).curr.timestamp = res.timestamp();

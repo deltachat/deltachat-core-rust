@@ -52,7 +52,7 @@ pub unsafe fn dc_imex_has_backup(
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut test_sql: Option<dc_sqlite3_t> = None;
 
-    let dir = std::path::Path::new(to_str(dir_name));
+    let dir = std::path::Path::new(as_str(dir_name));
 
     if dir.is_dir() {
         match std::fs::read_dir(dir) {
@@ -1174,7 +1174,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                 11487273724841241105 => {}
                 _ => {
                     let mut total_files_cnt = 0;
-                    let dir = std::path::Path::new(to_str(context.get_blobdir()));
+                    let dir = std::path::Path::new(as_str(context.get_blobdir()));
                     let dir_handle = std::fs::read_dir(dir);
                     if dir_handle.is_err() {
                         dc_log_error(
@@ -1378,7 +1378,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     // a pointer inside buf2, MUST NOT be free()'d
     let mut buf2_headerline: *const libc::c_char = 0 as *const libc::c_char;
     if !dir_name.is_null() {
-        let dir = std::path::Path::new(to_str(dir_name));
+        let dir = std::path::Path::new(as_str(dir_name));
         let dir_handle = std::fs::read_dir(dir);
         if dir_handle.is_err() {
             dc_log_error(

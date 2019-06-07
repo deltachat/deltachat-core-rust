@@ -495,7 +495,7 @@ pub fn dc_mimeparser_lookup_field(
 ) -> *mut mailimf_field {
     mimeparser
         .header
-        .get(to_str(field_name))
+        .get(as_str(field_name))
         .map(|v| *v)
         .unwrap_or_else(|| std::ptr::null_mut())
 }
@@ -506,7 +506,7 @@ pub unsafe fn dc_mimeparser_lookup_optional_field(
 ) -> *mut mailimf_optional_field {
     let field = mimeparser
         .header
-        .get(to_str(field_name))
+        .get(as_str(field_name))
         .map(|v| *v)
         .unwrap_or_else(|| std::ptr::null_mut());
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
@@ -861,7 +861,7 @@ unsafe fn hash_header(
         }
         if !key.is_null() {
             let key_len: libc::c_int = strlen(key) as libc::c_int;
-            if out.contains_key(to_str(key)) {
+            if out.contains_key(as_str(key)) {
                 if (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
                     || key_len > 5i32
                         && strncasecmp(key, b"Chat-\x00" as *const u8 as *const libc::c_char, 5)
@@ -1691,7 +1691,7 @@ pub unsafe fn dc_mimeparser_sender_equals_recipient(mimeparser: &dc_mimeparser_t
                 from_addr_norm = dc_addr_normalize((*mb).mb_addr_spec);
                 let recipients = mailimf_get_recipients(mimeparser.header_root);
                 if recipients.len() == 1 {
-                    if recipients.contains(to_str(from_addr_norm)) {
+                    if recipients.contains(as_str(from_addr_norm)) {
                         sender_equals_recipient = 1i32;
                     }
                 }

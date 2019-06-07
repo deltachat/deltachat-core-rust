@@ -779,7 +779,7 @@ pub unsafe fn dc_get_contact_encrinfo(
         let peerstate = Peerstate::from_addr(
             context,
             &context.sql.clone().read().unwrap(),
-            to_str((*contact).addr),
+            as_str((*contact).addr),
         );
         dc_loginparam_read(
             context,
@@ -831,7 +831,7 @@ pub unsafe fn dc_get_contact_encrinfo(
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
             if peerstate.addr.is_some()
-                && to_str((*loginparam).addr) < peerstate.addr.as_ref().unwrap().as_str()
+                && as_str((*loginparam).addr) < peerstate.addr.as_ref().unwrap().as_str()
             {
                 cat_fingerprint(
                     &mut ret,
@@ -1121,7 +1121,7 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
         let peerstate = Peerstate::from_addr(
             (*contact).context,
             &(*contact).context.sql.clone().read().unwrap(),
-            to_str((*contact).addr),
+            as_str((*contact).addr),
         );
 
         let res = if let Some(ps) = peerstate {

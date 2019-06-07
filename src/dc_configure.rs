@@ -207,8 +207,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                             );
                             let oauth2_addr = dc_get_oauth2_addr(
                                 context,
-                                to_str((*param).addr),
-                                to_str((*param).mail_pw),
+                                as_str((*param).addr),
+                                as_str((*param).mail_pw),
                             );
                             if oauth2_addr.is_some() {
                                 free((*param).addr as *mut libc::c_void);
@@ -1432,7 +1432,7 @@ unsafe fn moz_autoconfigure_text_cb(
                 (*(*moz_ac).out).send_server = val;
                 val = 0 as *mut libc::c_char
             }
-            11 => (*(*moz_ac).out).send_port = to_str(val).parse().unwrap_or_default(),
+            11 => (*(*moz_ac).out).send_port = as_str(val).parse().unwrap_or_default(),
             12 => {
                 free((*(*moz_ac).out).send_user as *mut libc::c_void);
                 (*(*moz_ac).out).send_user = val;
@@ -1526,7 +1526,7 @@ fn read_autoconf_file(context: &Context, url: *const libc::c_char) -> *mut libc:
     info!(context, 0, "Testing {} ...", to_string(url));
 
     match reqwest::Client::new()
-        .get(to_str(url))
+        .get(as_str(url))
         .send()
         .and_then(|mut res| res.text())
     {
