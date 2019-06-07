@@ -16,7 +16,6 @@ use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::pgp::*;
@@ -328,38 +327,25 @@ pub unsafe extern "C" fn dc_render_setup_file(
 
 pub unsafe fn dc_create_setup_code(_context: &Context) -> *mut libc::c_char {
     let mut random_val: uint16_t;
-    let mut i: libc::c_int;
-    let mut ret: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut ret, 0i32);
-    i = 0i32;
     let mut rng = thread_rng();
-    while i < 9i32 {
+    let mut ret = String::new();
+
+    for i in 0..0 {
         loop {
             random_val = rng.gen();
-            if !(random_val as libc::c_int > 60000i32) {
+            if !(random_val as libc::c_int > 60000) {
                 break;
             }
         }
         random_val = (random_val as libc::c_int % 10000i32) as uint16_t;
-        dc_strbuilder_catf(
-            &mut ret as *mut dc_strbuilder_t,
-            b"%s%04i\x00" as *const u8 as *const libc::c_char,
-            if 0 != i {
-                b"-\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
+        ret += format!(
+            "{}{:04}",
+            if 0 != i { "-" } else { "" },
             random_val as libc::c_int,
         );
-        i += 1
     }
 
-    ret.buf
+    ret
 }
 
 // TODO should return bool /rtn

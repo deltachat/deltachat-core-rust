@@ -570,23 +570,16 @@ unsafe fn get_sys_config_str(key: *const libc::c_char) -> *mut libc::c_char {
 }
 
 unsafe fn get_config_keys_str() -> *mut libc::c_char {
-    let mut ret = dc_strbuilder_t {
-        buf: std::ptr::null_mut(),
-        allocated: 0,
-        free: 0,
-        eos: std::ptr::null_mut(),
-    };
-    dc_strbuilder_init(&mut ret, 0);
-
+    let mut ret = String::new();
     let mut i = 0;
     while i
         < (::std::mem::size_of::<[*const libc::c_char; 33]>())
             .wrapping_div(::std::mem::size_of::<*mut libc::c_char>())
     {
-        if strlen(ret.buf) > 0 {
-            dc_strbuilder_cat(&mut ret, b" \x00" as *const u8 as *const libc::c_char);
+        if !ret.is_empty() {
+            ret += " ";
         }
-        dc_strbuilder_cat(&mut ret, config_keys[i as usize]);
+        ret += to_string(config_keys[i as usize]);
         i += 1
     }
 
@@ -595,14 +588,14 @@ unsafe fn get_config_keys_str() -> *mut libc::c_char {
         < (::std::mem::size_of::<[*const libc::c_char; 3]>())
             .wrapping_div(::std::mem::size_of::<*mut libc::c_char>())
     {
-        if strlen(ret.buf) > 0 {
-            dc_strbuilder_cat(&mut ret, b" \x00" as *const u8 as *const libc::c_char);
+        if !ret.is_empty() {
+            ret += " ";
         }
-        dc_strbuilder_cat(&mut ret, sys_config_keys[i as usize]);
+        ret += to_string(sys_config_keys[i as usize]);
         i += 1
     }
 
-    ret.buf
+    strdup(to_cstring(ret).as_ptr())
 }
 
 pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {

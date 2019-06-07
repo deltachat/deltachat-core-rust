@@ -19,7 +19,6 @@ use crate::dc_log::*;
 use crate::dc_param::*;
 use crate::dc_simplify::*;
 use crate::dc_stock::*;
-use crate::dc_strbuilder::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::types::*;
@@ -1291,13 +1290,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                            `Content-Disposition: ... filename*=...`
                         or `Content-Disposition: ... filename*0*=... filename*1*=... filename*2*=...`
                         or `Content-Disposition: ... filename=...` */
-                        let mut filename_parts: dc_strbuilder_t = dc_strbuilder_t {
-                            buf: 0 as *mut libc::c_char,
-                            allocated: 0,
-                            free: 0,
-                            eos: 0 as *mut libc::c_char,
-                        };
-                        dc_strbuilder_init(&mut filename_parts, 0i32);
+                        let mut filename_parts = String::new();
                         let mut cur1: *mut clistiter = (*(*(*mime).mm_mime_fields).fld_list).first;
                         while !cur1.is_null() {
                             let field: *mut mailmime_field = (if !cur1.is_null() {
@@ -1338,8 +1331,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                                     9,
                                                 ) == 0i32
                                             {
-                                                dc_strbuilder_cat(
-                                                    &mut filename_parts,
+                                                filename_parts += to_string(
                                                     (*(*dsp_param).pa_data.pa_parameter).pa_value,
                                                 );
                                             } else if (*dsp_param).pa_type
@@ -1366,13 +1358,13 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 }
                             }
                         }
-                        if 0 != strlen(filename_parts.buf) {
+                        if !filename_parts.is_empty() {
                             free(desired_filename as *mut libc::c_void);
-                            desired_filename = dc_decode_ext_header(filename_parts.buf)
+                            desired_filename =
+                                dc_decode_ext_header(to_cstring(filename_parts).as_ptr());
                         }
-                        free(filename_parts.buf as *mut libc::c_void);
                         if desired_filename.is_null() {
-                            let param: *mut mailmime_parameter = mailmime_find_ct_parameter(
+                            let param = mailmime_find_ct_parameter(
                                 mime,
                                 b"name\x00" as *const u8 as *const libc::c_char,
                             );
