@@ -729,7 +729,6 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         "deltachat_core_version=v{}\n\
          sqlite_version={}\n\
          sqlite_thread_safe={}\n\
-         compile_date=Apr 26 2019, 00:51:50\n\
          arch={}\n\
          number_of_chats={}\n\
          number_of_chat_messages={}\n\

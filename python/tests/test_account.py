@@ -10,7 +10,6 @@ class TestOfflineAccount:
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
         d = ac1.get_info()
-        assert d["compile_date"]
         assert d["arch"]
         assert d["number_of_chats"] == "0"
 
