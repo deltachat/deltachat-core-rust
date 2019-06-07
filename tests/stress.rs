@@ -1,6 +1,7 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
+use std::env::current_dir;
 use std::ffi::{CStr, CString};
 use std::path::PathBuf;
 
@@ -955,6 +956,38 @@ fn test_dc_get_abs_path() {
     let abs_path = unsafe { dc_get_abs_path(&ctx.ctx, image_c.as_ptr()) };
 
     assert_eq!(to_string(abs_path), image_path.to_str().unwrap());
+}
+
+#[test]
+fn test_selfavatar_config() {
+    let ctx = unsafe { create_test_context() };
+
+    let mut logo_path = current_dir().unwrap();
+    logo_path.push("tests");
+    logo_path.push("fixtures");
+    logo_path.push("delta-logo.png");
+
+    let logo_path_c = CString::new(logo_path.to_str().unwrap()).unwrap();
+    unsafe {
+        dc_set_config(
+            &ctx.ctx,
+            b"selfavatar\x00" as *const u8 as *const libc::c_char,
+            logo_path_c.as_ptr(),
+        );
+    }
+
+    let selfavatar = unsafe {
+        dc_get_config(
+            &ctx.ctx,
+            b"selfavatar\x00" as *const u8 as *const libc::c_char,
+        )
+    };
+
+    let blobdir_c = unsafe { dc_get_blobdir(&ctx.ctx) };
+    let mut image_path = PathBuf::from(to_string(blobdir_c));
+    image_path.push("delta-logo.png");
+
+    assert_eq!(to_string(selfavatar), image_path.to_str().unwrap());
 }
 
 #[test]
