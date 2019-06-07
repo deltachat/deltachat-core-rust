@@ -160,12 +160,12 @@ pub unsafe fn dc_param_get_int(
     if param.is_null() || key == 0i32 {
         return def;
     }
-    let str: *mut libc::c_char = dc_param_get(param, key, 0 as *const libc::c_char);
-    if str.is_null() {
+    let s = dc_param_get(param, key, 0 as *const libc::c_char);
+    if s.is_null() {
         return def;
     }
-    let ret: int32_t = as_str(str).parse().unwrap_or_default();
-    free(str as *mut libc::c_void);
+    let ret = as_str(s).parse().unwrap_or_default();
+    free(s as *mut libc::c_void);
 
     ret
 }
