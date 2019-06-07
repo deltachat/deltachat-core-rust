@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 use std::ffi::{CStr, CString};
+use std::path::PathBuf;
 
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
@@ -943,6 +944,23 @@ fn test_dc_get_oauth2_token() {
     let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, 0);
     // this should fail as it is an invalid password
     assert_eq!(res, None);
+}
+
+#[test]
+fn test_dc_get_abs_path() {
+    let ctx = unsafe { create_test_context() };
+
+    let blobdir_c = unsafe { dc_get_blobdir(&ctx.ctx) };
+    let mut image_path = PathBuf::from(to_string(blobdir_c));
+    image_path.push("image.png");
+
+    let mut image_path_2 = PathBuf::from("$BLOBDIR");
+    image_path_2.push("image.png");
+
+    let image_c = CString::new(image_path_2.to_str().unwrap()).unwrap();
+    let abs_path = unsafe { dc_get_abs_path(&ctx.ctx, image_c.as_ptr()) };
+
+    assert_eq!(to_string(abs_path), image_path.to_str().unwrap());
 }
 
 #[test]
