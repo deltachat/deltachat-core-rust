@@ -99,7 +99,7 @@ macro_rules! info {
         let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
             ($ctx.cb)($ctx, $crate::constants::Event::INFO, $data1 as uintptr_t,
-            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
+                      formatted_c.as_ptr() as uintptr_t)
         }
     }};
 }
@@ -114,7 +114,7 @@ macro_rules! warn {
         let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
             ($ctx.cb)($ctx, $crate::constants::Event::WARNING, $data1 as libc::uintptr_t,
-            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as libc::uintptr_t)
+                      formatted_c.as_ptr() as libc::uintptr_t)
         }
     };
 }
@@ -129,7 +129,7 @@ macro_rules! error {
         let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
             ($ctx.cb)($ctx, $crate::constants::Event::ERROR, $data1 as uintptr_t,
-            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
+                      formatted_c.as_ptr() as uintptr_t)
         }
     };
 }
@@ -144,7 +144,7 @@ macro_rules! log_event {
         let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
             ($ctx.cb)($ctx, $event, $data1 as uintptr_t,
-            $crate::dc_tools::dc_strdup(formatted_c.as_ptr()) as uintptr_t)
+                      formatted_c.as_ptr() as uintptr_t)
         }
     };
 }
