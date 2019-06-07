@@ -1544,7 +1544,9 @@ impl<T: AsRef<std::ffi::OsStr>> OsStrExt for T {
 
 // Implementation for os_str_to_c_string on windows.
 #[allow(dead_code)]
-fn os_str_to_c_string_unicode(os_str: &AsRef<std::ffi::OsStr>) -> Result<std::ffi::CString, CStringError> {
+fn os_str_to_c_string_unicode(
+    os_str: &AsRef<std::ffi::OsStr>,
+) -> Result<std::ffi::CString, CStringError> {
     match os_str.as_ref().to_str() {
         Some(val) => std::ffi::CString::new(val.as_bytes()).map_err(|err| match err {
             std::ffi::NulError { .. } => CStringError::InteriorNullByte,
