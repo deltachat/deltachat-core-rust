@@ -122,21 +122,15 @@ unsafe fn stress_functions(context: &Context) {
             context.get_blobdir(),
             b"foobar\x00" as *const u8 as *const libc::c_char,
         );
-        assert_ne!(0, dc_is_blobdir_path(context, abs_path));
-        assert_ne!(
-            0,
-            dc_is_blobdir_path(
-                context,
-                b"$BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
-            )
-        );
-        assert_eq!(
-            0,
-            dc_is_blobdir_path(
-                context,
-                b"/BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
-            )
-        );
+        assert!(dc_is_blobdir_path(context, abs_path));
+        assert!(dc_is_blobdir_path(
+            context,
+            b"$BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
+        ));
+        assert!(!dc_is_blobdir_path(
+            context,
+            b"/BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
+        ));
         assert_ne!(0, dc_file_exist(context, abs_path));
         free(abs_path as *mut libc::c_void);
         assert_ne!(

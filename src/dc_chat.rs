@@ -443,7 +443,7 @@ unsafe fn prepare_msg_common<'a>(
                 (*msg).type_0 as libc::c_int,
             );
             current_block = 2171833246886114521;
-        } else if (*msg).state == 18i32 && 0 == dc_is_blobdir_path(context, pathNfilename) {
+        } else if (*msg).state == 18i32 && !dc_is_blobdir_path(context, pathNfilename) {
             dc_log_error(
                 context,
                 0i32,
@@ -1105,8 +1105,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
             pathNfilename = dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
             if pathNfilename.is_null() {
                 current_block = 14513523936503887211;
-            } else if 0 != dc_msg_is_increation(msg)
-                && 0 == dc_is_blobdir_path(context, pathNfilename)
+            } else if 0 != dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, pathNfilename)
             {
                 current_block = 14513523936503887211;
             } else if 0 == dc_make_rel_and_copy(context, &mut pathNfilename) {
