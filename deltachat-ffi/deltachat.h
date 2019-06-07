@@ -11,9 +11,6 @@ extern "C" {
 #endif
 
 
-#define DC_VERSION_STR "0.43.0"
-
-
 /**
  * @mainpage Getting started
  *
