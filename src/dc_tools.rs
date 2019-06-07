@@ -1404,15 +1404,14 @@ pub unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) 
     };
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_char) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_char) -> bool {
+    let mut success: bool = false;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut blobdir_path: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(path.is_null() || (*path).is_null()) {
         if dc_is_blobdir_path(context, *path) {
             dc_make_rel_path(context, path);
-            success = 1i32
+            success = true;
         } else {
             filename = dc_get_filename(*path);
             if !(filename.is_null()
@@ -1430,7 +1429,7 @@ pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_ch
                 *path = blobdir_path;
                 blobdir_path = 0 as *mut libc::c_char;
                 dc_make_rel_path(context, path);
-                success = 1i32
+                success = true;
             }
         }
     }

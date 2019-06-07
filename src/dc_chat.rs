@@ -451,7 +451,7 @@ unsafe fn prepare_msg_common<'a>(
                     as *const libc::c_char,
             );
             current_block = 2171833246886114521;
-        } else if 0 == dc_make_rel_and_copy(context, &mut pathNfilename) {
+        } else if !dc_make_rel_and_copy(context, &mut pathNfilename) {
             current_block = 2171833246886114521;
         } else {
             dc_param_set((*msg).param, 'f' as i32, pathNfilename);
@@ -1108,7 +1108,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
             } else if 0 != dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, pathNfilename)
             {
                 current_block = 14513523936503887211;
-            } else if 0 == dc_make_rel_and_copy(context, &mut pathNfilename) {
+            } else if !dc_make_rel_and_copy(context, &mut pathNfilename) {
                 current_block = 14513523936503887211;
             } else {
                 dc_param_set((*msg).param, 'f' as i32, pathNfilename);
@@ -2067,7 +2067,7 @@ pub unsafe fn dc_set_chat_profile_image(
                 /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
                 if !new_image.is_null() {
                     new_image_rel = dc_strdup(new_image);
-                    if 0 == dc_make_rel_and_copy(context, &mut new_image_rel) {
+                    if !dc_make_rel_and_copy(context, &mut new_image_rel) {
                         current_block = 14766584022300871387;
                     } else {
                         current_block = 1856101646708284338;

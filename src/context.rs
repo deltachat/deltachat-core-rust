@@ -367,7 +367,7 @@ pub unsafe fn dc_set_config(
     }
     if strcmp(key, b"selfavatar\x00" as *const u8 as *const libc::c_char) == 0 && !value.is_null() {
         rel_path = dc_strdup(value);
-        if !(0 == dc_make_rel_and_copy(context, &mut rel_path)) {
+        if dc_make_rel_and_copy(context, &mut rel_path) {
             ret =
                 dc_sqlite3_set_config(context, &context.sql.clone().read().unwrap(), key, rel_path)
         }
