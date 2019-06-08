@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ffi::CString;
 
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
@@ -8,6 +7,7 @@ use crate::context::Context;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::types::*;
+use crate::imap::DC_REGENERATE;
 
 const OAUTH2_GMAIL: Oauth2 = Oauth2 {
     client_id: "959970109878-4mvtgf6feshskf7695nfln6002mom908.apps.googleusercontent.com",
@@ -35,13 +35,18 @@ pub struct Oauth2 {
 }
 
 #[derive(Debug, Deserialize)]
-struct Response {
+struct TokenResponse {
     // Should always be there according to: https://www.oauth.com/oauth2-servers/access-tokens/access-token-response/
     // but previous code handled its abscense.
     access_token: Option<String>,
     expires_in: Option<u64>,
     refresh_token: Option<String>,
     scope: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct UserinfoResponse {
+    email: Option<String>,
 }
 
 pub fn dc_get_oauth2_url(
@@ -77,7 +82,7 @@ pub fn dc_get_oauth2_access_token(
         let _l = lock.lock().unwrap();
 
         // read generated token
-        if 0 == flags & 0x1 && !is_expired(context) {
+        if 0 == (flags & DC_REGENERATE) && !is_expired(context) {
             let access_token = get_config(context, "oauth2_access_token");
             if access_token.is_some() {
                 // success
@@ -148,7 +153,7 @@ pub fn dc_get_oauth2_access_token(
             return None;
         }
 
-        let response: reqwest::Result<Response> = response.json();
+        let response: reqwest::Result<TokenResponse> = response.json();
         if response.is_err() {
             warn!(
                 context,
@@ -256,36 +261,32 @@ impl Oauth2 {
             warn!(context, 0, "Error getting userinfo: {:?}", response);
             return None;
         }
+
         let mut response = response.unwrap();
         if !response.status().is_success() {
-            warn!(
-                context,
-                0,
-                "Error getting userinfo: {:?}",
-                response.status()
-            );
+            warn!(context, 0, "Error getting userinfo: {:?}", response.status());
             return None;
         }
 
-        let parsed: reqwest::Result<HashMap<String, String>> = response.json();
-        if parsed.is_err() {
-            warn!(
-                context,
-                0, "Failed to parse userinfo JSON response: {:?}", parsed
-            );
+        let response: reqwest::Result<UserinfoResponse> = response.json();
+        if response.is_err() {
+            warn!(context, 0, "Failed to parse userinfo JSON response: {:?}", response);
             return None;
         }
-        if let Ok(response) = parsed {
-            let addr = response.get("email");
-            if addr.is_none() {
-                warn!(context, 0, "E-mail missing in userinfo.");
+
+        let response = response.unwrap();
+        if response.email.is_none() {
+            return None;
+        }
+
+        if let Some(email) = response.email {
+            if !email.is_empty() {
+                info!(context, 0, "Got userinfo: {}", email);
+                return Some(email);
             }
-
-            addr.map(|addr| addr.to_string())
-        } else {
-            warn!(context, 0, "Failed to parse userinfo.");
-            None
         }
+
+        None
     }
 }
 

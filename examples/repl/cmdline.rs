@@ -72,7 +72,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
         dc_sqlite3_execute(
             context,
             &context.sql.clone().read().unwrap(),
-            b"DELETE FROM config WHERE keyname LIKE \'imap.%\' OR keyname LIKE \'configured%\';\x00"
+            b"DELETE FROM config WHERE keyname LIKE \'imap.%\' OR keyname LIKE \'configured%\' OR keyname LIKE \'oauth2%\';\x00"
                 as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
