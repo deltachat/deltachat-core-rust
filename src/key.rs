@@ -113,19 +113,6 @@ impl Key {
         Self::from_slice(bytes, key_type)
     }
 
-    pub fn from_stmt(
-        stmt: *mut sqlite3_stmt,
-        index: libc::c_int,
-        key_type: KeyType,
-    ) -> Option<Self> {
-        assert!(!stmt.is_null(), "missing statement");
-
-        let data = unsafe { sqlite3_column_blob(stmt, index) as *const u8 };
-        let len = unsafe { sqlite3_column_bytes(stmt, index) };
-
-        Self::from_binary(data, len, key_type)
-    }
-
     pub fn from_base64(encoded_data: &str, key_type: KeyType) -> Option<Self> {
         // strip newlines and other whitespace
         let cleaned: String = encoded_data.trim().split_whitespace().collect();
@@ -145,25 +132,16 @@ impl Key {
             return None;
         }
 
-        let stmt = unsafe {
-            dc_sqlite3_prepare(
-                context,
-                sql,
-                b"SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
-                    as *const libc::c_char,
-            )
-        };
-        unsafe { sqlite3_bind_text(stmt, 1, self_addr, -1, None) };
+        let addr = as_str(self_addr);
 
-        let key = if unsafe { sqlite3_step(stmt) } == 100 {
-            Self::from_stmt(stmt, 0, KeyType::Public)
-        } else {
-            None
-        };
-
-        unsafe { sqlite3_finalize(stmt) };
-
-        key
+        dc_sqlite3_query_row(
+            context,
+            sql,
+            "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
+            &[addr],
+            0,
+        )
+        .and_then(|blob| Self::from_slice(blob, KeyType::Public))
     }
 
     pub fn from_self_private(
@@ -175,24 +153,15 @@ impl Key {
             return None;
         }
 
-        let stmt = unsafe {
-            dc_sqlite3_prepare(
-                context,
-                sql,
-                b"SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
-                    as *const libc::c_char,
-            )
-        };
-        unsafe { sqlite3_bind_text(stmt, 1, self_addr, -1, None) };
-
-        let key = if unsafe { sqlite3_step(stmt) } == 100 {
-            Self::from_stmt(stmt, 0, KeyType::Private)
-        } else {
-            None
-        };
-        unsafe { sqlite3_finalize(stmt) };
-
-        key
+        let addr = as_str(self_addr);
+        dc_sqlite3_query_row(
+            context,
+            sql,
+            "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
+            &[addr],
+            0,
+        )
+        .and_then(|blob| Self::from_slice(blob, KeyType::Private))
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -338,49 +307,12 @@ pub fn dc_key_save_self_keypair(
         return false;
     }
 
-    let stmt = unsafe {
-        dc_sqlite3_prepare(
+    dc_sqlite3_execute(
         context,
         sql,
-        b"INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);\x00"
-            as *const u8 as *const libc::c_char
+        "INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);",
+        params![as_str(addr), is_default, public_key.to_bytes(), private_key.to_bytes(), time()],
     )
-    };
-
-    unsafe {
-        sqlite3_bind_text(stmt, 1, addr, -1, None);
-        sqlite3_bind_int(stmt, 2, is_default)
-    };
-    let pub_bytes = public_key.to_bytes();
-    let sec_bytes = private_key.to_bytes();
-    unsafe {
-        sqlite3_bind_blob(
-            stmt,
-            3,
-            pub_bytes.as_ptr() as *const _,
-            pub_bytes.len() as libc::c_int,
-            None,
-        )
-    };
-    unsafe {
-        sqlite3_bind_blob(
-            stmt,
-            4,
-            sec_bytes.as_ptr() as *const _,
-            sec_bytes.len() as libc::c_int,
-            None,
-        )
-    };
-    unsafe { sqlite3_bind_int64(stmt, 5, time() as sqlite3_int64) };
-    let success = if unsafe { sqlite3_step(stmt) } == 101 {
-        true
-    } else {
-        false
-    };
-
-    unsafe { sqlite3_finalize(stmt) };
-
-    success
 }
 
 /// Make a fingerprint human-readable, in hex format.

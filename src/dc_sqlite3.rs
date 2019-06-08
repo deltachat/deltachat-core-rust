@@ -798,7 +798,7 @@ pub fn dc_sqlite3_set_config(
     context: &Context,
     sql: &dc_sqlite3_t,
     key: impl AsRef<str>,
-    value: Option<impl AsRef<str>>,
+    value: Option<&str>,
 ) -> libc::c_int {
     let key = key.as_ref();
     let mut state;
@@ -894,14 +894,19 @@ pub fn dc_sqlite3_get_config(
     Some(def)
 }
 
-pub fn dc_sqlite3_execute(
+pub fn dc_sqlite3_execute<P>(
     context: &Context,
     sql: &dc_sqlite3_t,
     querystr: impl AsRef<str>,
-) -> libc::c_int {
+    params: P,
+) -> bool
+where
+    P: IntoIterator,
+    P::Item: rusqlite::ToSql,
+{
     if let Some(stmt) = dc_sqlite3_prepare(context, sql, querystr) {
-        match stmt.execute() {
-            Ok(_) => 1,
+        match stmt.execute(params) {
+            Ok(_) => true,
             Err(err) => {
                 error!(
                     context,
@@ -910,22 +915,27 @@ pub fn dc_sqlite3_execute(
                     querystr.as_ref(),
                     err
                 );
-                0
+                false
             }
         }
     } else {
-        0
+        false
     }
 }
 
-pub fn dc_sqlite3_query_row<T>(
+pub fn dc_sqlite3_query_row<P, T>(
     context: &Context,
     sql: &dc_sqlite3_t,
     query: &str,
+    params: P,
     column: usize,
-) -> Option<T> {
+) -> Option<T>
+where
+    P: IntoIterator,
+    P::Item: rusqlite::ToSql,
+{
     if let Some(ref conn) = sql.conn() {
-        match conn.query_row(query, NO_PARAMS, |row| row.get(column)) {
+        match conn.query_row(query, params, |row| row.get(column)) {
             Ok(res) => Some(res),
             Err(err) => {
                 error!(context, 0, "sql: Failed query_row: {}", err);
@@ -976,7 +986,7 @@ pub fn dc_sqlite3_table_exists(
 pub fn dc_sqlite3_set_config_int64(
     context: &Context,
     sql: &dc_sqlite3_t,
-    key: *const libc::c_char,
+    key: impl AsRef<str>,
     value: i64,
 ) -> libc::c_int {
     dc_sqlite3_set_config(context, sql, key, format!("{}", value));
@@ -988,7 +998,7 @@ pub fn dc_sqlite3_get_config_int64(
     key: impl AsRef<str>,
     def: Option<i64>,
 ) -> i64 {
-    let ret = dc_sqlite3_get_config(context, sql, key, 0 as *const libc::c_char);
+    let ret = dc_sqlite3_get_config(context, sql, key, None);
     ret.map(|r| r.parse().unwrap_or_default())
         .unwrap_or_else(|_| def.unwrap_or_default())
 }
@@ -1048,9 +1058,9 @@ pub fn dc_sqlite3_get_rowid2(
     sql: &dc_sqlite3_t,
     table: impl AsRef<str>,
     field: impl AsRef<str>,
-    value: u64,
+    value: i64,
     field2: impl AsRef<str>,
-    value2: u32,
+    value2: i32,
 ) -> uint32_t {
     // same as dc_sqlite3_get_rowid() with a key over two columns
     if let Some(ref conn) = sql.conn() {

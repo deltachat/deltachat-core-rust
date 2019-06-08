@@ -3,8 +3,8 @@ use std::borrow::Cow;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_sqlite3::*;
+use crate::dc_tools::as_str;
 use crate::key::*;
-use crate::types::*;
 
 #[derive(Default, Clone, Debug)]
 pub struct Keyring<'a> {
@@ -38,22 +38,16 @@ impl<'a> Keyring<'a> {
         if self_addr.is_null() {
             return false;
         }
-        let stmt = unsafe {
-            dc_sqlite3_prepare(
-                context,
-                sql,
-                b"SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;\x00"
-                    as *const u8 as *const libc::c_char,
-            )
-        };
-        unsafe { sqlite3_bind_text(stmt, 1, self_addr, -1, None) };
-        while unsafe { sqlite3_step(stmt) == 100 } {
-            if let Some(key) = Key::from_stmt(stmt, 0, KeyType::Private) {
-                self.add_owned(key);
-            }
-        }
-        unsafe { sqlite3_finalize(stmt) };
 
-        true
+        dc_sqlite3_query_row(
+            context,
+            sql,
+            "SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;",
+            &[as_str(self_addr)],
+            0,
+        )
+        .and_then(|blob| Key::from_slice(blob, KeyType::Private))
+        .map(|key| self.add_owned(key))
+        .is_some()
     }
 }

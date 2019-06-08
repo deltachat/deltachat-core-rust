@@ -421,11 +421,7 @@ pub unsafe fn dc_get_blobdir(context: &Context) -> *mut libc::c_char {
     dc_strdup(*context.blobdir.clone().read().unwrap())
 }
 
-pub fn dc_set_config(
-    context: &Context,
-    key: impl AsRef<str>,
-    value: Option<impl AsRef<str>>,
-) -> libc::c_int {
+pub fn dc_set_config(context: &Context, key: impl AsRef<str>, value: Option<&str>) -> libc::c_int {
     let mut ret = 0;
 
     if !is_settable_config_key(key) {
@@ -459,7 +455,7 @@ pub fn dc_set_config(
         }
         "selfstatus" => {
             let def = unsafe { dc_stock_str(context, 13) };
-            let val = if value.is_none() || value.as_ref().unwrap().as_ref() == as_str(def) {
+            let val = if value.is_none() || value.unwrap() == as_str(def) {
                 None
             } else {
                 value
@@ -609,6 +605,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT COUNT(*) FROM keypairs;",
+        rusqlite::NO_PARAMS,
         0,
     );
 
@@ -616,6 +613,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT COUNT(*) FROM acpeerstates;",
+        rusqlite::NO_PARAMS,
         0,
     );
 
