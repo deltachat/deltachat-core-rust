@@ -378,7 +378,7 @@ pub unsafe fn dc_get_location_kml(
                 let timestamp = get_kml_timestamp(sqlite3_column_int64(stmt, 4i32) as i64);
                 ret += &format!(
                     "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
-                    to_str(timestamp),
+                    as_str(timestamp),
                     accuracy,
                     longitude,
                     latitude

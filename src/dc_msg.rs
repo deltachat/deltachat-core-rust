@@ -77,7 +77,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
         dc_trim(rawtxt);
         dc_truncate_str(rawtxt, 100000);
         p = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
-        ret += &format!("Sent: {}", to_str(p));
+        ret += &format!("Sent: {}", as_str(p));
 
         free(p as *mut libc::c_void);
         p = dc_contact_get_name_n_addr(contact_from);
@@ -91,7 +91,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
             } else {
                 (*msg).timestamp_sort
             });
-            ret += &format!("Received: {}", to_str(p));
+            ret += &format!("Received: {}", as_str(p));
             free(p as *mut libc::c_void);
             ret += "\n";
         }
@@ -106,7 +106,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
             sqlite3_bind_int(stmt, 1, msg_id as libc::c_int);
             while sqlite3_step(stmt) == 100 {
                 p = dc_timestamp_to_str(sqlite3_column_int64(stmt, 1) as i64);
-                ret += &format!("Read: {}", to_str(p));
+                ret += &format!("Read: {}", as_str(p));
                 free(p as *mut libc::c_void);
                 let contact = dc_contact_new(context);
                 dc_contact_load_from_db(
@@ -115,7 +115,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
                     sqlite3_column_int64(stmt, 0) as uint32_t,
                 );
                 p = dc_contact_get_name_n_addr(contact);
-                ret += &format!(" by {}", to_str(p));
+                ret += &format!(" by {}", as_str(p));
                 free(p as *mut libc::c_void);
                 dc_contact_unref(contact);
                 ret += "\n";
@@ -150,20 +150,20 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
                 p = dc_strdup(b"Encrypted\x00" as *const u8 as *const libc::c_char)
             }
             if !p.is_null() {
-                ret += &format!(", {}", to_str(p));
+                ret += &format!(", {}", as_str(p));
                 free(p as *mut libc::c_void);
             }
             ret += "\n";
             p = dc_param_get((*msg).param, 'L' as i32, 0 as *const libc::c_char);
             if !p.is_null() {
-                ret += &format!("Error: {}", to_str(p));
+                ret += &format!("Error: {}", as_str(p));
                 free(p as *mut libc::c_void);
             }
             p = dc_msg_get_file(msg);
             if !p.is_null() && 0 != *p.offset(0isize) as libc::c_int {
                 ret += &format!(
                     "\nFile: {}, {}, bytes\n",
-                    to_str(p),
+                    as_str(p),
                     dc_get_filebytes(context, p) as libc::c_int,
                 );
             }
@@ -181,7 +181,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
                 }
                 ret += "\n";
                 p = dc_msg_get_filemime(msg);
-                ret += &format!("Mimetype: {}\n", to_str(p));
+                ret += &format!("Mimetype: {}\n", as_str(p));
                 free(p as *mut libc::c_void);
             }
             w = dc_param_get_int((*msg).param, 'w' as i32, 0);
@@ -194,7 +194,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
                 ret += &format!("Duration: {} ms\n", duration,);
             }
             if !rawtxt.is_null() && 0 != *rawtxt.offset(0) as libc::c_int {
-                ret += &format!("\n{}\n", to_str(rawtxt));
+                ret += &format!("\n{}\n", as_str(rawtxt));
             }
             if !(*msg).rfc724_mid.is_null() && 0 != *(*msg).rfc724_mid.offset(0) as libc::c_int {
                 ret += &format!("\nMessage-ID: {}", (*msg).rfc724_mid as libc::c_int);
@@ -1554,12 +1554,7 @@ mod tests {
                 &mut mime_0,
             );
             assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "audio/mpeg"
-            );
+            assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/mpeg");
             free(mime_0 as *mut libc::c_void);
 
             dc_msg_guess_msgtype_from_suffix(
@@ -1568,12 +1563,7 @@ mod tests {
                 &mut mime_0,
             );
             assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "audio/aac"
-            );
+            assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/aac");
             free(mime_0 as *mut libc::c_void);
 
             dc_msg_guess_msgtype_from_suffix(
@@ -1582,12 +1572,7 @@ mod tests {
                 &mut mime_0,
             );
             assert_eq!(type_0, DC_MSG_VIDEO as libc::c_int);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "video/mp4"
-            );
+            assert_eq!(as_str(mime_0 as *const libc::c_char), "video/mp4");
             free(mime_0 as *mut libc::c_void);
 
             dc_msg_guess_msgtype_from_suffix(

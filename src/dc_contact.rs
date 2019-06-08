@@ -795,7 +795,7 @@ pub unsafe fn dc_get_contact_encrinfo(
                     25i32
                 },
             );
-            ret += to_str(p);
+            ret += as_str(p);
             free(p as *mut libc::c_void);
             if self_key.is_none() {
                 dc_ensure_secret_key_exists(context);
@@ -806,7 +806,7 @@ pub unsafe fn dc_get_contact_encrinfo(
                 );
             }
             p = dc_stock_str(context, 30i32);
-            ret += &format!(" {}:", to_str(p));
+            ret += &format!(" {}:", as_str(p));
             free(p as *mut libc::c_void);
 
             fingerprint_self = self_key
@@ -853,11 +853,11 @@ pub unsafe fn dc_get_contact_encrinfo(
             && 0 == (*loginparam).server_flags & 0x40000i32
         {
             p = dc_stock_str(context, 27i32);
-            ret += to_str(p);
+            ret += as_str(p);
             free(p as *mut libc::c_void);
         } else {
             p = dc_stock_str(context, 28i32);
-            ret += to_str(p);
+            ret += as_str(p);
             free(p as *mut libc::c_void);
         }
     }
@@ -884,9 +884,9 @@ unsafe fn cat_fingerprint(
         if !fingerprint_verified.is_null()
             && 0 != *fingerprint_verified.offset(0isize) as libc::c_int
         {
-            to_str(fingerprint_verified)
+            as_str(fingerprint_verified)
         } else {
-            to_str(fingerprint_unverified)
+            as_str(fingerprint_unverified)
         },
     );
     if !fingerprint_verified.is_null()
@@ -898,7 +898,7 @@ unsafe fn cat_fingerprint(
         *ret += &format!(
             "\n\n{} (alternative):\n{}",
             addr.as_ref(),
-            to_str(fingerprint_unverified)
+            as_str(fingerprint_unverified)
         );
     }
 }

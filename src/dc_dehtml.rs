@@ -69,7 +69,7 @@ unsafe fn dehtml_text_cb(
         let last_added = std::ffi::CStr::from_ptr(text).to_string_lossy();
 
         if dehtml.add_text == AddText::YesRemoveLineEnds {
-            dehtml.strbuilder = LINE_RE.replace_all(last_added.as_ref(), "\r").as_ref();
+            dehtml.strbuilder += LINE_RE.replace_all(last_added.as_ref(), "\r").as_ref();
         } else {
             dehtml.strbuilder += last_added.as_ref();
         }

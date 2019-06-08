@@ -251,7 +251,7 @@ unsafe fn stress_functions(context: &Context) {
     assert!(!keys.is_null());
     assert_ne!(0, *keys.offset(0isize) as libc::c_int);
 
-    let res = format!(" {} ", to_str(keys));
+    let res = format!(" {} ", as_str(keys));
     free(keys as *mut libc::c_void);
 
     assert!(!res.contains(" probably_never_a_key "));
@@ -311,12 +311,7 @@ unsafe fn stress_functions(context: &Context) {
     );
 
     assert!(!base64.is_null());
-    assert_eq!(
-        CStr::from_ptr(base64 as *const libc::c_char)
-            .to_str()
-            .unwrap(),
-        "data",
-    );
+    assert_eq!(as_str(base64 as *const libc::c_char), "data",);
 
     free(buf_0 as *mut libc::c_void);
 
@@ -342,12 +337,7 @@ unsafe fn stress_functions(context: &Context) {
     );
 
     assert!(!base64.is_null());
-    assert_eq!(
-        CStr::from_ptr(base64 as *const libc::c_char)
-            .to_str()
-            .unwrap(),
-        "dat1",
-    );
+    assert_eq!(as_str(base64 as *const libc::c_char), "dat1",);
 
     free(buf_0 as *mut libc::c_void);
 
@@ -375,12 +365,7 @@ unsafe fn stress_functions(context: &Context) {
     assert!(setupcodebegin.is_null());
 
     assert!(!base64.is_null());
-    assert_eq!(
-        CStr::from_ptr(base64 as *const libc::c_char)
-            .to_str()
-            .unwrap(),
-        "base64-123",
-    );
+    assert_eq!(as_str(base64 as *const libc::c_char), "base64-123",);
 
     free(buf_0 as *mut libc::c_void);
 
@@ -425,12 +410,7 @@ unsafe fn stress_functions(context: &Context) {
     );
 
     assert!(!base64.is_null());
-    assert_eq!(
-        CStr::from_ptr(base64 as *const libc::c_char)
-            .to_str()
-            .unwrap(),
-        "base64-567 \n abc",
-    );
+    assert_eq!(as_str(base64 as *const libc::c_char), "base64-567 \n abc",);
 
     free(buf_0 as *mut libc::c_void);
 
@@ -464,12 +444,7 @@ unsafe fn stress_functions(context: &Context) {
     );
 
     assert!(!base64.is_null());
-    assert_eq!(
-        CStr::from_ptr(base64 as *const libc::c_char)
-            .to_str()
-            .unwrap(),
-        "base64",
-    );
+    assert_eq!(as_str(base64 as *const libc::c_char), "base64",);
 
     free(buf_0 as *mut libc::c_void);
 
@@ -756,10 +731,7 @@ fn test_encryption_decryption() {
         )
         .unwrap();
 
-        assert_eq!(
-            std::str::from_utf8(&plain).unwrap(),
-            CStr::from_ptr(original_text).to_str().unwrap()
-        );
+        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
         assert_eq!(valid_signatures.len(), 1);
 
         valid_signatures.clear();
@@ -773,10 +745,7 @@ fn test_encryption_decryption() {
             Some(&mut valid_signatures),
         )
         .unwrap();
-        assert_eq!(
-            std::str::from_utf8(&plain).unwrap(),
-            CStr::from_ptr(original_text).to_str().unwrap()
-        );
+        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
         assert_eq!(valid_signatures.len(), 0);
 
         valid_signatures.clear();
@@ -789,10 +758,7 @@ fn test_encryption_decryption() {
             Some(&mut valid_signatures),
         )
         .unwrap();
-        assert_eq!(
-            std::str::from_utf8(&plain).unwrap(),
-            CStr::from_ptr(original_text).to_str().unwrap()
-        );
+        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
         assert_eq!(valid_signatures.len(), 0);
 
         valid_signatures.clear();
@@ -807,10 +773,7 @@ fn test_encryption_decryption() {
             Some(&mut valid_signatures),
         )
         .unwrap();
-        assert_eq!(
-            std::str::from_utf8(&plain).unwrap(),
-            CStr::from_ptr(original_text).to_str().unwrap()
-        );
+        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
         assert_eq!(valid_signatures.len(), 1);
 
         valid_signatures.clear();
@@ -823,10 +786,7 @@ fn test_encryption_decryption() {
             Some(&mut valid_signatures),
         )
         .unwrap();
-        assert_eq!(
-            std::str::from_utf8(&plain).unwrap(),
-            CStr::from_ptr(original_text).to_str().unwrap()
-        );
+        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
 
         valid_signatures.clear();
 
@@ -843,10 +803,7 @@ fn test_encryption_decryption() {
             None,
         )
         .unwrap();
-        assert_eq!(
-            std::str::from_utf8(&plain).unwrap(),
-            CStr::from_ptr(original_text).to_str().unwrap()
-        );
+        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
     }
 }
 
@@ -873,9 +830,7 @@ unsafe fn create_test_context() -> TestContext {
         dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
         1,
         "Failed to open {}",
-        CStr::from_ptr(dbfile.as_ptr() as *const libc::c_char)
-            .to_str()
-            .unwrap()
+        as_str(dbfile.as_ptr() as *const libc::c_char)
     );
 
     TestContext { ctx: ctx, dir: dir }
@@ -894,9 +849,7 @@ fn test_dc_kml_parse() {
 
         assert!(!(*kml).addr.is_null());
         assert_eq!(
-            CStr::from_ptr((*kml).addr as *const libc::c_char)
-                .to_str()
-                .unwrap(),
+            as_str((*kml).addr as *const libc::c_char),
             "user@example.org",
         );
 
@@ -935,9 +888,7 @@ fn test_dc_mimeparser_with_context() {
 
         dc_mimeparser_parse(&mut mimeparser, raw, strlen(raw));
         assert_eq!(
-            CStr::from_ptr(mimeparser.subject as *const libc::c_char)
-                .to_str()
-                .unwrap(),
+            as_str(mimeparser.subject as *const libc::c_char),
             "inner-subject",
         );
 
@@ -945,34 +896,19 @@ fn test_dc_mimeparser_with_context() {
             &mimeparser,
             b"X-Special-A\x00" as *const u8 as *const libc::c_char,
         );
-        assert_eq!(
-            CStr::from_ptr((*of).fld_value as *const libc::c_char)
-                .to_str()
-                .unwrap(),
-            "special-a",
-        );
+        assert_eq!(as_str((*of).fld_value as *const libc::c_char), "special-a",);
 
         of = dc_mimeparser_lookup_optional_field(
             &mimeparser,
             b"Foo\x00" as *const u8 as *const libc::c_char,
         );
-        assert_eq!(
-            CStr::from_ptr((*of).fld_value as *const libc::c_char)
-                .to_str()
-                .unwrap(),
-            "Bar",
-        );
+        assert_eq!(as_str((*of).fld_value as *const libc::c_char), "Bar",);
 
         of = dc_mimeparser_lookup_optional_field(
             &mimeparser,
             b"Chat-Version\x00" as *const u8 as *const libc::c_char,
         );
-        assert_eq!(
-            CStr::from_ptr((*of).fld_value as *const libc::c_char)
-                .to_str()
-                .unwrap(),
-            "1.0",
-        );
+        assert_eq!(as_str((*of).fld_value as *const libc::c_char), "1.0",);
         assert_eq!(carray_count(mimeparser.parts), 1);
 
         dc_mimeparser_unref(&mut mimeparser);

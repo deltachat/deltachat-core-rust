@@ -522,9 +522,9 @@ pub unsafe fn dc_str_from_clist(
 
             if !rfc724_mid.is_null() {
                 if !res.is_empty() && !delimiter.is_null() {
-                    res += to_str(delimiter);
+                    res += as_str(delimiter);
                 }
-                res += to_str(rfc724_mid);
+                res += as_str(rfc724_mid);
             }
             cur = if !cur.is_null() {
                 (*cur).next
@@ -1118,11 +1118,7 @@ pub unsafe fn dc_file_exist(context: &Context, pathNfilename: *const libc::c_cha
     }
 
     let exist = {
-        let p = std::path::Path::new(
-            std::ffi::CStr::from_ptr(pathNfilename_abs)
-                .to_str()
-                .unwrap(),
-        );
+        let p = std::path::Path::new(as_str(pathNfilename_abs));
         p.exists()
     };
 
