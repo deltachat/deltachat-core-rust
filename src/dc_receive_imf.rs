@@ -22,7 +22,6 @@ use crate::dc_param::*;
 use crate::dc_securejoin::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
-use crate::dc_strbuilder::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::peerstate::*;
@@ -1692,15 +1691,9 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     let stmt: *mut sqlite3_stmt;
     let q3: *mut libc::c_char;
     let mut addr: *mut libc::c_char;
-    let mut i: libc::c_int;
     let iCnt: libc::c_int;
-    let mut member_cs: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut member_cs, 0i32);
+    let mut member_cs = String::new();
+
     q3 = sqlite3_mprintf(
         b"SELECT addr FROM contacts WHERE id IN(%s) AND id!=1\x00" as *const u8
             as *const libc::c_char,
@@ -1722,35 +1715,26 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     }
     dc_array_sort_strings(member_addrs);
     iCnt = dc_array_get_cnt(member_addrs) as libc::c_int;
-    i = 0i32;
-    while i < iCnt {
+
+    for i in 0..iCnt {
         if 0 != i {
-            dc_strbuilder_cat(&mut member_cs, b",\x00" as *const u8 as *const libc::c_char);
+            member_cs += ",";
         }
-        dc_strbuilder_cat(
-            &mut member_cs,
-            dc_array_get_ptr(member_addrs, i as size_t) as *const libc::c_char,
-        );
-        i += 1
+        member_cs += &to_string(dc_array_get_ptr(member_addrs, i as size_t) as *const libc::c_char);
     }
 
-    let ret = hex_hash(member_cs.buf as *const _, strlen(member_cs.buf));
+    let ret = hex_hash(&member_cs);
     dc_array_free_ptr(member_addrs);
     dc_array_unref(member_addrs);
     free(member_ids_str as *mut libc::c_void);
     sqlite3_finalize(stmt);
     sqlite3_free(q3 as *mut libc::c_void);
-    free(member_cs.buf as *mut libc::c_void);
 
     ret as *mut _
 }
 
-fn hex_hash(bytes_ptr: *const u8, bytes_len: libc::size_t) -> *const libc::c_char {
-    if bytes_ptr.is_null() || bytes_len == 0 {
-        return std::ptr::null();
-    }
-
-    let bytes = unsafe { std::slice::from_raw_parts(bytes_ptr, bytes_len) };
+fn hex_hash(s: impl AsRef<str>) -> *const libc::c_char {
+    let bytes = s.as_ref().as_bytes();
     let result = Sha256::digest(bytes);
     let result_hex = hex::encode(&result[..8]);
     let result_cstring = to_cstring(result_hex);
@@ -2302,9 +2286,9 @@ mod tests {
 
     #[test]
     fn test_hex_hash() {
-        let data = b"hello world\x00" as *const u8 as *const libc::c_char;
+        let data = "hello world";
 
-        let res_c = hex_hash(data as *const _, unsafe { strlen(data) });
+        let res_c = hex_hash(data);
         let res = to_string(res_c);
         assert_eq!(res, "b94d27b9934d3e08");
     }

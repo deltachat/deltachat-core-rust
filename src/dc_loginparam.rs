@@ -1,6 +1,5 @@
 use crate::context::Context;
 use crate::dc_sqlite3::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
@@ -274,92 +273,51 @@ pub unsafe fn dc_loginparam_get_readable(loginparam: *const dc_loginparam_t) -> 
     ret
 }
 
-unsafe fn get_readable_flags(flags: libc::c_int) -> *mut libc::c_char {
-    let mut strbuilder: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut strbuilder, 0i32);
-    let mut bit: libc::c_int = 0i32;
-    while bit <= 30i32 {
-        if 0 != flags & 1i32 << bit {
-            let mut flag_added: libc::c_int = 0i32;
-            if 1i32 << bit == 0x2i32 {
-                dc_strbuilder_cat(
-                    &mut strbuilder,
-                    b"OAUTH2 \x00" as *const u8 as *const libc::c_char,
-                );
-                flag_added = 1i32
+fn get_readable_flags(flags: libc::c_int) -> *mut libc::c_char {
+    let mut res = String::new();
+    for bit in 0..31 {
+        if 0 != flags & 1 << bit {
+            let mut flag_added: libc::c_int = 0;
+            if 1 << bit == 0x2 {
+                res += "OAUTH2 ";
+                flag_added = 1;
             }
-            if 1i32 << bit == 0x4i32 {
-                dc_strbuilder_cat(
-                    &mut strbuilder,
-                    b"AUTH_NORMAL \x00" as *const u8 as *const libc::c_char,
-                );
-                flag_added = 1i32
+            if 1 << bit == 0x4 {
+                res += "AUTH_NORMAL ";
+                flag_added = 1;
             }
-            if 1i32 << bit == 0x100i32 {
-                dc_strbuilder_cat(
-                    &mut strbuilder,
-                    b"IMAP_STARTTLS \x00" as *const u8 as *const libc::c_char,
-                );
-                flag_added = 1i32
+            if 1 << bit == 0x100 {
+                res += "IMAP_STARTTLS ";
+                flag_added = 1;
             }
-            if 1i32 << bit == 0x200i32 {
-                dc_strbuilder_cat(
-                    &mut strbuilder,
-                    b"IMAP_SSL \x00" as *const u8 as *const libc::c_char,
-                );
-                flag_added = 1i32
+            if 1 << bit == 0x200 {
+                res += "IMAP_SSL ";
+                flag_added = 1;
             }
-            if 1i32 << bit == 0x400i32 {
-                dc_strbuilder_cat(
-                    &mut strbuilder,
-                    b"IMAP_PLAIN \x00" as *const u8 as *const libc::c_char,
-                );
-                flag_added = 1i32
+            if 1 << bit == 0x400 {
+                res += "IMAP_PLAIN ";
+                flag_added = 1;
             }
-            if 1i32 << bit == 0x10000i32 {
-                dc_strbuilder_cat(
-                    &mut strbuilder,
-                    b"SMTP_STARTTLS \x00" as *const u8 as *const libc::c_char,
-                );
-                flag_added = 1i32
+            if 1 << bit == 0x10000 {
+                res += "SMTP_STARTTLS ";
+                flag_added = 1
             }
-            if 1i32 << bit == 0x20000i32 {
-                dc_strbuilder_cat(
-                    &mut strbuilder,
-                    b"SMTP_SSL \x00" as *const u8 as *const libc::c_char,
-                );
-                flag_added = 1i32
+            if 1 << bit == 0x20000 {
+                res += "SMTP_SSL ";
+                flag_added = 1
             }
-            if 1i32 << bit == 0x40000i32 {
-                dc_strbuilder_cat(
-                    &mut strbuilder,
-                    b"SMTP_PLAIN \x00" as *const u8 as *const libc::c_char,
-                );
-                flag_added = 1i32
+            if 1 << bit == 0x40000 {
+                res += "SMTP_PLAIN ";
+                flag_added = 1
             }
             if 0 == flag_added {
-                let temp: *mut libc::c_char = dc_mprintf(
-                    b"0x%x \x00" as *const u8 as *const libc::c_char,
-                    1i32 << bit,
-                );
-                dc_strbuilder_cat(&mut strbuilder, temp);
-                free(temp as *mut libc::c_void);
+                res += &format!("{:#0x}", 1 << bit);
             }
         }
-        bit += 1
     }
-    if *strbuilder.buf.offset(0isize) as libc::c_int == 0i32 {
-        dc_strbuilder_cat(
-            &mut strbuilder,
-            b"0\x00" as *const u8 as *const libc::c_char,
-        );
+    if res.is_empty() {
+        res += "0";
     }
-    dc_trim(strbuilder.buf);
 
-    strbuilder.buf
+    unsafe { strdup(to_cstring(res).as_ptr()) }
 }

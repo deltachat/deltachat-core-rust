@@ -9,7 +9,6 @@ use crate::dc_lot::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::pgp::*;
 use crate::types::*;
@@ -55,13 +54,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
     let contact_from: *mut dc_contact_t = dc_contact_new(context);
     let mut rawtxt: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut p: *mut libc::c_char;
-    let mut ret: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut ret, 0i32);
+    let mut ret = String::new();
 
     dc_msg_load_from_db(msg, context, msg_id);
     dc_contact_load_from_db(
@@ -74,47 +67,35 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
         &context.sql.clone().read().unwrap(),
         b"SELECT txt_raw FROM msgs WHERE id=?;\x00" as *const u8 as *const libc::c_char,
     );
-    sqlite3_bind_int(stmt, 1i32, msg_id as libc::c_int);
-    if sqlite3_step(stmt) != 100i32 {
-        p = dc_mprintf(
-            b"Cannot load message #%i.\x00" as *const u8 as *const libc::c_char,
-            msg_id as libc::c_int,
-        );
-        dc_strbuilder_cat(&mut ret, p);
-        free(p as *mut libc::c_void);
+    sqlite3_bind_int(stmt, 1, msg_id as libc::c_int);
+    if sqlite3_step(stmt) != 100 {
+        ret += &format!("Cannot load message #{}.", msg_id as usize);
     } else {
-        rawtxt = dc_strdup(sqlite3_column_text(stmt, 0i32) as *mut libc::c_char);
+        rawtxt = dc_strdup(sqlite3_column_text(stmt, 0) as *mut libc::c_char);
         sqlite3_finalize(stmt);
         stmt = 0 as *mut sqlite3_stmt;
         dc_trim(rawtxt);
-        dc_truncate_str(rawtxt, 100000i32);
-        dc_strbuilder_cat(&mut ret, b"Sent: \x00" as *const u8 as *const libc::c_char);
+        dc_truncate_str(rawtxt, 100000);
         p = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
-        dc_strbuilder_cat(&mut ret, p);
+        ret += &format!("Sent: {}", as_str(p));
+
         free(p as *mut libc::c_void);
         p = dc_contact_get_name_n_addr(contact_from);
-        dc_strbuilder_catf(
-            &mut ret as *mut dc_strbuilder_t,
-            b" by %s\x00" as *const u8 as *const libc::c_char,
-            p,
-        );
+        ret += &format!(" by {}", to_string(p));
+
         free(p as *mut libc::c_void);
-        dc_strbuilder_cat(&mut ret, b"\n\x00" as *const u8 as *const libc::c_char);
-        if (*msg).from_id != 1i32 as libc::c_uint {
-            dc_strbuilder_cat(
-                &mut ret,
-                b"Received: \x00" as *const u8 as *const libc::c_char,
-            );
+        ret += "\n";
+        if (*msg).from_id != 1 as libc::c_uint {
             p = dc_timestamp_to_str(if 0 != (*msg).timestamp_rcvd {
                 (*msg).timestamp_rcvd
             } else {
                 (*msg).timestamp_sort
             });
-            dc_strbuilder_cat(&mut ret, p);
+            ret += &format!("Received: {}", as_str(p));
             free(p as *mut libc::c_void);
-            dc_strbuilder_cat(&mut ret, b"\n\x00" as *const u8 as *const libc::c_char);
+            ret += "\n";
         }
-        if !((*msg).from_id == 2i32 as libc::c_uint || (*msg).to_id == 2i32 as libc::c_uint) {
+        if !((*msg).from_id == 2 as libc::c_uint || (*msg).to_id == 2 as libc::c_uint) {
             // device-internal message, no further details needed
             stmt = dc_sqlite3_prepare(
                 context,
@@ -122,155 +103,108 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
                 b"SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;\x00" as *const u8
                     as *const libc::c_char,
             );
-            sqlite3_bind_int(stmt, 1i32, msg_id as libc::c_int);
-            while sqlite3_step(stmt) == 100i32 {
-                dc_strbuilder_cat(&mut ret, b"Read: \x00" as *const u8 as *const libc::c_char);
-                p = dc_timestamp_to_str(sqlite3_column_int64(stmt, 1i32) as i64);
-                dc_strbuilder_cat(&mut ret, p);
+            sqlite3_bind_int(stmt, 1, msg_id as libc::c_int);
+            while sqlite3_step(stmt) == 100 {
+                p = dc_timestamp_to_str(sqlite3_column_int64(stmt, 1) as i64);
+                ret += &format!("Read: {}", as_str(p));
                 free(p as *mut libc::c_void);
-                dc_strbuilder_cat(&mut ret, b" by \x00" as *const u8 as *const libc::c_char);
-                let contact: *mut dc_contact_t = dc_contact_new(context);
+                let contact = dc_contact_new(context);
                 dc_contact_load_from_db(
                     contact,
                     &context.sql.clone().read().unwrap(),
-                    sqlite3_column_int64(stmt, 0i32) as uint32_t,
+                    sqlite3_column_int64(stmt, 0) as uint32_t,
                 );
                 p = dc_contact_get_name_n_addr(contact);
-                dc_strbuilder_cat(&mut ret, p);
+                ret += &format!(" by {}", as_str(p));
                 free(p as *mut libc::c_void);
                 dc_contact_unref(contact);
-                dc_strbuilder_cat(&mut ret, b"\n\x00" as *const u8 as *const libc::c_char);
+                ret += "\n";
             }
             sqlite3_finalize(stmt);
             stmt = 0 as *mut sqlite3_stmt;
+            ret += "State: ";
             match (*msg).state {
-                10 => p = dc_strdup(b"Fresh\x00" as *const u8 as *const libc::c_char),
-                13 => p = dc_strdup(b"Noticed\x00" as *const u8 as *const libc::c_char),
-                16 => p = dc_strdup(b"Seen\x00" as *const u8 as *const libc::c_char),
-                26 => p = dc_strdup(b"Delivered\x00" as *const u8 as *const libc::c_char),
-                24 => p = dc_strdup(b"Failed\x00" as *const u8 as *const libc::c_char),
-                28 => p = dc_strdup(b"Read\x00" as *const u8 as *const libc::c_char),
-                20 => p = dc_strdup(b"Pending\x00" as *const u8 as *const libc::c_char),
-                18 => p = dc_strdup(b"Preparing\x00" as *const u8 as *const libc::c_char),
-                _ => p = dc_mprintf(b"%i\x00" as *const u8 as *const libc::c_char, (*msg).state),
+                10 => ret += "Fresh",
+                13 => ret += "Noticed",
+                16 => ret += "Seen",
+                26 => ret += "Delivered",
+                24 => ret += "Failed",
+                28 => ret += "Read",
+                20 => ret += "Pending",
+                18 => ret += "Preparing",
+                _ => ret += &format!("{}", (*msg).state),
             }
-            dc_strbuilder_catf(
-                &mut ret as *mut dc_strbuilder_t,
-                b"State: %s\x00" as *const u8 as *const libc::c_char,
-                p,
-            );
-            free(p as *mut libc::c_void);
+
             if dc_msg_has_location(msg) {
-                dc_strbuilder_cat(
-                    &mut ret,
-                    b", Location sent\x00" as *const u8 as *const libc::c_char,
-                );
+                ret += ", Location sent";
             }
             p = 0 as *mut libc::c_char;
-            e2ee_errors = dc_param_get_int((*msg).param, 'e' as i32, 0i32);
+            e2ee_errors = dc_param_get_int((*msg).param, 'e' as i32, 0);
             if 0 != e2ee_errors {
-                if 0 != e2ee_errors & 0x2i32 {
+                if 0 != e2ee_errors & 0x2 {
                     p = dc_strdup(
                         b"Encrypted, no valid signature\x00" as *const u8 as *const libc::c_char,
                     )
                 }
-            } else if 0 != dc_param_get_int((*msg).param, 'c' as i32, 0i32) {
+            } else if 0 != dc_param_get_int((*msg).param, 'c' as i32, 0) {
                 p = dc_strdup(b"Encrypted\x00" as *const u8 as *const libc::c_char)
             }
             if !p.is_null() {
-                dc_strbuilder_catf(
-                    &mut ret as *mut dc_strbuilder_t,
-                    b", %s\x00" as *const u8 as *const libc::c_char,
-                    p,
-                );
+                ret += &format!(", {}", as_str(p));
                 free(p as *mut libc::c_void);
             }
-            dc_strbuilder_cat(&mut ret, b"\n\x00" as *const u8 as *const libc::c_char);
+            ret += "\n";
             p = dc_param_get((*msg).param, 'L' as i32, 0 as *const libc::c_char);
             if !p.is_null() {
-                dc_strbuilder_catf(
-                    &mut ret as *mut dc_strbuilder_t,
-                    b"Error: %s\n\x00" as *const u8 as *const libc::c_char,
-                    p,
-                );
+                ret += &format!("Error: {}", as_str(p));
                 free(p as *mut libc::c_void);
             }
             p = dc_msg_get_file(msg);
             if !p.is_null() && 0 != *p.offset(0isize) as libc::c_int {
-                dc_strbuilder_catf(
-                    &mut ret as *mut dc_strbuilder_t,
-                    b"\nFile: %s, %i bytes\n\x00" as *const u8 as *const libc::c_char,
-                    p,
+                ret += &format!(
+                    "\nFile: {}, {}, bytes\n",
+                    as_str(p),
                     dc_get_filebytes(context, p) as libc::c_int,
                 );
             }
             free(p as *mut libc::c_void);
-            if (*msg).type_0 != 10i32 {
+            if (*msg).type_0 != 10 {
+                ret += "Type: ";
                 match (*msg).type_0 {
-                    40 => p = dc_strdup(b"Audio\x00" as *const u8 as *const libc::c_char),
-                    60 => p = dc_strdup(b"File\x00" as *const u8 as *const libc::c_char),
-                    21 => p = dc_strdup(b"GIF\x00" as *const u8 as *const libc::c_char),
-                    20 => p = dc_strdup(b"Image\x00" as *const u8 as *const libc::c_char),
-                    50 => p = dc_strdup(b"Video\x00" as *const u8 as *const libc::c_char),
-                    41 => p = dc_strdup(b"Voice\x00" as *const u8 as *const libc::c_char),
-                    _ => {
-                        p = dc_mprintf(b"%i\x00" as *const u8 as *const libc::c_char, (*msg).type_0)
-                    }
+                    40 => ret += "Audio",
+                    60 => ret += "File",
+                    21 => ret += "GIF",
+                    20 => ret += "Image",
+                    50 => ret += "Video",
+                    41 => ret += "Voice",
+                    _ => ret += &format!("{}", (*msg).type_0),
                 }
-                dc_strbuilder_catf(
-                    &mut ret as *mut dc_strbuilder_t,
-                    b"Type: %s\n\x00" as *const u8 as *const libc::c_char,
-                    p,
-                );
-                free(p as *mut libc::c_void);
+                ret += "\n";
                 p = dc_msg_get_filemime(msg);
-                dc_strbuilder_catf(
-                    &mut ret as *mut dc_strbuilder_t,
-                    b"Mimetype: %s\n\x00" as *const u8 as *const libc::c_char,
-                    p,
-                );
+                ret += &format!("Mimetype: {}\n", as_str(p));
                 free(p as *mut libc::c_void);
             }
-            w = dc_param_get_int((*msg).param, 'w' as i32, 0i32);
-            h = dc_param_get_int((*msg).param, 'h' as i32, 0i32);
-            if w != 0i32 || h != 0i32 {
-                p = dc_mprintf(
-                    b"Dimension: %i x %i\n\x00" as *const u8 as *const libc::c_char,
-                    w,
-                    h,
-                );
-                dc_strbuilder_cat(&mut ret, p);
-                free(p as *mut libc::c_void);
+            w = dc_param_get_int((*msg).param, 'w' as i32, 0);
+            h = dc_param_get_int((*msg).param, 'h' as i32, 0);
+            if w != 0 || h != 0 {
+                ret += &format!("Dimension: {} x {}\n", w, h,);
             }
-            duration = dc_param_get_int((*msg).param, 'd' as i32, 0i32);
-            if duration != 0i32 {
-                p = dc_mprintf(
-                    b"Duration: %i ms\n\x00" as *const u8 as *const libc::c_char,
-                    duration,
-                );
-                dc_strbuilder_cat(&mut ret, p);
-                free(p as *mut libc::c_void);
+            duration = dc_param_get_int((*msg).param, 'd' as i32, 0);
+            if duration != 0 {
+                ret += &format!("Duration: {} ms\n", duration,);
             }
-            if !rawtxt.is_null() && 0 != *rawtxt.offset(0isize) as libc::c_int {
-                dc_strbuilder_cat(&mut ret, b"\n\x00" as *const u8 as *const libc::c_char);
-                dc_strbuilder_cat(&mut ret, rawtxt);
-                dc_strbuilder_cat(&mut ret, b"\n\x00" as *const u8 as *const libc::c_char);
+            if !rawtxt.is_null() && 0 != *rawtxt.offset(0) as libc::c_int {
+                ret += &format!("\n{}\n", as_str(rawtxt));
             }
-            if !(*msg).rfc724_mid.is_null() && 0 != *(*msg).rfc724_mid.offset(0isize) as libc::c_int
-            {
-                dc_strbuilder_catf(
-                    &mut ret as *mut dc_strbuilder_t,
-                    b"\nMessage-ID: %s\x00" as *const u8 as *const libc::c_char,
-                    (*msg).rfc724_mid,
-                );
+            if !(*msg).rfc724_mid.is_null() && 0 != *(*msg).rfc724_mid.offset(0) as libc::c_int {
+                ret += &format!("\nMessage-ID: {}", (*msg).rfc724_mid as libc::c_int);
             }
             if !(*msg).server_folder.is_null()
-                && 0 != *(*msg).server_folder.offset(0isize) as libc::c_int
+                && 0 != *(*msg).server_folder.offset(0) as libc::c_int
             {
-                dc_strbuilder_catf(
-                    &mut ret as *mut dc_strbuilder_t,
-                    b"\nLast seen as: %s/%i\x00" as *const u8 as *const libc::c_char,
-                    (*msg).server_folder,
+                ret += &format!(
+                    "\nLast seen as: {}/{}",
+                    to_string((*msg).server_folder),
                     (*msg).server_uid as libc::c_int,
                 );
             }
@@ -282,7 +216,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
     dc_contact_unref(contact_from);
     free(rawtxt as *mut libc::c_void);
 
-    ret.buf
+    strdup(to_cstring(ret).as_ptr())
 }
 
 pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> {
@@ -1620,12 +1554,7 @@ mod tests {
                 &mut mime_0,
             );
             assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "audio/mpeg"
-            );
+            assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/mpeg");
             free(mime_0 as *mut libc::c_void);
 
             dc_msg_guess_msgtype_from_suffix(
@@ -1634,12 +1563,7 @@ mod tests {
                 &mut mime_0,
             );
             assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "audio/aac"
-            );
+            assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/aac");
             free(mime_0 as *mut libc::c_void);
 
             dc_msg_guess_msgtype_from_suffix(
@@ -1648,12 +1572,7 @@ mod tests {
                 &mut mime_0,
             );
             assert_eq!(type_0, DC_MSG_VIDEO as libc::c_int);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "video/mp4"
-            );
+            assert_eq!(as_str(mime_0 as *const libc::c_char), "video/mp4");
             free(mime_0 as *mut libc::c_void);
 
             dc_msg_guess_msgtype_from_suffix(

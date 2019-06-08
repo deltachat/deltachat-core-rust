@@ -16,7 +16,6 @@ use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::pgp::*;
@@ -328,38 +327,25 @@ pub unsafe extern "C" fn dc_render_setup_file(
 
 pub unsafe fn dc_create_setup_code(_context: &Context) -> *mut libc::c_char {
     let mut random_val: uint16_t;
-    let mut i: libc::c_int;
-    let mut ret: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut ret, 0i32);
-    i = 0i32;
     let mut rng = thread_rng();
-    while i < 9i32 {
+    let mut ret = String::new();
+
+    for i in 0..9 {
         loop {
             random_val = rng.gen();
-            if !(random_val as libc::c_int > 60000i32) {
+            if !(random_val as libc::c_int > 60000) {
                 break;
             }
         }
-        random_val = (random_val as libc::c_int % 10000i32) as uint16_t;
-        dc_strbuilder_catf(
-            &mut ret as *mut dc_strbuilder_t,
-            b"%s%04i\x00" as *const u8 as *const libc::c_char,
-            if 0 != i {
-                b"-\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
+        random_val = (random_val as libc::c_int % 10000) as uint16_t;
+        ret += &format!(
+            "{}{:04}",
+            if 0 != i { "-" } else { "" },
             random_val as libc::c_int,
         );
-        i += 1
     }
 
-    ret.buf
+    strdup(to_cstring(ret).as_ptr())
 }
 
 // TODO should return bool /rtn
@@ -643,39 +629,29 @@ pub unsafe fn dc_normalize_setup_code(
     if in_0.is_null() {
         return 0 as *mut libc::c_char;
     }
-    let mut out: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut out, 0i32);
-    let mut outlen: libc::c_int;
+    let mut out = String::new();
+    let mut outlen;
     let mut p1: *const libc::c_char = in_0;
     while 0 != *p1 {
         if *p1 as libc::c_int >= '0' as i32 && *p1 as libc::c_int <= '9' as i32 {
-            dc_strbuilder_catf(
-                &mut out as *mut dc_strbuilder_t,
-                b"%c\x00" as *const u8 as *const libc::c_char,
-                *p1 as libc::c_int,
-            );
-            outlen = strlen(out.buf) as libc::c_int;
-            if outlen == 4i32
-                || outlen == 9i32
-                || outlen == 14i32
-                || outlen == 19i32
-                || outlen == 24i32
-                || outlen == 29i32
-                || outlen == 34i32
-                || outlen == 39i32
+            out += &format!("{}", *p1 as i32 as u8 as char);
+            outlen = out.len();
+            if outlen == 4
+                || outlen == 9
+                || outlen == 14
+                || outlen == 19
+                || outlen == 24
+                || outlen == 29
+                || outlen == 34
+                || outlen == 39
             {
-                dc_strbuilder_cat(&mut out, b"-\x00" as *const u8 as *const libc::c_char);
+                out += "-";
             }
         }
-        p1 = p1.offset(1isize)
+        p1 = p1.offset(1);
     }
 
-    out.buf
+    strdup(to_cstring(out).as_ptr())
 }
 
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {

@@ -1,4 +1,3 @@
-use crate::dc_strbuilder::dc_strbuilder_t;
 use crate::types::*;
 
 pub use libc::{
@@ -54,8 +53,6 @@ extern "C" {
     ) -> libc::c_int;
 
     // -- DC Methods
-
-    pub fn dc_strbuilder_catf(_: *mut dc_strbuilder_t, format: *const libc::c_char, _: ...);
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
 }
 

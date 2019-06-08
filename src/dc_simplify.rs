@@ -1,5 +1,4 @@
 use crate::dc_dehtml::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
@@ -204,15 +203,9 @@ unsafe fn dc_simplify_simplify_plain_text(
         }
     }
     /* re-create buffer from the remaining lines */
-    let mut ret: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut ret, strlen(buf_terminated) as libc::c_int);
+    let mut ret = String::new();
     if 0 != (*simplify).is_cut_at_begin {
-        dc_strbuilder_cat(&mut ret, b"[...] \x00" as *const u8 as *const libc::c_char);
+        ret += "[...]";
     }
     /* we write empty lines only in case and non-empty line follows */
     let mut pending_linebreaks: libc::c_int = 0i32;
@@ -228,11 +221,11 @@ unsafe fn dc_simplify_simplify_plain_text(
                     pending_linebreaks = 2i32
                 }
                 while 0 != pending_linebreaks {
-                    dc_strbuilder_cat(&mut ret, b"\n\x00" as *const u8 as *const libc::c_char);
+                    ret += "\n";
                     pending_linebreaks -= 1
                 }
             }
-            dc_strbuilder_cat(&mut ret, line);
+            ret += &to_string(line);
             content_lines_added += 1;
             pending_linebreaks = 1i32
         }
@@ -241,11 +234,11 @@ unsafe fn dc_simplify_simplify_plain_text(
     if 0 != (*simplify).is_cut_at_end
         && (0 == (*simplify).is_cut_at_begin || 0 != content_lines_added)
     {
-        dc_strbuilder_cat(&mut ret, b" [...]\x00" as *const u8 as *const libc::c_char);
+        ret += " [...]";
     }
     dc_free_splitted_lines(lines);
 
-    ret.buf
+    strdup(to_cstring(ret).as_ptr())
 }
 
 /**

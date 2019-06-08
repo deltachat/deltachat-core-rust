@@ -9,7 +9,6 @@ use crate::dc_param::*;
 use crate::dc_saxparser::*;
 use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
-use crate::dc_strbuilder::*;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
@@ -327,13 +326,7 @@ pub unsafe fn dc_get_location_kml(
     let locations_send_until: i64;
     let locations_last_sent: i64;
     let mut location_count: libc::c_int = 0i32;
-    let mut ret: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut ret, 1000i32);
+    let mut ret = String::new();
 
     self_addr = dc_sqlite3_get_config(
         context,
@@ -354,11 +347,12 @@ pub unsafe fn dc_get_location_kml(
         locations_last_sent = sqlite3_column_int64(stmt, 2i32) as i64;
         sqlite3_finalize(stmt);
         stmt = 0 as *mut sqlite3_stmt;
+
         if !(locations_send_begin == 0 || now > locations_send_until) {
-            dc_strbuilder_catf(&mut ret as *mut dc_strbuilder_t,
-                                   b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"%s\">\n\x00"
-                                       as *const u8 as *const libc::c_char,
-                                   self_addr);
+            ret += &format!(
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"{}\">\n",
+                to_string(self_addr),
+            );
             stmt = dc_sqlite3_prepare(
                 context,
                     &context.sql.clone().read().unwrap(),
@@ -378,45 +372,38 @@ pub unsafe fn dc_get_location_kml(
             sqlite3_bind_int(stmt, 4i32, 1i32);
             while sqlite3_step(stmt) == 100i32 {
                 let location_id: uint32_t = sqlite3_column_int(stmt, 0i32) as uint32_t;
-                let latitude: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 1i32));
-                let longitude: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 2i32));
-                let accuracy: *mut libc::c_char = dc_ftoa(sqlite3_column_double(stmt, 3i32));
-                let timestamp: *mut libc::c_char =
-                    get_kml_timestamp(sqlite3_column_int64(stmt, 4i32) as i64);
-                dc_strbuilder_catf(&mut ret as *mut dc_strbuilder_t,
-                                       b"<Placemark><Timestamp><when>%s</when></Timestamp><Point><coordinates accuracy=\"%s\">%s,%s</coordinates></Point></Placemark>\n\x00"
-                                           as *const u8 as
-                                           *const libc::c_char, timestamp,
-                                       accuracy, longitude, latitude);
+                let latitude = sqlite3_column_double(stmt, 1i32);
+                let longitude = sqlite3_column_double(stmt, 2i32);
+                let accuracy = sqlite3_column_double(stmt, 3i32);
+                let timestamp = get_kml_timestamp(sqlite3_column_int64(stmt, 4i32) as i64);
+                ret += &format!(
+                    "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
+                    as_str(timestamp),
+                    accuracy,
+                    longitude,
+                    latitude
+                );
                 location_count += 1;
                 if !last_added_location_id.is_null() {
                     *last_added_location_id = location_id
                 }
-                free(latitude as *mut libc::c_void);
-                free(longitude as *mut libc::c_void);
-                free(accuracy as *mut libc::c_void);
                 free(timestamp as *mut libc::c_void);
             }
-            if !(location_count == 0i32) {
-                dc_strbuilder_cat(
-                    &mut ret,
-                    b"</Document>\n</kml>\x00" as *const u8 as *const libc::c_char,
-                );
-                success = 1i32
+            if !(location_count == 0) {
+                ret += "</Document>\n</kml>";
+                success = 1;
             }
         }
     }
 
     sqlite3_finalize(stmt);
     free(self_addr as *mut libc::c_void);
-    if 0 == success {
-        free(ret.buf as *mut libc::c_void);
-    }
-    return if 0 != success {
-        ret.buf
+
+    if 0 != success {
+        strdup(to_cstring(ret).as_ptr())
     } else {
         0 as *mut libc::c_char
-    };
+    }
 }
 
 /*******************************************************************************

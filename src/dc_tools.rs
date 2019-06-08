@@ -8,7 +8,6 @@ use rand::{thread_rng, Rng};
 use crate::context::Context;
 use crate::dc_array::*;
 use crate::dc_log::*;
-use crate::dc_strbuilder::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -510,26 +509,22 @@ pub unsafe fn dc_str_from_clist(
     list: *const clist,
     delimiter: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let mut str: dc_strbuilder_t = dc_strbuilder_t {
-        buf: 0 as *mut libc::c_char,
-        allocated: 0,
-        free: 0,
-        eos: 0 as *mut libc::c_char,
-    };
-    dc_strbuilder_init(&mut str, 256i32);
+    let mut res = String::new();
+
     if !list.is_null() {
         let mut cur: *mut clistiter = (*list).first;
         while !cur.is_null() {
-            let rfc724_mid: *const libc::c_char = (if !cur.is_null() {
+            let rfc724_mid = (if !cur.is_null() {
                 (*cur).data
             } else {
                 0 as *mut libc::c_void
             }) as *const libc::c_char;
+
             if !rfc724_mid.is_null() {
-                if 0 != *str.buf.offset(0isize) as libc::c_int && !delimiter.is_null() {
-                    dc_strbuilder_cat(&mut str, delimiter);
+                if !res.is_empty() && !delimiter.is_null() {
+                    res += as_str(delimiter);
                 }
-                dc_strbuilder_cat(&mut str, rfc724_mid);
+                res += as_str(rfc724_mid);
             }
             cur = if !cur.is_null() {
                 (*cur).next
@@ -539,7 +534,7 @@ pub unsafe fn dc_str_from_clist(
         }
     }
 
-    str.buf
+    strdup(to_cstring(res).as_ptr())
 }
 
 pub unsafe fn dc_str_to_clist(
@@ -1123,11 +1118,7 @@ pub unsafe fn dc_file_exist(context: &Context, pathNfilename: *const libc::c_cha
     }
 
     let exist = {
-        let p = std::path::Path::new(
-            std::ffi::CStr::from_ptr(pathNfilename_abs)
-                .to_str()
-                .unwrap(),
-        );
+        let p = std::path::Path::new(as_str(pathNfilename_abs));
         p.exists()
     };
 
@@ -1646,6 +1637,11 @@ mod tests {
             assert!(dc_atof(s) < 1.24f64);
             free(s as *mut libc::c_void);
         }
+    }
+
+    #[test]
+    fn test_rust_ftoa() {
+        assert_eq!("1.22", format!("{}", 1.22));
     }
 
     #[test]
