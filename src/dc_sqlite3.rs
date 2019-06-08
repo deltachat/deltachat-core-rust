@@ -1027,8 +1027,11 @@ pub fn dc_sqlite3_get_rowid(
     // eg. if a Message-ID is splitted into different messages.
     if let Some(ref conn) = sql.conn() {
         match conn.query_row(
-            "SELECT id FROM ? WHERE ?=? ORDER BY id DESC",
-            &[table.as_ref(), field.as_ref(), value.as_ref()],
+            &format!(
+                "SELECT id FROM ? WHERE {}=? ORDER BY id DESC",
+                field.as_ref()
+            ),
+            &[table.as_ref(), value.as_ref()],
             |row| row.get(0),
         ) {
             Ok(id) => id,
@@ -1052,14 +1055,12 @@ pub fn dc_sqlite3_get_rowid2(
     // same as dc_sqlite3_get_rowid() with a key over two columns
     if let Some(ref conn) = sql.conn() {
         match conn.query_row(
-            "SELECT id FROM ? WHERE ?=? AND ?=? ORDER BY id DESC",
-            &[
-                table.as_ref(),
+            &format!(
+                "SELECT id FROM ? WHERE {}=? AND {}=? ORDER BY id DESC",
                 field.as_ref(),
-                value,
                 field2.as_ref(),
-                value2,
-            ],
+            ),
+            &[table.as_ref(), value, value2],
             |row| row.get(0),
         ) {
             Ok(id) => id,
