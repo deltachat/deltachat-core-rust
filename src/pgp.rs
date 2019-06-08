@@ -137,8 +137,8 @@ pub unsafe fn dc_split_armored_data(
 }
 
 /// Create a new key pair.
-pub fn dc_pgp_create_keypair(addr: *const libc::c_char) -> Option<(Key, Key)> {
-    let user_id = format!("<{}>", unsafe { CStr::from_ptr(addr).to_str().unwrap() });
+pub fn dc_pgp_create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
+    let user_id = format!("<{}>", addr.as_ref());
 
     let key_params = SecretKeyParamsBuilder::default()
         .key_type(PgpKeyType::Rsa(2048))

@@ -14,6 +14,8 @@ extern crate failure_derive;
 extern crate num_derive;
 #[macro_use]
 extern crate smallvec;
+#[macro_use]
+extern crate rusqlite;
 
 #[macro_use]
 pub mod dc_log;

@@ -244,15 +244,8 @@ unsafe fn stress_functions(context: &Context) {
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-    let keys = dc_get_config(
-        context,
-        b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
-    );
-    assert!(!keys.is_null());
-    assert_ne!(0, *keys.offset(0isize) as libc::c_int);
 
-    let res = format!(" {} ", as_str(keys));
-    free(keys as *mut libc::c_void);
+    let res = dc_get_config(context, "sys.config_keys");
 
     assert!(!res.contains(" probably_never_a_key "));
     assert!(res.contains(" addr "));
@@ -669,13 +662,11 @@ fn test_encryption_decryption() {
             j += 1
         }
 
-        let (public_key, private_key) =
-            dc_pgp_create_keypair(b"foo@bar.de\x00" as *const u8 as *const libc::c_char).unwrap();
+        let (public_key, private_key) = dc_pgp_create_keypair("foo@bar.de").unwrap();
 
         private_key.split_key().unwrap();
 
-        let (public_key2, private_key2) =
-            dc_pgp_create_keypair(b"two@zwo.de\x00" as *const u8 as *const libc::c_char).unwrap();
+        let (public_key2, private_key2) = dc_pgp_create_keypair("two@zwo.de").unwrap();
 
         assert_ne!(public_key, public_key2);
 

@@ -1,4 +1,5 @@
 use mmime::mailimf_types::*;
+use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 
 use crate::aheader::EncryptPreference;
 use crate::constants::Event;
@@ -28,22 +29,18 @@ pub unsafe fn dc_get_securejoin_qr(
     context: &Context,
     group_chat_id: uint32_t,
 ) -> *mut libc::c_char {
-    let current_block: u64;
     /* =========================================================
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
     ========================================================= */
-    let mut qr: *mut libc::c_char = 0 as *mut libc::c_char;
-    let self_addr: *mut libc::c_char;
-    let mut self_addr_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut self_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut self_name_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
+
+    let mut fingerprint = 0 as *mut libc::c_char;
     let mut invitenumber: *mut libc::c_char;
     let mut auth: *mut libc::c_char;
-    let mut chat: *mut Chat = 0 as *mut Chat;
-    let mut group_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut group_name_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut chat = 0 as *mut Chat;
+    let mut group_name = 0 as *mut libc::c_char;
+    let mut group_name_urlencoded = 0 as *mut libc::c_char;
+    let mut qr = None;
 
     dc_ensure_secret_key_exists(context);
     invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id);
@@ -56,110 +53,88 @@ pub unsafe fn dc_get_securejoin_qr(
         auth = dc_create_id();
         dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, auth);
     }
-    self_addr = dc_sqlite3_get_config(
-        context,
-        &context.sql,
-        b"configured_addr\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
-    );
-    if self_addr.is_null() {
-        dc_log_error(
-            context,
-            0i32,
-            b"Not configured, cannot generate QR code.\x00" as *const u8 as *const libc::c_char,
-        );
-    } else {
-        self_name = dc_sqlite3_get_config(
-            context,
-            &context.sql,
-            b"displayname\x00" as *const u8 as *const libc::c_char,
-            b"\x00" as *const u8 as *const libc::c_char,
-        );
-        fingerprint = get_self_fingerprint(context);
-        if !fingerprint.is_null() {
-            self_addr_urlencoded = dc_urlencode(self_addr);
-            self_name_urlencoded = dc_urlencode(self_name);
-            if 0 != group_chat_id {
-                chat = dc_get_chat(context, group_chat_id);
-                if chat.is_null() {
-                    dc_log_error(
-                        context,
-                        0i32,
-                        b"Cannot get QR-code for chat-id %i\x00" as *const u8
-                            as *const libc::c_char,
-                        group_chat_id,
-                    );
-                    current_block = 9531737720721467826;
-                } else {
-                    group_name = dc_chat_get_name(chat);
-                    group_name_urlencoded = dc_urlencode(group_name);
-                    qr = dc_mprintf(
-                        b"OPENPGP4FPR:%s#a=%s&g=%s&x=%s&i=%s&s=%s\x00" as *const u8
-                            as *const libc::c_char,
-                        fingerprint,
-                        self_addr_urlencoded,
-                        group_name_urlencoded,
-                        (*chat).grpid,
-                        invitenumber,
-                        auth,
-                    );
-                    current_block = 1118134448028020070;
-                }
-            } else {
-                qr = dc_mprintf(
-                    b"OPENPGP4FPR:%s#a=%s&n=%s&i=%s&s=%s\x00" as *const u8 as *const libc::c_char,
-                    fingerprint,
-                    self_addr_urlencoded,
-                    self_name_urlencoded,
-                    invitenumber,
-                    auth,
-                );
-                current_block = 1118134448028020070;
-            }
-            match current_block {
-                9531737720721467826 => {}
-                _ => {
-                    dc_log_info(
-                        context,
-                        0i32,
-                        b"Generated QR code: %s\x00" as *const u8 as *const libc::c_char,
-                        qr,
-                    );
-                }
-            }
+    let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
+
+    let cleanup = |fingerprint, chat, group_name, group_name_urlencoded| {
+        free(fingerprint as *mut libc::c_void);
+        free(invitenumber as *mut libc::c_void);
+        free(auth as *mut libc::c_void);
+        dc_chat_unref(chat);
+        free(group_name as *mut libc::c_void);
+        free(group_name_urlencoded as *mut libc::c_void);
+
+        if let Some(qr) = qr {
+            strdup(to_cstring(qr).as_ptr())
+        } else {
+            std::ptr::null_mut()
         }
+    };
+
+    if self_addr.is_none() {
+        error!(context, 0, "Not configured, cannot generate QR code.",);
+        return cleanup(fingerprint, chat, group_name, group_name_urlencoded);
     }
 
-    free(self_addr_urlencoded as *mut libc::c_void);
-    free(self_addr as *mut libc::c_void);
-    free(self_name as *mut libc::c_void);
-    free(self_name_urlencoded as *mut libc::c_void);
-    free(fingerprint as *mut libc::c_void);
-    free(invitenumber as *mut libc::c_void);
-    free(auth as *mut libc::c_void);
-    dc_chat_unref(chat);
-    free(group_name as *mut libc::c_void);
-    free(group_name_urlencoded as *mut libc::c_void);
-    return if !qr.is_null() {
-        qr
+    let self_addr = self_addr.unwrap();
+    let self_name = dc_sqlite3_get_config(
+        context,
+        &context.sql.clone().read().unwrap(),
+        "displayname",
+        Some(""),
+    )
+    .unwrap();
+    fingerprint = get_self_fingerprint(context);
+
+    if fingerprint.is_null() {
+        return cleanup(fingerprint, chat, group_name, group_name_urlencoded);
+    }
+
+    let self_addr_urlencoded = utf8_percent_encode(&self_addr, DEFAULT_ENCODE_SET).to_string();
+    let self_name_urlencoded = utf8_percent_encode(&self_name, DEFAULT_ENCODE_SET).to_string();
+
+    qr = if 0 != group_chat_id {
+        chat = dc_get_chat(context, group_chat_id);
+        if chat.is_null() {
+            error!(
+                context,
+                0, "Cannot get QR-code for chat-id {}", group_chat_id,
+            );
+            return cleanup(fingerprint, chat, group_name, group_name_urlencoded);
+        }
+
+        group_name = dc_chat_get_name(chat);
+        group_name_urlencoded = dc_urlencode(group_name);
+
+        Some(format!(
+            "OPENPGP4FPR:{}#a={}&g={}&x={}&i={}&s={}",
+            as_str(fingerprint),
+            self_addr_urlencoded,
+            as_str(group_name_urlencoded),
+            as_str((*chat).grpid),
+            as_str(invitenumber),
+            as_str(auth),
+        ))
     } else {
-        dc_strdup(0 as *const libc::c_char)
+        Some(format!(
+            "OPENPGP4FPR:{}#a={}&n={}&i={}&s={}",
+            as_str(fingerprint),
+            self_addr_urlencoded,
+            self_name_urlencoded,
+            as_str(invitenumber),
+            as_str(auth),
+        ))
     };
+
+    info!(context, 0, "Generated QR code: {}", qr.as_ref().unwrap());
+
+    cleanup(fingerprint, chat, group_name, group_name_urlencoded)
 }
 
-unsafe fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {
-    let self_addr = dc_sqlite3_get_config(
-        context,
-        &context.sql,
-        b"configured_addr\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
-    );
-    if self_addr.is_null() {
-        return std::ptr::null_mut();
-    }
-
-    if let Some(key) = Key::from_self_public(context, self_addr, &context.sql) {
-        return key.fingerprint_c();
+fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {
+    if let Some(self_addr) = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None) {
+        if let Some(key) = Key::from_self_public(context, self_addr, &context.sql) {
+            return key.fingerprint_c();
+        }
     }
 
     std::ptr::null_mut()
@@ -443,27 +418,14 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     b"Secure-Join-Invitenumber\x00" as *const u8 as *const libc::c_char,
                 );
                 if invitenumber.is_null() {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"Secure-join denied (invitenumber missing).\x00" as *const u8
-                            as *const libc::c_char,
-                    );
+                    warn!(context, 0, "Secure-join denied (invitenumber missing).",);
                     current_block = 4378276786830486580;
-                } else if dc_token_exists(context, DC_TOKEN_INVITENUMBER, invitenumber) == 0i32 {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"Secure-join denied (bad invitenumber).\x00" as *const u8
-                            as *const libc::c_char,
-                    );
+                } else if !dc_token_exists(context, DC_TOKEN_INVITENUMBER, invitenumber) {
+                    warn!(context, 0, "Secure-join denied (bad invitenumber).",);
                     current_block = 4378276786830486580;
                 } else {
-                    dc_log_info(
-                        context,
-                        0i32,
-                        b"Secure-join requested.\x00" as *const u8 as *const libc::c_char,
-                    );
+                    info!(context, 0, "Secure-join requested.",);
+
                     context.call_cb(
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
@@ -634,7 +596,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Auth not provided.\x00" as *const u8 as *const libc::c_char,
                         );
                         current_block = 4378276786830486580;
-                    } else if dc_token_exists(context, DC_TOKEN_AUTH, auth_0) == 0i32 {
+                    } else if !dc_token_exists(context, DC_TOKEN_AUTH, auth_0) {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
@@ -1047,9 +1009,7 @@ unsafe fn encrypted_and_signed(
 }
 
 pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) {
-    let stmt;
-    let contact_id: uint32_t;
-    let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
+    let mut contact_chat_id = 0;
 
     // - we do not issue an warning for DC_DE_ENCRYPTION_PAUSED as this is quite normal
     // - currently, we do not issue an extra warning for DC_DE_VERIFICATION_LOST - this always comes
@@ -1057,38 +1017,35 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
     //   with things they cannot fix, so the user is just kicked from the verified group
     //   (and he will know this and can fix this)
     if Some(DegradeEvent::FingerprintChanged) == peerstate.degrade_event {
-        stmt = dc_sqlite3_prepare(
+        let contact_id: i32 = dc_sqlite3_query_row(
             context,
             &context.sql,
-            b"SELECT id FROM contacts WHERE addr=?;\x00" as *const u8 as *const libc::c_char,
-        );
-        let c_addr = peerstate.addr.as_ref().map(to_cstring).unwrap_or_default();
-
-        let c_addr_ptr = if peerstate.addr.is_some() {
-            c_addr.as_ptr()
-        } else {
-            std::ptr::null()
-        };
-
-        sqlite3_bind_text(stmt, 1i32, c_addr_ptr, -1i32, None);
-        sqlite3_step(stmt);
-        contact_id = sqlite3_column_int(stmt, 0i32) as uint32_t;
-        sqlite3_finalize(stmt);
-        if !(contact_id == 0i32 as libc::c_uint) {
+            "SELECT id FROM contacts WHERE addr=?;",
+            params![&peerstate.addr],
+            0,
+        )
+        .unwrap_or_default();
+        if contact_id > 0 {
             dc_create_or_lookup_nchat_by_contact_id(
                 context,
-                contact_id,
-                2i32,
+                contact_id as u32,
+                2,
                 &mut contact_chat_id,
                 0 as *mut libc::c_int,
             );
-            let msg = dc_stock_str_repl_string(context, 37i32, c_addr_ptr);
+            let c_addr = peerstate.addr.as_ref().map(to_cstring).unwrap_or_default();
+            let c_addr_ptr = if peerstate.addr.is_some() {
+                c_addr.as_ptr()
+            } else {
+                std::ptr::null_mut()
+            };
+            let msg = dc_stock_str_repl_string(context, 37, c_addr_ptr);
             dc_add_device_msg(context, contact_chat_id, msg);
             free(msg as *mut libc::c_void);
             context.call_cb(
                 Event::CHAT_MODIFIED,
                 contact_chat_id as uintptr_t,
-                0i32 as uintptr_t,
+                0 as uintptr_t,
             );
         }
     }

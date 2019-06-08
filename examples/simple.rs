@@ -83,16 +83,8 @@ fn main() {
 
         println!("configuring");
         let pw = std::env::args().collect::<Vec<String>>()[1].clone();
-        dc_set_config(
-            &ctx,
-            CString::new("addr").unwrap().as_ptr(),
-            CString::new("d@testrun.org").unwrap().as_ptr(),
-        );
-        dc_set_config(
-            &ctx,
-            CString::new("mail_pw").unwrap().as_ptr(),
-            CString::new(pw).unwrap().as_ptr(),
-        );
+        dc_set_config(&ctx, "addr", Some("d@testrun.org"));
+        dc_set_config(&ctx, "mail_pw", Some(&pw));
         dc_configure(&ctx);
 
         thread::sleep(duration);

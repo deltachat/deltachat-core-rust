@@ -133,39 +133,29 @@ pub unsafe fn dc_jobthread_fetch(
 
 unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc::c_int {
     let mut ret_connected: libc::c_int;
-    let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
 
     if jobthread.imap.is_connected() {
         ret_connected = 1;
     } else {
         ret_connected = dc_connect_to_configured_imap(context, &jobthread.imap);
         if !(0 == ret_connected) {
-            if dc_sqlite3_get_config_int(
-                context,
-                &context.sql,
-                b"folders_configured\x00" as *const u8 as *const libc::c_char,
-                0,
-            ) < 3
-            {
+            if dc_sqlite3_get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
                 jobthread.imap.configure_folders(context, 0x1);
             }
-            mvbox_name = dc_sqlite3_get_config(
+            let mvbox_name = dc_sqlite3_get_config(
                 context,
                 &context.sql,
-                CString::new(&jobthread.folder_config_name[..])
-                    .unwrap()
-                    .as_ptr(),
-                0 as *const libc::c_char,
+                as_str(&jobthread.folder_config_name[..]),
+                None,
             );
-            if mvbox_name.is_null() {
+            if let Some(name) = mvbox_name {
+                jobthread.imap.set_watch_folder(name);
+            } else {
                 jobthread.imap.disconnect(context);
                 ret_connected = 0;
-            } else {
-                jobthread.imap.set_watch_folder(mvbox_name);
             }
         }
     }
-    free(mvbox_name as *mut libc::c_void);
 
     ret_connected
 }

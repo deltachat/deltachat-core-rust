@@ -10,6 +10,8 @@ extern crate deltachat;
 extern crate failure;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -512,25 +514,21 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             dc_configure(&ctx.read().unwrap());
         }
         "oauth2" => {
-            let addr = dc_get_config(
-                &ctx.read().unwrap(),
-                b"addr\x00" as *const u8 as *const libc::c_char,
-            );
-            if addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32 {
+            let addr = dc_get_config(&ctx.read().unwrap(), "addr");
+            if addr.is_empty() {
                 println!("oauth2: set addr first.");
             } else {
                 let oauth2_url = dc_get_oauth2_url(
                     &ctx.read().unwrap(),
-                    as_str(addr),
+                    &addr,
                     "chat.delta:/com.b44t.messenger",
                 );
                 if oauth2_url.is_none() {
-                    println!("OAuth2 not available for {}.", to_string(addr));
+                    println!("OAuth2 not available for {}.", &addr);
                 } else {
                     println!("Open the following url, set mail_pw to the generated token and server_flags to 2:\n{}", oauth2_url.unwrap());
                 }
             }
-            free(addr as *mut libc::c_void);
         }
         "clear" => {
             println!("\n\n\n");
