@@ -432,9 +432,9 @@ pub fn dc_set_config(
         return 0;
     }
 
-    match key {
+    match key.as_ref() {
         "selfavatar" if value.is_some() => {
-            let rel_path = unsafe { dc_strdup(value) };
+            let rel_path = unsafe { dc_strdup(to_cstring(value.unwrap()).as_ptr()) };
             if 0 != unsafe { dc_make_rel_and_copy(context, &mut rel_path) } {
                 ret = dc_sqlite3_set_config(
                     context,
@@ -459,19 +459,13 @@ pub fn dc_set_config(
         }
         "selfstatus" => {
             let def = unsafe { dc_stock_str(context, 13) };
-            let def_val = if value.is_none() || value.as_ref().unwrap() == as_str(def) {
+            let val = if value.is_none() || value.as_ref().unwrap().as_ref() == as_str(def) {
                 None
             } else {
                 value
             };
 
-            ret = dc_sqlite3_set_config(
-                context,
-                &context.sql.clone().read().unwrap(),
-                key,
-                value,
-                default,
-            );
+            ret = dc_sqlite3_set_config(context, &context.sql.clone().read().unwrap(), key, val);
             unsafe { free(def as *mut libc::c_void) };
         }
         _ => {
@@ -486,7 +480,10 @@ pub fn dc_set_config(
  ******************************************************************************/
 
 fn is_settable_config_key(key: impl AsRef<str>) -> bool {
-    CONFIG_KEYS.iter().find(key.as_ref()).is_some()
+    CONFIG_KEYS
+        .into_iter()
+        .find(|c| **c == key.as_ref())
+        .is_some()
 }
 
 pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
@@ -495,18 +492,17 @@ pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
     }
 
     if !is_gettable_config_key(key) {
-        return Some("".into());
+        return "".into();
     }
 
-    let value = match key {
+    let value = match key.as_ref() {
         "selfavatar" => {
             let rel_path =
                 dc_sqlite3_get_config(context, &context.sql.clone().read().unwrap(), key, None);
             rel_path.map(|p| {
-                let v = unsafe { dc_get_abs_path(context, to_cstring(rel_path).as_ptr()) };
-                unsafe { free(rel_path as *mut _) };
+                let v = unsafe { dc_get_abs_path(context, to_cstring(p).as_ptr()) };
                 let r = to_string(v);
-                unsafe { free(v) as *mut _ };
+                unsafe { free(v as *mut _) };
                 r
             })
         }
@@ -517,7 +513,7 @@ pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
         return value.unwrap();
     }
 
-    match key {
+    match key.as_ref() {
         "e2ee_enabled" => "1".into(),
         "mdns_enabled" => "1".into(),
         "imap_folder" => "INBOX".into(),
@@ -534,60 +530,28 @@ pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
     }
 }
 
-fn is_gettable_config_key(key: AsRef<str>) -> bool {
-    SYS_CONFIG_KEYS.iter().find(key.as_ref()).is_some() || is_settable_config_key(key)
+fn is_gettable_config_key(key: impl AsRef<str>) -> bool {
+    SYS_CONFIG_KEYS
+        .into_iter()
+        .find(|c| **c == key.as_ref())
+        .is_some()
+        || is_settable_config_key(key)
 }
 
-unsafe fn get_sys_config_str(key: *const libc::c_char) -> *mut libc::c_char {
-    if strcmp(key, b"sys.version\x00" as *const u8 as *const libc::c_char) == 0 {
-        return dc_strdup(DC_VERSION_STR as *const u8 as *const libc::c_char);
-    } else if strcmp(
-        key,
-        b"sys.msgsize_max_recommended\x00" as *const u8 as *const libc::c_char,
-    ) == 0
-    {
-        return dc_mprintf(
-            b"%i\x00" as *const u8 as *const libc::c_char,
-            24 * 1024 * 1024 / 4 * 3,
-        );
-    } else if strcmp(
-        key,
-        b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
-    ) == 0
-    {
-        return get_config_keys_str();
-    } else {
-        return dc_strdup(0 as *const libc::c_char);
-    };
+fn get_sys_config_str(key: impl AsRef<str>) -> String {
+    match key.as_ref() {
+        "sys.version" => std::str::from_utf8(DC_VERSION_STR).unwrap().into(),
+        "sys.msgsize_max_recommended" => format!("{}", 24 * 1024 * 1024 / 4 * 3),
+        "sys.config_keys" => get_config_keys_str(),
+        _ => "".into(),
+    }
 }
 
-unsafe fn get_config_keys_str() -> *mut libc::c_char {
-    let mut ret = String::new();
-    let mut i = 0;
-    while i
-        < (::std::mem::size_of::<[*const libc::c_char; 33]>())
-            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>())
-    {
-        if !ret.is_empty() {
-            ret += " ";
-        }
-        ret += &to_string(config_keys[i as usize]);
-        i += 1
-    }
+fn get_config_keys_str() -> String {
+    let keys = &CONFIG_KEYS[..].join(" ");
+    let sys_keys = &SYS_CONFIG_KEYS[..].join(" ");
 
-    let mut i = 0;
-    while i
-        < (::std::mem::size_of::<[*const libc::c_char; 3]>())
-            .wrapping_div(::std::mem::size_of::<*mut libc::c_char>())
-    {
-        if !ret.is_empty() {
-            ret += " ";
-        }
-        ret += &to_string(sys_config_keys[i as usize]);
-        i += 1
-    }
-
-    strdup(to_cstring(ret).as_ptr())
+    format!("{} {}", keys, sys_keys)
 }
 
 pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
@@ -609,8 +573,8 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let displayname = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
-        b"displayname\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
+        "displayname",
+        None,
     );
     let chats = dc_get_chat_cnt(context) as usize;
     let real_msgs = dc_get_real_msg_cnt(context) as usize;
@@ -619,43 +583,42 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let is_configured = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"configured\x00" as *const u8 as *const libc::c_char,
+        "configured",
         0,
     );
     let dbversion = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"dbversion\x00" as *const u8 as *const libc::c_char,
+        "dbversion",
         0,
     );
     let e2ee_enabled = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
+        "e2ee_enabled",
         1,
     );
     let mdns_enabled = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
+        "mdns_enabled",
         1,
     );
-    let mut stmt = dc_sqlite3_prepare(
+
+    let prv_key_cnt: Option<usize> = dc_sqlite3_query_row(
         context,
         &context.sql.clone().read().unwrap(),
-        b"SELECT COUNT(*) FROM keypairs;\x00" as *const u8 as *const libc::c_char,
+        "SELECT COUNT(*) FROM keypairs;",
+        0,
     );
-    sqlite3_step(stmt);
-    let prv_key_cnt = sqlite3_column_int(stmt, 0);
-    sqlite3_finalize(stmt);
-    stmt = dc_sqlite3_prepare(
+
+    let pub_key_cnt: Option<usize> = dc_sqlite3_query_row(
         context,
         &context.sql.clone().read().unwrap(),
-        b"SELECT COUNT(*) FROM acpeerstates;\x00" as *const u8 as *const libc::c_char,
+        "SELECT COUNT(*) FROM acpeerstates;",
+        0,
     );
-    sqlite3_step(stmt);
-    let pub_key_cnt = sqlite3_column_int(stmt, 0);
-    sqlite3_finalize(stmt);
+
     let fingerprint_str = if let Some(key) =
         Key::from_self_public(context, (*l2).addr, &context.sql.clone().read().unwrap())
     {
@@ -669,44 +632,44 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let inbox_watch = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"inbox_watch\x00" as *const u8 as *const libc::c_char,
+        "inbox_watch",
         1,
     );
     let sentbox_watch = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"sentbox_watch\x00" as *const u8 as *const libc::c_char,
+        "sentbox_watch",
         1,
     );
     let mvbox_watch = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"mvbox_watch\x00" as *const u8 as *const libc::c_char,
+        "mvbox_watch",
         1,
     );
     let mvbox_move = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"mvbox_move\x00" as *const u8 as *const libc::c_char,
+        "mvbox_move",
         1,
     );
     let folders_configured = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
-        b"folders_configured\x00" as *const u8 as *const libc::c_char,
+        "folders_configured",
         0,
     );
     let configured_sentbox_folder = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
-        b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
-        b"<unset>\x00" as *const u8 as *const libc::c_char,
+        "configured_sentbox_folder",
+        Some("<unset>"),
     );
     let configured_mvbox_folder = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
-        b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
-        b"<unset>\x00" as *const u8 as *const libc::c_char,
+        "configured_mvbox_folder",
+        Some("<unset>"),
     );
 
     let res = format!(
@@ -758,11 +721,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         } else {
             unset
         },
-        if !displayname.is_null() {
-            as_str(displayname)
-        } else {
-            unset
-        },
+        displayname.unwrap_or_else(|| unset.into()),
         is_configured,
         as_str(l_readable_str),
         as_str(l2_readable_str),
@@ -771,22 +730,20 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         mvbox_watch,
         mvbox_move,
         folders_configured,
-        as_str(configured_sentbox_folder),
-        as_str(configured_mvbox_folder),
+        configured_sentbox_folder.unwrap_or_default(),
+        configured_mvbox_folder.unwrap_or_default(),
         mdns_enabled,
         e2ee_enabled,
-        prv_key_cnt,
-        pub_key_cnt,
+        prv_key_cnt.unwrap_or_default(),
+        pub_key_cnt.unwrap_or_default(),
         fingerprint_str,
     );
 
     dc_loginparam_unref(l);
     dc_loginparam_unref(l2);
-    free(displayname as *mut libc::c_void);
+
     free(l_readable_str as *mut libc::c_void);
     free(l2_readable_str as *mut libc::c_void);
-    free(configured_sentbox_folder as *mut libc::c_void);
-    free(configured_mvbox_folder as *mut libc::c_void);
 
     strdup(to_cstring(res).as_ptr())
 }
@@ -795,30 +752,35 @@ pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
     dc_strdup(DC_VERSION_STR as *const u8 as *const libc::c_char)
 }
 
-pub unsafe fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
+pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
     let show_deaddrop = 0;
-    let ret = dc_array_new(128 as size_t);
-    let mut stmt = 0 as *mut sqlite3_stmt;
+    let ret = unsafe { dc_array_new(128 as size_t) };
     if !ret.is_null() {
-        stmt = dc_sqlite3_prepare(
+        if let Some(ref mut stmt) = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
-            b"SELECT m.id FROM msgs m LEFT JOIN contacts ct \
-              ON m.from_id=ct.id LEFT JOIN chats c ON m.chat_id=c.id WHERE m.state=?   \
-              AND m.hidden=0   \
-              AND m.chat_id>?   \
-              AND ct.blocked=0   \
-              AND (c.blocked=0 OR c.blocked=?) ORDER BY m.timestamp DESC,m.id DESC;\x00"
-                as *const u8 as *const libc::c_char,
-        );
-        sqlite3_bind_int(stmt, 1, 10);
-        sqlite3_bind_int(stmt, 2, 9);
-        sqlite3_bind_int(stmt, 3, if 0 != show_deaddrop { 2 } else { 0 });
-        while sqlite3_step(stmt) == 100 {
-            dc_array_add_id(ret, sqlite3_column_int(stmt, 0) as uint32_t);
+            "SELECT m.id FROM msgs m LEFT JOIN contacts ct \
+             ON m.from_id=ct.id LEFT JOIN chats c ON m.chat_id=c.id WHERE m.state=?   \
+             AND m.hidden=0   \
+             AND m.chat_id>?   \
+             AND ct.blocked=0   \
+             AND (c.blocked=0 OR c.blocked=?) ORDER BY m.timestamp DESC,m.id DESC;",
+        ) {
+            match stmt.query_map(&[10, 9, if 0 != show_deaddrop { 2 } else { 0 }], |row| {
+                row.get(0)
+            }) {
+                Ok(rows) => {
+                    for row in rows {
+                        if let Ok(id) = row {
+                            unsafe { dc_array_add_id(ret, id) };
+                        }
+                    }
+                }
+                Err(err) => {}
+            }
         }
     }
-    sqlite3_finalize(stmt);
+
     ret
 }
 
@@ -827,64 +789,59 @@ pub unsafe fn dc_search_msgs(
     chat_id: uint32_t,
     query: *const libc::c_char,
 ) -> *mut dc_array_t {
-    let mut success = 0;
+    let mut success = false;
     let ret = dc_array_new(100 as size_t);
-    let mut strLikeInText = 0 as *mut libc::c_char;
-    let mut strLikeBeg = 0 as *mut libc::c_char;
-    let mut real_query = 0 as *mut libc::c_char;
     let mut stmt = 0 as *mut sqlite3_stmt;
 
     if !(ret.is_null() || query.is_null()) {
-        real_query = dc_strdup(query);
-        dc_trim(real_query);
-        if *real_query.offset(0isize) as libc::c_int == 0 {
-            success = 1
+        let real_query = to_string(query).trim();
+        if real_query.is_empty() {
+            success = true;
         } else {
-            strLikeInText = dc_mprintf(
-                b"%%%s%%\x00" as *const u8 as *const libc::c_char,
-                real_query,
-            );
-            strLikeBeg = dc_mprintf(b"%s%%\x00" as *const u8 as *const libc::c_char, real_query);
-            if 0 != chat_id {
-                stmt = dc_sqlite3_prepare(
+            let strLikeInText = format!("%{}%", &real_query);
+            let strLikeBeg = format!("{}%", &real_query);
+
+            let res = if 0 != chat_id {
+                dc_sqlite3_prepare(
                     context,
                     &context.sql.clone().read().unwrap(),
-                    b"SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
+                    "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
                       AND m.hidden=0  \
-                      AND ct.blocked=0 AND (txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp,m.id;\x00"
-                        as *const u8 as *const libc::c_char
-                );
-                sqlite3_bind_int(stmt, 1, chat_id as libc::c_int);
-                sqlite3_bind_text(stmt, 2, strLikeInText, -1, None);
-                sqlite3_bind_text(stmt, 3, strLikeBeg, -1, None);
+                      AND ct.blocked=0 AND (txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp,m.id;"
+                ).and_then(|mut stmt| {
+                    stmt.query(params![chat_id as libc::c_int, strLikeInText, strLikeBeg]).ok()
+                })
             } else {
                 let show_deaddrop = 0;
-                stmt = dc_sqlite3_prepare(
+                dc_sqlite3_prepare(
                     context,
                     &context.sql.clone().read().unwrap(),
-                    b"SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id \
+                    "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id \
                       LEFT JOIN chats c ON m.chat_id=c.id WHERE m.chat_id>9 AND m.hidden=0  \
                       AND (c.blocked=0 OR c.blocked=?) \
-                      AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;\x00"
-                        as *const u8 as *const libc::c_char
-                );
-                sqlite3_bind_int(stmt, 1, if 0 != show_deaddrop { 2 } else { 0 });
-                sqlite3_bind_text(stmt, 2, strLikeInText, -1, None);
-                sqlite3_bind_text(stmt, 3, strLikeBeg, -1, None);
+                      AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
+                ).and_then(|mut stmt| {
+                    stmt.query(params![
+                        if 0 != show_deaddrop { 2 } else { 0 },
+                        strLikeInText, strLikeBeg,
+                    ]).ok()
+                })
+            };
+            match res {
+                Some(rows) => {
+                    while let Ok(Some(row)) = rows.next() {
+                        if let Ok(id) = row.get(0) {
+                            unsafe { dc_array_add_id(ret, id) };
+                        }
+                    }
+                    success = true;
+                }
+                None => {}
             }
-            while sqlite3_step(stmt) == 100 {
-                dc_array_add_id(ret, sqlite3_column_int(stmt, 0) as uint32_t);
-            }
-            success = 1
         }
     }
 
-    free(strLikeInText as *mut libc::c_void);
-    free(strLikeBeg as *mut libc::c_void);
-    free(real_query as *mut libc::c_void);
-    sqlite3_finalize(stmt);
-
-    if 0 != success {
+    if success {
         ret
     } else {
         if !ret.is_null() {
@@ -914,18 +871,16 @@ pub unsafe fn dc_is_sentbox(context: &Context, folder_name: *const libc::c_char)
     let sentbox_name = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
-        b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
+        "configured_sentbox_folder",
+        None,
     );
     let mut is_sentbox = 0;
-    if !sentbox_name.is_null() && !folder_name.is_null() {
-        is_sentbox = if strcasecmp(sentbox_name, folder_name) == 0 {
-            1
-        } else {
-            0
+    if let Some(name) = sentbox_name {
+        if !folder_name.is_null() {
+            is_sentbox = if name == as_str(folder_name) { 1 } else { 0 }
         }
     }
-    free(sentbox_name as *mut libc::c_void);
+
     is_sentbox
 }
 
@@ -933,17 +888,15 @@ pub unsafe fn dc_is_mvbox(context: &Context, folder_name: *const libc::c_char) -
     let mvbox_name = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
-        b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
+        "configured_mvbox_folder",
+        None,
     );
     let mut is_mvbox = 0;
-    if !mvbox_name.is_null() && !folder_name.is_null() {
-        is_mvbox = if strcasecmp(mvbox_name, folder_name) == 0 {
-            1
-        } else {
-            0
+    if let Some(name) = mvbox_name {
+        if !folder_name.is_null() {
+            is_mvbox = if name == as_str(folder_name) { 1 } else { 0 }
         }
     }
-    free(mvbox_name as *mut libc::c_void);
+
     is_mvbox
 }

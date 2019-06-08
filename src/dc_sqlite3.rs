@@ -875,7 +875,7 @@ pub fn dc_sqlite3_get_config(
     context: &Context,
     sql: &dc_sqlite3_t,
     key: impl AsRef<str>,
-    def: Option<impl AsRef<str>>,
+    def: Option<&str>,
 ) -> Option<String> {
     if 0 == dc_sqlite3_is_open(sql) || key.is_null() {
         return None;
@@ -918,6 +918,23 @@ pub fn dc_sqlite3_execute(
     }
 }
 
+pub fn dc_sqlite3_query_row<T>(
+    context: &Context,
+    sql: &dc_sqlite3_t,
+    query: &str,
+    column: usize,
+) -> Option<T> {
+    if let Some(ref conn) = sql.conn() {
+        match conn.query_row(query, NO_PARAMS, |row| row.get(column)) {
+            Ok(res) => Some(res),
+            Err(err) => {
+                error!(context, 0, "sql: Failed query_row: {}", err);
+                None
+            }
+        }
+    }
+}
+
 pub fn dc_sqlite3_set_config_int(
     context: &Context,
     sql: &dc_sqlite3_t,
@@ -931,10 +948,10 @@ pub fn dc_sqlite3_get_config_int(
     context: &Context,
     sql: &dc_sqlite3_t,
     key: impl AsRef<str>,
-    def: Option<i32>,
+    def: i32,
 ) -> i32 {
     let s = dc_sqlite3_get_config(context, sql, key, None);
-    s.parse().unwrap_or_else(|_| def.unwrap_or_default())
+    s.parse().unwrap_or_else(|_| def)
 }
 
 pub fn dc_sqlite3_table_exists(
