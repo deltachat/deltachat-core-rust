@@ -1120,68 +1120,101 @@ pub unsafe fn dc_get_chat_msgs(
 ) -> *mut dc_array_t {
     //clock_t       start = clock();
     let mut success: libc::c_int = 0i32;
-    let ret: *mut dc_array_t = dc_array_new(512i32 as size_t);
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+    let ret = dc_array_new(512i32 as size_t);
+
     let mut curr_id: uint32_t;
     let mut curr_local_timestamp: i64;
     let mut curr_day: libc::c_int;
     let mut last_day = 0;
     let cnv_to_local = dc_gm2local_offset();
-    if !ret.is_null() {
-        if chat_id == 1i32 as libc::c_uint {
-            let show_emails = dc_sqlite3_get_config_int(
-                context,
-                &context.sql.clone().read().unwrap(),
-                "show_emails",
-                0,
-            );
-            stmt =
-                dc_sqlite3_prepare(
-                    context,&context.sql.clone().read().unwrap(),
-                                   b"SELECT m.id, m.timestamp FROM msgs m LEFT JOIN chats ON m.chat_id=chats.id LEFT JOIN contacts ON m.from_id=contacts.id WHERE m.from_id!=1   AND m.from_id!=2   AND m.hidden=0    AND chats.blocked=2   AND contacts.blocked=0   AND m.msgrmsg>=?  ORDER BY m.timestamp,m.id;\x00"
-                                       as *const u8 as *const libc::c_char);
-            sqlite3_bind_int(stmt, 1i32, if show_emails == 2i32 { 0i32 } else { 1i32 });
-        } else if chat_id == 5i32 as libc::c_uint {
-            stmt =
-                dc_sqlite3_prepare(
-                    context,&context.sql.clone().read().unwrap(),
-                                   b"SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.starred=1    AND m.hidden=0    AND ct.blocked=0 ORDER BY m.timestamp,m.id;\x00"
-                                       as *const u8 as *const libc::c_char)
+
+    if ret.is_null() {
+        return ret;
+    }
+
+    let rows = if chat_id == 1 {
+        let show_emails = dc_sqlite3_get_config_int(
+            context,
+            &context.sql.clone().read().unwrap(),
+            "show_emails",
+            0,
+        );
+        if let Some(mut stmt) = dc_sqlite3_prepare(
+            context,
+            &context.sql.clone().read().unwrap(),
+            "SELECT m.id, m.timestamp FROM msgs m \
+             LEFT JOIN chats ON m.chat_id=chats.id \
+             LEFT JOIN contacts ON m.from_id=contacts.id WHERE m.from_id!=1   \
+             AND m.from_id!=2   \
+             AND m.hidden=0    \
+             AND chats.blocked=2   \
+             AND contacts.blocked=0   \
+             AND m.msgrmsg>=?  \
+             ORDER BY m.timestamp,m.id;",
+        ) {
+            stmt.query(params![if show_emails == 2 { 0 } else { 1 }])
         } else {
-            stmt =
-                dc_sqlite3_prepare(
-                    context,&context.sql.clone().read().unwrap(),
-                                   b"SELECT m.id, m.timestamp FROM msgs m WHERE m.chat_id=?    AND m.hidden=0  ORDER BY m.timestamp,m.id;\x00"
-                                       as *const u8 as *const libc::c_char);
-            sqlite3_bind_int(stmt, 1i32, chat_id as libc::c_int);
+            dc_array_unref(ret);
+            return std::ptr::null_mut();
         }
-        while sqlite3_step(stmt) == 100i32 {
-            curr_id = sqlite3_column_int(stmt, 0i32) as uint32_t;
-            if curr_id == marker1before {
-                dc_array_add_id(ret, 1i32 as uint32_t);
+    } else if chat_id == 5 {
+        if let Some(mut stmt) = dc_sqlite3_prepare(
+            context,
+            &context.sql.clone().read().unwrap(),
+            "SELECT m.id, m.timestamp FROM msgs m \
+             LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.starred=1    \
+             AND m.hidden=0    \
+             AND ct.blocked=0 \
+             ORDER BY m.timestamp,m.id;",
+        ) {
+            stmt.query(params![])
+        } else {
+            dc_array_unref(ret);
+            return std::ptr::null_mut();
+        }
+    } else {
+        if let Some(mut stmt) = dc_sqlite3_prepare(
+            context,
+            &context.sql.clone().read().unwrap(),
+            "SELECT m.id, m.timestamp FROM msgs m \
+             WHERE m.chat_id=?    \
+             AND m.hidden=0  \
+             ORDER BY m.timestamp,m.id;",
+        ) {
+            stmt.query(params![chat_id as i32])
+        } else {
+            dc_array_unref(ret);
+            return std::ptr::null_mut();
+        }
+    };
+
+    if let Ok(rows) = rows {
+        while let Ok(Some(row)) = rows.next() {
+            let curr_id: i32 = row.get(0).unwrap_or_default();
+            if curr_id as u32 == marker1before {
+                dc_array_add_id(ret, 1);
             }
-            if 0 != flags & 0x1i32 as libc::c_uint {
-                curr_local_timestamp =
-                    (sqlite3_column_int64(stmt, 1i32) as i64 + cnv_to_local) as i64;
-                curr_day = (curr_local_timestamp / 86400) as libc::c_int;
+            if 0 != flags & 0x1 {
+                let curr_local_timestamp = row.get::<_, i64>(1).unwrap_or_default() + cnv_to_local;
+                let curr_day = (curr_local_timestamp / 86400) as libc::c_int;
                 if curr_day != last_day {
-                    dc_array_add_id(ret, 9i32 as uint32_t);
-                    last_day = curr_day
+                    dc_array_add_id(ret, 9);
+                    last_day = curr_day;
                 }
             }
-            dc_array_add_id(ret, curr_id);
+            dc_array_add_id(ret, curr_id as u32);
         }
-        success = 1i32
+        success = 1;
     }
-    sqlite3_finalize(stmt);
+
     if 0 != success {
-        return ret;
+        ret
     } else {
         if !ret.is_null() {
             dc_array_unref(ret);
         }
-        return 0 as *mut dc_array_t;
-    };
+        0 as *mut dc_array_t
+    }
 }
 
 pub unsafe fn dc_get_msg_cnt(context: &Context, chat_id: uint32_t) -> libc::c_int {
