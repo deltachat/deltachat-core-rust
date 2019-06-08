@@ -244,129 +244,44 @@ unsafe fn stress_functions(context: &Context) {
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-    let mut keys: *mut libc::c_char = dc_get_config(
+    let keys = dc_get_config(
         context,
         b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
     );
     assert!(!keys.is_null());
     assert_ne!(0, *keys.offset(0isize) as libc::c_int);
 
-    let mut res = format!(" {} ", to_str(keys));
+    let res = format!(" {} ", to_str(keys));
     free(keys as *mut libc::c_void);
-    keys = sb.buf;
-    assert!(strstr(
-        keys,
-        b" probably_never_a_key \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(keys, b" addr \x00" as *const u8 as *const libc::c_char).is_null());
-    assert!(!strstr(
-        keys,
-        b" mail_server \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(keys, b" mail_user \x00" as *const u8 as *const libc::c_char).is_null());
-    assert!(!strstr(keys, b" mail_pw \x00" as *const u8 as *const libc::c_char).is_null());
-    assert!(!strstr(keys, b" mail_port \x00" as *const u8 as *const libc::c_char).is_null());
-    assert!(!strstr(
-        keys,
-        b" send_server \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(keys, b" send_user \x00" as *const u8 as *const libc::c_char).is_null());
-    assert!(!strstr(keys, b" send_pw \x00" as *const u8 as *const libc::c_char).is_null());
-    assert!(!strstr(keys, b" send_port \x00" as *const u8 as *const libc::c_char).is_null());
-    assert!(!strstr(
-        keys,
-        b" server_flags \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" imap_folder \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" displayname \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" selfstatus \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" selfavatar \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" e2ee_enabled \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" mdns_enabled \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" save_mime_headers \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_addr \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_mail_server \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_mail_user \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_mail_pw \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_mail_port \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_send_server \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_send_user \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_send_pw \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_send_port \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    assert!(!strstr(
-        keys,
-        b" configured_server_flags \x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null());
-    free(keys as *mut libc::c_void);
+
+    assert!(!res.contains(" probably_never_a_key "));
+    assert!(res.contains(" addr "));
+    assert!(res.contains(" mail_server "));
+    assert!(res.contains(" mail_user "));
+    assert!(res.contains(" mail_pw "));
+    assert!(res.contains(" mail_port "));
+    assert!(res.contains(" send_server "));
+    assert!(res.contains(" send_user "));
+    assert!(res.contains(" send_pw "));
+    assert!(res.contains(" send_port "));
+    assert!(res.contains(" server_flags "));
+    assert!(res.contains(" imap_folder "));
+    assert!(res.contains(" displayname "));
+    assert!(res.contains(" selfstatus "));
+    assert!(res.contains(" selfavatar "));
+    assert!(res.contains(" e2ee_enabled "));
+    assert!(res.contains(" mdns_enabled "));
+    assert!(res.contains(" save_mime_headers "));
+    assert!(res.contains(" configured_addr "));
+    assert!(res.contains(" configured_mail_server "));
+    assert!(res.contains(" configured_mail_user "));
+    assert!(res.contains(" configured_mail_pw "));
+    assert!(res.contains(" configured_mail_port "));
+    assert!(res.contains(" configured_send_server "));
+    assert!(res.contains(" configured_send_user "));
+    assert!(res.contains(" configured_send_pw "));
+    assert!(res.contains(" configured_send_port "));
+    assert!(res.contains(" configured_server_flags "));
 
     let mut ok: libc::c_int;
     let mut buf_0: *mut libc::c_char;

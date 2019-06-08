@@ -579,7 +579,7 @@ unsafe fn get_config_keys_str() -> *mut libc::c_char {
         if !ret.is_empty() {
             ret += " ";
         }
-        ret += to_string(config_keys[i as usize]);
+        ret += &to_string(config_keys[i as usize]);
         i += 1
     }
 
@@ -591,7 +591,7 @@ unsafe fn get_config_keys_str() -> *mut libc::c_char {
         if !ret.is_empty() {
             ret += " ";
         }
-        ret += to_string(sys_config_keys[i as usize]);
+        ret += &to_string(sys_config_keys[i as usize]);
         i += 1
     }
 

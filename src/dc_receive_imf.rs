@@ -1691,7 +1691,6 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     let stmt: *mut sqlite3_stmt;
     let q3: *mut libc::c_char;
     let mut addr: *mut libc::c_char;
-    let mut i: libc::c_int;
     let iCnt: libc::c_int;
     let mut member_cs = String::new();
 
@@ -1721,7 +1720,7 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
         if 0 != i {
             member_cs += ",";
         }
-        member_cs += to_string(dc_array_get_ptr(member_addrs, i as size_t) as *const libc::c_char);
+        member_cs += &to_string(dc_array_get_ptr(member_addrs, i as size_t) as *const libc::c_char);
     }
 
     let ret = hex_hash(&member_cs);
@@ -1730,13 +1729,12 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     free(member_ids_str as *mut libc::c_void);
     sqlite3_finalize(stmt);
     sqlite3_free(q3 as *mut libc::c_void);
-    free(member_cs.buf as *mut libc::c_void);
 
     ret as *mut _
 }
 
 fn hex_hash(s: impl AsRef<str>) -> *const libc::c_char {
-    let bytes = s._as_ref().as_bytes();
+    let bytes = s.as_ref().as_bytes();
     let result = Sha256::digest(bytes);
     let result_hex = hex::encode(&result[..8]);
     let result_cstring = to_cstring(result_hex);
@@ -2288,7 +2286,7 @@ mod tests {
 
     #[test]
     fn test_hex_hash() {
-        let data = b"hello world";
+        let data = "hello world";
 
         let res_c = hex_hash(data);
         let res = to_string(res_c);

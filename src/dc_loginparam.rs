@@ -319,5 +319,5 @@ fn get_readable_flags(flags: libc::c_int) -> *mut libc::c_char {
         res += "0";
     }
 
-    unsafe { strdup(to_cstring(res)) }
+    unsafe { strdup(to_cstring(res).as_ptr()) }
 }

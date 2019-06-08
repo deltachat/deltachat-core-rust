@@ -1331,7 +1331,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                                     9,
                                                 ) == 0i32
                                             {
-                                                filename_parts += to_string(
+                                                filename_parts += &to_string(
                                                     (*(*dsp_param).pa_data.pa_parameter).pa_value,
                                                 );
                                             } else if (*dsp_param).pa_type

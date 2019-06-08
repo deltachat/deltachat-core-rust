@@ -806,7 +806,7 @@ pub unsafe fn dc_get_contact_encrinfo(
                 );
             }
             p = dc_stock_str(context, 30i32);
-            ret += format!(" {}:", to_str(p));
+            ret += &format!(" {}:", to_str(p));
             free(p as *mut libc::c_void);
 
             fingerprint_self = self_key
@@ -825,7 +825,7 @@ pub unsafe fn dc_get_contact_encrinfo(
             {
                 cat_fingerprint(
                     &mut ret,
-                    (*loginparam).addr,
+                    to_string((*loginparam).addr),
                     fingerprint_self,
                     0 as *const libc::c_char,
                 );
@@ -838,13 +838,13 @@ pub unsafe fn dc_get_contact_encrinfo(
             } else {
                 cat_fingerprint(
                     &mut ret,
-                    peerstate.addr.as_ref(),
+                    peerstate.addr.as_ref().unwrap(),
                     fingerprint_other_verified,
                     fingerprint_other_unverified,
                 );
                 cat_fingerprint(
                     &mut ret,
-                    to_str((*loginparam).addr),
+                    to_string((*loginparam).addr),
                     fingerprint_self,
                     0 as *const libc::c_char,
                 );
@@ -874,13 +874,13 @@ pub unsafe fn dc_get_contact_encrinfo(
 
 unsafe fn cat_fingerprint(
     ret: &mut String,
-    addr: &str,
+    addr: impl AsRef<str>,
     fingerprint_verified: *const libc::c_char,
     fingerprint_unverified: *const libc::c_char,
 ) {
-    ret += format!(
+    *ret += &format!(
         "\n\n{}:\n{}",
-        addr,
+        addr.as_ref(),
         if !fingerprint_verified.is_null()
             && 0 != *fingerprint_verified.offset(0isize) as libc::c_int
         {
@@ -895,12 +895,12 @@ unsafe fn cat_fingerprint(
         && 0 != *fingerprint_unverified.offset(0isize) as libc::c_int
         && strcmp(fingerprint_verified, fingerprint_unverified) != 0i32
     {
-        ret += format!(
+        *ret += &format!(
             "\n\n{} (alternative):\n{}",
-            addr,
+            addr.as_ref(),
             to_str(fingerprint_unverified)
         );
-    };
+    }
 }
 
 pub unsafe fn dc_delete_contact(context: &Context, contact_id: uint32_t) -> bool {

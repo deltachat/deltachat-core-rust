@@ -67,36 +67,35 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
         &context.sql.clone().read().unwrap(),
         b"SELECT txt_raw FROM msgs WHERE id=?;\x00" as *const u8 as *const libc::c_char,
     );
-    sqlite3_bind_int(stmt, 1i32, msg_id as libc::c_int);
-    if sqlite3_step(stmt) != 100i32 {
-        ret += format!("Cannot load message #{}.", msg_id as usize);
-        free(p as *mut libc::c_void);
+    sqlite3_bind_int(stmt, 1, msg_id as libc::c_int);
+    if sqlite3_step(stmt) != 100 {
+        ret += &format!("Cannot load message #{}.", msg_id as usize);
     } else {
-        rawtxt = dc_strdup(sqlite3_column_text(stmt, 0i32) as *mut libc::c_char);
+        rawtxt = dc_strdup(sqlite3_column_text(stmt, 0) as *mut libc::c_char);
         sqlite3_finalize(stmt);
         stmt = 0 as *mut sqlite3_stmt;
         dc_trim(rawtxt);
-        dc_truncate_str(rawtxt, 100000i32);
+        dc_truncate_str(rawtxt, 100000);
         p = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
-        ret += format!("Sent: {}", to_str(p));
+        ret += &format!("Sent: {}", to_str(p));
 
         free(p as *mut libc::c_void);
         p = dc_contact_get_name_n_addr(contact_from);
-        ret += format!(" by {}", to_string(p));
+        ret += &format!(" by {}", to_string(p));
 
         free(p as *mut libc::c_void);
         ret += "\n";
-        if (*msg).from_id != 1i32 as libc::c_uint {
+        if (*msg).from_id != 1 as libc::c_uint {
             p = dc_timestamp_to_str(if 0 != (*msg).timestamp_rcvd {
                 (*msg).timestamp_rcvd
             } else {
                 (*msg).timestamp_sort
             });
-            ret += format!("Received: {}", to_str(p));
+            ret += &format!("Received: {}", to_str(p));
             free(p as *mut libc::c_void);
             ret += "\n";
         }
-        if !((*msg).from_id == 2i32 as libc::c_uint || (*msg).to_id == 2i32 as libc::c_uint) {
+        if !((*msg).from_id == 2 as libc::c_uint || (*msg).to_id == 2 as libc::c_uint) {
             // device-internal message, no further details needed
             stmt = dc_sqlite3_prepare(
                 context,
@@ -104,19 +103,19 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
                 b"SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;\x00" as *const u8
                     as *const libc::c_char,
             );
-            sqlite3_bind_int(stmt, 1i32, msg_id as libc::c_int);
-            while sqlite3_step(stmt) == 100i32 {
-                p = dc_timestamp_to_str(sqlite3_column_int64(stmt, 1i32) as i64);
-                ret += format!("Read: {}", to_str(p));
+            sqlite3_bind_int(stmt, 1, msg_id as libc::c_int);
+            while sqlite3_step(stmt) == 100 {
+                p = dc_timestamp_to_str(sqlite3_column_int64(stmt, 1) as i64);
+                ret += &format!("Read: {}", to_str(p));
                 free(p as *mut libc::c_void);
                 let contact = dc_contact_new(context);
                 dc_contact_load_from_db(
                     contact,
                     &context.sql.clone().read().unwrap(),
-                    sqlite3_column_int64(stmt, 0i32) as uint32_t,
+                    sqlite3_column_int64(stmt, 0) as uint32_t,
                 );
                 p = dc_contact_get_name_n_addr(contact);
-                ret += format!(" by {}", to_str(b));
+                ret += &format!(" by {}", to_str(p));
                 free(p as *mut libc::c_void);
                 dc_contact_unref(contact);
                 ret += "\n";
@@ -125,51 +124,51 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
             stmt = 0 as *mut sqlite3_stmt;
             ret += "State: ";
             match (*msg).state {
-                10 => res += "Fresh",
-                13 => res += "Noticed",
-                16 => res += "Seen",
-                26 => res += "Delivered",
-                24 => res += "Failed",
-                28 => res += "Read",
-                20 => res += "Pending",
-                18 => res += "Preparing",
-                _ => res += format!("{}", (*msg).state),
+                10 => ret += "Fresh",
+                13 => ret += "Noticed",
+                16 => ret += "Seen",
+                26 => ret += "Delivered",
+                24 => ret += "Failed",
+                28 => ret += "Read",
+                20 => ret += "Pending",
+                18 => ret += "Preparing",
+                _ => ret += &format!("{}", (*msg).state),
             }
 
             if dc_msg_has_location(msg) {
                 ret += ", Location sent";
             }
             p = 0 as *mut libc::c_char;
-            e2ee_errors = dc_param_get_int((*msg).param, 'e' as i32, 0i32);
+            e2ee_errors = dc_param_get_int((*msg).param, 'e' as i32, 0);
             if 0 != e2ee_errors {
-                if 0 != e2ee_errors & 0x2i32 {
+                if 0 != e2ee_errors & 0x2 {
                     p = dc_strdup(
                         b"Encrypted, no valid signature\x00" as *const u8 as *const libc::c_char,
                     )
                 }
-            } else if 0 != dc_param_get_int((*msg).param, 'c' as i32, 0i32) {
+            } else if 0 != dc_param_get_int((*msg).param, 'c' as i32, 0) {
                 p = dc_strdup(b"Encrypted\x00" as *const u8 as *const libc::c_char)
             }
             if !p.is_null() {
-                ret += format!(", {}", to_str(p));
+                ret += &format!(", {}", to_str(p));
                 free(p as *mut libc::c_void);
             }
             ret += "\n";
             p = dc_param_get((*msg).param, 'L' as i32, 0 as *const libc::c_char);
             if !p.is_null() {
-                ret += format!("Error: {}", to_str(p));
+                ret += &format!("Error: {}", to_str(p));
                 free(p as *mut libc::c_void);
             }
             p = dc_msg_get_file(msg);
             if !p.is_null() && 0 != *p.offset(0isize) as libc::c_int {
-                ret += format!(
+                ret += &format!(
                     "\nFile: {}, {}, bytes\n",
                     to_str(p),
                     dc_get_filebytes(context, p) as libc::c_int,
                 );
             }
             free(p as *mut libc::c_void);
-            if (*msg).type_0 != 10i32 {
+            if (*msg).type_0 != 10 {
                 ret += "Type: ";
                 match (*msg).type_0 {
                     40 => ret += "Audio",
@@ -178,33 +177,32 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: uint32_t) -> *mut libc:
                     20 => ret += "Image",
                     50 => ret += "Video",
                     41 => ret += "Voice",
-                    _ => ret += format!("{}", (*msg).type_0),
+                    _ => ret += &format!("{}", (*msg).type_0),
                 }
                 ret += "\n";
                 p = dc_msg_get_filemime(msg);
-                ret += format!("Mimetype: {}\n", to_str(p));
+                ret += &format!("Mimetype: {}\n", to_str(p));
                 free(p as *mut libc::c_void);
             }
-            w = dc_param_get_int((*msg).param, 'w' as i32, 0i32);
-            h = dc_param_get_int((*msg).param, 'h' as i32, 0i32);
-            if w != 0i32 || h != 0i32 {
-                ret += format!("Dimension: {} x {}\n", w, h,);
+            w = dc_param_get_int((*msg).param, 'w' as i32, 0);
+            h = dc_param_get_int((*msg).param, 'h' as i32, 0);
+            if w != 0 || h != 0 {
+                ret += &format!("Dimension: {} x {}\n", w, h,);
             }
-            duration = dc_param_get_int((*msg).param, 'd' as i32, 0i32);
-            if duration != 0i32 {
-                ret += format!("Duration: {} ms\n", duration,);
+            duration = dc_param_get_int((*msg).param, 'd' as i32, 0);
+            if duration != 0 {
+                ret += &format!("Duration: {} ms\n", duration,);
             }
             if !rawtxt.is_null() && 0 != *rawtxt.offset(0) as libc::c_int {
-                ret += format!("\n{}\n", to_str(rawtext));
+                ret += &format!("\n{}\n", to_str(rawtxt));
             }
-            if !(*msg).rfc724_mid.is_null() && 0 != *(*msg).rfc724_mid.offset(0isize) as libc::c_int
-            {
-                ret += format!("\nMessage-ID: {}", (*msg).rfc724_mid);
+            if !(*msg).rfc724_mid.is_null() && 0 != *(*msg).rfc724_mid.offset(0) as libc::c_int {
+                ret += &format!("\nMessage-ID: {}", (*msg).rfc724_mid as libc::c_int);
             }
             if !(*msg).server_folder.is_null()
-                && 0 != *(*msg).server_folder.offset(0isize) as libc::c_int
+                && 0 != *(*msg).server_folder.offset(0) as libc::c_int
             {
-                ret += format!(
+                ret += &format!(
                     "\nLast seen as: {}/{}",
                     to_string((*msg).server_folder),
                     (*msg).server_uid as libc::c_int,

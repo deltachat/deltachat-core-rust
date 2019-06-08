@@ -349,7 +349,7 @@ pub unsafe fn dc_get_location_kml(
         stmt = 0 as *mut sqlite3_stmt;
 
         if !(locations_send_begin == 0 || now > locations_send_until) {
-            ret += format!(
+            ret += &format!(
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"{}\">\n",
                 to_string(self_addr),
             );
@@ -376,7 +376,7 @@ pub unsafe fn dc_get_location_kml(
                 let longitude = sqlite3_column_double(stmt, 2i32);
                 let accuracy = sqlite3_column_double(stmt, 3i32);
                 let timestamp = get_kml_timestamp(sqlite3_column_int64(stmt, 4i32) as i64);
-                ret += format!(
+                ret += &format!(
                     "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
                     to_str(timestamp),
                     accuracy,
@@ -387,9 +387,6 @@ pub unsafe fn dc_get_location_kml(
                 if !last_added_location_id.is_null() {
                     *last_added_location_id = location_id
                 }
-                free(latitude as *mut libc::c_void);
-                free(longitude as *mut libc::c_void);
-                free(accuracy as *mut libc::c_void);
                 free(timestamp as *mut libc::c_void);
             }
             if !(location_count == 0) {
