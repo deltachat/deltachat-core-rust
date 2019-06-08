@@ -273,7 +273,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
     if !ret_chat_blocked.is_null() {
         *ret_chat_blocked = 0i32
     }
-    if context.sql.read().unwrap().cobj.is_null() {
+    if context.sql.read().unwrap().conn().is_none() {
         return;
     }
     if contact_id == 0i32 as libc::c_uint {
@@ -363,7 +363,7 @@ pub unsafe fn dc_lookup_real_nchat_by_contact_id(
     if !ret_chat_blocked.is_null() {
         *ret_chat_blocked = 0i32
     }
-    if context.sql.clone().read().unwrap().cobj.is_null() {
+    if context.sql.clone().read().unwrap().conn().is_none() {
         return;
     }
     stmt =
@@ -1799,7 +1799,7 @@ unsafe fn real_group_exists(context: &Context, chat_id: uint32_t) -> libc::c_int
     // check if a group or a verified group exists under the given ID
     let stmt: *mut sqlite3_stmt;
     let mut ret: libc::c_int = 0i32;
-    if (*context.sql.clone().read().unwrap()).cobj.is_null() || chat_id <= 9i32 as libc::c_uint {
+    if (*context.sql.clone().read().unwrap()).conn().is_none() || chat_id <= 9i32 as libc::c_uint {
         return 0i32;
     }
     stmt = dc_sqlite3_prepare(
@@ -2394,7 +2394,7 @@ pub unsafe fn dc_chat_is_sending_locations(chat: *const dc_chat_t) -> libc::c_in
 pub unsafe fn dc_get_chat_cnt(context: &Context) -> size_t {
     let mut ret: size_t = 0i32 as size_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(*context.sql.clone().read().unwrap()).cobj.is_null() {
+    if !(*context.sql.clone().read().unwrap()).conn().is_none() {
         /* no database, no chats - this is no error (needed eg. for information) */
         stmt = dc_sqlite3_prepare(
             context,

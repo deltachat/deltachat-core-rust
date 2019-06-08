@@ -1,9 +1,9 @@
 use crate::constants::Event;
 use crate::context::Context;
 
-pub use libsqlite3_sys::*;
 pub use mmime::carray::*;
 pub use mmime::clist::*;
+pub use rusqlite::ffi::*;
 
 /// Callback function that should be given to dc_context_new().
 ///

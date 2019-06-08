@@ -253,7 +253,13 @@ unsafe fn cb_precheck_imf(
 }
 
 unsafe fn cb_set_config(context: &Context, key: *const libc::c_char, value: *const libc::c_char) {
-    dc_sqlite3_set_config(context, &context.sql.clone().read().unwrap(), key, value);
+    let v = if value.is_null() { None } else { to_str(value) };
+    dc_sqlite3_set_config(
+        context,
+        &context.sql.clone().read().unwrap(),
+        as_str(key),
+        v,
+    );
 }
 
 /* *
@@ -275,7 +281,6 @@ pub unsafe fn dc_context_unref(context: &mut Context) {
     if 0 != dc_is_open(context) {
         dc_close(context);
     }
-    dc_sqlite3_unref(context, &mut context.sql.clone().write().unwrap());
 
     dc_jobthread_exit(&mut context.sentbox_thread.clone().write().unwrap());
     dc_jobthread_exit(&mut context.mvbox_thread.clone().write().unwrap());
@@ -747,7 +752,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
          fingerprint={}\n\
          level=awesome\n",
         as_str(DC_VERSION_STR as *const u8 as *const _),
-        as_str(libsqlite3_sys::SQLITE_VERSION as *const u8 as *const libc::c_char),
+        rusqlite::version(),
         sqlite3_threadsafe(),
         // arch
         (::std::mem::size_of::<*mut libc::c_void>()).wrapping_mul(8),

@@ -1417,124 +1417,120 @@ pub unsafe fn dc_mdn_from_ext(
 }
 
 /* the number of messages assigned to real chat (!=deaddrop, !=trash) */
-pub unsafe fn dc_get_real_msg_cnt(context: &Context) -> size_t {
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut ret: size_t = 0i32 as size_t;
-    if !(*&context.sql.clone().read().unwrap()).cobj.is_null() {
-        stmt =
-            dc_sqlite3_prepare(
-                context,
-                &context.sql.clone().read().unwrap(),
-                b"SELECT COUNT(*)  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id>9 AND m.chat_id>9 AND c.blocked=0;\x00"
-                                   as *const u8 as *const libc::c_char);
-        if sqlite3_step(stmt) != 100i32 {
-            dc_sqlite3_log_error(
-                context,
-                &context.sql.clone().read().unwrap(),
-                b"dc_get_real_msg_cnt() failed.\x00" as *const u8 as *const libc::c_char,
-            );
-        } else {
-            ret = sqlite3_column_int(stmt, 0i32) as size_t
+pub fn dc_get_real_msg_cnt(context: &Context) -> libc::c_int {
+    if let Some(conn) = context.sql.clone().read().unwrap().conn() {
+        match conn.query_row(
+            "SELECT COUNT(*)  \
+             FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id>9 AND m.chat_id>9 AND c.blocked=0;",
+            rusqlite::NO_PARAMS,
+            |row| row.get(0)
+        ) {
+            Ok(res) => res,
+            Err(err) => {
+                error!(context, 0, "dc_get_real_msg_cnt() failed. {}", err);
+                0
+            }
         }
+    } else {
+        0
     }
-    sqlite3_finalize(stmt);
-
-    ret
 }
 
-pub unsafe fn dc_get_deaddrop_msg_cnt(context: &Context) -> size_t {
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut ret: size_t = 0i32 as size_t;
-    if !context.sql.clone().read().unwrap().cobj.is_null() {
-        stmt =
-            dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(),
-                               b"SELECT COUNT(*) FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id WHERE c.blocked=2;\x00"
-                                   as *const u8 as *const libc::c_char);
-        if !(sqlite3_step(stmt) != 100i32) {
-            ret = sqlite3_column_int(stmt, 0i32) as size_t
+pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> size_t {
+    if let Some(conn) = context.sql.clone().read().unwrap().conn() {
+        match conn.query_row(
+            "SELECT COUNT(*) FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id WHERE c.blocked=2;",
+            rusqlite::NO_PARAMS,
+            |row| row.get(0),
+        ) {
+            Ok(res) => res,
+            Err(err) => {
+                error!(context, 0, "dc_get_deaddrop_msg_cnt() failed. {}", err);
+                0
+            }
         }
+    } else {
+        0
     }
-    sqlite3_finalize(stmt);
-
-    ret
 }
 
-pub unsafe fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: *const libc::c_char) -> libc::c_int {
+pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: *const libc::c_char) -> libc::c_int {
     /* check the number of messages with the same rfc724_mid */
-    let mut ret: libc::c_int = 0i32;
-    let mut stmt = 0 as *mut sqlite3_stmt;
-    if !context.sql.clone().read().unwrap().cobj.is_null() {
-        stmt = dc_sqlite3_prepare(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;\x00" as *const u8
-                as *const libc::c_char,
-        );
-        sqlite3_bind_text(stmt, 1i32, rfc724_mid, -1i32, None);
-        if !(sqlite3_step(stmt) != 100i32) {
-            ret = sqlite3_column_int(stmt, 0i32)
+    if let Some(conn) = context.sql.clone().read().unwrap().conn() {
+        match conn.query_row(
+            "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;",
+            &[as_str(rfc724_mid)],
+            |row| row.get(0),
+        ) {
+            Ok(res) => res,
+            Err(err) => {
+                error!(context, 0, "dc_get_rfc724_mid_cnt() failed. {}", err);
+                0
+            }
         }
+    } else {
+        0
     }
-    sqlite3_finalize(stmt);
-
-    ret
 }
 
-pub unsafe fn dc_rfc724_mid_exists(
+pub fn dc_rfc724_mid_exists(
     context: &Context,
     rfc724_mid: *const libc::c_char,
     ret_server_folder: *mut *mut libc::c_char,
     ret_server_uid: *mut uint32_t,
 ) -> uint32_t {
-    let mut ret: uint32_t = 0i32 as uint32_t;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(rfc724_mid.is_null() || *rfc724_mid.offset(0isize) as libc::c_int == 0i32) {
-        stmt = dc_sqlite3_prepare(
-            context,
-            &context.sql.clone().read().unwrap(),
-            b"SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?;\x00" as *const u8
-                as *const libc::c_char,
-        );
-        sqlite3_bind_text(stmt, 1i32, rfc724_mid, -1i32, None);
-        if sqlite3_step(stmt) != 100i32 {
-            if !ret_server_folder.is_null() {
-                *ret_server_folder = 0 as *mut libc::c_char
-            }
-            if !ret_server_uid.is_null() {
-                *ret_server_uid = 0i32 as uint32_t
-            }
-        } else {
-            if !ret_server_folder.is_null() {
-                *ret_server_folder = dc_strdup(sqlite3_column_text(stmt, 0i32) as *mut libc::c_char)
-            }
-            if !ret_server_uid.is_null() {
-                *ret_server_uid = sqlite3_column_int(stmt, 1i32) as uint32_t
-            }
-            ret = sqlite3_column_int(stmt, 2i32) as uint32_t
-        }
+    if rfc724_mid.is_null() || *rfc724_mid.offset(0) as libc::c_int == 0 {
+        return 0;
     }
-    sqlite3_finalize(stmt);
 
-    ret
+    if let Some(conn) = context.sql.clone().read().unwrap().conn() {
+        match conn.query_row(
+            "SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?",
+            &[as_str(rfc724_mid)],
+            |row| {
+                if !ret_server_folder.is_null() {
+                    *ret_server_folder = dc_strdup(to_cstring(row.get(0)).as_ptr());
+                }
+                if !ret_server_uid.is_null() {
+                    *ret_server_uid = row.get(1);
+                }
+                row.get(2)
+            },
+        ) {
+            Ok(res) => res,
+            Err(err) => {
+                if !ret_server_folder.is_null() {
+                    *ret_server_folder = 0 as *mut libc::c_char
+                }
+                if !ret_server_uid.is_null() {
+                    *ret_server_uid = 0 as uint32_t
+                }
+
+                0
+            }
+        }
+    } else {
+        0
+    }
 }
 
-pub unsafe fn dc_update_server_uid(
+pub fn dc_update_server_uid(
     context: &Context,
     rfc724_mid: *const libc::c_char,
     server_folder: *const libc::c_char,
     server_uid: uint32_t,
 ) {
-    let stmt = dc_sqlite3_prepare(
-        context,
-        &context.sql.clone().read().unwrap(),
-        b"UPDATE msgs SET server_folder=?, server_uid=? WHERE rfc724_mid=?;\x00" as *const u8
-            as *const libc::c_char,
-    );
-    sqlite3_bind_text(stmt, 1i32, server_folder, -1i32, None);
-    sqlite3_bind_int(stmt, 2i32, server_uid as libc::c_int);
-    sqlite3_bind_text(stmt, 3i32, rfc724_mid, -1i32, None);
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
+    if let Some(conn) = context.sql.clone().read().unwrap().conn() {
+        match conn.execute(
+            "UPDATE msgs SET server_folder=?, server_uid=? WHERE rfc724_mid=?;",
+            &[as_str(server_folder), server_uid, as_str(rfc724_mid)],
+        ) {
+            Ok(_) => {}
+            Err(err) => {
+                warn!(context, 0, "msg: failed to update server_uid: {}", err);
+            }
+        }
+    }
 }
 
 #[cfg(test)]

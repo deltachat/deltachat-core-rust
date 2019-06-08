@@ -71,8 +71,7 @@ pub unsafe fn dc_imex_has_backup(
                             to_cstring(name).as_ptr(),
                         );
                         if test_sql.is_some() {
-                            let mut test_sql = test_sql.take().unwrap();
-                            dc_sqlite3_unref(context, &mut test_sql);
+                            let _test_sql = test_sql.take().unwrap();
                         }
                         let mut sql = dc_sqlite3_new();
                         if 0 != dc_sqlite3_open(context, &mut sql, curr_pathNfilename, 0x1i32) {
@@ -106,9 +105,6 @@ pub unsafe fn dc_imex_has_backup(
     }
 
     free(curr_pathNfilename as *mut libc::c_void);
-    if let Some(ref mut sql) = test_sql {
-        dc_sqlite3_unref(context, sql);
-    }
     ret
 }
 
@@ -1320,7 +1316,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     sqlite3_finalize(stmt);
     if let Some(ref mut sql) = dest_sql {
         dc_sqlite3_close(context, sql);
-        dc_sqlite3_unref(context, sql);
     }
     if 0 != delete_dest_file {
         dc_delete_file(context, dest_pathNfilename);

@@ -1177,7 +1177,7 @@ pub unsafe fn dc_addr_equals_contact(
 pub unsafe fn dc_get_real_contact_cnt(context: &Context) -> size_t {
     let mut ret: size_t = 0i32 as size_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !context.sql.clone().read().unwrap().cobj.is_null() {
+    if !context.sql.clone().read().unwrap().conn().is_none() {
         stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
@@ -1219,7 +1219,8 @@ pub unsafe fn dc_get_contact_origin(
 pub unsafe fn dc_real_contact_exists(context: &Context, contact_id: uint32_t) -> bool {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut ret = false;
-    if !(context.sql.clone().read().unwrap().cobj.is_null() || contact_id <= 9i32 as libc::c_uint) {
+    if !(context.sql.clone().read().unwrap().conn().is_none() || contact_id <= 9i32 as libc::c_uint)
+    {
         stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),

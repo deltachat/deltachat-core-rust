@@ -502,7 +502,7 @@ impl<'a> Peerstate<'a> {
                     4,
                     pub_bytes.as_ptr() as *const _,
                     pub_bytes.len() as libc::c_int,
-                    SQLITE_TRANSIENT(),
+                    None,
                 )
             };
             unsafe { sqlite3_bind_int64(stmt, 5, self.gossip_timestamp as sqlite3_int64) };
@@ -512,23 +512,23 @@ impl<'a> Peerstate<'a> {
                     6,
                     gossip_bytes.as_ptr() as *const _,
                     gossip_bytes.len() as libc::c_int,
-                    SQLITE_TRANSIENT(),
+                    None,
                 )
             };
-            unsafe { sqlite3_bind_text(stmt, 7, pkc_ptr as *const _, -1, SQLITE_TRANSIENT()) };
-            unsafe { sqlite3_bind_text(stmt, 8, gkc_ptr as *const _, -1, SQLITE_TRANSIENT()) };
+            unsafe { sqlite3_bind_text(stmt, 7, pkc_ptr as *const _, -1, None) };
+            unsafe { sqlite3_bind_text(stmt, 8, gkc_ptr as *const _, -1, None) };
             unsafe {
                 sqlite3_bind_blob(
                     stmt,
                     9,
                     ver_bytes.as_ptr() as *const _,
                     ver_bytes.len() as libc::c_int,
-                    SQLITE_TRANSIENT(),
+                    None,
                 )
             };
 
-            unsafe { sqlite3_bind_text(stmt, 10, vkc_ptr as *const _, -1, SQLITE_TRANSIENT()) };
-            unsafe { sqlite3_bind_text(stmt, 11, addr_c.as_ptr(), -1, SQLITE_TRANSIENT()) };
+            unsafe { sqlite3_bind_text(stmt, 10, vkc_ptr as *const _, -1, None) };
+            unsafe { sqlite3_bind_text(stmt, 11, addr_c.as_ptr(), -1, None) };
 
             if unsafe { sqlite3_step(stmt) } == 101 {
                 success = true;
@@ -553,7 +553,7 @@ impl<'a> Peerstate<'a> {
             unsafe { sqlite3_bind_int64(stmt, 1, self.last_seen as sqlite3_int64) };
             unsafe { sqlite3_bind_int64(stmt, 2, self.last_seen_autocrypt as sqlite3_int64) };
             unsafe { sqlite3_bind_int64(stmt, 3, self.gossip_timestamp as sqlite3_int64) };
-            unsafe { sqlite3_bind_text(stmt, 4, addr_ptr, -1, SQLITE_TRANSIENT()) };
+            unsafe { sqlite3_bind_text(stmt, 4, addr_ptr, -1, None) };
 
             if unsafe { sqlite3_step(stmt) } == 101 {
                 success = true;
