@@ -14,7 +14,7 @@ install:
 build: false
 
 test_script:
-- cargo test
+- cargo test --release
 
 cache:
   - target
