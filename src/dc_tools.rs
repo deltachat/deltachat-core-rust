@@ -47,7 +47,7 @@ pub unsafe fn dc_strdup_keep_null(s: *const libc::c_char) -> *mut libc::c_char {
 
 pub unsafe fn dc_atoi_null_is_0(s: *const libc::c_char) -> libc::c_int {
     if !s.is_null() {
-        to_str(s).parse().unwrap_or_default()
+        as_str(s).parse().unwrap_or_default()
     } else {
         0
     }
@@ -58,7 +58,7 @@ pub fn dc_atof(s: *const libc::c_char) -> libc::c_double {
         return 0.;
     }
 
-    to_str(s).parse().unwrap_or_default()
+    as_str(s).parse().unwrap_or_default()
 }
 
 pub unsafe fn dc_str_replace(
@@ -1235,7 +1235,7 @@ pub unsafe fn dc_create_folder(
     let mut success = 0;
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     {
-        let p = std::path::Path::new(to_str(pathNfilename_abs));
+        let p = std::path::Path::new(as_str(pathNfilename_abs));
         if !p.exists() {
             match fs::create_dir_all(p) {
                 Ok(_) => {
@@ -1566,7 +1566,7 @@ pub fn to_string(s: *const libc::c_char) -> String {
     unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap().to_string() }
 }
 
-pub fn to_str<'a>(s: *const libc::c_char) -> &'a str {
+pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
     assert!(!s.is_null(), "cannot be used on null pointers");
     unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap() }
 }

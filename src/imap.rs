@@ -7,7 +7,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
 use crate::dc_sqlite3::*;
-use crate::dc_tools::{to_str, to_string};
+use crate::dc_tools::{as_str, to_string};
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
 
@@ -521,11 +521,11 @@ impl Imap {
         }
 
         {
-            let addr = to_str(lp.addr);
-            let imap_server = to_str(lp.mail_server);
+            let addr = as_str(lp.addr);
+            let imap_server = as_str(lp.mail_server);
             let imap_port = lp.mail_port as u16;
-            let imap_user = to_str(lp.mail_user);
-            let imap_pw = to_str(lp.mail_pw);
+            let imap_user = as_str(lp.mail_user);
+            let imap_pw = as_str(lp.mail_pw);
             let server_flags = lp.server_flags as usize;
 
             let mut config = self.config.write().unwrap();
@@ -695,7 +695,7 @@ impl Imap {
         if val1.is_null() {
             return (0, 0);
         }
-        let entry = to_str(val1);
+        let entry = as_str(val1);
 
         // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
         let mut parts = entry.split(':');

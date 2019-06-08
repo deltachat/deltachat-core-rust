@@ -486,13 +486,13 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                 );
 
                 if !dest_folder.is_null() {
-                    let server_folder = to_str((*msg).server_folder);
+                    let server_folder = as_str((*msg).server_folder);
 
                     match inbox.mv(
                         context,
                         server_folder,
                         (*msg).server_uid,
-                        to_str(dest_folder),
+                        as_str(dest_folder),
                         &mut dest_uid,
                     ) as libc::c_uint
                     {
@@ -593,7 +593,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
                     0 as *const libc::c_char,
                 );
                 if !dest_folder.is_null() {
-                    let dest_folder = to_str(dest_folder);
+                    let dest_folder = as_str(dest_folder);
                     if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
                         as libc::c_uint
                     {

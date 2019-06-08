@@ -1860,7 +1860,7 @@ unsafe fn check_verified_properties(
             let peerstate = Peerstate::from_addr(
                 context,
                 &context.sql.clone().read().unwrap(),
-                to_str((*contact).addr),
+                as_str((*contact).addr),
             );
 
             if peerstate.is_none() || dc_contact_is_verified_ex(contact, peerstate.as_ref()) != 2 {
@@ -1909,12 +1909,12 @@ unsafe fn check_verified_properties(
                     let mut peerstate = Peerstate::from_addr(
                         context,
                         &context.sql.clone().read().unwrap(),
-                        to_str(to_addr),
+                        as_str(to_addr),
                     );
                     if mimeparser
                         .e2ee_helper
                         .gossipped_addr
-                        .contains(to_str(to_addr))
+                        .contains(as_str(to_addr))
                         && peerstate.is_some()
                     {
                         let peerstate = peerstate.as_mut().unwrap();

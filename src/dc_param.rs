@@ -164,7 +164,7 @@ pub unsafe fn dc_param_get_int(
     if str.is_null() {
         return def;
     }
-    let ret: int32_t = to_str(str).parse().unwrap_or_default();
+    let ret: int32_t = as_str(str).parse().unwrap_or_default();
     free(str as *mut libc::c_void);
 
     ret

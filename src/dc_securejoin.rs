@@ -372,9 +372,9 @@ unsafe fn fingerprint_equals_sender(
         if let Some(peerstate) = Peerstate::from_addr(
             context,
             &context.sql.clone().read().unwrap(),
-            to_str((*contact).addr),
+            as_str((*contact).addr),
         ) {
-            let fingerprint_normalized = dc_normalize_fingerprint(to_str(fingerprint));
+            let fingerprint_normalized = dc_normalize_fingerprint(as_str(fingerprint));
             if peerstate.public_key_fingerprint.is_some()
                 && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
             {
@@ -998,9 +998,9 @@ unsafe fn mark_peer_as_verified(
     if let Some(ref mut peerstate) = Peerstate::from_fingerprint(
         context,
         &context.sql.clone().read().unwrap(),
-        to_str(fingerprint),
+        as_str(fingerprint),
     ) {
-        if peerstate.set_verified(1, to_str(fingerprint), 2) {
+        if peerstate.set_verified(1, as_str(fingerprint), 2) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = Some(ToSave::All);
             peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
@@ -1047,7 +1047,7 @@ unsafe fn encrypted_and_signed(
     if !mimeparser
         .e2ee_helper
         .signatures
-        .contains(to_str(expected_fingerprint))
+        .contains(as_str(expected_fingerprint))
     {
         dc_log_warning(
             mimeparser.context,

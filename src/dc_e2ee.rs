@@ -121,7 +121,7 @@ pub unsafe fn dc_e2ee_encrypt(
                             let peerstate = Peerstate::from_addr(
                                 context,
                                 &context.sql.clone().read().unwrap(),
-                                to_str(recipient_addr),
+                                as_str(recipient_addr),
                             );
                             if peerstate.is_some()
                                 && (peerstate.as_ref().unwrap().prefer_encrypt
@@ -613,7 +613,7 @@ pub unsafe fn dc_e2ee_decrypt(
         let autocryptheader = Aheader::from_imffields(from, imffields);
         if message_time > 0 && !from.is_null() {
             peerstate =
-                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), to_str(from));
+                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), as_str(from));
 
             if let Some(ref mut peerstate) = peerstate {
                 if let Some(ref header) = autocryptheader {
@@ -648,7 +648,7 @@ pub unsafe fn dc_e2ee_decrypt(
                     peerstate = Peerstate::from_addr(
                         &context,
                         &context.sql.clone().read().unwrap(),
-                        to_str(from),
+                        as_str(from),
                     );
                 }
                 if let Some(ref peerstate) = peerstate {

@@ -240,7 +240,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                     let peerstate = Peerstate::from_fingerprint(
                                         context,
                                         &context.sql.clone().read().unwrap(),
-                                        to_str(fingerprint),
+                                        as_str(fingerprint),
                                     );
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if let Some(peerstate) = peerstate {

@@ -863,7 +863,7 @@ pub unsafe fn dc_sqlite3_open(
                                 if let Some(ref mut peerstate) = Peerstate::from_addr(
                                     context,
                                     sql,
-                                    to_str(sqlite3_column_text(stmt, 0) as *const libc::c_char),
+                                    as_str(sqlite3_column_text(stmt, 0) as *const libc::c_char),
                                 ) {
                                     peerstate.recalc_fingerprint();
                                     peerstate.save_to_db(sql, false);
@@ -1239,7 +1239,7 @@ pub fn dc_sqlite3_get_config_int64(
         return def;
     }
 
-    let ret: i64 = to_str(s).parse().unwrap_or_default();
+    let ret: i64 = as_str(s).parse().unwrap_or_default();
     unsafe { free(s as *mut libc::c_void) };
     ret
 }
@@ -1381,7 +1381,7 @@ pub unsafe fn dc_housekeeping(context: &Context) {
         files_in_use.len() as libc::c_int,
     );
     /* go through directory and delete unused files */
-    let p = std::path::Path::new(to_str(context.get_blobdir()));
+    let p = std::path::Path::new(as_str(context.get_blobdir()));
     let dir_handle = std::fs::read_dir(p);
     if dir_handle.is_err() {
         dc_log_warning(
@@ -1493,7 +1493,7 @@ unsafe fn is_file_in_use(
         *name_to_check.offset((name_len - namespc_len) as isize) = 0 as libc::c_char
     }
 
-    let contains = files_in_use.contains(to_str(name_to_check));
+    let contains = files_in_use.contains(as_str(name_to_check));
     free(name_to_check as *mut libc::c_void);
     contains
 }

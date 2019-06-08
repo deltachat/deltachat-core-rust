@@ -106,13 +106,13 @@ impl Smtp {
 
         let creds = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
             // oauth2
-            let addr = to_str(lp.addr);
-            let send_pw = to_str(lp.send_pw);
+            let addr = as_str(lp.addr);
+            let send_pw = as_str(lp.send_pw);
             let access_token = dc_get_oauth2_access_token(context, addr, send_pw, 0);
             if access_token.is_none() {
                 return 0;
             }
-            let user = to_str(lp.send_user);
+            let user = as_str(lp.send_user);
 
             lettre::smtp::authentication::Credentials::new(user.into(), access_token.unwrap())
         } else {
