@@ -58,7 +58,7 @@ pub unsafe fn dc_get_securejoin_qr(
     }
     self_addr = dc_sqlite3_get_config(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
@@ -71,7 +71,7 @@ pub unsafe fn dc_get_securejoin_qr(
     } else {
         self_name = dc_sqlite3_get_config(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"displayname\x00" as *const u8 as *const libc::c_char,
             b"\x00" as *const u8 as *const libc::c_char,
         );
@@ -150,7 +150,7 @@ pub unsafe fn dc_get_securejoin_qr(
 unsafe fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {
     let self_addr = dc_sqlite3_get_config(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );
@@ -158,9 +158,7 @@ unsafe fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {
         return std::ptr::null_mut();
     }
 
-    if let Some(key) =
-        Key::from_self_public(context, self_addr, &context.sql.clone().read().unwrap())
-    {
+    if let Some(key) = Key::from_self_public(context, self_addr, &context.sql) {
         return key.fingerprint_c();
     }
 
@@ -362,17 +360,15 @@ unsafe fn fingerprint_equals_sender(
     if !(dc_array_get_cnt(contacts) != 1) {
         if !dc_contact_load_from_db(
             contact,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             dc_array_get_id(contacts, 0i32 as size_t),
         ) {
             return 0;
         }
 
-        if let Some(peerstate) = Peerstate::from_addr(
-            context,
-            &context.sql.clone().read().unwrap(),
-            as_str((*contact).addr),
-        ) {
+        if let Some(peerstate) =
+            Peerstate::from_addr(context, &context.sql, as_str((*contact).addr))
+        {
             let fingerprint_normalized = dc_normalize_fingerprint(as_str(fingerprint));
             if peerstate.public_key_fingerprint.is_some()
                 && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
@@ -985,15 +981,13 @@ unsafe fn mark_peer_as_verified(
 ) -> libc::c_int {
     let mut success = 0;
 
-    if let Some(ref mut peerstate) = Peerstate::from_fingerprint(
-        context,
-        &context.sql.clone().read().unwrap(),
-        as_str(fingerprint),
-    ) {
+    if let Some(ref mut peerstate) =
+        Peerstate::from_fingerprint(context, &context.sql, as_str(fingerprint))
+    {
         if peerstate.set_verified(1, as_str(fingerprint), 2) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = Some(ToSave::All);
-            peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+            peerstate.save_to_db(&context.sql, false);
             success = 1;
         }
     }
@@ -1065,7 +1059,7 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
     if Some(DegradeEvent::FingerprintChanged) == peerstate.degrade_event {
         stmt = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"SELECT id FROM contacts WHERE addr=?;\x00" as *const u8 as *const libc::c_char,
         );
         let c_addr = peerstate.addr.as_ref().map(to_cstring).unwrap_or_default();

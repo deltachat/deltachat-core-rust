@@ -85,7 +85,7 @@ pub unsafe fn dc_e2ee_encrypt(
         let prefer_encrypt = if 0
             != dc_sqlite3_get_config_int(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &context.sql,
                 b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
                 1,
             ) {
@@ -96,7 +96,7 @@ pub unsafe fn dc_e2ee_encrypt(
 
         let addr = dc_sqlite3_get_config(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
         );
@@ -118,11 +118,8 @@ pub unsafe fn dc_e2ee_encrypt(
                         })
                             as *const libc::c_char;
                         if strcasecmp(recipient_addr, addr) != 0 {
-                            let peerstate = Peerstate::from_addr(
-                                context,
-                                &context.sql.clone().read().unwrap(),
-                                as_str(recipient_addr),
-                            );
+                            let peerstate =
+                                Peerstate::from_addr(context, &context.sql, as_str(recipient_addr));
                             if peerstate.is_some()
                                 && (peerstate.as_ref().unwrap().prefer_encrypt
                                     == EncryptPreference::Mutual
@@ -148,8 +145,7 @@ pub unsafe fn dc_e2ee_encrypt(
                 }
                 let sign_key = if 0 != do_encrypt {
                     keyring.add_ref(&public_key);
-                    let key =
-                        Key::from_self_private(context, addr, &context.sql.clone().read().unwrap());
+                    let key = Key::from_self_private(context, addr, &context.sql);
 
                     if key.is_none() {
                         do_encrypt = 0i32;
@@ -513,7 +509,7 @@ unsafe fn load_or_generate_self_public_key(
     /* avoid double creation (we unlock the database during creation) */
     static mut s_in_key_creation: libc::c_int = 0i32;
 
-    let mut key = Key::from_self_public(context, self_addr, &context.sql.clone().read().unwrap());
+    let mut key = Key::from_self_public(context, self_addr, &context.sql);
     if key.is_some() {
         return key;
     }
@@ -541,7 +537,7 @@ unsafe fn load_or_generate_self_public_key(
             &private_key,
             self_addr,
             1i32,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
         ) {
             /*set default*/
             dc_log_warning(
@@ -612,44 +608,35 @@ pub unsafe fn dc_e2ee_decrypt(
         let mut peerstate = None;
         let autocryptheader = Aheader::from_imffields(from, imffields);
         if message_time > 0 && !from.is_null() {
-            peerstate =
-                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), as_str(from));
+            peerstate = Peerstate::from_addr(context, &context.sql, as_str(from));
 
             if let Some(ref mut peerstate) = peerstate {
                 if let Some(ref header) = autocryptheader {
                     peerstate.apply_header(&header, message_time as u64);
-                    peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+                    peerstate.save_to_db(&context.sql, false);
                 } else if message_time as u64 > peerstate.last_seen_autocrypt
                     && 0 == contains_report(in_out_message)
                 {
                     peerstate.degrade_encryption(message_time as u64);
-                    peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+                    peerstate.save_to_db(&context.sql, false);
                 }
             } else if let Some(ref header) = autocryptheader {
                 let p = Peerstate::from_header(context, header, message_time as u64);
-                p.save_to_db(&context.sql.clone().read().unwrap(), true);
+                p.save_to_db(&context.sql, true);
                 peerstate = Some(p);
             }
         }
         /* load private key for decryption */
         self_addr = dc_sqlite3_get_config(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
         );
         if !self_addr.is_null() {
-            if private_keyring.load_self_private_for_decrypting(
-                context,
-                self_addr,
-                &context.sql.clone().read().unwrap(),
-            ) {
+            if private_keyring.load_self_private_for_decrypting(context, self_addr, &context.sql) {
                 if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-                    peerstate = Peerstate::from_addr(
-                        &context,
-                        &context.sql.clone().read().unwrap(),
-                        as_str(from),
-                    );
+                    peerstate = Peerstate::from_addr(&context, &context.sql, as_str(from));
                 }
                 if let Some(ref peerstate) = peerstate {
                     if peerstate.degrade_event.is_some() {
@@ -732,17 +719,14 @@ unsafe fn update_gossip_peerstates(
                         recipients = Some(mailimf_get_recipients(imffields));
                     }
                     if recipients.as_ref().unwrap().contains(&header.addr) {
-                        let mut peerstate = Peerstate::from_addr(
-                            context,
-                            &context.sql.clone().read().unwrap(),
-                            &header.addr,
-                        );
+                        let mut peerstate =
+                            Peerstate::from_addr(context, &context.sql, &header.addr);
                         if let Some(ref mut peerstate) = peerstate {
                             peerstate.apply_gossip(header, message_time as u64);
-                            peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+                            peerstate.save_to_db(&context.sql, false);
                         } else {
                             let p = Peerstate::from_gossip(context, header, message_time as u64);
-                            p.save_to_db(&context.sql.clone().read().unwrap(), true);
+                            p.save_to_db(&context.sql, true);
                             peerstate = Some(p);
                         }
                         if let Some(peerstate) = peerstate {
@@ -1121,7 +1105,7 @@ pub unsafe fn dc_ensure_secret_key_exists(context: &Context) -> libc::c_int {
 
     let self_addr = dc_sqlite3_get_config(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         0 as *const libc::c_char,
     );

@@ -145,7 +145,7 @@ unsafe fn dc_chatlist_load_from_db(
             stmt =
                 dc_sqlite3_prepare(
                     (*chatlist).context,
-                    &mut (*chatlist).context.sql.clone().read().unwrap(),
+                    &(*chatlist).context.sql,
                     b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
                         as *const u8 as *const libc::c_char
                 );
@@ -155,7 +155,7 @@ unsafe fn dc_chatlist_load_from_db(
             stmt =
                 dc_sqlite3_prepare(
                     (*chatlist).context,
-                    &mut (*chatlist).context.sql.clone().read().unwrap(),
+                    &(*chatlist).context.sql,
                     b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.archived=1  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
                                        as *const u8 as *const libc::c_char);
             current_block = 3437258052017859086;
@@ -172,7 +172,7 @@ unsafe fn dc_chatlist_load_from_db(
             stmt =
                 dc_sqlite3_prepare(
                     (*chatlist).context,
-                    &mut (*chatlist).context.sql.clone().read().unwrap(),
+                    &(*chatlist).context.sql,
                                    b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.archived=0  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
                                        as *const u8 as *const libc::c_char);
             current_block = 3437258052017859086;
@@ -187,7 +187,7 @@ unsafe fn dc_chatlist_load_from_db(
                 stmt =
                     dc_sqlite3_prepare(
                         (*chatlist).context,
-                        &mut (*chatlist).context.sql.clone().read().unwrap(),
+                        &(*chatlist).context.sql,
                         b"SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         ON c.id=m.chat_id        AND m.timestamp=( SELECT MAX(timestamp)   FROM msgs  WHERE chat_id=c.id    AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   AND c.blocked=0 AND c.name LIKE ?  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;\x00"
                                            as *const u8 as
                                            *const libc::c_char);
@@ -234,7 +234,7 @@ pub unsafe fn dc_get_archived_cnt(context: &Context) -> libc::c_int {
     let mut ret: libc::c_int = 0i32;
     let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;\x00" as *const u8
             as *const libc::c_char,
     );
@@ -251,7 +251,7 @@ unsafe fn get_last_deaddrop_fresh_msg(context: &Context) -> uint32_t {
     stmt =
         dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"SELECT m.id  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.state=10   AND m.hidden=0    AND c.blocked=2 ORDER BY m.timestamp DESC, m.id DESC;\x00"
                                as *const u8 as *const libc::c_char);
     /* we have an index over the state-column, this should be sufficient as there are typically only few fresh messages */
@@ -346,7 +346,7 @@ pub unsafe fn dc_chatlist_get_summary<'a>(
                         lastcontact = dc_contact_new((*chatlist).context);
                         dc_contact_load_from_db(
                             lastcontact,
-                            &mut (*chatlist).context.sql.clone().read().unwrap(),
+                            &(*chatlist).context.sql,
                             (*lastmsg).from_id,
                         );
                     }

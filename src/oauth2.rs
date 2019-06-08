@@ -281,14 +281,8 @@ impl Oauth2 {
 
 fn get_config(context: &Context, key: &str) -> Option<String> {
     let key_c = CString::new(key).unwrap();
-    let res = unsafe {
-        dc_sqlite3_get_config(
-            context,
-            &context.sql.clone().read().unwrap(),
-            key_c.as_ptr(),
-            std::ptr::null(),
-        )
-    };
+    let res =
+        unsafe { dc_sqlite3_get_config(context, &context.sql, key_c.as_ptr(), std::ptr::null()) };
     if res.is_null() {
         return None;
     }
@@ -299,32 +293,18 @@ fn get_config(context: &Context, key: &str) -> Option<String> {
 fn set_config(context: &Context, key: &str, value: &str) {
     let key_c = CString::new(key).unwrap();
     let value_c = CString::new(value).unwrap();
-    unsafe {
-        dc_sqlite3_set_config(
-            context,
-            &context.sql.clone().read().unwrap(),
-            key_c.as_ptr(),
-            value_c.as_ptr(),
-        )
-    };
+    unsafe { dc_sqlite3_set_config(context, &context.sql, key_c.as_ptr(), value_c.as_ptr()) };
 }
 
 fn set_config_int64(context: &Context, key: &str, value: i64) {
     let key_c = CString::new(key).unwrap();
-    unsafe {
-        dc_sqlite3_set_config_int64(
-            context,
-            &context.sql.clone().read().unwrap(),
-            key_c.as_ptr(),
-            value,
-        )
-    };
+    unsafe { dc_sqlite3_set_config_int64(context, &context.sql, key_c.as_ptr(), value) };
 }
 
 fn is_expired(context: &Context) -> bool {
     let expire_timestamp = dc_sqlite3_get_config_int64(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"oauth2_timestamp_expires\x00" as *const u8 as *const libc::c_char,
         0i32 as int64_t,
     );

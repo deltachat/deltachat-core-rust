@@ -173,7 +173,7 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
         if !(0 == ret_connected) {
             if dc_sqlite3_get_config_int(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &context.sql,
                 b"folders_configured\x00" as *const u8 as *const libc::c_char,
                 0,
             ) < 3
@@ -182,7 +182,7 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
             }
             mvbox_name = dc_sqlite3_get_config(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &context.sql,
                 jobthread.folder_config_name,
                 0 as *const libc::c_char,
             );

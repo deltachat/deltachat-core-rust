@@ -1600,14 +1600,14 @@ impl Imap {
         unsafe {
             dc_sqlite3_set_config_int(
                 context,
-                &context.sql.read().unwrap(),
+                &context.sql,
                 b"folders_configured\x00" as *const u8 as *const libc::c_char,
                 3,
             );
             if let Some(ref mvbox_folder) = mvbox_folder {
                 dc_sqlite3_set_config(
                     context,
-                    &context.sql.read().unwrap(),
+                    &context.sql,
                     b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
                     CString::new(mvbox_folder.clone()).unwrap().as_ptr(),
                 );
@@ -1615,7 +1615,7 @@ impl Imap {
             if let Some(ref sentbox_folder) = sentbox_folder {
                 dc_sqlite3_set_config(
                     context,
-                    &context.sql.read().unwrap(),
+                    &context.sql,
                     b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
                     CString::new(sentbox_folder.name()).unwrap().as_ptr(),
                 );
