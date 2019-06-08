@@ -1,36 +1,20 @@
 environment:
   matrix:
-    # MinGW
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-      TARGET: i686-pc-windows-gnu
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-      TARGET: x86_64-pc-windows-gnu
-
-    # MSVC
-    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-      TARGET: i686-pc-windows-msvc
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
       TARGET: x86_64-pc-windows-msvc
 
 install:
-  - ps: >-
-      If ($Env:TARGET -eq 'x86_64-pc-windows-gnu') {
-        $Env:PATH += ';C:\msys64\mingw64\bin'
-      } ElseIf ($Env:TARGET -eq 'i686-pc-windows-gnu') {
-        $Env:PATH += ';C:\msys64\mingw32\bin'
-      }
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
   - rustup-init -yv --default-host %target% --default-toolchain none
   - set PATH=%PATH%;%USERPROFILE%\.cargo\bin
   - rustc -vV
   - cargo -vV
-  - cd %APPVEYOR_BUILD_FOLDER%
-  - git submodule update --init --recursive
+  - cargo update
 
 build: false
 
 test_script:
-- cargo test
+- cargo test --release
 
 cache:
   - target
