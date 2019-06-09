@@ -617,9 +617,11 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         0,
     );
 
-    let fingerprint_str = if let Some(key) =
-        Key::from_self_public(context, (*l2).addr, &context.sql.clone().read().unwrap())
-    {
+    let fingerprint_str = if let Some(key) = Key::from_self_public(
+        context,
+        as_str((*l2).addr),
+        &context.sql.clone().read().unwrap(),
+    ) {
         key.fingerprint()
     } else {
         "<Not yet calculated>".into()

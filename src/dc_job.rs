@@ -86,8 +86,8 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             dc_sqlite3_prepare(
                 context,
                 &context.sql.clone().read().unwrap(),
-                b"SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;\x00"
-                    as *const u8 as *const libc::c_char);
+                "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;"
+            );
         sqlite3_bind_int64(select_stmt, 1i32, thread as sqlite3_int64);
         sqlite3_bind_int64(select_stmt, 2i32, time() as sqlite3_int64);
     } else {
@@ -95,8 +95,8 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             dc_sqlite3_prepare(
                 context,
                 &context.sql.clone().read().unwrap(),
-                b"SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;\x00"
-                                       as *const u8 as *const libc::c_char);
+                "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;"
+            );
         sqlite3_bind_int64(select_stmt, 1i32, thread as sqlite3_int64);
     }
     while sqlite3_step(select_stmt) == 100i32 {

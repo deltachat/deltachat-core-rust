@@ -125,14 +125,10 @@ impl Key {
 
     pub fn from_self_public(
         context: &Context,
-        self_addr: *const libc::c_char,
+        self_addr: impl AsRef<str>,
         sql: &dc_sqlite3_t,
     ) -> Option<Self> {
-        if self_addr.is_null() {
-            return None;
-        }
-
-        let addr = as_str(self_addr);
+        let addr = self_addr.as_ref();
 
         dc_sqlite3_query_row(
             context,
@@ -146,19 +142,14 @@ impl Key {
 
     pub fn from_self_private(
         context: &Context,
-        self_addr: *const libc::c_char,
+        self_addr: impl AsRef<str>,
         sql: &dc_sqlite3_t,
     ) -> Option<Self> {
-        if self_addr.is_null() {
-            return None;
-        }
-
-        let addr = as_str(self_addr);
         dc_sqlite3_query_row(
             context,
             sql,
             "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
-            &[addr],
+            &[self_addr.as_ref()],
             0,
         )
         .and_then(|blob| Self::from_slice(blob, KeyType::Private))
@@ -299,19 +290,15 @@ pub fn dc_key_save_self_keypair(
     context: &Context,
     public_key: &Key,
     private_key: &Key,
-    addr: *const libc::c_char,
+    addr: impl AsRef<str>,
     is_default: libc::c_int,
     sql: &dc_sqlite3_t,
 ) -> bool {
-    if addr.is_null() {
-        return false;
-    }
-
     dc_sqlite3_execute(
         context,
         sql,
         "INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);",
-        params![as_str(addr), is_default, public_key.to_bytes(), private_key.to_bytes(), time()],
+        params![addr.as_ref(), is_default, public_key.to_bytes(), private_key.to_bytes(), time()],
     )
 }
 
@@ -380,8 +367,7 @@ mod tests {
 
     #[test]
     fn test_from_slice_roundtrip() {
-        let (public_key, private_key) =
-            crate::pgp::dc_pgp_create_keypair(CString::new("hello").unwrap().as_ptr()).unwrap();
+        let (public_key, private_key) = crate::pgp::dc_pgp_create_keypair("hello").unwrap();
 
         let binary = public_key.to_bytes();
         let public_key2 = Key::from_slice(&binary, KeyType::Public).expect("invalid public key");

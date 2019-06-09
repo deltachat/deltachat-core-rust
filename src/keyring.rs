@@ -3,7 +3,6 @@ use std::borrow::Cow;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_sqlite3::*;
-use crate::dc_tools::as_str;
 use crate::key::*;
 
 #[derive(Default, Clone, Debug)]
@@ -31,19 +30,14 @@ impl<'a> Keyring<'a> {
     pub fn load_self_private_for_decrypting(
         &mut self,
         context: &Context,
-        self_addr: *const libc::c_char,
+        self_addr: impl AsRef<str>,
         sql: &dc_sqlite3_t,
     ) -> bool {
-        // Can we prevent keyring and self_addr to be null?
-        if self_addr.is_null() {
-            return false;
-        }
-
         dc_sqlite3_query_row(
             context,
             sql,
             "SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;",
-            &[as_str(self_addr)],
+            &[self_addr.as_ref()],
             0,
         )
         .and_then(|blob| Key::from_slice(blob, KeyType::Private))

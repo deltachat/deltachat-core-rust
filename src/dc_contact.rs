@@ -683,7 +683,7 @@ pub unsafe fn dc_get_contact_encrinfo(
         );
         let mut self_key = Key::from_self_public(
             context,
-            (*loginparam).addr,
+            as_str((*loginparam).addr),
             &context.sql.clone().read().unwrap(),
         );
 
@@ -703,7 +703,7 @@ pub unsafe fn dc_get_contact_encrinfo(
                 dc_ensure_secret_key_exists(context);
                 self_key = Key::from_self_public(
                     context,
-                    (*loginparam).addr,
+                    as_str((*loginparam).addr),
                     &context.sql.clone().read().unwrap(),
                 );
             }

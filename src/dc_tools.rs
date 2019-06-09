@@ -1256,32 +1256,31 @@ pub unsafe fn dc_write_file(
     buf: *const libc::c_void,
     buf_bytes: size_t,
 ) -> libc::c_int {
-    let mut success = 0;
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if pathNfilename_abs.is_null() {
-        return 0;
-    }
-
-    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
-        .to_str()
-        .unwrap();
-
     let bytes = std::slice::from_raw_parts(buf as *const u8, buf_bytes);
 
-    match fs::write(p, bytes) {
-        Ok(_) => {
-            success = 1;
-        }
-        Err(_err) => {
-            dc_log_warning(
-                context,
-                0i32,
-                b"Cannot write %lu bytes to \"%s\".\x00" as *const u8 as *const libc::c_char,
-                buf_bytes as libc::c_ulong,
-                pathNfilename,
-            );
-        }
+    dc_write_file_safe(context, as_str(pathNfilename), bytes) as libc::c_int
+}
+
+pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
+    let pathNfilename_abs = unsafe { dc_get_abs_path(context, to_cstring(pathNfilename).as_ptr()) };
+    if pathNfilename_abs.is_null() {
+        return false;
     }
+
+    let p = as_str(pathNfilename_abs);
+
+    let success = if let Err(err) = fs::write(p, buf) {
+        warn!(
+            context,
+            0,
+            "Cannot write {} bytes to \"{}\".",
+            buf.len(),
+            pathNfilename.as_ref(),
+        );
+        false
+    } else {
+        true
+    };
 
     free(pathNfilename_abs as *mut libc::c_void);
     success
@@ -1293,44 +1292,40 @@ pub unsafe fn dc_read_file(
     buf: *mut *mut libc::c_void,
     buf_bytes: *mut size_t,
 ) -> libc::c_int {
-    let mut success = 0;
-
-    if pathNfilename.is_null() || buf.is_null() || buf_bytes.is_null() {
+    if pathNfilename.is_null() {
         return 0;
     }
+    if let Some(bytes) = dc_read_file_safe(context, as_str(pathNfilename)) {
+        *buf = &mut bytes[..] as *mut _ as *mut libc::c_void;
+        *buf_bytes = bytes.len();
+        std::mem::forget(bytes);
+        1
+    } else {
+        0
+    }
+}
 
-    *buf = 0 as *mut libc::c_void;
-    *buf_bytes = 0i32 as size_t;
-
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
+    let pathNfilename_abs = unsafe { dc_get_abs_path(context, to_cstring(pathNfilename).as_ptr()) };
     if pathNfilename_abs.is_null() {
-        return 0;
+        return None;
     }
 
-    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
-        .to_str()
-        .unwrap();
-
-    match fs::read(p) {
-        Ok(mut bytes) => {
-            *buf = &mut bytes[..] as *mut _ as *mut libc::c_void;
-            *buf_bytes = bytes.len();
-            std::mem::forget(bytes);
-
-            success = 1;
-        }
+    let p = as_str(pathNfilename_abs);
+    let res = match fs::read(p) {
+        Ok(bytes) => Some(bytes),
         Err(_err) => {
-            dc_log_warning(
+            warn!(
                 context,
-                0,
-                b"Cannot read \"%s\" or file is empty.\x00" as *const u8 as *const libc::c_char,
-                pathNfilename,
+                0, "Cannot read \"{}\" or file is empty.", pathNfilename,
             );
+            None
         }
-    }
+    };
 
     free(pathNfilename_abs as *mut libc::c_void);
-    success
+
+    res
 }
 
 pub unsafe fn dc_get_fine_pathNfilename(
