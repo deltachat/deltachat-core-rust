@@ -51,7 +51,7 @@ pub unsafe fn dc_imex_has_backup(
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut test_sql: Option<dc_sqlite3_t> = None;
 
-    let dir = std::path::Path::new(as_str(dir_name));
+    let dir = as_path(dir_name);
 
     if dir.is_dir() {
         match std::fs::read_dir(dir) {
