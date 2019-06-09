@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 use std::env::current_dir;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::path::PathBuf;
 
 use mmime::mailimf_types::*;
@@ -966,6 +966,7 @@ fn test_selfavatar_config() {
     logo_path.push("tests");
     logo_path.push("fixtures");
     logo_path.push("delta-logo.png");
+    assert!(logo_path.as_path().exists());
 
     let logo_path_c = CString::new(logo_path.to_str().unwrap()).unwrap();
     unsafe {
@@ -987,6 +988,7 @@ fn test_selfavatar_config() {
     let mut image_path = PathBuf::from(to_string(blobdir_c));
     image_path.push("delta-logo.png");
 
+    assert!(image_path.as_path().exists());
     assert_eq!(to_string(selfavatar), image_path.to_str().unwrap());
 }
 
