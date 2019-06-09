@@ -242,7 +242,7 @@ unsafe fn cb_receive_imf(
 unsafe fn cb_precheck_imf(
     context: &Context,
     rfc724_mid: *const libc::c_char,
-    server_folder: *const libc::c_char,
+    server_folder: &str,
     server_uid: uint32_t,
 ) -> libc::c_int {
     let mut rfc724_mid_exists: libc::c_int = 0i32;
@@ -268,7 +268,7 @@ unsafe fn cb_precheck_imf(
                 rfc724_mid,
             );
             mark_seen = 1i32
-        } else if strcmp(old_server_folder, server_folder) != 0i32 {
+        } else if as_str(old_server_folder) != server_folder {
             dc_log_info(
                 context,
                 0i32,
@@ -277,7 +277,7 @@ unsafe fn cb_precheck_imf(
             );
             dc_update_msg_move_state(context, rfc724_mid, DC_MOVE_STATE_STAY);
         }
-        if strcmp(old_server_folder, server_folder) != 0i32 || old_server_uid != server_uid {
+        if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
             dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
         }
         dc_do_heuristics_moves(context, server_folder, msg_id);

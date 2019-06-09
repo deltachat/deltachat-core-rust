@@ -7,7 +7,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
 use crate::dc_sqlite3::*;
-use crate::dc_tools::{as_str, to_string};
+use crate::dc_tools::as_str;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
 
@@ -584,8 +584,8 @@ impl Imap {
         }
     }
 
-    pub fn set_watch_folder(&self, watch_folder: *const libc::c_char) {
-        self.config.write().unwrap().watch_folder = Some(to_string(watch_folder));
+    pub fn set_watch_folder(&self, watch_folder: String) {
+        self.config.write().unwrap().watch_folder = Some(watch_folder);
     }
 
     pub fn fetch(&self, context: &Context) -> libc::c_int {
@@ -831,9 +831,8 @@ impl Imap {
                     .expect("missing message id");
 
                 let message_id_c = CString::new(message_id).unwrap();
-                let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
                 if 0 == unsafe {
-                    (self.precheck_imf)(context, message_id_c.as_ptr(), folder_c.as_ptr(), cur_uid)
+                    (self.precheck_imf)(context, message_id_c.as_ptr(), folder.as_ref(), cur_uid)
                 } {
                     // check passed, go fetch the rest
                     if self.fetch_single_msg(context, &folder, cur_uid) == 0 {

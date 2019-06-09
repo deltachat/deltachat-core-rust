@@ -174,23 +174,23 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
             if dc_sqlite3_get_config_int(
                 context,
                 &context.sql.clone().read().unwrap(),
-                b"folders_configured\x00" as *const u8 as *const libc::c_char,
+                "folders_configured",
                 0,
             ) < 3
             {
                 jobthread.imap.configure_folders(context, 0x1);
             }
-            mvbox_name = dc_sqlite3_get_config(
+            let mvbox_name = dc_sqlite3_get_config(
                 context,
                 &context.sql.clone().read().unwrap(),
-                jobthread.folder_config_name,
-                0 as *const libc::c_char,
+                as_str(jobthread.folder_config_name),
+                None,
             );
-            if mvbox_name.is_null() {
+            if let Some(name) = mvbox_name {
+                jobthread.imap.set_watch_folder(name);
+            } else {
                 jobthread.imap.disconnect(context);
                 ret_connected = 0;
-            } else {
-                jobthread.imap.set_watch_folder(mvbox_name);
             }
         }
     }

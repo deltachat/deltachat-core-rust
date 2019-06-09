@@ -5,11 +5,7 @@ use crate::dc_msg::*;
 use crate::dc_sqlite3::*;
 use crate::types::*;
 
-pub unsafe fn dc_do_heuristics_moves(
-    context: &Context,
-    folder: *const libc::c_char,
-    msg_id: uint32_t,
-) {
+pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u32) {
     // for already seen messages, folder may be different from msg->folder
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;

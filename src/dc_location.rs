@@ -50,69 +50,64 @@ pub unsafe fn dc_send_locations_to_chat(
     let is_sending_locations_before: libc::c_int;
     if !(seconds < 0i32 || chat_id <= 9i32 as libc::c_uint) {
         is_sending_locations_before = dc_is_sending_locations_to_chat(context, chat_id);
-        stmt =
-            dc_sqlite3_prepare(
-                context,
-                &context.sql.clone().read().unwrap(),
-                b"UPDATE chats    SET locations_send_begin=?,        locations_send_until=?  WHERE id=?\x00"
-                    as *const u8 as *const libc::c_char);
-        sqlite3_bind_int64(
-            stmt,
-            1i32,
-            (if 0 != seconds { now } else { 0 }) as sqlite3_int64,
-        );
-        sqlite3_bind_int64(
-            stmt,
-            2i32,
-            (if 0 != seconds {
-                now + seconds as i64
-            } else {
-                0
-            }) as sqlite3_int64,
-        );
-        sqlite3_bind_int(stmt, 3i32, chat_id as libc::c_int);
-        sqlite3_step(stmt);
-        if 0 != seconds && 0 == is_sending_locations_before {
-            msg = dc_msg_new(context, 10i32);
-            (*msg).text = dc_stock_system_msg(
-                context,
-                64i32,
-                0 as *const libc::c_char,
-                0 as *const libc::c_char,
-                0i32 as uint32_t,
-            );
-            dc_param_set_int((*msg).param, 'S' as i32, 8i32);
-            dc_send_msg(context, chat_id, msg);
-        } else if 0 == seconds && 0 != is_sending_locations_before {
-            stock_str = dc_stock_system_msg(
-                context,
-                65i32,
-                0 as *const libc::c_char,
-                0 as *const libc::c_char,
-                0i32 as uint32_t,
-            );
-            dc_add_device_msg(context, chat_id, stock_str);
-        }
-        (context.cb)(
+        if dc_sqlite3_execute(
             context,
-            Event::CHAT_MODIFIED,
-            chat_id as uintptr_t,
-            0i32 as uintptr_t,
-        );
-        if 0 != seconds {
-            schedule_MAYBE_SEND_LOCATIONS(context, 0i32);
-            dc_job_add(
+            &context.sql.clone().read().unwrap(),
+            "UPDATE chats    \
+             SET locations_send_begin=?,        \
+             locations_send_until=?  \
+             WHERE id=?",
+            params![
+                if 0 != seconds { now } else { 0 },
+                if 0 != seconds {
+                    now + seconds as i64
+                } else {
+                    0
+                },
+                chat_id as i32,
+            ],
+        ) {
+            if 0 != seconds && 0 == is_sending_locations_before {
+                msg = dc_msg_new(context, 10i32);
+                (*msg).text = dc_stock_system_msg(
+                    context,
+                    64i32,
+                    0 as *const libc::c_char,
+                    0 as *const libc::c_char,
+                    0i32 as uint32_t,
+                );
+                dc_param_set_int((*msg).param, 'S' as i32, 8i32);
+                dc_send_msg(context, chat_id, msg);
+            } else if 0 == seconds && 0 != is_sending_locations_before {
+                stock_str = dc_stock_system_msg(
+                    context,
+                    65i32,
+                    0 as *const libc::c_char,
+                    0 as *const libc::c_char,
+                    0i32 as uint32_t,
+                );
+                dc_add_device_msg(context, chat_id, stock_str);
+            }
+            (context.cb)(
                 context,
-                5007i32,
-                chat_id as libc::c_int,
-                0 as *const libc::c_char,
-                seconds + 1i32,
+                Event::CHAT_MODIFIED,
+                chat_id as uintptr_t,
+                0i32 as uintptr_t,
             );
+            if 0 != seconds {
+                schedule_MAYBE_SEND_LOCATIONS(context, 0i32);
+                dc_job_add(
+                    context,
+                    5007i32,
+                    chat_id as libc::c_int,
+                    0 as *const libc::c_char,
+                    seconds + 1i32,
+                );
+            }
         }
     }
     free(stock_str as *mut libc::c_void);
     dc_msg_unref(msg);
-    sqlite3_finalize(stmt);
 }
 
 /*******************************************************************************

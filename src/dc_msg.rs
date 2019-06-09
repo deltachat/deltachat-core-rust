@@ -1517,13 +1517,13 @@ pub fn dc_rfc724_mid_exists(
 pub fn dc_update_server_uid(
     context: &Context,
     rfc724_mid: *const libc::c_char,
-    server_folder: *const libc::c_char,
+    server_folder: impl AsRef<str>,
     server_uid: uint32_t,
 ) {
     if let Some(conn) = context.sql.clone().read().unwrap().conn() {
         match conn.execute(
             "UPDATE msgs SET server_folder=?, server_uid=? WHERE rfc724_mid=?;",
-            &[as_str(server_folder), server_uid, as_str(rfc724_mid)],
+            &[server_folder.as_ref(), server_uid, as_str(rfc724_mid)],
         ) {
             Ok(_) => {}
             Err(err) => {
