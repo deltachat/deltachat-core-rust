@@ -661,7 +661,6 @@ pub unsafe fn dc_get_contact_encrinfo(
     contact_id: uint32_t,
 ) -> *mut libc::c_char {
     let mut ret = String::new();
-    let loginparam: *mut dc_loginparam_t = dc_loginparam_new();
     let contact: *mut dc_contact_t = dc_contact_new(context);
 
     let mut fingerprint_self: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -675,15 +674,12 @@ pub unsafe fn dc_get_contact_encrinfo(
             &context.sql.clone().read().unwrap(),
             as_str((*contact).addr),
         );
-        dc_loginparam_read(
-            context,
-            loginparam,
-            &context.sql.clone().read().unwrap(),
-            b"configured_\x00" as *const u8 as *const libc::c_char,
-        );
+        let loginparam =
+            dc_loginparam_read(context, &context.sql.clone().read().unwrap(), "configured_");
+
         let mut self_key = Key::from_self_public(
             context,
-            as_str((*loginparam).addr),
+            &loginparam.addr,
             &context.sql.clone().read().unwrap(),
         );
 
@@ -703,7 +699,7 @@ pub unsafe fn dc_get_contact_encrinfo(
                 dc_ensure_secret_key_exists(context);
                 self_key = Key::from_self_public(
                     context,
-                    as_str((*loginparam).addr),
+                    &loginparam.addr,
                     &context.sql.clone().read().unwrap(),
                 );
             }
@@ -722,12 +718,10 @@ pub unsafe fn dc_get_contact_encrinfo(
                 .peek_key(0)
                 .map(|k| k.formatted_fingerprint_c())
                 .unwrap_or(std::ptr::null_mut());
-            if peerstate.addr.is_some()
-                && as_str((*loginparam).addr) < peerstate.addr.as_ref().unwrap().as_str()
-            {
+            if peerstate.addr.is_some() && &loginparam.addr < peerstate.addr.as_ref().unwrap() {
                 cat_fingerprint(
                     &mut ret,
-                    to_string((*loginparam).addr),
+                    &loginparam.addr,
                     fingerprint_self,
                     0 as *const libc::c_char,
                 );
@@ -746,26 +740,23 @@ pub unsafe fn dc_get_contact_encrinfo(
                 );
                 cat_fingerprint(
                     &mut ret,
-                    to_string((*loginparam).addr),
+                    &loginparam.addr,
                     fingerprint_self,
                     0 as *const libc::c_char,
                 );
             }
-        } else if 0 == (*loginparam).server_flags & 0x400i32
-            && 0 == (*loginparam).server_flags & 0x40000i32
-        {
-            p = dc_stock_str(context, 27i32);
+        } else if 0 == loginparam.server_flags & 0x400 && 0 == loginparam.server_flags & 0x40000 {
+            p = dc_stock_str(context, 27);
             ret += as_str(p);
             free(p as *mut libc::c_void);
         } else {
-            p = dc_stock_str(context, 28i32);
+            p = dc_stock_str(context, 28);
             ret += as_str(p);
             free(p as *mut libc::c_void);
         }
     }
 
     dc_contact_unref(contact);
-    dc_loginparam_unref(loginparam);
 
     free(fingerprint_self as *mut libc::c_void);
     free(fingerprint_other_verified as *mut libc::c_void);
@@ -795,7 +786,7 @@ unsafe fn cat_fingerprint(
         && 0 != *fingerprint_verified.offset(0isize) as libc::c_int
         && !fingerprint_unverified.is_null()
         && 0 != *fingerprint_unverified.offset(0isize) as libc::c_int
-        && strcmp(fingerprint_verified, fingerprint_unverified) != 0i32
+        && strcmp(fingerprint_verified, fingerprint_unverified) != 0
     {
         *ret += &format!(
             "\n\n{} (alternative):\n{}",

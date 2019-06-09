@@ -507,12 +507,8 @@ impl Imap {
         cfg.watch_folder = None;
     }
 
-    pub fn connect(&self, context: &Context, lp: *const dc_loginparam_t) -> libc::c_int {
-        if lp.is_null() {
-            return 0;
-        }
-        let lp = unsafe { *lp };
-        if lp.mail_server.is_null() || lp.mail_user.is_null() || lp.mail_pw.is_null() {
+    pub fn connect(&self, context: &Context, lp: &dc_loginparam_t) -> libc::c_int {
+        if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
             return 0;
         }
 
@@ -521,19 +517,19 @@ impl Imap {
         }
 
         {
-            let addr = as_str(lp.addr);
-            let imap_server = as_str(lp.mail_server);
+            let addr = &lp.addr;
+            let imap_server = &lp.mail_server;
             let imap_port = lp.mail_port as u16;
-            let imap_user = as_str(lp.mail_user);
-            let imap_pw = as_str(lp.mail_pw);
+            let imap_user = &lp.mail_user;
+            let imap_pw = &lp.mail_pw;
             let server_flags = lp.server_flags as usize;
 
             let mut config = self.config.write().unwrap();
-            config.addr = addr.into();
-            config.imap_server = imap_server.into();
+            config.addr = addr.to_string();
+            config.imap_server = imap_server.to_string();
             config.imap_port = imap_port.into();
-            config.imap_user = imap_user.into();
-            config.imap_pw = imap_pw.into();
+            config.imap_user = imap_user.to_string();
+            config.imap_pw = imap_pw.to_string();
             config.server_flags = server_flags;
         }
 

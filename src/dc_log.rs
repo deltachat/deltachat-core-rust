@@ -143,8 +143,10 @@ macro_rules! log_event {
         let formatted = format!($msg, $($args),*);
         let formatted_c = $crate::dc_tools::to_cstring(formatted);
         unsafe {
-            ($ctx.cb)($ctx, $event, $data1 as uintptr_t,
-                      formatted_c.as_ptr() as uintptr_t)
+            ($ctx.cb)(
+                $ctx, $event, $data1 as libc::uintptr_t,
+                formatted_c.as_ptr() as libc::uintptr_t
+            )
         }
     };
 }

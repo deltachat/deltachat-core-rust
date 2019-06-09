@@ -552,20 +552,8 @@ fn get_config_keys_str() -> String {
 
 pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let unset = "0";
-    let l = dc_loginparam_new();
-    let l2 = dc_loginparam_new();
-    dc_loginparam_read(
-        context,
-        l,
-        &context.sql.clone().read().unwrap(),
-        b"\x00" as *const u8 as *const libc::c_char,
-    );
-    dc_loginparam_read(
-        context,
-        l2,
-        &context.sql.clone().read().unwrap(),
-        b"configured_\x00" as *const u8 as *const libc::c_char,
-    );
+    let l = dc_loginparam_read(context, &context.sql.clone().read().unwrap(), "");
+    let l2 = dc_loginparam_read(context, &context.sql.clone().read().unwrap(), "configured_");
     let displayname = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
@@ -617,18 +605,16 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         0,
     );
 
-    let fingerprint_str = if let Some(key) = Key::from_self_public(
-        context,
-        as_str((*l2).addr),
-        &context.sql.clone().read().unwrap(),
-    ) {
+    let fingerprint_str = if let Some(key) =
+        Key::from_self_public(context, &l2.addr, &context.sql.clone().read().unwrap())
+    {
         key.fingerprint()
     } else {
         "<Not yet calculated>".into()
     };
 
-    let l_readable_str = dc_loginparam_get_readable(l);
-    let l2_readable_str = dc_loginparam_get_readable(l2);
+    let l_readable_str = dc_loginparam_get_readable(&l);
+    let l2_readable_str = dc_loginparam_get_readable(&l2);
     let inbox_watch = dc_sqlite3_get_config_int(
         context,
         &context.sql.clone().read().unwrap(),
@@ -723,8 +709,8 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         },
         displayname.unwrap_or_else(|| unset.into()),
         is_configured,
-        as_str(l_readable_str),
-        as_str(l2_readable_str),
+        l_readable_str,
+        l2_readable_str,
         inbox_watch,
         sentbox_watch,
         mvbox_watch,
@@ -738,12 +724,6 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         pub_key_cnt.unwrap_or_default(),
         fingerprint_str,
     );
-
-    dc_loginparam_unref(l);
-    dc_loginparam_unref(l2);
-
-    free(l_readable_str as *mut libc::c_void);
-    free(l2_readable_str as *mut libc::c_void);
 
     strdup(to_cstring(res).as_ptr())
 }

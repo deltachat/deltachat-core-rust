@@ -292,15 +292,10 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     /* connect to SMTP server, if not yet done */
     if !context.smtp.lock().unwrap().is_connected() {
-        let loginparam: *mut dc_loginparam_t = dc_loginparam_new();
-        dc_loginparam_read(
-            context,
-            loginparam,
-            &context.sql.clone().read().unwrap(),
-            b"configured_\x00" as *const u8 as *const libc::c_char,
-        );
-        let connected = context.smtp.lock().unwrap().connect(context, loginparam);
-        dc_loginparam_unref(loginparam);
+        let loginparam =
+            dc_loginparam_read(context, &context.sql.clone().read().unwrap(), "configured_");
+        let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
+
         if 0 == connected {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             current_block = 14216916617354591294;
