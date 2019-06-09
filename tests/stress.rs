@@ -1,7 +1,7 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
-use std::ffi::{CString};
+use std::ffi::CString;
 
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
