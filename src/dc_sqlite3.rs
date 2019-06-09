@@ -1031,7 +1031,7 @@ pub fn dc_sqlite3_get_rowid(
     table: impl AsRef<str>,
     field: impl AsRef<str>,
     value: impl AsRef<str>,
-) -> uint32_t {
+) -> u32 {
     // alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
     // the ORDER BY ensures, this function always returns the most recent id,
     // eg. if a Message-ID is splitted into different messages.
