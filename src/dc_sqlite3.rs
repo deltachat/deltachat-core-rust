@@ -1208,7 +1208,7 @@ fn maybe_add_file(files_in_use: &mut HashSet<String>, file: impl AsRef<str>) {
         return;
     }
 
-    files_in_use.insert(file.as_ref()[8..].into());
+    files_in_use.insert(file.as_ref()[9..].into());
 }
 
 fn maybe_add_from_param(
