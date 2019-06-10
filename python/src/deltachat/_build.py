@@ -8,9 +8,10 @@ import cffi
 
 def ffibuilder():
     projdir = os.environ.get('DCC_RS_DEV')
+    target = os.environ.get('DCC_RS_TARGET', 'release')
     if projdir:
         libs = []
-        objs = [os.path.join(projdir, 'target', 'release', 'libdeltachat.a')]
+        objs = [os.path.join(projdir, 'target', target, 'libdeltachat.a')]
         incs = [os.path.join(projdir, 'deltachat-ffi')]
     else:
         libs = ['deltachat']

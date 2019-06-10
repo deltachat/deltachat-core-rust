@@ -10,13 +10,10 @@
 #
 #   ./run-integration-tests.sh -e py35 -- -x
 
-cargo build -p deltachat_ffi --release
+cargo build -p deltachat_ffi
 
-# CFLAGS=-I`pwd`/deltachat-ffi
-# LD_LIBRARY_PATH=`pwd`/target/release
-# export CFLAGS
-# export LD_LIBRARY_PATH
 export DCC_RS_DEV=$(pwd)
+export DCC_RS_TARGET=${DCC_RS_TARGET:-release}
 
 pushd python
 toxargs="$@"

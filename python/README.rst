@@ -114,6 +114,14 @@ The ``run-integration-tests.sh`` script will automatically use
 .. _`deltachat-core-rust github repository`: https://github.com/deltachat/deltachat-core-rust
 .. _`deltachat-core`: https://github.com/deltachat/deltachat-core-rust
 
+Running test using a debug build
+--------------------------------
+
+If you need to examine e.g. a coredump you may want to run the tests
+using a debug build::
+
+   DCC_RS_TARGET=debug ./run-integration-tests.sh -e py37 -- -x -v -k failing_test
+
 
 Building manylinux1 wheels
 ==========================
