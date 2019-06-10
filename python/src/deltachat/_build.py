@@ -1,17 +1,21 @@
 import distutils.ccompiler
+import distutils.log
 import distutils.sysconfig
 import tempfile
 import os
 import cffi
 
-# XXX hack out the header and library dirs
-# relying on CFLAGS and LD_LIBRARY_PATH being set properly is not good
-# (but we also don't want to rely on global installs of headers and libs)
-HEADERDIR = os.environ["CFLAGS"].split("-I", 1)[1]
-LIBDIR = os.environ["LD_LIBRARY_PATH"]
-
 
 def ffibuilder():
+    projdir = os.environ.get('DCC_RS_DEV')
+    if projdir:
+        libs = []
+        objs = [os.path.join(projdir, 'target', 'release', 'libdeltachat.a')]
+        incs = [os.path.join(projdir, 'deltachat-ffi')]
+    else:
+        libs = ['deltachat']
+        objs = []
+        incs = []
     builder = cffi.FFI()
     builder.set_source(
         'deltachat.capi',
@@ -35,9 +39,9 @@ def ffibuilder():
                 return result;
             }
         """,
-        libraries=['deltachat'],
-        include_dirs=[HEADERDIR],
-        library_dirs=[LIBDIR],
+        include_dirs=incs,
+        libraries=libs,
+        extra_objects=objs,
     )
     builder.cdef("""
         typedef int... time_t;
@@ -45,6 +49,7 @@ def ffibuilder():
         extern const char * dupstring_helper(const char* string);
         extern int dc_get_event_signature_types(int);
     """)
+    distutils.log.set_verbosity(distutils.log.INFO)
     cc = distutils.ccompiler.new_compiler(force=True)
     distutils.sysconfig.customize_compiler(cc)
     with tempfile.NamedTemporaryFile(mode='w', suffix='.h') as src_fp:
@@ -53,7 +58,7 @@ def ffibuilder():
         with tempfile.NamedTemporaryFile(mode='r') as dst_fp:
             cc.preprocess(source=src_fp.name,
                           output_file=dst_fp.name,
-                          include_dirs=[HEADERDIR],
+                          include_dirs=incs,
                           macros=[('PY_CFFI', '1')])
             builder.cdef(dst_fp.read())
     builder.cdef("""
