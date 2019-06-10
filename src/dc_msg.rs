@@ -1156,7 +1156,6 @@ pub unsafe fn dc_msg_exists(context: &Context, msg_id: uint32_t) -> libc::c_int 
         return 0;
     }
 
-    let mut msg_exists = 0;
     let chat_id: Option<i32> = dc_sqlite3_query_row(
         context,
         &context.sql.clone().read().unwrap(),
@@ -1411,7 +1410,7 @@ pub fn dc_rfc724_mid_exists(
             },
         ) {
             Ok(res) => res,
-            Err(err) => {
+            Err(_err) => {
                 if !ret_server_folder.is_null() {
                     *ret_server_folder = 0 as *mut libc::c_char
                 }

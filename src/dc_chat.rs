@@ -328,7 +328,6 @@ pub fn dc_lookup_real_nchat_by_contact_id(
     ret_chat_blocked: *mut libc::c_int,
 ) {
     /* checks for "real" chats or self-chat */
-    let stmt: *mut sqlite3_stmt;
     if !ret_chat_id.is_null() {
         *ret_chat_id = 0;
     }
@@ -494,31 +493,30 @@ unsafe fn prepare_msg_raw(
     let mut do_guarantee_e2ee: libc::c_int;
     let e2ee_enabled: libc::c_int;
     let current_block: u64;
-    let mut parent_rfc724_mid: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut parent_references: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut parent_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut new_rfc724_mid: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut new_references: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut new_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut msg_id: uint32_t = 0i32 as uint32_t;
-    let mut to_id: uint32_t = 0i32 as uint32_t;
-    let mut location_id: uint32_t = 0i32 as uint32_t;
+    let mut parent_rfc724_mid = 0 as *mut libc::c_char;
+    let mut parent_references = 0 as *mut libc::c_char;
+    let mut parent_in_reply_to = 0 as *mut libc::c_char;
+    let mut new_rfc724_mid = 0 as *mut libc::c_char;
+    let mut new_references = 0 as *mut libc::c_char;
+    let mut new_in_reply_to = 0 as *mut libc::c_char;
+    let mut msg_id = 0;
+    let mut to_id = 0;
+    let mut location_id = 0;
 
-    if !((*chat).type_0 == 100i32 || (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32) {
+    if !((*chat).type_0 == 100 || (*chat).type_0 == 120 || (*chat).type_0 == 130) {
         dc_log_error(
             context,
-            0i32,
+            0,
             b"Cannot send to chat type #%i.\x00" as *const u8 as *const libc::c_char,
             (*chat).type_0,
         );
-    } else if ((*chat).type_0 == 120i32 || (*chat).type_0 == 130i32)
-        && 0 == dc_is_contact_in_chat(context, (*chat).id, 1i32 as uint32_t)
+    } else if ((*chat).type_0 == 120 || (*chat).type_0 == 130)
+        && 0 == dc_is_contact_in_chat(context, (*chat).id, 1 as uint32_t)
     {
         dc_log_event(
             context,
             Event::ERROR_SELF_NOT_IN_GROUP,
-            0i32,
+            0,
             b"Cannot send message; self not in group.\x00" as *const u8 as *const libc::c_char,
         );
     } else {
@@ -537,7 +535,7 @@ unsafe fn prepare_msg_raw(
         } else {
             let from_c = to_cstring(from.unwrap());
             new_rfc724_mid = dc_create_outgoing_rfc724_mid(
-                if (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32 {
+                if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
                     (*chat).grpid
                 } else {
                     0 as *mut libc::c_char
@@ -566,8 +564,8 @@ unsafe fn prepare_msg_raw(
                     current_block = 10477488590406205504;
                 }
             } else {
-                if (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32 {
-                    if dc_param_get_int((*chat).param, 'U' as i32, 0i32) == 1i32 {
+                if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
+                    if dc_param_get_int((*chat).param, 'U' as i32, 0) == 1 {
                         dc_param_set((*chat).param, 'U' as i32, 0 as *const libc::c_char);
                         dc_chat_update_param(chat);
                     }
@@ -588,10 +586,9 @@ unsafe fn prepare_msg_raw(
                         "e2ee_enabled",
                         1,
                     );
-                    if 0 != e2ee_enabled && dc_param_get_int((*msg).param, 'u' as i32, 0i32) == 0i32
-                    {
-                        let mut can_encrypt: libc::c_int = 1i32;
-                        let mut all_mutual: libc::c_int = 1i32;
+                    if 0 != e2ee_enabled && dc_param_get_int((*msg).param, 'u' as i32, 0) == 0 {
+                        let mut can_encrypt: libc::c_int = 1;
+                        let mut all_mutual: libc::c_int = 1;
 
                         if let Some(mut stmt) = dc_sqlite3_prepare(
                             context,
@@ -631,7 +628,7 @@ unsafe fn prepare_msg_raw(
 
                         if 0 != can_encrypt {
                             if 0 != all_mutual {
-                                do_guarantee_e2ee = 1i32
+                                do_guarantee_e2ee = 1;
                             } else if 0
                                 != last_msg_in_chat_encrypted(
                                     context,
@@ -639,12 +636,12 @@ unsafe fn prepare_msg_raw(
                                     (*chat).id,
                                 )
                             {
-                                do_guarantee_e2ee = 1i32
+                                do_guarantee_e2ee = 1;
                             }
                         }
                     }
                     if 0 != do_guarantee_e2ee {
-                        dc_param_set_int((*msg).param, 'c' as i32, 1i32);
+                        dc_param_set_int((*msg).param, 'c' as i32, 1);
                     }
                     dc_param_set((*msg).param, 'e' as i32, 0 as *const libc::c_char);
                     if 0 == dc_chat_is_self_talk(chat)
@@ -664,7 +661,7 @@ unsafe fn prepare_msg_raw(
                             let space: *mut libc::c_char;
                             space = strchr(parent_references, ' ' as i32);
                             if !space.is_null() {
-                                *space = 0i32 as libc::c_char
+                                *space = 0 as libc::c_char
                             }
                         }
                         if !parent_references.is_null()
@@ -776,13 +773,13 @@ unsafe fn prepare_msg_raw(
             }
         }
     }
+
     free(parent_rfc724_mid as *mut libc::c_void);
     free(parent_in_reply_to as *mut libc::c_void);
     free(parent_references as *mut libc::c_void);
     free(new_rfc724_mid as *mut libc::c_void);
     free(new_in_reply_to as *mut libc::c_void);
     free(new_references as *mut libc::c_void);
-    sqlite3_finalize(stmt);
 
     msg_id
 }
@@ -1011,7 +1008,6 @@ pub unsafe fn dc_set_draft(context: &Context, chat_id: uint32_t, msg: *mut dc_ms
 unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t) -> libc::c_int {
     let current_block: u64;
     // similar to as dc_set_draft() but does not emit an event
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let prev_draft_msg_id: uint32_t;
     let mut sth_changed: libc::c_int = 0i32;
@@ -1055,10 +1051,10 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
             14513523936503887211 => {}
             _ => {
                 if dc_sqlite3_execute(
-                        context,
-                        &context.sql.clone().read().unwrap(),
-                        "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
-                         VALUES (?,?,?, ?,?,?,?,?);",
+                    context,
+                    &context.sql.clone().read().unwrap(),
+                    "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
+                     VALUES (?,?,?, ?,?,?,?,?);",
                     params![
                         chat_id as i32, 1, time(), (*msg).type_0, 19,
                         if !(*msg).text.is_null() {
@@ -1075,7 +1071,6 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
             }
         }
     }
-    sqlite3_finalize(stmt);
     free(pathNfilename as *mut libc::c_void);
     sth_changed
 }
@@ -1122,9 +1117,6 @@ pub unsafe fn dc_get_chat_msgs(
     let mut success: libc::c_int = 0i32;
     let ret = dc_array_new(512i32 as size_t);
 
-    let mut curr_id: uint32_t;
-    let mut curr_local_timestamp: i64;
-    let mut curr_day: libc::c_int;
     let mut last_day = 0;
     let cnv_to_local = dc_gm2local_offset();
 
@@ -2020,7 +2012,7 @@ pub unsafe fn dc_forward_msgs(
         return;
     }
 
-    let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
+    let msg = dc_msg_new_untyped(context);
     let chat: *mut dc_chat_t = dc_chat_new(context);
     let contact: *mut dc_contact_t = dc_contact_new(context);
     let created_db_entries: *mut carray = carray_new(16i32 as libc::c_uint);
@@ -2147,7 +2139,7 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const dc_chat_t) -> *mut libc::c_char 
         return dc_strdup(b"Err\x00" as *const u8 as *const libc::c_char);
     }
 
-    let ret: *mut libc::c_char = std::ptr::null_mut();
+    let mut ret: *mut libc::c_char = std::ptr::null_mut();
     if (*chat).type_0 == 100 && 0 != dc_param_exists((*chat).param, 'K' as i32) {
         ret = dc_stock_str((*chat).context, 50)
     } else if (*chat).type_0 == 100 {

@@ -1058,7 +1058,6 @@ unsafe fn create_or_lookup_group(
     let mut chat_id_verified: libc::c_int = 0;
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut stmt: *mut sqlite3_stmt;
     let mut i: libc::c_int;
     let to_ids_cnt: libc::c_int = dc_array_get_cnt(to_ids) as libc::c_int;
     let mut recreate_member_list: libc::c_int = 0;
@@ -1655,9 +1654,7 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
      */
     let member_ids_str = dc_array_get_string(member_ids, b",\x00" as *const u8 as *const _);
-    let mut member_cs = String::new();
-
-    let addr = dc_sqlite3_get_config(
+    let mut member_cs = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         "configured_addr",
@@ -1691,7 +1688,7 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
         })
         .unwrap_or_else(|| member_cs);
 
-    hex_hash(&member_cs) as *mut _
+    hex_hash(&members) as *mut _
 }
 
 fn hex_hash(s: impl AsRef<str>) -> *const libc::c_char {
@@ -1708,10 +1705,8 @@ unsafe fn search_chat_ids_by_contact_ids(
     unsorted_contact_ids: *const dc_array_t,
 ) -> *mut dc_array_t {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let contact_ids: *mut dc_array_t = dc_array_new(23 as size_t);
     let mut contact_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     let chat_ids: *mut dc_array_t = dc_array_new(23 as size_t);
 
     /* copy array, remove duplicates and SELF, sort by ID */
@@ -1784,7 +1779,6 @@ unsafe fn check_verified_properties(
     to_ids: *const dc_array_t,
     failure_reason: *mut *mut libc::c_char,
 ) -> libc::c_int {
-    let mut current_block: u64 = 0;
     let mut everythings_okay: libc::c_int = 0;
     let contact: *mut dc_contact_t = dc_contact_new(context);
     let mut to_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -2073,7 +2067,6 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clis
  * Check if a message is a reply to any messenger message
  ******************************************************************************/
 fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: *const libc::c_char) -> libc::c_int {
-    let mut is_msgrmsg: libc::c_int = 0;
     if rfc724_mid.is_null() {
         return 0;
     }

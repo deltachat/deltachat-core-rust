@@ -44,18 +44,11 @@ impl Smtp {
     }
 
     /// Connect using the provided login params
-    pub fn connect(&mut self, context: &Context, lp: *const dc_loginparam_t) -> usize {
-        if lp.is_null() {
-            return 0;
-        }
-
+    pub fn connect(&mut self, context: &Context, lp: &dc_loginparam_t) -> usize {
         if self.is_connected() {
             warn!(context, 0, "SMTP already connected.");
             return 1;
         }
-
-        // Safe because we checked for null pointer above.
-        let lp = unsafe { *lp };
 
         if lp.send_server.is_empty() || lp.send_port == 0 {
             log_event!(context, Event::ERROR_NETWORK, 0, "SMTP bad parameters.",);

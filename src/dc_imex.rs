@@ -1026,9 +1026,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
 
     let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut buf_bytes: size_t = 0i32 as size_t;
     let mut delete_dest_file: libc::c_int = 0i32;
-    let mut dest_sql: Option<dc_sqlite3_t> = None;
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete. however, currently it is not clear it the import exists in the long run (may be replaced by a restore-from-imap)
     let now = time();
@@ -1221,7 +1219,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                 }
             }
         }
-        dest_sql = Some(sql);
     }
     if 0 != closed {
         dc_sqlite3_open(

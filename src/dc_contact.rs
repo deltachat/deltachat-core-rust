@@ -571,9 +571,6 @@ pub fn dc_get_contacts(
             stmt.query_map(params![self_addr, 9, 0x100], process_row).ok()
         });
     } else {
-        let mut self_name: *mut libc::c_char = 0 as *mut libc::c_char;
-        let mut self_name2: *mut libc::c_char = 0 as *mut libc::c_char;
-
         let s3strLikeCmd = format!("%{}%", if !query.is_null() { as_str(query) } else { "" });
 
         dc_sqlite3_prepare(

@@ -165,18 +165,15 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_addr(context: &'a Context, sql: &dc_sqlite3_t, addr: &str) -> Option<Self> {
-        let mut res = None;
-
+    pub fn from_addr(context: &'a Context, _sql: &dc_sqlite3_t, addr: &str) -> Option<Self> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;";
 
-        Self::from_stmt(context, query, &[addr]);
-        res
+        Self::from_stmt(context, query, &[addr])
     }
 
     pub fn from_fingerprint(
         context: &'a Context,
-        sql: &dc_sqlite3_t,
+        _sql: &dc_sqlite3_t,
         fingerprint: &str,
     ) -> Option<Self> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \

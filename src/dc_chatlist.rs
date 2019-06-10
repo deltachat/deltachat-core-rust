@@ -152,7 +152,7 @@ unsafe fn dc_chatlist_load_from_db(
         if query_contact_id != 0 {
             dc_sqlite3_prepare(
             (*chatlist).context,
-            &mut (*chatlist).context.sql.clone().read().unwrap(),
+            &(*chatlist).context.sql.clone().read().unwrap(),
             "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
              ON c.id=m.chat_id        \
              AND m.timestamp=( SELECT MAX(timestamp)   \
@@ -164,7 +164,7 @@ unsafe fn dc_chatlist_load_from_db(
         } else if 0 != listflags & 0x1 {
             dc_sqlite3_prepare(
                 (*chatlist).context,
-                &mut (*chatlist).context.sql.clone().read().unwrap(),
+                &(*chatlist).context.sql.clone().read().unwrap(),
                 "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
                  ON c.id=m.chat_id        \
                  AND m.timestamp=( SELECT MAX(timestamp)   \

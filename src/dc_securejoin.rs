@@ -29,7 +29,6 @@ pub unsafe fn dc_get_securejoin_qr(
     context: &Context,
     group_chat_id: uint32_t,
 ) -> *mut libc::c_char {
-    let current_block: u64;
     /* =========================================================
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
@@ -433,27 +432,14 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     b"Secure-Join-Invitenumber\x00" as *const u8 as *const libc::c_char,
                 );
                 if invitenumber.is_null() {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"Secure-join denied (invitenumber missing).\x00" as *const u8
-                            as *const libc::c_char,
-                    );
+                    warn!(context, 0, "Secure-join denied (invitenumber missing).",);
                     current_block = 4378276786830486580;
-                } else if dc_token_exists(context, DC_TOKEN_INVITENUMBER, invitenumber) == 0i32 {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"Secure-join denied (bad invitenumber).\x00" as *const u8
-                            as *const libc::c_char,
-                    );
+                } else if !dc_token_exists(context, DC_TOKEN_INVITENUMBER, invitenumber) {
+                    warn!(context, 0, "Secure-join denied (bad invitenumber).",);
                     current_block = 4378276786830486580;
                 } else {
-                    dc_log_info(
-                        context,
-                        0i32,
-                        b"Secure-join requested.\x00" as *const u8 as *const libc::c_char,
-                    );
+                    info!(context, 0, "Secure-join requested.",);
+
                     (context.cb)(
                         context,
                         Event::SECUREJOIN_INVITER_PROGRESS,
@@ -626,7 +612,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Auth not provided.\x00" as *const u8 as *const libc::c_char,
                         );
                         current_block = 4378276786830486580;
-                    } else if dc_token_exists(context, DC_TOKEN_AUTH, auth_0) == 0i32 {
+                    } else if !dc_token_exists(context, DC_TOKEN_AUTH, auth_0) {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
@@ -1048,8 +1034,7 @@ unsafe fn encrypted_and_signed(
 }
 
 pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) {
-    let contact_id: uint32_t;
-    let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
+    let mut contact_chat_id = 0;
 
     // - we do not issue an warning for DC_DE_ENCRYPTION_PAUSED as this is quite normal
     // - currently, we do not issue an extra warning for DC_DE_VERIFICATION_LOST - this always comes

@@ -76,21 +76,34 @@ pub fn dc_get_oauth2_access_token(
     if let Some(oauth2) = Oauth2::from_address(addr) {
         let lock = context.oauth2_critical.clone();
         let _l = lock.lock().unwrap();
-        let sql = context.sql.clone().read().unwrap();
 
         // read generated token
         if 0 == flags & 0x1 && !is_expired(context) {
-            let access_token = dc_sqlite3_get_config(context, &sql, "oauth2_access_token", None);
+            let access_token = dc_sqlite3_get_config(
+                context,
+                &context.sql.clone().read().unwrap(),
+                "oauth2_access_token",
+                None,
+            );
             if access_token.is_some() {
                 // success
                 return access_token;
             }
         }
 
-        let refresh_token = dc_sqlite3_get_config(context, &sql, "oauth2_refresh_token", None);
-        let refresh_token_for =
-            dc_sqlite3_get_config(context, &sql, "oauth2_refresh_token_for", None)
-                .unwrap_or_else(|| "unset".into());
+        let refresh_token = dc_sqlite3_get_config(
+            context,
+            &context.sql.clone().read().unwrap(),
+            "oauth2_refresh_token",
+            None,
+        );
+        let refresh_token_for = dc_sqlite3_get_config(
+            context,
+            &context.sql.clone().read().unwrap(),
+            "oauth2_refresh_token_for",
+            None,
+        )
+        .unwrap_or_else(|| "unset".into());
 
         let (redirect_uri, token_url, update_redirect_uri_on_success) =
             if refresh_token.is_none() || refresh_token_for != code.as_ref() {
@@ -99,8 +112,13 @@ pub fn dc_get_oauth2_access_token(
                     0, "Generate OAuth2 refresh_token and access_token...",
                 );
                 (
-                    dc_sqlite3_get_config(context, &sql, "oauth2_pending_redirect_uri", None)
-                        .unwrap_or_else(|| "unset".into()),
+                    dc_sqlite3_get_config(
+                        context,
+                        &context.sql.clone().read().unwrap(),
+                        "oauth2_pending_redirect_uri",
+                        None,
+                    )
+                    .unwrap_or_else(|| "unset".into()),
                     oauth2.init_token,
                     true,
                 )
@@ -110,8 +128,13 @@ pub fn dc_get_oauth2_access_token(
                     0, "Regenerate OAuth2 access_token by refresh_token...",
                 );
                 (
-                    dc_sqlite3_get_config(context, &sql, "oauth2_redirect_uri", None)
-                        .unwrap_or_else(|| "unset".into()),
+                    dc_sqlite3_get_config(
+                        context,
+                        &context.sql.clone().read().unwrap(),
+                        "oauth2_redirect_uri",
+                        None,
+                    )
+                    .unwrap_or_else(|| "unset".into()),
                     oauth2.refresh_token,
                     false,
                 )
@@ -154,10 +177,15 @@ pub fn dc_get_oauth2_access_token(
         println!("response: {:?}", &parsed);
         let response = parsed.unwrap();
         if let Some(ref token) = response.refresh_token {
-            dc_sqlite3_set_config(context, &sql, "oauth2_refresh_token", Some(token));
             dc_sqlite3_set_config(
                 context,
-                &sql,
+                &context.sql.clone().read().unwrap(),
+                "oauth2_refresh_token",
+                Some(token),
+            );
+            dc_sqlite3_set_config(
+                context,
+                &context.sql.clone().read().unwrap(),
                 "oauth2_refresh_token_for",
                 Some(code.as_ref()),
             );
@@ -166,18 +194,28 @@ pub fn dc_get_oauth2_access_token(
         // after that, save the access token.
         // if it's unset, we may get it in the next round as we have the refresh_token now.
         if let Some(ref token) = response.access_token {
-            dc_sqlite3_set_config(context, &sql, "oauth2_access_token", Some(token));
+            dc_sqlite3_set_config(
+                context,
+                &context.sql.clone().read().unwrap(),
+                "oauth2_access_token",
+                Some(token),
+            );
             let expires_in = response
                 .expires_in
                 // refresh a bet before
                 .map(|t| time() + t as i64 - 5)
                 .unwrap_or_else(|| 0);
-            dc_sqlite3_set_config_int64(context, &sql, "oauth2_timestamp_expires", expires_in);
+            dc_sqlite3_set_config_int64(
+                context,
+                &context.sql.clone().read().unwrap(),
+                "oauth2_timestamp_expires",
+                expires_in,
+            );
 
             if update_redirect_uri_on_success {
                 dc_sqlite3_set_config(
                     context,
-                    &sql,
+                    &context.sql.clone().read().unwrap(),
                     "oauth2_redirect_uri",
                     Some(redirect_uri.as_ref()),
                 );

@@ -94,7 +94,7 @@ impl Aheader {
 
                     match Self::from_str(value) {
                         Ok(test) => {
-                            if dc_addr_cmp(test.addr, as_str(wanted_from)) {
+                            if dc_addr_cmp(&test.addr, as_str(wanted_from)) {
                                 if fine_header.is_none() {
                                     fine_header = Some(test);
                                 } else {

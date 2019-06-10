@@ -981,7 +981,6 @@ impl Imap {
 
             if !is_deleted && msg.body().is_some() {
                 unsafe {
-                    let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
                     (self.receive_imf)(
                         context,
                         msg.body().unwrap().as_ptr() as *const libc::c_char,

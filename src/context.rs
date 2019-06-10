@@ -424,13 +424,13 @@ pub unsafe fn dc_get_blobdir(context: &Context) -> *mut libc::c_char {
 pub fn dc_set_config(context: &Context, key: impl AsRef<str>, value: Option<&str>) -> libc::c_int {
     let mut ret = 0;
 
-    if !is_settable_config_key(key) {
+    if !is_settable_config_key(key.as_ref()) {
         return 0;
     }
 
     match key.as_ref() {
         "selfavatar" if value.is_some() => {
-            let rel_path = unsafe { dc_strdup(to_cstring(value.unwrap()).as_ptr()) };
+            let mut rel_path = unsafe { dc_strdup(to_cstring(value.unwrap()).as_ptr()) };
             if 0 != unsafe { dc_make_rel_and_copy(context, &mut rel_path) } {
                 ret = dc_sqlite3_set_config(
                     context,
@@ -484,17 +484,21 @@ fn is_settable_config_key(key: impl AsRef<str>) -> bool {
 
 pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
     if key.as_ref().starts_with("sys") {
-        return get_sys_config_str(key);
+        return get_sys_config_str(key.as_ref());
     }
 
-    if !is_gettable_config_key(key) {
+    if !is_gettable_config_key(key.as_ref()) {
         return "".into();
     }
 
     let value = match key.as_ref() {
         "selfavatar" => {
-            let rel_path =
-                dc_sqlite3_get_config(context, &context.sql.clone().read().unwrap(), key, None);
+            let rel_path = dc_sqlite3_get_config(
+                context,
+                &context.sql.clone().read().unwrap(),
+                key.as_ref(),
+                None,
+            );
             rel_path.map(|p| {
                 let v = unsafe { dc_get_abs_path(context, to_cstring(p).as_ptr()) };
                 let r = to_string(v);
@@ -502,7 +506,12 @@ pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
                 r
             })
         }
-        _ => dc_sqlite3_get_config(context, &context.sql.clone().read().unwrap(), key, None),
+        _ => dc_sqlite3_get_config(
+            context,
+            &context.sql.clone().read().unwrap(),
+            key.as_ref(),
+            None,
+        ),
     };
 
     if value.is_some() {
@@ -756,7 +765,7 @@ pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
                         }
                     }
                 }
-                Err(err) => {}
+                Err(_err) => {}
             }
         }
     }
@@ -771,26 +780,26 @@ pub unsafe fn dc_search_msgs(
 ) -> *mut dc_array_t {
     let mut success = false;
     let ret = dc_array_new(100 as size_t);
-    let mut stmt = 0 as *mut sqlite3_stmt;
 
     if !(ret.is_null() || query.is_null()) {
-        let real_query = to_string(query).trim();
+        let real_query = to_string(query).trim().to_string();
         if real_query.is_empty() {
             success = true;
         } else {
             let strLikeInText = format!("%{}%", &real_query);
             let strLikeBeg = format!("{}%", &real_query);
 
-            let res = if 0 != chat_id {
+            let rows = if 0 != chat_id {
                 dc_sqlite3_prepare(
                     context,
                     &context.sql.clone().read().unwrap(),
                     "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
                       AND m.hidden=0  \
                       AND ct.blocked=0 AND (txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp,m.id;"
-                ).and_then(|mut stmt| {
-                    stmt.query(params![chat_id as libc::c_int, strLikeInText, strLikeBeg]).ok()
-                })
+                ).and_then(|mut stmt| stmt.query_map(
+                    params![chat_id as libc::c_int, &strLikeInText, &strLikeBeg],
+                    |row| row.get::<_, i32>(0)
+                ).and_then(|res| res.collect::<rusqlite::Result<Vec<i32>>>()).ok())
             } else {
                 let show_deaddrop = 0;
                 dc_sqlite3_prepare(
@@ -800,23 +809,18 @@ pub unsafe fn dc_search_msgs(
                       LEFT JOIN chats c ON m.chat_id=c.id WHERE m.chat_id>9 AND m.hidden=0  \
                       AND (c.blocked=0 OR c.blocked=?) \
                       AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
-                ).and_then(|mut stmt| {
-                    stmt.query(params![
+                ).and_then(|mut stmt|
+                    stmt.query_map(params![
                         if 0 != show_deaddrop { 2 } else { 0 },
                         strLikeInText, strLikeBeg,
-                    ]).ok()
-                })
+                    ], |row| row.get::<_, i32>(0)).and_then(|res| res.collect::<rusqlite::Result<Vec<i32>>>()).ok()
+                )
             };
-            match res {
-                Some(rows) => {
-                    while let Ok(Some(row)) = rows.next() {
-                        if let Ok(id) = row.get(0) {
-                            unsafe { dc_array_add_id(ret, id) };
-                        }
-                    }
-                    success = true;
+            if let Some(ids) = rows {
+                for id in ids {
+                    unsafe { dc_array_add_id(ret, id as u32) };
                 }
-                None => {}
+                success = true;
             }
         }
     }

@@ -705,8 +705,8 @@ pub fn dc_sqlite3_open(
                                 Some(as_str(context.get_blobdir())),
                             )
                             .unwrap();
-                            let repl_form = dc_ensure_no_slash_safe(&repl_from);
 
+                            let repl_from = dc_ensure_no_slash_safe(&repl_from);
                             dc_sqlite3_execute(
                                 context,
                                 sql,
@@ -761,7 +761,7 @@ pub fn dc_sqlite3_set_config(
         return 0;
     }
 
-    let mut good = false;
+    let mut good;
 
     if let Some(ref value) = value {
         if let Some(exists) =
@@ -845,6 +845,7 @@ pub fn dc_sqlite3_get_config(
         params![key.as_ref()],
         0,
     )
+    .or_else(|| def.map(|s| s.to_string()))
 }
 
 pub fn dc_sqlite3_execute<P>(
@@ -923,7 +924,7 @@ pub fn dc_sqlite3_get_config_int(
 }
 
 pub fn dc_sqlite3_table_exists(
-    context: &Context,
+    _context: &Context,
     sql: &dc_sqlite3_t,
     name: impl AsRef<str>,
 ) -> libc::c_int {
@@ -1239,7 +1240,7 @@ fn maybe_add_from_param(
             }
         }
     }
-    dc_param_unref(param);
+    unsafe { dc_param_unref(param) };
 }
 
 #[cfg(test)]

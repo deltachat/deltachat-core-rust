@@ -43,7 +43,6 @@ pub unsafe fn dc_send_locations_to_chat(
     chat_id: uint32_t,
     seconds: libc::c_int,
 ) {
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let now = time();
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let mut stock_str: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -293,7 +292,6 @@ pub unsafe fn dc_get_location_kml(
     last_added_location_id: *mut uint32_t,
 ) -> *mut libc::c_char {
     let mut success: libc::c_int = 0;
-    let mut stmt: *mut sqlite3_stmt;
     let now = time();
     let mut location_count: libc::c_int = 0;
     let mut ret = String::new();
@@ -516,7 +514,6 @@ pub unsafe fn dc_save_locations(
                     contact_id as i32,
                 );
             }
-            i += 1
         }
     }
 
@@ -694,8 +691,6 @@ pub unsafe fn dc_kml_unref(kml: *mut dc_kml_t) {
 }
 
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mut dc_job_t) {
-    let stmt_chats: *mut sqlite3_stmt;
-    let mut stmt_locations: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let now = time();
     let mut continue_streaming: libc::c_int = 1;
     dc_log_info(

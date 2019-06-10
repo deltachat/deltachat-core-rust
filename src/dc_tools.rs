@@ -1268,7 +1268,7 @@ pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf
 
     let p = as_str(pathNfilename_abs);
 
-    let success = if let Err(err) = fs::write(p, buf) {
+    let success = if let Err(_err) = fs::write(p, buf) {
         warn!(
             context,
             0,
@@ -1324,7 +1324,7 @@ pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> O
         }
     };
 
-    free(pathNfilename_abs as *mut libc::c_void);
+    unsafe { free(pathNfilename_abs as *mut libc::c_void) };
 
     res
 }
@@ -1660,61 +1660,29 @@ mod tests {
 
     #[test]
     fn test_dc_str_truncate_1() {
-        unsafe {
-            let str: *mut libc::c_char =
-                strdup(b"this is a little test string\x00" as *const u8 as *const libc::c_char);
-            dc_truncate_str(str, 16);
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "this is a [...]"
-            );
-            free(str as *mut libc::c_void);
-        }
+        let s = "this is a little test string";
+        assert_eq!(dc_truncate_str(s, 16), "this is a [...]");
     }
 
     #[test]
     fn test_dc_str_truncate_2() {
-        unsafe {
-            let str: *mut libc::c_char = strdup(b"1234\x00" as *const u8 as *const libc::c_char);
-            dc_truncate_str(str, 2);
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "1234"
-            );
-            free(str as *mut libc::c_void);
-        }
+        assert_eq!(dc_truncate_str("1234", 2), "1234");
     }
 
     #[test]
     fn test_dc_str_truncate_3() {
-        unsafe {
-            let str: *mut libc::c_char = strdup(b"1234567\x00" as *const u8 as *const libc::c_char);
-            dc_truncate_str(str, 1);
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "1[...]"
-            );
-            free(str as *mut libc::c_void);
-        }
+        assert_eq!(dc_truncate_str("1234567", 3), "1[...]");
     }
 
     #[test]
     fn test_dc_str_truncate_4() {
-        unsafe {
-            let str: *mut libc::c_char = strdup(b"123456\x00" as *const u8 as *const libc::c_char);
-            dc_truncate_str(str, 4);
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "123456"
-            );
-            free(str as *mut libc::c_void);
-        }
+        assert_eq!(dc_truncate_str("123456", 4), "123456");
     }
 
     #[test]
     fn test_dc_insert_breaks_1() {
         unsafe {
-            let str: *mut libc::c_char = dc_insert_breaks(
+            let str = dc_insert_breaks(
                 b"just1234test\x00" as *const u8 as *const libc::c_char,
                 4,
                 b" \x00" as *const u8 as *const libc::c_char,
