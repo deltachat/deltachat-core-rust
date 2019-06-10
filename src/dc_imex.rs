@@ -354,7 +354,7 @@ pub unsafe fn dc_continue_key_transfer(
     if !(msg_id <= 9i32 as libc::c_uint || setup_code.is_null()) {
         msg = dc_get_msg(context, msg_id);
         if msg.is_null()
-            || 0 == dc_msg_is_setupmessage(msg)
+            || !dc_msg_is_setupmessage(msg)
             || {
                 filename = dc_msg_get_file(msg);
                 filename.is_null()

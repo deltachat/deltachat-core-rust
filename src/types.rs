@@ -22,7 +22,7 @@ pub type dc_receive_imf_t = unsafe fn(
     _: &Context,
     _: *const libc::c_char,
     _: size_t,
-    _: *const libc::c_char,
+    _: &str,
     _: uint32_t,
     _: uint32_t,
 ) -> ();

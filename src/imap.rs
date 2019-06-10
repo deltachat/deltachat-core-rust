@@ -986,7 +986,7 @@ impl Imap {
                         context,
                         msg.body().unwrap().as_ptr() as *const libc::c_char,
                         msg.body().unwrap().len(),
-                        folder_c.as_ptr(),
+                        folder.as_ref(),
                         server_uid,
                         flags as u32,
                     );

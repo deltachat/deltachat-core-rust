@@ -20,8 +20,7 @@ pub unsafe fn dc_token_save(
         stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
-            b"INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);\x00"
-                as *const u8 as *const libc::c_char,
+            "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
         );
         sqlite3_bind_int(stmt, 1i32, namespc as libc::c_int);
         sqlite3_bind_int(stmt, 2i32, foreign_id as libc::c_int);
@@ -41,8 +40,7 @@ pub unsafe fn dc_token_lookup(
     stmt = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
-        b"SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;\x00" as *const u8
-            as *const libc::c_char,
+        "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
     );
     sqlite3_bind_int(stmt, 1i32, namespc as libc::c_int);
     sqlite3_bind_int(stmt, 2i32, foreign_id as libc::c_int);
@@ -64,8 +62,7 @@ pub unsafe fn dc_token_exists(
         stmt = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
-            b"SELECT id FROM tokens WHERE namespc=? AND token=?;\x00" as *const u8
-                as *const libc::c_char,
+            "SELECT id FROM tokens WHERE namespc=? AND token=?;",
         );
         sqlite3_bind_int(stmt, 1i32, namespc as libc::c_int);
         sqlite3_bind_text(stmt, 2i32, token, -1i32, None);

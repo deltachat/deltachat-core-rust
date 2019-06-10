@@ -225,7 +225,7 @@ unsafe fn cb_receive_imf(
     context: &Context,
     imf_raw_not_terminated: *const libc::c_char,
     imf_raw_bytes: size_t,
-    server_folder: *const libc::c_char,
+    server_folder: &str,
     server_uid: uint32_t,
     flags: uint32_t,
 ) {
@@ -831,52 +831,35 @@ pub unsafe fn dc_search_msgs(
     }
 }
 
-pub unsafe fn dc_is_inbox(_context: &Context, folder_name: *const libc::c_char) -> libc::c_int {
-    let mut is_inbox = 0;
-    if !folder_name.is_null() {
-        is_inbox = if strcasecmp(
-            b"INBOX\x00" as *const u8 as *const libc::c_char,
-            folder_name,
-        ) == 0
-        {
-            1
-        } else {
-            0
-        }
-    }
-    is_inbox
+pub fn dc_is_inbox(_context: &Context, folder_name: impl AsRef<str>) -> bool {
+    folder_name.as_ref() == "INBOX"
 }
 
-pub unsafe fn dc_is_sentbox(context: &Context, folder_name: *const libc::c_char) -> libc::c_int {
+pub fn dc_is_sentbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
     let sentbox_name = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         "configured_sentbox_folder",
         None,
     );
-    let mut is_sentbox = 0;
     if let Some(name) = sentbox_name {
-        if !folder_name.is_null() {
-            is_sentbox = if name == as_str(folder_name) { 1 } else { 0 }
-        }
+        name == folder_name.as_ref()
+    } else {
+        false
     }
-
-    is_sentbox
 }
 
-pub unsafe fn dc_is_mvbox(context: &Context, folder_name: *const libc::c_char) -> libc::c_int {
+pub fn dc_is_mvbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
     let mvbox_name = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         "configured_mvbox_folder",
         None,
     );
-    let mut is_mvbox = 0;
-    if let Some(name) = mvbox_name {
-        if !folder_name.is_null() {
-            is_mvbox = if name == as_str(folder_name) { 1 } else { 0 }
-        }
-    }
 
-    is_mvbox
+    if let Some(name) = mvbox_name {
+        name == folder_name.as_ref()
+    } else {
+        false
+    }
 }

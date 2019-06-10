@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fs;
 use std::time::SystemTime;
 
@@ -343,25 +344,13 @@ pub unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
     j
 }
 
-pub unsafe fn dc_truncate_str(buf: *mut libc::c_char, approx_chars: libc::c_int) {
-    if approx_chars > 0
-        && strlen(buf)
-            > approx_chars.wrapping_add(
-                strlen(b"[...]\x00" as *const u8 as *const libc::c_char) as libc::c_int
-            ) as usize
-    {
-        let mut p: *mut libc::c_char = &mut *buf.offset(approx_chars as isize) as *mut libc::c_char;
-        *p = 0i32 as libc::c_char;
-        if !strchr(buf, ' ' as i32).is_null() {
-            while *p.offset(-1i32 as isize) as libc::c_int != ' ' as i32
-                && *p.offset(-1i32 as isize) as libc::c_int != '\n' as i32
-            {
-                p = p.offset(-1isize);
-                *p = 0i32 as libc::c_char
-            }
-        }
-        strcat(p, b"[...]\x00" as *const u8 as *const libc::c_char);
-    };
+pub fn dc_truncate_str(buf: &str, approx_chars: usize) -> Cow<str> {
+    let appendix = "[...]";
+    if approx_chars > 0 && buf.len() > approx_chars + appendix.len() {
+        Cow::Owned(format!("{}{}", &buf[..approx_chars], appendix))
+    } else {
+        Cow::Borrowed(buf)
+    }
 }
 
 pub unsafe fn dc_truncate_n_unwrap_str(
@@ -675,10 +664,13 @@ pub unsafe fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
 
 /* the return value must be free()'d */
 pub unsafe fn dc_timestamp_to_str(wanted: i64) -> *mut libc::c_char {
-    let ts = chrono::Utc.timestamp(wanted, 0);
-    let res = ts.format("%Y.%m.%d %H:%M:%S").to_string();
-
+    let res = dc_timestamp_to_str_safe(wanted);
     strdup(to_cstring(res).as_ptr())
+}
+
+pub fn dc_timestamp_to_str_safe(wanted: i64) -> String {
+    let ts = chrono::Utc.timestamp(wanted, 0);
+    ts.format("%Y.%m.%d %H:%M:%S").to_string()
 }
 
 pub fn dc_gm2local_offset() -> i64 {
@@ -1317,7 +1309,9 @@ pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> O
         Err(_err) => {
             warn!(
                 context,
-                0, "Cannot read \"{}\" or file is empty.", pathNfilename,
+                0,
+                "Cannot read \"{}\" or file is empty.",
+                pathNfilename.as_ref(),
             );
             None
         }
