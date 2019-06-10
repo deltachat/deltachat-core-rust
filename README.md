@@ -6,9 +6,17 @@
 
 Current commit on deltachat/deltachat-core: `12ef73c8e76185f9b78e844ea673025f56a959ab`.
 
+## Installing Rust and Cargo
+
+To download and install the official compiler for the Rust programming language, and the Cargo package manager, run the command in your user environment:
+
+```
+curl https://sh.rustup.rs -sSf | sh
+```
+
 ## Using the CLI client
 
-Run using `cargo`:
+Compile and run Delta Chat Core using `cargo`:
 
 ```
 cargo run --example repl -- /path/to/db
@@ -23,7 +31,11 @@ Delta Chat Core is awaiting your commands.
 > configure
 ```
 
-If you're already configured it's enough to `> connect`.
+Connect to your mail server (if already configured):
+
+```
+> connect
+```
 
 Create a contact:
 
@@ -51,7 +63,13 @@ Single#10: yourfriends@email.org [yourfriends@email.org]
 Message sent.
 ```
 
-For more commands type `> help`.
+List messages when inside a chat:
+
+```
+> chat
+```
+
+For more commands type:
 
 ```
 > help
