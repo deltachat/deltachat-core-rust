@@ -10,10 +10,14 @@
 #
 #   ./run-integration-tests.sh -e py35 -- -x
 
-cargo build -p deltachat_ffi
-
 export DCC_RS_DEV=$(pwd)
 export DCC_RS_TARGET=${DCC_RS_TARGET:-release}
+
+if [ $DCC_RS_TARGET = 'release' ]; then
+    cargo build -p deltachat_ffi --release
+else
+    cargo build -p deltachat_ffi
+fi
 
 pushd python
 toxargs="$@"
