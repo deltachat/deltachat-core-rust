@@ -1003,7 +1003,7 @@ pub fn dc_sqlite3_get_rowid(
                 field.as_ref()
             ),
             &[table.as_ref(), value.as_ref()],
-            |row| row.get(0),
+            |row| row.get::<_, u32>(0),
         ) {
             Ok(id) => id,
             Err(err) => {
@@ -1011,8 +1011,9 @@ pub fn dc_sqlite3_get_rowid(
                 0
             }
         }
+    } else {
+        0
     }
-    0
 }
 
 pub fn dc_sqlite3_get_rowid2(
@@ -1023,7 +1024,7 @@ pub fn dc_sqlite3_get_rowid2(
     value: i64,
     field2: impl AsRef<str>,
     value2: i32,
-) -> uint32_t {
+) -> u32 {
     // same as dc_sqlite3_get_rowid() with a key over two columns
     if let Some(ref conn) = sql.conn() {
         match conn.query_row(
@@ -1032,8 +1033,8 @@ pub fn dc_sqlite3_get_rowid2(
                 field.as_ref(),
                 field2.as_ref(),
             ),
-            &[table.as_ref(), value, value2],
-            |row| row.get(0),
+            params![table.as_ref(), value, value2],
+            |row| row.get::<_, u32>(0),
         ) {
             Ok(id) => id,
             Err(err) => {
@@ -1041,6 +1042,8 @@ pub fn dc_sqlite3_get_rowid2(
                 0
             }
         }
+    } else {
+        0
     }
 }
 
@@ -1074,19 +1077,21 @@ pub fn dc_housekeeping(context: &Context) {
         "SELECT param FROM contacts;",
         'i' as i32,
     );
-    let mut stmt = dc_sqlite3_prepare(
+
+    if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT value FROM config;",
-    );
-    match stmt.query_map(NO_PARAMS, |row| row.get(0)) {
-        Ok(rows) => {
-            for row in rows {
-                maybe_add_file(&mut files_in_use, row);
+    ) {
+        match stmt.query_map(params![], |row| row.get::<_, String>(0)) {
+            Ok(rows) => {
+                for row in rows {
+                    maybe_add_file(&mut files_in_use, row.expect("invalid sql"));
+                }
             }
-        }
-        Err(err) => {
-            warn!(context, 0, "sql: failed query: {}", err);
+            Err(err) => {
+                warn!(context, 0, "sql: failed query: {}", err);
+            }
         }
     }
     info!(context, 0, "{} files in use.", files_in_use.len(),);
@@ -1141,7 +1146,7 @@ pub fn dc_housekeeping(context: &Context) {
                             info!(
                                 context,
                                 0,
-                                "Housekeeping: Keeping new unreferenced file #{}: {}",
+                                "Housekeeping: Keeping new unreferenced file #{}: {:?}",
                                 unreferenced_count,
                                 entry.file_name(),
                             );
@@ -1153,7 +1158,7 @@ pub fn dc_housekeeping(context: &Context) {
                 info!(
                     context,
                     0,
-                    "Housekeeping: Deleting unreferenced file #{}: {}",
+                    "Housekeeping: Deleting unreferenced file #{}: {:?}",
                     unreferenced_count,
                     entry.file_name()
                 );
@@ -1197,17 +1202,12 @@ unsafe fn is_file_in_use(
     contains
 }
 
-unsafe fn maybe_add_file(files_in_use: &mut HashSet<String>, file: *const libc::c_char) {
-    if strncmp(
-        file,
-        b"$BLOBDIR/\x00" as *const u8 as *const libc::c_char,
-        9,
-    ) != 0
-    {
+fn maybe_add_file(files_in_use: &mut HashSet<String>, file: impl AsRef<str>) {
+    if !file.as_ref().starts_with("$BLOBDIR") {
         return;
     }
-    let raw_name = to_string(&*file.offset(9isize) as *const libc::c_char);
-    files_in_use.insert(raw_name);
+
+    files_in_use.insert(file.as_ref()[8..].into());
 }
 
 fn maybe_add_from_param(
@@ -1222,12 +1222,12 @@ fn maybe_add_from_param(
         dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(), query)
     {
         match stmt.query_row(NO_PARAMS, |row| {
-            let v = to_cstring(row.get(0));
+            let v = to_cstring(row.get::<_, String>(0)?);
             unsafe {
                 dc_param_set_packed(param, v.as_ptr() as *const libc::c_char);
                 let file = dc_param_get(param, param_id, 0 as *const libc::c_char);
                 if !file.is_null() {
-                    maybe_add_file(files_in_use, file);
+                    maybe_add_file(files_in_use, as_str(file));
                     free(file as *mut libc::c_void);
                 }
             }
@@ -1249,14 +1249,9 @@ mod test {
     #[test]
     fn test_maybe_add_file() {
         let mut files = Default::default();
-        unsafe { maybe_add_file(&mut files, b"$BLOBDIR/hello\x00" as *const u8 as *const _) };
-        unsafe {
-            maybe_add_file(
-                &mut files,
-                b"$BLOBDIR/world.txt\x00" as *const u8 as *const _,
-            )
-        };
-        unsafe { maybe_add_file(&mut files, b"world2.txt\x00" as *const u8 as *const _) };
+        maybe_add_file(&mut files, "$BLOBDIR/hello");
+        maybe_add_file(&mut files, "$BLOBDIR/world.txt");
+        maybe_add_file(&mut files, "world2.txt");
 
         assert!(files.contains("hello"));
         assert!(files.contains("world.txt"));
@@ -1266,14 +1261,9 @@ mod test {
     #[test]
     fn test_is_file_in_use() {
         let mut files = Default::default();
-        unsafe { maybe_add_file(&mut files, b"$BLOBDIR/hello\x00" as *const u8 as *const _) };
-        unsafe {
-            maybe_add_file(
-                &mut files,
-                b"$BLOBDIR/world.txt\x00" as *const u8 as *const _,
-            )
-        };
-        unsafe { maybe_add_file(&mut files, b"world2.txt\x00" as *const u8 as *const _) };
+        maybe_add_file(&mut files, "$BLOBDIR/hello");
+        maybe_add_file(&mut files, "$BLOBDIR/world.txt");
+        maybe_add_file(&mut files, "world2.txt");
 
         println!("{:?}", files);
         assert!(unsafe {
