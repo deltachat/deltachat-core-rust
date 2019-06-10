@@ -332,13 +332,13 @@ pub fn dc_add_or_lookup_contact(
     if sth_modified.is_null() {
         sth_modified = &mut dummy;
     }
-    *sth_modified = 0;
+    unsafe { *sth_modified = 0 };
 
     if addr__.is_null() || origin <= 0 {
         return 0;
     }
 
-    let addr_c = dc_addr_normalize(addr__);
+    let addr_c = unsafe { dc_addr_normalize(addr__) };
     let addr = as_str(addr_c);
     let addr_self = dc_sqlite3_get_config(
         context,
@@ -352,7 +352,7 @@ pub fn dc_add_or_lookup_contact(
         return 1;
     }
 
-    if !dc_may_be_valid_addr(addr_c) {
+    if !unsafe { dc_may_be_valid_addr(addr_c) } {
         warn!(
             context,
             0,
@@ -385,7 +385,7 @@ pub fn dc_add_or_lookup_contact(
             let row_origin = row.get(3)?;
             let row_authname: String = row.get(4)?;
 
-            if !name.is_null() && 0 != *name.offset(0) as libc::c_int {
+            if !name.is_null() && 0 != unsafe { *name.offset(0) as libc::c_int } {
                 if !row_name.is_empty() {
                     if origin >= row_origin && as_str(name) != row_name {
                         update_name = true;
@@ -435,7 +435,7 @@ pub fn dc_add_or_lookup_contact(
                     params![as_str(name), 100, row_id]
                 );
             }
-            *sth_modified = 1;
+            unsafe { *sth_modified = 1 };
         }
     } else {
         if dc_sqlite3_execute(
@@ -455,13 +455,13 @@ pub fn dc_add_or_lookup_contact(
                 "addr",
                 addr,
             );
-            *sth_modified = 2;
+            unsafe { *sth_modified = 2 };
         } else {
             error!(context, 0, "Cannot add contact.");
         }
     }
 
-    free(addr_c as *mut libc::c_void);
+    unsafe { free(addr_c as *mut libc::c_void) };
 
     row_id
 }

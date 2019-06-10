@@ -773,13 +773,13 @@ pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
     ret
 }
 
-pub unsafe fn dc_search_msgs(
+pub fn dc_search_msgs(
     context: &Context,
     chat_id: uint32_t,
     query: *const libc::c_char,
 ) -> *mut dc_array_t {
     let mut success = false;
-    let ret = dc_array_new(100 as size_t);
+    let ret = unsafe { dc_array_new(100 as size_t) };
 
     if !(ret.is_null() || query.is_null()) {
         let real_query = to_string(query).trim().to_string();
@@ -829,7 +829,7 @@ pub unsafe fn dc_search_msgs(
         ret
     } else {
         if !ret.is_null() {
-            dc_array_unref(ret);
+            unsafe { dc_array_unref(ret) };
         }
         0 as *mut dc_array_t
     }

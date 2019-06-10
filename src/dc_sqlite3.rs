@@ -4,7 +4,6 @@ use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_log::*;
 use crate::dc_param::*;
 use crate::dc_tools::*;
 use crate::peerstate::*;
@@ -680,16 +679,20 @@ pub fn dc_sqlite3_open(
                         }
 
                         if 0 != recalc_fingerprints {
-                            if let Some(addrs) =
+                            let rows = if let Some(mut stmt) =
                                 dc_sqlite3_prepare(context, sql, "SELECT addr FROM acpeerstates;")
-                                    .and_then(|mut stmt| {
-                                        stmt.query_map(params![], |row| row.get::<_, String>(0))
-                                            .ok()
-                                    })
                             {
+                                stmt.query_map(params![], |row| row.get::<_, String>(0))
+                                    .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
+                                    .ok()
+                            } else {
+                                None
+                            };
+
+                            if let Some(addrs) = rows {
                                 for addr in addrs {
                                     if let Some(ref mut peerstate) =
-                                        Peerstate::from_addr(context, sql, &addr.unwrap())
+                                        Peerstate::from_addr(context, sql, &addr)
                                     {
                                         peerstate.recalc_fingerprint();
                                         peerstate.save_to_db(sql, false);
@@ -710,15 +713,15 @@ pub fn dc_sqlite3_open(
                             dc_sqlite3_execute(
                                 context,
                                 sql,
-                                "UPDATE msgs SET param=replace(param, \'f=%q/\', \'f=$BLOBDIR/\')",
+                                "UPDATE msgs SET param=replace(param, \'f=?/\', \'f=$BLOBDIR/\')",
                                 params![repl_from],
                             );
 
                             dc_sqlite3_execute(
                                 context,
                                 sql,
-                                "UPDATE chats SET param=replace(param, \'i=%q/\', \'i=$BLOBDIR/\');",
-                                params![repl_from]
+                                "UPDATE chats SET param=replace(param, \'i=?/\', \'i=$BLOBDIR/\');",
+                                params![repl_from],
                             );
 
                             dc_sqlite3_set_config(context, sql, "backup_for", None);
@@ -732,12 +735,7 @@ pub fn dc_sqlite3_open(
             match current_block {
                 13628706266672894061 => {}
                 _ => {
-                    dc_log_info(
-                        context,
-                        0,
-                        b"Opened \"%s\".\x00" as *const u8 as *const libc::c_char,
-                        dbfile,
-                    );
+                    info!(context, 0, "Opened \"{}\".", dbfile,);
                     return 1;
                 }
             }
@@ -761,7 +759,7 @@ pub fn dc_sqlite3_set_config(
         return 0;
     }
 
-    let mut good;
+    let good;
 
     if let Some(ref value) = value {
         if let Some(exists) =
@@ -825,7 +823,7 @@ pub fn dc_sqlite3_prepare<'a>(
 }
 
 pub fn dc_sqlite3_is_open(sql: &dc_sqlite3_t) -> libc::c_int {
-    sql.raw().is_none() as libc::c_int
+    unsafe { sql.raw().is_none() as libc::c_int }
 }
 
 /* the returned string must be free()'d, returns NULL on errors */
@@ -858,7 +856,7 @@ where
     P: IntoIterator,
     P::Item: rusqlite::ToSql,
 {
-    if let Some(stmt) = dc_sqlite3_prepare(context, sql, querystr.as_ref()) {
+    if let Some(mut stmt) = dc_sqlite3_prepare(context, sql, querystr.as_ref()) {
         match stmt.execute(params) {
             Ok(_) => true,
             Err(err) => {
@@ -968,7 +966,7 @@ pub fn dc_sqlite3_try_execute(
     querystr: impl AsRef<str>,
 ) -> libc::c_int {
     // same as dc_sqlite3_execute() but does not pass error to ui
-    if let Some(stmt) = dc_sqlite3_prepare(context, sql, querystr.as_ref()) {
+    if let Some(mut stmt) = dc_sqlite3_prepare(context, sql, querystr.as_ref()) {
         match stmt.execute(params![]) {
             Ok(_) => 1,
             Err(err) => {
@@ -1050,7 +1048,6 @@ pub fn dc_sqlite3_get_rowid2(
 
 pub fn dc_housekeeping(context: &Context) {
     let mut files_in_use = HashSet::new();
-    let mut path = 0 as *mut libc::c_char;
     let mut unreferenced_count = 0;
 
     info!(context, 0, "Start housekeeping...");
@@ -1112,27 +1109,30 @@ pub fn dc_housekeeping(context: &Context) {
                 let name_f = entry.file_name();
                 let name_c = to_cstring(name_f.to_string_lossy());
 
-                if is_file_in_use(&mut files_in_use, 0 as *const libc::c_char, name_c.as_ptr())
-                    || is_file_in_use(
+                if unsafe {
+                    is_file_in_use(&mut files_in_use, 0 as *const libc::c_char, name_c.as_ptr())
+                } || unsafe {
+                    is_file_in_use(
                         &mut files_in_use,
                         b".increation\x00" as *const u8 as *const libc::c_char,
                         name_c.as_ptr(),
                     )
-                    || is_file_in_use(
+                } || unsafe {
+                    is_file_in_use(
                         &mut files_in_use,
                         b".waveform\x00" as *const u8 as *const libc::c_char,
                         name_c.as_ptr(),
                     )
-                    || is_file_in_use(
+                } || unsafe {
+                    is_file_in_use(
                         &mut files_in_use,
                         b"-preview.jpg\x00" as *const u8 as *const libc::c_char,
                         name_c.as_ptr(),
                     )
-                {
+                } {
                     continue;
                 }
                 unreferenced_count += 1;
-                free(path as *mut libc::c_void);
 
                 match std::fs::metadata(entry.path()) {
                     Ok(stats) => {
@@ -1163,7 +1163,8 @@ pub fn dc_housekeeping(context: &Context) {
                     unreferenced_count,
                     entry.file_name()
                 );
-                unsafe { dc_delete_file(context, path) };
+                let path = to_cstring(entry.path().to_str().unwrap());
+                unsafe { dc_delete_file(context, path.as_ptr()) };
             }
         }
         Err(err) => {
@@ -1177,7 +1178,6 @@ pub fn dc_housekeeping(context: &Context) {
         }
     }
 
-    free(path as *mut libc::c_void);
     info!(context, 0, "Housekeeping done.",);
 }
 

@@ -429,18 +429,22 @@ fn set_self_key(
     //   - " -
     let mut buf_base64: *const libc::c_char = 0 as *const libc::c_char;
 
-    let buf = dc_strdup(armored);
+    let buf = unsafe { dc_strdup(armored) };
 
-    if 0 == dc_split_armored_data(
-        buf,
-        &mut buf_headerline,
-        0 as *mut *const libc::c_char,
-        &mut buf_preferencrypt,
-        &mut buf_base64,
-    ) || strcmp(
-        buf_headerline,
-        b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-    ) != 0
+    if 0 == unsafe {
+        dc_split_armored_data(
+            buf,
+            &mut buf_headerline,
+            0 as *mut *const libc::c_char,
+            &mut buf_preferencrypt,
+            &mut buf_base64,
+        )
+    } || unsafe {
+        strcmp(
+            buf_headerline,
+            b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
+        )
+    } != 0
         || buf_base64.is_null()
     {
         warn!(context, 0, "File does not contain a private key.");

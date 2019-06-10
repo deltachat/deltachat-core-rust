@@ -146,15 +146,20 @@ pub fn dc_set_location(
     }
 
     let mut continue_streaming = false;
-    if let Some(chats) = dc_sqlite3_prepare(
+    let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT id FROM chats WHERE locations_send_until>?;",
-    )
-    .and_then(|mut stmt| stmt.query_map(params![time()], |row| row.get(0)).ok())
-    {
+    ) {
+        stmt.query_map(params![time()], |row| row.get::<_, i32>(0))
+            .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
+            .ok()
+    } else {
+        None
+    };
+
+    if let Some(chats) = rows {
         for chat_id in chats {
-            let chat_id: i32 = chat_id.expect("invalid sql");
             dc_sqlite3_execute(
                 context,
                 &context.sql.clone().read().unwrap(),
@@ -200,7 +205,7 @@ pub fn dc_get_locations(
 
     let ret = unsafe { dc_array_new_typed(1, 500) };
 
-    let locations = dc_sqlite3_prepare(
+    let locations = if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp, l.independent, \
@@ -209,8 +214,7 @@ pub fn dc_get_locations(
          AND (? OR l.from_id=?) \
          AND (l.independent=1 OR (l.timestamp>=? AND l.timestamp<=?)) \
          ORDER BY l.timestamp DESC, l.id DESC, m.id DESC;",
-    )
-    .and_then(|mut stmt| {
+    ) {
         stmt.query_map(
             params![
                 if chat_id == 0 { 1 } else { 0 },
@@ -245,13 +249,15 @@ pub fn dc_get_locations(
                 Ok(loc)
             },
         )
+        .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
         .ok()
-    });
+    } else {
+        None
+    };
 
     if let Some(locations) = locations {
         for location in locations {
-            let loc = location.expect("invalid sql");
-            unsafe { dc_array_add_ptr(ret, loc as *mut libc::c_void) };
+            unsafe { dc_array_add_ptr(ret, location as *mut libc::c_void) };
         }
         ret
     } else {
@@ -286,7 +292,7 @@ pub fn dc_delete_all_locations(context: &Context) -> bool {
     true
 }
 
-pub unsafe fn dc_get_location_kml(
+pub fn dc_get_location_kml(
     context: &Context,
     chat_id: uint32_t,
     last_added_location_id: *mut uint32_t,
@@ -329,7 +335,7 @@ pub unsafe fn dc_get_location_kml(
                 self_addr,
             );
 
-            if let Some(rows) = dc_sqlite3_prepare(
+            let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
                 context,
                 &context.sql.clone().read().unwrap(),
                 "SELECT id, latitude, longitude, accuracy, timestamp\
@@ -339,20 +345,24 @@ pub unsafe fn dc_get_location_kml(
                  AND independent=0 \
                  GROUP BY timestamp \
                  ORDER BY timestamp;",
-            ).and_then(|mut stmt| stmt.query_map(
-                params![1, locations_send_begin, locations_last_sent, 1],
-                |row| {
-                    let location_id: i32 = row.get(0)?;
-                    let latitude: f64 = row.get(1)?;
-                    let longitude: f64 = row.get(2)?;
-                    let accuracy: f64 = row.get(3)?;
-                    let timestamp = unsafe { get_kml_timestamp(row.get(4)?) };
+            ){
+                stmt.query_map(
+                    params![1, locations_send_begin, locations_last_sent, 1],
+                    |row| {
+                        let location_id: i32 = row.get(0)?;
+                        let latitude: f64 = row.get(1)?;
+                        let longitude: f64 = row.get(2)?;
+                        let accuracy: f64 = row.get(3)?;
+                        let timestamp = unsafe { get_kml_timestamp(row.get(4)?) };
 
-                    Ok((location_id, latitude, longitude, accuracy, timestamp))
-                }
-            ).ok()) {
-                for row in rows {
-                    let (location_id, latitude, longitude, accuracy, timestamp) = row.expect("invalid sql");
+                        Ok((location_id, latitude, longitude, accuracy, timestamp))
+                    }).and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>()).ok()
+            } else {
+                None
+            };
+
+            if let Some(rows) = rows {
+                for (location_id, latitude, longitude, accuracy, timestamp) in rows {
                     ret += &format!(
                         "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
                         as_str(timestamp),
@@ -376,7 +386,7 @@ pub unsafe fn dc_get_location_kml(
     }
 
     if 0 != success {
-        strdup(to_cstring(ret).as_ptr())
+        unsafe { strdup(to_cstring(ret).as_ptr()) }
     } else {
         0 as *mut libc::c_char
     }
@@ -453,14 +463,17 @@ pub unsafe fn dc_save_locations(
         return 0;
     }
 
+    let sql_raw = &context.sql.clone();
+    let sql = sql_raw.read().unwrap();
+
     let stmt_test = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &sql,
         "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
     );
     let stmt_insert = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &sql,
         "INSERT INTO locations\
          (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
          VALUES (?,?,?,?,?,?,?);",
@@ -470,8 +483,8 @@ pub unsafe fn dc_save_locations(
         return 0;
     }
 
-    let stmt_test = stmt_test.unwrap();
-    let stmt_insert = stmt_insert.unwrap();
+    let mut stmt_test = stmt_test.unwrap();
+    let mut stmt_insert = stmt_insert.unwrap();
 
     let mut newest_timestamp = 0;
     let mut newest_location_id = 0;
@@ -720,9 +733,11 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                 Ok(Some((chat_id, locations_send_begin, locations_last_sent)))
             }
         }) {
+            let sql_raw = context.sql.clone();
+            let sql = sql_raw.read().unwrap();
             let stmt_locations = dc_sqlite3_prepare(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &sql,
                 "SELECT id \
                  FROM locations \
                  WHERE from_id=? \
@@ -735,7 +750,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                 // TODO: handle error
                 return;
             }
-            let stmt_locations = stmt_locations.unwrap();
+            let mut stmt_locations = stmt_locations.unwrap();
 
             for (chat_id, locations_send_begin, locations_last_sent) in rows.filter_map(|r| match r
             {

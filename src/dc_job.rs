@@ -86,25 +86,37 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
     };
 
     let jobs = if probe_network == 0 {
-        dc_sqlite3_prepare(
+        if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
-            "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;"
-        ).and_then(|mut stmt| stmt.query_map(params![thread as i64, time()], process_row).ok())
+            "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
+             FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;"
+        ) {
+            stmt.query_map(params![thread as i64, time()], process_row)
+                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>()).ok()
+        } else {
+            None
+        }
     } else {
-        dc_sqlite3_prepare(
+        if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
-            "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;"
-        ).and_then(|mut stmt| stmt.query_map(params![thread as i64], process_row).ok())
+            "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
+             FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;",
+        ) {
+            stmt.query_map(params![thread as i64], process_row)
+                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
+                .ok()
+        } else {
+            None
+        }
     };
 
     if jobs.is_none() {
         return;
     }
 
-    for job in jobs.unwrap() {
-        let job = job.expect("invalid job");
+    for mut job in jobs.unwrap() {
         info!(
             context,
             0,
@@ -266,7 +278,7 @@ fn dc_job_update(context: &Context, job: &dc_job_t) -> bool {
         params![
             job.desired_timestamp,
             job.tries as i64,
-            as_str((*job.param).packed),
+            as_str(unsafe { (*job.param).packed }),
             job.job_id as i32,
         ],
     )
@@ -289,7 +301,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut buf_bytes: size_t = 0i32 as size_t;
     let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
+
     /* connect to SMTP server, if not yet done */
     if !context.smtp.lock().unwrap().is_connected() {
         let loginparam =
@@ -401,11 +413,11 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
         }
         _ => {}
     }
-    sqlite3_finalize(stmt);
     free(recipients as *mut libc::c_void);
     free(buf);
     free(filename as *mut libc::c_void);
 }
+
 // this value does not increase the number of tries
 pub unsafe fn dc_job_try_again_later(
     job: &mut dc_job_t,
@@ -419,8 +431,7 @@ pub unsafe fn dc_job_try_again_later(
 
 unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
     let mut current_block: u64;
-    let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    let mut dest_folder: *mut libc::c_char = 0 as *mut libc::c_char;
+    let msg = dc_msg_new_untyped(context);
     let mut dest_uid: uint32_t = 0i32 as uint32_t;
 
     let inbox = context.inbox.read().unwrap();
@@ -462,7 +473,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                         context,
                         server_folder,
                         (*msg).server_uid,
-                        dest_folder,
+                        &dest_folder,
                         &mut dest_uid,
                     ) as libc::c_uint
                     {
@@ -473,7 +484,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                                     dc_update_server_uid(
                                         context,
                                         (*msg).rfc724_mid,
-                                        dest_folder,
+                                        &dest_folder,
                                         dest_uid,
                                     );
                                 }
@@ -489,7 +500,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                                     dc_update_server_uid(
                                         context,
                                         (*msg).rfc724_mid,
-                                        dest_folder,
+                                        &dest_folder,
                                         dest_uid,
                                     );
                                 }
@@ -505,17 +516,16 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
         }
         _ => {}
     }
-    free(dest_folder as *mut libc::c_void);
+
     dc_msg_unref(msg);
 }
+
 /* ******************************************************************************
  * IMAP-jobs
  ******************************************************************************/
 fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
-    let ret_connected: libc::c_int;
-
-    ret_connected = unsafe { dc_connect_to_configured_imap(context, inbox) };
-    if !(0 == ret_connected) {
+    let ret_connected = unsafe { dc_connect_to_configured_imap(context, inbox) };
+    if 0 != ret_connected {
         inbox.set_watch_folder("INBOX".into());
     }
     ret_connected

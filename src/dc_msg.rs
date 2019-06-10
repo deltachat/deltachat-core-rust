@@ -57,12 +57,6 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         (*msg).from_id,
     );
 
-    let finish = || {
-        dc_msg_unref(msg);
-        dc_contact_unref(contact_from);
-        strdup(to_cstring(ret).as_ptr())
-    };
-
     let rawtxt: Option<String> = dc_sqlite3_query_row(
         context,
         &context.sql.clone().read().unwrap(),
@@ -73,10 +67,12 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     if rawtxt.is_none() {
         ret += &format!("Cannot load message #{}.", msg_id as usize);
-        return finish();
+        dc_msg_unref(msg);
+        dc_contact_unref(contact_from);
+        return strdup(to_cstring(ret).as_ptr());
     }
-
-    let rawtxt = dc_truncate_str(rawtxt.unwrap().trim(), 100000);
+    let rawtxt = rawtxt.unwrap();
+    let rawtxt = dc_truncate_str(rawtxt.trim(), 100000);
 
     let fts = dc_timestamp_to_str_safe(dc_msg_get_timestamp(msg));
     ret += &format!("Sent: {}", fts);
@@ -99,43 +95,45 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     if (*msg).from_id == 2 || (*msg).to_id == 2 {
         // device-internal message, no further details needed
-        return finish();
+        dc_msg_unref(msg);
+        dc_contact_unref(contact_from);
+        return strdup(to_cstring(ret).as_ptr());
     }
 
-    let rows = dc_sqlite3_prepare(
+    let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
-    )
-    .and_then(|mut stmt| {
+    ) {
         stmt.query_map(params![msg_id as i32], |row| {
             let contact_id: i32 = row.get(0)?;
             let ts: i64 = row.get(1)?;
             Ok((contact_id, ts))
         })
+        .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
         .ok()
-    });
+    } else {
+        None
+    };
 
     if let Some(rows) = rows {
-        for row in rows {
-            if let Ok((contact_id, ts)) = row {
-                let fts = dc_timestamp_to_str_safe(ts);
-                ret += &format!("Read: {}", fts);
+        for (contact_id, ts) in rows {
+            let fts = dc_timestamp_to_str_safe(ts);
+            ret += &format!("Read: {}", fts);
 
-                let contact = dc_contact_new(context);
-                dc_contact_load_from_db(
-                    contact,
-                    &context.sql.clone().read().unwrap(),
-                    contact_id as u32,
-                );
+            let contact = dc_contact_new(context);
+            dc_contact_load_from_db(
+                contact,
+                &context.sql.clone().read().unwrap(),
+                contact_id as u32,
+            );
 
-                p = dc_contact_get_name_n_addr(contact);
-                ret += &format!(" by {}", as_str(p));
-                free(p as *mut libc::c_void);
-                dc_contact_unref(contact);
+            p = dc_contact_get_name_n_addr(contact);
+            ret += &format!(" by {}", as_str(p));
+            free(p as *mut libc::c_void);
+            dc_contact_unref(contact);
 
-                ret += "\n";
-            }
+            ret += "\n";
         }
     }
 
@@ -221,7 +219,9 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         );
     }
 
-    finish()
+    dc_msg_unref(msg);
+    dc_contact_unref(contact_from);
+    strdup(to_cstring(ret).as_ptr())
 }
 
 pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> {
@@ -547,9 +547,10 @@ pub unsafe fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: 
     if msg_ids.is_null() || msg_cnt <= 0 {
         return;
     }
-
+    let raw_sql = context.sql.clone();
+    let sql = raw_sql.read().unwrap();
     let stmt = dc_sqlite3_prepare(
-        context, &context.sql.clone().read().unwrap(),
+        context, &sql,
         "SELECT m.state, c.blocked  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id=? AND m.chat_id>9"
     );
 
@@ -558,7 +559,7 @@ pub unsafe fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: 
         return;
     }
 
-    let stmt = stmt.unwrap();
+    let mut stmt = stmt.unwrap();
     let mut send_event = false;
 
     for i in 0..msg_cnt {
@@ -612,16 +613,14 @@ pub fn dc_star_msgs(
     if msg_ids.is_null() || msg_cnt <= 0 || star != 0 && star != 1 {
         return false;
     }
-    let stmt = dc_sqlite3_prepare(
-        context,
-        &context.sql.clone().read().unwrap(),
-        "UPDATE msgs SET starred=? WHERE id=?;",
-    );
+    let raw_sql = context.sql.clone();
+    let sql = raw_sql.read().unwrap();
+    let stmt = dc_sqlite3_prepare(context, &sql, "UPDATE msgs SET starred=? WHERE id=?;");
     if stmt.is_none() {
         return false;
     }
-    let stmt = stmt.unwrap();
 
+    let mut stmt = stmt.unwrap();
     for i in 0..msg_cnt {
         if stmt
             .execute(params![star, unsafe { *msg_ids.offset(i as isize) as i32 }])
@@ -1391,7 +1390,7 @@ pub fn dc_rfc724_mid_exists(
     ret_server_folder: *mut *mut libc::c_char,
     ret_server_uid: *mut uint32_t,
 ) -> uint32_t {
-    if rfc724_mid.is_null() || *rfc724_mid.offset(0) as libc::c_int == 0 {
+    if rfc724_mid.is_null() || unsafe { *rfc724_mid.offset(0) as libc::c_int } == 0 {
         return 0;
     }
 
@@ -1401,10 +1400,13 @@ pub fn dc_rfc724_mid_exists(
             &[as_str(rfc724_mid)],
             |row| {
                 if !ret_server_folder.is_null() {
-                    *ret_server_folder = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr());
+                    unsafe {
+                        *ret_server_folder =
+                            dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr())
+                    };
                 }
                 if !ret_server_uid.is_null() {
-                    *ret_server_uid = row.get(1)?;
+                    unsafe { *ret_server_uid = row.get(1)? };
                 }
                 row.get(2)
             },
@@ -1412,10 +1414,10 @@ pub fn dc_rfc724_mid_exists(
             Ok(res) => res,
             Err(_err) => {
                 if !ret_server_folder.is_null() {
-                    *ret_server_folder = 0 as *mut libc::c_char
+                    unsafe { *ret_server_folder = 0 as *mut libc::c_char };
                 }
                 if !ret_server_uid.is_null() {
-                    *ret_server_uid = 0 as uint32_t
+                    unsafe { *ret_server_uid = 0 };
                 }
 
                 0

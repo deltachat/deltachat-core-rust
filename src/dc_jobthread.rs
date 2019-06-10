@@ -164,7 +164,6 @@ pub unsafe fn dc_jobthread_fetch(
 
 unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc::c_int {
     let mut ret_connected: libc::c_int;
-    let mut mvbox_name: *mut libc::c_char = 0 as *mut libc::c_char;
 
     if jobthread.imap.is_connected() {
         ret_connected = 1;
@@ -194,7 +193,6 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
             }
         }
     }
-    free(mvbox_name as *mut libc::c_void);
 
     ret_connected
 }

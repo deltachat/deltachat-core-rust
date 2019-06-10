@@ -329,10 +329,10 @@ pub fn dc_lookup_real_nchat_by_contact_id(
 ) {
     /* checks for "real" chats or self-chat */
     if !ret_chat_id.is_null() {
-        *ret_chat_id = 0;
+        unsafe { *ret_chat_id = 0 };
     }
     if !ret_chat_blocked.is_null() {
-        *ret_chat_blocked = 0;
+        unsafe { *ret_chat_blocked = 0 };
     }
     if context.sql.clone().read().unwrap().conn().is_none() {
         return;
@@ -346,11 +346,11 @@ pub fn dc_lookup_real_nchat_by_contact_id(
         stmt.query_row(
             params![contact_id as i32],
             |row| {
-                *ret_chat_id = row.get(0)?;
-                *ret_chat_blocked = row.get(1)?;
+                unsafe { *ret_chat_id = row.get(0)? };
+                unsafe { *ret_chat_blocked = row.get(1)? };
                 Ok(())
             }
-        );
+        ).unwrap();
     }
 }
 
@@ -623,7 +623,8 @@ unsafe fn prepare_msg_raw(
                                     all_mutual = 0;
                                 }
                                 Ok(())
-                            });
+                            })
+                            .unwrap();
                         }
 
                         if 0 != can_encrypt {
@@ -1459,7 +1460,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
     }
 
     unsafe { (context.cb)(context, Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t) };
-    unsafe { dc_job_kill_action(context, 105) };
+    dc_job_kill_action(context, 105);
     unsafe { dc_job_add(context, 105, 0, 0 as *const libc::c_char, 10) };
 }
 
@@ -2351,7 +2352,7 @@ pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc
             chat_id as i32,
             2,
             2,
-            dc_create_smeared_timestamp(context),
+            unsafe {dc_create_smeared_timestamp(context)},
             10,
             13,
             as_str(text),

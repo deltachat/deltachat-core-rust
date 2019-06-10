@@ -1261,7 +1261,8 @@ pub unsafe fn dc_write_file(
 }
 
 pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
-    let pathNfilename_abs = unsafe { dc_get_abs_path(context, to_cstring(pathNfilename).as_ptr()) };
+    let pathNfilename_abs =
+        unsafe { dc_get_abs_path(context, to_cstring(pathNfilename.as_ref()).as_ptr()) };
     if pathNfilename_abs.is_null() {
         return false;
     }
@@ -1294,7 +1295,7 @@ pub unsafe fn dc_read_file(
     if pathNfilename.is_null() {
         return 0;
     }
-    if let Some(bytes) = dc_read_file_safe(context, as_str(pathNfilename)) {
+    if let Some(mut bytes) = dc_read_file_safe(context, as_str(pathNfilename)) {
         *buf = &mut bytes[..] as *mut _ as *mut libc::c_void;
         *buf_bytes = bytes.len();
         std::mem::forget(bytes);
@@ -1305,7 +1306,8 @@ pub unsafe fn dc_read_file(
 }
 
 pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
-    let pathNfilename_abs = unsafe { dc_get_abs_path(context, to_cstring(pathNfilename).as_ptr()) };
+    let pathNfilename_abs =
+        unsafe { dc_get_abs_path(context, to_cstring(pathNfilename.as_ref()).as_ptr()) };
     if pathNfilename_abs.is_null() {
         return None;
     }

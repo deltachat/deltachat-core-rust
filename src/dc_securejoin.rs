@@ -42,21 +42,6 @@ pub unsafe fn dc_get_securejoin_qr(
     let mut group_name_urlencoded = 0 as *mut libc::c_char;
     let mut qr = None;
 
-    let cleanup = || {
-        free(fingerprint as *mut libc::c_void);
-        free(invitenumber as *mut libc::c_void);
-        free(auth as *mut libc::c_void);
-        dc_chat_unref(chat);
-        free(group_name as *mut libc::c_void);
-        free(group_name_urlencoded as *mut libc::c_void);
-
-        if let Some(qr) = qr {
-            strdup(to_cstring(qr).as_ptr())
-        } else {
-            std::ptr::null_mut()
-        }
-    };
-
     dc_ensure_secret_key_exists(context);
     invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id);
     if invitenumber.is_null() {
@@ -74,9 +59,25 @@ pub unsafe fn dc_get_securejoin_qr(
         "configured_addr",
         None,
     );
+
+    let cleanup = |fingerprint, chat, group_name, group_name_urlencoded| {
+        free(fingerprint as *mut libc::c_void);
+        free(invitenumber as *mut libc::c_void);
+        free(auth as *mut libc::c_void);
+        dc_chat_unref(chat);
+        free(group_name as *mut libc::c_void);
+        free(group_name_urlencoded as *mut libc::c_void);
+
+        if let Some(qr) = qr {
+            strdup(to_cstring(qr).as_ptr())
+        } else {
+            std::ptr::null_mut()
+        }
+    };
+
     if self_addr.is_none() {
         error!(context, 0, "Not configured, cannot generate QR code.",);
-        return cleanup();
+        return cleanup(fingerprint, chat, group_name, group_name_urlencoded);
     }
 
     let self_addr = self_addr.unwrap();
@@ -90,7 +91,7 @@ pub unsafe fn dc_get_securejoin_qr(
     fingerprint = get_self_fingerprint(context);
 
     if fingerprint.is_null() {
-        return cleanup();
+        return cleanup(fingerprint, chat, group_name, group_name_urlencoded);
     }
 
     let self_addr_urlencoded = utf8_percent_encode(&self_addr, DEFAULT_ENCODE_SET).to_string();
@@ -103,7 +104,7 @@ pub unsafe fn dc_get_securejoin_qr(
                 context,
                 0, "Cannot get QR-code for chat-id {}", group_chat_id,
             );
-            return cleanup();
+            return cleanup(fingerprint, chat, group_name, group_name_urlencoded);
         }
 
         group_name = dc_chat_get_name(chat);
@@ -129,9 +130,9 @@ pub unsafe fn dc_get_securejoin_qr(
         ))
     };
 
-    info!(context, 0i32, "Generated QR code: {}", qr.as_ref().unwrap());
+    info!(context, 0, "Generated QR code: {}", qr.as_ref().unwrap());
 
-    cleanup()
+    cleanup(fingerprint, chat, group_name, group_name_urlencoded)
 }
 
 fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {

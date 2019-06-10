@@ -37,7 +37,8 @@ pub fn dc_loginparam_read(
     let key = format!("{}addr", prefix);
     let addr = dc_sqlite3_get_config(context, sql, key, None)
         .unwrap_or_default()
-        .trim();
+        .trim()
+        .to_string();
 
     let key = format!("{}mail_server", prefix);
     let mail_server = dc_sqlite3_get_config(context, sql, key, None).unwrap_or_default();

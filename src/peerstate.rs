@@ -445,7 +445,7 @@ impl<'a> Peerstate<'a> {
         }
 
         if self.to_save == Some(ToSave::All) || create {
-            unsafe { dc_reset_gossiped_timestamp(self.context, 0 as uint32_t) };
+            dc_reset_gossiped_timestamp(self.context, 0);
         }
 
         success

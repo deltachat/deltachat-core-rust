@@ -226,16 +226,12 @@ pub unsafe fn dc_receive_imf(
                                 dc_update_server_uid(
                                     context,
                                     rfc724_mid,
-                                    server_folder,
+                                    server_folder.as_ref(),
                                     server_uid,
                                 );
                             }
                             free(old_server_folder as *mut libc::c_void);
-                            dc_log_info(
-                                context,
-                                0,
-                                b"Message already in DB.\x00" as *const u8 as *const libc::c_char,
-                            );
+                            info!(context, 0, "Message already in DB.");
                             current_block = 16282941964262048061;
                         } else {
                             msgrmsg = mime_parser.is_send_by_messenger;
@@ -515,9 +511,11 @@ pub unsafe fn dc_receive_imf(
                             }
                             icnt = carray_count(mime_parser.parts) as size_t;
 
-                            let stmt = dc_sqlite3_prepare(
+                            let raw_sql = context.sql.clone();
+                            let sql = raw_sql.read().unwrap();
+                            let mut stmt = dc_sqlite3_prepare(
                                 context,
-                                &context.sql.clone().read().unwrap(),
+                                &sql,
                                 "INSERT INTO msgs \
                                  (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
                                  timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
@@ -1278,7 +1276,7 @@ unsafe fn create_or_lookup_group(
                 && !grpname.is_null()
                 && X_MrRemoveFromGrp.is_null()
                 && (0 == group_explicitly_left
-                    || !X_MrAddToGrp.is_null() && dc_addr_cmp(self_addr, as_str(X_MrAddToGrp)))
+                    || !X_MrAddToGrp.is_null() && dc_addr_cmp(&self_addr, as_str(X_MrAddToGrp)))
             {
                 /*otherwise, a pending "quit" message may pop up*/
                 /*re-create explicitly left groups only if ourself is re-added*/
@@ -1417,11 +1415,11 @@ unsafe fn create_or_lookup_group(
                                 "DELETE FROM chats_contacts WHERE chat_id=?;",
                                 params![chat_id as i32],
                             );
-                            if skip.is_null() || !dc_addr_cmp(self_addr, as_str(skip)) {
+                            if skip.is_null() || !dc_addr_cmp(&self_addr, as_str(skip)) {
                                 dc_add_to_chat_contacts_table(context, chat_id, 1);
                             }
                             if from_id > 9 {
-                                if !dc_addr_equals_contact(context, self_addr, from_id as u32)
+                                if !dc_addr_equals_contact(context, &self_addr, from_id as u32)
                                     && (skip.is_null()
                                         || !dc_addr_equals_contact(
                                             context,
@@ -1439,7 +1437,7 @@ unsafe fn create_or_lookup_group(
                             i = 0;
                             while i < to_ids_cnt {
                                 let to_id = dc_array_get_id(to_ids, i as size_t);
-                                if !dc_addr_equals_contact(context, self_addr, to_id)
+                                if !dc_addr_equals_contact(context, &self_addr, to_id)
                                     && (skip.is_null()
                                         || !dc_addr_equals_contact(context, to_string(skip), to_id))
                                 {
@@ -1518,8 +1516,6 @@ unsafe fn create_or_lookup_adhoc_group(
     let mut i;
     let mut chat_ids: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut chat_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
     /* build member list from the given ids */
@@ -1607,8 +1603,7 @@ unsafe fn create_or_lookup_adhoc_group(
     free(chat_ids_str as *mut libc::c_void);
     free(grpid as *mut libc::c_void);
     free(grpname as *mut libc::c_void);
-    sqlite3_finalize(stmt);
-    sqlite3_free(q3 as *mut libc::c_void);
+
     if !ret_chat_id.is_null() {
         *ret_chat_id = chat_id
     }
@@ -1616,6 +1611,7 @@ unsafe fn create_or_lookup_adhoc_group(
         *ret_chat_id_blocked = chat_id_blocked
     };
 }
+
 fn create_group_record(
     context: &Context,
     grpid: *const libc::c_char,
@@ -1654,7 +1650,7 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
      */
     let member_ids_str = dc_array_get_string(member_ids, b",\x00" as *const u8 as *const _);
-    let mut member_cs = dc_sqlite3_get_config(
+    let member_cs = dc_sqlite3_get_config(
         context,
         &context.sql.clone().read().unwrap(),
         "configured_addr",
@@ -1663,24 +1659,25 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     .unwrap()
     .to_lowercase();
 
-    let rows = dc_sqlite3_prepare(
+    let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT addr FROM contacts WHERE id IN(?) AND id!=1",
-    )
-    .and_then(|mut stmt| {
+    ) {
         stmt.query_map(params![as_str(member_ids_str)], |row| {
             row.get::<_, String>(0)
         })
+        .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
         .ok()
-    });
+    } else {
+        None
+    };
     free(member_ids_str as *mut libc::c_void);
 
     let members = rows
-        .and_then(|addrs| addrs.collect::<rusqlite::Result<Vec<_>>>().ok())
         .map(|mut addrs| {
             addrs.sort();
-            addrs.iter().fold(member_cs, |mut acc, addr| {
+            addrs.iter().fold(member_cs.clone(), |mut acc, addr| {
                 acc += ",";
                 acc += &addr.to_lowercase();
                 acc
@@ -1728,37 +1725,40 @@ unsafe fn search_chat_ids_by_contact_ids(
             contact_ids_str =
                 dc_array_get_string(contact_ids, b",\x00" as *const u8 as *const libc::c_char);
 
-            let rows = dc_sqlite3_prepare(
+            let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
                 context,
                 &context.sql.clone().read().unwrap(),
                 "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN(?))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
-            ).and_then(|mut stmt| stmt.query_map(
-                params![as_str(contact_ids_str)],
-                |row| Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
-            ).ok());
+            ) {
+                stmt.query_map(
+                    params![as_str(contact_ids_str)],
+                    |row| Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
+                ).and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>()).ok()
+            } else {
+                None
+            };
 
             if let Some(rows) = rows {
                 let mut last_chat_id = 0;
                 let mut matches = 0;
                 let mut mismatches = 0;
 
-                for row in rows {
-                    if let Ok((chat_id, contact_id)) = row {
-                        if chat_id as u32 != last_chat_id {
-                            if matches == dc_array_get_cnt(contact_ids) && mismatches == 0 {
-                                dc_array_add_id(chat_ids, last_chat_id);
-                            }
-                            last_chat_id = chat_id as u32;
-                            matches = 0;
-                            mismatches = 0;
+                for (chat_id, contact_id) in rows {
+                    if chat_id as u32 != last_chat_id {
+                        if matches == dc_array_get_cnt(contact_ids) && mismatches == 0 {
+                            dc_array_add_id(chat_ids, last_chat_id);
                         }
-                        if contact_id as u32 == dc_array_get_id(contact_ids, matches as size_t) {
-                            matches += 1;
-                        } else {
-                            mismatches += 1;
-                        }
+                        last_chat_id = chat_id as u32;
+                        matches = 0;
+                        mismatches = 0;
+                    }
+                    if contact_id as u32 == dc_array_get_id(contact_ids, matches as size_t) {
+                        matches += 1;
+                    } else {
+                        mismatches += 1;
                     }
                 }
+
                 if matches == dc_array_get_cnt(contact_ids) && mismatches == 0 {
                     dc_array_add_id(chat_ids, last_chat_id);
                 }
@@ -1781,7 +1781,6 @@ unsafe fn check_verified_properties(
 ) -> libc::c_int {
     let mut everythings_okay: libc::c_int = 0;
     let contact: *mut dc_contact_t = dc_contact_new(context);
-    let mut to_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
 
     let verify_fail = |reason| {
         *failure_reason =
@@ -1791,7 +1790,6 @@ unsafe fn check_verified_properties(
 
     let cleanup = || {
         dc_contact_unref(contact);
-        free(to_ids_str as *mut libc::c_void);
     };
 
     if !dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), from_id) {
@@ -1832,64 +1830,63 @@ unsafe fn check_verified_properties(
         }
     }
 
-    to_ids_str = dc_array_get_string(to_ids, b",\x00" as *const u8 as *const libc::c_char);
+    let to_ids_str_c = dc_array_get_string(to_ids, b",\x00" as *const u8 as *const libc::c_char);
+    let to_ids_str = to_string(to_ids_str_c);
+    free(to_ids_str_c as *mut libc::c_void);
 
-    let rows = dc_sqlite3_prepare(
+    let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
          LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN(?) ",
-    )
-    .and_then(|mut stmt| {
-        stmt.query_map(params![as_str(to_ids_str)], |row| {
+    ) {
+        stmt.query_map(params![&to_ids_str], |row| {
             Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?))
         })
+        .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
         .ok()
-    });
+    } else {
+        None
+    };
 
     if let Some(rows) = rows {
-        for row in rows {
-            if let Ok((to_addr, is_verified)) = row {
-                let mut peerstate =
-                    Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), &to_addr);
-                if mimeparser.e2ee_helper.gossipped_addr.contains(&to_addr) && peerstate.is_some() {
-                    let peerstate = peerstate.as_mut().unwrap();
+        for (to_addr, mut is_verified) in rows {
+            let mut peerstate =
+                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), &to_addr);
+            if mimeparser.e2ee_helper.gossipped_addr.contains(&to_addr) && peerstate.is_some() {
+                let peerstate = peerstate.as_mut().unwrap();
 
-                    // if we're here, we know the gossip key is verified:
-                    // - use the gossip-key as verified-key if there is no verified-key
-                    // - OR if the verified-key does not match public-key or gossip-key
-                    //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
-                    //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
-                    if 0 == is_verified
-                        || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
-                            && peerstate.verified_key_fingerprint
-                                != peerstate.gossip_key_fingerprint
-                    {
-                        info!(
-                            context,
-                            0,
-                            "{} has verfied {}.",
-                            as_str((*contact).addr),
-                            to_addr,
-                        );
-                        let fp = peerstate.gossip_key_fingerprint.clone();
-                        if let Some(fp) = fp {
-                            peerstate.set_verified(0, &fp, 2);
-                            peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
-                            is_verified = 1;
-                        }
+                // if we're here, we know the gossip key is verified:
+                // - use the gossip-key as verified-key if there is no verified-key
+                // - OR if the verified-key does not match public-key or gossip-key
+                //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
+                //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
+                if 0 == is_verified
+                    || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
+                        && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
+                {
+                    info!(
+                        context,
+                        0,
+                        "{} has verfied {}.",
+                        as_str((*contact).addr),
+                        to_addr,
+                    );
+                    let fp = peerstate.gossip_key_fingerprint.clone();
+                    if let Some(fp) = fp {
+                        peerstate.set_verified(0, &fp, 2);
+                        peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+                        is_verified = 1;
                     }
                 }
-                if 0 == is_verified {
-                    verify_fail(&format!(
-                        "{} is not a member of this verified group",
-                        to_addr
-                    ));
-                    cleanup();
-                    return 0;
-                }
-            } else {
-                break;
+            }
+            if 0 == is_verified {
+                verify_fail(&format!(
+                    "{} is not a member of this verified group",
+                    to_addr
+                ));
+                cleanup();
+                return 0;
             }
         }
         everythings_okay = 1;

@@ -140,47 +140,44 @@ pub unsafe fn dc_mimefactory_load_msg(
                 dc_strdup((*factory).from_addr) as *mut libc::c_void,
             );
         } else {
-            let rows = dc_sqlite3_prepare(
+            let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
                 context,
                 &context.sql.clone().read().unwrap(),
                 "SELECT c.authname, c.addr  \
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
                  WHERE cc.chat_id=? AND cc.contact_id>9;",
-            )
-            .and_then(|mut stmt| {
+            ) {
                 stmt.query_map(params![(*(*factory).msg).chat_id as i32], |row| {
                     let authname: String = row.get(0)?;
                     let addr: String = row.get(1)?;
                     Ok((authname, addr))
                 })
+                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
                 .ok()
-            });
+            } else {
+                None
+            };
 
             if let Some(rows) = rows {
-                for row in rows {
-                    if let Ok((authname, addr)) = row {
-                        let addr_c = to_cstring(addr);
-                        if clist_search_string_nocase((*factory).recipients_addr, addr_c.as_ptr())
-                            == 0
-                        {
-                            clist_insert_after(
-                                (*factory).recipients_names,
-                                (*(*factory).recipients_names).last,
-                                if !authname.is_empty() {
-                                    dc_strdup(to_cstring(authname).as_ptr())
-                                } else {
-                                    0 as *mut libc::c_char
-                                } as *mut libc::c_void,
-                            );
-                            clist_insert_after(
-                                (*factory).recipients_addr,
-                                (*(*factory).recipients_addr).last,
-                                dc_strdup(addr_c.as_ptr()) as *mut libc::c_void,
-                            );
-                        }
-                    } else {
-                        break;
+                for (authname, addr) in rows {
+                    let addr_c = to_cstring(addr);
+                    if clist_search_string_nocase((*factory).recipients_addr, addr_c.as_ptr()) == 0
+                    {
+                        clist_insert_after(
+                            (*factory).recipients_names,
+                            (*(*factory).recipients_names).last,
+                            if !authname.is_empty() {
+                                dc_strdup(to_cstring(authname).as_ptr())
+                            } else {
+                                0 as *mut libc::c_char
+                            } as *mut libc::c_void,
+                        );
+                        clist_insert_after(
+                            (*factory).recipients_addr,
+                            (*(*factory).recipients_addr).last,
+                            dc_strdup(addr_c.as_ptr()) as *mut libc::c_void,
+                        );
                     }
                 }
             }
