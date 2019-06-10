@@ -1068,19 +1068,19 @@ pub unsafe fn dc_addr_equals_contact(
 }
 
 // Context functions to work with contacts
-pub fn dc_get_real_contact_cnt(context: &Context) -> size_t {
+pub fn dc_get_real_contact_cnt(context: &Context) -> usize {
     if context.sql.clone().read().unwrap().conn().is_none() {
         return 0;
     }
 
-    dc_sqlite3_query_row(
+    dc_sqlite3_query_row::<_, isize>(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT COUNT(*) FROM contacts WHERE id>?;",
         params![9],
         0,
     )
-    .unwrap_or_default()
+    .unwrap_or_default() as usize
 }
 
 pub unsafe fn dc_get_contact_origin(

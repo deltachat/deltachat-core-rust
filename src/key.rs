@@ -137,7 +137,7 @@ impl Key {
             &[addr],
             0,
         )
-        .and_then(|blob| Self::from_slice(blob, KeyType::Public))
+        .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Public))
     }
 
     pub fn from_self_private(
@@ -152,7 +152,7 @@ impl Key {
             &[self_addr.as_ref()],
             0,
         )
-        .and_then(|blob| Self::from_slice(blob, KeyType::Private))
+        .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Private))
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {

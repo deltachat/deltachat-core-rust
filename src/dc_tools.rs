@@ -897,14 +897,21 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut 
 
 /* file tools */
 pub unsafe fn dc_ensure_no_slash(pathNfilename: *mut libc::c_char) {
-    let path_len: libc::c_int = strlen(pathNfilename) as libc::c_int;
-    if path_len > 0i32 {
-        if *pathNfilename.offset((path_len - 1i32) as isize) as libc::c_int == '/' as i32
-            || *pathNfilename.offset((path_len - 1i32) as isize) as libc::c_int == '\\' as i32
+    let path_len = strlen(pathNfilename);
+    if path_len > 0 {
+        if *pathNfilename.offset((path_len - 1) as isize) as libc::c_int == '/' as i32
+            || *pathNfilename.offset((path_len - 1) as isize) as libc::c_int == '\\' as i32
         {
-            *pathNfilename.offset((path_len - 1i32) as isize) = 0i32 as libc::c_char
+            *pathNfilename.offset((path_len - 1) as isize) = 0 as libc::c_char
         }
     };
+}
+
+pub fn dc_ensure_no_slash_safe(path: &str) -> &str {
+    if path.ends_with('/') || path.ends_with('\\') {
+        return &path[..path.len() - 1];
+    }
+    path
 }
 
 pub unsafe fn dc_validate_filename(filename: *mut libc::c_char) {

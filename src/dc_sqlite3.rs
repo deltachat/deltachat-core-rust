@@ -680,41 +680,45 @@ pub fn dc_sqlite3_open(
                         }
 
                         if 0 != recalc_fingerprints {
-                            let stmt =
-                                dc_sqlite3_prepare(context, sql, "SELECT addr FROM acpeerstates;");
-                            while sqlite3_step(stmt) == 100 {
-                                if let Some(ref mut peerstate) = Peerstate::from_addr(
-                                    context,
-                                    sql,
-                                    as_str(sqlite3_column_text(stmt, 0) as *const libc::c_char),
-                                ) {
-                                    peerstate.recalc_fingerprint();
-                                    peerstate.save_to_db(sql, false);
+                            if let Some(addrs) =
+                                dc_sqlite3_prepare(context, sql, "SELECT addr FROM acpeerstates;")
+                                    .and_then(|mut stmt| {
+                                        stmt.query_map(params![], |row| row.get::<_, String>(0))
+                                            .ok()
+                                    })
+                            {
+                                for addr in addrs {
+                                    if let Some(ref mut peerstate) =
+                                        Peerstate::from_addr(context, sql, &addr.unwrap())
+                                    {
+                                        peerstate.recalc_fingerprint();
+                                        peerstate.save_to_db(sql, false);
+                                    }
                                 }
                             }
-                            sqlite3_finalize(stmt);
                         }
                         if 0 != update_file_paths {
                             let repl_from = dc_sqlite3_get_config(
                                 context,
                                 sql,
                                 "backup_for",
-                                context.get_blobdir(),
-                            );
-                            dc_ensure_no_slash(repl_from);
+                                Some(as_str(context.get_blobdir())),
+                            )
+                            .unwrap();
+                            let repl_form = dc_ensure_no_slash_safe(&repl_from);
 
                             dc_sqlite3_execute(
                                 context,
                                 sql,
                                 "UPDATE msgs SET param=replace(param, \'f=%q/\', \'f=$BLOBDIR/\')",
-                                params![&repl_from],
+                                params![repl_from],
                             );
 
                             dc_sqlite3_execute(
                                 context,
                                 sql,
                                 "UPDATE chats SET param=replace(param, \'i=%q/\', \'i=$BLOBDIR/\');",
-                                params![&repl_from]
+                                params![repl_from]
                             );
 
                             dc_sqlite3_set_config(context, sql, "backup_for", None);
@@ -752,44 +756,47 @@ pub fn dc_sqlite3_set_config(
     value: Option<&str>,
 ) -> libc::c_int {
     let key = key.as_ref();
-    let mut state;
     if 0 == dc_sqlite3_is_open(sql) {
-        dc_log_error(context, 0, "dc_sqlite3_set_config(): Database not ready.");
+        error!(context, 0, "dc_sqlite3_set_config(): Database not ready.");
         return 0;
     }
+
+    let mut good = false;
+
     if let Some(ref value) = value {
-        let mut stmt =
-            dc_sqlite3_prepare(context, sql, "SELECT value FROM config WHERE keyname=?;");
-        sqlite3_bind_text(stmt, 1, key, -1, None);
-        state = sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-        if state == 101 {
-            stmt = dc_sqlite3_prepare(
-                context,
-                sql,
-                "INSERT INTO config (keyname, value) VALUES (?, ?);",
-            );
-            sqlite3_bind_text(stmt, 1, key, -1, None);
-            sqlite3_bind_text(stmt, 2, value, -1, None);
-            state = sqlite3_step(stmt);
-            sqlite3_finalize(stmt);
-        } else if state == 100 {
-            stmt = dc_sqlite3_prepare(context, sql, "UPDATE config SET value=? WHERE keyname=?;");
-            sqlite3_bind_text(stmt, 1, value, -1, None);
-            sqlite3_bind_text(stmt, 2, key, -1, None);
-            state = sqlite3_step(stmt);
-            sqlite3_finalize(stmt);
+        if let Some(exists) =
+            dc_sqlite3_prepare(context, sql, "SELECT value FROM config WHERE keyname=?;")
+                .and_then(|mut stmt| stmt.exists(params![]).ok())
+        {
+            if exists {
+                good = dc_sqlite3_execute(
+                    context,
+                    sql,
+                    "UPDATE config SET value=? WHERE keyname=?;",
+                    params![value, key],
+                );
+            } else {
+                good = dc_sqlite3_execute(
+                    context,
+                    sql,
+                    "INSERT INTO config (keyname, value) VALUES (?, ?);",
+                    params![key, value],
+                );
+            }
         } else {
             error!(context, 0, "dc_sqlite3_set_config(): Cannot read value.",);
             return 0;
         }
     } else {
-        let stmt = dc_sqlite3_prepare(context, sql, "DELETE FROM config WHERE keyname=?;");
-        sqlite3_bind_text(stmt, 1, key, -1, None);
-        state = sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
+        good = dc_sqlite3_execute(
+            context,
+            sql,
+            "DELETE FROM config WHERE keyname=?;",
+            params![key],
+        );
     }
-    if state != 101 {
+
+    if !good {
         error!(context, 0, "dc_sqlite3_set_config(): Cannot change value.",);
         return 0;
     }
@@ -801,14 +808,14 @@ pub fn dc_sqlite3_set_config(
 /* the result mus be freed using sqlite3_finalize() */
 pub fn dc_sqlite3_prepare<'a>(
     context: &Context,
-    sql: &dc_sqlite3_t,
+    sql: &'a dc_sqlite3_t,
     querystr: &'a str,
 ) -> Option<Statement<'a>> {
     if let Some(ref conn) = sql.conn() {
         match conn.prepare(querystr) {
             Ok(s) => Some(s),
             Err(err) => {
-                error!(context, 0, "Query failed: {} ({})", querystr.as_ref(), err);
+                error!(context, 0, "Query failed: {} ({})", querystr, err);
                 None
             }
         }
@@ -828,21 +835,16 @@ pub fn dc_sqlite3_get_config(
     key: impl AsRef<str>,
     def: Option<&str>,
 ) -> Option<String> {
-    if 0 == dc_sqlite3_is_open(sql) || key.is_null() {
+    if 0 == dc_sqlite3_is_open(sql) || key.as_ref().is_empty() {
         return None;
     }
-    let stmt = dc_sqlite3_prepare(context, sql, "SELECT value FROM config WHERE keyname=?;");
-    sqlite3_bind_text(stmt, 1, key, -1, None);
-    if sqlite3_step(stmt) == 100 {
-        let ptr: *const libc::c_uchar = sqlite3_column_text(stmt, 0);
-        if !ptr.is_null() {
-            let ret: *mut libc::c_char = dc_strdup(ptr as *const libc::c_char);
-            sqlite3_finalize(stmt);
-            return ret;
-        }
-    }
-    sqlite3_finalize(stmt);
-    Some(def)
+    dc_sqlite3_query_row(
+        context,
+        sql,
+        "SELECT value FROM config WHERE keyname=?;",
+        params![key.as_ref()],
+        0,
+    )
 }
 
 pub fn dc_sqlite3_execute<P>(
@@ -855,7 +857,7 @@ where
     P: IntoIterator,
     P::Item: rusqlite::ToSql,
 {
-    if let Some(stmt) = dc_sqlite3_prepare(context, sql, querystr) {
+    if let Some(stmt) = dc_sqlite3_prepare(context, sql, querystr.as_ref()) {
         match stmt.execute(params) {
             Ok(_) => true,
             Err(err) => {
@@ -884,15 +886,19 @@ pub fn dc_sqlite3_query_row<P, T>(
 where
     P: IntoIterator,
     P::Item: rusqlite::ToSql,
+    T: rusqlite::types::FromSql,
 {
     if let Some(ref conn) = sql.conn() {
-        match conn.query_row(query, params, |row| row.get(column)) {
+        match conn.query_row(query, params, |row| row.get::<_, T>(column)) {
             Ok(res) => Some(res),
             Err(err) => {
                 error!(context, 0, "sql: Failed query_row: {}", err);
                 None
             }
         }
+    } else {
+        error!(context, 0, "sql: no connection");
+        None
     }
 }
 
@@ -902,7 +908,7 @@ pub fn dc_sqlite3_set_config_int(
     key: impl AsRef<str>,
     value: i32,
 ) -> libc::c_int {
-    dc_sqlite3_set_config(context, sql, key, format!("{}", value))
+    dc_sqlite3_set_config(context, sql, key, Some(&format!("{}", value)))
 }
 
 pub fn dc_sqlite3_get_config_int(
@@ -911,8 +917,9 @@ pub fn dc_sqlite3_get_config_int(
     key: impl AsRef<str>,
     def: i32,
 ) -> i32 {
-    let s = dc_sqlite3_get_config(context, sql, key, None);
-    s.parse().unwrap_or_else(|_| def)
+    dc_sqlite3_get_config(context, sql, key, None)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(|| def)
 }
 
 pub fn dc_sqlite3_table_exists(
@@ -922,9 +929,9 @@ pub fn dc_sqlite3_table_exists(
 ) -> libc::c_int {
     match sql.conn() {
         Some(ref conn) => {
-            conn.pragma(None, "table_info", name.as_ref(), |row| {
+            conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |row| {
                 // will only be executed if the info was found
-                println!("row: {:?}", row.get(0));
+                println!("row: {:?}", row.get::<_, String>(0)?);
                 Ok(())
             })
             .map(|_| 1)
@@ -940,7 +947,7 @@ pub fn dc_sqlite3_set_config_int64(
     key: impl AsRef<str>,
     value: i64,
 ) -> libc::c_int {
-    dc_sqlite3_set_config(context, sql, key, format!("{}", value));
+    dc_sqlite3_set_config(context, sql, key, Some(&format!("{}", value)))
 }
 
 pub fn dc_sqlite3_get_config_int64(
@@ -951,7 +958,7 @@ pub fn dc_sqlite3_get_config_int64(
 ) -> i64 {
     let ret = dc_sqlite3_get_config(context, sql, key, None);
     ret.map(|r| r.parse().unwrap_or_default())
-        .unwrap_or_else(|_| def.unwrap_or_default())
+        .unwrap_or_else(|| def.unwrap_or_default())
 }
 
 pub fn dc_sqlite3_try_execute(
@@ -960,13 +967,16 @@ pub fn dc_sqlite3_try_execute(
     querystr: impl AsRef<str>,
 ) -> libc::c_int {
     // same as dc_sqlite3_execute() but does not pass error to ui
-    if let Some(stmt) = dc_sqlite3_prepare(context, sql, querystr) {
-        match stmt.execute() {
+    if let Some(stmt) = dc_sqlite3_prepare(context, sql, querystr.as_ref()) {
+        match stmt.execute(params![]) {
             Ok(_) => 1,
             Err(err) => {
                 warn!(
                     context,
-                    0, "Try-execute for \"{}\" failed: {}", querystr, err,
+                    0,
+                    "Try-execute for \"{}\" failed: {}",
+                    querystr.as_ref(),
+                    err,
                 );
                 0
             }
@@ -1002,6 +1012,7 @@ pub fn dc_sqlite3_get_rowid(
             }
         }
     }
+    0
 }
 
 pub fn dc_sqlite3_get_rowid2(

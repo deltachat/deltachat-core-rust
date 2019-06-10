@@ -917,14 +917,14 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                     0,
                 ))
             {
-                total_files_cnt = dc_sqlite3_query_row(
+                total_files_cnt = dc_sqlite3_query_row::<_, isize>(
                     context,
                     &context.sql.clone().read().unwrap(),
                     "SELECT COUNT(*) FROM backup_blobs;",
                     params![],
                     0,
                 )
-                .unwrap_or_default();
+                .unwrap_or_default() as usize;
 
                 let files = dc_sqlite3_prepare(
                     context,

@@ -589,7 +589,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         1,
     );
 
-    let prv_key_cnt: Option<usize> = dc_sqlite3_query_row(
+    let prv_key_cnt: Option<isize> = dc_sqlite3_query_row(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT COUNT(*) FROM keypairs;",
@@ -597,7 +597,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         0,
     );
 
-    let pub_key_cnt: Option<usize> = dc_sqlite3_query_row(
+    let pub_key_cnt: Option<isize> = dc_sqlite3_query_row(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT COUNT(*) FROM acpeerstates;",

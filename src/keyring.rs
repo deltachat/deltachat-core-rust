@@ -40,7 +40,7 @@ impl<'a> Keyring<'a> {
             &[self_addr.as_ref()],
             0,
         )
-        .and_then(|blob| Key::from_slice(blob, KeyType::Private))
+        .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Private))
         .map(|key| self.add_owned(key))
         .is_some()
     }

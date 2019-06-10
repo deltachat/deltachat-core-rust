@@ -2273,17 +2273,17 @@ pub unsafe fn dc_chat_is_sending_locations(chat: *const dc_chat_t) -> libc::c_in
     (*chat).is_sending_locations
 }
 
-pub fn dc_get_chat_cnt(context: &Context) -> size_t {
+pub fn dc_get_chat_cnt(context: &Context) -> usize {
     if context.sql.clone().read().unwrap().conn().is_some() {
         /* no database, no chats - this is no error (needed eg. for information) */
-        dc_sqlite3_query_row(
+        dc_sqlite3_query_row::<_, isize>(
             context,
             &context.sql.clone().read().unwrap(),
             "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
             params![],
             0,
         )
-        .unwrap_or_default()
+        .unwrap_or_default() as usize
     } else {
         0
     }
