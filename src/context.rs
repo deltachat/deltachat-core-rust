@@ -408,7 +408,7 @@ pub unsafe fn dc_open(
         }
         // Create/open sqlite database, this may already use the blobdir
         if !(0 == dc_sqlite3_open(context, &mut context.sql.write().unwrap(), dbfile, 0i32)) {
-            success = 1i32
+            success = 1;
         }
     }
     if 0 == success {
