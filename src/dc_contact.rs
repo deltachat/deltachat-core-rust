@@ -110,6 +110,16 @@ pub unsafe fn dc_addr_normalize(addr: *const libc::c_char) -> *mut libc::c_char 
     addr_normalized
 }
 
+pub fn dc_addr_normalize_safe(addr: &str) -> &str {
+    let norm = addr.trim();
+
+    if norm.starts_with("mailto:") {
+        return &norm[7..];
+    }
+
+    norm
+}
+
 pub unsafe fn dc_create_contact(
     context: &Context,
     name: *const libc::c_char,
@@ -1006,13 +1016,11 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
 }
 
 // Working with e-mail-addresses
-pub unsafe fn dc_addr_cmp(addr1: *const libc::c_char, addr2: *const libc::c_char) -> libc::c_int {
-    let norm1: *mut libc::c_char = dc_addr_normalize(addr1);
-    let norm2: *mut libc::c_char = dc_addr_normalize(addr2);
-    let ret: libc::c_int = strcasecmp(addr1, addr2);
-    free(norm1 as *mut libc::c_void);
-    free(norm2 as *mut libc::c_void);
-    ret
+pub fn dc_addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
+    let norm1 = dc_addr_normalize_safe(addr1.as_ref());
+    let norm2 = dc_addr_normalize_safe(addr2.as_ref());
+
+    norm1 == norm2
 }
 
 pub fn dc_addr_equals_self(context: &Context, addr: *const libc::c_char) -> libc::c_int {
@@ -1036,23 +1044,26 @@ pub fn dc_addr_equals_self(context: &Context, addr: *const libc::c_char) -> libc
 
 pub unsafe fn dc_addr_equals_contact(
     context: &Context,
-    addr: *const libc::c_char,
-    contact_id: uint32_t,
+    addr: impl AsRef<str>,
+    contact_id: u32,
 ) -> bool {
+    if addr.as_ref().is_empty() {
+        return false;
+    }
+
+    let contact = dc_contact_new(context);
     let mut addr_are_equal = false;
-    if !addr.is_null() {
-        let contact: *mut dc_contact_t = dc_contact_new(context);
-        if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
-            if !(*contact).addr.is_null() {
-                let normalized_addr: *mut libc::c_char = dc_addr_normalize(addr);
-                if strcasecmp((*contact).addr, normalized_addr) == 0i32 {
-                    addr_are_equal = true;
-                }
-                free(normalized_addr as *mut libc::c_void);
+
+    if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
+        if !(*contact).addr.is_null() {
+            let normalized_addr = dc_addr_normalize_safe(addr.as_ref());
+            if as_str((*contact).addr) == normalized_addr {
+                addr_are_equal = true;
             }
         }
         dc_contact_unref(contact);
     }
+
     addr_are_equal
 }
 

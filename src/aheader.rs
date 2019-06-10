@@ -1,5 +1,5 @@
 use std::collections::BTreeMap;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::str::FromStr;
 use std::{fmt, str};
 
@@ -7,6 +7,7 @@ use mmime::mailimf_types::*;
 
 use crate::constants::*;
 use crate::dc_contact::*;
+use crate::dc_tools::as_str;
 use crate::key::*;
 
 /// Possible values for encryption preference
@@ -93,9 +94,7 @@ impl Aheader {
 
                     match Self::from_str(value) {
                         Ok(test) => {
-                            // TODO: implement rust-safe version of dc_addr_cmp
-                            let addr = CString::new(test.addr.clone()).unwrap();
-                            if unsafe { dc_addr_cmp(addr.as_ptr(), wanted_from) } == 0 {
+                            if dc_addr_cmp(test.addr, as_str(wanted_from)) {
                                 if fine_header.is_none() {
                                     fine_header = Some(test);
                                 } else {
