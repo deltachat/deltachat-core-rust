@@ -103,7 +103,7 @@ pub unsafe fn dc_e2ee_encrypt(
 
         if let Some(addr) = addr {
             if let Some(public_key) =
-                load_or_generate_self_public_key(context, addr, in_out_message)
+                load_or_generate_self_public_key(context, &addr, in_out_message)
             {
                 /*only for random-seed*/
                 if prefer_encrypt == EncryptPreference::Mutual || 0 != e2ee_guaranteed {
@@ -143,8 +143,11 @@ pub unsafe fn dc_e2ee_encrypt(
                 }
                 let sign_key = if 0 != do_encrypt {
                     keyring.add_ref(&public_key);
-                    let key =
-                        Key::from_self_private(context, addr, &context.sql.clone().read().unwrap());
+                    let key = Key::from_self_private(
+                        context,
+                        &addr,
+                        &context.sql.clone().read().unwrap(),
+                    );
 
                     if key.is_none() {
                         do_encrypt = 0i32;
@@ -507,7 +510,7 @@ unsafe fn load_or_generate_self_public_key(
     /* avoid double creation (we unlock the database during creation) */
     static mut s_in_key_creation: libc::c_int = 0;
 
-    let mut key = Key::from_self_public(context, self_addr, &context.sql.clone().read().unwrap());
+    let mut key = Key::from_self_public(context, &self_addr, &context.sql.clone().read().unwrap());
     if key.is_some() {
         return key;
     }
@@ -519,21 +522,18 @@ unsafe fn load_or_generate_self_public_key(
     let key_creation_here = 1;
     s_in_key_creation = 1;
 
-    let start: libc::clock_t = clock();
-    dc_log_info(
+    let start = clock();
+    info!(
         context,
-        0,
-        b"Generating keypair with %i bits, e=%i ...\x00" as *const u8 as *const libc::c_char,
-        2048,
-        65537,
+        0, "Generating keypair with {} bits, e={} ...", 2048, 65537,
     );
 
-    if let Some((public_key, private_key)) = dc_pgp_create_keypair(self_addr) {
+    if let Some((public_key, private_key)) = dc_pgp_create_keypair(&self_addr) {
         if !dc_key_save_self_keypair(
             context,
             &public_key,
             &private_key,
-            self_addr,
+            &self_addr,
             1,
             &context.sql.clone().read().unwrap(),
         ) {

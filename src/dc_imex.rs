@@ -875,36 +875,29 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
 
 // TODO should return bool /rtn
 unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> libc::c_int {
-    let current_block: u64;
     let mut success = 0;
     let mut processed_files_cnt = 0;
 
     let total_files_cnt: usize;
 
-    dc_log_info(
+    info!(
         context,
         0,
-        b"Import \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
-        backup_to_import,
-        context.get_dbfile(),
+        "Import \"{}\" to \"{}\".",
+        as_str(backup_to_import),
+        as_str(context.get_dbfile()),
     );
     if 0 != dc_is_configured(context) {
-        dc_log_error(
-            context,
-            0,
-            b"Cannot import backups to accounts in use.\x00" as *const u8 as *const libc::c_char,
-        );
+        error!(context, 0, "Cannot import backups to accounts in use.");
     } else {
         if 0 != dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
             dc_sqlite3_close(context, &mut context.sql.clone().write().unwrap());
         }
         dc_delete_file(context, context.get_dbfile());
         if 0 != dc_file_exist(context, context.get_dbfile()) {
-            dc_log_error(
+            error!(
                 context,
-                0,
-                b"Cannot import backups: Cannot delete the old file.\x00" as *const u8
-                    as *const libc::c_char,
+                0, "Cannot import backups: Cannot delete the old file.",
             );
         } else if !(0 == dc_copy_file(context, backup_to_import, context.get_dbfile())) {
             /* error already logged */
@@ -926,25 +919,28 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 )
                 .unwrap_or_default() as usize;
 
-                let files = dc_sqlite3_prepare(
+                let files = if let Some(mut stmt) = dc_sqlite3_prepare(
                     context,
                     &context.sql.clone().read().unwrap(),
                     "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
-                )
-                .and_then(|mut stmt| {
+                ) {
                     stmt.query_map(params![], |row| {
                         let name: String = row.get(0)?;
                         let blob: Vec<u8> = row.get(1)?;
 
                         Ok((name, blob))
                     })
-                    .ok()
-                })
-                .expect("failed to load files");
+                    .map(|res| res.collect::<Vec<_>>())
+                    .unwrap()
+                } else {
+                    panic!("invalid sql");
+                };
+
+                let mut loop_success = true;
 
                 for file in files {
                     if file.is_err() {
-                        current_block = 10891380440665537214;
+                        loop_success = false;
                         break;
                     }
                     let (file_name, file_blob) = file.unwrap();
@@ -956,7 +952,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                         .unwrap()
                         .shall_stop_ongoing
                     {
-                        current_block = 8648553629232744886;
+                        loop_success = false;
                         break;
                     }
                     processed_files_cnt += 1;
@@ -973,7 +969,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                     }
 
                     let pathNfilename = format!("{}/{}", as_str(context.get_blobdir()), file_name);
-                    if dc_write_file_safe(context, pathNfilename, &file_blob) {
+                    if dc_write_file_safe(context, &pathNfilename, &file_blob) {
                         continue;
                     }
 
@@ -981,30 +977,27 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                         context,
                         0,
                         "Storage full? Cannot write file {} with {} bytes.",
-                        pathNfilename,
+                        &pathNfilename,
                         file_blob.len(),
                     );
                     // otherwise the user may believe the stuff is imported correctly, but there are files missing ...
-                    current_block = 8648553629232744886;
+                    loop_success = false;
                     break;
                 }
 
-                match current_block {
-                    8648553629232744886 => {}
-                    _ => {
-                        dc_sqlite3_execute(
-                            context,
-                            &context.sql.clone().read().unwrap(),
-                            "DROP TABLE backup_blobs;",
-                            params![],
-                        );
-                        dc_sqlite3_try_execute(
-                            context,
-                            &context.sql.clone().read().unwrap(),
-                            "VACUUM;",
-                        );
-                        success = 1;
-                    }
+                if loop_success {
+                    dc_sqlite3_execute(
+                        context,
+                        &context.sql.clone().read().unwrap(),
+                        "DROP TABLE backup_blobs;",
+                        params![],
+                    );
+                    dc_sqlite3_try_execute(
+                        context,
+                        &context.sql.clone().read().unwrap(),
+                        "VACUUM;",
+                    );
+                    success = 1;
                 }
             }
         }
@@ -1021,12 +1014,10 @@ The macro avoids weird values of 0% or 100% while still working. */
 // TODO should return bool /rtn
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
-    let mut success: libc::c_int = 0i32;
+    let mut success: libc::c_int = 0;
     let mut closed: libc::c_int;
 
-    let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut delete_dest_file: libc::c_int = 0i32;
+    let mut delete_dest_file: libc::c_int = 0;
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete. however, currently it is not clear it the import exists in the long run (may be replaced by a restore-from-imap)
     let now = time();
@@ -1038,7 +1029,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     if dest_pathNfilename.is_null() {
         dc_log_error(
             context,
-            0i32,
+            0,
             b"Cannot get backup file name.\x00" as *const u8 as *const libc::c_char,
         );
 
@@ -1048,10 +1039,10 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     dc_housekeeping(context);
     dc_sqlite3_try_execute(context, &context.sql.clone().read().unwrap(), "VACUUM;");
     dc_sqlite3_close(context, &mut context.sql.clone().write().unwrap());
-    closed = 1i32;
+    closed = 1;
     dc_log_info(
         context,
-        0i32,
+        0,
         b"Backup \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
         context.get_dbfile(),
         dest_pathNfilename,
@@ -1062,13 +1053,13 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
             context,
             &mut context.sql.clone().write().unwrap(),
             context.get_dbfile(),
-            0i32,
+            0,
         );
-        closed = 0i32;
+        closed = 0;
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
         let mut sql = dc_sqlite3_new();
-        if 0 != dc_sqlite3_open(context, &mut sql, dest_pathNfilename, 0i32) {
+        if 0 != dc_sqlite3_open(context, &mut sql, dest_pathNfilename, 0) {
             /* error already logged */
             if 0 == dc_sqlite3_table_exists(context, &sql, "backup_blobs") {
                 if !dc_sqlite3_execute(
@@ -1094,7 +1085,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                     if dir_handle.is_err() {
                         dc_log_error(
                             context,
-                            0i32,
+                            0,
                             b"Backup: Cannot get info for blob-directory \"%s\".\x00" as *const u8
                                 as *const libc::c_char,
                             context.get_blobdir(),
@@ -1109,7 +1100,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                             if dir_handle.is_err() {
                                 dc_log_error(
                                     context,
-                                    0i32,
+                                    0,
                                     b"Backup: Cannot copy from blob-directory \"%s\".\x00"
                                         as *const u8
                                         as *const libc::c_char,
@@ -1154,7 +1145,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                             context,
                                             Event::IMEX_PROGRESS,
                                             permille as uintptr_t,
-                                            0i32 as uintptr_t,
+                                            0 as uintptr_t,
                                         );
 
                                         let name_f = entry.file_name();
@@ -1168,7 +1159,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                             );
 
                                             if let Some(buf) =
-                                                dc_read_file_safe(context, curr_pathNfilename)
+                                                dc_read_file_safe(context, &curr_pathNfilename)
                                             {
                                                 if buf.is_empty() {
                                                     continue;
@@ -1178,7 +1169,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                                         context,
                                                         0,
                                                         "Disk full? Cannot add file \"{}\" to backup.",
-                                                        curr_pathNfilename,
+                                                        &curr_pathNfilename,
                                                     );
                                                     /* this is not recoverable! writing to the sqlite database should work! */
                                                     current_block = 11487273724841241105;
@@ -1225,7 +1216,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
             context,
             &mut context.sql.clone().write().unwrap(),
             context.get_dbfile(),
-            0i32,
+            0,
         );
     }
 
@@ -1233,8 +1224,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         dc_delete_file(context, dest_pathNfilename);
     }
     free(dest_pathNfilename as *mut libc::c_void);
-    free(curr_pathNfilename as *mut libc::c_void);
-    free(buf);
 
     success
 }
@@ -1249,12 +1238,12 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
 
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
-    let mut imported_cnt: libc::c_int = 0i32;
+    let mut imported_cnt: libc::c_int = 0;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut buf_bytes: size_t = 0i32 as size_t;
+    let mut buf_bytes: size_t = 0 as size_t;
     // a pointer inside buf, MUST NOT be free()'d
     let mut private_key: *const libc::c_char;
     let mut buf2: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1266,7 +1255,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
         if dir_handle.is_err() {
             dc_log_error(
                 context,
-                0i32,
+                0,
                 b"Import: Cannot open directory \"%s\".\x00" as *const u8 as *const libc::c_char,
                 dir_name,
             );
@@ -1282,7 +1271,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 let name_c = to_cstring(name_f.to_string_lossy());
                 suffix = dc_get_filesuffix_lc(name_c.as_ptr());
                 if suffix.is_null()
-                    || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0i32
+                    || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0
                 {
                     continue;
                 }
@@ -1294,7 +1283,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 );
                 dc_log_info(
                     context,
-                    0i32,
+                    0,
                     b"Checking: %s\x00" as *const u8 as *const libc::c_char,
                     path_plus_name,
                 );
@@ -1321,7 +1310,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 ) && strcmp(
                     buf2_headerline,
                     b"-----BEGIN PGP PUBLIC KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
+                ) == 0
                 {
                     private_key = strstr(
                         buf,
@@ -1332,7 +1321,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                         continue;
                     }
                 }
-                set_default = 1i32;
+                set_default = 1;
                 if !strstr(
                     name_c.as_ptr(),
                     b"legacy\x00" as *const u8 as *const libc::c_char,
@@ -1376,41 +1365,53 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
 unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut export_errors = 0;
 
-    dc_sqlite3_prepare(
+    if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT id, public_key, private_key, is_default FROM keypairs;",
-    )
-    .and_then(|mut stmt| {
-        stmt.query_map(params![], |row| {
+    ) {
+        let rows = stmt.query_map(params![], |row| {
             let id = row.get(0)?;
             let public_key_blob: Vec<u8> = row.get(1)?;
             let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
             let private_key_blob: Vec<u8> = row.get(2)?;
             let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
-
             let is_default = row.get(3)?;
-            if let Some(key) = public_key {
-                if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
-                    export_errors += 1;
-                }
-            } else {
-                export_errors += 1;
-            }
-            if let Some(key) = private_key {
-                if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
-                    export_errors += 1;
-                }
-            } else {
-                export_errors += 1;
-            }
 
-            Ok(())
-        })
-        .ok()
-    })
-    .map(|_| if export_errors == 0 { 1 } else { 0 })
-    .unwrap_or_default()
+            Ok((id, public_key, private_key, is_default))
+        });
+
+        if let Ok(keys) = rows {
+            for key_pair in keys {
+                if let Ok((id, public_key, private_key, is_default)) = key_pair {
+                    if let Some(key) = public_key {
+                        if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
+                            export_errors += 1;
+                        }
+                    } else {
+                        export_errors += 1;
+                    }
+                    if let Some(key) = private_key {
+                        if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
+                            export_errors += 1;
+                        }
+                    } else {
+                        export_errors += 1;
+                    }
+                }
+            }
+        } else {
+            return 1;
+        }
+    } else {
+        return 1;
+    }
+
+    if export_errors == 0 {
+        1
+    } else {
+        0
+    }
 }
 
 /*******************************************************************************

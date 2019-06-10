@@ -68,7 +68,7 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
 }
 unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
     let process_row = |row: &rusqlite::Row| {
-        let mut job = dc_job_t {
+        let job = dc_job_t {
             job_id: row.get(0)?,
             action: row.get(1)?,
             foreign_id: row.get(2)?,

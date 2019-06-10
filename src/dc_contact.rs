@@ -555,25 +555,28 @@ pub fn dc_get_contacts(
     let mut add_self = false;
     let ret = unsafe { dc_array_new(100) };
 
-    let process_row = |row: &rusqlite::Row| {
-        unsafe { dc_array_add_id(ret, row.get(0)?) };
-        Ok(())
-    };
-
     if 0 == listflags & 0x1 || query.is_null() {
         add_self = true;
 
-        dc_sqlite3_prepare(
+        if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;",
-        ).and_then(|mut stmt| {
-            stmt.query_map(params![self_addr, 9, 0x100], process_row).ok()
-        });
+        ) {
+            let rows = stmt.query_map(params![self_addr, 9, 0x100], |row| row.get::<_, i32>(0));
+
+            if let Ok(ids) = rows {
+                for id in ids {
+                    if let Ok(id) = id {
+                        unsafe { dc_array_add_id(ret, id as u32) };
+                    }
+                }
+            }
+        }
     } else {
         let s3strLikeCmd = format!("%{}%", if !query.is_null() { as_str(query) } else { "" });
 
-        dc_sqlite3_prepare(
+        if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             "SELECT c.id FROM contacts c \
@@ -585,9 +588,8 @@ pub fn dc_get_contacts(
              AND (c.name LIKE ?4 OR c.addr LIKE ?5) \
              AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)  \
              ORDER BY LOWER(c.name||c.addr),c.id;",
-        )
-        .and_then(|mut stmt| {
-            stmt.query_map(
+        ) {
+            let rows = stmt.query_map(
                 params![
                     self_addr,
                     9,
@@ -596,10 +598,17 @@ pub fn dc_get_contacts(
                     &s3strLikeCmd,
                     if 0 != listflags & 0x1 { 0 } else { 1 },
                 ],
-                process_row,
-            )
-            .ok()
-        });
+                |row| row.get::<_, i32>(0),
+            );
+
+            if let Ok(ids) = rows {
+                for id in ids {
+                    if let Ok(id) = id {
+                        unsafe { dc_array_add_id(ret, id as u32) };
+                    }
+                }
+            }
+        }
 
         let self_name = dc_sqlite3_get_config(
             context,
@@ -642,25 +651,25 @@ pub fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
 pub fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
     let ret = unsafe { dc_array_new(100) };
 
-    if dc_sqlite3_prepare(
+    if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
-    )
-    .and_then(|mut stmt| {
-        stmt.query_map(params![9], |row| {
-            unsafe { dc_array_add_id(ret, row.get(0)?) };
-            Ok(())
-        })
-        .ok()
-    })
-    .is_none()
-    {
-        unsafe { dc_array_unref(ret) };
-        return std::ptr::null_mut();
+    ) {
+        let rows = stmt.query_map(params![9], |row| row.get::<_, i32>(0));
+        if let Ok(ids) = rows {
+            for id in ids {
+                if let Ok(id) = id {
+                    unsafe { dc_array_add_id(ret, id as u32) };
+                }
+            }
+
+            return ret;
+        }
     }
 
-    ret
+    unsafe { dc_array_unref(ret) };
+    std::ptr::null_mut()
 }
 
 pub unsafe fn dc_get_contact_encrinfo(
@@ -668,11 +677,11 @@ pub unsafe fn dc_get_contact_encrinfo(
     contact_id: uint32_t,
 ) -> *mut libc::c_char {
     let mut ret = String::new();
-    let contact: *mut dc_contact_t = dc_contact_new(context);
+    let contact = dc_contact_new(context);
 
-    let mut fingerprint_self: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut fingerprint_other_verified: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut fingerprint_other_unverified: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut fingerprint_self = 0 as *mut libc::c_char;
+    let mut fingerprint_other_verified = 0 as *mut libc::c_char;
+    let mut fingerprint_other_unverified = 0 as *mut libc::c_char;
     let mut p: *mut libc::c_char;
 
     if !(!dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)) {

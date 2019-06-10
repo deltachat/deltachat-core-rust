@@ -1163,7 +1163,7 @@ pub fn dc_housekeeping(context: &Context) {
                     unreferenced_count,
                     entry.file_name()
                 );
-                dc_delete_file(context, path);
+                unsafe { dc_delete_file(context, path) };
             }
         }
         Err(err) => {

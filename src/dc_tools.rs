@@ -1281,7 +1281,7 @@ pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf
         true
     };
 
-    free(pathNfilename_abs as *mut libc::c_void);
+    unsafe { free(pathNfilename_abs as *mut libc::c_void) };
     success
 }
 

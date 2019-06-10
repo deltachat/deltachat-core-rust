@@ -159,7 +159,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                     0i32 as uintptr_t,
                 );
 
-                let param = dc_loginparam_read(context, &context.sql.clone().read().unwrap(), "");
+                let mut param =
+                    dc_loginparam_read(context, &context.sql.clone().read().unwrap(), "");
                 if param.addr.is_empty() {
                     error!(context, 0, "Please enter an email address.",);
                 } else {
@@ -1138,14 +1139,10 @@ unsafe fn moz_autoconfigure(
     moz_ac.in_emaillocalpart = dc_strdup(to_cstring(&param_in.addr).as_ptr());
     let p = strchr(moz_ac.in_emaillocalpart, '@' as i32);
 
-    let cleanup = || {
+    if p.is_null() {
         free(xml_raw as *mut libc::c_void);
         free(moz_ac.in_emaildomain as *mut libc::c_void);
         free(moz_ac.in_emaillocalpart as *mut libc::c_void);
-    };
-
-    if p.is_null() {
-        cleanup();
         return None;
     }
 
@@ -1176,11 +1173,15 @@ unsafe fn moz_autoconfigure(
     {
         let r = dc_loginparam_get_readable(&moz_ac.out);
         warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
-        cleanup();
+        free(xml_raw as *mut libc::c_void);
+        free(moz_ac.in_emaildomain as *mut libc::c_void);
+        free(moz_ac.in_emaillocalpart as *mut libc::c_void);
         return None;
     }
 
-    cleanup();
+    free(xml_raw as *mut libc::c_void);
+    free(moz_ac.in_emaildomain as *mut libc::c_void);
+    free(moz_ac.in_emaillocalpart as *mut libc::c_void);
     Some(moz_ac.out)
 }
 
@@ -1403,11 +1404,6 @@ unsafe fn outlk_autodiscover(
         xml_raw = 0 as *mut libc::c_char;
         i += 1;
     }
-    let cleanup = || {
-        free(url as *mut libc::c_void);
-        free(xml_raw as *mut libc::c_void);
-        outlk_clean_config(&mut outlk_ad);
-    };
 
     match current_block {
         11584701595673473500 => {
@@ -1418,13 +1414,18 @@ unsafe fn outlk_autodiscover(
             {
                 let r = dc_loginparam_get_readable(&outlk_ad.out);
                 warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
-                cleanup();
+                free(url as *mut libc::c_void);
+                free(xml_raw as *mut libc::c_void);
+                outlk_clean_config(&mut outlk_ad);
+
                 return None;
             }
         }
         _ => {}
     }
-    cleanup();
+    free(url as *mut libc::c_void);
+    free(xml_raw as *mut libc::c_void);
+    outlk_clean_config(&mut outlk_ad);
     Some(outlk_ad.out)
 }
 

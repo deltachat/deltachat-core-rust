@@ -1124,16 +1124,15 @@ pub unsafe fn dc_get_chat_msgs(
         return ret;
     }
 
+    let process_row = |row: &rusqlite::Row| Ok((row.get::<_, i32>(0)?, row.get::<_, i64>(1)?));
+    let sql_raw = context.sql.clone();
+    let sql = sql_raw.read().unwrap();
+
     let rows = if chat_id == 1 {
-        let show_emails = dc_sqlite3_get_config_int(
-            context,
-            &context.sql.clone().read().unwrap(),
-            "show_emails",
-            0,
-        );
+        let show_emails = dc_sqlite3_get_config_int(context, &sql, "show_emails", 0);
         if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &sql,
             "SELECT m.id, m.timestamp FROM msgs m \
              LEFT JOIN chats ON m.chat_id=chats.id \
              LEFT JOIN contacts ON m.from_id=contacts.id WHERE m.from_id!=1   \
@@ -1144,7 +1143,8 @@ pub unsafe fn dc_get_chat_msgs(
              AND m.msgrmsg>=?  \
              ORDER BY m.timestamp,m.id;",
         ) {
-            stmt.query(params![if show_emails == 2 { 0 } else { 1 }])
+            stmt.query_map(params![if show_emails == 2 { 0 } else { 1 }], process_row)
+                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
         } else {
             dc_array_unref(ret);
             return std::ptr::null_mut();
@@ -1152,14 +1152,15 @@ pub unsafe fn dc_get_chat_msgs(
     } else if chat_id == 5 {
         if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &sql,
             "SELECT m.id, m.timestamp FROM msgs m \
              LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.starred=1    \
              AND m.hidden=0    \
              AND ct.blocked=0 \
              ORDER BY m.timestamp,m.id;",
         ) {
-            stmt.query(params![])
+            stmt.query_map(params![], process_row)
+                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
         } else {
             dc_array_unref(ret);
             return std::ptr::null_mut();
@@ -1167,13 +1168,14 @@ pub unsafe fn dc_get_chat_msgs(
     } else {
         if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &sql,
             "SELECT m.id, m.timestamp FROM msgs m \
              WHERE m.chat_id=?    \
              AND m.hidden=0  \
              ORDER BY m.timestamp,m.id;",
         ) {
-            stmt.query(params![chat_id as i32])
+            stmt.query_map(params![chat_id as i32], process_row)
+                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
         } else {
             dc_array_unref(ret);
             return std::ptr::null_mut();
@@ -1181,13 +1183,12 @@ pub unsafe fn dc_get_chat_msgs(
     };
 
     if let Ok(rows) = rows {
-        while let Ok(Some(row)) = rows.next() {
-            let curr_id: i32 = row.get(0).unwrap_or_default();
+        for (curr_id, ts) in rows {
             if curr_id as u32 == marker1before {
                 dc_array_add_id(ret, 1);
             }
             if 0 != flags & 0x1 {
-                let curr_local_timestamp = row.get::<_, i64>(1).unwrap_or_default() + cnv_to_local;
+                let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = (curr_local_timestamp / 86400) as libc::c_int;
                 if curr_day != last_day {
                     dc_array_add_id(ret, 9);
@@ -1294,31 +1295,40 @@ pub fn dc_get_chat_media(
 ) -> *mut dc_array_t {
     let ret = unsafe { dc_array_new(100) };
 
-    dc_sqlite3_prepare(
+    if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT id FROM msgs WHERE chat_id=? AND (type=? OR type=? OR type=?) ORDER BY timestamp, id;"
-    ).and_then(|mut stmt| {
-        stmt.query_map(params![
-            chat_id as i32,
-            msg_type,
-            if msg_type2 > 0 {
-                msg_type2
-            } else {
-                msg_type
-            }, if msg_type3 > 0 {
-                msg_type3
-            } else {
-                msg_type
-            },
-        ], |row| {
-            unsafe { dc_array_add_id(ret, row.get::<_, u32>(0)?) };
-            Ok(())
-        }).ok()
-    }).map(|_| ret).unwrap_or_else(|| {
-        unsafe { dc_array_unref(ret) };
-        std::ptr::null_mut()
-    })
+    ) {
+        let rows = stmt.query_map(
+            params![
+                chat_id as i32,
+                msg_type,
+                if msg_type2 > 0 {
+                    msg_type2
+                } else {
+                    msg_type
+                }, if msg_type3 > 0 {
+                    msg_type3
+                } else {
+                    msg_type
+                },
+            ],
+            |row| row.get::<_, i32>(0)
+        );
+
+        if let Ok(ids) = rows {
+            for id in ids {
+                if let Ok(id) = id {
+                    unsafe { dc_array_add_id(ret, id as u32) };
+                }
+            }
+            return ret;
+        }
+    }
+
+    unsafe { dc_array_unref(ret) };
+    std::ptr::null_mut()
 }
 
 pub unsafe fn dc_get_next_media(
@@ -1407,13 +1417,14 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
         return;
     }
     let obj = unsafe { dc_chat_new(context) };
-    if !unsafe { dc_chat_load_from_db(obj, chat_id) } {
+    if !dc_chat_load_from_db(obj, chat_id) {
         unsafe { dc_chat_unref(obj) };
         return;
     }
     unsafe { dc_chat_unref(obj) };
 
-    let sql = context.sql.clone().read().unwrap();
+    let raw_sql = context.sql.clone();
+    let sql = raw_sql.read().unwrap();
     if !dc_sqlite3_execute(
         context,
         &sql,
@@ -1464,22 +1475,27 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
     // we could also create a list for all contacts in the deaddrop by searching contacts belonging to chats with
     // chats.blocked=2, however, currently this is not needed
 
-    dc_sqlite3_prepare(
+    if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
         &context.sql.clone().read().unwrap(),
         "SELECT cc.contact_id FROM chats_contacts cc \
          LEFT JOIN contacts c ON c.id=cc.contact_id WHERE cc.chat_id=? \
          ORDER BY c.id=1, LOWER(c.name||c.addr), c.id;",
-    )
-    .and_then(|mut stmt| {
-        stmt.query_map(params![chat_id as i32], |row| {
-            unsafe { dc_array_add_id(ret, row.get(0)?) };
-            Ok(())
-        })
-        .ok()
-    })
-    .map(|_| ret)
-    .unwrap_or_else(|| std::ptr::null_mut())
+    ) {
+        let rows = stmt.query_map(params![chat_id as i32], |row| row.get::<_, i32>(0));
+        if let Ok(ids) = rows {
+            for id in ids {
+                if let Ok(id) = id {
+                    unsafe { dc_array_add_id(ret, id as u32) };
+                }
+            }
+
+            return ret;
+        }
+    }
+
+    unsafe { dc_array_unref(ret) }
+    std::ptr::null_mut()
 }
 
 pub unsafe fn dc_get_chat(context: &Context, chat_id: uint32_t) -> *mut dc_chat_t {
@@ -2025,70 +2041,70 @@ pub unsafe fn dc_forward_msgs(
         curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
         idsstr = dc_arr_to_string(msg_ids, msg_cnt);
 
-        dc_sqlite3_prepare(
+        if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
             &context.sql.clone().read().unwrap(),
             "SELECT id FROM msgs WHERE id IN(?) ORDER BY timestamp,id",
-        )
-        .and_then(|mut stmt| {
-            stmt.query_map(params![as_str(idsstr)], |row| {
-                let src_msg_id = row.get(0)?;
-                if !dc_msg_load_from_db(msg, context, src_msg_id) {
-                    // TODO: custom error type
-                    return Err(rusqlite::Error::InvalidQuery);
-                }
-                dc_param_set_packed(original_param, (*(*msg).param).packed);
-                if (*msg).from_id != 1i32 as libc::c_uint {
-                    dc_param_set_int((*msg).param, 'a' as i32, 1i32);
-                }
-                dc_param_set((*msg).param, 'c' as i32, 0 as *const libc::c_char);
-                dc_param_set((*msg).param, 'u' as i32, 0 as *const libc::c_char);
-                dc_param_set((*msg).param, 'S' as i32, 0 as *const libc::c_char);
-                let new_msg_id: uint32_t;
-                if (*msg).state == 18i32 {
-                    let fresh9 = curr_timestamp;
-                    curr_timestamp = curr_timestamp + 1;
-                    new_msg_id = prepare_msg_raw(context, chat, msg, fresh9);
-                    let save_param: *mut dc_param_t = (*msg).param;
-                    (*msg).param = original_param;
-                    (*msg).id = src_msg_id as uint32_t;
-                    let old_fwd: *mut libc::c_char = dc_param_get(
-                        (*msg).param,
-                        'P' as i32,
-                        b"\x00" as *const u8 as *const libc::c_char,
-                    );
-                    let new_fwd: *mut libc::c_char = dc_mprintf(
-                        b"%s %d\x00" as *const u8 as *const libc::c_char,
-                        old_fwd,
-                        new_msg_id,
-                    );
-                    dc_param_set((*msg).param, 'P' as i32, new_fwd);
-                    dc_msg_save_param_to_disk(msg);
-                    free(new_fwd as *mut libc::c_void);
-                    free(old_fwd as *mut libc::c_void);
-                    (*msg).param = save_param
-                } else {
-                    (*msg).state = 20i32;
-                    let fresh10 = curr_timestamp;
-                    curr_timestamp = curr_timestamp + 1;
-                    new_msg_id = prepare_msg_raw(context, chat, msg, fresh10);
-                    dc_job_send_msg(context, new_msg_id);
-                }
-                carray_add(
-                    created_db_entries,
-                    chat_id as uintptr_t as *mut libc::c_void,
-                    0 as *mut libc::c_uint,
-                );
-                carray_add(
-                    created_db_entries,
-                    new_msg_id as uintptr_t as *mut libc::c_void,
-                    0 as *mut libc::c_uint,
-                );
+        ) {
+            let rows = stmt.query_map(params![as_str(idsstr)], |row| row.get::<_, i32>(0));
 
-                Ok(())
-            })
-            .ok()
-        });
+            if let Ok(ids) = rows {
+                for id in ids {
+                    if let Ok(src_msg_id) = id {
+                        if !dc_msg_load_from_db(msg, context, src_msg_id as u32) {
+                            break;
+                        }
+                        dc_param_set_packed(original_param, (*(*msg).param).packed);
+                        if (*msg).from_id != 1i32 as libc::c_uint {
+                            dc_param_set_int((*msg).param, 'a' as i32, 1i32);
+                        }
+                        dc_param_set((*msg).param, 'c' as i32, 0 as *const libc::c_char);
+                        dc_param_set((*msg).param, 'u' as i32, 0 as *const libc::c_char);
+                        dc_param_set((*msg).param, 'S' as i32, 0 as *const libc::c_char);
+                        let new_msg_id: uint32_t;
+                        if (*msg).state == 18i32 {
+                            let fresh9 = curr_timestamp;
+                            curr_timestamp = curr_timestamp + 1;
+                            new_msg_id = prepare_msg_raw(context, chat, msg, fresh9);
+                            let save_param: *mut dc_param_t = (*msg).param;
+                            (*msg).param = original_param;
+                            (*msg).id = src_msg_id as uint32_t;
+                            let old_fwd: *mut libc::c_char = dc_param_get(
+                                (*msg).param,
+                                'P' as i32,
+                                b"\x00" as *const u8 as *const libc::c_char,
+                            );
+                            let new_fwd: *mut libc::c_char = dc_mprintf(
+                                b"%s %d\x00" as *const u8 as *const libc::c_char,
+                                old_fwd,
+                                new_msg_id,
+                            );
+                            dc_param_set((*msg).param, 'P' as i32, new_fwd);
+                            dc_msg_save_param_to_disk(msg);
+                            free(new_fwd as *mut libc::c_void);
+                            free(old_fwd as *mut libc::c_void);
+                            (*msg).param = save_param
+                        } else {
+                            (*msg).state = 20i32;
+                            let fresh10 = curr_timestamp;
+                            curr_timestamp = curr_timestamp + 1;
+                            new_msg_id = prepare_msg_raw(context, chat, msg, fresh10);
+                            dc_job_send_msg(context, new_msg_id);
+                        }
+                        carray_add(
+                            created_db_entries,
+                            chat_id as uintptr_t as *mut libc::c_void,
+                            0 as *mut libc::c_uint,
+                        );
+                        carray_add(
+                            created_db_entries,
+                            new_msg_id as uintptr_t as *mut libc::c_void,
+                            0 as *mut libc::c_uint,
+                        );
+                    }
+                }
+            }
+        }
     }
 
     if !created_db_entries.is_null() {
