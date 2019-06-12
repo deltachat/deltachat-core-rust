@@ -50,18 +50,14 @@ to core deltachat library::
     cd deltachat-core-rust
     cargo build -p deltachat_ffi --release
 
-This will result in a ``libdeltachat.so`` and ``deltachat.h`` file
-in the ``deltachat_ffi`` directory. These files are needed for
+This will result in a ``libdeltachat.so`` and ``libdeltachat.a`` files
+in the ``target/release`` directory. These files are needed for
 creating the python bindings for deltachat::
 
     cd python
-    CFLAGS=I`pwd`/../deltachat-ffi pip install -e .
+    DCC_RS_DEV=`pwd`/.. pip install -e .
 
-You then need to set the load-dynamic-library path in your shell::
-
-    export LD_LIBRARY_PATH=`pwd`/../target/release
-
-so that importing the bindings finds the correct library::
+Now test if the bindings find the correct library::
 
     python -c 'import deltachat ; print(deltachat.__version__)'
 
@@ -73,6 +69,14 @@ This should print your deltachat bindings version.
     that'd be much appreciated! please then get
     `in contact with us <https://delta.chat/en/contribute>`_.
 
+Using a system-installed deltachat-core-rust
+--------------------------------------------
+
+When calling ``pip`` without specifying the ``DCC_RS_DEV`` environment
+variable cffi will try to use a ``deltachat.h`` from a system location
+like ``/usr/local/include`` and will try to dynamically link against a
+``libdeltachat.so`` in a similar location (e.g. ``/usr/local/lib``).
+
 
 Code examples
 =============
@@ -83,13 +87,10 @@ You may look at `examples <https://py.delta.chat/examples.html>`_.
 Running tests
 =============
 
-Get a checkout of the `deltachat-core github repository`_ and type::
+Get a checkout of the `deltachat-core-rust github repository`_ and type::
 
-    cd python
-    export CFLAGS=I`pwd`/../deltachat-ffi
-    export LD_LIBRARY_PATH=`pwd`/../target/release
     pip install tox
-    tox
+    ./run-integration-tests.sh
 
 If you want to run functional tests with real
 e-mail test accounts, generate a "liveconfig" file where each
@@ -103,13 +104,23 @@ The "keyword=value" style allows to specify any
 `deltachat account config setting <https://c.delta.chat/classdc__context__t.html#aff3b894f6cfca46cab5248fdffdf083d>`_ so you can also specify smtp or imap servers, ports, ssl modes etc.
 Typically DC's automatic configuration allows to not specify these settings.
 
-You can now run tests with this ``liveconfig`` file::
+The ``run-integration-tests.sh`` script will automatically use
+``python/liveconfig`` if it exists, to manually run tests with this
+``liveconfig`` file use::
 
     tox -- --liveconfig liveconfig
 
 
-.. _`deltachat-core github repository`: https://github.com/deltachat/deltachat-core-rust
+.. _`deltachat-core-rust github repository`: https://github.com/deltachat/deltachat-core-rust
 .. _`deltachat-core`: https://github.com/deltachat/deltachat-core-rust
+
+Running test using a debug build
+--------------------------------
+
+If you need to examine e.g. a coredump you may want to run the tests
+using a debug build::
+
+   DCC_RS_TARGET=debug ./run-integration-tests.sh -e py37 -- -x -v -k failing_test
 
 
 Building manylinux1 wheels

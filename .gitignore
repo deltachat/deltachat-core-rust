@@ -11,3 +11,9 @@ include
 .dc-history.txt
 *.db
 *.db-blobs
+
+python/.eggs
+python/.tox
+*.egg-info
+__pycache__
+python/src/deltachat/capi*.so
