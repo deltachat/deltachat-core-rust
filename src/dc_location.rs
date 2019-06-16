@@ -93,8 +93,7 @@ pub unsafe fn dc_send_locations_to_chat(
             );
             dc_add_device_msg(context, chat_id, stock_str);
         }
-        (context.cb)(
-            context,
+        context.call_cb(
             Event::CHAT_MODIFIED,
             chat_id as uintptr_t,
             0i32 as uintptr_t,
@@ -191,8 +190,7 @@ pub unsafe fn dc_set_location(
             continue_streaming = 1i32
         }
         if 0 != continue_streaming {
-            (context.cb)(
-                context,
+            context.call_cb(
                 Event::LOCATION_CHANGED,
                 1i32 as uintptr_t,
                 0i32 as uintptr_t,
@@ -303,8 +301,7 @@ pub unsafe fn dc_delete_all_locations(context: &Context) {
         b"DELETE FROM locations;\x00" as *const u8 as *const libc::c_char,
     );
     sqlite3_step(stmt);
-    (context.cb)(
-        context,
+    context.call_cb(
         Event::LOCATION_CHANGED,
         0i32 as uintptr_t,
         0i32 as uintptr_t,
@@ -825,8 +822,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
                     0i32 as uint32_t,
                 );
                 dc_add_device_msg(context, chat_id, stock_str);
-                (context.cb)(
-                    context,
+                context.call_cb(
                     Event::CHAT_MODIFIED,
                     chat_id as uintptr_t,
                     0i32 as uintptr_t,

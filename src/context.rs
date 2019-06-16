@@ -35,7 +35,7 @@ pub struct Context {
     pub smtp: Arc<Mutex<Smtp>>,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
-    pub cb: dc_callback_t,
+    pub cb: Option<dc_callback_t>,
     pub os_name: *mut libc::c_char,
     pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
     pub bob: Arc<RwLock<BobStatus>>,
@@ -67,6 +67,14 @@ impl Context {
 
     pub fn get_blobdir(&self) -> *const libc::c_char {
         *self.blobdir.clone().read().unwrap()
+    }
+
+    pub fn call_cb(&self, event: Event, data1: uintptr_t, data2: uintptr_t) -> uintptr_t {
+        if let Some(cb) = self.cb {
+            unsafe { cb(self, event, data1, data2) }
+        } else {
+            0
+        }
     }
 }
 
@@ -123,7 +131,7 @@ pub struct _dc_location {
 
 // create/open/config/information
 pub fn dc_context_new(
-    cb: dc_callback_t,
+    cb: Option<dc_callback_t>,
     userdata: *mut libc::c_void,
     os_name: *const libc::c_char,
 ) -> Context {

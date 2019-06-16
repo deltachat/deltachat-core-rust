@@ -416,8 +416,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
                                     } else {
                                         0i32
                                     };
-                                    (context.cb)(
-                                        context,
+                                    context.call_cb(
                                         Event::MSG_DELIVERED,
                                         chat_id as uintptr_t,
                                         job.foreign_id as uintptr_t,

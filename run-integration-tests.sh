@@ -18,6 +18,9 @@ if [ $DCC_RS_TARGET = 'release' ]; then
 else
     cargo build -p deltachat_ffi
 fi
+if [ $? != 0 ]; then
+    exit $?
+fi
 
 pushd python
 toxargs="$@"

@@ -37,12 +37,7 @@ pub unsafe fn dc_marknoticed_contact(context: &Context, contact_id: uint32_t) {
     sqlite3_bind_int(stmt, 1i32, contact_id as libc::c_int);
     sqlite3_step(stmt);
     sqlite3_finalize(stmt);
-    ((*context).cb)(
-        context,
-        Event::MSGS_CHANGED,
-        0i32 as uintptr_t,
-        0i32 as uintptr_t,
-    );
+    context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
 }
 
 /// Returns false if addr is an invalid address, otherwise true.
@@ -140,8 +135,7 @@ pub unsafe fn dc_create_contact(
     if !(addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32) {
         contact_id = dc_add_or_lookup_contact(context, name, addr, 0x4000000i32, &mut sth_modified);
         blocked = dc_is_contact_blocked(context, contact_id);
-        ((*context).cb)(
-            context,
+        context.call_cb(
             Event::CONTACTS_CHANGED,
             (if sth_modified == 2i32 {
                 contact_id
@@ -203,8 +197,7 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
             5249903830285462583 => {}
             _ => {
                 if 0 != send_event {
-                    ((*context).cb)(
-                        context,
+                    context.call_cb(
                         Event::CONTACTS_CHANGED,
                         0i32 as uintptr_t,
                         0i32 as uintptr_t,
@@ -566,8 +559,7 @@ pub unsafe fn dc_add_address_book(context: &Context, adr_book: *const libc::c_ch
                 i = (i as libc::c_ulong).wrapping_add(2i32 as libc::c_ulong) as size_t as size_t
             }
             if 0 != modify_cnt {
-                ((*context).cb)(
-                    context,
+                context.call_cb(
                     Event::CONTACTS_CHANGED,
                     0i32 as uintptr_t,
                     0i32 as uintptr_t,
@@ -933,8 +925,7 @@ pub unsafe fn dc_delete_contact(context: &Context, contact_id: uint32_t) -> bool
                 );
                 sqlite3_bind_int(stmt, 1i32, contact_id as libc::c_int);
                 if !(sqlite3_step(stmt) != 101i32) {
-                    ((*context).cb)(
-                        context,
+                    context.call_cb(
                         Event::CONTACTS_CHANGED,
                         0i32 as uintptr_t,
                         0i32 as uintptr_t,

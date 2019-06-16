@@ -386,7 +386,7 @@ impl Helper for DcHelper {}
 
 fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     let mut context = dc_context_new(
-        receive_event,
+        Some(receive_event),
         0 as *mut libc::c_void,
         b"CLI\x00" as *const u8 as *const libc::c_char,
     );

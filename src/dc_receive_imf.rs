@@ -944,8 +944,7 @@ pub unsafe fn dc_receive_imf(
                             dc_contact_unref(contact);
                         }
                         if send_event {
-                            ((*context).cb)(
-                                context,
+                            context.call_cb(
                                 Event::LOCATION_CHANGED,
                                 from_id as uintptr_t,
                                 0i32 as uintptr_t,
@@ -979,8 +978,7 @@ pub unsafe fn dc_receive_imf(
             let mut i_0: size_t = 0;
             let icnt_0: size_t = carray_count(created_db_entries) as size_t;
             while i_0 < icnt_0 {
-                ((*context).cb)(
-                    context,
+                context.call_cb(
                     create_event_to_send,
                     carray_get(created_db_entries, i_0 as libc::c_uint) as uintptr_t,
                     carray_get(created_db_entries, i_0.wrapping_add(1) as libc::c_uint)
@@ -996,8 +994,7 @@ pub unsafe fn dc_receive_imf(
         let icnt_1: size_t = carray_count(rr_event_to_send) as size_t;
         i_1 = 0i32 as size_t;
         while i_1 < icnt_1 {
-            ((*context).cb)(
-                context,
+            context.call_cb(
                 Event::MSG_READ,
                 carray_get(rr_event_to_send, i_1 as libc::c_uint) as uintptr_t,
                 carray_get(rr_event_to_send, i_1.wrapping_add(1) as libc::c_uint) as uintptr_t,
@@ -1378,8 +1375,7 @@ unsafe fn create_or_lookup_group(
                             sqlite3_bind_int(stmt, 2i32, chat_id as libc::c_int);
                             sqlite3_step(stmt);
                             sqlite3_finalize(stmt);
-                            ((*context).cb)(
-                                context,
+                            context.call_cb(
                                 Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
                                 0i32 as uintptr_t,
@@ -1481,8 +1477,7 @@ unsafe fn create_or_lookup_group(
                             dc_reset_gossiped_timestamp(context, chat_id);
                         }
                         if 0 != send_EVENT_CHAT_MODIFIED {
-                            ((*context).cb)(
-                                context,
+                            context.call_cb(
                                 Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
                                 0i32 as uintptr_t,
@@ -1617,8 +1612,7 @@ unsafe fn create_or_lookup_adhoc_group(
                                 );
                                 i += 1
                             }
-                            ((*context).cb)(
-                                context,
+                            context.call_cb(
                                 Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
                                 0i32 as uintptr_t,

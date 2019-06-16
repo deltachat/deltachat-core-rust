@@ -22,7 +22,7 @@ pub type dc_callback_t = types::dc_callback_t;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_context_new(
-    cb: dc_callback_t,
+    cb: Option<dc_callback_t>,
     userdata: *mut libc::c_void,
     os_name: *const libc::c_char,
 ) -> *mut dc_context_t {

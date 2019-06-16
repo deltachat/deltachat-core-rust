@@ -222,8 +222,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         b"Taking protocol shortcut.\x00" as *const u8 as *const libc::c_char,
                     );
                     context.bob.clone().write().unwrap().expects = 6;
-                    (context.cb)(
-                        context,
+                    context.call_cb(
                         Event::SECUREJOIN_JOINER_PROGRESS,
                         chat_id_2_contact_id(context, contact_chat_id) as uintptr_t,
                         400i32 as uintptr_t,
@@ -469,8 +468,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         0i32,
                         b"Secure-join requested.\x00" as *const u8 as *const libc::c_char,
                     );
-                    (context.cb)(
-                        context,
+                    context.call_cb(
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
                         300i32 as uintptr_t,
@@ -557,8 +555,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Fingerprint verified.\x00" as *const u8 as *const libc::c_char,
                         );
                         own_fingerprint = get_self_fingerprint(context);
-                        (context.cb)(
-                            context,
+                        context.call_cb(
                             Event::SECUREJOIN_JOINER_PROGRESS,
                             contact_id as uintptr_t,
                             400i32 as uintptr_t,
@@ -664,14 +661,12 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Auth verified.\x00" as *const u8 as *const libc::c_char,
                         );
                         secure_connection_established(context, contact_chat_id);
-                        (context.cb)(
-                            context,
+                        context.call_cb(
                             Event::CONTACTS_CHANGED,
                             contact_id as uintptr_t,
                             0i32 as uintptr_t,
                         );
-                        (context.cb)(
-                            context,
+                        context.call_cb(
                             Event::SECUREJOIN_INVITER_PROGRESS,
                             contact_id as uintptr_t,
                             600i32 as uintptr_t,
@@ -713,8 +708,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 0 as *const libc::c_char,
                                 0 as *const libc::c_char,
                             );
-                            (context.cb)(
-                                context,
+                            context.call_cb(
                                 Event::SECUREJOIN_INVITER_PROGRESS,
                                 contact_id as uintptr_t,
                                 1000i32 as uintptr_t,
@@ -807,8 +801,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                     current_block = 4378276786830486580;
                                 } else {
                                     dc_scaleup_contact_origin(context, contact_id, 0x2000000i32);
-                                    (context.cb)(
-                                        context,
+                                    context.call_cb(
                                         Event::CONTACTS_CHANGED,
                                         0i32 as uintptr_t,
                                         0i32 as uintptr_t,
@@ -877,14 +870,12 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     );
                     current_block = 4378276786830486580;
                 } else {
-                    (context.cb)(
-                        context,
+                    context.call_cb(
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
                         800i32 as uintptr_t,
                     );
-                    (context.cb)(
-                        context,
+                    context.call_cb(
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
                         1000i32 as uintptr_t,
@@ -931,8 +922,7 @@ unsafe fn secure_connection_established(context: &Context, contact_chat_id: uint
         },
     );
     dc_add_device_msg(context, contact_chat_id, msg);
-    (context.cb)(
-        context,
+    context.call_cb(
         Event::CHAT_MODIFIED,
         contact_chat_id as uintptr_t,
         0i32 as uintptr_t,
@@ -1101,8 +1091,7 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
             let msg = dc_stock_str_repl_string(context, 37i32, c_addr_ptr);
             dc_add_device_msg(context, contact_chat_id, msg);
             free(msg as *mut libc::c_void);
-            (context.cb)(
-                context,
+            context.call_cb(
                 Event::CHAT_MODIFIED,
                 contact_chat_id as uintptr_t,
                 0i32 as uintptr_t,

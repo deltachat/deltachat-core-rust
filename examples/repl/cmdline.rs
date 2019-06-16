@@ -83,7 +83,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
         info!(context, 0, "(8) Rest but server config reset.");
     }
 
-    (context.cb)(context, Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
 
     1
 }
@@ -215,7 +215,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                         as_str(real_spec)
                     );
                     if read_cnt > 0 {
-                        (context.cb)(context, Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+                        context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
                     }
                     success = 1
                 }
@@ -1180,7 +1180,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "event" => {
             ensure!(!arg1.is_empty(), "Argument <id> missing.");
             let event = Event::from_u32(arg1.parse().unwrap()).unwrap();
-            let r = (context.cb)(context, event, 0 as uintptr_t, 0 as uintptr_t);
+            let r = context.call_cb(event, 0 as uintptr_t, 0 as uintptr_t);
             println!(
                 "Sending event {:?}({}), received value {}.",
                 event, event as usize, r as libc::c_int,

@@ -158,8 +158,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
             let s = s_a.read().unwrap();
 
             if !s.shall_stop_ongoing {
-                (context.cb)(
-                    context,
+                context.call_cb(
                     Event::CONFIGURE_PROGRESS,
                     (if 0i32 < 1i32 {
                         1i32
@@ -193,8 +192,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                         if s.shall_stop_ongoing {
                             current_block = 2927484062889439186;
                         } else {
-                            (context.cb)(
-                                context,
+                            context.call_cb(
                                 Event::CONFIGURE_PROGRESS,
                                 (if 10i32 < 1i32 {
                                     1i32
@@ -223,8 +221,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                             if s.shall_stop_ongoing {
                                 current_block = 2927484062889439186;
                             } else {
-                                (context.cb)(
-                                    context,
+                                context.call_cb(
                                     Event::CONFIGURE_PROGRESS,
                                     (if 20i32 < 1i32 {
                                         1i32
@@ -260,8 +257,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                     (*param).mail_pw = dc_strdup(0 as *const libc::c_char)
                                 }
                                 if !s.shall_stop_ongoing {
-                                    (context.cb)(
-                                        context,
+                                    context.call_cb(
                                         Event::CONFIGURE_PROGRESS,
                                         (if 200i32 < 1i32 {
                                             1i32
@@ -303,8 +299,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                             if s.shall_stop_ongoing {
                                                 current_block = 2927484062889439186;
                                             } else {
-                                                (context.cb)(
-                                                    context,
+                                                context.call_cb(
                                                     Event::CONFIGURE_PROGRESS,
                                                     (if 300i32 < 1i32 {
                                                         1i32
@@ -341,8 +336,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                     if s.shall_stop_ongoing {
                                                         current_block = 2927484062889439186;
                                                     } else {
-                                                        (context.cb)(
-                                                            context,
+                                                        context.call_cb(
                                                             Event::CONFIGURE_PROGRESS,
                                                             (if 310i32 < 1i32 {
                                                                 1i32
@@ -405,8 +399,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                         2927484062889439186;
                                                                     break;
                                                                 }
-                                                                (context.cb)(
-                                                                    context,
+                                                                context.call_cb(
                                                                     Event::CONFIGURE_PROGRESS,
                                                                     (if 320i32 + i * 10i32 < 1i32 {
                                                                         1i32
@@ -448,8 +441,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                         current_block =
                                                                             2927484062889439186;
                                                                     } else {
-                                                                        (context.cb)(
-                                                                            context,
+                                                                        context.call_cb(
                                                                             Event::CONFIGURE_PROGRESS,
                                                                             (if 340i32
                                                                              <
@@ -506,7 +498,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                     =
                                                                                     2927484062889439186;
                                                                             } else {
-                                                                                (context.cb)(context,
+                                                                                context.call_cb(
                                                                                                 Event::CONFIGURE_PROGRESS,
                                                                                                 (if 350i32
                                                                                                  <
@@ -565,7 +557,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                             =
                                                                                             2927484062889439186;
                                                                                     } else {
-                                                                                        (context.cb)(context,
+                                                                                        context.call_cb(
                                                                                                         Event::CONFIGURE_PROGRESS,
                                                                                                         (if 500i32
                                                                                                          <
@@ -785,8 +777,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         as *const libc::c_char,
                                                 );
                                             } else if !s.shall_stop_ongoing {
-                                                (context.cb)(
-                                                    context,
+                                                context.call_cb(
                                                     Event::CONFIGURE_PROGRESS,
                                                     (if 600i32 < 1i32 {
                                                         1i32
@@ -834,8 +825,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         current_block = 2927484062889439186;
                                                         break;
                                                     }
-                                                    (context.cb)(
-                                                        context,
+                                                    context.call_cb(
                                                         Event::CONFIGURE_PROGRESS,
                                                         (if 650i32 + username_variation * 30i32
                                                             < 1i32
@@ -879,8 +869,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         current_block = 2927484062889439186;
                                                         break;
                                                     }
-                                                    (context.cb)(
-                                                        context,
+                                                    context.call_cb(
                                                         Event::CONFIGURE_PROGRESS,
                                                         (if 660i32 + username_variation * 30i32
                                                             < 1i32
@@ -926,8 +915,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         current_block = 2927484062889439186;
                                                         break;
                                                     }
-                                                    (context.cb)(
-                                                        context,
+                                                    context.call_cb(
                                                         Event::CONFIGURE_PROGRESS,
                                                         (if 670i32 + username_variation * 30i32
                                                             < 1i32
@@ -964,8 +952,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                     _ => {
                                                         imap_connected_here = 1i32;
                                                         if !s.shall_stop_ongoing {
-                                                            (context.cb)(
-                                                                context,
+                                                            context.call_cb(
                                                                 Event::CONFIGURE_PROGRESS,
                                                                 (if 800i32 < 1i32 {
                                                                     1i32
@@ -992,8 +979,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                     current_block =
                                                                         2927484062889439186;
                                                                 } else {
-                                                                    (context.cb)(
-                                                                        context,
+                                                                    context.call_cb(
                                                                         Event::CONFIGURE_PROGRESS,
                                                                         (if 850i32 < 1i32 {
                                                                             1i32
@@ -1036,8 +1022,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                             current_block =
                                                                                 2927484062889439186;
                                                                         } else {
-                                                                            (context.cb)(context,
-                                                                                            Event::CONFIGURE_PROGRESS,
+                                                                            context.call_cb(Event::CONFIGURE_PROGRESS,
                                                                                             (if 860i32
                                                                                              <
                                                                                              1i32
@@ -1111,8 +1096,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                 _ => {
                                                                     smtp_connected_here = 1i32;
                                                                     if !s.shall_stop_ongoing {
-                                                                        (context.cb)(context,
-                                                                                        Event::CONFIGURE_PROGRESS,
+                                                                        context.call_cb(Event::CONFIGURE_PROGRESS,
                                                                                         (if 900i32
                                                                                          <
                                                                                          1i32
@@ -1166,8 +1150,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                 context, flags,
                                                                             );
                                                                         if !s.shall_stop_ongoing {
-                                                                            (context.cb)(context,
-                                                                                            Event::CONFIGURE_PROGRESS,
+                                                                            context.call_cb(Event::CONFIGURE_PROGRESS,
                                                                                             (if 910i32
                                                                                              <
                                                                                              1i32
@@ -1202,8 +1185,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                                       1i32);
                                                                             if !s.shall_stop_ongoing
                                                                             {
-                                                                                (context.cb)(context,
-                                                                                                Event::CONFIGURE_PROGRESS,
+                                                                                context.call_cb(Event::CONFIGURE_PROGRESS,
                                                                                                 (if 920i32
                                                                                                  <
                                                                                                  1i32
@@ -1233,8 +1215,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                             *const libc::c_char);
                                                                                 if !s.shall_stop_ongoing
                                                                                 {
-                                                                                    (context.cb)(context,
-                                                                                                    Event::CONFIGURE_PROGRESS,
+                                                                                    context.call_cb(Event::CONFIGURE_PROGRESS,
                                                                                                     (if 940i32
                                                                                                      <
                                                                                                      1i32
@@ -1287,8 +1268,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
         dc_free_ongoing(context);
     }
     free(mvbox_folder as *mut libc::c_void);
-    (context.cb)(
-        context,
+    context.call_cb(
         Event::CONFIGURE_PROGRESS,
         (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
         0i32 as uintptr_t,
