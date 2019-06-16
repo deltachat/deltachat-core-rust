@@ -267,7 +267,7 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
     context: *mut dc_context_t,
     flags: libc::c_int,
     query_str: *mut libc::c_char,
-    query_id: libc::uint32_t,
+    query_id: u32,
 ) -> *mut dc_chatlist::dc_chatlist_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
@@ -276,10 +276,7 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_create_chat_by_msg_id(
-    context: *mut dc_context_t,
-    msg_id: libc::uint32_t,
-) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, msg_id: u32) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -289,8 +286,8 @@ pub unsafe extern "C" fn dc_create_chat_by_msg_id(
 #[no_mangle]
 pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     context: *mut dc_context_t,
-    contact_id: libc::uint32_t,
-) -> libc::uint32_t {
+    contact_id: u32,
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -300,8 +297,8 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     context: *mut dc_context_t,
-    contact_id: libc::uint32_t,
-) -> libc::uint32_t {
+    contact_id: u32,
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -311,9 +308,9 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
 #[no_mangle]
 pub unsafe extern "C" fn dc_prepare_msg(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     msg: *mut dc_msg::dc_msg_t,
-) -> libc::uint32_t {
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -323,9 +320,9 @@ pub unsafe extern "C" fn dc_prepare_msg(
 #[no_mangle]
 pub unsafe extern "C" fn dc_send_msg(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     msg: *mut dc_msg::dc_msg_t,
-) -> libc::uint32_t {
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -335,9 +332,9 @@ pub unsafe extern "C" fn dc_send_msg(
 #[no_mangle]
 pub unsafe extern "C" fn dc_send_text_msg(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     text_to_send: *mut libc::c_char,
-) -> libc::uint32_t {
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -347,7 +344,7 @@ pub unsafe extern "C" fn dc_send_text_msg(
 #[no_mangle]
 pub unsafe extern "C" fn dc_set_draft(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     msg: *mut dc_msg::dc_msg_t,
 ) {
     assert!(!context.is_null());
@@ -359,7 +356,7 @@ pub unsafe extern "C" fn dc_set_draft(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_draft<'a>(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
 ) -> *mut dc_msg::dc_msg_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
@@ -370,9 +367,9 @@ pub unsafe extern "C" fn dc_get_draft<'a>(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_chat_msgs(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
-    flags: libc::uint32_t,
-    marker1before: libc::uint32_t,
+    chat_id: u32,
+    flags: u32,
+    marker1before: u32,
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let context = &*context;
@@ -381,10 +378,7 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_msg_cnt(
-    context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
-) -> libc::c_int {
+pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32) -> libc::c_int {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -394,7 +388,7 @@ pub unsafe extern "C" fn dc_get_msg_cnt(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
 ) -> libc::c_int {
     assert!(!context.is_null());
     let context = &*context;
@@ -413,7 +407,7 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id: libc::uint32_t) {
+pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id: u32) {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -431,7 +425,7 @@ pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_chat_media(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     msg_type: libc::c_int,
     or_msg_type2: libc::c_int,
     or_msg_type3: libc::c_int,
@@ -445,12 +439,12 @@ pub unsafe extern "C" fn dc_get_chat_media(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_next_media(
     context: *mut dc_context_t,
-    msg_id: libc::uint32_t,
+    msg_id: u32,
     dir: libc::c_int,
     msg_type: libc::c_int,
     or_msg_type2: libc::c_int,
     or_msg_type3: libc::c_int,
-) -> libc::uint32_t {
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -460,7 +454,7 @@ pub unsafe extern "C" fn dc_get_next_media(
 #[no_mangle]
 pub unsafe extern "C" fn dc_archive_chat(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     archive: libc::c_int,
 ) {
     assert!(!context.is_null());
@@ -470,7 +464,7 @@ pub unsafe extern "C" fn dc_archive_chat(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: libc::uint32_t) {
+pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32) {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -480,7 +474,7 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: lib
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_chat_contacts(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let context = &*context;
@@ -491,7 +485,7 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
 #[no_mangle]
 pub unsafe extern "C" fn dc_search_msgs(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     query: *mut libc::c_char,
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
@@ -503,7 +497,7 @@ pub unsafe extern "C" fn dc_search_msgs(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_chat<'a>(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
 ) -> *mut dc_chat::dc_chat_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
@@ -516,7 +510,7 @@ pub unsafe extern "C" fn dc_create_group_chat(
     context: *mut dc_context_t,
     verified: libc::c_int,
     name: *mut libc::c_char,
-) -> libc::uint32_t {
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -526,8 +520,8 @@ pub unsafe extern "C" fn dc_create_group_chat(
 #[no_mangle]
 pub unsafe extern "C" fn dc_is_contact_in_chat(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
-    contact_id: libc::uint32_t,
+    chat_id: u32,
+    contact_id: u32,
 ) -> libc::c_int {
     assert!(!context.is_null());
     let context = &*context;
@@ -538,8 +532,8 @@ pub unsafe extern "C" fn dc_is_contact_in_chat(
 #[no_mangle]
 pub unsafe extern "C" fn dc_add_contact_to_chat(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
-    contact_id: libc::uint32_t,
+    chat_id: u32,
+    contact_id: u32,
 ) -> libc::c_int {
     assert!(!context.is_null());
     let context = &*context;
@@ -550,8 +544,8 @@ pub unsafe extern "C" fn dc_add_contact_to_chat(
 #[no_mangle]
 pub unsafe extern "C" fn dc_remove_contact_from_chat(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
-    contact_id: libc::uint32_t,
+    chat_id: u32,
+    contact_id: u32,
 ) -> libc::c_int {
     assert!(!context.is_null());
     let context = &*context;
@@ -562,7 +556,7 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
 #[no_mangle]
 pub unsafe extern "C" fn dc_set_chat_name(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     name: *mut libc::c_char,
 ) -> libc::c_int {
     assert!(!context.is_null());
@@ -574,7 +568,7 @@ pub unsafe extern "C" fn dc_set_chat_name(
 #[no_mangle]
 pub unsafe extern "C" fn dc_set_chat_profile_image(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     image: *mut libc::c_char,
 ) -> libc::c_int {
     assert!(!context.is_null());
@@ -586,7 +580,7 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_msg_info(
     context: *mut dc_context_t,
-    msg_id: libc::uint32_t,
+    msg_id: u32,
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let context = &*context;
@@ -597,7 +591,7 @@ pub unsafe extern "C" fn dc_get_msg_info(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_mime_headers(
     context: *mut dc_context_t,
-    msg_id: libc::uint32_t,
+    msg_id: u32,
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let context = &*context;
@@ -608,7 +602,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
 #[no_mangle]
 pub unsafe extern "C" fn dc_delete_msgs(
     context: *mut dc_context_t,
-    msg_ids: *const libc::uint32_t,
+    msg_ids: *const u32,
     msg_cnt: libc::c_int,
 ) {
     assert!(!context.is_null());
@@ -620,9 +614,9 @@ pub unsafe extern "C" fn dc_delete_msgs(
 #[no_mangle]
 pub unsafe extern "C" fn dc_forward_msgs(
     context: *mut dc_context_t,
-    msg_ids: *const libc::uint32_t,
+    msg_ids: *const u32,
     msg_cnt: libc::c_int,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
 ) {
     assert!(!context.is_null());
     let context = &*context;
@@ -631,10 +625,7 @@ pub unsafe extern "C" fn dc_forward_msgs(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_marknoticed_contact(
-    context: *mut dc_context_t,
-    contact_id: libc::uint32_t,
-) {
+pub unsafe extern "C" fn dc_marknoticed_contact(context: *mut dc_context_t, contact_id: u32) {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -644,7 +635,7 @@ pub unsafe extern "C" fn dc_marknoticed_contact(
 #[no_mangle]
 pub unsafe extern "C" fn dc_markseen_msgs(
     context: *mut dc_context_t,
-    msg_ids: *const libc::uint32_t,
+    msg_ids: *const u32,
     msg_cnt: libc::c_int,
 ) {
     assert!(!context.is_null());
@@ -656,7 +647,7 @@ pub unsafe extern "C" fn dc_markseen_msgs(
 #[no_mangle]
 pub unsafe extern "C" fn dc_star_msgs(
     context: *mut dc_context_t,
-    msg_ids: *const libc::uint32_t,
+    msg_ids: *const u32,
     msg_cnt: libc::c_int,
     star: libc::c_int,
 ) {
@@ -669,7 +660,7 @@ pub unsafe extern "C" fn dc_star_msgs(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_msg<'a>(
     context: *mut dc_context_t,
-    msg_id: libc::uint32_t,
+    msg_id: u32,
 ) -> *mut dc_msg::dc_msg_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
@@ -686,7 +677,7 @@ pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *mut libc::c_char) -> libc::
 pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     context: *mut dc_context_t,
     addr: *mut libc::c_char,
-) -> libc::uint32_t {
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -698,7 +689,7 @@ pub unsafe extern "C" fn dc_create_contact(
     context: *mut dc_context_t,
     name: *mut libc::c_char,
     addr: *mut libc::c_char,
-) -> libc::uint32_t {
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -719,7 +710,7 @@ pub unsafe extern "C" fn dc_add_address_book(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_contacts(
     context: *mut dc_context_t,
-    flags: libc::uint32_t,
+    flags: u32,
     query: *mut libc::c_char,
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
@@ -749,7 +740,7 @@ pub unsafe extern "C" fn dc_get_blocked_contacts(
 #[no_mangle]
 pub unsafe extern "C" fn dc_block_contact(
     context: *mut dc_context_t,
-    contact_id: libc::uint32_t,
+    contact_id: u32,
     block: libc::c_int,
 ) {
     assert!(!context.is_null());
@@ -761,7 +752,7 @@ pub unsafe extern "C" fn dc_block_contact(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_contact_encrinfo(
     context: *mut dc_context_t,
-    contact_id: libc::uint32_t,
+    contact_id: u32,
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let context = &*context;
@@ -772,7 +763,7 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
 #[no_mangle]
 pub unsafe extern "C" fn dc_delete_contact(
     context: *mut dc_context_t,
-    contact_id: libc::uint32_t,
+    contact_id: u32,
 ) -> libc::c_int {
     assert!(!context.is_null());
     let context = &*context;
@@ -783,7 +774,7 @@ pub unsafe extern "C" fn dc_delete_contact(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_contact<'a>(
     context: *mut dc_context_t,
-    contact_id: libc::uint32_t,
+    contact_id: u32,
 ) -> *mut dc_contact::dc_contact_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
@@ -826,7 +817,7 @@ pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) ->
 #[no_mangle]
 pub unsafe extern "C" fn dc_continue_key_transfer(
     context: *mut dc_context_t,
-    msg_id: libc::uint32_t,
+    msg_id: u32,
     setup_code: *mut libc::c_char,
 ) -> libc::c_int {
     assert!(!context.is_null());
@@ -857,7 +848,7 @@ pub unsafe extern "C" fn dc_check_qr(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_securejoin_qr(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let context = &*context;
@@ -869,7 +860,7 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
 pub unsafe extern "C" fn dc_join_securejoin(
     context: *mut dc_context_t,
     qr: *mut libc::c_char,
-) -> libc::uint32_t {
+) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -879,7 +870,7 @@ pub unsafe extern "C" fn dc_join_securejoin(
 #[no_mangle]
 pub unsafe extern "C" fn dc_send_locations_to_chat(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
     seconds: libc::c_int,
 ) {
     assert!(!context.is_null());
@@ -891,7 +882,7 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
 #[no_mangle]
 pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
+    chat_id: u32,
 ) -> libc::c_int {
     assert!(!context.is_null());
     let context = &*context;
@@ -915,8 +906,8 @@ pub unsafe extern "C" fn dc_set_location(
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_locations(
     context: *mut dc_context_t,
-    chat_id: libc::uint32_t,
-    contact_id: libc::uint32_t,
+    chat_id: u32,
+    contact_id: u32,
     timestamp_begin: i64,
     timestamp_end: i64,
 ) -> *mut dc_array::dc_array_t {
@@ -1088,7 +1079,7 @@ pub unsafe extern "C" fn dc_chatlist_get_cnt(
 pub unsafe extern "C" fn dc_chatlist_get_chat_id(
     chatlist: *mut dc_chatlist::dc_chatlist_t,
     index: libc::size_t,
-) -> libc::uint32_t {
+) -> u32 {
     dc_chatlist::dc_chatlist_get_chat_id(chatlist, index)
 }
 
@@ -1096,7 +1087,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
 pub unsafe extern "C" fn dc_chatlist_get_msg_id(
     chatlist: *mut dc_chatlist::dc_chatlist_t,
     index: libc::size_t,
-) -> libc::uint32_t {
+) -> u32 {
     dc_chatlist::dc_chatlist_get_msg_id(chatlist, index)
 }
 
@@ -1128,7 +1119,7 @@ pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat::dc_chat_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat::dc_chat_t) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat::dc_chat_t) -> u32 {
     dc_chat::dc_chat_get_id(chat)
 }
 
@@ -1155,7 +1146,7 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat::dc_chat_t) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat::dc_chat_t) -> u32 {
     dc_chat::dc_chat_get_color(chat)
 }
 
@@ -1213,17 +1204,17 @@ pub unsafe extern "C" fn dc_msg_empty(msg: *mut dc_msg::dc_msg_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_id(msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_msg_get_id(msg: *mut dc_msg::dc_msg_t) -> u32 {
     dc_msg::dc_msg_get_id(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_from_id(msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_msg_get_from_id(msg: *mut dc_msg::dc_msg_t) -> u32 {
     dc_msg::dc_msg_get_from_id(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg::dc_msg_t) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg::dc_msg_t) -> u32 {
     dc_msg::dc_msg_get_chat_id(msg)
 }
 
@@ -1273,7 +1264,7 @@ pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg::dc_msg_t) -> *mut
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg::dc_msg_t) -> libc::uint64_t {
+pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg::dc_msg_t) -> u64 {
     dc_msg::dc_msg_get_filebytes(msg)
 }
 
@@ -1418,9 +1409,7 @@ pub unsafe extern "C" fn dc_contact_unref(contact: *mut dc_contact::dc_contact_t
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_id(
-    contact: *mut dc_contact::dc_contact_t,
-) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_contact_get_id(contact: *mut dc_contact::dc_contact_t) -> u32 {
     dc_contact::dc_contact_get_id(contact)
 }
 
@@ -1467,9 +1456,7 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_contact_get_color(
-    contact: *mut dc_contact::dc_contact_t,
-) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_contact_get_color(contact: *mut dc_contact::dc_contact_t) -> u32 {
     dc_contact::dc_contact_get_color(contact)
 }
 
@@ -1528,7 +1515,7 @@ pub unsafe extern "C" fn dc_lot_get_state(lot: *mut dc_lot::dc_lot_t) -> libc::c
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_id(lot: *mut dc_lot::dc_lot_t) -> libc::uint32_t {
+pub unsafe extern "C" fn dc_lot_get_id(lot: *mut dc_lot::dc_lot_t) -> u32 {
     dc_lot::dc_lot_get_id(lot)
 }
 
