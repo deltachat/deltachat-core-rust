@@ -678,12 +678,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                 0i32,
                 b"Import/export process started.\x00" as *const u8 as *const libc::c_char,
             );
-            (context.cb)(
-                context,
-                Event::IMEX_PROGRESS,
-                10i32 as uintptr_t,
-                0i32 as uintptr_t,
-            );
+            context.call_cb(Event::IMEX_PROGRESS, 10i32 as uintptr_t, 0i32 as uintptr_t);
             if 0 == dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
                 dc_log_error(
                     context,
@@ -901,8 +896,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
     if 0 != ongoing_allocated_here {
         dc_free_ongoing(context);
     }
-    (context.cb)(
-        context,
+    context.call_cb(
         Event::IMEX_PROGRESS,
         (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
         0i32 as uintptr_t,
@@ -996,8 +990,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                     if permille > 990i32 {
                         permille = 990i32
                     }
-                    (context.cb)(
-                        context,
+                    context.call_cb(
                         Event::IMEX_PROGRESS,
                         permille as uintptr_t,
                         0i32 as uintptr_t,
@@ -1213,8 +1206,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                         if permille > 990 {
                                             permille = 990;
                                         }
-                                        (context.cb)(
-                                            context,
+                                        context.call_cb(
                                             Event::IMEX_PROGRESS,
                                             permille as uintptr_t,
                                             0i32 as uintptr_t,
@@ -1294,8 +1286,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                     b"backup_time\x00" as *const u8 as *const libc::c_char,
                                     now as int32_t,
                                 );
-                                (context.cb)(
-                                    context,
+                                context.call_cb(
                                     Event::IMEX_FILE_WRITTEN,
                                     dest_pathNfilename as uintptr_t,
                                     0i32 as uintptr_t,
@@ -1558,8 +1549,7 @@ unsafe fn export_key_to_asc_file(
             file_name,
         );
     } else {
-        (context.cb)(
-            context,
+        context.call_cb(
             Event::IMEX_FILE_WRITTEN,
             file_name as uintptr_t,
             0i32 as uintptr_t,

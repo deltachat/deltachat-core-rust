@@ -577,12 +577,7 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
     }
 
     if 0 != msg_cnt {
-        ((*context).cb)(
-            context,
-            Event::MSGS_CHANGED,
-            0i32 as uintptr_t,
-            0i32 as uintptr_t,
-        );
+        context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
         dc_job_kill_action(context, 105i32);
         dc_job_add(context, 105i32, 0i32, 0 as *const libc::c_char, 10i32);
     };
@@ -645,12 +640,7 @@ pub unsafe fn dc_markseen_msgs(context: &Context, msg_ids: *const uint32_t, msg_
         }
 
         if 0 != send_event {
-            ((*context).cb)(
-                context,
-                Event::MSGS_CHANGED,
-                0i32 as uintptr_t,
-                0i32 as uintptr_t,
-            );
+            context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
         }
     }
     sqlite3_finalize(stmt);
@@ -1288,8 +1278,7 @@ pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *con
         sqlite3_bind_text(stmt, 2i32, (*(*msg).param).packed, -1i32, None);
         sqlite3_bind_int(stmt, 3i32, msg_id as libc::c_int);
         sqlite3_step(stmt);
-        ((*context).cb)(
-            context,
+        context.call_cb(
             Event::MSG_FAILED,
             (*msg).chat_id as uintptr_t,
             msg_id as uintptr_t,

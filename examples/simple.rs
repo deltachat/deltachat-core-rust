@@ -40,7 +40,7 @@ extern "C" fn cb(_ctx: &Context, event: Event, data1: usize, data2: usize) -> us
 
 fn main() {
     unsafe {
-        let ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
+        let ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
         let running = Arc::new(RwLock::new(true));
         let info = dc_get_info(&ctx);
         let info_s = CStr::from_ptr(info);

@@ -52,12 +52,7 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &Context, msg_id: uint32_t) -> u
     dc_msg_unref(msg);
     dc_chat_unref(chat);
     if 0 != send_event {
-        (context.cb)(
-            context,
-            Event::MSGS_CHANGED,
-            0i32 as uintptr_t,
-            0i32 as uintptr_t,
-        );
+        context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
     }
     chat_id
 }
@@ -244,12 +239,7 @@ pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32
         dc_scaleup_contact_origin(context, contact_id, 0x800i32);
     }
     if 0 != send_event {
-        (context.cb)(
-            context,
-            Event::MSGS_CHANGED,
-            0i32 as uintptr_t,
-            0i32 as uintptr_t,
-        );
+        context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
     }
     chat_id
 }
@@ -405,8 +395,7 @@ pub unsafe fn dc_prepare_msg<'a>(
     }
     (*msg).state = 18i32;
     let msg_id: uint32_t = prepare_msg_common(context, chat_id, msg);
-    (context.cb)(
-        context,
+    context.call_cb(
         Event::MSGS_CHANGED,
         (*msg).chat_id as uintptr_t,
         (*msg).id as uintptr_t,
@@ -1007,15 +996,14 @@ pub unsafe fn dc_send_msg<'a>(
     if 0 == dc_job_send_msg(context, (*msg).id) {
         return 0i32 as uint32_t;
     }
-    (context.cb)(
-        context,
+    context.call_cb(
         Event::MSGS_CHANGED,
         (*msg).chat_id as uintptr_t,
         (*msg).id as uintptr_t,
     );
 
     if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
-        (context.cb)(context, Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF, 0);
+        context.call_cb(Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF, 0);
     }
 
     if 0 == chat_id {
@@ -1065,12 +1053,7 @@ pub unsafe fn dc_set_draft(context: &Context, chat_id: uint32_t, msg: *mut dc_ms
         return;
     }
     if 0 != set_draft_raw(context, chat_id, msg) {
-        (context.cb)(
-            context,
-            Event::MSGS_CHANGED,
-            chat_id as uintptr_t,
-            0i32 as uintptr_t,
-        );
+        context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0i32 as uintptr_t);
     };
 }
 
@@ -1317,12 +1300,7 @@ pub unsafe fn dc_marknoticed_chat(context: &Context, chat_id: uint32_t) {
         );
         sqlite3_bind_int(update, 1i32, chat_id as libc::c_int);
         sqlite3_step(update);
-        (context.cb)(
-            context,
-            Event::MSGS_CHANGED,
-            0i32 as uintptr_t,
-            0i32 as uintptr_t,
-        );
+        context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
     }
 
     sqlite3_finalize(check);
@@ -1345,12 +1323,7 @@ pub unsafe fn dc_marknoticed_all_chats(context: &Context) {
             b"UPDATE msgs    SET state=13 WHERE state=10;\x00" as *const u8 as *const libc::c_char,
         );
         sqlite3_step(update);
-        (context.cb)(
-            context,
-            Event::MSGS_CHANGED,
-            0i32 as uintptr_t,
-            0i32 as uintptr_t,
-        );
+        context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
     }
 
     sqlite3_finalize(check);
@@ -1474,12 +1447,7 @@ pub unsafe fn dc_archive_chat(context: &Context, chat_id: uint32_t, archive: lib
     sqlite3_bind_int(stmt_0, 2i32, chat_id as libc::c_int);
     sqlite3_step(stmt_0);
     sqlite3_finalize(stmt_0);
-    (context.cb)(
-        context,
-        Event::MSGS_CHANGED,
-        0i32 as uintptr_t,
-        0i32 as uintptr_t,
-    );
+    context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
 }
 
 pub unsafe fn dc_delete_chat(context: &Context, chat_id: uint32_t) {
@@ -1523,8 +1491,7 @@ pub unsafe fn dc_delete_chat(context: &Context, chat_id: uint32_t) {
                         {
                             sqlite3_free(q3 as *mut libc::c_void);
                             q3 = 0 as *mut libc::c_char;
-                            (context.cb)(
-                                context,
+                            context.call_cb(
                                 Event::MSGS_CHANGED,
                                 0i32 as uintptr_t,
                                 0i32 as uintptr_t,
@@ -1626,12 +1593,7 @@ pub unsafe fn dc_create_group_chat(
     dc_msg_unref(draft_msg);
     free(grpid as *mut libc::c_void);
     if 0 != chat_id {
-        (context.cb)(
-            context,
-            Event::MSGS_CHANGED,
-            0i32 as uintptr_t,
-            0i32 as uintptr_t,
-        );
+        context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
     }
 
     chat_id
@@ -1766,15 +1728,13 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                                 dc_param_set((*msg).param, 'E' as i32, (*contact).addr);
                                 dc_param_set_int((*msg).param, 'F' as i32, flags);
                                 (*msg).id = dc_send_msg(context, chat_id, msg);
-                                (context.cb)(
-                                    context,
+                                context.call_cb(
                                     Event::MSGS_CHANGED,
                                     chat_id as uintptr_t,
                                     (*msg).id as uintptr_t,
                                 );
                             }
-                            (context.cb)(
-                                context,
+                            context.call_cb(
                                 Event::MSGS_CHANGED,
                                 chat_id as uintptr_t,
                                 0i32 as uintptr_t,
@@ -1907,8 +1867,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                         dc_param_set_int((*msg).param, 'S' as i32, 5i32);
                         dc_param_set((*msg).param, 'E' as i32, (*contact).addr);
                         (*msg).id = dc_send_msg(context, chat_id, msg);
-                        (context.cb)(
-                            context,
+                        context.call_cb(
                             Event::MSGS_CHANGED,
                             chat_id as uintptr_t,
                             (*msg).id as uintptr_t,
@@ -1922,8 +1881,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                     contact_id,
                 );
                 if !(0 == dc_sqlite3_execute(context, &context.sql.clone().read().unwrap(), q3)) {
-                    (context.cb)(
-                        context,
+                    context.call_cb(
                         Event::CHAT_MODIFIED,
                         chat_id as uintptr_t,
                         0i32 as uintptr_t,
@@ -2017,15 +1975,13 @@ pub unsafe fn dc_set_chat_name(
                         dc_param_set_int((*msg).param, 'S' as i32, 2i32);
                         dc_param_set((*msg).param, 'E' as i32, (*chat).name);
                         (*msg).id = dc_send_msg(context, chat_id, msg);
-                        (context.cb)(
-                            context,
+                        context.call_cb(
                             Event::MSGS_CHANGED,
                             chat_id as uintptr_t,
                             (*msg).id as uintptr_t,
                         );
                     }
-                    (context.cb)(
-                        context,
+                    context.call_cb(
                         Event::CHAT_MODIFIED,
                         chat_id as uintptr_t,
                         0i32 as uintptr_t,
@@ -2097,15 +2053,13 @@ pub unsafe fn dc_set_chat_profile_image(
                                     1i32 as uint32_t,
                                 );
                                 (*msg).id = dc_send_msg(context, chat_id, msg);
-                                (context.cb)(
-                                    context,
+                                context.call_cb(
                                     Event::MSGS_CHANGED,
                                     chat_id as uintptr_t,
                                     (*msg).id as uintptr_t,
                                 );
                             }
-                            (context.cb)(
-                                context,
+                            context.call_cb(
                                 Event::CHAT_MODIFIED,
                                 chat_id as uintptr_t,
                                 0i32 as uintptr_t,
@@ -2213,8 +2167,7 @@ pub unsafe fn dc_forward_msgs(
         let mut i = 0u32;
         let icnt = carray_count(created_db_entries);
         while i < icnt {
-            (context.cb)(
-                context,
+            context.call_cb(
                 Event::MSGS_CHANGED,
                 carray_get(created_db_entries, i) as uintptr_t,
                 carray_get(created_db_entries, i.wrapping_add(1)) as uintptr_t,
@@ -2479,8 +2432,7 @@ pub unsafe fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *con
                 b"rfc724_mid\x00" as *const u8 as *const libc::c_char,
                 rfc724_mid,
             );
-            (context.cb)(
-                context,
+            context.call_cb(
                 Event::MSGS_CHANGED,
                 chat_id as uintptr_t,
                 msg_id as uintptr_t,
