@@ -27,7 +27,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     if 0 != bits & 1 {
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM jobs;\x00" as *const u8 as *const libc::c_char,
         );
         info!(context, 0, "(1) Jobs reset.");
@@ -35,7 +35,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     if 0 != bits & 2 {
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM acpeerstates;\x00" as *const u8 as *const libc::c_char,
         );
         info!(context, 0, "(2) Peerstates reset.");
@@ -43,7 +43,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     if 0 != bits & 4 {
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM keypairs;\x00" as *const u8 as *const libc::c_char,
         );
         info!(context, 0, "(4) Private keypairs reset.");
@@ -51,33 +51,33 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     if 0 != bits & 8 {
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM contacts WHERE id>9;\x00" as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM chats WHERE id>9;\x00" as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM chats_contacts;\x00" as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM msgs WHERE id>9;\x00" as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM config WHERE keyname LIKE \'imap.%\' OR keyname LIKE \'configured%\';\x00"
                 as *const u8 as *const libc::c_char,
         );
         dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"DELETE FROM leftgrps;\x00" as *const u8 as *const libc::c_char,
         );
         info!(context, 0, "(8) Rest but server config reset.");
@@ -124,7 +124,7 @@ unsafe fn dc_poke_eml_file(context: &Context, filename: *const libc::c_char) -> 
 /// @param spec The file or directory to import. NULL for the last command.
 /// @return 1=success, 0=error.
 unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
-    if 0 == dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
+    if !context.sql.is_open() {
         error!(context, 0, "Import: Database not opened.");
         return 0;
     }
@@ -140,7 +140,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         real_spec = dc_strdup(spec);
         dc_sqlite3_set_config(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"import_spec\x00" as *const u8 as *const libc::c_char,
             real_spec,
         );
@@ -148,7 +148,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     } else {
         real_spec = dc_sqlite3_get_config(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"import_spec\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
         );
@@ -356,8 +356,7 @@ unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
                     "addr unset"
                 }
             );
-            let peerstate =
-                Peerstate::from_addr(context, &context.sql.clone().read().unwrap(), as_str(addr));
+            let peerstate = Peerstate::from_addr(context, &context.sql, as_str(addr));
             if peerstate.is_some() && contact_id != 1 as libc::c_uint {
                 line2 = format!(
                     ", prefer-encrypt={}",

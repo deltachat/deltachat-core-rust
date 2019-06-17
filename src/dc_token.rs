@@ -19,7 +19,7 @@ pub unsafe fn dc_token_save(
         // foreign_id may be 0
         stmt = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);\x00"
                 as *const u8 as *const libc::c_char,
         );
@@ -40,7 +40,7 @@ pub unsafe fn dc_token_lookup(
     let stmt: *mut sqlite3_stmt;
     stmt = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;\x00" as *const u8
             as *const libc::c_char,
     );
@@ -63,7 +63,7 @@ pub unsafe fn dc_token_exists(
     if !token.is_null() {
         stmt = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"SELECT id FROM tokens WHERE namespc=? AND token=?;\x00" as *const u8
                 as *const libc::c_char,
         );

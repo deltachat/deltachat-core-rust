@@ -139,7 +139,7 @@ impl Key {
     pub fn from_self_public(
         context: &Context,
         self_addr: *const libc::c_char,
-        sql: &dc_sqlite3_t,
+        sql: &SQLite,
     ) -> Option<Self> {
         if self_addr.is_null() {
             return None;
@@ -169,7 +169,7 @@ impl Key {
     pub fn from_self_private(
         context: &Context,
         self_addr: *const libc::c_char,
-        sql: &dc_sqlite3_t,
+        sql: &SQLite,
     ) -> Option<Self> {
         if self_addr.is_null() {
             return None;
@@ -332,7 +332,7 @@ pub fn dc_key_save_self_keypair(
     private_key: &Key,
     addr: *const libc::c_char,
     is_default: libc::c_int,
-    sql: &dc_sqlite3_t,
+    sql: &SQLite,
 ) -> bool {
     if addr.is_null() {
         return false;

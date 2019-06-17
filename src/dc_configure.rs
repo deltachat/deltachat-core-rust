@@ -82,7 +82,7 @@ pub unsafe fn dc_is_configured(context: &Context) -> libc::c_int {
     return if 0
         != dc_sqlite3_get_config_int(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"configured\x00" as *const u8 as *const libc::c_char,
             0i32,
         ) {
@@ -127,7 +127,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
 
     if !(0 == dc_alloc_ongoing(context)) {
         ongoing_allocated_here = 1i32;
-        if 0 == dc_sqlite3_is_open(&context.sql.clone().read().unwrap()) {
+        if !context.sql.is_open() {
             dc_log_error(
                 context,
                 0i32,
@@ -173,7 +173,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                 dc_loginparam_read(
                     context,
                     param,
-                    &context.sql.clone().read().unwrap(),
+                    &context.sql,
                     b"\x00" as *const u8 as *const libc::c_char,
                 );
 
@@ -213,7 +213,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                 (*param).addr = strdup(to_cstring(oauth2_addr.unwrap()).as_ptr());
                                 dc_sqlite3_set_config(
                                     context,
-                                    &context.sql.clone().read().unwrap(),
+                                    &context.sql,
                                     b"addr\x00" as *const u8 as *const libc::c_char,
                                     (*param).addr,
                                 );
@@ -1119,7 +1119,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                             =
                                                                             if 0
                                                                             !=
-                                                                            dc_sqlite3_get_config_int(context, &context.sql.clone().read().unwrap(),
+                                                                            dc_sqlite3_get_config_int(context, &context.sql,
                                                                                                       b"mvbox_watch\x00"
                                                                                                       as
                                                                                                       *const u8
@@ -1129,7 +1129,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                             ||
                                                                             0
                                                                             !=
-                                                                            dc_sqlite3_get_config_int(context, &context.sql.clone().read().unwrap(),
+                                                                            dc_sqlite3_get_config_int(context, &context.sql,
                                                                                                       b"mvbox_move\x00"
                                                                                                       as
                                                                                                       *const u8
@@ -1170,13 +1170,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                             as
                                                                                             uintptr_t);
                                                                             dc_loginparam_write(context, param,
-                                                                                                &context.sql.clone().read().unwrap(),
+                                                                                                &context.sql,
                                                                                                 b"configured_\x00"
                                                                                                 as
                                                                                                 *const u8
                                                                                                 as
                                                                                                 *const libc::c_char);
-                                                                            dc_sqlite3_set_config_int(context, &context.sql.clone().read().unwrap(),
+                                                                            dc_sqlite3_set_config_int(context, &context.sql,
                                                                                                       b"configured\x00"
                                                                                                       as
                                                                                                       *const u8
@@ -1725,7 +1725,7 @@ pub unsafe fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> l
         ret_connected = 1i32
     } else if dc_sqlite3_get_config_int(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"configured\x00" as *const u8 as *const libc::c_char,
         0i32,
     ) == 0i32
@@ -1739,7 +1739,7 @@ pub unsafe fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> l
         dc_loginparam_read(
             context,
             param,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
         /*the trailing underscore is correct*/

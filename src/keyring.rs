@@ -32,7 +32,7 @@ impl<'a> Keyring<'a> {
         &mut self,
         context: &Context,
         self_addr: *const libc::c_char,
-        sql: &dc_sqlite3_t,
+        sql: &SQLite,
     ) -> bool {
         // Can we prevent keyring and self_addr to be null?
         if self_addr.is_null() {

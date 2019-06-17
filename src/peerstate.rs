@@ -167,7 +167,7 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_addr(context: &'a Context, sql: &dc_sqlite3_t, addr: &str) -> Option<Self> {
+    pub fn from_addr(context: &'a Context, sql: &SQLite, addr: &str) -> Option<Self> {
         let mut res = None;
 
         let stmt = unsafe {
@@ -187,11 +187,7 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_fingerprint(
-        context: &'a Context,
-        sql: &dc_sqlite3_t,
-        fingerprint: &str,
-    ) -> Option<Self> {
+    pub fn from_fingerprint(context: &'a Context, sql: &SQLite, fingerprint: &str) -> Option<Self> {
         let mut res = None;
 
         let stmt = unsafe {
@@ -404,7 +400,7 @@ impl<'a> Peerstate<'a> {
         success
     }
 
-    pub fn save_to_db(&self, sql: &dc_sqlite3_t, create: bool) -> bool {
+    pub fn save_to_db(&self, sql: &SQLite, create: bool) -> bool {
         let mut success = false;
 
         if self.addr.is_none() {
@@ -538,7 +534,7 @@ impl<'a> Peerstate<'a> {
         } else if self.to_save == Some(ToSave::Timestamps) {
             let stmt = unsafe {
                 dc_sqlite3_prepare(
-                    self.context,sql,
+                    &self.context,sql,
                     b"UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? WHERE addr=?;\x00"
                         as *const u8 as *const libc::c_char)
             };
@@ -615,14 +611,10 @@ mod tests {
             degrade_event: None,
         };
 
-        assert!(
-            peerstate.save_to_db(&ctx.ctx.sql.clone().read().unwrap(), true),
-            "failed to save"
-        );
+        assert!(peerstate.save_to_db(&ctx.ctx.sql, true), "failed to save");
 
-        let peerstate_new =
-            Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql.clone().read().unwrap(), addr.into())
-                .expect("failed to load peerstate from db");
+        let peerstate_new = Peerstate::from_addr(&ctx.ctx, &ctx.ctx.sql, addr.into())
+            .expect("failed to load peerstate from db");
 
         // clear to_save, as that is not persissted
         peerstate.to_save = None;

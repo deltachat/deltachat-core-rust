@@ -30,7 +30,7 @@ pub struct dc_contact_t<'a> {
 pub unsafe fn dc_marknoticed_contact(context: &Context, contact_id: uint32_t) {
     let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"UPDATE msgs SET state=13 WHERE from_id=? AND state=10;\x00" as *const u8
             as *const libc::c_char,
     );
@@ -73,7 +73,7 @@ pub unsafe fn dc_lookup_contact_id_by_addr(
         addr_normalized = dc_addr_normalize(addr);
         addr_self = dc_sqlite3_get_config(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             b"\x00" as *const u8 as *const libc::c_char,
         );
@@ -82,7 +82,7 @@ pub unsafe fn dc_lookup_contact_id_by_addr(
         } else {
             stmt =
                 dc_sqlite3_prepare(
-                    context,&context.sql.clone().read().unwrap(),
+                    context,&context.sql,
                                    b"SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;\x00"
                                        as *const u8 as *const libc::c_char);
             sqlite3_bind_text(
@@ -158,12 +158,12 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
     let contact: *mut dc_contact_t = dc_contact_new(context);
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(contact_id <= 9i32 as libc::c_uint) {
-        if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)
+        if dc_contact_load_from_db(contact, &context.sql, contact_id)
             && (*contact).blocked != new_blocking
         {
             stmt = dc_sqlite3_prepare(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &context.sql,
                 b"UPDATE contacts SET blocked=? WHERE id=?;\x00" as *const u8
                     as *const libc::c_char,
             );
@@ -175,7 +175,7 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
                 sqlite3_finalize(stmt);
                 stmt =
                     dc_sqlite3_prepare(
-                        context,&context.sql.clone().read().unwrap(),
+                        context,&context.sql,
                                        b"UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);\x00"
                                            as *const u8 as
                                            *const libc::c_char);
@@ -285,7 +285,7 @@ pub unsafe fn dc_contact_empty(mut contact: *mut dc_contact_t) {
 /* contacts with at least this origin value start a new "normal" chat, defaults to off */
 pub unsafe fn dc_contact_load_from_db(
     contact: *mut dc_contact_t,
-    sql: &dc_sqlite3_t,
+    sql: &SQLite,
     contact_id: uint32_t,
 ) -> bool {
     let current_block: u64;
@@ -336,7 +336,7 @@ pub unsafe fn dc_contact_load_from_db(
 pub unsafe fn dc_is_contact_blocked(context: &Context, contact_id: uint32_t) -> bool {
     let mut is_blocked = false;
     let contact: *mut dc_contact_t = dc_contact_new(context);
-    if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
+    if dc_contact_load_from_db(contact, &context.sql, contact_id) {
         if 0 != (*contact).blocked {
             is_blocked = true
         }
@@ -370,7 +370,7 @@ pub unsafe fn dc_add_or_lookup_contact(
         addr = dc_addr_normalize(addr__);
         addr_self = dc_sqlite3_get_config(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             b"\x00" as *const u8 as *const libc::c_char,
         );
@@ -391,7 +391,7 @@ pub unsafe fn dc_add_or_lookup_contact(
         } else {
             stmt =
                 dc_sqlite3_prepare(
-                    context,&context.sql.clone().read().unwrap(),
+                    context,&context.sql,
                                    b"SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;\x00"
                                        as *const u8 as *const libc::c_char);
             sqlite3_bind_text(stmt, 1i32, addr as *const libc::c_char, -1i32, None);
@@ -429,7 +429,7 @@ pub unsafe fn dc_add_or_lookup_contact(
                 {
                     stmt = dc_sqlite3_prepare(
                         context,
-                        &context.sql.clone().read().unwrap(),
+                        &context.sql,
                         b"UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;\x00"
                             as *const u8 as *const libc::c_char,
                     );
@@ -474,7 +474,7 @@ pub unsafe fn dc_add_or_lookup_contact(
                     if 0 != update_name {
                         stmt =
                             dc_sqlite3_prepare(
-                                context,&context.sql.clone().read().unwrap(),
+                                context,&context.sql,
                                                b"UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);\x00"
                                                    as *const u8 as
                                                    *const libc::c_char);
@@ -489,7 +489,7 @@ pub unsafe fn dc_add_or_lookup_contact(
                 sqlite3_finalize(stmt);
                 stmt = dc_sqlite3_prepare(
                     context,
-                    &context.sql.clone().read().unwrap(),
+                    &context.sql,
                     b"INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);\x00" as *const u8
                         as *const libc::c_char,
                 );
@@ -509,7 +509,7 @@ pub unsafe fn dc_add_or_lookup_contact(
                 if sqlite3_step(stmt) == 101i32 {
                     row_id = dc_sqlite3_get_rowid(
                         context,
-                        &context.sql.clone().read().unwrap(),
+                        &context.sql,
                         b"contacts\x00" as *const u8 as *const libc::c_char,
                         b"addr\x00" as *const u8 as *const libc::c_char,
                         addr,
@@ -623,7 +623,7 @@ pub unsafe fn dc_get_contacts(
 
     self_addr = dc_sqlite3_get_config(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"configured_addr\x00" as *const u8 as *const libc::c_char,
         b"\x00" as *const u8 as *const libc::c_char,
     );
@@ -641,7 +641,7 @@ pub unsafe fn dc_get_contacts(
         } else {
             stmt =
                 dc_sqlite3_prepare(
-                    context,&context.sql.clone().read().unwrap(),
+                    context,&context.sql,
                                        b"SELECT c.id FROM contacts c LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.addr!=?1 AND c.id>?2 AND c.origin>=?3 AND c.blocked=0 AND (c.name LIKE ?4 OR c.addr LIKE ?5) AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)  ORDER BY LOWER(c.name||c.addr),c.id;\x00"
                                            as *const u8 as
                                            *const libc::c_char);
@@ -661,7 +661,7 @@ pub unsafe fn dc_get_contacts(
             );
             self_name = dc_sqlite3_get_config(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &context.sql,
                 b"displayname\x00" as *const u8 as *const libc::c_char,
                 b"\x00" as *const u8 as *const libc::c_char,
             );
@@ -678,7 +678,7 @@ pub unsafe fn dc_get_contacts(
     } else {
         stmt =
             dc_sqlite3_prepare(
-                context,&context.sql.clone().read().unwrap(),
+                context,&context.sql,
                                    b"SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;\x00"
                                        as *const u8 as *const libc::c_char);
         sqlite3_bind_text(stmt, 1i32, self_addr, -1i32, None);
@@ -714,7 +714,7 @@ pub unsafe fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
 
     stmt = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0\x00" as *const u8
             as *const libc::c_char,
     );
@@ -733,7 +733,7 @@ pub unsafe fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
 
     stmt = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;\x00"
             as *const u8 as *const libc::c_char,
     );
@@ -759,23 +759,15 @@ pub unsafe fn dc_get_contact_encrinfo(
     let mut fingerprint_other_unverified: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut p: *mut libc::c_char;
 
-    if !(!dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id)) {
-        let peerstate = Peerstate::from_addr(
-            context,
-            &context.sql.clone().read().unwrap(),
-            as_str((*contact).addr),
-        );
+    if !(!dc_contact_load_from_db(contact, &context.sql, contact_id)) {
+        let peerstate = Peerstate::from_addr(context, &context.sql, as_str((*contact).addr));
         dc_loginparam_read(
             context,
             loginparam,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
-        let mut self_key = Key::from_self_public(
-            context,
-            (*loginparam).addr,
-            &context.sql.clone().read().unwrap(),
-        );
+        let mut self_key = Key::from_self_public(context, (*loginparam).addr, &context.sql);
 
         if peerstate.is_some() && peerstate.as_ref().and_then(|p| p.peek_key(0)).is_some() {
             let peerstate = peerstate.as_ref().unwrap();
@@ -791,11 +783,7 @@ pub unsafe fn dc_get_contact_encrinfo(
             free(p as *mut libc::c_void);
             if self_key.is_none() {
                 dc_ensure_secret_key_exists(context);
-                self_key = Key::from_self_public(
-                    context,
-                    (*loginparam).addr,
-                    &context.sql.clone().read().unwrap(),
-                );
+                self_key = Key::from_self_public(context, (*loginparam).addr, &context.sql);
             }
             p = dc_stock_str(context, 30i32);
             ret += &format!(" {}:", as_str(p));
@@ -901,7 +889,7 @@ pub unsafe fn dc_delete_contact(context: &Context, contact_id: uint32_t) -> bool
     if !(contact_id <= 9i32 as libc::c_uint) {
         stmt = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;\x00" as *const u8
                 as *const libc::c_char,
         );
@@ -910,7 +898,7 @@ pub unsafe fn dc_delete_contact(context: &Context, contact_id: uint32_t) -> bool
             sqlite3_finalize(stmt);
             stmt = dc_sqlite3_prepare(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &context.sql,
                 b"SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;\x00" as *const u8
                     as *const libc::c_char,
             );
@@ -920,7 +908,7 @@ pub unsafe fn dc_delete_contact(context: &Context, contact_id: uint32_t) -> bool
                 sqlite3_finalize(stmt);
                 stmt = dc_sqlite3_prepare(
                     context,
-                    &context.sql.clone().read().unwrap(),
+                    &context.sql,
                     b"DELETE FROM contacts WHERE id=?;\x00" as *const u8 as *const libc::c_char,
                 );
                 sqlite3_bind_int(stmt, 1i32, contact_id as libc::c_int);
@@ -942,7 +930,7 @@ pub unsafe fn dc_delete_contact(context: &Context, contact_id: uint32_t) -> bool
 
 pub unsafe fn dc_get_contact(context: &Context, contact_id: uint32_t) -> *mut dc_contact_t {
     let mut ret: *mut dc_contact_t = dc_contact_new(context);
-    if !dc_contact_load_from_db(ret, &context.sql.clone().read().unwrap(), contact_id) {
+    if !dc_contact_load_from_db(ret, &context.sql, contact_id) {
         dc_contact_unref(ret);
         ret = 0 as *mut dc_contact_t
     }
@@ -1089,7 +1077,7 @@ pub unsafe fn dc_contact_is_verified_ex<'a>(
     } else {
         let peerstate = Peerstate::from_addr(
             (*contact).context,
-            &(*contact).context.sql.clone().read().unwrap(),
+            &(*contact).context.sql,
             as_str((*contact).addr),
         );
 
@@ -1125,7 +1113,7 @@ pub unsafe fn dc_addr_equals_self(context: &Context, addr: *const libc::c_char) 
         normalized_addr = dc_addr_normalize(addr);
         self_addr = dc_sqlite3_get_config(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"configured_addr\x00" as *const u8 as *const libc::c_char,
             0 as *const libc::c_char,
         );
@@ -1150,7 +1138,7 @@ pub unsafe fn dc_addr_equals_contact(
     let mut addr_are_equal = false;
     if !addr.is_null() {
         let contact: *mut dc_contact_t = dc_contact_new(context);
-        if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
+        if dc_contact_load_from_db(contact, &context.sql, contact_id) {
             if !(*contact).addr.is_null() {
                 let normalized_addr: *mut libc::c_char = dc_addr_normalize(addr);
                 if strcasecmp((*contact).addr, normalized_addr) == 0i32 {
@@ -1168,10 +1156,10 @@ pub unsafe fn dc_addr_equals_contact(
 pub unsafe fn dc_get_real_contact_cnt(context: &Context) -> size_t {
     let mut ret: size_t = 0i32 as size_t;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !context.sql.clone().read().unwrap().cobj.is_null() {
+    if context.sql.is_open() {
         stmt = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"SELECT COUNT(*) FROM contacts WHERE id>?;\x00" as *const u8 as *const libc::c_char,
         );
         sqlite3_bind_int(stmt, 1i32, 9i32);
@@ -1195,7 +1183,7 @@ pub unsafe fn dc_get_contact_origin(
     }
     let contact: *mut dc_contact_t = dc_contact_new(context);
     *ret_blocked = 0i32;
-    if dc_contact_load_from_db(contact, &context.sql.clone().read().unwrap(), contact_id) {
+    if dc_contact_load_from_db(contact, &context.sql, contact_id) {
         /* we could optimize this by loading only the needed fields */
         if 0 != (*contact).blocked {
             *ret_blocked = 1i32
@@ -1210,10 +1198,10 @@ pub unsafe fn dc_get_contact_origin(
 pub unsafe fn dc_real_contact_exists(context: &Context, contact_id: uint32_t) -> bool {
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut ret = false;
-    if !(context.sql.clone().read().unwrap().cobj.is_null() || contact_id <= 9i32 as libc::c_uint) {
+    if !(!context.sql.is_open() || contact_id <= 9i32 as libc::c_uint) {
         stmt = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             b"SELECT id FROM contacts WHERE id=?;\x00" as *const u8 as *const libc::c_char,
         );
         sqlite3_bind_int(stmt, 1i32, contact_id as libc::c_int);
@@ -1232,7 +1220,7 @@ pub unsafe fn dc_scaleup_contact_origin(
 ) {
     let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         b"UPDATE contacts SET origin=? WHERE id=? AND origin<?;\x00" as *const u8
             as *const libc::c_char,
     );
