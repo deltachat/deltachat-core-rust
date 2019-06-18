@@ -12,9 +12,8 @@ use crate::x::*;
 const DC_OPEN_READONLY: usize = 0x01;
 
 /// A wrapper around the underlying Sqlite3 object.
-#[repr(C)]
 pub struct SQLite {
-    pub cobj: std::sync::RwLock<*mut sqlite3>,
+    cobj: std::sync::RwLock<*mut sqlite3>,
 }
 
 impl SQLite {
