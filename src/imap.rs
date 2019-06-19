@@ -1598,12 +1598,7 @@ impl Imap {
             }
         }
 
-        dc_sqlite3_set_config_int(
-            context,
-            &context.sql.read().unwrap(),
-            "folders_configured",
-            3,
-        );
+        dc_sqlite3_set_config_int(context, &context.sql, "folders_configured", 3);
         if let Some(ref mvbox_folder) = mvbox_folder {
             dc_sqlite3_set_config(
                 context,

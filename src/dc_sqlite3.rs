@@ -851,7 +851,7 @@ pub fn dc_sqlite3_prepare<'a>(
     }
 }
 
-pub fn dc_sqlite3_is_open(sql: &dc_sqlite3_t) -> libc::c_int {
+pub fn dc_sqlite3_is_open(sql: &SQLite) -> libc::c_int {
     unsafe { sql.raw().is_none() as libc::c_int }
 }
 

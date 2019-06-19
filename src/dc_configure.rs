@@ -152,8 +152,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                     0i32 as uintptr_t,
                 );
 
-                let mut param =
-                    dc_loginparam_read(context, &context.sql.clone().read().unwrap(), "");
+                let mut param = dc_loginparam_read(context, &context.sql, "");
                 if param.addr.is_empty() {
                     error!(context, 0, "Please enter an email address.",);
                 } else {

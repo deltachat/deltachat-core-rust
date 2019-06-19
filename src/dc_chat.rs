@@ -121,7 +121,7 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
 
     if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
-        &context.sql.read().unwrap(),
+        &context.sql,
         "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
          c.blocked, c.gossiped_timestamp, c.locations_send_until  \
          FROM chats c WHERE c.id=?;",
@@ -723,7 +723,7 @@ unsafe fn prepare_msg_raw(
                     ) {
                         msg_id = dc_sqlite3_get_rowid(
                             context,
-                            &context.sql.clone().read().unwrap(),
+                            &context.sql,
                             "msgs",
                             "rfc724_mid",
                             as_str(new_rfc724_mid),
@@ -1127,7 +1127,7 @@ pub unsafe fn dc_get_chat_msgs(
     } else {
         if let Some(mut stmt) = dc_sqlite3_prepare(
             context,
-            &sql,
+            &context.sql,
             "SELECT m.id, m.timestamp FROM msgs m \
              WHERE m.chat_id=?    \
              AND m.hidden=0  \
@@ -1203,7 +1203,6 @@ pub fn dc_marknoticed_chat(context: &Context, chat_id: u32) -> bool {
     ) {
         return false;
     }
-
     if !dc_sqlite3_execute(
         context,
         &context.sql,
@@ -1213,16 +1212,14 @@ pub fn dc_marknoticed_chat(context: &Context, chat_id: u32) -> bool {
     ) {
         return false;
     }
-
-    unsafe { (context.cb)(context, Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t) };
-
+    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
     true
 }
 
 pub fn dc_marknoticed_all_chats(context: &Context) -> bool {
     if !dc_sqlite3_execute(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT id FROM msgs  \
          WHERE state=10;",
         params![],
@@ -1240,7 +1237,7 @@ pub fn dc_marknoticed_all_chats(context: &Context) -> bool {
         return false;
     }
 
-    unsafe { (context.cb)(context, Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t) };
+    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
 
     true
 }
@@ -1415,7 +1412,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
         return;
     }
 
-    unsafe { (context.cb)(context, Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t) };
+    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
     dc_job_kill_action(context, 105);
     unsafe { dc_job_add(context, 105, 0, 0 as *const libc::c_char, 10) };
 }
@@ -1769,12 +1766,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                     "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
                     params![chat_id as i32, contact_id as i32],
                 ) {
-                    (context.cb)(
-                        context,
-                        Event::CHAT_MODIFIED,
-                        chat_id as uintptr_t,
-                        0 as uintptr_t,
-                    );
+                    context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
                     success = 1;
                 }
             }
@@ -2251,7 +2243,7 @@ pub unsafe fn dc_get_chat_id_by_grpid(
 
     dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT id, blocked, type FROM chats WHERE grpid=?;",
     )
     .and_then(|mut stmt| {
@@ -2284,7 +2276,7 @@ pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc
 
     if !dc_sqlite3_execute(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
         params![
             chat_id as i32,
@@ -2302,18 +2294,15 @@ pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc
 
     let msg_id = dc_sqlite3_get_rowid(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "msgs",
         "rfc724_mid",
         as_str(rfc724_mid),
     );
     unsafe { free(rfc724_mid as *mut libc::c_void) };
-    unsafe {
-        (context.cb)(
-            context,
-            Event::MSGS_CHANGED,
-            chat_id as uintptr_t,
-            msg_id as uintptr_t,
-        )
-    };
+    context.call_cb(
+        Event::MSGS_CHANGED,
+        chat_id as uintptr_t,
+        msg_id as uintptr_t,
+    );
 }

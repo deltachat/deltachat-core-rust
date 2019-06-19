@@ -33,7 +33,7 @@ pub fn dc_marknoticed_contact(context: &Context, contact_id: u32) {
         "UPDATE msgs SET state=13 WHERE from_id=? AND state=10;",
         params![contact_id as i32],
     ) {
-        unsafe { ((*context).cb)(context, Event::MSGS_CHANGED, 0, 0) };
+        context.call_cb(Event::MSGS_CHANGED, 0, 0);
     }
 }
 
@@ -68,13 +68,8 @@ pub unsafe fn dc_lookup_contact_id_by_addr(
 
     let addr_normalized_c = dc_addr_normalize(addr);
     let addr_normalized = as_str(addr_normalized_c);
-    let addr_self = dc_sqlite3_get_config(
-        context,
-        &context.sql.clone().read().unwrap(),
-        "configured_addr",
-        None,
-    )
-    .unwrap_or_default();
+    let addr_self =
+        dc_sqlite3_get_config(context, &context.sql, "configured_addr", None).unwrap_or_default();
 
     let contact_id = if addr_normalized == addr_self {
         1
@@ -338,13 +333,8 @@ pub fn dc_add_or_lookup_contact(
 
     let addr_c = unsafe { dc_addr_normalize(addr__) };
     let addr = as_str(addr_c);
-    let addr_self = dc_sqlite3_get_config(
-        context,
-        &context.sql.clone().read().unwrap(),
-        "configured_addr",
-        Some(""),
-    )
-    .unwrap_or_default();
+    let addr_self = dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some(""))
+        .unwrap_or_default();
 
     if addr == addr_self {
         return 1;
@@ -428,7 +418,7 @@ pub fn dc_add_or_lookup_contact(
             if update_name {
                 dc_sqlite3_execute(
                     context,
-                    &context.sql.clone().read().unwrap(),
+                    &context.sql,
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
                     params![as_str(name), 100, row_id]
                 );
@@ -438,7 +428,7 @@ pub fn dc_add_or_lookup_contact(
     } else {
         if dc_sqlite3_execute(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
             params![
                 if !name.is_null() { as_str(name) } else { "" },
@@ -446,13 +436,7 @@ pub fn dc_add_or_lookup_contact(
                 origin,
             ],
         ) {
-            row_id = dc_sqlite3_get_rowid(
-                context,
-                &context.sql.clone().read().unwrap(),
-                "contacts",
-                "addr",
-                addr,
-            );
+            row_id = dc_sqlite3_get_rowid(context, &context.sql, "contacts", "addr", addr);
             unsafe { *sth_modified = 2 };
         } else {
             error!(context, 0, "Cannot add contact.");
@@ -602,13 +586,8 @@ pub fn dc_get_contacts(
             }
         }
 
-        let self_name = dc_sqlite3_get_config(
-            context,
-            &context.sql.clone().read().unwrap(),
-            "displayname",
-            Some(""),
-        )
-        .unwrap_or_default();
+        let self_name = dc_sqlite3_get_config(context, &context.sql, "displayname", Some(""))
+            .unwrap_or_default();
 
         let self_name2 = unsafe { dc_stock_str(context, 2) };
 
@@ -798,7 +777,7 @@ pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
 
     let count_contacts: i32 = dc_sqlite3_query_row(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
         params![contact_id as i32],
         0,
@@ -1057,7 +1036,7 @@ pub fn dc_get_real_contact_cnt(context: &Context) -> usize {
 
     dc_sqlite3_query_row::<_, isize>(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT COUNT(*) FROM contacts WHERE id>?;",
         params![9],
         0,
@@ -1094,13 +1073,9 @@ pub fn dc_real_contact_exists(context: &Context, contact_id: u32) -> bool {
         return false;
     }
 
-    dc_sqlite3_prepare(
-        context,
-        &context.sql.clone().read().unwrap(),
-        "SELECT id FROM contacts WHERE id=?;",
-    )
-    .map(|mut stmt| stmt.exists(params![contact_id as i32]).unwrap_or_default())
-    .unwrap_or_default()
+    dc_sqlite3_prepare(context, &context.sql, "SELECT id FROM contacts WHERE id=?;")
+        .map(|mut stmt| stmt.exists(params![contact_id as i32]).unwrap_or_default())
+        .unwrap_or_default()
 }
 
 pub fn dc_scaleup_contact_origin(context: &Context, contact_id: u32, origin: libc::c_int) -> bool {

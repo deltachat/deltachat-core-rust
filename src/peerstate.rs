@@ -9,7 +9,6 @@ use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_sqlite3::*;
 use crate::key::*;
-use crate::types::*;
 
 /// Peerstate represents the state of an Autocrypt peer.
 pub struct Peerstate<'a> {
@@ -195,9 +194,7 @@ impl<'a> Peerstate<'a> {
     {
         let mut res = Self::new(context);
 
-        if let Some(mut stmt) =
-            dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(), query)
-        {
+        if let Some(mut stmt) = dc_sqlite3_prepare(context, &context.sql, query) {
             stmt.query_row(params, |row| {
                 res.addr = Some(row.get(0)?);
                 res.last_seen = row.get(1)?;

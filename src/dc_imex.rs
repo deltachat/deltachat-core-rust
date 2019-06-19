@@ -69,11 +69,11 @@ pub unsafe fn dc_imex_has_backup(
                 let name = dirent.file_name();
                 let name = name.to_string_lossy();
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
-                    let mut sql = SQLite::new();
-                    if sql.open(context, &path, 0x1i32) {
+                    let sql = SQLite::new();
+                    if sql.open(context, &path, 0x1) {
                         let curr_backup_time = dc_sqlite3_get_config_int(
                             context,
-                            &mut sql,
+                            &sql,
                             b"backup_time\x00" as *const u8 as *const libc::c_char,
                             0i32,
                         ) as u64;
@@ -955,7 +955,7 @@ The macro avoids weird values of 0% or 100% while still working. */
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0;
-    let mut closed: libc::c_int;
+    let mut closed: bool = false;
 
     let mut delete_dest_file: libc::c_int = 0;
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
@@ -979,8 +979,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     dc_housekeeping(context);
 
     dc_sqlite3_try_execute(context, &context.sql, "VACUUM;");
-    dc_sqlite3_close(context, &mut context.sql);
-    closed = 1;
+    context.sql.close();
+    closed = true;
     dc_log_info(
         context,
         0,
@@ -990,7 +990,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     );
     if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
-        closed = 0;
+        closed = false;
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
         let sql = SQLite::new();
@@ -1110,7 +1110,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                                     current_block = 11487273724841241105;
                                                     break;
                                                 }
-                                            // TODO: do we need to reset the stmt?
                                             } else {
                                                 continue;
                                             }
@@ -1145,12 +1144,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
             }
         }
     }
-    if 0 != closed {
+    if closed {
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
-    }
-    sqlite3_finalize(stmt);
-    if let Some(sql) = dest_sql.take() {
-        sql.close(&context);
     }
     if 0 != delete_dest_file {
         dc_delete_file(context, dest_pathNfilename);

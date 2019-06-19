@@ -12,7 +12,6 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
-use crate::types::*;
 use crate::x::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
