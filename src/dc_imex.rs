@@ -71,12 +71,8 @@ pub unsafe fn dc_imex_has_backup(
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
                     let sql = SQLite::new();
                     if sql.open(context, &path, 0x1) {
-                        let curr_backup_time = dc_sqlite3_get_config_int(
-                            context,
-                            &sql,
-                            b"backup_time\x00" as *const u8 as *const libc::c_char,
-                            0i32,
-                        ) as u64;
+                        let curr_backup_time =
+                            dc_sqlite3_get_config_int(context, &sql, "backup_time", 0) as u64;
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);
                             newest_backup_time = curr_backup_time;
@@ -246,8 +242,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
         if !(0 == dc_ensure_secret_key_exists(context)) {
             let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None)
                 .unwrap_or_default();
-            let curr_private_key =
-                Key::from_self_private(context, self_addr, &context.sql.clone().read().unwrap());
+            let curr_private_key = Key::from_self_private(context, self_addr, &context.sql);
             let e2ee_enabled = dc_sqlite3_get_config_int(context, &context.sql, "e2ee_enabled", 1);
 
             let headers = if 0 != e2ee_enabled {
@@ -436,12 +431,7 @@ fn set_self_key(
         error!(context, 0, "File does not contain a private key.",);
     }
 
-    let self_addr = dc_sqlite3_get_config(
-        context,
-        &context.sql.clone().read().unwrap(),
-        "configured_addr",
-        None,
-    );
+    let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
 
     if self_addr.is_none() {
         error!(context, 0, "Missing self addr");
@@ -454,7 +444,7 @@ fn set_self_key(
         &private_key,
         self_addr.unwrap(),
         set_default,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
     ) {
         error!(context, 0, "Cannot save keypair.");
         return 0;
@@ -462,18 +452,8 @@ fn set_self_key(
 
     match preferencrypt.as_str() {
         "" => 0,
-        "nopreference" => dc_sqlite3_set_config_int(
-            context,
-            &context.sql.clone().read().unwrap(),
-            "e2ee_enabled",
-            0,
-        ),
-        "mutual" => dc_sqlite3_set_config_int(
-            context,
-            &context.sql.clone().read().unwrap(),
-            "e2ee_enabled",
-            1,
-        ),
+        "nopreference" => dc_sqlite3_set_config_int(context, &context.sql, "e2ee_enabled", 0),
+        "mutual" => dc_sqlite3_set_config_int(context, &context.sql, "e2ee_enabled", 1),
         _ => 1,
     }
 }
@@ -955,7 +935,6 @@ The macro avoids weird values of 0% or 100% while still working. */
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0;
-    let mut closed: bool = false;
 
     let mut delete_dest_file: libc::c_int = 0;
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
@@ -979,8 +958,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     dc_housekeeping(context);
 
     dc_sqlite3_try_execute(context, &context.sql, "VACUUM;");
-    context.sql.close();
-    closed = true;
+    context.sql.close(context);
+    let mut closed = true;
     dc_log_info(
         context,
         0,

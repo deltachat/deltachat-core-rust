@@ -20,27 +20,26 @@ pub struct SQLite {
 impl SQLite {
     pub fn new() -> SQLite {
         SQLite {
-            cobj: std::sync::RwLock::new(std::ptr::null_mut()),
+            connection: std::sync::RwLock::new(None),
         }
     }
 
-    pub fn conn(&self) -> Option<&Connection> {
-        self.connection.as_ref()
+    pub fn is_open(&self) -> bool {
+        self.connection.read().unwrap().is_some()
     }
 
-    pub fn is_open(&self) -> bool {
-        !self.cobj.read().unwrap().is_null()
-    }
+    // pub fn conn(&self) -> Option<&Connection> {
+    //     self.connection.read().unwrap().as_ref()
+    // }
 
     pub unsafe fn raw(&self) -> Option<*mut sqlite3> {
-        self.connection.as_ref().map(|c| c.handle())
+        self.connection.read().unwrap().as_ref().map(|c| c.handle())
     }
 
-    // TODO: refactor this further to remove open() and close()
-    // completely, relying entirely on drop().
     pub fn close(&self, context: &Context) {
-        if !self.connection.is_some() {
-            self.connection.take();
+        let mut conn = self.connection.write().unwrap();
+        if conn.is_some() {
+            conn.take();
             // drop closes the connection
         }
         info!(context, 0, "Database closed.");
@@ -49,11 +48,53 @@ impl SQLite {
     // return true on success, false on failure
     pub fn open(&self, context: &Context, dbfile: &std::path::Path, flags: libc::c_int) -> bool {
         let dbfile_c = dbfile.to_c_string().unwrap();
-        unsafe {
-            match dc_sqlite3_open(context, self, dbfile_c.as_ptr(), flags) {
-                1 => true,
-                _ => false,
-            }
+        match dc_sqlite3_open(context, self, dbfile_c.as_ptr(), flags) {
+            1 => true,
+            _ => false,
+        }
+    }
+
+    pub fn execute<P>(&self, sql: &str, params: P) -> rusqlite::Result<usize>
+    where
+        P: IntoIterator,
+        P::Item: rusqlite::ToSql,
+    {
+        match *self.connection.read().unwrap() {
+            Some(conn) => conn.execute(sql, params),
+            None => panic!("Querying closed SQLite database"),
+        }
+    }
+
+    pub fn prepare(&self, sql: &str) -> rusqlite::Result<Statement> {
+        match *self.connection.read().unwrap() {
+            Some(conn) => conn.prepare(sql),
+            None => panic!("Querying closed SQLite database"),
+        }
+    }
+
+    pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> rusqlite::Result<T>
+    where
+        P: IntoIterator,
+        P::Item: rusqlite::ToSql,
+        F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
+    {
+        match *self.connection.read().unwrap() {
+            Some(conn) => conn.query_row(sql, params, f),
+            None => panic!("Querying closed SQLite database"),
+        }
+    }
+
+    pub fn table_exists(&self, name: impl AsRef<str>) -> bool {
+        match *self.connection.read().unwrap() {
+            Some(conn) => {
+                conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |row| {
+                    // will only be executed if the info was found
+                    println!("row: {:?}", row.get::<_, String>(0)?);
+                    Ok(())
+                })
+                .is_ok()
+            },
+            None => panic!("Querying closed SQLite database"),
         }
     }
 }
@@ -82,7 +123,7 @@ pub fn dc_sqlite3_open(
         return 0;
     }
 
-    if sql.conn().is_some() {
+    if sql.is_open() {
         error!(
             context,
             0, "Cannot open, database \"{}\" already opened.", dbfile,
@@ -98,17 +139,17 @@ pub fn dc_sqlite3_open(
         open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
     }
 
-    match Connection::open_with_flags(dbfile, open_flags) {
+    let conn = match Connection::open_with_flags(dbfile, open_flags) {
         Ok(conn) => {
-            sql.connection = Some(conn);
+            let mut sql_conn = sql.connection.write().unwrap();
+            *sql_conn = Some(conn);
+            conn
         }
         Err(err) => {
             error!(context, 0, "Cannot open database: \"{}\".", err);
             return 0;
         }
-    }
-
-    let conn = sql.conn().unwrap();
+    };
 
     conn.pragma_update(None, "secure_delete", &"on".to_string())
         .expect("failed to enable pragma");
@@ -831,23 +872,18 @@ pub fn dc_sqlite3_set_config(
     1
 }
 
-/* tools, these functions are compatible to the corresponding sqlite3_* functions */
-/* the result mus be freed using sqlite3_finalize() */
+// TODO: Remove the option from the return type
 pub fn dc_sqlite3_prepare<'a>(
     context: &Context,
     sql: &'a SQLite,
     querystr: &'a str,
 ) -> Option<Statement<'a>> {
-    if let Some(ref conn) = sql.conn() {
-        match conn.prepare(querystr) {
-            Ok(s) => Some(s),
-            Err(err) => {
-                error!(context, 0, "Query failed: {} ({})", querystr, err);
-                None
-            }
+    match sql.prepare(querystr) {
+        Ok(s) => Some(s),
+        Err(err) => {
+            error!(context, 0, "Query failed: {} ({})", querystr, err);
+            None
         }
-    } else {
-        None
     }
 }
 
@@ -904,6 +940,7 @@ where
     }
 }
 
+// TODO Remove the Option<> from the return type.
 pub fn dc_sqlite3_query_row<P, T>(
     context: &Context,
     sql: &SQLite,
@@ -916,17 +953,12 @@ where
     P::Item: rusqlite::ToSql,
     T: rusqlite::types::FromSql,
 {
-    if let Some(ref conn) = sql.conn() {
-        match conn.query_row(query, params, |row| row.get::<_, T>(column)) {
-            Ok(res) => Some(res),
-            Err(err) => {
-                error!(context, 0, "sql: Failed query_row: {}", err);
-                None
-            }
+    match sql.query_row(query, params, |row| row.get::<_, T>(column)) {
+        Ok(res) => Some(res),
+        Err(err) => {
+            error!(context, 0, "sql: Failed query_row: {}", err);
+            None
         }
-    } else {
-        error!(context, 0, "sql: no connection");
-        None
     }
 }
 
@@ -955,17 +987,9 @@ pub fn dc_sqlite3_table_exists(
     sql: &SQLite,
     name: impl AsRef<str>,
 ) -> libc::c_int {
-    match sql.conn() {
-        Some(ref conn) => {
-            conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |row| {
-                // will only be executed if the info was found
-                println!("row: {:?}", row.get::<_, String>(0)?);
-                Ok(())
-            })
-            .map(|_| 1)
-            .unwrap_or_else(|_| 0)
-        }
-        None => 0,
+    match sql.table_exists(name) {
+        true => 1,
+        false => 0,
     }
 }
 
@@ -1244,9 +1268,7 @@ fn maybe_add_from_param(
 ) {
     let param = unsafe { dc_param_new() };
 
-    if let Some(ref mut stmt) =
-        dc_sqlite3_prepare(context, &context.sql.clone().read().unwrap(), query)
-    {
+    if let Some(ref mut stmt) = dc_sqlite3_prepare(context, &context.sql, query) {
         match stmt.query_row(NO_PARAMS, |row| {
             let v = to_cstring(row.get::<_, String>(0)?);
             unsafe {

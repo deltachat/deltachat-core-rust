@@ -130,7 +130,7 @@ pub unsafe fn dc_e2ee_encrypt(
                 }
                 let sign_key = if 0 != do_encrypt {
                     keyring.add_ref(&public_key);
-                    let key = Key::from_self_private(context, addr, &context.sql);
+                    let key = Key::from_self_private(context, addr.clone(), &context.sql);
 
                     if key.is_none() {
                         do_encrypt = 0i32;

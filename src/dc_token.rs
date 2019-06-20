@@ -22,7 +22,7 @@ pub fn dc_token_save(
     // foreign_id may be 0
     dc_sqlite3_execute(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
         params![namespc as i32, foreign_id as i32, as_str(token), time()],
     )
@@ -57,7 +57,7 @@ pub fn dc_token_exists(
 
     dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT id FROM tokens WHERE namespc=? AND token=?;",
     )
     .and_then(|mut stmt| stmt.exists(params![namespc as i32, as_str(token)]).ok())

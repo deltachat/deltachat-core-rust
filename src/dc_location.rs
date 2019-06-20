@@ -147,7 +147,7 @@ pub fn dc_set_location(
     let mut continue_streaming = false;
     let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT id FROM chats WHERE locations_send_until>?;",
     ) {
         stmt.query_map(params![time()], |row| row.get::<_, i32>(0))
@@ -175,7 +175,7 @@ pub fn dc_set_location(
             continue_streaming = true;
         }
         if continue_streaming {
-            context.call_cb(Event::LOCATION_CHANGED, 1 as uintptr_t, 0 as uintptr_t)
+            context.call_cb(Event::LOCATION_CHANGED, 1, 0);
         };
         unsafe { schedule_MAYBE_SEND_LOCATIONS(context, 0) };
     }
@@ -273,8 +273,7 @@ pub fn dc_delete_all_locations(context: &Context) -> bool {
     if !dc_sqlite3_execute(context, &context.sql, "DELETE FROM locations;", params![]) {
         return false;
     }
-
-    unsafe { (context.cb)(context, Event::LOCATION_CHANGED, 0, 0) };
+    context.call_cb(Event::LOCATION_CHANGED, 0, 0);
     true
 }
 
@@ -298,7 +297,7 @@ pub fn dc_get_location_kml(
 
     if let Some((locations_send_begin, locations_send_until, locations_last_sent)) = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",
 
     ).and_then(|mut stmt| {
@@ -318,7 +317,7 @@ pub fn dc_get_location_kml(
 
             let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &context.sql,
                 "SELECT id, latitude, longitude, accuracy, timestamp\
                  FROM locations  WHERE from_id=? \
                  AND timestamp>=? \
@@ -444,17 +443,14 @@ pub unsafe fn dc_save_locations(
         return 0;
     }
 
-    let sql_raw = &context.sql.clone();
-    let sql = sql_raw.read().unwrap();
-
     let stmt_test = dc_sqlite3_prepare(
         context,
-        &sql,
+        &context.sql,
         "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
     );
     let stmt_insert = dc_sqlite3_prepare(
         context,
-        &sql,
+        &context.sql,
         "INSERT INTO locations\
          (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
          VALUES (?,?,?,?,?,?,?);",
@@ -714,11 +710,9 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                 Ok(Some((chat_id, locations_send_begin, locations_last_sent)))
             }
         }) {
-            let sql_raw = context.sql.clone();
-            let sql = sql_raw.read().unwrap();
             let stmt_locations = dc_sqlite3_prepare(
                 context,
-                &sql,
+                &context.sql,
                 "SELECT id \
                  FROM locations \
                  WHERE from_id=? \
@@ -809,11 +803,10 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
                         0,
                     );
                     dc_add_device_msg(context, chat_id, stock_str);
-                    (context.cb)(
-                        context,
+                    context.call_cb(
                         Event::CHAT_MODIFIED,
-                        chat_id as uintptr_t,
-                        0 as uintptr_t,
+                        chat_id as usize,
+                        0,
                     );
                 }
             }

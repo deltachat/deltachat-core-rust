@@ -76,13 +76,7 @@ pub unsafe fn dc_get_securejoin_qr(
     }
 
     let self_addr = self_addr.unwrap();
-    let self_name = dc_sqlite3_get_config(
-        context,
-        &context.sql.clone().read().unwrap(),
-        "displayname",
-        Some(""),
-    )
-    .unwrap();
+    let self_name = dc_sqlite3_get_config(context, &context.sql, "displayname", Some("")).unwrap();
     fingerprint = get_self_fingerprint(context);
 
     if fingerprint.is_null() {

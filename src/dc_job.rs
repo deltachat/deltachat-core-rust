@@ -512,7 +512,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
  * IMAP-jobs
  ******************************************************************************/
 fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
-    let ret_connected = unsafe { dc_connect_to_configured_imap(context, inbox) };
+    let ret_connected = dc_connect_to_configured_imap(context, inbox);
     if 0 != ret_connected {
         inbox.set_watch_folder("INBOX".into());
     }

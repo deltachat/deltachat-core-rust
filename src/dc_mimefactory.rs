@@ -142,7 +142,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         } else {
             let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
                 context,
-                &context.sql.clone().read().unwrap(),
+                &context.sql,
                 "SELECT c.authname, c.addr  \
                  FROM chats_contacts cc  \
                  LEFT JOIN contacts c ON cc.contact_id=c.id  \
@@ -221,7 +221,7 @@ pub unsafe fn dc_mimefactory_load_msg(
 
         let row = dc_sqlite3_prepare(
             context,
-            &context.sql.clone().read().unwrap(),
+            &context.sql,
             "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
         )
         .and_then(|mut stmt| {
@@ -255,7 +255,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
         to_cstring(
             dc_sqlite3_get_config(
                 (*factory).context,
-                &mut (*factory).context.sql,
+                &(*factory).context.sql,
                 "configured_addr",
                 None,
             )
@@ -267,7 +267,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
         to_cstring(
             dc_sqlite3_get_config(
                 (*factory).context,
-                &mut (*factory).context.sql,
+                &(*factory).context.sql,
                 "displayname",
                 None,
             )
@@ -279,7 +279,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
         to_cstring(
             dc_sqlite3_get_config(
                 (*factory).context,
-                &mut (*factory).context.sql,
+                &(*factory).context.sql,
                 "selfstatus",
                 None,
             )

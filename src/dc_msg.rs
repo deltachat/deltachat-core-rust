@@ -534,9 +534,8 @@ pub unsafe fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: 
     if msg_ids.is_null() || msg_cnt <= 0 {
         return;
     }
-    let sql = context.sql;
     let stmt = dc_sqlite3_prepare(
-        context, &sql,
+        context, &context.sql,
         "SELECT m.state, c.blocked  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id=? AND m.chat_id>9"
     );
 
@@ -599,8 +598,11 @@ pub fn dc_star_msgs(
     if msg_ids.is_null() || msg_cnt <= 0 || star != 0 && star != 1 {
         return false;
     }
-    let sql = context.sql;
-    let stmt = dc_sqlite3_prepare(context, &sql, "UPDATE msgs SET starred=? WHERE id=?;");
+    let stmt = dc_sqlite3_prepare(
+        context,
+        &context.sql,
+        "UPDATE msgs SET starred=? WHERE id=?;",
+    );
     if stmt.is_none() {
         return false;
     }
@@ -1229,7 +1231,7 @@ pub unsafe fn dc_mdn_from_ext(
 
     if let Some((msg_id, chat_id, chat_type, msg_state)) = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT m.id, c.id, c.type, m.state FROM msgs m  \
          LEFT JOIN chats c ON m.chat_id=c.id  \
          WHERE rfc724_mid=? AND from_id=1  \
@@ -1313,58 +1315,49 @@ pub unsafe fn dc_mdn_from_ext(
 
 /* the number of messages assigned to real chat (!=deaddrop, !=trash) */
 pub fn dc_get_real_msg_cnt(context: &Context) -> libc::c_int {
-    if let Some(conn) = context.sql.conn() {
-        match conn.query_row(
-            "SELECT COUNT(*)  \
-             FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id>9 AND m.chat_id>9 AND c.blocked=0;",
-            rusqlite::NO_PARAMS,
-            |row| row.get(0)
-        ) {
-            Ok(res) => res,
-            Err(err) => {
-                error!(context, 0, "dc_get_real_msg_cnt() failed. {}", err);
-                0
-            }
+    match context.sql.query_row(
+        "SELECT COUNT(*) \
+         FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id \
+         WHERE m.id>9 AND m.chat_id>9 AND c.blocked=0;",
+        rusqlite::NO_PARAMS,
+        |row| row.get(0),
+    ) {
+        Ok(res) => res,
+        Err(err) => {
+            error!(context, 0, "dc_get_real_msg_cnt() failed. {}", err);
+            0
         }
-    } else {
-        0
     }
 }
 
 pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> size_t {
-    if let Some(conn) = context.sql.conn() {
-        match conn.query_row(
-            "SELECT COUNT(*) FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id WHERE c.blocked=2;",
-            rusqlite::NO_PARAMS,
-            |row| row.get::<_, isize>(0),
-        ) {
-            Ok(res) => res as size_t,
-            Err(err) => {
-                error!(context, 0, "dc_get_deaddrop_msg_cnt() failed. {}", err);
-                0
-            }
+    match context.sql.query_row(
+        "SELECT COUNT(*) \
+         FROM msgs m LEFT JOIN chats c ON c.id=m.chat_id \
+         WHERE c.blocked=2;",
+        rusqlite::NO_PARAMS,
+        |row| row.get::<_, isize>(0),
+    ) {
+        Ok(res) => res as size_t,
+        Err(err) => {
+            error!(context, 0, "dc_get_deaddrop_msg_cnt() failed. {}", err);
+            0
         }
-    } else {
-        0
     }
 }
 
 pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: *const libc::c_char) -> libc::c_int {
     /* check the number of messages with the same rfc724_mid */
-    if let Some(conn) = context.sql.conn() {
-        match conn.query_row(
-            "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;",
-            &[as_str(rfc724_mid)],
-            |row| row.get(0),
-        ) {
-            Ok(res) => res,
-            Err(err) => {
-                error!(context, 0, "dc_get_rfc724_mid_cnt() failed. {}", err);
-                0
-            }
+    match context.sql.query_row(
+        "SELECT COUNT(*) FROM msgs WHERE rfc724_mid=?;",
+        &[as_str(rfc724_mid)],
+        |row| row.get(0),
+    ) {
+        Ok(res) => res,
+        Err(err) => {
+            error!(context, 0, "dc_get_rfc724_mid_cnt() failed. {}", err);
+            0
         }
-    } else {
-        0
     }
 }
 
@@ -1377,38 +1370,32 @@ pub fn dc_rfc724_mid_exists(
     if rfc724_mid.is_null() || unsafe { *rfc724_mid.offset(0) as libc::c_int } == 0 {
         return 0;
     }
-
-    if let Some(conn) = context.sql.conn() {
-        match conn.query_row(
-            "SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?",
-            &[as_str(rfc724_mid)],
-            |row| {
-                if !ret_server_folder.is_null() {
-                    unsafe {
-                        *ret_server_folder =
-                            dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr())
-                    };
-                }
-                if !ret_server_uid.is_null() {
-                    unsafe { *ret_server_uid = row.get(1)? };
-                }
-                row.get(2)
-            },
-        ) {
-            Ok(res) => res,
-            Err(_err) => {
-                if !ret_server_folder.is_null() {
-                    unsafe { *ret_server_folder = 0 as *mut libc::c_char };
-                }
-                if !ret_server_uid.is_null() {
-                    unsafe { *ret_server_uid = 0 };
-                }
-
-                0
+    match context.sql.query_row(
+        "SELECT server_folder, server_uid, id FROM msgs WHERE rfc724_mid=?",
+        &[as_str(rfc724_mid)],
+        |row| {
+            if !ret_server_folder.is_null() {
+                unsafe {
+                    *ret_server_folder = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr())
+                };
             }
+            if !ret_server_uid.is_null() {
+                unsafe { *ret_server_uid = row.get(1)? };
+            }
+            row.get(2)
+        },
+    ) {
+        Ok(res) => res,
+        Err(_err) => {
+            if !ret_server_folder.is_null() {
+                unsafe { *ret_server_folder = 0 as *mut libc::c_char };
+            }
+            if !ret_server_uid.is_null() {
+                unsafe { *ret_server_uid = 0 };
+            }
+
+            0
         }
-    } else {
-        0
     }
 }
 
@@ -1418,15 +1405,13 @@ pub fn dc_update_server_uid(
     server_folder: impl AsRef<str>,
     server_uid: uint32_t,
 ) {
-    if let Some(conn) = context.sql.conn() {
-        match conn.execute(
-            "UPDATE msgs SET server_folder=?, server_uid=? WHERE rfc724_mid=?;",
-            params![server_folder.as_ref(), server_uid, as_str(rfc724_mid)],
-        ) {
-            Ok(_) => {}
-            Err(err) => {
-                warn!(context, 0, "msg: failed to update server_uid: {}", err);
-            }
+    match context.sql.execute(
+        "UPDATE msgs SET server_folder=?, server_uid=? WHERE rfc724_mid=?;",
+        params![server_folder.as_ref(), server_uid, as_str(rfc724_mid)],
+    ) {
+        Ok(_) => {}
+        Err(err) => {
+            warn!(context, 0, "msg: failed to update server_uid: {}", err);
         }
     }
 }

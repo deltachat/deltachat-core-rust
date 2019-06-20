@@ -455,28 +455,6 @@ pub unsafe fn dc_receive_imf(
                                 "save_mime_headers",
                                 0,
                             );
-                            let mut header_bytes = imf_raw_bytes as libc::c_int;
-                            if 0 != save_mime_headers {
-                                let mut p = strstr(
-                                    imf_raw_not_terminated,
-                                    b"\r\n\r\n\x00" as *const u8 as *const libc::c_char,
-                                );
-                                if !p.is_null() {
-                                    header_bytes = (p.wrapping_offset_from(imf_raw_not_terminated)
-                                        + 4)
-                                        as libc::c_int
-                                } else {
-                                    p = strstr(
-                                        imf_raw_not_terminated,
-                                        b"\n\n\x00" as *const u8 as *const libc::c_char,
-                                    );
-                                    if !p.is_null() {
-                                        header_bytes =
-                                            (p.wrapping_offset_from(imf_raw_not_terminated) + 2)
-                                                as libc::c_int
-                                    }
-                                }
-                            }
                             field = dc_mimeparser_lookup_field(
                                 &mime_parser,
                                 b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
@@ -511,10 +489,9 @@ pub unsafe fn dc_receive_imf(
                             }
                             icnt = carray_count(mime_parser.parts) as size_t;
 
-                            let sql = context.sql;
                             let mut stmt = dc_sqlite3_prepare(
                                 context,
-                                &sql,
+                                &context.sql,
                                 "INSERT INTO msgs \
                                  (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
                                  timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
@@ -1614,13 +1591,7 @@ fn create_group_record(
         return 0;
     }
 
-    dc_sqlite3_get_rowid(
-        context,
-        &context.sql.clone().read().unwrap(),
-        "chats",
-        "grpid",
-        as_str(grpid),
-    )
+    dc_sqlite3_get_rowid(context, &context.sql, "chats", "grpid", as_str(grpid))
 }
 
 unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) -> *mut libc::c_char {
@@ -1638,7 +1609,7 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
 
     let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT addr FROM contacts WHERE id IN(?) AND id!=1",
     ) {
         stmt.query_map(params![as_str(member_ids_str)], |row| {
@@ -1847,7 +1818,7 @@ unsafe fn check_verified_properties(
                     let fp = peerstate.gossip_key_fingerprint.clone();
                     if let Some(fp) = fp {
                         peerstate.set_verified(0, &fp, 2);
-                        peerstate.save_to_db(&context.sql.clone().read().unwrap(), false);
+                        peerstate.save_to_db(&context.sql, false);
                         is_verified = 1;
                     }
                 }
@@ -1962,7 +1933,7 @@ fn is_known_rfc724_mid(context: &Context, rfc724_mid: *const libc::c_char) -> li
         return 0;
     }
     dc_sqlite3_prepare(
-        context, &context.sql.clone().read().unwrap(),
+        context, &context.sql,
         "SELECT m.id FROM msgs m  LEFT JOIN chats c ON m.chat_id=c.id  WHERE m.rfc724_mid=?  AND m.chat_id>9 AND c.blocked=0;"
     ).and_then(|mut stmt| stmt.exists(params![as_str(rfc724_mid)]).ok()).unwrap_or_default() as libc::c_int
 }
@@ -2041,7 +2012,7 @@ fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: *const libc::c_char) -> 
     }
     dc_sqlite3_prepare(
         context,
-        &context.sql.clone().read().unwrap(),
+        &context.sql,
         "SELECT id FROM msgs  WHERE rfc724_mid=?  AND msgrmsg!=0  AND chat_id>9;",
     )
     .and_then(|mut stmt| stmt.exists(params![as_str(rfc724_mid)]).ok())

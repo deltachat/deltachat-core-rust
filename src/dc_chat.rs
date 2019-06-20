@@ -767,7 +767,7 @@ unsafe fn get_parent_mime_headers(
     {
         if let Some(mut stmt) = dc_sqlite3_prepare(
             (*chat).context,
-            &mut (*chat).context.sql,
+            &(*chat).context.sql,
             "SELECT rfc724_mid, mime_in_reply_to, mime_references \
              FROM msgs WHERE timestamp=(SELECT max(timestamp) \
              FROM msgs WHERE chat_id=? AND from_id!=?);",
@@ -785,7 +785,7 @@ unsafe fn get_parent_mime_headers(
         if 0 == success {
             if let Some(mut stmt) = dc_sqlite3_prepare(
                 (*chat).context,
-                &mut (*chat).context.sql,
+                &(*chat).context.sql,
                 "SELECT rfc724_mid, mime_in_reply_to, mime_references \
                  FROM msgs WHERE timestamp=(SELECT min(timestamp) \
                  FROM msgs WHERE chat_id=? AND from_id==?);",
@@ -852,7 +852,7 @@ unsafe fn last_msg_in_chat_encrypted(
 pub unsafe fn dc_chat_update_param(chat: *mut Chat) -> libc::c_int {
     dc_sqlite3_execute(
         (*chat).context,
-        &mut (*chat).context.sql,
+        &(*chat).context.sql,
         "UPDATE chats SET param=? WHERE id=?",
         params![as_str((*(*chat).param).packed), (*chat).id as i32],
     ) as libc::c_int
