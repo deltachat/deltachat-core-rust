@@ -38,7 +38,6 @@ pub struct JobState {
     using_handle: i32,
 }
 
-
 pub unsafe fn dc_jobthread_suspend(
     context: &Context,
     jobthread: &dc_jobthread_t,
@@ -178,7 +177,9 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
             mvbox_name = dc_sqlite3_get_config(
                 context,
                 &context.sql,
-                CString::new(&jobthread.folder_config_name[..]).unwrap().as_ptr(),
+                CString::new(&jobthread.folder_config_name[..])
+                    .unwrap()
+                    .as_ptr(),
                 0 as *const libc::c_char,
             );
             if mvbox_name.is_null() {
