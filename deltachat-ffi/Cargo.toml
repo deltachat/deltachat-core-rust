@@ -1,6 +1,6 @@
 [package]
 name = "deltachat_ffi"
-version = "1.0.0-alpha.0"
+version = "1.0.0-alpha.1"
 description = "Deltachat FFI"
 authors = ["dignifiedquire <dignifiedquire@gmail.com>"]
 edition = "2018"
