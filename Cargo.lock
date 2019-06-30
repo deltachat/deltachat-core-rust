@@ -450,7 +450,7 @@ dependencies = [
 
 [[package]]
 name = "deltachat"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
  "base64 0.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "cc 1.0.37 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -486,9 +486,9 @@ dependencies = [
 
 [[package]]
 name = "deltachat_ffi"
-version = "1.0.0-alpha.1"
+version = "1.0.0-alpha.2"
 dependencies = [
- "deltachat 1.0.0-alpha.1",
+ "deltachat 1.0.0-alpha.2",
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.58 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
