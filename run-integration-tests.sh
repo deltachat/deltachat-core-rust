@@ -25,9 +25,9 @@ fi
 pushd python
 toxargs="$@"
 if [ -e liveconfig ]; then
-    toxargs="--liveconfig liveconfig $@"
+    toxargs="--liveconfig liveconfig tests/ $@"
 fi
-tox $toxargs
+tox -- $toxargs
 ret=$?
 popd
 exit $ret
