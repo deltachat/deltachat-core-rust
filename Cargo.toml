@@ -48,9 +48,6 @@ members = [
 ]
 
 [[example]]
-name = "simple"
-
-[[example]]
 name = "repl"
 path = "examples/repl/main.rs"
 
