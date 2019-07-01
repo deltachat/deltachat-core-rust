@@ -48,6 +48,16 @@ impl Smtp {
 
     /// Connect using the provided login params
     pub fn connect(&mut self, context: &Context, lp: *const dc_loginparam_t) -> usize {
+        warn!(context, 0, "SMTP ***************** CONNECT");
+        unsafe {
+            dc_log_event(
+                context,
+                Event::INFO, 
+                0,
+                b"SMTP ***************************************************** connect starts" as *const u8 as *const libc::c_char,
+            );
+        }
+
         if lp.is_null() {
             return 0;
         }
@@ -137,6 +147,15 @@ impl Smtp {
                     .credentials(creds)
                     .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
                 self.transport = Some(client.transport());
+                unsafe {
+                    dc_log_event(
+                        context,
+                        Event::SMTP_CONNECTED,
+                        0,
+                        b"SMTP-LOGIN ok" as *const u8
+                            as *const libc::c_char,
+                    );
+                }
                 1
             }
             Err(err) => {
