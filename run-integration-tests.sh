@@ -27,7 +27,7 @@ toxargs="$@"
 if [ -e liveconfig ]; then
     toxargs="--liveconfig liveconfig $@"
 fi
-tox -- $toxargs
+tox $toxargs
 ret=$?
 popd
 exit $ret

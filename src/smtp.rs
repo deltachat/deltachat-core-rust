@@ -138,15 +138,9 @@ impl Smtp {
                     .credentials(creds)
                     .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
                 self.transport = Some(client.transport());
-                unsafe {
-                    dc_log_event(
-                        context,
-                        Event::SMTP_CONNECTED,
-                        0,
-                        b"SMTP-LOGIN ok" as *const u8
-                            as *const libc::c_char,
-                    );
-                }
+                log_event!(context, Event::SMTP_CONNECTED,
+                    0, "SMTP-LOGIN as {} ok", as_str(lp.send_user),
+                );
                 1
             }
             Err(err) => {
