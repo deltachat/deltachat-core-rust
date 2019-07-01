@@ -49,8 +49,6 @@ impl Smtp {
 
     /// Connect using the provided login params
     pub fn connect(&mut self, context: &Context, lp: *const dc_loginparam_t) -> usize {
-        info!(context, 0, "SMTP ***************** CONNECT");
-
         if lp.is_null() {
             return 0;
         }
