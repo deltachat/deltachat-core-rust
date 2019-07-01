@@ -10,6 +10,7 @@ use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_tools::*;
 use crate::oauth2::*;
+use crate::types::*;
 
 pub struct Smtp {
     transport: Option<lettre::smtp::SmtpTransport>,
@@ -48,15 +49,7 @@ impl Smtp {
 
     /// Connect using the provided login params
     pub fn connect(&mut self, context: &Context, lp: *const dc_loginparam_t) -> usize {
-        warn!(context, 0, "SMTP ***************** CONNECT");
-        unsafe {
-            dc_log_event(
-                context,
-                Event::INFO, 
-                0,
-                b"SMTP ***************************************************** connect starts" as *const u8 as *const libc::c_char,
-            );
-        }
+        info!(context, 0, "SMTP ***************** CONNECT");
 
         if lp.is_null() {
             return 0;
