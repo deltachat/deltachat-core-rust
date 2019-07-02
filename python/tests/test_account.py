@@ -218,7 +218,7 @@ class TestOnlineAccount:
         wait_configuration_progress(ac1, 1000)
 
         msg_out = chat.send_text("message2")
-        # wait for other account to receive
+        # wait for own account to receive
         ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[1] == msg_out.id
 
