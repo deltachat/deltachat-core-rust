@@ -49,6 +49,7 @@ members = [
 
 [[example]]
 name = "simple"
+path = "examples/simple.rs"
 
 [[example]]
 name = "repl"
