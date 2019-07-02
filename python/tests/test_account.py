@@ -204,6 +204,43 @@ class TestOfflineAccount:
 
 
 class TestOnlineAccount:
+    def test_one_account_init(self, acfactory):
+        ac1 = acfactory.get_online_configuring_account()
+        wait_successful_IMAP_SMTP_connection(ac1)
+        wait_configuration_progress(ac1, 1000)
+
+    def test_one_account_send(self, acfactory):
+        ac1 = acfactory.get_online_configuring_account()
+        c2 = ac1.create_contact(email=ac1.get_config("addr"))
+        chat = ac1.create_chat_by_contact(c2)
+        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        wait_successful_IMAP_SMTP_connection(ac1)
+        wait_configuration_progress(ac1, 1000)
+
+        msg_out = chat.send_text("message2")
+        # wait for own account to receive
+        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev[1] == msg_out.id
+
+    def test_two_acocunts_send_receive(self, acfactory):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        c2 = ac1.create_contact(email=ac2.get_config("addr"))
+        chat = ac1.create_chat_by_contact(c2)
+        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        #wait_successful_IMAP_SMTP_connection(ac1)
+        wait_configuration_progress(ac1, 1000)
+        #wait_successful_IMAP_SMTP_connection(ac2)
+        wait_configuration_progress(ac2, 1000)
+
+        msg_out = chat.send_text("message1")
+
+        # wait for other account to receive
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev[2] == msg_out.id
+        msg_in = ac2.get_message_by_id(msg_out.id)
+        assert msg_in.text == "message1"
+
     def test_forward_messages(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()

@@ -142,8 +142,10 @@ def wait_successful_IMAP_SMTP_connection(account):
             account._evlogger.get_matching("DC_EVENT_(IMAP|SMTP)_CONNECTED")
         if evt_name == "DC_EVENT_IMAP_CONNECTED":
             imap_ok = True
+            print("** IMAP OK", account)
         if evt_name == "DC_EVENT_SMTP_CONNECTED":
             smtp_ok = True
+            print("** SMTP OK", account)
     print("** IMAP and SMTP logins successful", account)
 
 

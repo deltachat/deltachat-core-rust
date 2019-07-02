@@ -554,6 +554,13 @@ impl Imap {
                         s
                     });
 
+                    log_event!(
+                        context,
+                        Event::IMAP_CONNECTED,
+                        0,
+                        "IMAP-LOGIN as {} ok",
+                        as_str(lp.mail_user),
+                    );
                     info!(context, 0, "IMAP-capabilities:{}", caps_list);
 
                     let mut config = self.config.write().unwrap();

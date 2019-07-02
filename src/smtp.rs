@@ -6,10 +6,10 @@ use lettre::*;
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_tools::*;
 use crate::oauth2::*;
+use crate::types::*;
 
 pub struct Smtp {
     transport: Option<lettre::smtp::SmtpTransport>,
@@ -61,14 +61,7 @@ impl Smtp {
         let lp = unsafe { *lp };
 
         if lp.addr.is_null() || lp.send_server.is_null() || lp.send_port == 0 {
-            unsafe {
-                dc_log_event(
-                    context,
-                    Event::ERROR_NETWORK,
-                    0,
-                    b"SMTP bad parameters.\x00" as *const u8 as *const libc::c_char,
-                );
-            }
+            log_event!(context, Event::ERROR_NETWORK, 0, "SMTP bad parameters.",);
         }
 
         let raw_addr = unsafe {
@@ -137,6 +130,13 @@ impl Smtp {
                     .credentials(creds)
                     .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
                 self.transport = Some(client.transport());
+                log_event!(
+                    context,
+                    Event::SMTP_CONNECTED,
+                    0,
+                    "SMTP-LOGIN as {} ok",
+                    as_str(lp.send_user),
+                );
                 1
             }
             Err(err) => {
@@ -162,21 +162,17 @@ impl Smtp {
 
             match transport.send(mail) {
                 Ok(_) => {
-                    unsafe {
-                        dc_log_event(
-                            context,
-                            Event::SMTP_MESSAGE_SENT,
-                            0,
-                            b"Message was sent to SMTP server\x00" as *const u8
-                                as *const libc::c_char,
-                        );
-                    }
+                    log_event!(
+                        context,
+                        Event::SMTP_MESSAGE_SENT,
+                        0,
+                        "Message was sent to SMTP server",
+                    );
                     self.transport_connected = true;
                     1
                 }
                 Err(err) => {
                     warn!(context, 0, "SMTP failed to send message: {}", err);
-
                     0
                 }
             }
