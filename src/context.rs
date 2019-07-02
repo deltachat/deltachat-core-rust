@@ -158,8 +158,8 @@ pub fn dc_context_new(
         last_smeared_timestamp: Arc::new(RwLock::new(0)),
         cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
         sentbox_thread: Arc::new(RwLock::new(dc_jobthread_init(
-            "SENTBOX\x00",
-            "configured_sentbox_folder\x00",
+            "SENTBOX",
+            "configured_sentbox_folder",
             Imap::new(
                 cb_get_config,
                 cb_set_config,
@@ -169,8 +169,8 @@ pub fn dc_context_new(
         ))),
         mvbox_thread: Arc::new(RwLock::new(unsafe {
             dc_jobthread_init(
-                "MVBOX\x00",
-                "configured_mvbox_folder\x00",
+                "MVBOX",
+                "configured_mvbox_folder",
                 Imap::new(
                     cb_get_config,
                     cb_set_config,
