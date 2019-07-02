@@ -61,10 +61,7 @@ impl Smtp {
         let lp = unsafe { *lp };
 
         if lp.addr.is_null() || lp.send_server.is_null() || lp.send_port == 0 {
-            log_event!(
-                context, Event::ERROR_NETWORK, 0, 
-                "SMTP bad parameters.",
-            );
+            log_event!(context, Event::ERROR_NETWORK, 0, "SMTP bad parameters.",);
         }
 
         let raw_addr = unsafe {
@@ -133,8 +130,12 @@ impl Smtp {
                     .credentials(creds)
                     .connection_reuse(lettre::smtp::ConnectionReuseParameters::ReuseUnlimited);
                 self.transport = Some(client.transport());
-                log_event!(context, Event::SMTP_CONNECTED,
-                    0, "SMTP-LOGIN as {} ok", as_str(lp.send_user),
+                log_event!(
+                    context,
+                    Event::SMTP_CONNECTED,
+                    0,
+                    "SMTP-LOGIN as {} ok",
+                    as_str(lp.send_user),
                 );
                 1
             }
@@ -162,7 +163,9 @@ impl Smtp {
             match transport.send(mail) {
                 Ok(_) => {
                     log_event!(
-                        context, Event::SMTP_MESSAGE_SENT, 0, 
+                        context,
+                        Event::SMTP_MESSAGE_SENT,
+                        0,
                         "Message was sent to SMTP server",
                     );
                     self.transport_connected = true;
