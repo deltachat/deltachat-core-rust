@@ -10,8 +10,6 @@ try:
     from queue import Queue
 except ImportError:
     from Queue import Queue
-import attr
-from attr import validators as v
 
 import deltachat
 from . import const
@@ -41,7 +39,6 @@ class Account(object):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
-        self._evhandler = EventHandler(self._dc_context)
         self._evlogger = EventLogger(self._dc_context, logid)
         deltachat.set_context_callback(self._dc_context, self._process_event)
         self._threads = IOThreads(self._dc_context)
@@ -323,15 +320,9 @@ class Account(object):
     def _process_event(self, ctx, evt_name, data1, data2):
         assert ctx == self._dc_context
         self._evlogger(evt_name, data1, data2)
-        method = getattr(self._evhandler, evt_name.lower(), None)
+        method = getattr(self, "on_" + evt_name.lower(), None)
         if method is not None:
-            # handle sync methods
-            return method(data1, data2) or 0
-        else:
-            # handle async methods
-            method = getattr(self, "on_" + evt_name.lower(), None)
-            if method is not None:
-                method(data1, data2)
+            method(data1, data2)
         return 0
 
     def on_dc_event_imex_progress(self, data1, data2):
@@ -380,14 +371,6 @@ class IOThreads:
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
             lib.dc_perform_smtp_idle(self._dc_context)
-
-
-@attr.s
-class EventHandler(object):
-    _dc_context = attr.ib(validator=v.instance_of(ffi.CData))
-
-    def dc_event_is_offline(self, data1, data2):
-        return 0  # always online
 
 
 class EventLogger:
