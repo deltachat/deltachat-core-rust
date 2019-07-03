@@ -5,7 +5,6 @@ import threading
 import os
 import re
 import time
-import requests
 from array import array
 try:
     from queue import Queue
@@ -386,22 +385,6 @@ class IOThreads:
 @attr.s
 class EventHandler(object):
     _dc_context = attr.ib(validator=v.instance_of(ffi.CData))
-
-    def read_url(self, url):
-        try:
-            r = requests.get(url)
-        except requests.ConnectionError:
-            return ''
-        else:
-            return r.content
-
-    def dc_event_http_get(self, data1, data2):
-        url = data1
-        content = self.read_url(url)
-        if not isinstance(content, bytes):
-            content = content.encode("utf8")
-        # we need to return a fresh pointer that the core owns
-        return lib.dupstring_helper(content)
 
     def dc_event_is_offline(self, data1, data2):
         return 0  # always online

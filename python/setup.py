@@ -12,7 +12,7 @@ def main():
         long_description=long_description,
         author='holger krekel, Floris Bruynooghe, Bjoern Petersen and contributors',
         setup_requires=['cffi>=1.0.0'],
-        install_requires=['cffi>=1.0.0', 'requests', 'attrs', 'six'],
+        install_requires=['cffi>=1.0.0', 'attrs', 'six'],
         packages=setuptools.find_packages('src'),
         package_dir={'': 'src'},
         cffi_modules=['src/deltachat/_build.py:ffibuilder'],
