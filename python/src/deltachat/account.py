@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 import threading
+import os
 import re
 import time
 import requests
@@ -46,6 +47,7 @@ class Account(object):
         deltachat.set_context_callback(self._dc_context, self._process_event)
         self._threads = IOThreads(self._dc_context)
         self._configkeys = self.get_config("sys.config_keys").split()
+        self._imex_completed = threading.Event()
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -272,6 +274,32 @@ class Account(object):
         msg_ids = [msg.id for msg in messages]
         lib.dc_delete_msgs(self._dc_context, msg_ids, len(msg_ids))
 
+    def export_to_dir(self, backupdir):
+        """return after all delta chat state is exported to a new file in
+        the specified directory.
+        """
+        l = os.listdir(backupdir)
+        self._imex_completed.clear()
+        lib.dc_imex(self._dc_context, 11, as_dc_charpointer(backupdir), ffi.NULL)
+        if not self._threads.is_started():
+            lib.dc_perform_imap_jobs(self._dc_context)
+        self._imex_completed.wait()
+        for x in os.listdir(backupdir):
+            if x not in l:
+                return os.path.join(backupdir, x)
+
+    def import_from_file(self, path):
+        """import delta chat state from the specified backup file.
+
+        The account must be in unconfigured state for import to attempted.
+        """
+        assert not self.is_configured(), "cannot import into configured account"
+        self._imex_completed.clear()
+        lib.dc_imex(self._dc_context, 12, as_dc_charpointer(path), ffi.NULL)
+        if not self._threads.is_started():
+            lib.dc_perform_imap_jobs(self._dc_context)
+        self._imex_completed.wait()
+
     def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
 
@@ -291,8 +319,18 @@ class Account(object):
         self._evlogger(evt_name, data1, data2)
         method = getattr(self._evhandler, evt_name.lower(), None)
         if method is not None:
+            # handle sync methods
             return method(data1, data2) or 0
+        else:
+            # handle async methods
+            method = getattr(self, "on_" + evt_name.lower(), None)
+            if method is not None:
+                method(data1, data2)
         return 0
+
+    def on_dc_event_imex_progress(self, data1, data2):
+        if data1 == 1000:
+            self._imex_completed.set()
 
 
 class IOThreads:
@@ -301,8 +339,11 @@ class IOThreads:
         self._thread_quitflag = False
         self._name2thread = {}
 
+    def is_started(self):
+        return len(self._name2thread) > 0
+
     def start(self, imap=True, smtp=True):
-        assert not self._name2thread
+        assert not self.is_started()
         if imap:
             self._start_one_thread("imap", self.imap_thread_run)
         if smtp:

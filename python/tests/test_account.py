@@ -202,6 +202,25 @@ class TestOfflineAccount:
         with pytest.raises(ValueError):
             ac1.configure(addr="123@example.org")
 
+    def test_import_export_one_contact(self, acfactory, tmpdir):
+        backupdir = tmpdir.mkdir("backup")
+        ac1 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        chat = ac1.create_chat_by_contact(contact1)
+        msg = chat.send_text("msg1")
+        contact = msg.get_sender_contact()
+        assert contact == ac1.get_self_contact()
+        assert not backupdir.listdir()
+
+        path = ac1.export_to_dir(backupdir.strpath)
+        assert os.path.exists(path)
+        ac2 = acfactory.get_unconfigured_account()
+        ac2.import_from_file(path)
+        l = ac2.get_contacts(query="some1")
+        assert len(l) == 1
+        contact2 = l[0]
+        assert contact2.addr == "some1@hello.com"
+
 
 class TestOnlineAccount:
     def test_one_account_init(self, acfactory):
