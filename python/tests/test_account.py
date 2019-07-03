@@ -234,9 +234,9 @@ class TestOfflineAccount:
         assert os.path.exists(path)
         ac2 = acfactory.get_unconfigured_account()
         ac2.import_from_file(path)
-        l = ac2.get_contacts(query="some1")
-        assert len(l) == 1
-        contact2 = l[0]
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
         assert contact2.addr == "some1@hello.com"
         chat2 = ac2.create_chat_by_contact(contact2)
         messages = chat2.get_messages()
@@ -270,9 +270,9 @@ class TestOnlineAccount:
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
         assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
-        #wait_successful_IMAP_SMTP_connection(ac1)
+        wait_successful_IMAP_SMTP_connection(ac1)
         wait_configuration_progress(ac1, 1000)
-        #wait_successful_IMAP_SMTP_connection(ac2)
+        wait_successful_IMAP_SMTP_connection(ac2)
         wait_configuration_progress(ac2, 1000)
 
         msg_out = chat.send_text("message1")

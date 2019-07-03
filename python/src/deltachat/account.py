@@ -285,14 +285,14 @@ class Account(object):
         """return after all delta chat state is exported to a new file in
         the specified directory.
         """
-        l = os.listdir(backupdir)
+        snap_files = os.listdir(backupdir)
         self._imex_completed.clear()
         lib.dc_imex(self._dc_context, 11, as_dc_charpointer(backupdir), ffi.NULL)
         if not self._threads.is_started():
             lib.dc_perform_imap_jobs(self._dc_context)
         self._imex_completed.wait()
         for x in os.listdir(backupdir):
-            if x not in l:
+            if x not in snap_files:
                 return os.path.join(backupdir, x)
 
     def import_from_file(self, path):
@@ -370,14 +370,14 @@ class IOThreads:
                 thread.join()
 
     def imap_thread_run(self):
-        print ("starting imap thread")
+        print("starting imap thread")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
             lib.dc_perform_imap_fetch(self._dc_context)
             lib.dc_perform_imap_idle(self._dc_context)
 
     def smtp_thread_run(self):
-        print ("starting smtp thread")
+        print("starting smtp thread")
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
             lib.dc_perform_smtp_idle(self._dc_context)
