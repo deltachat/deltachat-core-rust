@@ -411,3 +411,25 @@ class TestOnlineAccount:
         assert msg_in.view_type.is_image()
         assert os.path.exists(msg_in.filename)
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
+
+    def test_import_export_online(self, acfactory, tmpdir):
+        backupdir = tmpdir.mkdir("backup")
+        ac1 = acfactory.get_online_configuring_account()
+        wait_configuration_progress(ac1, 1000)
+
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        chat = ac1.create_chat_by_contact(contact1)
+        chat.send_text("msg1")
+        path = ac1.export_to_dir(backupdir.strpath)
+        assert os.path.exists(path)
+
+        ac2 = acfactory.get_unconfigured_account()
+        ac2.import_from_file(path)
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
+        assert contact2.addr == "some1@hello.com"
+        chat2 = ac2.create_chat_by_contact(contact2)
+        messages = chat2.get_messages()
+        assert len(messages) == 1
+        assert messages[0].text == "msg1"
