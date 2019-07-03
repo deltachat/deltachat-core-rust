@@ -207,7 +207,14 @@ class TestOfflineAccount:
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         chat = ac1.create_chat_by_contact(contact1)
+        # send a text message
         msg = chat.send_text("msg1")
+        # send a binary file
+        bin = tmpdir.join("some.bin")
+        with bin.open("w") as f:
+            f.write("\00123" * 10000)
+        msg = chat.send_file(bin.strpath)
+
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
         assert not backupdir.listdir()
@@ -220,6 +227,11 @@ class TestOfflineAccount:
         assert len(l) == 1
         contact2 = l[0]
         assert contact2.addr == "some1@hello.com"
+        chat2 = ac2.create_chat_by_contact(contact2)
+        messages = chat2.get_messages()
+        assert len(messages) == 2
+        assert messages[0].text == "msg1"
+        assert os.path.exists(messages[1].filename)
 
 
 class TestOnlineAccount:

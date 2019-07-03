@@ -189,6 +189,7 @@ class Account(object):
         :param contact: chat_id (int) or contact object.
         :returns: a :class:`deltachat.chatting.Chat` object.
         """
+        assert contact._dc_context == self._dc_context
         contact_id = getattr(contact, "id", contact)
         assert isinstance(contact_id, int)
         chat_id = lib.dc_create_chat_by_contact_id(

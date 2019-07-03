@@ -1258,6 +1258,9 @@ pub unsafe fn dc_write_file(
 ) -> libc::c_int {
     let mut success = 0;
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+
+    info!(context, 0, "trying to write file {:?}", pathNfilename);
+
     if pathNfilename_abs.is_null() {
         return 0;
     }

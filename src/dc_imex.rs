@@ -915,6 +915,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         backup_to_import,
         context.get_dbfile(),
     );
+
     if 0 != dc_is_configured(context) {
         dc_log_error(
             context,
@@ -942,6 +943,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 );
                 sqlite3_step(stmt);
                 total_files_cnt = sqlite3_column_int(stmt, 0i32);
+                info!(context, 0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt);
                 sqlite3_finalize(stmt);
                 stmt = dc_sqlite3_prepare(
                     context,
@@ -1132,6 +1134,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                         let dir_handle = dir_handle.unwrap();
                         total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
+                        info!(context, 0, "EXPORT: total_files_cnt={}", total_files_cnt);
                         if total_files_cnt > 0 {
                             // scan directory, pass 2: copy files
                             let dir_handle = std::fs::read_dir(dir);
@@ -1191,6 +1194,9 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                         let name = name_f.to_string_lossy();
                                         if name.starts_with("delt-chat") && name.ends_with(".bak") {
                                             // dc_log_info(context, 0, "Backup: Skipping \"%s\".", name);
+                                            continue;
+                                        } else {
+                                            info!(context, 0, "EXPORTing filename={}", name);
                                             free(curr_pathNfilename as *mut libc::c_void);
                                             let name_c = to_cstring(name);
                                             curr_pathNfilename = dc_mprintf(
