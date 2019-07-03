@@ -1086,12 +1086,12 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     );
     context.sql.close(&context);
     closed = 1i32;
-    dc_log_info(
-        context,
-        0i32,
-        b"Backup \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
-        context.get_dbfile(),
-        dest_pathNfilename,
+    info!(
+        context, 
+        0,
+        "Backup \"{}\" to \"{}\".", 
+        as_str(context.get_dbfile()),
+        as_str(dest_pathNfilename),
     );
     if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
@@ -1139,13 +1139,11 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                             // scan directory, pass 2: copy files
                             let dir_handle = std::fs::read_dir(dir);
                             if dir_handle.is_err() {
-                                dc_log_error(
+                                error!(
                                     context,
-                                    0i32,
-                                    b"Backup: Cannot copy from blob-directory \"%s\".\x00"
-                                        as *const u8
-                                        as *const libc::c_char,
-                                    context.get_blobdir(),
+                                    0,
+                                    "Backup: Cannot copy from blob-directory \"{}\".",
+                                    as_str(context.get_blobdir()),
                                 );
                             } else {
                                 let dir_handle = dir_handle.unwrap();
@@ -1193,7 +1191,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                         let name_f = entry.file_name();
                                         let name = name_f.to_string_lossy();
                                         if name.starts_with("delt-chat") && name.ends_with(".bak") {
-                                            // dc_log_info(context, 0, "Backup: Skipping \"%s\".", name);
                                             continue;
                                         } else {
                                             info!(context, 0, "EXPORTing filename={}", name);
@@ -1249,13 +1246,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                 }
                             }
                         } else {
-                            dc_log_info(
-                                context,
-                                0i32,
-                                b"Backup: No files to copy.\x00" as *const u8
-                                    as *const libc::c_char,
-                                context.get_blobdir(),
-                            );
+                            info!(context, 0, "Backup: No files to copy.");
                             current_block = 2631791190359682872;
                         }
                         match current_block {

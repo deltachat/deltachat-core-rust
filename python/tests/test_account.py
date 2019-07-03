@@ -180,6 +180,17 @@ class TestOfflineAccount:
         assert msg.filename.endswith(msg.basename)
         assert msg.filemime == typeout
 
+    def test_create_chat_mismatch(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        ac2 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        with pytest.raises(ValueError):
+            ac2.create_chat_by_contact(contact1)
+        chat1 = ac1.create_chat_by_contact(contact1)
+        msg = chat1.send_text("hello")
+        with pytest.raises(ValueError):
+            ac2.create_chat_by_message(msg)
+
     def test_chat_message_distinctions(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
