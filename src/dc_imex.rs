@@ -915,6 +915,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         backup_to_import,
         context.get_dbfile(),
     );
+
     if 0 != dc_is_configured(context) {
         dc_log_error(
             context,
@@ -942,6 +943,10 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 );
                 sqlite3_step(stmt);
                 total_files_cnt = sqlite3_column_int(stmt, 0i32);
+                info!(
+                    context,
+                    0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt
+                );
                 sqlite3_finalize(stmt);
                 stmt = dc_sqlite3_prepare(
                     context,
@@ -1084,12 +1089,12 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     );
     context.sql.close(&context);
     closed = 1i32;
-    dc_log_info(
+    info!(
         context,
-        0i32,
-        b"Backup \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
-        context.get_dbfile(),
-        dest_pathNfilename,
+        0,
+        "Backup \"{}\" to \"{}\".",
+        as_str(context.get_dbfile()),
+        as_str(dest_pathNfilename),
     );
     if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
@@ -1132,17 +1137,16 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                         let dir_handle = dir_handle.unwrap();
                         total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
+                        info!(context, 0, "EXPORT: total_files_cnt={}", total_files_cnt);
                         if total_files_cnt > 0 {
                             // scan directory, pass 2: copy files
                             let dir_handle = std::fs::read_dir(dir);
                             if dir_handle.is_err() {
-                                dc_log_error(
+                                error!(
                                     context,
-                                    0i32,
-                                    b"Backup: Cannot copy from blob-directory \"%s\".\x00"
-                                        as *const u8
-                                        as *const libc::c_char,
-                                    context.get_blobdir(),
+                                    0,
+                                    "Backup: Cannot copy from blob-directory \"{}\".",
+                                    as_str(context.get_blobdir()),
                                 );
                             } else {
                                 let dir_handle = dir_handle.unwrap();
@@ -1190,7 +1194,9 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                         let name_f = entry.file_name();
                                         let name = name_f.to_string_lossy();
                                         if name.starts_with("delt-chat") && name.ends_with(".bak") {
-                                            // dc_log_info(context, 0, "Backup: Skipping \"%s\".", name);
+                                            continue;
+                                        } else {
+                                            info!(context, 0, "EXPORTing filename={}", name);
                                             free(curr_pathNfilename as *mut libc::c_void);
                                             let name_c = to_cstring(name);
                                             curr_pathNfilename = dc_mprintf(
@@ -1243,13 +1249,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                 }
                             }
                         } else {
-                            dc_log_info(
-                                context,
-                                0i32,
-                                b"Backup: No files to copy.\x00" as *const u8
-                                    as *const libc::c_char,
-                                context.get_blobdir(),
-                            );
+                            info!(context, 0, "Backup: No files to copy.");
                             current_block = 2631791190359682872;
                         }
                         match current_block {

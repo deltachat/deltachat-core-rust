@@ -1258,6 +1258,7 @@ pub unsafe fn dc_write_file(
 ) -> libc::c_int {
     let mut success = 0;
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
+
     if pathNfilename_abs.is_null() {
         return 0;
     }
@@ -1270,15 +1271,17 @@ pub unsafe fn dc_write_file(
 
     match fs::write(p, bytes) {
         Ok(_) => {
+            info!(context, 0, "wrote file {}", as_str(pathNfilename));
+
             success = 1;
         }
         Err(_err) => {
-            dc_log_warning(
+            warn!(
                 context,
-                0i32,
-                b"Cannot write %lu bytes to \"%s\".\x00" as *const u8 as *const libc::c_char,
-                buf_bytes as libc::c_ulong,
-                pathNfilename,
+                0,
+                "Cannot write {} bytes to \"{}\".",
+                buf_bytes,
+                as_str(pathNfilename),
             );
         }
     }

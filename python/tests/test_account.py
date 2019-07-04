@@ -145,6 +145,14 @@ class TestOfflineAccount:
         assert not msg_state.is_out_delivered()
         assert not msg_state.is_out_mdn_received()
 
+    def test_create_chat_by_mssage_id(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        chat = ac1.create_chat_by_contact(contact1)
+        msg = chat.send_text("msg1")
+        assert chat == ac1.create_chat_by_message(msg)
+        assert chat == ac1.create_chat_by_message(msg.id)
+
     def test_message_image(self, acfactory, data, lp):
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -180,6 +188,17 @@ class TestOfflineAccount:
         assert msg.filename.endswith(msg.basename)
         assert msg.filemime == typeout
 
+    def test_create_chat_mismatch(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        ac2 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        with pytest.raises(ValueError):
+            ac2.create_chat_by_contact(contact1)
+        chat1 = ac1.create_chat_by_contact(contact1)
+        msg = chat1.send_text("hello")
+        with pytest.raises(ValueError):
+            ac2.create_chat_by_message(msg)
+
     def test_chat_message_distinctions(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
@@ -201,6 +220,37 @@ class TestOfflineAccount:
             ac1.set_config("addr", "123@example.org")
         with pytest.raises(ValueError):
             ac1.configure(addr="123@example.org")
+
+    def test_import_export_one_contact(self, acfactory, tmpdir):
+        backupdir = tmpdir.mkdir("backup")
+        ac1 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        chat = ac1.create_chat_by_contact(contact1)
+        # send a text message
+        msg = chat.send_text("msg1")
+        # send a binary file
+        bin = tmpdir.join("some.bin")
+        with bin.open("w") as f:
+            f.write("\00123" * 10000)
+        msg = chat.send_file(bin.strpath)
+
+        contact = msg.get_sender_contact()
+        assert contact == ac1.get_self_contact()
+        assert not backupdir.listdir()
+
+        path = ac1.export_to_dir(backupdir.strpath)
+        assert os.path.exists(path)
+        ac2 = acfactory.get_unconfigured_account()
+        ac2.import_from_file(path)
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
+        assert contact2.addr == "some1@hello.com"
+        chat2 = ac2.create_chat_by_contact(contact2)
+        messages = chat2.get_messages()
+        assert len(messages) == 2
+        assert messages[0].text == "msg1"
+        assert os.path.exists(messages[1].filename)
 
 
 class TestOnlineAccount:
@@ -228,9 +278,9 @@ class TestOnlineAccount:
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
         assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
-        #wait_successful_IMAP_SMTP_connection(ac1)
+        wait_successful_IMAP_SMTP_connection(ac1)
         wait_configuration_progress(ac1, 1000)
-        #wait_successful_IMAP_SMTP_connection(ac2)
+        wait_successful_IMAP_SMTP_connection(ac2)
         wait_configuration_progress(ac2, 1000)
 
         msg_out = chat.send_text("message1")
@@ -369,3 +419,25 @@ class TestOnlineAccount:
         assert msg_in.view_type.is_image()
         assert os.path.exists(msg_in.filename)
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
+
+    def test_import_export_online(self, acfactory, tmpdir):
+        backupdir = tmpdir.mkdir("backup")
+        ac1 = acfactory.get_online_configuring_account()
+        wait_configuration_progress(ac1, 1000)
+
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        chat = ac1.create_chat_by_contact(contact1)
+        chat.send_text("msg1")
+        path = ac1.export_to_dir(backupdir.strpath)
+        assert os.path.exists(path)
+
+        ac2 = acfactory.get_unconfigured_account()
+        ac2.import_from_file(path)
+        contacts = ac2.get_contacts(query="some1")
+        assert len(contacts) == 1
+        contact2 = contacts[0]
+        assert contact2.addr == "some1@hello.com"
+        chat2 = ac2.create_chat_by_contact(contact2)
+        messages = chat2.get_messages()
+        assert len(messages) == 1
+        assert messages[0].text == "msg1"

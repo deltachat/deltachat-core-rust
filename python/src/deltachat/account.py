@@ -2,16 +2,14 @@
 
 from __future__ import print_function
 import threading
+import os
 import re
 import time
-import requests
 from array import array
 try:
     from queue import Queue
 except ImportError:
     from Queue import Queue
-import attr
-from attr import validators as v
 
 import deltachat
 from . import const
@@ -41,11 +39,11 @@ class Account(object):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
-        self._evhandler = EventHandler(self._dc_context)
         self._evlogger = EventLogger(self._dc_context, logid)
         deltachat.set_context_callback(self._dc_context, self._process_event)
         self._threads = IOThreads(self._dc_context)
         self._configkeys = self.get_config("sys.config_keys").split()
+        self._imex_completed = threading.Event()
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -182,15 +180,19 @@ class Account(object):
         return list(iter_array(dc_array, lambda x: Contact(self._dc_context, x)))
 
     def create_chat_by_contact(self, contact):
-        """ create or get an existing 1:1 chat object for the specified contact.
+        """ create or get an existing 1:1 chat object for the specified contact or contact id.
 
         :param contact: chat_id (int) or contact object.
         :returns: a :class:`deltachat.chatting.Chat` object.
         """
-        contact_id = getattr(contact, "id", contact)
-        assert isinstance(contact_id, int)
-        chat_id = lib.dc_create_chat_by_contact_id(
-                        self._dc_context, contact_id)
+        if hasattr(contact, "id"):
+            if contact._dc_context != self._dc_context:
+                raise ValueError("Contact belongs to a different Account")
+            contact_id = contact.id
+        else:
+            assert isinstance(contact, int)
+            contact_id = contact
+        chat_id = lib.dc_create_chat_by_contact_id(self._dc_context, contact_id)
         return Chat(self._dc_context, chat_id)
 
     def create_chat_by_message(self, message):
@@ -200,8 +202,13 @@ class Account(object):
         :param message: messsage id or message instance.
         :returns: a :class:`deltachat.chatting.Chat` object.
         """
-        msg_id = getattr(message, "id", message)
-        assert isinstance(msg_id, int)
+        if hasattr(message, "id"):
+            if self._dc_context != message._dc_context:
+                raise ValueError("Message belongs to a different Account")
+            msg_id = message.id
+        else:
+            assert isinstance(message, int)
+            msg_id = message
         chat_id = lib.dc_create_chat_by_msg_id(self._dc_context, msg_id)
         return Chat(self._dc_context, chat_id)
 
@@ -272,6 +279,32 @@ class Account(object):
         msg_ids = [msg.id for msg in messages]
         lib.dc_delete_msgs(self._dc_context, msg_ids, len(msg_ids))
 
+    def export_to_dir(self, backupdir):
+        """return after all delta chat state is exported to a new file in
+        the specified directory.
+        """
+        snap_files = os.listdir(backupdir)
+        self._imex_completed.clear()
+        lib.dc_imex(self._dc_context, 11, as_dc_charpointer(backupdir), ffi.NULL)
+        if not self._threads.is_started():
+            lib.dc_perform_imap_jobs(self._dc_context)
+        self._imex_completed.wait()
+        for x in os.listdir(backupdir):
+            if x not in snap_files:
+                return os.path.join(backupdir, x)
+
+    def import_from_file(self, path):
+        """import delta chat state from the specified backup file.
+
+        The account must be in unconfigured state for import to attempted.
+        """
+        assert not self.is_configured(), "cannot import into configured account"
+        self._imex_completed.clear()
+        lib.dc_imex(self._dc_context, 12, as_dc_charpointer(path), ffi.NULL)
+        if not self._threads.is_started():
+            lib.dc_perform_imap_jobs(self._dc_context)
+        self._imex_completed.wait()
+
     def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
 
@@ -289,10 +322,14 @@ class Account(object):
     def _process_event(self, ctx, evt_name, data1, data2):
         assert ctx == self._dc_context
         self._evlogger(evt_name, data1, data2)
-        method = getattr(self._evhandler, evt_name.lower(), None)
+        method = getattr(self, "on_" + evt_name.lower(), None)
         if method is not None:
-            return method(data1, data2) or 0
+            method(data1, data2)
         return 0
+
+    def on_dc_event_imex_progress(self, data1, data2):
+        if data1 == 1000:
+            self._imex_completed.set()
 
 
 class IOThreads:
@@ -301,8 +338,11 @@ class IOThreads:
         self._thread_quitflag = False
         self._name2thread = {}
 
+    def is_started(self):
+        return len(self._name2thread) > 0
+
     def start(self, imap=True, smtp=True):
-        assert not self._name2thread
+        assert not self.is_started()
         if imap:
             self._start_one_thread("imap", self.imap_thread_run)
         if smtp:
@@ -322,41 +362,17 @@ class IOThreads:
                 thread.join()
 
     def imap_thread_run(self):
-        print ("starting imap thread")
+        print("starting imap thread")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
             lib.dc_perform_imap_fetch(self._dc_context)
             lib.dc_perform_imap_idle(self._dc_context)
 
     def smtp_thread_run(self):
-        print ("starting smtp thread")
+        print("starting smtp thread")
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
             lib.dc_perform_smtp_idle(self._dc_context)
-
-
-@attr.s
-class EventHandler(object):
-    _dc_context = attr.ib(validator=v.instance_of(ffi.CData))
-
-    def read_url(self, url):
-        try:
-            r = requests.get(url)
-        except requests.ConnectionError:
-            return ''
-        else:
-            return r.content
-
-    def dc_event_http_get(self, data1, data2):
-        url = data1
-        content = self.read_url(url)
-        if not isinstance(content, bytes):
-            content = content.encode("utf8")
-        # we need to return a fresh pointer that the core owns
-        return lib.dupstring_helper(content)
-
-    def dc_event_is_offline(self, data1, data2):
-        return 0  # always online
 
 
 class EventLogger:
