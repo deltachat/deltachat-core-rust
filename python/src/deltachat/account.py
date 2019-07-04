@@ -188,12 +188,11 @@ class Account(object):
         if hasattr(contact, "id"):
             if contact._dc_context != self._dc_context:
                 raise ValueError("Contact belongs to a different Account")
-            contact_id = getattr(contact, "id", contact)
+            contact_id = contact.id
         else:
             assert isinstance(contact, int)
             contact_id = contact
-        chat_id = lib.dc_create_chat_by_contact_id(
-                        self._dc_context, contact_id)
+        chat_id = lib.dc_create_chat_by_contact_id(self._dc_context, contact_id)
         return Chat(self._dc_context, chat_id)
 
     def create_chat_by_message(self, message):
@@ -203,10 +202,13 @@ class Account(object):
         :param message: messsage id or message instance.
         :returns: a :class:`deltachat.chatting.Chat` object.
         """
-        if self._dc_context != message._dc_context:
-            raise ValueError("Message belongs to a different Account")
-        msg_id = getattr(message, "id", message)
-        assert isinstance(msg_id, int)
+        if hasattr(message, "id"):
+            if self._dc_context != message._dc_context:
+                raise ValueError("Message belongs to a different Account")
+            msg_id = message.id
+        else:
+            assert isinstance(message, int)
+            msg_id = message
         chat_id = lib.dc_create_chat_by_msg_id(self._dc_context, msg_id)
         return Chat(self._dc_context, chat_id)
 

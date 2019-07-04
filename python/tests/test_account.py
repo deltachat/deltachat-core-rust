@@ -145,6 +145,14 @@ class TestOfflineAccount:
         assert not msg_state.is_out_delivered()
         assert not msg_state.is_out_mdn_received()
 
+    def test_create_chat_by_mssage_id(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact("some1@hello.com", name="some1")
+        chat = ac1.create_chat_by_contact(contact1)
+        msg = chat.send_text("msg1")
+        assert chat == ac1.create_chat_by_message(msg)
+        assert chat == ac1.create_chat_by_message(msg.id)
+
     def test_message_image(self, acfactory, data, lp):
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
