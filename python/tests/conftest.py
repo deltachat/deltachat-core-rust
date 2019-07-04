@@ -106,6 +106,17 @@ def acfactory(pytestconfig, tmpdir, request):
             self._finalizers.append(ac.stop_threads)
             return ac
 
+        def clone_online_account(self, account):
+            self.live_count += 1
+            tmpdb = tmpdir.join("livedb%d" % self.live_count)
+            ac = Account(tmpdb.strpath, logid="ac{}".format(self.live_count))
+            ac._evlogger.init_time = self.init_time
+            ac._evlogger.set_timeout(30)
+            ac.configure(addr=account.get_config("addr"), mail_pw=account.get_config("mail_pw"))
+            ac.start_threads()
+            self._finalizers.append(ac.stop_threads)
+            return ac
+
     return AccountMaker()
 
 

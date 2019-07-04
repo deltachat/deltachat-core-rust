@@ -441,3 +441,15 @@ class TestOnlineAccount:
         messages = chat2.get_messages()
         assert len(messages) == 1
         assert messages[0].text == "msg1"
+
+    def test_ac_setup(self, acfactory):
+        ac1 = acfactory.get_online_configuring_account()
+        wait_configuration_progress(ac1, 1000)
+        setup_code = ac1.initiate_key_transfer()
+        ac2 = acfactory.clone_online_account(ac1)
+        wait_configuration_progress(ac2, 1000)
+        ac2._timeout = 10
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        msg = ac2.get_message_by_id(ev[2])
+        assert msg.is_setup_message()
+        assert 0, setup_code

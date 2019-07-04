@@ -305,6 +305,12 @@ class Account(object):
             lib.dc_perform_imap_jobs(self._dc_context)
         self._imex_completed.wait()
 
+    def initiate_key_transfer(self):
+        """initiate Autocrypt key transfer by sending a self-sent message.
+
+        """
+        return from_dc_charpointer(lib.dc_initiate_key_transfer(self._dc_context))
+
     def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
 
@@ -317,6 +323,7 @@ class Account(object):
 
     def stop_threads(self):
         """ stop IMAP/SMTP threads. """
+        lib.dc_stop_ongoing_process(self._dc_context)
         self._threads.stop(wait=True)
 
     def _process_event(self, ctx, evt_name, data1, data2):
@@ -362,14 +369,12 @@ class IOThreads:
                 thread.join()
 
     def imap_thread_run(self):
-        print("starting imap thread")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
             lib.dc_perform_imap_fetch(self._dc_context)
             lib.dc_perform_imap_idle(self._dc_context)
 
     def smtp_thread_run(self):
-        print("starting smtp thread")
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
             lib.dc_perform_smtp_idle(self._dc_context)

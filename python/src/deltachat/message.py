@@ -93,6 +93,10 @@ class Message(object):
         """
         return MessageType(lib.dc_msg_get_viewtype(self._dc_msg))
 
+    def is_setup_message(self):
+        """ return True if this message is a setup message. """
+        return lib.dc_is_setupmessage(self._dc_msg)
+
     @props.with_doc
     def time_sent(self):
         """UTC time when the message was sent.
@@ -196,6 +200,7 @@ class MessageType(object):
     def is_file(self):
         """ return True if it's a file message. """
         return self._type == const.DC_MSG_FILE
+
 
 
 @attr.s
