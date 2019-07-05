@@ -6,7 +6,6 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
 use crate::oauth2::*;
-use crate::types::*;
 
 pub struct Smtp {
     transport: Option<lettre::smtp::SmtpTransport>,
@@ -115,7 +114,7 @@ impl Smtp {
                     Event::SMTP_CONNECTED,
                     0,
                     "SMTP-LOGIN as {} ok",
-                    as_str(lp.send_user),
+                    lp.send_user,
                 );
                 1
             }

@@ -9,7 +9,6 @@ use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_sqlite3::*;
 use crate::key::*;
-use crate::types::uintptr_t;
 
 /// Peerstate represents the state of an Autocrypt peer.
 pub struct Peerstate<'a> {
@@ -515,9 +514,9 @@ mod tests {
     unsafe extern "C" fn cb(
         _context: &Context,
         _event: Event,
-        _data1: uintptr_t,
-        _data2: uintptr_t,
-    ) -> uintptr_t {
+        _data1: libc::uintptr_t,
+        _data2: libc::uintptr_t,
+    ) -> libc::uintptr_t {
         0
     }
 

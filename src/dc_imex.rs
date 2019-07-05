@@ -1016,7 +1016,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                     context,
                                     0,
                                     "Backup: Cannot copy from blob-directory \"{}\".",
-                                    context.get_blobdir(),
+                                    as_str(context.get_blobdir()),
                                 );
                             } else {
                                 let dir_handle = dir_handle.unwrap();

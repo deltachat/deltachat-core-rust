@@ -555,7 +555,7 @@ impl Imap {
                         Event::IMAP_CONNECTED,
                         0,
                         "IMAP-LOGIN as {} ok",
-                        as_str(lp.mail_user),
+                        lp.mail_user,
                     );
                     info!(context, 0, "IMAP-capabilities:{}", caps_list);
 

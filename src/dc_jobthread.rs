@@ -6,7 +6,6 @@ use crate::dc_sqlite3::*;
 use crate::imap::Imap;
 use crate::types::*;
 use crate::x::*;
-use std::ffi::CString;
 
 #[repr(C)]
 pub struct dc_jobthread_t {
@@ -142,12 +141,8 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
             if dc_sqlite3_get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
                 jobthread.imap.configure_folders(context, 0x1);
             }
-            let mvbox_name = dc_sqlite3_get_config(
-                context,
-                &context.sql,
-                as_str(&jobthread.folder_config_name[..]),
-                None,
-            );
+            let mvbox_name =
+                dc_sqlite3_get_config(context, &context.sql, jobthread.folder_config_name, None);
             if let Some(name) = mvbox_name {
                 jobthread.imap.set_watch_folder(name);
             } else {
