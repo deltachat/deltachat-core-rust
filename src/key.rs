@@ -127,6 +127,27 @@ impl Key {
         Self::from_binary(data, len, key_type)
     }
 
+    pub fn from_armored_string(
+        data: &str,
+        key_type: KeyType,
+    ) -> Option<(Self, BTreeMap<String, String>)> {
+        let bytes = data.as_bytes();
+        let res: Result<(Key, _), _> = match key_type {
+            KeyType::Public => SignedPublicKey::from_armor_single(Cursor::new(bytes))
+                .map(|(k, h)| (Into::into(k), h)),
+            KeyType::Private => SignedSecretKey::from_armor_single(Cursor::new(bytes))
+                .map(|(k, h)| (Into::into(k), h)),
+        };
+
+        match res {
+            Ok(res) => Some(res),
+            Err(err) => {
+                eprintln!("Invalid key bytes: {:?}", err);
+                None
+            }
+        }
+    }
+
     pub fn from_base64(encoded_data: &str, key_type: KeyType) -> Option<Self> {
         // strip newlines and other whitespace
         let cleaned: String = encoded_data.trim().split_whitespace().collect();
@@ -224,16 +245,6 @@ impl Key {
             })
             .trim()
             .to_string()
-    }
-
-    /// the result must be freed
-    pub fn to_base64_c(&self, break_every: usize) -> *mut libc::c_char {
-        let res = self.to_base64(break_every);
-        let res_c = CString::new(res.trim()).unwrap();
-
-        // need to use strdup to allocate the result with malloc
-        // so it can be `free`d later.
-        unsafe { strdup(res_c.as_ptr()) }
     }
 
     pub fn to_armored_string(
@@ -437,67 +448,70 @@ mod tests {
     }
 
     #[test]
-    fn test_from_base64() {
-        let private_key = Key::from_base64(
-            "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
-            QCNYLJNVfJcrBDGvkDR9/bwEnw===GU1/
-            ",
+    fn test_from_armored_string() {
+        let (private_key, _) = Key::from_armored_string(
+            "-----BEGIN PGP PRIVATE KEY BLOCK-----
+
+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
+7yPJeQ==
+=KZk/
+-----END PGP PRIVATE KEY BLOCK-----",
             KeyType::Private,
         )
-        .expect("failed to decode");  // NOTE: if you take out the ===GU1/ part, everything passes!
+        .expect("failed to decode"); // NOTE: if you take out the ===GU1/ part, everything passes!
         let binary = private_key.to_bytes();
-        let private_key2 = Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
+        Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
     }
 
     #[test]
@@ -521,6 +535,23 @@ mod tests {
 
         let binary = private_key.to_bytes();
         let private_key2 = Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
+        assert_eq!(private_key, private_key2);
+    }
+
+    #[test]
+    fn test_ascii_roundtrip() {
+        let (public_key, private_key) =
+            crate::pgp::dc_pgp_create_keypair(CString::new("hello").unwrap().as_ptr()).unwrap();
+
+        let s = public_key.to_armored_string(None).unwrap();
+        let (public_key2, _) =
+            Key::from_armored_string(&s, KeyType::Public).expect("invalid public key");
+        assert_eq!(public_key, public_key2);
+
+        let s = private_key.to_armored_string(None).unwrap();
+        println!("{}", &s);
+        let (private_key2, _) =
+            Key::from_armored_string(&s, KeyType::Private).expect("invalid private key");
         assert_eq!(private_key, private_key2);
     }
 }
