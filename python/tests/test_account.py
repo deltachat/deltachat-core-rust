@@ -462,5 +462,6 @@ class TestOnlineAccount:
         msg = ac2.get_message_by_id(ev[2])
         assert msg.is_setup_message()
         print("*************** Incoming ASM File at: ", msg.filename)
+        print("*************** Setup Code: ", setup_code)
         msg.continue_key_transfer(setup_code)
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
