@@ -157,22 +157,20 @@ pub fn dc_context_new(
         bob: Arc::new(RwLock::new(Default::default())),
         last_smeared_timestamp: Arc::new(RwLock::new(0)),
         cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
-        sentbox_thread: Arc::new(RwLock::new(unsafe {
-            dc_jobthread_init(
-                b"SENTBOX\x00" as *const u8 as *const libc::c_char,
-                b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
-                Imap::new(
-                    cb_get_config,
-                    cb_set_config,
-                    cb_precheck_imf,
-                    cb_receive_imf,
-                ),
-            )
-        })),
+        sentbox_thread: Arc::new(RwLock::new(dc_jobthread_init(
+            "SENTBOX",
+            "configured_sentbox_folder",
+            Imap::new(
+                cb_get_config,
+                cb_set_config,
+                cb_precheck_imf,
+                cb_receive_imf,
+            ),
+        ))),
         mvbox_thread: Arc::new(RwLock::new(unsafe {
             dc_jobthread_init(
-                b"MVBOX\x00" as *const u8 as *const libc::c_char,
-                b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
+                "MVBOX",
+                "configured_mvbox_folder",
                 Imap::new(
                     cb_get_config,
                     cb_set_config,
@@ -283,9 +281,6 @@ pub unsafe fn dc_context_unref(context: &mut Context) {
     if 0 != dc_is_open(context) {
         dc_close(context);
     }
-
-    dc_jobthread_exit(&mut context.sentbox_thread.clone().write().unwrap());
-    dc_jobthread_exit(&mut context.mvbox_thread.clone().write().unwrap());
 
     free(context.os_name as *mut libc::c_void);
 }

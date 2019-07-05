@@ -7,23 +7,24 @@ use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::imap::Imap;
 use crate::x::*;
+use std::ffi::CString;
 
 #[repr(C)]
 pub struct dc_jobthread_t {
-    pub name: *mut libc::c_char,
-    pub folder_config_name: *mut libc::c_char,
+    pub name: &'static str,
+    pub folder_config_name: &'static str,
     pub imap: Imap,
     pub state: Arc<(Mutex<JobState>, Condvar)>,
 }
 
-pub unsafe fn dc_jobthread_init(
-    name: *const libc::c_char,
-    folder_config_name: *const libc::c_char,
+pub fn dc_jobthread_init(
+    name: &'static str,
+    folder_config_name: &'static str,
     imap: Imap,
 ) -> dc_jobthread_t {
     dc_jobthread_t {
-        name: dc_strdup(name),
-        folder_config_name: dc_strdup(folder_config_name),
+        name,
+        folder_config_name,
         imap,
         state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
     }
@@ -37,13 +38,6 @@ pub struct JobState {
     using_handle: i32,
 }
 
-pub unsafe fn dc_jobthread_exit(jobthread: &mut dc_jobthread_t) {
-    free(jobthread.name as *mut libc::c_void);
-    jobthread.name = 0 as *mut libc::c_char;
-    free(jobthread.folder_config_name as *mut libc::c_void);
-    jobthread.folder_config_name = 0 as *mut libc::c_char;
-}
-
 pub unsafe fn dc_jobthread_suspend(
     context: &Context,
     jobthread: &dc_jobthread_t,
@@ -54,7 +48,7 @@ pub unsafe fn dc_jobthread_suspend(
             context,
             0i32,
             b"Suspending %s-thread.\x00" as *const u8 as *const libc::c_char,
-            jobthread.name,
+            &jobthread.name,
         );
 
         {
@@ -73,7 +67,7 @@ pub unsafe fn dc_jobthread_suspend(
             context,
             0i32,
             b"Unsuspending %s-thread.\x00" as *const u8 as *const libc::c_char,
-            jobthread.name,
+            &jobthread.name,
         );
 
         let &(ref lock, ref cvar) = &*jobthread.state.clone();
@@ -94,7 +88,7 @@ pub unsafe fn dc_jobthread_interrupt_idle(context: &Context, jobthread: &dc_jobt
         context,
         0,
         b"Interrupting %s-IDLE...\x00" as *const u8 as *const libc::c_char,
-        jobthread.name,
+        &jobthread.name,
     );
 
     jobthread.imap.interrupt_idle();
@@ -131,7 +125,7 @@ pub unsafe fn dc_jobthread_fetch(
                 context,
                 0,
                 b"%s-fetch started...\x00" as *const u8 as *const libc::c_char,
-                jobthread.name,
+                &jobthread.name,
             );
             jobthread.imap.fetch(context);
 
@@ -140,7 +134,7 @@ pub unsafe fn dc_jobthread_fetch(
                     context,
                     0i32,
                     b"%s-fetch aborted, starting over...\x00" as *const u8 as *const libc::c_char,
-                    jobthread.name,
+                    &jobthread.name,
                 );
                 jobthread.imap.fetch(context);
             }
@@ -148,7 +142,7 @@ pub unsafe fn dc_jobthread_fetch(
                 context,
                 0,
                 b"%s-fetch done in %.0f ms.\x00" as *const u8 as *const libc::c_char,
-                jobthread.name,
+                &jobthread.name,
                 clock().wrapping_sub(start) as libc::c_double * 1000.0f64
                     / 1000000i32 as libc::c_double,
             );
@@ -183,7 +177,9 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
             mvbox_name = dc_sqlite3_get_config(
                 context,
                 &context.sql,
-                jobthread.folder_config_name,
+                CString::new(&jobthread.folder_config_name[..])
+                    .unwrap()
+                    .as_ptr(),
                 0 as *const libc::c_char,
             );
             if mvbox_name.is_null() {
@@ -214,7 +210,7 @@ pub unsafe fn dc_jobthread_idle(
                 0,
                 b"%s-IDLE will not be started as it was interrupted while not ideling.\x00"
                     as *const u8 as *const libc::c_char,
-                jobthread.name,
+                &jobthread.name,
             );
             state.jobs_needed = 0;
             return;
@@ -246,14 +242,14 @@ pub unsafe fn dc_jobthread_idle(
         context,
         0i32,
         b"%s-IDLE started...\x00" as *const u8 as *const libc::c_char,
-        jobthread.name,
+        &jobthread.name,
     );
     jobthread.imap.idle(context);
     dc_log_info(
         context,
         0i32,
         b"%s-IDLE ended.\x00" as *const u8 as *const libc::c_char,
-        jobthread.name,
+        &jobthread.name,
     );
 
     jobthread.state.0.lock().unwrap().using_handle = 0;
