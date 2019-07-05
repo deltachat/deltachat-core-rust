@@ -488,10 +488,7 @@ unsafe fn set_self_key(
             success = 1;
         }
     } else {
-        error!(
-            context,
-            0, "File does not contain a private key.", 
-        );
+        error!(context, 0, "File does not contain a private key.",);
     }
 
     sqlite3_finalize(stmt);
