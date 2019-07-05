@@ -206,7 +206,6 @@ class MessageType(object):
         return self._type == const.DC_MSG_FILE
 
 
-
 @attr.s
 class MessageState(object):
     """ Current Message In/Out state, updated on each call of is_* methods.

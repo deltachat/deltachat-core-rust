@@ -90,6 +90,7 @@ impl Key {
     }
 
     pub fn from_slice(bytes: &[u8], key_type: KeyType) -> Option<Self> {
+        println!("hello from_slice");
         let res: Result<Key, _> = match key_type {
             KeyType::Public => SignedPublicKey::from_bytes(Cursor::new(bytes)).map(Into::into),
             KeyType::Private => SignedSecretKey::from_bytes(Cursor::new(bytes)).map(Into::into),
@@ -130,7 +131,6 @@ impl Key {
         // strip newlines and other whitespace
         let cleaned: String = encoded_data.trim().split_whitespace().collect();
         let bytes = cleaned.as_bytes();
-
         base64::decode(bytes)
             .ok()
             .and_then(|decoded| Self::from_slice(&decoded, key_type))
@@ -434,6 +434,70 @@ mod tests {
         let fingerprint = dc_normalize_fingerprint(" 1234  567890 \n AbcD abcdef ABCDEF ");
 
         assert_eq!(fingerprint, "1234567890ABCDABCDEFABCDEF");
+    }
+
+    #[test]
+    fn test_from_base64() {
+        let private_key = Key::from_base64(
+            "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
+            QCNYLJNVfJcrBDGvkDR9/bwEnw===GU1/
+            ",
+            KeyType::Private,
+        )
+        .expect("failed to decode");
+        let binary = private_key.to_bytes();
+        let private_key2 = Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
     }
 
     #[test]

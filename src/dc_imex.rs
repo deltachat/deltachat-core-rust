@@ -362,11 +362,7 @@ pub unsafe fn dc_continue_key_transfer(
             }
             || *filename.offset(0isize) as libc::c_int == 0i32
         {
-            error!(
-                context,
-                0,
-                "Message is no Autocrypt Setup Message.",
-            );
+            error!(context, 0, "Message is no Autocrypt Setup Message.",);
         } else if 0
             == dc_read_file(
                 context,
@@ -377,27 +373,15 @@ pub unsafe fn dc_continue_key_transfer(
             || filecontent.is_null()
             || filebytes <= 0
         {
-            error!(
-                context,
-                0,
-                "Cannot read Autocrypt Setup Message file.",
-            );
+            error!(context, 0, "Cannot read Autocrypt Setup Message file.",);
         } else {
             norm_sc = dc_normalize_setup_code(context, setup_code);
             if norm_sc.is_null() {
-                warn!(
-                    context,
-                    0,
-                    "Cannot normalize Setup Code.",
-                );
+                warn!(context, 0, "Cannot normalize Setup Code.",);
             } else {
                 armored_key = dc_decrypt_setup_file(context, norm_sc, filecontent);
                 if armored_key.is_null() {
-                    warn!(
-                        context,
-                        0,
-                        "Cannot decrypt Autocrypt Setup Message.",
-                    );
+                    warn!(context, 0, "Cannot decrypt Autocrypt Setup Message.",);
                 } else if !(0 == set_self_key(context, armored_key, 1i32)) {
                     /*set default*/
                     /* error already logged */
@@ -431,7 +415,7 @@ unsafe fn set_self_key(
     let mut buf_base64: *const libc::c_char = 0 as *const libc::c_char;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
-    info!(context, 0, "armored key: {}", as_str(armored));
+    info!(context, 0, "XXX armored key: {}", as_str(armored));
 
     buf = dc_strdup(armored);
     if 0 == dc_split_armored_data(
@@ -446,11 +430,7 @@ unsafe fn set_self_key(
     ) != 0i32
         || buf_base64.is_null()
     {
-        warn!(
-            context,
-            0,
-            "File does not contain a private key.",
-        );
+        warn!(context, 0, "File does not contain a private key.",);
     } else {
         if let Some((private_key, public_key)) = Key::from_base64(
             CStr::from_ptr(buf_base64).to_str().unwrap(),
@@ -539,11 +519,10 @@ unsafe fn set_self_key(
                 success = 1;
             }
         } else {
-            dc_log_error(
+            let x = CStr::from_ptr(buf_base64).to_str().unwrap();
+            error!(
                 context,
-                0i32,
-                b"File does not contain a valid private key.\x00" as *const u8
-                    as *const libc::c_char,
+                0, "File does not contain a private key. XXX key: {}", x
             );
         }
     }
@@ -568,7 +547,7 @@ pub unsafe fn dc_decrypt_setup_file(
     let mut indx: size_t = 0i32 as size_t;
 
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
-    info!(_context, 0, "trying to decrypt ASM file");
+    info!(_context, 0, "XXX trying to decrypt ASM file");
     fc_buf = dc_strdup(filecontent);
     if !(0
         == dc_split_armored_data(
