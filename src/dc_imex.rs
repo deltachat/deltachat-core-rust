@@ -413,8 +413,6 @@ unsafe fn set_self_key(
     assert!(!armored_c.is_null(), "invalid buffer");
     let armored = as_str(armored_c);
 
-    info!(context, 0, "XXX armored key: {}", armored);
-
     if let Some((private_key, public_key, header)) =
         Key::from_armored_string(armored, KeyType::Private)
             .and_then(|(k, h)| if k.verify() { Some((k, h)) } else { None })
@@ -492,7 +490,7 @@ unsafe fn set_self_key(
     } else {
         error!(
             context,
-            0, "File does not contain a private key. XXX key: {}", armored
+            0, "File does not contain a private key.", 
         );
     }
 
@@ -515,7 +513,6 @@ pub unsafe fn dc_decrypt_setup_file(
     let mut indx: size_t = 0i32 as size_t;
 
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
-    info!(_context, 0, "XXX trying to decrypt ASM file");
     fc_buf = dc_strdup(filecontent);
     if !(0
         == dc_split_armored_data(
