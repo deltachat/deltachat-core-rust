@@ -9,6 +9,7 @@ use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_sqlite3::*;
 use crate::key::*;
+use crate::types::uintptr_t;
 
 /// Peerstate represents the state of an Autocrypt peer.
 pub struct Peerstate<'a> {

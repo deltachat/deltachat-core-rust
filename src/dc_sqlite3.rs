@@ -7,7 +7,6 @@ use crate::context::Context;
 use crate::dc_param::*;
 use crate::dc_tools::*;
 use crate::peerstate::*;
-use crate::types::*;
 use crate::x::*;
 
 const DC_OPEN_READONLY: usize = 0x01;
@@ -28,14 +27,6 @@ impl SQLite {
         self.connection.read().unwrap().is_some()
     }
 
-    // pub fn conn(&self) -> Option<&Connection> {
-    //     self.connection.read().unwrap().as_ref()
-    // }
-
-    pub unsafe fn raw(&self) -> Option<*mut sqlite3> {
-        self.connection.read().unwrap().as_ref().map(|c| c.handle())
-    }
-
     pub fn close(&self, context: &Context) {
         let mut conn = self.connection.write().unwrap();
         if conn.is_some() {
@@ -47,8 +38,7 @@ impl SQLite {
 
     // return true on success, false on failure
     pub fn open(&self, context: &Context, dbfile: &std::path::Path, flags: libc::c_int) -> bool {
-        let dbfile_c = dbfile.to_c_string().unwrap();
-        match dc_sqlite3_open(context, self, dbfile_c.as_ptr(), flags) {
+        match dc_sqlite3_open(context, self, dbfile, flags) {
             1 => true,
             _ => false,
         }
@@ -59,17 +49,19 @@ impl SQLite {
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
     {
-        match *self.connection.read().unwrap() {
+        match &*self.connection.read().unwrap() {
             Some(conn) => conn.execute(sql, params),
             None => panic!("Querying closed SQLite database"),
         }
     }
 
     pub fn prepare(&self, sql: &str) -> rusqlite::Result<Statement> {
-        match *self.connection.read().unwrap() {
-            Some(conn) => conn.prepare(sql),
-            None => panic!("Querying closed SQLite database"),
-        }
+        // TODO: switch to direct execution
+        unimplemented!()
+        // match &*self.connection.read().unwrap() {
+        //     Some(ref conn) => conn.prepare(sql),
+        //     None => panic!("Querying closed SQLite database"),
+        // }
     }
 
     pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> rusqlite::Result<T>
@@ -78,14 +70,14 @@ impl SQLite {
         P::Item: rusqlite::ToSql,
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
-        match *self.connection.read().unwrap() {
+        match &*self.connection.read().unwrap() {
             Some(conn) => conn.query_row(sql, params, f),
             None => panic!("Querying closed SQLite database"),
         }
     }
 
     pub fn table_exists(&self, name: impl AsRef<str>) -> bool {
-        match *self.connection.read().unwrap() {
+        match &*self.connection.read().unwrap() {
             Some(conn) => {
                 conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |row| {
                     // will only be executed if the info was found
@@ -93,7 +85,7 @@ impl SQLite {
                     Ok(())
                 })
                 .is_ok()
-            },
+            }
             None => panic!("Querying closed SQLite database"),
         }
     }
@@ -104,29 +96,19 @@ impl SQLite {
 pub fn dc_sqlite3_open(
     context: &Context,
     sql: &SQLite,
-    dbfile: *const libc::c_char,
+    dbfile: impl AsRef<std::path::Path>,
     flags: libc::c_int,
 ) -> libc::c_int {
     let mut current_block: u64;
     if sql.is_open() {
         return 0;
     }
-    if dbfile.is_null() {
-        return 0;
-    }
-    let dbfile = as_str(dbfile);
-    if unsafe { sqlite3_threadsafe() } == 0 {
-        error!(
-            context,
-            0, "Sqlite3 compiled thread-unsafe; this is not supported.",
-        );
-        return 0;
-    }
-
     if sql.is_open() {
         error!(
             context,
-            0, "Cannot open, database \"{}\" already opened.", dbfile,
+            0,
+            "Cannot open, database \"{:?}\" already opened.",
+            dbfile.as_ref(),
         );
         return 0;
     }
@@ -139,17 +121,19 @@ pub fn dc_sqlite3_open(
         open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
     }
 
-    let conn = match Connection::open_with_flags(dbfile, open_flags) {
+    match Connection::open_with_flags(dbfile.as_ref(), open_flags) {
         Ok(conn) => {
             let mut sql_conn = sql.connection.write().unwrap();
             *sql_conn = Some(conn);
-            conn
         }
         Err(err) => {
             error!(context, 0, "Cannot open database: \"{}\".", err);
             return 0;
         }
-    };
+    }
+
+    let conn_lock = sql.connection.write().unwrap();
+    let conn = conn_lock.as_ref().expect("just opened");
 
     conn.pragma_update(None, "secure_delete", &"on".to_string())
         .expect("failed to enable pragma");
@@ -163,7 +147,9 @@ pub fn dc_sqlite3_open(
         if 0 == dc_sqlite3_table_exists(context, sql, "config") {
             info!(
                 context,
-                0, "First time init: creating tables in \"{}\".", dbfile,
+                0,
+                "First time init: creating tables in \"{:?}\".",
+                dbfile.as_ref(),
             );
             dc_sqlite3_execute(
                 context,
@@ -333,7 +319,9 @@ pub fn dc_sqlite3_open(
             {
                 error!(
                     context,
-                    0, "Cannot create tables in new database \"{}\".", dbfile,
+                    0,
+                    "Cannot create tables in new database \"{:?}\".",
+                    dbfile.as_ref(),
                 );
                 // cannot create the tables - maybe we cannot write?
                 current_block = 13628706266672894061;
@@ -807,7 +795,7 @@ pub fn dc_sqlite3_open(
     match current_block {
         13628706266672894061 => {}
         _ => {
-            info!(context, 0, "Opened \"{}\".", dbfile,);
+            info!(context, 0, "Opened \"{:?}\".", dbfile.as_ref(),);
             return 1;
         }
     }
@@ -888,7 +876,7 @@ pub fn dc_sqlite3_prepare<'a>(
 }
 
 pub fn dc_sqlite3_is_open(sql: &SQLite) -> libc::c_int {
-    unsafe { sql.raw().is_none() as libc::c_int }
+    sql.is_open() as libc::c_int
 }
 
 /* the returned string must be free()'d, returns NULL on errors */
@@ -1048,7 +1036,7 @@ pub fn dc_sqlite3_get_rowid(
     // alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
     // the ORDER BY ensures, this function always returns the most recent id,
     // eg. if a Message-ID is splitted into different messages.
-    if let Some(ref conn) = sql.conn() {
+    if let Some(conn) = &*sql.connection.read().unwrap() {
         match conn.query_row(
             &format!(
                 "SELECT id FROM ? WHERE {}=? ORDER BY id DESC",
@@ -1078,7 +1066,7 @@ pub fn dc_sqlite3_get_rowid2(
     value2: i32,
 ) -> u32 {
     // same as dc_sqlite3_get_rowid() with a key over two columns
-    if let Some(ref conn) = sql.conn() {
+    if let Some(conn) = &*sql.connection.read().unwrap() {
         match conn.query_row(
             &format!(
                 "SELECT id FROM ? WHERE {}=? AND {}=? ORDER BY id DESC",

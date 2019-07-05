@@ -49,7 +49,7 @@ extern "C" {
         _: *mut libc::c_char,
         _: libc::c_ulong,
         _: *const libc::c_char,
-        _: ::std::ffi::VaList,
+        _: std::ffi::VaListImpl,
     ) -> libc::c_int;
 
     // -- DC Methods

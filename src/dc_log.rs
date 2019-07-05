@@ -26,7 +26,7 @@ unsafe fn log_vprintf(
     event: Event,
     data1: libc::c_int,
     msg_format: *const libc::c_char,
-    va_0: ::std::ffi::VaList,
+    va_0: std::ffi::VaListImpl,
 ) {
     let msg: *mut libc::c_char;
     if !msg_format.is_null() {
