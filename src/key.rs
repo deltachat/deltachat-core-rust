@@ -495,7 +495,7 @@ mod tests {
             ",
             KeyType::Private,
         )
-        .expect("failed to decode");
+        .expect("failed to decode");  // NOTE: if you take out the ===GU1/ part, everything passes!
         let binary = private_key.to_bytes();
         let private_key2 = Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
     }
