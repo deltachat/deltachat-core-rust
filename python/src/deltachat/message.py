@@ -95,7 +95,11 @@ class Message(object):
 
     def is_setup_message(self):
         """ return True if this message is a setup message. """
-        return lib.dc_is_setupmessage(self._dc_msg)
+        return lib.dc_msg_is_setupmessage(self._dc_msg)
+
+    def continue_key_transfer(self, setup_code):
+        """ extract key and use it as primary key for this account. """
+        lib.dc_continue_key_transfer(self._dc_context, self.id, as_dc_charpointer(setup_code))
 
     @props.with_doc
     def time_sent(self):

@@ -306,10 +306,17 @@ class Account(object):
         self._imex_completed.wait()
 
     def initiate_key_transfer(self):
-        """initiate Autocrypt key transfer by sending a self-sent message.
-
+        """return setup code after a Autocrypt setup message
+        has been successfully sent to our own e-mail address ("self-sent message").
+        If sending out was unsuccessful, a RuntimeError is raised.
         """
-        return from_dc_charpointer(lib.dc_initiate_key_transfer(self._dc_context))
+        self.check_is_configured()
+        if not self._threads.is_started():
+            raise RuntimeError("threads not running, can not send out")
+        res = lib.dc_initiate_key_transfer(self._dc_context)
+        if res == ffi.NULL:
+            raise RuntimeError("could not send out autocrypt setup message")
+        return from_dc_charpointer(res)
 
     def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
