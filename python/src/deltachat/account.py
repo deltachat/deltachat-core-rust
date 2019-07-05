@@ -328,10 +328,10 @@ class Account(object):
             self.configure()
         self._threads.start()
 
-    def stop_threads(self):
+    def stop_threads(self, wait=True):
         """ stop IMAP/SMTP threads. """
         lib.dc_stop_ongoing_process(self._dc_context)
-        self._threads.stop(wait=True)
+        self._threads.stop(wait=wait)
 
     def _process_event(self, ctx, evt_name, data1, data2):
         assert ctx == self._dc_context

@@ -103,7 +103,7 @@ def acfactory(pytestconfig, tmpdir, request):
             ac._evlogger.set_timeout(30)
             ac.configure(**configdict)
             ac.start_threads()
-            self._finalizers.append(ac.stop_threads)
+            self._finalizers.append(lambda: ac.stop_threads(wait=False))
             return ac
 
         def clone_online_account(self, account):
@@ -114,7 +114,7 @@ def acfactory(pytestconfig, tmpdir, request):
             ac._evlogger.set_timeout(30)
             ac.configure(addr=account.get_config("addr"), mail_pw=account.get_config("mail_pw"))
             ac.start_threads()
-            self._finalizers.append(ac.stop_threads)
+            self._finalizers.append(lambda: ac.stop_threads(wait=False))
             return ac
 
     return AccountMaker()
