@@ -305,6 +305,19 @@ class Account(object):
             lib.dc_perform_imap_jobs(self._dc_context)
         self._imex_completed.wait()
 
+    def initiate_key_transfer(self):
+        """return setup code after a Autocrypt setup message
+        has been successfully sent to our own e-mail address ("self-sent message").
+        If sending out was unsuccessful, a RuntimeError is raised.
+        """
+        self.check_is_configured()
+        if not self._threads.is_started():
+            raise RuntimeError("threads not running, can not send out")
+        res = lib.dc_initiate_key_transfer(self._dc_context)
+        if res == ffi.NULL:
+            raise RuntimeError("could not send out autocrypt setup message")
+        return from_dc_charpointer(res)
+
     def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).
 
@@ -315,9 +328,10 @@ class Account(object):
             self.configure()
         self._threads.start()
 
-    def stop_threads(self):
+    def stop_threads(self, wait=True):
         """ stop IMAP/SMTP threads. """
-        self._threads.stop(wait=True)
+        lib.dc_stop_ongoing_process(self._dc_context)
+        self._threads.stop(wait=wait)
 
     def _process_event(self, ctx, evt_name, data1, data2):
         assert ctx == self._dc_context
@@ -362,14 +376,12 @@ class IOThreads:
                 thread.join()
 
     def imap_thread_run(self):
-        print("starting imap thread")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
             lib.dc_perform_imap_fetch(self._dc_context)
             lib.dc_perform_imap_idle(self._dc_context)
 
     def smtp_thread_run(self):
-        print("starting smtp thread")
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
             lib.dc_perform_smtp_idle(self._dc_context)
