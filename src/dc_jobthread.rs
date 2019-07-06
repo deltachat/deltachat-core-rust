@@ -2,10 +2,9 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use crate::context::Context;
 use crate::dc_configure::*;
-use crate::dc_log::*;
 use crate::dc_sqlite3::*;
-use crate::dc_tools::*;
 use crate::imap::Imap;
+use crate::types::*;
 use crate::x::*;
 use std::ffi::CString;
 
@@ -44,13 +43,7 @@ pub unsafe fn dc_jobthread_suspend(
     suspend: libc::c_int,
 ) {
     if 0 != suspend {
-        dc_log_info(
-            context,
-            0i32,
-            b"Suspending %s-thread.\x00" as *const u8 as *const libc::c_char,
-            &jobthread.name,
-        );
-
+        info!(context, 0, "Suspending {}-thread.", jobthread.name,);
         {
             jobthread.state.0.lock().unwrap().suspended = 1;
         }
@@ -63,12 +56,7 @@ pub unsafe fn dc_jobthread_suspend(
             std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
         }
     } else {
-        dc_log_info(
-            context,
-            0i32,
-            b"Unsuspending %s-thread.\x00" as *const u8 as *const libc::c_char,
-            &jobthread.name,
-        );
+        info!(context, 0, "Unsuspending {}-thread.", jobthread.name);
 
         let &(ref lock, ref cvar) = &*jobthread.state.clone();
         let mut state = lock.lock().unwrap();
@@ -84,12 +72,7 @@ pub unsafe fn dc_jobthread_interrupt_idle(context: &Context, jobthread: &dc_jobt
         jobthread.state.0.lock().unwrap().jobs_needed = 1;
     }
 
-    dc_log_info(
-        context,
-        0,
-        b"Interrupting %s-IDLE...\x00" as *const u8 as *const libc::c_char,
-        &jobthread.name,
-    );
+    info!(context, 0, "Interrupting {}-IDLE...", jobthread.name);
 
     jobthread.imap.interrupt_idle();
 
@@ -121,30 +104,22 @@ pub unsafe fn dc_jobthread_fetch(
     if 0 != use_network {
         start = clock();
         if !(0 == connect_to_imap(context, jobthread)) {
-            dc_log_info(
-                context,
-                0,
-                b"%s-fetch started...\x00" as *const u8 as *const libc::c_char,
-                &jobthread.name,
-            );
+            info!(context, 0, "{}-fetch started...", jobthread.name);
             jobthread.imap.fetch(context);
 
             if jobthread.imap.should_reconnect() {
-                dc_log_info(
+                info!(
                     context,
-                    0i32,
-                    b"%s-fetch aborted, starting over...\x00" as *const u8 as *const libc::c_char,
-                    &jobthread.name,
+                    0, "{}-fetch aborted, starting over...", jobthread.name,
                 );
                 jobthread.imap.fetch(context);
             }
-            dc_log_info(
+            info!(
                 context,
                 0,
-                b"%s-fetch done in %.0f ms.\x00" as *const u8 as *const libc::c_char,
-                &jobthread.name,
-                clock().wrapping_sub(start) as libc::c_double * 1000.0f64
-                    / 1000000i32 as libc::c_double,
+                "{}-fetch done in {:.3} ms.",
+                jobthread.name,
+                clock().wrapping_sub(start) as f64 / 1000.0,
             );
         }
     }
@@ -205,12 +180,11 @@ pub unsafe fn dc_jobthread_idle(
         let mut state = lock.lock().unwrap();
 
         if 0 != state.jobs_needed {
-            dc_log_info(
+            info!(
                 context,
                 0,
-                b"%s-IDLE will not be started as it was interrupted while not ideling.\x00"
-                    as *const u8 as *const libc::c_char,
-                &jobthread.name,
+                "{}-IDLE will not be started as it was interrupted while not ideling.",
+                jobthread.name,
             );
             state.jobs_needed = 0;
             return;
@@ -238,19 +212,9 @@ pub unsafe fn dc_jobthread_idle(
     }
 
     connect_to_imap(context, jobthread);
-    dc_log_info(
-        context,
-        0i32,
-        b"%s-IDLE started...\x00" as *const u8 as *const libc::c_char,
-        &jobthread.name,
-    );
+    info!(context, 0, "{}-IDLE started...", jobthread.name,);
     jobthread.imap.idle(context);
-    dc_log_info(
-        context,
-        0i32,
-        b"%s-IDLE ended.\x00" as *const u8 as *const libc::c_char,
-        &jobthread.name,
-    );
+    info!(context, 0, "{}-IDLE ended.", jobthread.name);
 
     jobthread.state.0.lock().unwrap().using_handle = 0;
 }

@@ -167,18 +167,16 @@ pub fn dc_context_new(
                 cb_receive_imf,
             ),
         ))),
-        mvbox_thread: Arc::new(RwLock::new(unsafe {
-            dc_jobthread_init(
-                "MVBOX",
-                "configured_mvbox_folder",
-                Imap::new(
-                    cb_get_config,
-                    cb_set_config,
-                    cb_precheck_imf,
-                    cb_receive_imf,
-                ),
-            )
-        })),
+        mvbox_thread: Arc::new(RwLock::new(dc_jobthread_init(
+            "MVBOX",
+            "configured_mvbox_folder",
+            Imap::new(
+                cb_get_config,
+                cb_set_config,
+                cb_precheck_imf,
+                cb_receive_imf,
+            ),
+        ))),
         probe_imap_network: Arc::new(RwLock::new(0)),
         perform_inbox_jobs_needed: Arc::new(RwLock::new(0)),
     }
