@@ -59,6 +59,27 @@ impl SQLite {
         self.connection.read().unwrap()
     }
 
+    pub fn query_map<T, P, F, G, H>(
+        &self,
+        sql: &str,
+        params: P,
+        f: F,
+        mut g: G,
+    ) -> rusqlite::Result<H>
+    where
+        P: IntoIterator,
+        P::Item: rusqlite::ToSql,
+        F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
+        G: FnMut(rusqlite::MappedRows<F>) -> rusqlite::Result<H>,
+    {
+        let conn_lock = self.connection.read().unwrap();
+        let conn = conn_lock.as_ref().expect("database closed");
+
+        let mut stmt = conn.prepare(sql)?;
+        let res = stmt.query_map(params, f)?;
+        g(res)
+    }
+
     pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> rusqlite::Result<T>
     where
         P: IntoIterator,
