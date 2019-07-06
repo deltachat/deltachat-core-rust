@@ -1,6 +1,6 @@
 //! Constants
 
-pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.3\x00";
+pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.1\x00";
 
 pub const DC_MOVE_STATE_MOVING: u32 = 3;
 pub const DC_MOVE_STATE_STAY: u32 = 2;
