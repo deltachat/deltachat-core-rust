@@ -671,29 +671,33 @@ pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
 pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
     let show_deaddrop = 0;
     let ret = unsafe { dc_array_new(128 as size_t) };
-    if !ret.is_null() {
-        if let Some(ref mut stmt) = dc_sqlite3_prepare(
-            context,
-            &context.sql,
+    if ret.is_null() {
+        return ret;
+    }
+
+    let conn_lock = context.sql.get_conn();
+    if let Some(ref mut stmt) = conn_lock.as_ref().and_then(|conn| {
+        conn.prepare(
             "SELECT m.id FROM msgs m LEFT JOIN contacts ct \
              ON m.from_id=ct.id LEFT JOIN chats c ON m.chat_id=c.id WHERE m.state=?   \
              AND m.hidden=0   \
              AND m.chat_id>?   \
              AND ct.blocked=0   \
              AND (c.blocked=0 OR c.blocked=?) ORDER BY m.timestamp DESC,m.id DESC;",
-        ) {
-            match stmt.query_map(&[10, 9, if 0 != show_deaddrop { 2 } else { 0 }], |row| {
-                row.get(0)
-            }) {
-                Ok(rows) => {
-                    for row in rows {
-                        if let Ok(id) = row {
-                            unsafe { dc_array_add_id(ret, id) };
-                        }
+        )
+        .ok()
+    }) {
+        match stmt.query_map(&[10, 9, if 0 != show_deaddrop { 2 } else { 0 }], |row| {
+            row.get(0)
+        }) {
+            Ok(rows) => {
+                for row in rows {
+                    if let Ok(id) = row {
+                        unsafe { dc_array_add_id(ret, id) };
                     }
                 }
-                Err(_err) => {}
             }
+            Err(_err) => {}
         }
     }
 

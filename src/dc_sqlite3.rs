@@ -55,13 +55,8 @@ impl SQLite {
         }
     }
 
-    pub fn prepare(&self, sql: &str) -> rusqlite::Result<Statement> {
-        // TODO: switch to direct execution
-        unimplemented!()
-        // match &*self.connection.read().unwrap() {
-        //     Some(ref conn) => conn.prepare(sql),
-        //     None => panic!("Querying closed SQLite database"),
-        // }
+    pub fn get_conn(&self) -> std::sync::RwLockReadGuard<Option<Connection>> {
+        self.connection.read().unwrap()
     }
 
     pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> rusqlite::Result<T>
@@ -866,13 +861,8 @@ pub fn dc_sqlite3_prepare<'a>(
     sql: &'a SQLite,
     querystr: &'a str,
 ) -> Option<Statement<'a>> {
-    match sql.prepare(querystr) {
-        Ok(s) => Some(s),
-        Err(err) => {
-            error!(context, 0, "Query failed: {} ({})", querystr, err);
-            None
-        }
-    }
+    // TODO: remove once it is not used anymore
+    unimplemented!()
 }
 
 pub fn dc_sqlite3_is_open(sql: &SQLite) -> libc::c_int {
