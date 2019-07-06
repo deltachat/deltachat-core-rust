@@ -389,11 +389,6 @@ fn set_self_key(
     armored_c: *const libc::c_char,
     set_default: libc::c_int,
 ) -> libc::c_int {
-    let mut success = 0;
-
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
-
     assert!(!armored_c.is_null(), "invalid buffer");
     let armored = as_str(armored_c);
 
@@ -450,10 +445,10 @@ fn set_self_key(
         return 0;
     }
 
-    match preferencrypt.as_str() {
-        "" => 0,
-        "nopreference" => dc_sqlite3_set_config_int(context, &context.sql, "e2ee_enabled", 0),
-        "mutual" => dc_sqlite3_set_config_int(context, &context.sql, "e2ee_enabled", 1),
+    match preferencrypt.map(|s| s.as_str()) {
+        Some("") => 0,
+        Some("nopreference") => dc_sqlite3_set_config_int(context, &context.sql, "e2ee_enabled", 0),
+        Some("mutual") => dc_sqlite3_set_config_int(context, &context.sql, "e2ee_enabled", 1),
         _ => 1,
     }
 }

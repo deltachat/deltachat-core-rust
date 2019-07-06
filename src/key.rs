@@ -458,8 +458,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[test]
     #[ignore] // is too expensive
     fn test_ascii_roundtrip() {
-        let (public_key, private_key) =
-            crate::pgp::dc_pgp_create_keypair(CString::new("hello").unwrap().as_ptr()).unwrap();
+        let (public_key, private_key) = crate::pgp::dc_pgp_create_keypair("hello").unwrap();
 
         let s = public_key.to_armored_string(None).unwrap();
         let (public_key2, _) =
