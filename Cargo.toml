@@ -57,6 +57,7 @@ path = "examples/repl/main.rs"
 
 
 [features]
-default = ["nightly"]
+default = ["nightly", "ringbuf"]
 vendored = ["native-tls/vendored", "reqwest/default-tls-vendored"]
 nightly = ["pgp/nightly"]
+ringbuf = ["pgp/ringbuf"]
