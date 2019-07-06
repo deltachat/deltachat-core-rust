@@ -700,61 +700,53 @@ pub fn dc_search_msgs(
     chat_id: uint32_t,
     query: *const libc::c_char,
 ) -> *mut dc_array_t {
-    let mut success = false;
+    if query.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let real_query = to_string(query).trim().to_string();
+    if real_query.is_empty() {
+        return std::ptr::null_mut();
+    }
+    let strLikeInText = format!("%{}%", &real_query);
+    let strLikeBeg = format!("{}%", &real_query);
+
+    let query = if 0 != chat_id {
+        "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
+         AND m.hidden=0  \
+         AND ct.blocked=0 AND (txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp,m.id;"
+    } else {
+        "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id \
+         LEFT JOIN chats c ON m.chat_id=c.id WHERE m.chat_id>9 AND m.hidden=0  \
+         AND (c.blocked=0 OR c.blocked=?) \
+         AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
+    };
+
     let ret = unsafe { dc_array_new(100 as size_t) };
 
-    if !(ret.is_null() || query.is_null()) {
-        let real_query = to_string(query).trim().to_string();
-        if real_query.is_empty() {
-            success = true;
-        } else {
-            let strLikeInText = format!("%{}%", &real_query);
-            let strLikeBeg = format!("{}%", &real_query);
-
-            let rows = if 0 != chat_id {
-                dc_sqlite3_prepare(
-                    context,
-                    &context.sql,
-                    "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
-                      AND m.hidden=0  \
-                      AND ct.blocked=0 AND (txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp,m.id;"
-                ).and_then(|mut stmt| stmt.query_map(
-                    params![chat_id as libc::c_int, &strLikeInText, &strLikeBeg],
-                    |row| row.get::<_, i32>(0)
-                ).and_then(|res| res.collect::<rusqlite::Result<Vec<i32>>>()).ok())
-            } else {
-                let show_deaddrop = 0;
-                dc_sqlite3_prepare(
-                    context,
-                    &context.sql,
-                    "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id \
-                      LEFT JOIN chats c ON m.chat_id=c.id WHERE m.chat_id>9 AND m.hidden=0  \
-                      AND (c.blocked=0 OR c.blocked=?) \
-                      AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
-                ).and_then(|mut stmt|
-                    stmt.query_map(params![
-                        if 0 != show_deaddrop { 2 } else { 0 },
-                        strLikeInText, strLikeBeg,
-                    ], |row| row.get::<_, i32>(0)).and_then(|res| res.collect::<rusqlite::Result<Vec<i32>>>()).ok()
-                )
-            };
-            if let Some(ids) = rows {
-                for id in ids {
-                    unsafe { dc_array_add_id(ret, id as u32) };
+    let success = context
+        .sql
+        .query_map(
+            query,
+            params![chat_id as libc::c_int, &strLikeInText, &strLikeBeg],
+            |row| row.get::<_, i32>(0),
+            |rows| {
+                for id in rows {
+                    unsafe { dc_array_add_id(ret, id? as u32) };
                 }
-                success = true;
-            }
-        }
-    }
+                Ok(())
+            },
+        )
+        .is_ok();
 
     if success {
-        ret
-    } else {
-        if !ret.is_null() {
-            unsafe { dc_array_unref(ret) };
-        }
-        0 as *mut dc_array_t
+        return ret;
     }
+
+    if !ret.is_null() {
+        unsafe { dc_array_unref(ret) };
+    }
+    std::ptr::null_mut()
 }
 
 pub fn dc_is_inbox(_context: &Context, folder_name: impl AsRef<str>) -> bool {

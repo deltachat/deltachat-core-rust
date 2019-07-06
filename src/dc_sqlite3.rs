@@ -59,6 +59,9 @@ impl SQLite {
         self.connection.read().unwrap()
     }
 
+    /// Prepares and executes the statement and maps a function over the resulting rows.
+    /// Then executes the second function over the returned iterator and returns the
+    /// result of that function.
     pub fn query_map<T, P, F, G, H>(
         &self,
         sql: &str,
@@ -78,6 +81,21 @@ impl SQLite {
         let mut stmt = conn.prepare(sql)?;
         let res = stmt.query_map(params, f)?;
         g(res)
+    }
+
+    /// Return `true` if a query in the SQL statement it executes returns one or more
+    /// rows and false if the SQL returns an empty set.
+    pub fn exists<P>(&self, sql: &str, params: P) -> rusqlite::Result<bool>
+    where
+        P: IntoIterator,
+        P::Item: rusqlite::ToSql,
+    {
+        let conn_lock = self.connection.read().unwrap();
+        let conn = conn_lock.as_ref().expect("database closed");
+
+        let mut stmt = conn.prepare(sql)?;
+        let res = stmt.exists(params)?;
+        Ok(res)
     }
 
     pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> rusqlite::Result<T>

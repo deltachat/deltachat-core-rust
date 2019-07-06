@@ -140,47 +140,48 @@ pub unsafe fn dc_mimefactory_load_msg(
                 dc_strdup((*factory).from_addr) as *mut libc::c_void,
             );
         } else {
-            let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
-                context,
-                &context.sql,
-                "SELECT c.authname, c.addr  \
-                 FROM chats_contacts cc  \
-                 LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                 WHERE cc.chat_id=? AND cc.contact_id>9;",
-            ) {
-                stmt.query_map(params![(*(*factory).msg).chat_id as i32], |row| {
-                    let authname: String = row.get(0)?;
-                    let addr: String = row.get(1)?;
-                    Ok((authname, addr))
-                })
-                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-                .ok()
-            } else {
-                None
-            };
-
-            if let Some(rows) = rows {
-                for (authname, addr) in rows {
-                    let addr_c = to_cstring(addr);
-                    if clist_search_string_nocase((*factory).recipients_addr, addr_c.as_ptr()) == 0
-                    {
-                        clist_insert_after(
-                            (*factory).recipients_names,
-                            (*(*factory).recipients_names).last,
-                            if !authname.is_empty() {
-                                dc_strdup(to_cstring(authname).as_ptr())
-                            } else {
-                                0 as *mut libc::c_char
-                            } as *mut libc::c_void,
-                        );
-                        clist_insert_after(
-                            (*factory).recipients_addr,
-                            (*(*factory).recipients_addr).last,
-                            dc_strdup(addr_c.as_ptr()) as *mut libc::c_void,
-                        );
-                    }
-                }
-            }
+            context
+                .sql
+                .query_map(
+                    "SELECT c.authname, c.addr  \
+                     FROM chats_contacts cc  \
+                     LEFT JOIN contacts c ON cc.contact_id=c.id  \
+                     WHERE cc.chat_id=? AND cc.contact_id>9;",
+                    params![(*(*factory).msg).chat_id as i32],
+                    |row| {
+                        let authname: String = row.get(0)?;
+                        let addr: String = row.get(1)?;
+                        Ok((authname, addr))
+                    },
+                    |rows| {
+                        for row in rows {
+                            let (authname, addr) = row?;
+                            let addr_c = to_cstring(addr);
+                            if clist_search_string_nocase(
+                                (*factory).recipients_addr,
+                                addr_c.as_ptr(),
+                            ) == 0
+                            {
+                                clist_insert_after(
+                                    (*factory).recipients_names,
+                                    (*(*factory).recipients_names).last,
+                                    if !authname.is_empty() {
+                                        dc_strdup(to_cstring(authname).as_ptr())
+                                    } else {
+                                        0 as *mut libc::c_char
+                                    } as *mut libc::c_void,
+                                );
+                                clist_insert_after(
+                                    (*factory).recipients_addr,
+                                    (*(*factory).recipients_addr).last,
+                                    dc_strdup(addr_c.as_ptr()) as *mut libc::c_void,
+                                );
+                            }
+                        }
+                        Ok(())
+                    },
+                )
+                .unwrap();
 
             let command = dc_param_get_int((*(*factory).msg).param, 'S' as i32, 0);
             if command == 5 {
@@ -219,21 +220,17 @@ pub unsafe fn dc_mimefactory_load_msg(
             }
         }
 
-        let row = dc_sqlite3_prepare(
-            context,
-            &context.sql,
+        let row = context.sql.query_row(
             "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
-        )
-        .and_then(|mut stmt| {
-            stmt.query_row(params![(*(*factory).msg).id as i32], |row| {
+            params![(*(*factory).msg).id as i32],
+            |row| {
                 let in_reply_to: String = row.get(0)?;
                 let references: String = row.get(1)?;
 
                 Ok((in_reply_to, references))
-            })
-            .ok()
-        });
-        if let Some((in_reply_to, references)) = row {
+            },
+        );
+        if let Ok((in_reply_to, references)) = row {
             (*factory).in_reply_to = dc_strdup(to_cstring(in_reply_to).as_ptr());
             (*factory).references = dc_strdup(to_cstring(references).as_ptr());
         }

@@ -149,9 +149,7 @@ unsafe fn dc_chatlist_load_from_db(
     };
 
     let success = if query_contact_id != 0 {
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            (*chatlist).context,
-            &(*chatlist).context.sql,
+        (*chatlist).context.sql.query_map(
             "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
              ON c.id=m.chat_id        \
              AND m.timestamp=( SELECT MAX(timestamp)   \
@@ -159,17 +157,12 @@ unsafe fn dc_chatlist_load_from_db(
              AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
              AND c.blocked=0 AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)  \
              GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-        ) {
-            stmt.query_map(params![query_contact_id as i32], process_fn)
-                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-                .is_ok()
-        } else {
-            false
-        }
+            params![query_contact_id as i32],
+            process_fn,
+            |res| res.collect::<rusqlite::Result<Vec<_>>>(),
+        )
     } else if 0 != listflags & 0x1 {
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            (*chatlist).context,
-            &(*chatlist).context.sql,
+        (*chatlist).context.sql.query_map(
             "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
              ON c.id=m.chat_id        \
              AND m.timestamp=( SELECT MAX(timestamp)   \
@@ -177,13 +170,10 @@ unsafe fn dc_chatlist_load_from_db(
              AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
              AND c.blocked=0 AND c.archived=1  GROUP BY c.id  \
              ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-        ) {
-            stmt.query_map(params![], process_fn)
-                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-                .is_ok()
-        } else {
-            false
-        }
+            params![],
+            process_fn,
+            |res| res.collect::<rusqlite::Result<Vec<_>>>(),
+        )
     } else if query__.is_null() {
         if 0 == listflags & 0x2 {
             let last_deaddrop_fresh_msg_id = get_last_deaddrop_fresh_msg((*chatlist).context);
@@ -193,9 +183,7 @@ unsafe fn dc_chatlist_load_from_db(
             }
             add_archived_link_item = 1;
         }
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            (*chatlist).context,
-            &(*chatlist).context.sql,
+        (*chatlist).context.sql.query_map(
             "SELECT c.id, m.id FROM chats c  \
              LEFT JOIN msgs m         \
              ON c.id=m.chat_id        \
@@ -205,22 +193,17 @@ unsafe fn dc_chatlist_load_from_db(
              AND c.blocked=0 AND c.archived=0  \
              GROUP BY c.id  \
              ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-        ) {
-            stmt.query_map(params![], process_fn)
-                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-                .is_ok()
-        } else {
-            false
-        }
+            params![],
+            process_fn,
+            |res| res.collect::<rusqlite::Result<Vec<_>>>(),
+        )
     } else {
         let query = to_string(query__).trim().to_string();
         if query.is_empty() {
             return 1;
         } else {
             let strLikeCmd = format!("%{}%", query);
-            if let Some(mut stmt) = dc_sqlite3_prepare(
-                (*chatlist).context,
-                &(*chatlist).context.sql,
+            (*chatlist).context.sql.query_map(
                 "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
                  ON c.id=m.chat_id        \
                  AND m.timestamp=( SELECT MAX(timestamp)   \
@@ -228,13 +211,10 @@ unsafe fn dc_chatlist_load_from_db(
                  AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
                  AND c.blocked=0 AND c.name LIKE ?  \
                  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-            ) {
-                stmt.query_map(params![strLikeCmd], process_fn)
-                    .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-                    .is_ok()
-            } else {
-                false
-            }
+                params![strLikeCmd],
+                process_fn,
+                |res| res.collect::<rusqlite::Result<Vec<_>>>(),
+            )
         }
     };
 
@@ -248,7 +228,7 @@ unsafe fn dc_chatlist_load_from_db(
     }
     (*chatlist).cnt = dc_array_get_cnt((*chatlist).chatNlastmsg_ids).wrapping_div(2);
 
-    success as libc::c_int
+    success.is_ok() as libc::c_int
 }
 
 // Context functions to work with chatlist
