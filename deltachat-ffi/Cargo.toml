@@ -15,9 +15,12 @@ name = "deltachat"
 crate-type = ["cdylib", "staticlib"]
 
 [dependencies]
-deltachat = { path = "../" }
+deltachat = { path = "../", default-features = false }
 libc = "0.2"
 human-panic = "1.0.1"
 
 [features]
-default = ["deltachat/vendored"]
+default = ["vendored", "nightly", "ringbuf"]
+vendored = ["deltachat/vendored"]
+nightly = ["deltachat/nightly"]
+ringbuf = ["deltachat/ringbuf"]
