@@ -6,6 +6,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_param::*;
 use crate::dc_tools::*;
+use crate::error::Result;
 use crate::peerstate::*;
 use crate::x::*;
 
@@ -44,13 +45,13 @@ impl SQLite {
         }
     }
 
-    pub fn execute<P>(&self, sql: &str, params: P) -> rusqlite::Result<usize>
+    pub fn execute<P>(&self, sql: &str, params: P) -> Result<usize>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
     {
         match &*self.connection.read().unwrap() {
-            Some(conn) => conn.execute(sql, params),
+            Some(conn) => conn.execute(sql, params).map_err(Into::into),
             None => panic!("Querying closed SQLite database"),
         }
     }
@@ -62,18 +63,12 @@ impl SQLite {
     /// Prepares and executes the statement and maps a function over the resulting rows.
     /// Then executes the second function over the returned iterator and returns the
     /// result of that function.
-    pub fn query_map<T, P, F, G, H>(
-        &self,
-        sql: &str,
-        params: P,
-        f: F,
-        mut g: G,
-    ) -> rusqlite::Result<H>
+    pub fn query_map<T, P, F, G, H>(&self, sql: &str, params: P, f: F, mut g: G) -> Result<H>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
         F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
-        G: FnMut(rusqlite::MappedRows<F>) -> rusqlite::Result<H>,
+        G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
         let conn_lock = self.connection.read().unwrap();
         let conn = conn_lock.as_ref().expect("database closed");
@@ -85,7 +80,7 @@ impl SQLite {
 
     /// Return `true` if a query in the SQL statement it executes returns one or more
     /// rows and false if the SQL returns an empty set.
-    pub fn exists<P>(&self, sql: &str, params: P) -> rusqlite::Result<bool>
+    pub fn exists<P>(&self, sql: &str, params: P) -> Result<bool>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
@@ -98,14 +93,14 @@ impl SQLite {
         Ok(res)
     }
 
-    pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> rusqlite::Result<T>
+    pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<T>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
         match &*self.connection.read().unwrap() {
-            Some(conn) => conn.query_row(sql, params, f),
+            Some(conn) => conn.query_row(sql, params, f).map_err(Into::into),
             None => panic!("Querying closed SQLite database"),
         }
     }
@@ -127,7 +122,7 @@ impl SQLite {
 
 // Return 1 -> success
 // Return 0 -> failure
-pub fn dc_sqlite3_open(
+fn dc_sqlite3_open(
     context: &Context,
     sql: &SQLite,
     dbfile: impl AsRef<std::path::Path>,
@@ -773,26 +768,23 @@ pub fn dc_sqlite3_open(
                 }
 
                 if 0 != recalc_fingerprints {
-                    let rows = if let Some(mut stmt) =
-                        dc_sqlite3_prepare(context, sql, "SELECT addr FROM acpeerstates;")
-                    {
-                        stmt.query_map(params![], |row| row.get::<_, String>(0))
-                            .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-                            .ok()
-                    } else {
-                        None
-                    };
-
-                    if let Some(addrs) = rows {
-                        for addr in addrs {
-                            if let Some(ref mut peerstate) =
-                                Peerstate::from_addr(context, sql, &addr)
-                            {
-                                peerstate.recalc_fingerprint();
-                                peerstate.save_to_db(sql, false);
+                    sql.query_map(
+                        "SELECT addr FROM acpeerstates;",
+                        params![],
+                        |row| row.get::<_, String>(0),
+                        |addrs| {
+                            for addr in addrs {
+                                if let Some(ref mut peerstate) =
+                                    Peerstate::from_addr(context, sql, &addr?)
+                                {
+                                    peerstate.recalc_fingerprint();
+                                    peerstate.save_to_db(sql, false);
+                                }
                             }
-                        }
-                    }
+                            Ok(())
+                        },
+                    )
+                    .unwrap();
                 }
                 if 0 != update_file_paths {
                     let repl_from = dc_sqlite3_get_config(
@@ -854,28 +846,23 @@ pub fn dc_sqlite3_set_config(
     let good;
 
     if let Some(ref value) = value {
-        if let Some(exists) =
-            dc_sqlite3_prepare(context, sql, "SELECT value FROM config WHERE keyname=?;")
-                .and_then(|mut stmt| stmt.exists(params![]).ok())
-        {
-            if exists {
-                good = dc_sqlite3_execute(
-                    context,
-                    sql,
-                    "UPDATE config SET value=? WHERE keyname=?;",
-                    params![value, key],
-                );
-            } else {
-                good = dc_sqlite3_execute(
-                    context,
-                    sql,
-                    "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                    params![key, value],
-                );
-            }
+        let exists = sql
+            .exists("SELECT value FROM config WHERE keyname=?;", params![])
+            .unwrap_or_default();
+        if exists {
+            good = dc_sqlite3_execute(
+                context,
+                sql,
+                "UPDATE config SET value=? WHERE keyname=?;",
+                params![value, key],
+            );
         } else {
-            error!(context, 0, "dc_sqlite3_set_config(): Cannot read value.",);
-            return 0;
+            good = dc_sqlite3_execute(
+                context,
+                sql,
+                "INSERT INTO config (keyname, value) VALUES (?, ?);",
+                params![key, value],
+            );
         }
     } else {
         good = dc_sqlite3_execute(
@@ -896,19 +883,14 @@ pub fn dc_sqlite3_set_config(
 
 // TODO: Remove the option from the return type
 pub fn dc_sqlite3_prepare<'a>(
-    context: &Context,
-    sql: &'a SQLite,
-    querystr: &'a str,
+    _context: &Context,
+    _sql: &'a SQLite,
+    _querystr: &'a str,
 ) -> Option<Statement<'a>> {
     // TODO: remove once it is not used anymore
     unimplemented!()
 }
 
-pub fn dc_sqlite3_is_open(sql: &SQLite) -> libc::c_int {
-    sql.is_open() as libc::c_int
-}
-
-/* the returned string must be free()'d, returns NULL on errors */
 pub fn dc_sqlite3_get_config(
     context: &Context,
     sql: &SQLite,
@@ -929,7 +911,7 @@ pub fn dc_sqlite3_get_config(
 }
 
 pub fn dc_sqlite3_execute<P>(
-    context: &Context,
+    _context: &Context,
     sql: &SQLite,
     querystr: impl AsRef<str>,
     params: P,
@@ -938,23 +920,7 @@ where
     P: IntoIterator,
     P::Item: rusqlite::ToSql,
 {
-    if let Some(mut stmt) = dc_sqlite3_prepare(context, sql, querystr.as_ref()) {
-        match stmt.execute(params) {
-            Ok(_) => true,
-            Err(err) => {
-                error!(
-                    context,
-                    0,
-                    "Cannot execute \"{}\". ({})",
-                    querystr.as_ref(),
-                    err
-                );
-                false
-            }
-        }
-    } else {
-        false
-    }
+    sql.execute(querystr.as_ref(), params).is_ok()
 }
 
 // TODO Remove the Option<> from the return type.
@@ -1036,22 +1002,18 @@ pub fn dc_sqlite3_try_execute(
     querystr: impl AsRef<str>,
 ) -> libc::c_int {
     // same as dc_sqlite3_execute() but does not pass error to ui
-    if let Some(mut stmt) = dc_sqlite3_prepare(context, sql, querystr.as_ref()) {
-        match stmt.execute(params![]) {
-            Ok(_) => 1,
-            Err(err) => {
-                warn!(
-                    context,
-                    0,
-                    "Try-execute for \"{}\" failed: {}",
-                    querystr.as_ref(),
-                    err,
-                );
-                0
-            }
+    match sql.execute(querystr.as_ref(), params![]) {
+        Ok(_) => 1,
+        Err(err) => {
+            warn!(
+                context,
+                0,
+                "Try-execute for \"{}\" failed: {}",
+                querystr.as_ref(),
+                err,
+            );
+            0
         }
-    } else {
-        0
     }
 }
 
@@ -1146,18 +1108,23 @@ pub fn dc_housekeeping(context: &Context) {
         'i' as i32,
     );
 
-    if let Some(mut stmt) = dc_sqlite3_prepare(context, &context.sql, "SELECT value FROM config;") {
-        match stmt.query_map(params![], |row| row.get::<_, String>(0)) {
-            Ok(rows) => {
+    context
+        .sql
+        .query_map(
+            "SELECT value FROM config;",
+            params![],
+            |row| row.get::<_, String>(0),
+            |rows| {
                 for row in rows {
-                    maybe_add_file(&mut files_in_use, row.expect("invalid sql"));
+                    maybe_add_file(&mut files_in_use, row?);
                 }
-            }
-            Err(err) => {
-                warn!(context, 0, "sql: failed query: {}", err);
-            }
-        }
-    }
+                Ok(())
+            },
+        )
+        .unwrap_or_else(|err| {
+            warn!(context, 0, "sql: failed query: {}", err);
+        });
+
     info!(context, 0, "{} files in use.", files_in_use.len(),);
     /* go through directory and delete unused files */
     let p = std::path::Path::new(as_str(context.get_blobdir()));
@@ -1285,8 +1252,9 @@ fn maybe_add_from_param(
 ) {
     let param = unsafe { dc_param_new() };
 
-    if let Some(ref mut stmt) = dc_sqlite3_prepare(context, &context.sql, query) {
-        match stmt.query_row(NO_PARAMS, |row| {
+    context
+        .sql
+        .query_row(query, NO_PARAMS, |row| {
             let v = to_cstring(row.get::<_, String>(0)?);
             unsafe {
                 dc_param_set_packed(param, v.as_ptr() as *const libc::c_char);
@@ -1297,13 +1265,11 @@ fn maybe_add_from_param(
                 }
             }
             Ok(())
-        }) {
-            Ok(_) => {}
-            Err(err) => {
-                warn!(context, 0, "sql: failed to add_from_param: {}", err);
-            }
-        }
-    }
+        })
+        .unwrap_or_else(|err| {
+            warn!(context, 0, "sql: failed to add_from_param: {}", err);
+        });
+
     unsafe { dc_param_unref(param) };
 }
 

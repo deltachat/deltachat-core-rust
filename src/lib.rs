@@ -23,6 +23,7 @@ pub mod dc_log;
 pub mod aheader;
 pub mod constants;
 pub mod context;
+pub mod error;
 pub mod imap;
 pub mod key;
 pub mod keyhistory;

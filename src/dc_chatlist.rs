@@ -148,8 +148,9 @@ unsafe fn dc_chatlist_load_from_db(
         Ok(())
     };
 
-    let success = if query_contact_id != 0 {
-        (*chatlist).context.sql.query_map(
+    let success =
+        if query_contact_id != 0 {
+            (*chatlist).context.sql.query_map(
             "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
              ON c.id=m.chat_id        \
              AND m.timestamp=( SELECT MAX(timestamp)   \
@@ -159,64 +160,73 @@ unsafe fn dc_chatlist_load_from_db(
              GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
             params![query_contact_id as i32],
             process_fn,
-            |res| res.collect::<rusqlite::Result<Vec<_>>>(),
+            |res| res.collect::<rusqlite::Result<Vec<_>>>().map_err(Into::into),
         )
-    } else if 0 != listflags & 0x1 {
-        (*chatlist).context.sql.query_map(
-            "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
-             ON c.id=m.chat_id        \
-             AND m.timestamp=( SELECT MAX(timestamp)   \
-             FROM msgs  WHERE chat_id=c.id    \
-             AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-             AND c.blocked=0 AND c.archived=1  GROUP BY c.id  \
-             ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-            params![],
-            process_fn,
-            |res| res.collect::<rusqlite::Result<Vec<_>>>(),
-        )
-    } else if query__.is_null() {
-        if 0 == listflags & 0x2 {
-            let last_deaddrop_fresh_msg_id = get_last_deaddrop_fresh_msg((*chatlist).context);
-            if last_deaddrop_fresh_msg_id > 0 {
-                dc_array_add_id((*chatlist).chatNlastmsg_ids, 1);
-                dc_array_add_id((*chatlist).chatNlastmsg_ids, last_deaddrop_fresh_msg_id);
-            }
-            add_archived_link_item = 1;
-        }
-        (*chatlist).context.sql.query_map(
-            "SELECT c.id, m.id FROM chats c  \
-             LEFT JOIN msgs m         \
-             ON c.id=m.chat_id        \
-             AND m.timestamp=( SELECT MAX(timestamp)   \
-             FROM msgs  WHERE chat_id=c.id    \
-             AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-             AND c.blocked=0 AND c.archived=0  \
-             GROUP BY c.id  \
-             ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-            params![],
-            process_fn,
-            |res| res.collect::<rusqlite::Result<Vec<_>>>(),
-        )
-    } else {
-        let query = to_string(query__).trim().to_string();
-        if query.is_empty() {
-            return 1;
-        } else {
-            let strLikeCmd = format!("%{}%", query);
+        } else if 0 != listflags & 0x1 {
             (*chatlist).context.sql.query_map(
                 "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
                  ON c.id=m.chat_id        \
                  AND m.timestamp=( SELECT MAX(timestamp)   \
                  FROM msgs  WHERE chat_id=c.id    \
                  AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-                 AND c.blocked=0 AND c.name LIKE ?  \
-                 GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                params![strLikeCmd],
+                 AND c.blocked=0 AND c.archived=1  GROUP BY c.id  \
+                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                params![],
                 process_fn,
-                |res| res.collect::<rusqlite::Result<Vec<_>>>(),
+                |res| {
+                    res.collect::<rusqlite::Result<Vec<_>>>()
+                        .map_err(Into::into)
+                },
             )
-        }
-    };
+        } else if query__.is_null() {
+            if 0 == listflags & 0x2 {
+                let last_deaddrop_fresh_msg_id = get_last_deaddrop_fresh_msg((*chatlist).context);
+                if last_deaddrop_fresh_msg_id > 0 {
+                    dc_array_add_id((*chatlist).chatNlastmsg_ids, 1);
+                    dc_array_add_id((*chatlist).chatNlastmsg_ids, last_deaddrop_fresh_msg_id);
+                }
+                add_archived_link_item = 1;
+            }
+            (*chatlist).context.sql.query_map(
+                "SELECT c.id, m.id FROM chats c  \
+                 LEFT JOIN msgs m         \
+                 ON c.id=m.chat_id        \
+                 AND m.timestamp=( SELECT MAX(timestamp)   \
+                 FROM msgs  WHERE chat_id=c.id    \
+                 AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
+                 AND c.blocked=0 AND c.archived=0  \
+                 GROUP BY c.id  \
+                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                params![],
+                process_fn,
+                |res| {
+                    res.collect::<rusqlite::Result<Vec<_>>>()
+                        .map_err(Into::into)
+                },
+            )
+        } else {
+            let query = to_string(query__).trim().to_string();
+            if query.is_empty() {
+                return 1;
+            } else {
+                let strLikeCmd = format!("%{}%", query);
+                (*chatlist).context.sql.query_map(
+                    "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
+                     ON c.id=m.chat_id        \
+                     AND m.timestamp=( SELECT MAX(timestamp)   \
+                     FROM msgs  WHERE chat_id=c.id    \
+                     AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
+                     AND c.blocked=0 AND c.name LIKE ?  \
+                     GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                    params![strLikeCmd],
+                    process_fn,
+                    |res| {
+                        res.collect::<rusqlite::Result<Vec<_>>>()
+                            .map_err(Into::into)
+                    },
+                )
+            }
+        };
 
     if 0 != add_archived_link_item && dc_get_archived_cnt((*chatlist).context) > 0 {
         if dc_array_get_cnt((*chatlist).chatNlastmsg_ids) == 0 && 0 != listflags & 0x4 {

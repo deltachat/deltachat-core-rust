@@ -1,5 +1,6 @@
 use std::ffi::CString;
 
+use failure::format_err;
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -798,11 +799,6 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
 
 // TODO should return bool /rtn
 unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> libc::c_int {
-    let mut success = 0;
-    let mut processed_files_cnt = 0;
-
-    let total_files_cnt: usize;
-
     info!(
         context,
         0,
@@ -813,49 +809,54 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
 
     if 0 != dc_is_configured(context) {
         error!(context, 0, "Cannot import backups to accounts in use.");
-    } else {
-        &context.sql.close(&context);
-        dc_delete_file(context, context.get_dbfile());
-        if 0 != dc_file_exist(context, context.get_dbfile()) {
-            error!(
-                context,
-                0, "Cannot import backups: Cannot delete the old file.",
-            );
-        } else if !(0 == dc_copy_file(context, backup_to_import, context.get_dbfile())) {
-            /* error already logged */
-            /* re-open copied database file */
-            if context.sql.open(&context, as_path(context.get_dbfile()), 0) {
-                total_files_cnt = dc_sqlite3_query_row::<_, isize>(
-                    context,
-                    &context.sql,
-                    "SELECT COUNT(*) FROM backup_blobs;",
-                    params![],
-                    0,
-                )
-                .unwrap_or_default() as usize;
-                info!(
-                    context,
-                    0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
-                );
+        return 0;
+    }
+    &context.sql.close(&context);
+    dc_delete_file(context, context.get_dbfile());
+    if 0 != dc_file_exist(context, context.get_dbfile()) {
+        error!(
+            context,
+            0, "Cannot import backups: Cannot delete the old file.",
+        );
+        return 0;
+    }
 
-                let files = if let Some(mut stmt) = dc_sqlite3_prepare(
-                    context,
-                    &context.sql,
-                    "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
-                ) {
-                    stmt.query_map(params![], |row| {
-                        let name: String = row.get(0)?;
-                        let blob: Vec<u8> = row.get(1)?;
+    if 0 == dc_copy_file(context, backup_to_import, context.get_dbfile()) {
+        return 0;
+    }
+    /* error already logged */
+    /* re-open copied database file */
+    if !context.sql.open(&context, as_path(context.get_dbfile()), 0) {
+        return 0;
+    }
 
-                        Ok((name, blob))
-                    })
-                    .map(|res| res.collect::<Vec<_>>())
-                    .unwrap()
-                } else {
-                    panic!("invalid sql");
-                };
+    let total_files_cnt = dc_sqlite3_query_row::<_, isize>(
+        context,
+        &context.sql,
+        "SELECT COUNT(*) FROM backup_blobs;",
+        params![],
+        0,
+    )
+    .unwrap_or_default() as usize;
+    info!(
+        context,
+        0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
+    );
 
+    context
+        .sql
+        .query_map(
+            "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
+            params![],
+            |row| {
+                let name: String = row.get(0)?;
+                let blob: Vec<u8> = row.get(1)?;
+
+                Ok((name, blob))
+            },
+            |files| {
                 let mut loop_success = true;
+                let mut processed_files_cnt = 0;
 
                 for file in files {
                     if file.is_err() {
@@ -904,21 +905,15 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                     break;
                 }
 
-                if loop_success {
-                    dc_sqlite3_execute(
-                        context,
-                        &context.sql,
-                        "DROP TABLE backup_blobs;",
-                        params![],
-                    );
-                    dc_sqlite3_try_execute(context, &context.sql, "VACUUM;");
-                    success = 1;
+                if !loop_success {
+                    return Err(format_err!("fail").into());
                 }
-            }
-        }
-    }
-
-    success
+                dc_sqlite3_execute(context, &context.sql, "DROP TABLE backup_blobs;", params![]);
+                dc_sqlite3_try_execute(context, &context.sql, "VACUUM;");
+                Ok(())
+            },
+        )
+        .is_ok() as libc::c_int
 }
 
 /*******************************************************************************
@@ -1266,25 +1261,24 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
 unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut export_errors = 0;
 
-    if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT id, public_key, private_key, is_default FROM keypairs;",
-    ) {
-        let rows = stmt.query_map(params![], |row| {
-            let id = row.get(0)?;
-            let public_key_blob: Vec<u8> = row.get(1)?;
-            let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
-            let private_key_blob: Vec<u8> = row.get(2)?;
-            let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
-            let is_default = row.get(3)?;
+    context
+        .sql
+        .query_map(
+            "SELECT id, public_key, private_key, is_default FROM keypairs;",
+            params![],
+            |row| {
+                let id = row.get(0)?;
+                let public_key_blob: Vec<u8> = row.get(1)?;
+                let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
+                let private_key_blob: Vec<u8> = row.get(2)?;
+                let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
+                let is_default = row.get(3)?;
 
-            Ok((id, public_key, private_key, is_default))
-        });
-
-        if let Ok(keys) = rows {
-            for key_pair in keys {
-                if let Ok((id, public_key, private_key, is_default)) = key_pair {
+                Ok((id, public_key, private_key, is_default))
+            },
+            |keys| {
+                for key_pair in keys {
+                    let (id, public_key, private_key, is_default) = key_pair?;
                     if let Some(key) = public_key {
                         if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
                             export_errors += 1;
@@ -1300,13 +1294,11 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> libc:
                         export_errors += 1;
                     }
                 }
-            }
-        } else {
-            return 1;
-        }
-    } else {
-        return 1;
-    }
+
+                Ok(())
+            },
+        )
+        .unwrap();
 
     if export_errors == 0 {
         1
