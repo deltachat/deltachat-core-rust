@@ -19,7 +19,7 @@ pub const DC_ALREADY_DONE: usize = 2;
 pub const DC_RETRY_LATER: usize = 1;
 pub const DC_FAILED: usize = 0;
 
-const PREFETCH_FLAGS: &'static str = "(UID ENVELOPE)";
+const PREFETCH_FLAGS: &'static str = "(UID ENVELOPE RFC822.SIZE)";
 const BODY_FLAGS: &'static str = "(FLAGS BODY.PEEK[])";
 const FETCH_FLAGS: &'static str = "(FLAGS)";
 
@@ -609,10 +609,12 @@ impl Imap {
             // get any more. if IDLE is called directly after, there is only a small chance that
             // messages are missed and delayed until the next IDLE call
             loop {
+                println!("xxx");
                 if self.fetch_from_single_folder(context, watch_folder) == 0 {
                     break;
                 }
             }
+            println!("xxx2");
             1
         } else {
             0
@@ -713,6 +715,7 @@ impl Imap {
     }
 
     fn fetch_from_single_folder<S: AsRef<str>>(&self, context: &Context, folder: S) -> usize {
+        println!("fetch_from_single_folder");
         if !self.is_connected() {
             info!(
                 context,
@@ -786,7 +789,6 @@ impl Imap {
             } else {
                 return 0;
             };
-
             last_seen_uid = list[0].uid.unwrap_or_else(|| 0);
 
             // if the UIDVALIDITY has _changed_, decrease lastseenuid by one to avoid gaps (well add 1 below
@@ -810,6 +812,7 @@ impl Imap {
         let mut read_errors = 0;
         let mut new_last_seen_uid = 0;
 
+        println!("hereee!");
         let list = if let Some(ref mut session) = self.session.lock().unwrap().0 {
             // fetch messages with larger UID than the last one seen
             // (`UID FETCH lastseenuid+1:*)`, see RFC 4549
@@ -827,6 +830,8 @@ impl Imap {
 
         // go through all mails in folder (this is typically _fast_ as we already have the whole list)
         for msg in &list {
+            let size = msg.size.unwrap_or_else(|| 0);
+            println!("size: {}", size);
             let cur_uid = msg.uid.unwrap_or_else(|| 0);
             if cur_uid > last_seen_uid {
                 read_cnt += 1;
@@ -935,6 +940,7 @@ impl Imap {
         let set = format!("{}", server_uid);
 
         let msgs = if let Some(ref mut session) = self.session.lock().unwrap().0 {
+
             match session.uid_fetch(set, BODY_FLAGS) {
                 Ok(msgs) => msgs,
                 Err(err) => {
