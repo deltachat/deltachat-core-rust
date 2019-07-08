@@ -643,6 +643,7 @@ unsafe fn stress_functions(context: &Context) {
 }
 
 #[test]
+#[ignore] // is too expensive
 fn test_encryption_decryption() {
     unsafe {
         let mut bad_data: [libc::c_uchar; 4096] = [0; 4096];
