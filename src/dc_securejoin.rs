@@ -41,7 +41,7 @@ pub unsafe fn dc_get_securejoin_qr(
     let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut invitenumber: *mut libc::c_char;
     let mut auth: *mut libc::c_char;
-    let mut chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
+    let mut chat: *mut Chat = 0 as *mut Chat;
     let mut group_name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut group_name_urlencoded: *mut libc::c_char = 0 as *mut libc::c_char;
 

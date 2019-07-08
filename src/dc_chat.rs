@@ -13,22 +13,27 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
-/* values for the chats.blocked database field */
-/* * the structure behind dc_chat_t */
+/**
+ * @class dc_chat_t
+ *
+ * An object representing a single chat in memory.
+ * Chat objects are created using eg. dc_get_chat()
+ * and are not updated on database changes;
+ * if you want an update, you have to recreate the object.
+ */
 #[derive(Copy, Clone)]
-#[repr(C)]
-pub struct dc_chat_t<'a> {
-    pub magic: uint32_t,
+pub struct Chat<'a> {
+    magic: uint32_t,
     pub id: uint32_t,
     pub type_0: libc::c_int,
     pub name: *mut libc::c_char,
-    pub archived: libc::c_int,
+    archived: libc::c_int,
     pub context: &'a Context,
     pub grpid: *mut libc::c_char,
-    pub blocked: libc::c_int,
+    blocked: libc::c_int,
     pub param: *mut dc_param_t,
     pub gossiped_timestamp: i64,
-    pub is_sending_locations: libc::c_int,
+    is_sending_locations: libc::c_int,
 }
 
 // handle chats
@@ -36,7 +41,7 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &Context, msg_id: uint32_t) -> u
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut send_event: libc::c_int = 0i32;
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    let chat: *mut dc_chat_t = dc_chat_new(context);
+    let chat: *mut Chat = dc_chat_new(context);
     if dc_msg_load_from_db(msg, context, msg_id)
         && dc_chat_load_from_db(chat, (*msg).chat_id)
         && (*chat).id > 9i32 as libc::c_uint
@@ -57,24 +62,9 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &Context, msg_id: uint32_t) -> u
     chat_id
 }
 
-/**
- * @class dc_chat_t
- *
- * An object representing a single chat in memory.
- * Chat objects are created using eg. dc_get_chat()
- * and are not updated on database changes;
- * if you want an update, you have to recreate the object.
- */
-// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
-// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
-// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
-// virtual chat showing all messages flagged with msgs.starred=2
-// only an indicator in a chatlist
-// only an indicator in a chatlist
-// larger chat IDs are "real" chats, their messages are "real" messages.
-pub unsafe fn dc_chat_new<'a>(context: &'a Context) -> *mut dc_chat_t<'a> {
-    let mut chat: *mut dc_chat_t;
-    chat = calloc(1, ::std::mem::size_of::<dc_chat_t>()) as *mut dc_chat_t;
+pub unsafe fn dc_chat_new<'a>(context: &'a Context) -> *mut Chat<'a> {
+    let mut chat: *mut Chat;
+    chat = calloc(1, ::std::mem::size_of::<Chat>()) as *mut Chat;
     (*chat).magic = 0xc4a7c4a7u32;
     (*chat).context = context;
     (*chat).type_0 = 0i32;
@@ -82,7 +72,7 @@ pub unsafe fn dc_chat_new<'a>(context: &'a Context) -> *mut dc_chat_t<'a> {
     chat
 }
 
-pub unsafe fn dc_chat_unref(mut chat: *mut dc_chat_t) {
+pub unsafe fn dc_chat_unref(mut chat: *mut Chat) {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return;
     }
@@ -92,7 +82,7 @@ pub unsafe fn dc_chat_unref(mut chat: *mut dc_chat_t) {
     free(chat as *mut libc::c_void);
 }
 
-pub unsafe fn dc_chat_empty(mut chat: *mut dc_chat_t) {
+pub unsafe fn dc_chat_empty(mut chat: *mut Chat) {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return;
     }
@@ -124,7 +114,7 @@ pub unsafe fn dc_block_chat(context: &Context, chat_id: uint32_t, new_blocking: 
     sqlite3_finalize(stmt);
 }
 
-pub unsafe fn dc_chat_load_from_db(chat: *mut dc_chat_t, chat_id: uint32_t) -> bool {
+pub unsafe fn dc_chat_load_from_db(chat: *mut Chat, chat_id: uint32_t) -> bool {
     let mut success = false;
     let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
@@ -148,7 +138,7 @@ pub unsafe fn dc_chat_load_from_db(chat: *mut dc_chat_t, chat_id: uint32_t) -> b
     success
 }
 
-unsafe fn set_from_stmt(mut chat: *mut dc_chat_t, row: *mut sqlite3_stmt) -> libc::c_int {
+unsafe fn set_from_stmt(mut chat: *mut Chat, row: *mut sqlite3_stmt) -> libc::c_int {
     let mut row_offset: libc::c_int = 0i32;
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 || row.is_null() {
         return 0i32;
@@ -410,7 +400,7 @@ unsafe fn prepare_msg_common<'a>(
 ) -> uint32_t {
     let current_block: u64;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut chat: *mut dc_chat_t = 0 as *mut dc_chat_t;
+    let mut chat: *mut Chat = 0 as *mut Chat;
     (*msg).id = 0i32 as uint32_t;
     (*msg).context = context;
     if (*msg).type_0 == 10i32 {
@@ -505,7 +495,7 @@ unsafe fn prepare_msg_common<'a>(
 
 unsafe fn prepare_msg_raw(
     context: &Context,
-    chat: *mut dc_chat_t,
+    chat: *mut Chat,
     msg: *const dc_msg_t,
     timestamp: i64,
 ) -> uint32_t {
@@ -825,7 +815,7 @@ unsafe fn prepare_msg_raw(
 
 // TODO should return bool /rtn
 unsafe fn get_parent_mime_headers(
-    chat: *const dc_chat_t,
+    chat: *const Chat,
     parent_rfc724_mid: *mut *mut libc::c_char,
     parent_in_reply_to: *mut *mut libc::c_char,
     parent_references: *mut *mut libc::c_char,
@@ -875,7 +865,7 @@ unsafe fn get_parent_mime_headers(
     success
 }
 
-pub unsafe fn dc_chat_is_self_talk(chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_is_self_talk(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
@@ -915,7 +905,7 @@ unsafe fn last_msg_in_chat_encrypted(
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_update_param(chat: *mut dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_update_param(chat: *mut Chat) -> libc::c_int {
     let success: libc::c_int;
     let stmt: *mut sqlite3_stmt = dc_sqlite3_prepare(
         (*chat).context,
@@ -1449,7 +1439,7 @@ pub unsafe fn dc_archive_chat(context: &Context, chat_id: uint32_t, archive: lib
 
 pub unsafe fn dc_delete_chat(context: &Context, chat_id: uint32_t) {
     /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
-    let obj: *mut dc_chat_t = dc_chat_new(context);
+    let obj: *mut Chat = dc_chat_new(context);
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint) {
         if dc_chat_load_from_db(obj, chat_id) {
@@ -1521,9 +1511,9 @@ pub unsafe fn dc_get_chat_contacts(context: &Context, chat_id: uint32_t) -> *mut
     ret
 }
 
-pub unsafe fn dc_get_chat(context: &Context, chat_id: uint32_t) -> *mut dc_chat_t {
+pub unsafe fn dc_get_chat(context: &Context, chat_id: uint32_t) -> *mut Chat {
     let mut success: libc::c_int = 0i32;
-    let obj: *mut dc_chat_t = dc_chat_new(context);
+    let obj: *mut Chat = dc_chat_new(context);
 
     if dc_chat_load_from_db(obj, chat_id) {
         success = 1i32
@@ -1533,7 +1523,7 @@ pub unsafe fn dc_get_chat(context: &Context, chat_id: uint32_t) -> *mut dc_chat_
         return obj;
     } else {
         dc_chat_unref(obj);
-        return 0 as *mut dc_chat_t;
+        return 0 as *mut Chat;
     };
 }
 
@@ -1634,7 +1624,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
     let contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
-    let chat: *mut dc_chat_t = dc_chat_new(context);
+    let chat: *mut Chat = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(contact.is_null() || chat_id <= 9i32 as libc::c_uint) {
@@ -1814,7 +1804,7 @@ pub unsafe fn dc_remove_contact_from_chat(
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
-    let chat: *mut dc_chat_t = dc_chat_new(context);
+    let chat: *mut Chat = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint
@@ -1926,7 +1916,7 @@ pub unsafe fn dc_set_chat_name(
 ) -> libc::c_int {
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success: libc::c_int = 0i32;
-    let chat: *mut dc_chat_t = dc_chat_new(context);
+    let chat: *mut Chat = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut q3: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(new_name.is_null()
@@ -1997,7 +1987,7 @@ pub unsafe fn dc_set_chat_profile_image(
 ) -> libc::c_int {
     let current_block: u64;
     let mut success: libc::c_int = 0i32;
-    let chat: *mut dc_chat_t = dc_chat_new(context);
+    let chat: *mut Chat = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let mut new_image_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(chat_id <= 9i32 as libc::c_uint) {
@@ -2076,7 +2066,7 @@ pub unsafe fn dc_forward_msgs(
     chat_id: uint32_t,
 ) {
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    let chat: *mut dc_chat_t = dc_chat_new(context);
+    let chat: *mut Chat = dc_chat_new(context);
     let contact: *mut dc_contact_t = dc_contact_new(context);
     let created_db_entries: *mut carray = carray_new(16i32 as libc::c_uint);
     let mut idsstr: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -2175,28 +2165,28 @@ pub unsafe fn dc_forward_msgs(
     dc_param_unref(original_param);
 }
 
-pub unsafe fn dc_chat_get_id(chat: *const dc_chat_t) -> uint32_t {
+pub unsafe fn dc_chat_get_id(chat: *const Chat) -> uint32_t {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32 as uint32_t;
     }
     (*chat).id
 }
 
-pub unsafe fn dc_chat_get_type(chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_get_type(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
     (*chat).type_0
 }
 
-pub unsafe fn dc_chat_get_name(chat: *const dc_chat_t) -> *mut libc::c_char {
+pub unsafe fn dc_chat_get_name(chat: *const Chat) -> *mut libc::c_char {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return dc_strdup(b"Err\x00" as *const u8 as *const libc::c_char);
     }
     dc_strdup((*chat).name)
 }
 
-pub unsafe fn dc_chat_get_subtitle(chat: *const dc_chat_t) -> *mut libc::c_char {
+pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
     /* returns either the address or the number of chat members */
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
@@ -2249,7 +2239,7 @@ pub unsafe fn dc_get_chat_contact_cnt(context: &Context, chat_id: uint32_t) -> l
     ret
 }
 
-pub unsafe fn dc_chat_get_profile_image(chat: *const dc_chat_t) -> *mut libc::c_char {
+pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char {
     let mut image_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut image_abs: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
@@ -2277,7 +2267,7 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const dc_chat_t) -> *mut libc::c_
     image_abs
 }
 
-pub unsafe fn dc_chat_get_color(chat: *const dc_chat_t) -> uint32_t {
+pub unsafe fn dc_chat_get_color(chat: *const Chat) -> uint32_t {
     let mut color: uint32_t = 0i32 as uint32_t;
     let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
@@ -2303,7 +2293,7 @@ pub unsafe fn dc_chat_get_color(chat: *const dc_chat_t) -> uint32_t {
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_get_archived(chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_get_archived(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
@@ -2311,7 +2301,7 @@ pub unsafe fn dc_chat_get_archived(chat: *const dc_chat_t) -> libc::c_int {
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_is_unpromoted(chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_is_unpromoted(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
@@ -2319,7 +2309,7 @@ pub unsafe fn dc_chat_is_unpromoted(chat: *const dc_chat_t) -> libc::c_int {
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_is_verified(chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_is_verified(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }
@@ -2327,7 +2317,7 @@ pub unsafe fn dc_chat_is_verified(chat: *const dc_chat_t) -> libc::c_int {
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_chat_is_sending_locations(chat: *const dc_chat_t) -> libc::c_int {
+pub unsafe fn dc_chat_is_sending_locations(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0i32;
     }

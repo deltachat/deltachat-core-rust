@@ -832,12 +832,12 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
 
 pub unsafe fn dc_msg_get_summary<'a>(
     msg: *const dc_msg_t<'a>,
-    mut chat: *const dc_chat_t<'a>,
+    mut chat: *const Chat<'a>,
 ) -> *mut dc_lot_t {
     let current_block: u64;
     let ret: *mut dc_lot_t = dc_lot_new();
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
-    let mut chat_to_delete: *mut dc_chat_t = 0 as *mut dc_chat_t;
+    let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if chat.is_null() {
             chat_to_delete = dc_get_chat((*msg).context, (*msg).chat_id);
