@@ -33,6 +33,7 @@ else
     export CARGO_SUBCMD="test"
     export OPT="${OPT} "
     export OPT_RELEASE="${OPT_RELEASE} "
+    export OPT_RELEASE_IGNORED="${OPT_RELEASE} -- --ignored"
 fi
 
 # Run all the test configurations:
