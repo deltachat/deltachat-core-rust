@@ -27,6 +27,7 @@ use crate::dc_tools::*;
 use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;
+use std::convert::TryInto;
 
 pub unsafe fn dc_receive_imf(
     context: &Context,
@@ -62,7 +63,7 @@ pub unsafe fn dc_receive_imf(
     let mut field: *const mailimf_field;
     let mut mime_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut mime_references: *mut libc::c_char = 0 as *mut libc::c_char;
-    let created_db_entries: *mut carray = carray_new(16);
+    let mut created_db_entries: Vec<(u32, u32)> = Vec::new();
     let mut create_event_to_send = Some(Event::MSGS_CHANGED);
     let rr_event_to_send: *mut carray = carray_new(16);
     let mut txt_raw: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -70,7 +71,7 @@ pub unsafe fn dc_receive_imf(
 
     // XXX in theory the three carray's could be NULL pointer
     // but we want to get rid of carray (and dc_array) anyway in favor of Rust Vectors
-    assert!(!created_db_entries.is_null() && !rr_event_to_send.is_null() && !to_ids.is_null());
+    assert!(!rr_event_to_send.is_null() && !to_ids.is_null());
     info!(
         context,
         0,
@@ -241,10 +242,10 @@ pub unsafe fn dc_receive_imf(
                                 allow_creation = 1i32;
                                 let handshake: libc::c_int =
                                     dc_handle_securejoin_handshake(context, &mime_parser, from_id);
-                                if 0 != handshake & 0x2i32 {
-                                    hidden = 1i32;
-                                    add_delete_job = handshake & 0x4i32;
-                                    state = 16i32
+                                if 0 != handshake & 0x2 {
+                                    hidden = 1;
+                                    add_delete_job = handshake & 0x4;
+                                    state = 16
                                 }
                             }
                             let mut test_normal_chat_id: uint32_t = 0i32 as uint32_t;
@@ -592,16 +593,7 @@ pub unsafe fn dc_receive_imf(
                                         b"rfc724_mid\x00" as *const u8 as *const libc::c_char,
                                         rfc724_mid,
                                     );
-                                    carray_add(
-                                        created_db_entries,
-                                        chat_id as uintptr_t as *mut libc::c_void,
-                                        0 as *mut libc::c_uint,
-                                    );
-                                    carray_add(
-                                        created_db_entries,
-                                        insert_msg_id as uintptr_t as *mut libc::c_void,
-                                        0 as *mut libc::c_uint,
-                                    );
+                                    created_db_entries.push((chat_id, insert_msg_id))
                                 }
                             }
                             i = i.wrapping_add(1)
@@ -876,22 +868,17 @@ pub unsafe fn dc_receive_imf(
                         dc_contact_unref(contact);
                     }
                     if send_event {
-                        context.call_cb(
-                            Event::LOCATION_CHANGED,
-                            from_id as uintptr_t,
-                            0i32 as uintptr_t,
-                        );
+                        context.call_cb(Event::LOCATION_CHANGED, from_id as uintptr_t, 0);
                     }
                 }
 
-                if 0 != add_delete_job && carray_count(created_db_entries) >= 2i32 as libc::c_uint {
+                if 0 != add_delete_job && created_db_entries.len() > 0 {
                     dc_job_add(
                         context,
-                        110i32,
-                        carray_get(created_db_entries, 1i32 as libc::c_uint) as uintptr_t
-                            as libc::c_int,
+                        DC_JOB_DELETE_MSG_ON_IMAP,
+                        created_db_entries[0].1.try_into().unwrap(),
                         0 as *const libc::c_char,
-                        0i32,
+                        0,
                     );
                 }
             }
@@ -902,21 +889,12 @@ pub unsafe fn dc_receive_imf(
     free(mime_in_reply_to as *mut libc::c_void);
     free(mime_references as *mut libc::c_void);
     dc_array_unref(to_ids);
-    if !created_db_entries.is_null() {
-        if let Some(create_event_to_send) = create_event_to_send {
-            let mut i_0: size_t = 0;
-            let icnt_0: size_t = carray_count(created_db_entries) as size_t;
-            while i_0 < icnt_0 {
-                context.call_cb(
-                    create_event_to_send,
-                    carray_get(created_db_entries, i_0 as libc::c_uint) as uintptr_t,
-                    carray_get(created_db_entries, i_0.wrapping_add(1) as libc::c_uint)
-                        as uintptr_t,
-                );
-                i_0 = (i_0 as libc::c_ulong).wrapping_add(2i32 as libc::c_ulong) as size_t as size_t
-            }
+
+    if let Some(create_event_to_send) = create_event_to_send {
+        for entry in &created_db_entries {
+            let (msg_id, insert_id) = entry;
+            context.call_cb(create_event_to_send, *msg_id as usize, *insert_id as usize);
         }
-        carray_free(created_db_entries);
     }
     if !rr_event_to_send.is_null() {
         let mut i_1: size_t;
