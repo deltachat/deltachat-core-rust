@@ -27,7 +27,6 @@ use crate::dc_tools::*;
 use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;
-use std::convert::TryInto;
 
 pub unsafe fn dc_receive_imf(
     context: &Context,
@@ -63,7 +62,7 @@ pub unsafe fn dc_receive_imf(
     let mut field: *const mailimf_field;
     let mut mime_in_reply_to: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut mime_references: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut created_db_entries: Vec<(u32, u32)> = Vec::new();
+    let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(Event::MSGS_CHANGED);
     let rr_event_to_send: *mut carray = carray_new(16);
     let mut txt_raw: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -593,7 +592,7 @@ pub unsafe fn dc_receive_imf(
                                         b"rfc724_mid\x00" as *const u8 as *const libc::c_char,
                                         rfc724_mid,
                                     );
-                                    created_db_entries.push((chat_id, insert_msg_id))
+                                    created_db_entries.push((chat_id as i32, insert_msg_id as i32))
                                 }
                             }
                             i = i.wrapping_add(1)
@@ -876,7 +875,7 @@ pub unsafe fn dc_receive_imf(
                     dc_job_add(
                         context,
                         DC_JOB_DELETE_MSG_ON_IMAP,
-                        created_db_entries[0].1.try_into().unwrap(),
+                        created_db_entries[0].1,
                         0 as *const libc::c_char,
                         0,
                     );
