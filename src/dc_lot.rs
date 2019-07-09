@@ -126,7 +126,7 @@ pub unsafe fn dc_lot_get_timestamp(lot: *const dc_lot_t) -> i64 {
 pub unsafe fn dc_lot_fill(
     mut lot: *mut dc_lot_t,
     msg: *const dc_msg_t,
-    chat: *const dc_chat_t,
+    chat: *const Chat,
     contact: *const dc_contact_t,
     context: &Context,
 ) {

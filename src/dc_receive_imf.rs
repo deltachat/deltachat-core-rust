@@ -1408,7 +1408,7 @@ unsafe fn create_or_lookup_group(
                                 }
                             }
                             if 0 != ok {
-                                let chat: *mut dc_chat_t = dc_chat_new(context);
+                                let chat: *mut Chat = dc_chat_new(context);
                                 dc_log_info(
                                     context,
                                     0i32,

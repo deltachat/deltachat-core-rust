@@ -297,7 +297,7 @@ pub unsafe fn dc_chatlist_get_msg_id(chatlist: *const dc_chatlist_t, index: size
 pub unsafe fn dc_chatlist_get_summary<'a>(
     chatlist: *const dc_chatlist_t<'a>,
     index: size_t,
-    mut chat: *mut dc_chat_t<'a>,
+    mut chat: *mut Chat<'a>,
 ) -> *mut dc_lot_t {
     let current_block: u64;
     /* The summary is created by the chat, not by the last message.
@@ -310,7 +310,7 @@ pub unsafe fn dc_chatlist_get_summary<'a>(
     let lastmsg_id: uint32_t;
     let mut lastmsg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let mut lastcontact: *mut dc_contact_t = 0 as *mut dc_contact_t;
-    let mut chat_to_delete: *mut dc_chat_t = 0 as *mut dc_chat_t;
+    let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 || index >= (*chatlist).cnt {
         (*ret).text2 = dc_strdup(b"ErrBadChatlistIndex\x00" as *const u8 as *const libc::c_char)
     } else {

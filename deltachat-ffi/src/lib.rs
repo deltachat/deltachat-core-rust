@@ -498,7 +498,7 @@ pub unsafe extern "C" fn dc_search_msgs(
 pub unsafe extern "C" fn dc_get_chat<'a>(
     context: *mut dc_context_t,
     chat_id: u32,
-) -> *mut dc_chat::dc_chat_t<'a> {
+) -> *mut dc_chat_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -1095,7 +1095,7 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
 pub unsafe extern "C" fn dc_chatlist_get_summary<'a>(
     chatlist: *mut dc_chatlist::dc_chatlist_t<'a>,
     index: libc::size_t,
-    chat: *mut dc_chat::dc_chat_t<'a>,
+    chat: *mut dc_chat_t<'a>,
 ) -> *mut dc_lot::dc_lot_t {
     dc_chatlist::dc_chatlist_get_summary(chatlist, index, chat)
 }
@@ -1111,69 +1111,65 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
 // dc_chat_t
 
 #[no_mangle]
-pub type dc_chat_t<'a> = dc_chat::dc_chat_t<'a>;
+pub type dc_chat_t<'a> = dc_chat::Chat<'a>;
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat::dc_chat_t) {
+pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat_t) {
     dc_chat::dc_chat_unref(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat::dc_chat_t) -> u32 {
+pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat_t) -> u32 {
     dc_chat::dc_chat_get_id(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
     dc_chat::dc_chat_get_type(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat::dc_chat_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_char {
     dc_chat::dc_chat_get_name(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat::dc_chat_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc::c_char {
     dc_chat::dc_chat_get_subtitle(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_profile_image(
-    chat: *mut dc_chat::dc_chat_t,
-) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut libc::c_char {
     dc_chat::dc_chat_get_profile_image(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat::dc_chat_t) -> u32 {
+pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
     dc_chat::dc_chat_get_color(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_int {
     dc_chat::dc_chat_get_archived(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat_t) -> libc::c_int {
     dc_chat::dc_chat_is_unpromoted(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_is_self_talk(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_is_self_talk(chat: *mut dc_chat_t) -> libc::c_int {
     dc_chat::dc_chat_is_self_talk(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat::dc_chat_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_int {
     dc_chat::dc_chat_is_verified(chat)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chat_is_sending_locations(
-    chat: *mut dc_chat::dc_chat_t,
-) -> libc::c_int {
+pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> libc::c_int {
     dc_chat::dc_chat_is_sending_locations(chat)
 }
 
@@ -1291,7 +1287,7 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg::dc_msg_t) -> l
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_summary(
     msg: *mut dc_msg::dc_msg_t,
-    chat: *mut dc_chat::dc_chat_t,
+    chat: *mut dc_chat_t,
 ) -> *mut dc_lot::dc_lot_t {
     dc_msg::dc_msg_get_summary(msg, chat)
 }
