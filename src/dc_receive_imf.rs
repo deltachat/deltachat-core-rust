@@ -64,13 +64,13 @@ pub unsafe fn dc_receive_imf(
     let mut mime_references: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(Event::MSGS_CHANGED);
-    let rr_event_to_send: *mut carray = carray_new(16);
+    let mut rr_event_to_send = Vec::new();
     let mut txt_raw: *mut libc::c_char = 0 as *mut libc::c_char;
     let to_ids: *mut dc_array_t = dc_array_new(16);
 
     // XXX in theory the three carray's could be NULL pointer
     // but we want to get rid of carray (and dc_array) anyway in favor of Rust Vectors
-    assert!(!rr_event_to_send.is_null() && !to_ids.is_null());
+    assert!(!to_ids.is_null());
     info!(
         context,
         0,
@@ -772,18 +772,9 @@ pub unsafe fn dc_receive_imf(
                                                                 &mut chat_id_0,
                                                                 &mut msg_id,
                                                             ) {
-                                                                carray_add(
-                                                                    rr_event_to_send,
-                                                                    chat_id_0 as uintptr_t
-                                                                        as *mut libc::c_void,
-                                                                    0 as *mut libc::c_uint,
-                                                                );
-                                                                carray_add(
-                                                                    rr_event_to_send,
-                                                                    msg_id as uintptr_t
-                                                                        as *mut libc::c_void,
-                                                                    0 as *mut libc::c_uint,
-                                                                );
+                                                                rr_event_to_send
+                                                                    .push((chat_id_0, 0));
+                                                                rr_event_to_send.push((msg_id, 0));
                                                             }
                                                             mdn_consumed = (msg_id
                                                                 != 0i32 as libc::c_uint)
@@ -895,19 +886,9 @@ pub unsafe fn dc_receive_imf(
             context.call_cb(create_event_to_send, *msg_id as usize, *insert_id as usize);
         }
     }
-    if !rr_event_to_send.is_null() {
-        let mut i_1: size_t;
-        let icnt_1: size_t = carray_count(rr_event_to_send) as size_t;
-        i_1 = 0i32 as size_t;
-        while i_1 < icnt_1 {
-            context.call_cb(
-                Event::MSG_READ,
-                carray_get(rr_event_to_send, i_1 as libc::c_uint) as uintptr_t,
-                carray_get(rr_event_to_send, i_1.wrapping_add(1) as libc::c_uint) as uintptr_t,
-            );
-            i_1 = (i_1 as libc::c_ulong).wrapping_add(2i32 as libc::c_ulong) as size_t as size_t
-        }
-        carray_free(rr_event_to_send);
+    for ev in &rr_event_to_send {
+        let (chat_id, msg_id) = ev;
+        context.call_cb(Event::MSG_READ, *chat_id as uintptr_t, *msg_id as uintptr_t);
     }
     free(txt_raw as *mut libc::c_void);
     sqlite3_finalize(stmt);
