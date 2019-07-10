@@ -591,7 +591,8 @@ pub unsafe fn dc_receive_imf(
                                         b"rfc724_mid\x00" as *const u8 as *const libc::c_char,
                                         rfc724_mid,
                                     );
-                                    created_db_entries.push((chat_id as i32, insert_msg_id as i32))
+                                    created_db_entries
+                                        .push((chat_id as usize, insert_msg_id as usize))
                                 }
                             }
                             i = i.wrapping_add(1)
@@ -865,7 +866,7 @@ pub unsafe fn dc_receive_imf(
                     dc_job_add(
                         context,
                         DC_JOB_DELETE_MSG_ON_IMAP,
-                        created_db_entries[0].1,
+                        created_db_entries[0].1 as i32,
                         0 as *const libc::c_char,
                         0,
                     );
@@ -882,7 +883,7 @@ pub unsafe fn dc_receive_imf(
     if let Some(create_event_to_send) = create_event_to_send {
         for entry in &created_db_entries {
             let (msg_id, insert_id) = entry;
-            context.call_cb(create_event_to_send, *msg_id as usize, *insert_id as usize);
+            context.call_cb(create_event_to_send, *msg_id, *insert_id);
         }
     }
     for ev in &rr_event_to_send {

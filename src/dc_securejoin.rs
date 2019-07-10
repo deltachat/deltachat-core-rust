@@ -437,25 +437,13 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 let invitenumber: *const libc::c_char;
                 invitenumber = lookup_field(mimeparser, "Secure-Join-Invitenumber");
                 if invitenumber.is_null() {
-                    warn!(
-                        context,
-                        0,
-                        "Secure-join denied (invitenumber missing).",
-                    );
+                    warn!(context, 0, "Secure-join denied (invitenumber missing).",);
                     current_block = 4378276786830486580;
                 } else if dc_token_exists(context, DC_TOKEN_INVITENUMBER, invitenumber) == 0i32 {
-                    warn!(
-                        context,
-                        0,
-                        "Secure-join denied (bad invitenumber).",
-                    );
+                    warn!(context, 0, "Secure-join denied (bad invitenumber).",);
                     current_block = 4378276786830486580;
                 } else {
-                    info!(
-                        context,
-                        0,
-                        "Secure-join requested.",
-                    );
+                    info!(context, 0, "Secure-join requested.",);
                     context.call_cb(
                         Event::SECUREJOIN_INVITER_PROGRESS,
                         contact_id as uintptr_t,
