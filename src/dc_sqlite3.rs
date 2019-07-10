@@ -107,17 +107,19 @@ impl SQLite {
 
     pub fn table_exists(&self, name: impl AsRef<str>) -> bool {
         match &*self.connection.read().unwrap() {
-            Some(conn) => {
-                conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |row| {
-                    // will only be executed if the info was found
-                    println!("row: {:?}", row.get::<_, String>(0)?);
-                    Ok(())
-                })
-                .is_ok()
-            }
+            Some(conn) => table_exists(conn, name),
             None => panic!("Querying closed SQLite database"),
         }
     }
+}
+
+fn table_exists(conn: &Connection, name: impl AsRef<str>) -> bool {
+    conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |row| {
+        // will only be executed if the info was found
+        println!("row: {:?}", row.get::<_, String>(0)?);
+        Ok(())
+    })
+    .is_ok()
 }
 
 // Return 1 -> success
@@ -161,7 +163,7 @@ fn dc_sqlite3_open(
         }
     }
 
-    let conn_lock = sql.connection.write().unwrap();
+    let conn_lock = sql.connection.read().unwrap();
     let conn = conn_lock.as_ref().expect("just opened");
 
     conn.pragma_update(None, "secure_delete", &"on".to_string())
@@ -173,7 +175,7 @@ fn dc_sqlite3_open(
         let mut exists_before_update = 0;
         let mut dbversion_before_update = 0;
         /* Init tables to dbversion=0 */
-        if 0 == dc_sqlite3_table_exists(context, sql, "config") {
+        if !table_exists(conn, "config") {
             info!(
                 context,
                 0,
@@ -339,12 +341,12 @@ fn dc_sqlite3_open(
                 "CREATE INDEX jobs_index1 ON jobs (desired_timestamp);",
                 params![],
             );
-            if 0 == dc_sqlite3_table_exists(context, sql, "config")
-                || 0 == dc_sqlite3_table_exists(context, sql, "contacts")
-                || 0 == dc_sqlite3_table_exists(context, sql, "chats")
-                || 0 == dc_sqlite3_table_exists(context, sql, "chats_contacts")
-                || 0 == dc_sqlite3_table_exists(context, sql, "msgs")
-                || 0 == dc_sqlite3_table_exists(context, sql, "jobs")
+            if !table_exists(conn, "config")
+                || !table_exists(conn, "contacts")
+                || !table_exists(conn, "chats")
+                || !table_exists(conn, "chats_contacts")
+                || !table_exists(conn, "msgs")
+                || !table_exists(conn, "jobs")
             {
                 error!(
                     context,
@@ -963,17 +965,6 @@ pub fn dc_sqlite3_get_config_int(
     dc_sqlite3_get_config(context, sql, key, None)
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(|| def)
-}
-
-pub fn dc_sqlite3_table_exists(
-    _context: &Context,
-    sql: &SQLite,
-    name: impl AsRef<str>,
-) -> libc::c_int {
-    match sql.table_exists(name) {
-        true => 1,
-        false => 0,
-    }
 }
 
 pub fn dc_sqlite3_set_config_int64(

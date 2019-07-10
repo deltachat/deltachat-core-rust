@@ -533,7 +533,7 @@ fn get_config_keys_str() -> String {
     let keys = &CONFIG_KEYS[..].join(" ");
     let sys_keys = &SYS_CONFIG_KEYS[..].join(" ");
 
-    format!("{} {}", keys, sys_keys)
+    format!(" {} {} ", keys, sys_keys)
 }
 
 pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {

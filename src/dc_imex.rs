@@ -964,7 +964,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         /*for logging only*/
         let sql = SQLite::new();
         if sql.open(context, as_path(dest_pathNfilename), 0) {
-            if 0 == dc_sqlite3_table_exists(context, &sql, "backup_blobs") {
+            if !sql.table_exists("backup_blobs") {
                 if !dc_sqlite3_execute(
                     context,
                     &sql,
