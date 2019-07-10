@@ -8,7 +8,7 @@ def main():
     setuptools.setup(
         name='deltachat',
         version=version,
-        description='Python bindings for deltachat-core using CFFI',
+        description='Python bindings for the Delta Chat Core library using CFFI against the Rust-implemented libdeltachat',
         long_description=long_description,
         author='holger krekel, Floris Bruynooghe, Bjoern Petersen and contributors',
         setup_requires=['cffi>=1.0.0'],
