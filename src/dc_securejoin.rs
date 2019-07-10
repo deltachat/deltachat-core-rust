@@ -401,10 +401,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut ret: libc::c_int = 0i32;
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     if !(contact_id <= 9i32 as libc::c_uint) {
-        step = lookup_field(
-            mimeparser,
-            b"Secure-Join\x00" as *const u8 as *const libc::c_char,
-        );
+        step = lookup_field(mimeparser, "Secure-Join");
         if !step.is_null() {
             dc_log_info(
                 context,
@@ -438,31 +435,26 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
                 // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
                 let invitenumber: *const libc::c_char;
-                invitenumber = lookup_field(
-                    mimeparser,
-                    b"Secure-Join-Invitenumber\x00" as *const u8 as *const libc::c_char,
-                );
+                invitenumber = lookup_field(mimeparser, "Secure-Join-Invitenumber");
                 if invitenumber.is_null() {
-                    dc_log_warning(
+                    warn!(
                         context,
-                        0i32,
-                        b"Secure-join denied (invitenumber missing).\x00" as *const u8
-                            as *const libc::c_char,
+                        0,
+                        "Secure-join denied (invitenumber missing).",
                     );
                     current_block = 4378276786830486580;
                 } else if dc_token_exists(context, DC_TOKEN_INVITENUMBER, invitenumber) == 0i32 {
-                    dc_log_warning(
+                    warn!(
                         context,
-                        0i32,
-                        b"Secure-join denied (bad invitenumber).\x00" as *const u8
-                            as *const libc::c_char,
+                        0,
+                        "Secure-join denied (bad invitenumber).",
                     );
                     current_block = 4378276786830486580;
                 } else {
-                    dc_log_info(
+                    info!(
                         context,
-                        0i32,
-                        b"Secure-join requested.\x00" as *const u8 as *const libc::c_char,
+                        0,
+                        "Secure-join requested.",
                     );
                     context.call_cb(
                         Event::SECUREJOIN_INVITER_PROGRESS,
@@ -589,10 +581,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 ============================================================ */
                 // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
                 let fingerprint: *const libc::c_char;
-                fingerprint = lookup_field(
-                    mimeparser,
-                    b"Secure-Join-Fingerprint\x00" as *const u8 as *const libc::c_char,
-                );
+                fingerprint = lookup_field(mimeparser, "Secure-Join-Fingerprint");
                 if fingerprint.is_null() {
                     could_not_establish_secure_connection(
                         context,
@@ -623,10 +612,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     );
                     // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
                     let auth_0: *const libc::c_char;
-                    auth_0 = lookup_field(
-                        mimeparser,
-                        b"Secure-Join-Auth\x00" as *const u8 as *const libc::c_char,
-                    );
+                    auth_0 = lookup_field(mimeparser, "Secure-Join-Auth");
                     if auth_0.is_null() {
                         could_not_establish_secure_connection(
                             context,
@@ -668,10 +654,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             600i32 as uintptr_t,
                         );
                         if 0 != join_vg {
-                            grpid = dc_strdup(lookup_field(
-                                mimeparser,
-                                b"Secure-Join-Group\x00" as *const u8 as *const libc::c_char,
-                            ));
+                            grpid = dc_strdup(lookup_field(mimeparser, "Secure-Join-Group"));
                             let group_chat_id: uint32_t = dc_get_chat_id_by_grpid(
                                 context,
                                 grpid,
@@ -805,11 +788,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                     if 0 != join_vg {
                                         if 0 == dc_addr_equals_self(
                                             context,
-                                            lookup_field(
-                                                mimeparser,
-                                                b"Chat-Group-Member-Added\x00" as *const u8
-                                                    as *const libc::c_char,
-                                            ),
+                                            lookup_field(mimeparser, "Chat-Group-Member-Added"),
                                         ) {
                                             dc_log_info(context, 0i32,
                                                         b"Message belongs to a different handshake (scaled up contact anyway to allow creation of group).\x00"
@@ -927,12 +906,9 @@ unsafe fn secure_connection_established(context: &Context, contact_chat_id: uint
     dc_contact_unref(contact);
 }
 
-unsafe fn lookup_field(
-    mimeparser: &dc_mimeparser_t,
-    key: *const libc::c_char,
-) -> *const libc::c_char {
+unsafe fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> *const libc::c_char {
     let mut value: *const libc::c_char = 0 as *const libc::c_char;
-    let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, as_str(key));
+    let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, key);
     if field.is_null()
         || (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
         || (*field).fld_data.fld_optional_field.is_null()
