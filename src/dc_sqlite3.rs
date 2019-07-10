@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::sync::RwLock;
 
 use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
 
@@ -14,24 +15,24 @@ const DC_OPEN_READONLY: usize = 0x01;
 
 /// A wrapper around the underlying Sqlite3 object.
 pub struct SQLite {
-    connection: std::sync::RwLock<Option<Connection>>,
+    pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
 }
 
 impl SQLite {
     pub fn new() -> SQLite {
         SQLite {
-            connection: std::sync::RwLock::new(None),
+            pool: RwLock::new(None),
         }
     }
 
     pub fn is_open(&self) -> bool {
-        self.connection.read().unwrap().is_some()
+        self.pool.read().unwrap().is_some()
     }
 
     pub fn close(&self, context: &Context) {
-        let mut conn = self.connection.write().unwrap();
-        if conn.is_some() {
-            conn.take();
+        let mut pool = self.pool.write().unwrap();
+        if pool.is_some() {
+            pool.take();
             // drop closes the connection
         }
         info!(context, 0, "Database closed.");
@@ -61,14 +62,13 @@ impl SQLite {
     where
         G: FnOnce(&Connection) -> Result<T>,
     {
-        match &*self.get_conn() {
-            Some(conn) => g(conn),
+        match &*self.pool.read().unwrap() {
+            Some(pool) => {
+                let conn = pool.get()?;
+                g(&conn)
+            }
             None => Err(Error::SqlNoConnection),
         }
-    }
-
-    pub fn get_conn(&self) -> std::sync::RwLockReadGuard<Option<Connection>> {
-        self.connection.read().unwrap()
     }
 
     pub fn prepare<G, H>(&self, sql: &str, g: G) -> Result<H>
@@ -171,25 +171,24 @@ fn dc_sqlite3_open(
         return Err(Error::SqlAlreadyOpen);
     }
 
-    let mut open_flags = OpenFlags::SQLITE_OPEN_FULL_MUTEX;
+    let mut open_flags = OpenFlags::SQLITE_OPEN_NO_MUTEX;
     if 0 != (flags & DC_OPEN_READONLY as i32) {
         open_flags.insert(OpenFlags::SQLITE_OPEN_READ_ONLY);
     } else {
         open_flags.insert(OpenFlags::SQLITE_OPEN_READ_WRITE);
         open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
     }
-
-    let conn = Connection::open_with_flags(dbfile.as_ref(), open_flags)?;
-    *sql.connection.write().unwrap() = Some(conn);
+    let mgr = r2d2_sqlite::SqliteConnectionManager::file(dbfile.as_ref())
+        .with_flags(open_flags)
+        .with_init(|c| c.execute_batch("PRAGMA secure_delete=on;"));
+    let pool = r2d2::Pool::builder()
+        .min_idle(Some(2))
+        .max_size(4)
+        .connection_timeout(std::time::Duration::new(60, 0))
+        .build(mgr)?;
 
     {
-        let conn_lock = sql.connection.read().unwrap();
-        let conn = conn_lock.as_ref().expect("just opened");
-
-        conn.pragma_update(None, "secure_delete", &"on".to_string())
-            .expect("failed to enable pragma");
-        conn.busy_timeout(std::time::Duration::new(10, 0))
-            .expect("failed to set busy timeout");
+        *sql.pool.write().unwrap() = Some(pool);
     }
 
     if 0 == flags & DC_OPEN_READONLY as i32 {
@@ -756,7 +755,7 @@ pub fn dc_sqlite3_get_config(
 }
 
 pub fn dc_sqlite3_execute<P>(
-    _context: &Context,
+    context: &Context,
     sql: &SQLite,
     querystr: impl AsRef<str>,
     params: P,
@@ -765,7 +764,13 @@ where
     P: IntoIterator,
     P::Item: rusqlite::ToSql,
 {
-    sql.execute(querystr.as_ref(), params).is_ok()
+    match sql.execute(querystr.as_ref(), params) {
+        Ok(_) => true,
+        Err(err) => {
+            error!(context, 0, "dc_sqlite_exectue failed: {:?}", err);
+            false
+        }
+    }
 }
 
 // TODO Remove the Option<> from the return type.
@@ -861,26 +866,22 @@ pub fn dc_sqlite3_get_rowid(
     // alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
     // the ORDER BY ensures, this function always returns the most recent id,
     // eg. if a Message-ID is splitted into different messages.
-    if let Some(conn) = &*sql.connection.read().unwrap() {
-        let query = format!(
-            "SELECT id FROM {} WHERE {}='{}' ORDER BY id DESC",
-            table.as_ref(),
-            field.as_ref(),
-            value.as_ref()
-        );
+    let query = format!(
+        "SELECT id FROM {} WHERE {}='{}' ORDER BY id DESC",
+        table.as_ref(),
+        field.as_ref(),
+        value.as_ref()
+    );
 
-        match conn.query_row(&query, NO_PARAMS, |row| row.get::<_, u32>(0)) {
-            Ok(id) => id,
-            Err(err) => {
-                error!(
-                    context,
-                    0, "sql: Failed to retrieve rowid: {} in {}", err, query
-                );
-                0
-            }
+    match sql.query_row(&query, NO_PARAMS, |row| row.get::<_, u32>(0)) {
+        Ok(id) => id,
+        Err(err) => {
+            error!(
+                context,
+                0, "sql: Failed to retrieve rowid: {} in {}", err, query
+            );
+            0
         }
-    } else {
-        0
     }
 }
 
@@ -893,11 +894,12 @@ pub fn dc_sqlite3_get_rowid2(
     field2: impl AsRef<str>,
     value2: i32,
 ) -> u32 {
-    if let Some(conn) = &*sql.connection.read().unwrap() {
-        get_rowid2(context, conn, table, field, value, field2, value2)
-    } else {
-        0
-    }
+    sql.with_conn(|conn| {
+        Ok(get_rowid2(
+            context, conn, table, field, value, field2, value2,
+        ))
+    })
+    .unwrap_or_else(|_| 0)
 }
 
 pub fn get_rowid2(

@@ -4,6 +4,8 @@ use failure::Fail;
 pub enum Error {
     #[fail(display = "Sqlite Error: {:?}", _0)]
     Sql(rusqlite::Error),
+    #[fail(display = "Sqlite Connection Pool Error: {:?}", _0)]
+    ConnectionPool(r2d2::Error),
     #[fail(display = "{:?}", _0)]
     Failure(failure::Error),
     #[fail(display = "Sqlite: Connection closed")]
@@ -25,5 +27,11 @@ impl From<rusqlite::Error> for Error {
 impl From<failure::Error> for Error {
     fn from(err: failure::Error) -> Error {
         Error::Failure(err)
+    }
+}
+
+impl From<r2d2::Error> for Error {
+    fn from(err: r2d2::Error) -> Error {
+        Error::ConnectionPool(err)
     }
 }
