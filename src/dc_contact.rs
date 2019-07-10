@@ -604,27 +604,23 @@ pub fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
 }
 
 pub fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
-    let ret = unsafe { dc_array_new(100) };
+    context
+        .sql
+        .query_map(
+            "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
+            params![9],
+            |row| row.get::<_, i32>(0),
+            |ids| {
+                let ret = unsafe { dc_array_new(100) };
 
-    if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
-    ) {
-        let rows = stmt.query_map(params![9], |row| row.get::<_, i32>(0));
-        if let Ok(ids) = rows {
-            for id in ids {
-                if let Ok(id) = id {
-                    unsafe { dc_array_add_id(ret, id as u32) };
+                for id in ids {
+                    unsafe { dc_array_add_id(ret, id? as u32) };
                 }
-            }
 
-            return ret;
-        }
-    }
-
-    unsafe { dc_array_unref(ret) };
-    std::ptr::null_mut()
+                Ok(ret)
+            },
+        )
+        .unwrap_or_else(|_| std::ptr::null_mut())
 }
 
 pub unsafe fn dc_get_contact_encrinfo(
@@ -1057,18 +1053,23 @@ pub fn dc_real_contact_exists(context: &Context, contact_id: u32) -> bool {
         return false;
     }
 
-    dc_sqlite3_prepare(context, &context.sql, "SELECT id FROM contacts WHERE id=?;")
-        .map(|mut stmt| stmt.exists(params![contact_id as i32]).unwrap_or_default())
+    context
+        .sql
+        .exists(
+            "SELECT id FROM contacts WHERE id=?;",
+            params![contact_id as i32],
+        )
         .unwrap_or_default()
 }
 
 pub fn dc_scaleup_contact_origin(context: &Context, contact_id: u32, origin: libc::c_int) -> bool {
-    dc_sqlite3_execute(
-        context,
-        &context.sql,
-        "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
-        params![origin, contact_id as i32, origin],
-    )
+    context
+        .sql
+        .execute(
+            "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
+            params![origin, contact_id as i32, origin],
+        )
+        .is_ok()
 }
 
 #[cfg(test)]

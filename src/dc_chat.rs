@@ -119,68 +119,66 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
 
     let context = unsafe { (*chat).context };
 
-    if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
-         c.blocked, c.gossiped_timestamp, c.locations_send_until  \
-         FROM chats c WHERE c.id=?;",
-    ) {
-        stmt.query_row(params![chat_id as i32], |row| {
-            let c = unsafe { &mut *chat };
+    context
+        .sql
+        .query_row(
+            "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
+             c.blocked, c.gossiped_timestamp, c.locations_send_until  \
+             FROM chats c WHERE c.id=?;",
+            params![chat_id as i32],
+            |row| {
+                let c = unsafe { &mut *chat };
 
-            c.id = row.get(0)?;
-            c.type_0 = row.get(1)?;
-            c.name = {
-                let raw: String = row.get(2)?;
-                unsafe { strdup(to_cstring(raw).as_ptr()) }
-            };
-            c.grpid = {
-                let raw: String = row.get(3)?;
-                unsafe { strdup(to_cstring(raw).as_ptr()) }
-            };
+                c.id = row.get(0)?;
+                c.type_0 = row.get(1)?;
+                c.name = {
+                    let raw: String = row.get(2)?;
+                    unsafe { strdup(to_cstring(raw).as_ptr()) }
+                };
+                c.grpid = {
+                    let raw: String = row.get(3)?;
+                    unsafe { strdup(to_cstring(raw).as_ptr()) }
+                };
 
-            let packed: String = row.get(4)?;
-            unsafe { dc_param_set_packed((*chat).param, to_cstring(&packed).as_ptr()) };
-            c.archived = row.get(5)?;
-            c.blocked = row.get(6)?;
-            c.gossiped_timestamp = row.get(7)?;
-            c.is_sending_locations = row.get(8)?;
+                let packed: String = row.get(4)?;
+                unsafe { dc_param_set_packed((*chat).param, to_cstring(&packed).as_ptr()) };
+                c.archived = row.get(5)?;
+                c.blocked = row.get(6)?;
+                c.gossiped_timestamp = row.get(7)?;
+                c.is_sending_locations = row.get(8)?;
 
-            match c.id {
-                1 => unsafe {
-                    free((*chat).name as *mut libc::c_void);
-                    (*chat).name = dc_stock_str((*chat).context, 8);
-                },
-                6 => unsafe {
-                    free((*chat).name as *mut libc::c_void);
-                    let tempname: *mut libc::c_char = dc_stock_str((*chat).context, 40);
-                    (*chat).name = dc_mprintf(
-                        b"%s (%i)\x00" as *const u8 as *const libc::c_char,
-                        tempname,
-                        dc_get_archived_cnt((*chat).context),
-                    );
-                    free(tempname as *mut libc::c_void);
-                },
-                5 => unsafe {
-                    free((*chat).name as *mut libc::c_void);
-                    (*chat).name = dc_stock_str((*chat).context, 41);
-                },
-                _ => {
-                    if 0 != unsafe { dc_param_exists((*chat).param, 'K' as i32) } {
-                        unsafe {
-                            free((*chat).name as *mut libc::c_void);
-                            (*chat).name = dc_stock_str((*chat).context, 2);
+                match c.id {
+                    1 => unsafe {
+                        free((*chat).name as *mut libc::c_void);
+                        (*chat).name = dc_stock_str((*chat).context, 8);
+                    },
+                    6 => unsafe {
+                        free((*chat).name as *mut libc::c_void);
+                        let tempname: *mut libc::c_char = dc_stock_str((*chat).context, 40);
+                        (*chat).name = dc_mprintf(
+                            b"%s (%i)\x00" as *const u8 as *const libc::c_char,
+                            tempname,
+                            dc_get_archived_cnt((*chat).context),
+                        );
+                        free(tempname as *mut libc::c_void);
+                    },
+                    5 => unsafe {
+                        free((*chat).name as *mut libc::c_void);
+                        (*chat).name = dc_stock_str((*chat).context, 41);
+                    },
+                    _ => {
+                        if 0 != unsafe { dc_param_exists((*chat).param, 'K' as i32) } {
+                            unsafe {
+                                free((*chat).name as *mut libc::c_void);
+                                (*chat).name = dc_stock_str((*chat).context, 2);
+                            }
                         }
                     }
                 }
-            }
-            Ok(())
-        })
+                Ok(())
+            },
+        )
         .is_ok()
-    } else {
-        false
-    }
 }
 
 pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32_t) -> uint32_t {
@@ -318,20 +316,15 @@ pub fn dc_lookup_real_nchat_by_contact_id(
         return;
     }
 
-    if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
+    context.sql.query_row(
         "SELECT c.id, c.blocked FROM chats c INNER JOIN chats_contacts j ON c.id=j.chat_id WHERE c.type=100 AND c.id>9 AND j.contact_id=?;",
-    ) {
-        stmt.query_row(
-            params![contact_id as i32],
-            |row| {
-                unsafe { *ret_chat_id = row.get(0)? };
-                unsafe { *ret_chat_blocked = row.get(1)? };
-                Ok(())
-            }
-        ).unwrap();
-    }
+        params![contact_id as i32],
+        |row| {
+            unsafe { *ret_chat_id = row.get(0)? };
+            unsafe { *ret_chat_blocked = row.get(1)? };
+            Ok(())
+        }
+    ).unwrap();
 }
 
 pub unsafe fn dc_get_chat_id_by_contact_id(context: &Context, contact_id: uint32_t) -> uint32_t {
@@ -560,16 +553,13 @@ unsafe fn prepare_msg_raw(
                         let mut can_encrypt: libc::c_int = 1;
                         let mut all_mutual: libc::c_int = 1;
 
-                        if let Some(mut stmt) = dc_sqlite3_prepare(
-                            context,
-                            &context.sql,
+                        context.sql.query_row(
                             "SELECT ps.prefer_encrypted, c.addr \
                              FROM chats_contacts cc  \
                              LEFT JOIN contacts c ON cc.contact_id=c.id  \
                              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
                              WHERE cc.chat_id=?  AND cc.contact_id>9;",
-                        ) {
-                            stmt.query_row(params![(*chat).id], |row| {
+                            params![(*chat).id], |row| {
                                 let state: String = row.get(1)?;
 
                                 if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
@@ -593,9 +583,8 @@ unsafe fn prepare_msg_raw(
                                     all_mutual = 0;
                                 }
                                 Ok(())
-                            })
-                            .unwrap();
-                        }
+                            }
+                        ).unwrap();
 
                         if 0 != can_encrypt {
                             if 0 != all_mutual {
@@ -765,33 +754,33 @@ unsafe fn get_parent_mime_headers(
         || parent_in_reply_to.is_null()
         || parent_references.is_null())
     {
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            (*chat).context,
-            &(*chat).context.sql,
-            "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-             FROM msgs WHERE timestamp=(SELECT max(timestamp) \
-             FROM msgs WHERE chat_id=? AND from_id!=?);",
-        ) {
-            success = stmt
-                .query_row(params![(*chat).id as i32, 1], |row| {
+        success = (*chat)
+            .context
+            .sql
+            .query_row(
+                "SELECT rfc724_mid, mime_in_reply_to, mime_references \
+                 FROM msgs WHERE timestamp=(SELECT max(timestamp) \
+                 FROM msgs WHERE chat_id=? AND from_id!=?);",
+                params![(*chat).id as i32, 1],
+                |row| {
                     *parent_rfc724_mid = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr());
                     *parent_in_reply_to = dc_strdup(to_cstring(row.get::<_, String>(1)?).as_ptr());
                     *parent_references = dc_strdup(to_cstring(row.get::<_, String>(2)?).as_ptr());
                     Ok(())
-                })
-                .is_ok() as libc::c_int;
-        }
+                },
+            )
+            .is_ok() as libc::c_int;
 
         if 0 == success {
-            if let Some(mut stmt) = dc_sqlite3_prepare(
-                (*chat).context,
-                &(*chat).context.sql,
-                "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                 FROM msgs WHERE timestamp=(SELECT min(timestamp) \
-                 FROM msgs WHERE chat_id=? AND from_id==?);",
-            ) {
-                success = stmt
-                    .query_row(params![(*chat).id as i32, 1], |row| {
+            success = (*chat)
+                .context
+                .sql
+                .query_row(
+                    "SELECT rfc724_mid, mime_in_reply_to, mime_references \
+                     FROM msgs WHERE timestamp=(SELECT min(timestamp) \
+                     FROM msgs WHERE chat_id=? AND from_id==?);",
+                    params![(*chat).id as i32, 1],
+                    |row| {
                         *parent_rfc724_mid =
                             dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr());
                         *parent_in_reply_to =
@@ -799,9 +788,9 @@ unsafe fn get_parent_mime_headers(
                         *parent_references =
                             dc_strdup(to_cstring(row.get::<_, String>(2)?).as_ptr());
                         Ok(())
-                    })
-                    .is_ok() as libc::c_int;
-            }
+                    },
+                )
+                .is_ok() as libc::c_int;
         }
     }
     success
@@ -1074,75 +1063,16 @@ pub unsafe fn dc_get_chat_msgs(
     flags: uint32_t,
     marker1before: uint32_t,
 ) -> *mut dc_array_t {
-    //clock_t       start = clock();
-    let mut success: libc::c_int = 0i32;
-    let ret = dc_array_new(512i32 as size_t);
+    let ret = dc_array_new(512);
+    assert!(!ret.is_null());
 
     let mut last_day = 0;
     let cnv_to_local = dc_gm2local_offset();
 
-    if ret.is_null() {
-        return ret;
-    }
-
     let process_row = |row: &rusqlite::Row| Ok((row.get::<_, i32>(0)?, row.get::<_, i64>(1)?));
-
-    let rows = if chat_id == 1 {
-        let show_emails = dc_sqlite3_get_config_int(context, &context.sql, "show_emails", 0);
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            context,
-            &context.sql,
-            "SELECT m.id, m.timestamp FROM msgs m \
-             LEFT JOIN chats ON m.chat_id=chats.id \
-             LEFT JOIN contacts ON m.from_id=contacts.id WHERE m.from_id!=1   \
-             AND m.from_id!=2   \
-             AND m.hidden=0    \
-             AND chats.blocked=2   \
-             AND contacts.blocked=0   \
-             AND m.msgrmsg>=?  \
-             ORDER BY m.timestamp,m.id;",
-        ) {
-            stmt.query_map(params![if show_emails == 2 { 0 } else { 1 }], process_row)
-                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-        } else {
-            dc_array_unref(ret);
-            return std::ptr::null_mut();
-        }
-    } else if chat_id == 5 {
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            context,
-            &context.sql,
-            "SELECT m.id, m.timestamp FROM msgs m \
-             LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.starred=1    \
-             AND m.hidden=0    \
-             AND ct.blocked=0 \
-             ORDER BY m.timestamp,m.id;",
-        ) {
-            stmt.query_map(params![], process_row)
-                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-        } else {
-            dc_array_unref(ret);
-            return std::ptr::null_mut();
-        }
-    } else {
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            context,
-            &context.sql,
-            "SELECT m.id, m.timestamp FROM msgs m \
-             WHERE m.chat_id=?    \
-             AND m.hidden=0  \
-             ORDER BY m.timestamp,m.id;",
-        ) {
-            stmt.query_map(params![chat_id as i32], process_row)
-                .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-        } else {
-            dc_array_unref(ret);
-            return std::ptr::null_mut();
-        }
-    };
-
-    if let Ok(rows) = rows {
-        for (curr_id, ts) in rows {
+    let process_rows = |rows: rusqlite::MappedRows<_>| {
+        for row in rows {
+            let (curr_id, ts) = row?;
             if curr_id as u32 == marker1before {
                 dc_array_add_id(ret, 1);
             }
@@ -1156,10 +1086,49 @@ pub unsafe fn dc_get_chat_msgs(
             }
             dc_array_add_id(ret, curr_id as u32);
         }
-        success = 1;
-    }
+        Ok(())
+    };
 
-    if 0 != success {
+    let success = if chat_id == 1 {
+        let show_emails = dc_sqlite3_get_config_int(context, &context.sql, "show_emails", 0);
+        context.sql.query_map(
+            "SELECT m.id, m.timestamp FROM msgs m \
+             LEFT JOIN chats ON m.chat_id=chats.id \
+             LEFT JOIN contacts ON m.from_id=contacts.id WHERE m.from_id!=1   \
+             AND m.from_id!=2   \
+             AND m.hidden=0    \
+             AND chats.blocked=2   \
+             AND contacts.blocked=0   \
+             AND m.msgrmsg>=?  \
+             ORDER BY m.timestamp,m.id;",
+            params![if show_emails == 2 { 0 } else { 1 }],
+            process_row,
+            process_rows,
+        )
+    } else if chat_id == 5 {
+        context.sql.query_map(
+            "SELECT m.id, m.timestamp FROM msgs m \
+             LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.starred=1    \
+             AND m.hidden=0    \
+             AND ct.blocked=0 \
+             ORDER BY m.timestamp,m.id;",
+            params![],
+            process_row,
+            process_rows,
+        )
+    } else {
+        context.sql.query_map(
+            "SELECT m.id, m.timestamp FROM msgs m \
+             WHERE m.chat_id=?    \
+             AND m.hidden=0  \
+             ORDER BY m.timestamp,m.id;",
+            params![chat_id as i32],
+            process_row,
+            process_rows,
+        )
+    };
+
+    if success.is_ok() {
         ret
     } else {
         if !ret.is_null() {
@@ -1249,42 +1218,30 @@ pub fn dc_get_chat_media(
     msg_type2: libc::c_int,
     msg_type3: libc::c_int,
 ) -> *mut dc_array_t {
-    let ret = unsafe { dc_array_new(100) };
-
-    if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT id FROM msgs WHERE chat_id=? AND (type=? OR type=? OR type=?) ORDER BY timestamp, id;"
-    ) {
-        let rows = stmt.query_map(
-            params![
-                chat_id as i32,
-                msg_type,
-                if msg_type2 > 0 {
-                    msg_type2
-                } else {
-                    msg_type
-                }, if msg_type3 > 0 {
-                    msg_type3
-                } else {
-                    msg_type
-                },
-            ],
-            |row| row.get::<_, i32>(0)
-        );
-
-        if let Ok(ids) = rows {
+    context.sql.query_map(
+        "SELECT id FROM msgs WHERE chat_id=? AND (type=? OR type=? OR type=?) ORDER BY timestamp, id;",
+        params![
+            chat_id as i32,
+            msg_type,
+            if msg_type2 > 0 {
+                msg_type2
+            } else {
+                msg_type
+            }, if msg_type3 > 0 {
+                msg_type3
+            } else {
+                msg_type
+            },
+        ],
+        |row| row.get::<_, i32>(0),
+        |ids| {
+            let ret = unsafe { dc_array_new(100) };
             for id in ids {
-                if let Ok(id) = id {
-                    unsafe { dc_array_add_id(ret, id as u32) };
-                }
+                unsafe { dc_array_add_id(ret, id? as u32) };
             }
-            return ret;
+            Ok(ret)
         }
-    }
-
-    unsafe { dc_array_unref(ret) };
-    std::ptr::null_mut()
+    ).unwrap_or_else(|_| std::ptr::null_mut())
 }
 
 pub unsafe fn dc_get_next_media(
@@ -1425,31 +1382,28 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
         return std::ptr::null_mut();
     }
 
-    let ret = unsafe { dc_array_new(100) };
     // we could also create a list for all contacts in the deaddrop by searching contacts belonging to chats with
     // chats.blocked=2, however, currently this is not needed
 
-    if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT cc.contact_id FROM chats_contacts cc \
-         LEFT JOIN contacts c ON c.id=cc.contact_id WHERE cc.chat_id=? \
-         ORDER BY c.id=1, LOWER(c.name||c.addr), c.id;",
-    ) {
-        let rows = stmt.query_map(params![chat_id as i32], |row| row.get::<_, i32>(0));
-        if let Ok(ids) = rows {
-            for id in ids {
-                if let Ok(id) = id {
-                    unsafe { dc_array_add_id(ret, id as u32) };
+    context
+        .sql
+        .query_map(
+            "SELECT cc.contact_id FROM chats_contacts cc \
+             LEFT JOIN contacts c ON c.id=cc.contact_id WHERE cc.chat_id=? \
+             ORDER BY c.id=1, LOWER(c.name||c.addr), c.id;",
+            params![chat_id as i32],
+            |row| row.get::<_, i32>(0),
+            |ids| {
+                let ret = unsafe { dc_array_new(100) };
+
+                for id in ids {
+                    unsafe { dc_array_add_id(ret, id? as u32) };
                 }
-            }
 
-            return ret;
-        }
-    }
-
-    unsafe { dc_array_unref(ret) }
-    std::ptr::null_mut()
+                Ok(ret)
+            },
+        )
+        .unwrap_or_else(|_| std::ptr::null_mut())
 }
 
 pub unsafe fn dc_get_chat(context: &Context, chat_id: uint32_t) -> *mut Chat {
@@ -1962,9 +1916,9 @@ pub unsafe fn dc_forward_msgs(
 
     let msg = dc_msg_new_untyped(context);
     let chat = dc_chat_new(context);
-    let contact: *mut dc_contact_t = dc_contact_new(context);
-    let created_db_entries: *mut carray = carray_new(16i32 as libc::c_uint);
-    let mut idsstr: *mut libc::c_char = 0 as *mut libc::c_char;
+    let contact = dc_contact_new(context);
+    let created_db_entries = carray_new(16);
+    let mut idsstr = 0 as *mut libc::c_char;
     let mut curr_timestamp: i64;
 
     let original_param: *mut dc_param_t = dc_param_new();
@@ -1973,16 +1927,15 @@ pub unsafe fn dc_forward_msgs(
         curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
         idsstr = dc_arr_to_string(msg_ids, msg_cnt);
 
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            context,
-            &context.sql,
-            "SELECT id FROM msgs WHERE id IN(?) ORDER BY timestamp,id",
-        ) {
-            let rows = stmt.query_map(params![as_str(idsstr)], |row| row.get::<_, i32>(0));
-
-            if let Ok(ids) = rows {
-                for id in ids {
-                    if let Ok(src_msg_id) = id {
+        context
+            .sql
+            .query_map(
+                "SELECT id FROM msgs WHERE id IN(?) ORDER BY timestamp,id",
+                params![as_str(idsstr)],
+                |row| row.get::<_, i32>(0),
+                |ids| {
+                    for id in ids {
+                        let src_msg_id = id?;
                         if !dc_msg_load_from_db(msg, context, src_msg_id as u32) {
                             break;
                         }
@@ -2034,9 +1987,10 @@ pub unsafe fn dc_forward_msgs(
                             0 as *mut libc::c_uint,
                         );
                     }
-                }
-            }
-        }
+                    Ok(())
+                },
+            )
+            .unwrap(); // TODO: better error handling
     }
 
     if !created_db_entries.is_null() {
@@ -2241,26 +2195,24 @@ pub unsafe fn dc_get_chat_id_by_grpid(
         *ret_verified = 0;
     }
 
-    dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT id, blocked, type FROM chats WHERE grpid=?;",
-    )
-    .and_then(|mut stmt| {
-        stmt.query_row(params![as_str(grpid)], |row| {
-            let chat_id = row.get(0)?;
-            if !ret_blocked.is_null() {
-                *ret_blocked = row.get(1)?;
-            }
-            if !ret_verified.is_null() {
-                let v: i32 = row.get(2)?;
-                *ret_verified = (v == 130) as libc::c_int;
-            }
-            Ok(chat_id)
-        })
-        .ok()
-    })
-    .unwrap_or_default()
+    context
+        .sql
+        .query_row(
+            "SELECT id, blocked, type FROM chats WHERE grpid=?;",
+            params![as_str(grpid)],
+            |row| {
+                let chat_id = row.get(0)?;
+                if !ret_blocked.is_null() {
+                    *ret_blocked = row.get(1)?;
+                }
+                if !ret_verified.is_null() {
+                    let v: i32 = row.get(2)?;
+                    *ret_verified = (v == 130) as libc::c_int;
+                }
+                Ok(chat_id)
+            },
+        )
+        .unwrap_or_default()
 }
 
 pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc::c_char) {
@@ -2274,9 +2226,7 @@ pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc
         )
     };
 
-    if !dc_sqlite3_execute(
-        context,
-        &context.sql,
+    if context.sql.execute(
         "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
         params![
             chat_id as i32,
@@ -2288,7 +2238,8 @@ pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc
             as_str(text),
             as_str(rfc724_mid),
         ]
-    ) {
+    ).is_err() {
+        unsafe { free(rfc724_mid as *mut libc::c_void) };
         return;
     }
 

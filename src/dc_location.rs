@@ -118,20 +118,13 @@ unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: libc::c_int) {
 }
 
 pub fn dc_is_sending_locations_to_chat(context: &Context, chat_id: u32) -> bool {
-    dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT id  FROM chats  WHERE (? OR id=?)   AND locations_send_until>?;",
-    )
-    .and_then(|mut stmt| {
-        stmt.exists(params![
-            if chat_id == 0 { 1 } else { 0 },
-            chat_id as i32,
-            time()
-        ])
-        .ok()
-    })
-    .unwrap_or_default()
+    context
+        .sql
+        .exists(
+            "SELECT id  FROM chats  WHERE (? OR id=?)   AND locations_send_until>?;",
+            params![if chat_id == 0 { 1 } else { 0 }, chat_id as i32, time()],
+        )
+        .unwrap_or_default()
 }
 
 pub fn dc_set_location(
@@ -144,43 +137,35 @@ pub fn dc_set_location(
         return 1;
     }
 
-    let mut continue_streaming = false;
-    let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
+    context.sql.query_map(
         "SELECT id FROM chats WHERE locations_send_until>?;",
-    ) {
-        stmt.query_map(params![time()], |row| row.get::<_, i32>(0))
-            .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-            .ok()
-    } else {
-        None
-    };
+        params![time()], |row| row.get::<_, i32>(0),
+        |chats| {
+            let mut continue_streaming = false;
 
-    if let Some(chats) = rows {
-        for chat_id in chats {
-            dc_sqlite3_execute(
-                context,
-                &context.sql,
-                "INSERT INTO locations  (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
-                params![
-                    latitude,
-                    longitude,
-                    accuracy,
-                    time(),
-                    chat_id,
-                    1,
-                ]
-            );
-            continue_streaming = true;
+            for chat in chats {
+                let chat_id = chat?;
+                context.sql.execute(
+                    "INSERT INTO locations  \
+                     (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
+                    params![
+                        latitude,
+                        longitude,
+                        accuracy,
+                        time(),
+                        chat_id,
+                        1,
+                    ]
+                )?;
+                continue_streaming = true;
+            }
+            if continue_streaming {
+                context.call_cb(Event::LOCATION_CHANGED, 1, 0);
+            };
+            unsafe { schedule_MAYBE_SEND_LOCATIONS(context, 0) };
+            Ok(continue_streaming as libc::c_int)
         }
-        if continue_streaming {
-            context.call_cb(Event::LOCATION_CHANGED, 1, 0);
-        };
-        unsafe { schedule_MAYBE_SEND_LOCATIONS(context, 0) };
-    }
-
-    continue_streaming as libc::c_int
+    ).unwrap_or_default()
 }
 
 pub fn dc_get_locations(
@@ -194,19 +179,15 @@ pub fn dc_get_locations(
         timestamp_to = time() + 10;
     }
 
-    let ret = unsafe { dc_array_new_typed(1, 500) };
-
-    let locations = if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp, l.independent, \
-         m.id, l.from_id, l.chat_id, m.txt \
-         FROM locations l  LEFT JOIN msgs m ON l.id=m.location_id  WHERE (? OR l.chat_id=?) \
-         AND (? OR l.from_id=?) \
-         AND (l.independent=1 OR (l.timestamp>=? AND l.timestamp<=?)) \
-         ORDER BY l.timestamp DESC, l.id DESC, m.id DESC;",
-    ) {
-        stmt.query_map(
+    context
+        .sql
+        .query_map(
+            "SELECT l.id, l.latitude, l.longitude, l.accuracy, l.timestamp, l.independent, \
+             m.id, l.from_id, l.chat_id, m.txt \
+             FROM locations l  LEFT JOIN msgs m ON l.id=m.location_id  WHERE (? OR l.chat_id=?) \
+             AND (? OR l.from_id=?) \
+             AND (l.independent=1 OR (l.timestamp>=? AND l.timestamp<=?)) \
+             ORDER BY l.timestamp DESC, l.id DESC, m.id DESC;",
             params![
                 if chat_id == 0 { 1 } else { 0 },
                 chat_id as i32,
@@ -239,22 +220,16 @@ pub fn dc_get_locations(
                 }
                 Ok(loc)
             },
-        )
-        .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-        .ok()
-    } else {
-        None
-    };
+            |locations| {
+                let ret = unsafe { dc_array_new_typed(1, 500) };
 
-    if let Some(locations) = locations {
-        for location in locations {
-            unsafe { dc_array_add_ptr(ret, location as *mut libc::c_void) };
-        }
-        ret
-    } else {
-        unsafe { dc_array_unref(ret) }
-        std::ptr::null_mut()
-    }
+                for location in locations {
+                    unsafe { dc_array_add_ptr(ret, location? as *mut libc::c_void) };
+                }
+                Ok(ret)
+            },
+        )
+        .unwrap_or_else(|_| std::ptr::null_mut())
 }
 
 // TODO should be bool /rtn
@@ -295,29 +270,23 @@ pub fn dc_get_location_kml(
 
     let self_addr = self_addr.unwrap();
 
-    if let Some((locations_send_begin, locations_send_until, locations_last_sent)) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
+    if let Ok((locations_send_begin, locations_send_until, locations_last_sent)) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",
-
-    ).and_then(|mut stmt| {
-        stmt.query_row(params![chat_id as i32], |row| {
+        params![chat_id as i32], |row| {
             let send_begin: i64 = row.get(0)?;
             let send_until: i64 = row.get(1)?;
             let last_sent: i64 = row.get(2)?;
 
             Ok((send_begin, send_until, last_sent))
-        }).ok()
-    }) {
+        }
+    ) {
         if !(locations_send_begin == 0 || now > locations_send_until) {
             ret += &format!(
                 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"{}\">\n",
                 self_addr,
             );
 
-            let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
-                context,
-                &context.sql,
+            context.sql.query_map(
                 "SELECT id, latitude, longitude, accuracy, timestamp\
                  FROM locations  WHERE from_id=? \
                  AND timestamp>=? \
@@ -325,38 +294,35 @@ pub fn dc_get_location_kml(
                  AND independent=0 \
                  GROUP BY timestamp \
                  ORDER BY timestamp;",
-            ){
-                stmt.query_map(
-                    params![1, locations_send_begin, locations_last_sent, 1],
-                    |row| {
-                        let location_id: i32 = row.get(0)?;
-                        let latitude: f64 = row.get(1)?;
-                        let longitude: f64 = row.get(2)?;
-                        let accuracy: f64 = row.get(3)?;
-                        let timestamp = unsafe { get_kml_timestamp(row.get(4)?) };
+                params![1, locations_send_begin, locations_last_sent, 1],
+                |row| {
+                    let location_id: i32 = row.get(0)?;
+                    let latitude: f64 = row.get(1)?;
+                    let longitude: f64 = row.get(2)?;
+                    let accuracy: f64 = row.get(3)?;
+                    let timestamp = unsafe { get_kml_timestamp(row.get(4)?) };
 
-                        Ok((location_id, latitude, longitude, accuracy, timestamp))
-                    }).and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>()).ok()
-            } else {
-                None
-            };
-
-            if let Some(rows) = rows {
-                for (location_id, latitude, longitude, accuracy, timestamp) in rows {
-                    ret += &format!(
-                        "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
-                        as_str(timestamp),
-                        accuracy,
-                        longitude,
-                        latitude
-                    );
-                    location_count += 1;
-                    if !last_added_location_id.is_null() {
-                        unsafe { *last_added_location_id = location_id as u32 };
+                    Ok((location_id, latitude, longitude, accuracy, timestamp))
+                },
+                |rows| {
+                    for row in rows {
+                        let (location_id, latitude, longitude, accuracy, timestamp) = row?;
+                        ret += &format!(
+                            "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
+                            as_str(timestamp),
+                            accuracy,
+                            longitude,
+                            latitude
+                        );
+                        location_count += 1;
+                        if !last_added_location_id.is_null() {
+                            unsafe { *last_added_location_id = location_id as u32 };
+                        }
+                        unsafe { free(timestamp as *mut libc::c_void) };
                     }
-                    unsafe { free(timestamp as *mut libc::c_void) };
+                    Ok(())
                 }
-            }
+            ).unwrap(); // TODO: better error handling
         }
     }
 
@@ -690,74 +656,78 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
             as *const libc::c_char,
     );
 
-    if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT id, locations_send_begin, locations_last_sent \
-         FROM chats \
-         WHERE locations_send_until>?;",
-    ) {
-        if let Ok(rows) = stmt.query_map(params![now], |row| {
-            let chat_id: i32 = row.get(0)?;
-            let locations_send_begin: i64 = row.get(1)?;
-            let locations_last_sent: i64 = row.get(2)?;
-            continue_streaming = 1;
+    context
+        .sql
+        .query_map(
+            "SELECT id, locations_send_begin, locations_last_sent \
+             FROM chats \
+             WHERE locations_send_until>?;",
+            params![now],
+            |row| {
+                let chat_id: i32 = row.get(0)?;
+                let locations_send_begin: i64 = row.get(1)?;
+                let locations_last_sent: i64 = row.get(2)?;
+                continue_streaming = 1;
 
-            // be a bit tolerant as the timer may not align exactly with time(NULL)
-            if now - locations_last_sent < (60 - 3) {
-                Ok(None)
-            } else {
-                Ok(Some((chat_id, locations_send_begin, locations_last_sent)))
-            }
-        }) {
-            let stmt_locations = dc_sqlite3_prepare(
-                context,
-                &context.sql,
-                "SELECT id \
-                 FROM locations \
-                 WHERE from_id=? \
-                 AND timestamp>=? \
-                 AND timestamp>? \
-                 AND independent=0 \
-                 ORDER BY timestamp;",
-            );
-            if stmt_locations.is_none() {
-                // TODO: handle error
-                return;
-            }
-            let mut stmt_locations = stmt_locations.unwrap();
-
-            for (chat_id, locations_send_begin, locations_last_sent) in rows.filter_map(|r| match r
-            {
-                Ok(Some(v)) => Some(v),
-                _ => None,
-            }) {
-                // TODO: do I need to reset?
-                if !stmt_locations
-                    .exists(params![1, locations_send_begin, locations_last_sent,])
-                    .unwrap_or_default()
-                {
-                    // if there is no new location, there's nothing to send.
-                    // however, maybe we want to bypass this test eg. 15 minutes
-                    continue;
+                // be a bit tolerant as the timer may not align exactly with time(NULL)
+                if now - locations_last_sent < (60 - 3) {
+                    Ok(None)
+                } else {
+                    Ok(Some((chat_id, locations_send_begin, locations_last_sent)))
                 }
-                // pending locations are attached automatically to every message,
-                // so also to this empty text message.
-                // DC_CMD_LOCATION is only needed to create a nicer subject.
-                //
-                // for optimisation and to avoid flooding the sending queue,
-                // we could sending these messages only if we're really online.
-                // the easiest way to determine this, is to check for an empty message queue.
-                // (might not be 100%, however, as positions are sent combined later
-                // and dc_set_location() is typically called periodically, this is ok)
-                let mut msg = dc_msg_new(context, 10);
-                (*msg).hidden = 1;
-                dc_param_set_int((*msg).param, 'S' as i32, 9);
-                dc_send_msg(context, chat_id as u32, msg);
-                dc_msg_unref(msg);
-            }
-        }
-    }
+            },
+            |rows| {
+                let stmt_locations = dc_sqlite3_prepare(
+                    context,
+                    &context.sql,
+                    "SELECT id \
+                     FROM locations \
+                     WHERE from_id=? \
+                     AND timestamp>=? \
+                     AND timestamp>? \
+                     AND independent=0 \
+                     ORDER BY timestamp;",
+                );
+                if stmt_locations.is_none() {
+                    // TODO: handle error
+                    return Ok(());
+                }
+                let mut stmt_locations = stmt_locations.unwrap();
+
+                for (chat_id, locations_send_begin, locations_last_sent) in
+                    rows.filter_map(|r| match r {
+                        Ok(Some(v)) => Some(v),
+                        _ => None,
+                    })
+                {
+                    // TODO: do I need to reset?
+                    if !stmt_locations
+                        .exists(params![1, locations_send_begin, locations_last_sent,])
+                        .unwrap_or_default()
+                    {
+                        // if there is no new location, there's nothing to send.
+                        // however, maybe we want to bypass this test eg. 15 minutes
+                        continue;
+                    }
+                    // pending locations are attached automatically to every message,
+                    // so also to this empty text message.
+                    // DC_CMD_LOCATION is only needed to create a nicer subject.
+                    //
+                    // for optimisation and to avoid flooding the sending queue,
+                    // we could sending these messages only if we're really online.
+                    // the easiest way to determine this, is to check for an empty message queue.
+                    // (might not be 100%, however, as positions are sent combined later
+                    // and dc_set_location() is typically called periodically, this is ok)
+                    let mut msg = dc_msg_new(context, 10);
+                    (*msg).hidden = 1;
+                    dc_param_set_int((*msg).param, 'S' as i32, 9);
+                    dc_send_msg(context, chat_id as u32, msg);
+                    dc_msg_unref(msg);
+                }
+                Ok(())
+            },
+        )
+        .unwrap(); // TODO: Better error handling
 
     if 0 != continue_streaming {
         schedule_MAYBE_SEND_LOCATIONS(context, 0x1);
@@ -772,29 +742,21 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
     let chat_id = (*job).foreign_id;
     let mut stock_str = 0 as *mut libc::c_char;
 
-    if let Some((send_begin, send_until)) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
+    if let Ok((send_begin, send_until)) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
-    )
-    .and_then(|mut stmt| {
-        stmt.query_row(params![chat_id as i32], |row| {
-            Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?))
-        })
-        .ok()
-    }) {
+        params![chat_id as i32],
+        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+    ) {
         if !(send_begin != 0 && time() <= send_until) {
             // still streaming -
             // may happen as several calls to dc_send_locations_to_chat()
             // do not un-schedule pending DC_MAYBE_SEND_LOC_ENDED jobs
             if !(send_begin == 0 && send_until == 0) {
                 // not streaming, device-message already sent
-                if dc_sqlite3_execute(
-                    context,
-                    &context.sql,
+                if context.sql.execute(
                     "UPDATE chats    SET locations_send_begin=0, locations_send_until=0  WHERE id=?",
                     params![chat_id as i32],
-                ) {
+                ).is_ok() {
                     stock_str = dc_stock_system_msg(
                         context,
                         65,

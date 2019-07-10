@@ -4,7 +4,6 @@ use crate::context::Context;
 use crate::dc_configure::*;
 use crate::dc_sqlite3::*;
 use crate::imap::Imap;
-use crate::types::*;
 use crate::x::*;
 
 #[repr(C)]
