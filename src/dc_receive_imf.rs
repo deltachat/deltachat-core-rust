@@ -66,10 +66,10 @@ pub unsafe fn dc_receive_imf(
     let mut create_event_to_send = Some(Event::MSGS_CHANGED);
     let mut rr_event_to_send = Vec::new();
     let mut txt_raw: *mut libc::c_char = 0 as *mut libc::c_char;
-    let to_ids: *mut dc_array_t = dc_array_new(16);
 
-    // XXX in theory the three carray's could be NULL pointer
-    // but we want to get rid of carray (and dc_array) anyway in favor of Rust Vectors
+    // XXX converting the below "to_ids" to a Vec quickly leads to lots of changes
+    // so we keep it as a dc_array for now
+    let to_ids: *mut dc_array_t = dc_array_new(16);
     assert!(!to_ids.is_null());
     info!(
         context,
