@@ -63,7 +63,7 @@ pub const DC_FP_NO_AUTOCRYPT_HEADER: u8 = 2;
 /// An object for handling key=value parameter lists; for the key, curently only
 /// a single character is allowed.
 ///
-/// The object is used eg. by dc_chat_t or dc_msg_t, for readable paramter names,
+/// The object is used eg. by Chat or dc_msg_t, for readable paramter names,
 /// these classes define some DC_PARAM_* constantats.
 ///
 /// Only for library-internal use.

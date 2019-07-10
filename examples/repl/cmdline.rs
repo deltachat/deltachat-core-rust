@@ -377,7 +377,7 @@ pub unsafe fn dc_cmdline_skip_auth() {
     S_IS_AUTH = 1;
 }
 
-unsafe fn chat_prefix(chat: *const dc_chat_t) -> &'static str {
+unsafe fn chat_prefix(chat: *const Chat) -> &'static str {
     if (*chat).type_0 == 120 {
         "Group"
     } else if (*chat).type_0 == 130 {
@@ -787,7 +787,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let chat_id_0: libc::c_int =
                 dc_create_chat_by_msg_id(context, msg_id_0 as uint32_t) as libc::c_int;
             if chat_id_0 != 0 {
-                let chat_0: *mut dc_chat_t = dc_get_chat(context, chat_id_0 as uint32_t);
+                let chat_0: *mut Chat = dc_get_chat(context, chat_id_0 as uint32_t);
                 println!(
                     "{}#{} created successfully.",
                     chat_prefix(chat_0),

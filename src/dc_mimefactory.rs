@@ -36,7 +36,7 @@ pub struct dc_mimefactory_t<'a> {
     pub rfc724_mid: *mut libc::c_char,
     pub loaded: dc_mimefactory_loaded_t,
     pub msg: *mut dc_msg_t<'a>,
-    pub chat: *mut dc_chat_t<'a>,
+    pub chat: *mut Chat<'a>,
     pub increation: libc::c_int,
     pub in_reply_to: *mut libc::c_char,
     pub references: *mut libc::c_char,
@@ -91,7 +91,7 @@ pub unsafe fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
     dc_msg_unref((*factory).msg);
     (*factory).msg = 0 as *mut dc_msg_t;
     dc_chat_unref((*factory).chat);
-    (*factory).chat = 0 as *mut dc_chat_t;
+    (*factory).chat = 0 as *mut Chat;
     free((*factory).in_reply_to as *mut libc::c_void);
     (*factory).in_reply_to = 0 as *mut libc::c_char;
     free((*factory).references as *mut libc::c_void);
@@ -501,7 +501,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
         if (*factory).loaded as libc::c_uint == DC_MF_MSG_LOADED as libc::c_int as libc::c_uint {
             /* Render a normal message
              *********************************************************************/
-            let chat: *mut dc_chat_t = (*factory).chat;
+            let chat: *mut Chat = (*factory).chat;
             let msg: *mut dc_msg_t = (*factory).msg;
             let mut meta_part: *mut mailmime = 0 as *mut mailmime;
             let mut placeholdertext: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1056,7 +1056,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
 }
 
 unsafe fn get_subject(
-    chat: *const dc_chat_t,
+    chat: *const Chat,
     msg: *const dc_msg_t,
     afwd_email: libc::c_int,
 ) -> *mut libc::c_char {
