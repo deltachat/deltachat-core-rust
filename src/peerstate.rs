@@ -192,10 +192,11 @@ impl<'a> Peerstate<'a> {
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
     {
-        let mut res = Self::new(context);
+        context
+            .sql
+            .query_row(query, params, |row| {
+                let mut res = Self::new(context);
 
-        if let Some(mut stmt) = dc_sqlite3_prepare(context, &context.sql, query) {
-            stmt.query_row(params, |row| {
                 res.addr = Some(row.get(0)?);
                 res.last_seen = row.get(1)?;
                 res.last_seen_autocrypt = row.get(2)?;
@@ -231,9 +232,6 @@ impl<'a> Peerstate<'a> {
                 Ok(res)
             })
             .ok()
-        } else {
-            None
-        }
     }
 
     pub fn recalc_fingerprint(&mut self) {

@@ -55,11 +55,11 @@ pub fn dc_token_exists(
         return false;
     }
 
-    dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT id FROM tokens WHERE namespc=? AND token=?;",
-    )
-    .and_then(|mut stmt| stmt.exists(params![namespc as i32, as_str(token)]).ok())
-    .unwrap_or_default()
+    context
+        .sql
+        .exists(
+            "SELECT id FROM tokens WHERE namespc=? AND token=?;",
+            params![namespc as i32, as_str(token)],
+        )
+        .unwrap_or_default()
 }

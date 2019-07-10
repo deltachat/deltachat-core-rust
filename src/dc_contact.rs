@@ -279,23 +279,19 @@ pub unsafe fn dc_contact_load_from_db(
         );
         true
     } else {
-        dc_sqlite3_prepare(
-            (*contact).context,sql,
+        sql.query_row(
             "SELECT c.name, c.addr, c.origin, c.blocked, c.authname  FROM contacts c  WHERE c.id=?;",
-        ).and_then(|mut stmt| {
-            stmt.query_row(
-                params![contact_id as i32],
-                |row| {
-                    (*contact).id = contact_id;
-                    (*contact).name = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr());
-                    (*contact).addr = dc_strdup(to_cstring(row.get::<_, String>(1)?).as_ptr());
-                    (*contact).origin = row.get(2)?;
-                    (*contact).blocked = row.get(3)?;
-                    (*contact).authname = dc_strdup(to_cstring(row.get::<_, String>(4)?).as_ptr());
-                    Ok(())
-                }
-            ).ok()
-        }).is_some()
+            params![contact_id as i32],
+            |row| {
+                (*contact).id = contact_id;
+                (*contact).name = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr());
+                (*contact).addr = dc_strdup(to_cstring(row.get::<_, String>(1)?).as_ptr());
+                (*contact).origin = row.get(2)?;
+                (*contact).blocked = row.get(3)?;
+                (*contact).authname = dc_strdup(to_cstring(row.get::<_, String>(4)?).as_ptr());
+                Ok(())
+            }
+        ).is_ok()
     }
 }
 
@@ -360,13 +356,10 @@ pub fn dc_add_or_lookup_contact(
     let mut update_authname = false;
     let mut row_id = 0;
 
-    if let Some((id, row_name, row_addr, row_origin, row_authname)) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
+    if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.query_row(
         "SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;",
-    )
-    .and_then(|mut stmt| {
-        stmt.query_row(params![addr], |row| {
+        params![addr],
+        |row| {
             let row_id = row.get(0)?;
             let row_name: String = row.get(1)?;
             let row_addr: String = row.get(2)?;
@@ -386,9 +379,8 @@ pub fn dc_add_or_lookup_contact(
                 update_authname = true;
             }
             Ok((row_id, row_name, row_addr, row_origin, row_authname))
-        })
-        .ok()
-    }) {
+        },
+    ) {
         row_id = id;
         if origin >= row_origin && addr != row_addr {
             update_addr = true;
@@ -534,38 +526,32 @@ pub fn dc_get_contacts(
     if 0 == listflags & 0x1 || query.is_null() {
         add_self = true;
 
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            context,
-            &context.sql,
+        context.sql.query_map(
             "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;",
-        ) {
-            let rows = stmt.query_map(params![self_addr, 9, 0x100], |row| row.get::<_, i32>(0));
-
-            if let Ok(ids) = rows {
+            params![self_addr, 9, 0x100],
+            |row| row.get::<_, i32>(0),
+            |ids| {
                 for id in ids {
-                    if let Ok(id) = id {
-                        unsafe { dc_array_add_id(ret, id as u32) };
-                    }
+                    unsafe { dc_array_add_id(ret, id? as u32) };
                 }
+                Ok(())
             }
-        }
+        ).unwrap(); // TODO: better error handling
     } else {
         let s3strLikeCmd = format!("%{}%", if !query.is_null() { as_str(query) } else { "" });
 
-        if let Some(mut stmt) = dc_sqlite3_prepare(
-            context,
-            &context.sql,
-            "SELECT c.id FROM contacts c \
-             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-             WHERE c.addr!=?1 \
-             AND c.id>?2 \
-             AND c.origin>=?3 \
-             AND c.blocked=0 \
-             AND (c.name LIKE ?4 OR c.addr LIKE ?5) \
-             AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)  \
-             ORDER BY LOWER(c.name||c.addr),c.id;",
-        ) {
-            let rows = stmt.query_map(
+        context
+            .sql
+            .query_map(
+                "SELECT c.id FROM contacts c \
+                 LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
+                 WHERE c.addr!=?1 \
+                 AND c.id>?2 \
+                 AND c.origin>=?3 \
+                 AND c.blocked=0 \
+                 AND (c.name LIKE ?4 OR c.addr LIKE ?5) \
+                 AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)  \
+                 ORDER BY LOWER(c.name||c.addr),c.id;",
                 params![
                     self_addr,
                     9,
@@ -575,16 +561,14 @@ pub fn dc_get_contacts(
                     if 0 != listflags & 0x1 { 0 } else { 1 },
                 ],
                 |row| row.get::<_, i32>(0),
-            );
-
-            if let Ok(ids) = rows {
-                for id in ids {
-                    if let Ok(id) = id {
-                        unsafe { dc_array_add_id(ret, id as u32) };
+                |ids| {
+                    for id in ids {
+                        unsafe { dc_array_add_id(ret, id? as u32) };
                     }
-                }
-            }
-        }
+                    Ok(())
+                },
+            )
+            .unwrap(); // TODO: Better error handling
 
         let self_name = dc_sqlite3_get_config(context, &context.sql, "displayname", Some(""))
             .unwrap_or_default();

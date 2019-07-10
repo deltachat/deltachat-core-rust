@@ -96,38 +96,36 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         return strdup(to_cstring(ret).as_ptr());
     }
 
-    let rows = if let Some(mut stmt) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
-    ) {
-        stmt.query_map(params![msg_id as i32], |row| {
-            let contact_id: i32 = row.get(0)?;
-            let ts: i64 = row.get(1)?;
-            Ok((contact_id, ts))
-        })
-        .and_then(|res| res.collect::<rusqlite::Result<Vec<_>>>())
-        .ok()
-    } else {
-        None
-    };
+    context
+        .sql
+        .query_map(
+            "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
+            params![msg_id as i32],
+            |row| {
+                let contact_id: i32 = row.get(0)?;
+                let ts: i64 = row.get(1)?;
+                Ok((contact_id, ts))
+            },
+            |rows| {
+                for row in rows {
+                    let (contact_id, ts) = row?;
+                    let fts = dc_timestamp_to_str_safe(ts);
+                    ret += &format!("Read: {}", fts);
 
-    if let Some(rows) = rows {
-        for (contact_id, ts) in rows {
-            let fts = dc_timestamp_to_str_safe(ts);
-            ret += &format!("Read: {}", fts);
+                    let contact = dc_contact_new(context);
+                    dc_contact_load_from_db(contact, &context.sql, contact_id as u32);
 
-            let contact = dc_contact_new(context);
-            dc_contact_load_from_db(contact, &context.sql, contact_id as u32);
+                    p = dc_contact_get_name_n_addr(contact);
+                    ret += &format!(" by {}", as_str(p));
+                    free(p as *mut libc::c_void);
+                    dc_contact_unref(contact);
 
-            p = dc_contact_get_name_n_addr(contact);
-            ret += &format!(" by {}", as_str(p));
-            free(p as *mut libc::c_void);
-            dc_contact_unref(contact);
-
-            ret += "\n";
-        }
-    }
+                    ret += "\n";
+                }
+                Ok(())
+            },
+        )
+        .unwrap(); // TODO: better error handling
 
     ret += "State: ";
     match (*msg).state {
@@ -431,16 +429,13 @@ pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> i64 {
 }
 
 pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id: u32) -> bool {
-    dc_sqlite3_prepare(
-        context,
-        &context.sql,
+    context.sql.query_row(
         "SELECT  \
          m.id,rfc724_mid,m.mime_in_reply_to,m.server_folder,m.server_uid,m.move_state,m.chat_id,  \
          m.from_id,m.to_id,m.timestamp,m.timestamp_sent,m.timestamp_rcvd, m.type,m.state,m.msgrmsg,m.txt,  \
          m.param,m.starred,m.hidden,m.location_id, c.blocked  \
          FROM msgs m \
-         LEFT JOIN chats c ON c.id=m.chat_id WHERE m.id=?;"
-    ).and_then(|mut stmt| stmt.query_row(
+         LEFT JOIN chats c ON c.id=m.chat_id WHERE m.id=?;",
         params![id as i32],
         |row| {
             unsafe {
@@ -477,8 +472,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
             }
             Ok(())
         }
-    ).ok()
-    ).is_some()
+    ).is_ok()
 }
 
 pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut libc::c_char {
@@ -1229,48 +1223,39 @@ pub unsafe fn dc_mdn_from_ext(
 
     let mut read_by_all = 0;
 
-    if let Some((msg_id, chat_id, chat_type, msg_state)) = dc_sqlite3_prepare(
-        context,
-        &context.sql,
+    if let Ok((msg_id, chat_id, chat_type, msg_state)) = context.sql.query_row(
         "SELECT m.id, c.id, c.type, m.state FROM msgs m  \
          LEFT JOIN chats c ON m.chat_id=c.id  \
          WHERE rfc724_mid=? AND from_id=1  \
          ORDER BY m.id;",
-    )
-    .and_then(|mut stmt| {
-        stmt.query_row(params![as_str(rfc724_mid)], |row| {
+        params![as_str(rfc724_mid)],
+        |row| {
             Ok((
                 row.get::<_, i32>(0)?,
                 row.get::<_, i32>(1)?,
                 row.get::<_, i32>(2)?,
                 row.get::<_, i32>(3)?,
             ))
-        })
-        .ok()
-    }) {
+        },
+    ) {
         *ret_msg_id = msg_id as u32;
         *ret_chat_id = chat_id as u32;
 
         if !(msg_state != 18 && msg_state != 20 && msg_state != 26) {
             /* eg. already marked as MDNS_RCVD. however, it is importent, that the message ID is set above as this will allow the caller eg. to move the message away */
-            let mdn_already_in_table = dc_sqlite3_prepare(
-                context,
-                &context.sql,
-                "SELECT contact_id FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
-            )
-            .and_then(|mut stmt| {
-                stmt.exists(params![*ret_msg_id as i32, from_id as i32,])
-                    .ok()
-            })
-            .unwrap_or_default();
+            let mdn_already_in_table = context
+                .sql
+                .exists(
+                    "SELECT contact_id FROM msgs_mdns WHERE msg_id=? AND contact_id=?;",
+                    params![*ret_msg_id as i32, from_id as i32,],
+                )
+                .unwrap_or_default();
 
             if !mdn_already_in_table {
-                dc_sqlite3_execute(
-                    context,
-                    &context.sql,
+                context.sql.execute(
                     "INSERT INTO msgs_mdns (msg_id, contact_id, timestamp_sent) VALUES (?, ?, ?);",
                     params![*ret_msg_id as i32, from_id as i32, timestamp_sent],
-                );
+                ).unwrap(); // TODO: better error handling
             }
 
             // Normal chat? that's quite easy.
