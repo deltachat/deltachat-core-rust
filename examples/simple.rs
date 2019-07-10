@@ -79,10 +79,12 @@ fn main() {
 
         println!("opening database {:?}", dbfile);
 
-        dc_open(&ctx, dbfile.as_ptr(), std::ptr::null());
+        assert_eq!(dc_open(&ctx, dbfile.as_ptr(), std::ptr::null()), 1);
 
         println!("configuring");
-        let pw = std::env::args().collect::<Vec<String>>()[1].clone();
+        let args = std::env::args().collect::<Vec<String>>();
+        assert_eq!(args.len(), 2, "missing password");
+        let pw = args[1].clone();
         dc_set_config(&ctx, "addr", Some("d@testrun.org"));
         dc_set_config(&ctx, "mail_pw", Some(&pw));
         dc_configure(&ctx);

@@ -324,7 +324,7 @@ pub fn dc_lookup_real_nchat_by_contact_id(
             unsafe { *ret_chat_blocked = row.get(1)? };
             Ok(())
         }
-    ).unwrap();
+    );
 }
 
 pub unsafe fn dc_get_chat_id_by_contact_id(context: &Context, contact_id: uint32_t) -> uint32_t {

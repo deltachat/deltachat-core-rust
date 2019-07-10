@@ -21,12 +21,12 @@ function.  These errors must be shown to the user by a bubble or so.
 usually not reported using dc_log_error() - its up to the caller to
 decide, what should be reported or done.  However, these "Normal" errors
 are usually logged by dc_log_warning(). */
-unsafe fn log_vprintf(
+unsafe extern "C" fn log_vprintf(
     context: &Context,
     event: Event,
     data1: libc::c_int,
     msg_format: *const libc::c_char,
-    va_0: std::ffi::VaListImpl,
+    mut va_0: ...
 ) {
     let msg: *mut libc::c_char;
     if !msg_format.is_null() {
@@ -35,7 +35,7 @@ unsafe fn log_vprintf(
             tempbuf.as_mut_ptr(),
             1024i32 as libc::c_ulong,
             msg_format,
-            va_0,
+            va_0.as_va_list(),
         );
         msg = dc_strdup(tempbuf.as_mut_ptr())
     } else {

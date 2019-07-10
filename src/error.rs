@@ -6,6 +6,12 @@ pub enum Error {
     Sql(rusqlite::Error),
     #[fail(display = "{:?}", _0)]
     Failure(failure::Error),
+    #[fail(display = "Sqlite: Connection closed")]
+    SqlNoConnection,
+    #[fail(display = "Sqlite: Already open")]
+    SqlAlreadyOpen,
+    #[fail(display = "Sqlite: Failed to open")]
+    SqlFailedToOpen,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

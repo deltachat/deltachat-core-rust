@@ -6,7 +6,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_param::*;
 use crate::dc_tools::*;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::peerstate::*;
 use crate::x::*;
 
@@ -40,8 +40,12 @@ impl SQLite {
     // return true on success, false on failure
     pub fn open(&self, context: &Context, dbfile: &std::path::Path, flags: libc::c_int) -> bool {
         match dc_sqlite3_open(context, self, dbfile, flags) {
-            1 => true,
-            _ => false,
+            Ok(_) => true,
+            Err(Error::SqlAlreadyOpen) => false,
+            Err(_) => {
+                self.close(context);
+                false
+            }
         }
     }
 
@@ -50,9 +54,16 @@ impl SQLite {
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
     {
-        match &*self.connection.read().unwrap() {
-            Some(conn) => conn.execute(sql, params).map_err(Into::into),
-            None => panic!("Querying closed SQLite database"),
+        self.with_conn(|conn| conn.execute(sql, params).map_err(Into::into))
+    }
+
+    fn with_conn<T, G>(&self, g: G) -> Result<T>
+    where
+        G: FnOnce(&Connection) -> Result<T>,
+    {
+        match &*self.get_conn() {
+            Some(conn) => g(conn),
+            None => Err(Error::SqlNoConnection),
         }
     }
 
@@ -64,26 +75,24 @@ impl SQLite {
     where
         G: FnOnce(Statement<'_>) -> Result<H>,
     {
-        let conn_lock = self.connection.read().unwrap();
-        let conn = conn_lock.as_ref().expect("database closed");
-
-        let stmt = conn.prepare(sql)?;
-        let res = g(stmt)?;
-        Ok(res)
+        self.with_conn(|conn| {
+            let stmt = conn.prepare(sql)?;
+            let res = g(stmt)?;
+            Ok(res)
+        })
     }
 
     pub fn prepare2<G, H>(&self, sql1: &str, sql2: &str, g: G) -> Result<H>
     where
         G: FnOnce(Statement<'_>, Statement<'_>, &Connection) -> Result<H>,
     {
-        let conn_lock = self.connection.read().unwrap();
-        let conn = conn_lock.as_ref().expect("database closed");
+        self.with_conn(|conn| {
+            let stmt1 = conn.prepare(sql1)?;
+            let stmt2 = conn.prepare(sql2)?;
 
-        let stmt1 = conn.prepare(sql1)?;
-        let stmt2 = conn.prepare(sql2)?;
-
-        let res = g(stmt1, stmt2, conn)?;
-        Ok(res)
+            let res = g(stmt1, stmt2, conn)?;
+            Ok(res)
+        })
     }
 
     /// Prepares and executes the statement and maps a function over the resulting rows.
@@ -96,12 +105,11 @@ impl SQLite {
         F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
         G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
-        let conn_lock = self.connection.read().unwrap();
-        let conn = conn_lock.as_ref().expect("database closed");
-
-        let mut stmt = conn.prepare(sql)?;
-        let res = stmt.query_map(params, f)?;
-        g(res)
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(sql)?;
+            let res = stmt.query_map(params, f)?;
+            g(res)
+        })
     }
 
     /// Return `true` if a query in the SQL statement it executes returns one or more
@@ -111,12 +119,11 @@ impl SQLite {
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
     {
-        let conn_lock = self.connection.read().unwrap();
-        let conn = conn_lock.as_ref().expect("database closed");
-
-        let mut stmt = conn.prepare(sql)?;
-        let res = stmt.exists(params)?;
-        Ok(res)
+        self.with_conn(|conn| {
+            let mut stmt = conn.prepare(sql)?;
+            let res = stmt.exists(params)?;
+            Ok(res)
+        })
     }
 
     pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<T>
@@ -125,27 +132,25 @@ impl SQLite {
         P::Item: rusqlite::ToSql,
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
-        match &*self.connection.read().unwrap() {
-            Some(conn) => conn.query_row(sql, params, f).map_err(Into::into),
-            None => panic!("Querying closed SQLite database"),
-        }
+        self.with_conn(|conn| conn.query_row(sql, params, f).map_err(Into::into))
     }
 
     pub fn table_exists(&self, name: impl AsRef<str>) -> bool {
-        match &*self.connection.read().unwrap() {
-            Some(conn) => table_exists(conn, name),
-            None => panic!("Querying closed SQLite database"),
-        }
+        self.with_conn(|conn| Ok(table_exists(conn, name)))
+            .unwrap_or_default()
     }
 }
 
 fn table_exists(conn: &Connection, name: impl AsRef<str>) -> bool {
-    conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |row| {
+    let mut exists = false;
+    conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |_row| {
         // will only be executed if the info was found
-        println!("row: {:?}", row.get::<_, String>(0)?);
+        exists = true;
         Ok(())
     })
-    .is_ok()
+    .expect("bad sqlite state");
+
+    exists
 }
 
 // Return 1 -> success
@@ -155,11 +160,7 @@ fn dc_sqlite3_open(
     sql: &SQLite,
     dbfile: impl AsRef<std::path::Path>,
     flags: libc::c_int,
-) -> libc::c_int {
-    let mut current_block: u64;
-    if sql.is_open() {
-        return 0;
-    }
+) -> Result<()> {
     if sql.is_open() {
         error!(
             context,
@@ -167,7 +168,7 @@ fn dc_sqlite3_open(
             "Cannot open, database \"{:?}\" already opened.",
             dbfile.as_ref(),
         );
-        return 0;
+        return Err(Error::SqlAlreadyOpen);
     }
 
     let mut open_flags = OpenFlags::SQLITE_OPEN_FULL_MUTEX;
@@ -178,51 +179,36 @@ fn dc_sqlite3_open(
         open_flags.insert(OpenFlags::SQLITE_OPEN_CREATE);
     }
 
-    match Connection::open_with_flags(dbfile.as_ref(), open_flags) {
-        Ok(conn) => {
-            let mut sql_conn = sql.connection.write().unwrap();
-            *sql_conn = Some(conn);
-        }
-        Err(err) => {
-            error!(context, 0, "Cannot open database: \"{}\".", err);
-            return 0;
-        }
+    let conn = Connection::open_with_flags(dbfile.as_ref(), open_flags)?;
+    *sql.connection.write().unwrap() = Some(conn);
+
+    {
+        let conn_lock = sql.connection.read().unwrap();
+        let conn = conn_lock.as_ref().expect("just opened");
+
+        conn.pragma_update(None, "secure_delete", &"on".to_string())
+            .expect("failed to enable pragma");
+        conn.busy_timeout(std::time::Duration::new(10, 0))
+            .expect("failed to set busy timeout");
     }
-
-    let conn_lock = sql.connection.read().unwrap();
-    let conn = conn_lock.as_ref().expect("just opened");
-
-    conn.pragma_update(None, "secure_delete", &"on".to_string())
-        .expect("failed to enable pragma");
-    conn.busy_timeout(std::time::Duration::new(10, 0))
-        .expect("failed to set busy timeout");
 
     if 0 == flags & DC_OPEN_READONLY as i32 {
         let mut exists_before_update = 0;
         let mut dbversion_before_update = 0;
         /* Init tables to dbversion=0 */
-        if !table_exists(conn, "config") {
+        if !sql.table_exists("config") {
             info!(
                 context,
                 0,
                 "First time init: creating tables in \"{:?}\".",
                 dbfile.as_ref(),
             );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            sql.execute(
                 "CREATE TABLE config (id INTEGER PRIMARY KEY, keyname TEXT, value TEXT);",
-                params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
-                "CREATE INDEX config_index1 ON config (keyname);",
-                params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+                NO_PARAMS,
+            )?;
+            sql.execute("CREATE INDEX config_index1 ON config (keyname);", NO_PARAMS)?;
+            sql.execute(
                 "CREATE TABLE contacts (\
                  id INTEGER PRIMARY KEY AUTOINCREMENT, \
                  name TEXT DEFAULT \'\', \
@@ -232,31 +218,23 @@ fn dc_sqlite3_open(
                  last_seen INTEGER DEFAULT 0, \
                  param TEXT DEFAULT \'\');",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "CREATE INDEX contacts_index1 ON contacts (name COLLATE NOCASE);",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "CREATE INDEX contacts_index2 ON contacts (addr COLLATE NOCASE);",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "INSERT INTO contacts (id,name,origin) VALUES \
                  (1,\'self\',262144), (2,\'device\',262144), (3,\'rsvd\',262144), \
                  (4,\'rsvd\',262144), (5,\'rsvd\',262144), (6,\'rsvd\',262144), \
                  (7,\'rsvd\',262144), (8,\'rsvd\',262144), (9,\'rsvd\',262144);",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "CREATE TABLE chats (\
                  id INTEGER PRIMARY KEY AUTOINCREMENT,  \
                  type INTEGER DEFAULT 0, \
@@ -267,37 +245,24 @@ fn dc_sqlite3_open(
                  grpid TEXT DEFAULT \'\', \
                  param TEXT DEFAULT \'\');",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
-                "CREATE INDEX chats_index1 ON chats (grpid);",
-                params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute("CREATE INDEX chats_index1 ON chats (grpid);", params![])?;
+            sql.execute(
                 "CREATE TABLE chats_contacts (chat_id INTEGER, contact_id INTEGER);",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "CREATE INDEX chats_contacts_index1 ON chats_contacts (chat_id);",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "INSERT INTO chats (id,type,name) VALUES \
                  (1,120,\'deaddrop\'), (2,120,\'rsvd\'), (3,120,\'trash\'), \
                  (4,120,\'msgs_in_creation\'), (5,120,\'starred\'), (6,120,\'archivedlink\'), \
                  (7,100,\'rsvd\'), (8,100,\'rsvd\'), (9,100,\'rsvd\');",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "CREATE TABLE msgs (\
                  id INTEGER PRIMARY KEY AUTOINCREMENT, \
                  rfc724_mid TEXT DEFAULT \'\', \
@@ -315,43 +280,19 @@ fn dc_sqlite3_open(
                  txt_raw TEXT DEFAULT \'\', \
                  param TEXT DEFAULT \'\');",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
-                "CREATE INDEX msgs_index1 ON msgs (rfc724_mid);",
-                params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
-                "CREATE INDEX msgs_index2 ON msgs (chat_id);",
-                params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
-                "CREATE INDEX msgs_index3 ON msgs (timestamp);",
-                params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
-                "CREATE INDEX msgs_index4 ON msgs (state);",
-                params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute("CREATE INDEX msgs_index1 ON msgs (rfc724_mid);", params![])?;
+            sql.execute("CREATE INDEX msgs_index2 ON msgs (chat_id);", params![])?;
+            sql.execute("CREATE INDEX msgs_index3 ON msgs (timestamp);", params![])?;
+            sql.execute("CREATE INDEX msgs_index4 ON msgs (state);", params![])?;
+            sql.execute(
                 "INSERT INTO msgs (id,msgrmsg,txt) VALUES \
                  (1,0,\'marker1\'), (2,0,\'rsvd\'), (3,0,\'rsvd\'), \
                  (4,0,\'rsvd\'), (5,0,\'rsvd\'), (6,0,\'rsvd\'), (7,0,\'rsvd\'), \
                  (8,0,\'rsvd\'), (9,0,\'daymarker\');",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "CREATE TABLE jobs (\
                  id INTEGER PRIMARY KEY AUTOINCREMENT, \
                  added_timestamp INTEGER, \
@@ -360,19 +301,17 @@ fn dc_sqlite3_open(
                  foreign_id INTEGER, \
                  param TEXT DEFAULT \'\');",
                 params![],
-            );
-            dc_sqlite3_execute(
-                context,
-                sql,
+            )?;
+            sql.execute(
                 "CREATE INDEX jobs_index1 ON jobs (desired_timestamp);",
                 params![],
-            );
-            if !table_exists(conn, "config")
-                || !table_exists(conn, "contacts")
-                || !table_exists(conn, "chats")
-                || !table_exists(conn, "chats_contacts")
-                || !table_exists(conn, "msgs")
-                || !table_exists(conn, "jobs")
+            )?;
+            if !sql.table_exists("config")
+                || !sql.table_exists("contacts")
+                || !sql.table_exists("chats")
+                || !sql.table_exists("chats_contacts")
+                || !sql.table_exists("msgs")
+                || !sql.table_exists("jobs")
             {
                 error!(
                     context,
@@ -381,481 +320,369 @@ fn dc_sqlite3_open(
                     dbfile.as_ref(),
                 );
                 // cannot create the tables - maybe we cannot write?
-                current_block = 13628706266672894061;
+                return Err(Error::SqlFailedToOpen);
             } else {
                 dc_sqlite3_set_config_int(context, sql, "dbversion", 0);
-                current_block = 14072441030219150333;
             }
         } else {
             exists_before_update = 1;
             dbversion_before_update = dc_sqlite3_get_config_int(context, sql, "dbversion", 0);
-            current_block = 14072441030219150333;
         }
 
-        match current_block {
-            13628706266672894061 => {}
-            _ => {
-                // (1) update low-level database structure.
-                // this should be done before updates that use high-level objects that
-                // rely themselves on the low-level structure.
-                // --------------------------------------------------------------------
-                let mut dbversion: libc::c_int = dbversion_before_update;
-                let mut recalc_fingerprints: libc::c_int = 0;
-                let mut update_file_paths: libc::c_int = 0;
-                if dbversion < 1 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT \'\');",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX leftgrps_index1 ON leftgrps (grpid);",
-                        params![],
-                    );
-                    dbversion = 1;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 1);
-                }
-                if dbversion < 2 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT \'\';",
-                        params![],
-                    );
-                    dbversion = 2;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 2);
-                }
-                if dbversion < 7 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE TABLE keypairs (\
-                         id INTEGER PRIMARY KEY, \
-                         addr TEXT DEFAULT \'\' COLLATE NOCASE, \
-                         is_default INTEGER DEFAULT 0, \
-                         private_key, \
-                         public_key, \
-                         created INTEGER DEFAULT 0);",
-                        params![],
-                    );
-                    dbversion = 7;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 7);
-                }
-                if dbversion < 10 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE TABLE acpeerstates (\
-                         id INTEGER PRIMARY KEY, \
-                         addr TEXT DEFAULT \'\' COLLATE NOCASE, \
-                         last_seen INTEGER DEFAULT 0, \
-                         last_seen_autocrypt INTEGER DEFAULT 0, \
-                         public_key, \
-                         prefer_encrypted INTEGER DEFAULT 0);",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);",
-                        params![],
-                    );
-                    dbversion = 10;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 10);
-                }
-                if dbversion < 12 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE TABLE msgs_mdns ( msg_id INTEGER,  contact_id INTEGER);",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX msgs_mdns_index1 ON msgs_mdns (msg_id);",
-                        params![],
-                    );
-                    dbversion = 12;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 12);
-                }
-                if dbversion < 17 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX chats_index2 ON chats (archived);",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN starred INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX msgs_index5 ON msgs (starred);",
-                        params![],
-                    );
-                    dbversion = 17;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 17);
-                }
-                if dbversion < 18 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE acpeerstates ADD COLUMN gossip_timestamp INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE acpeerstates ADD COLUMN gossip_key;",
-                        params![],
-                    );
-                    dbversion = 18;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 18);
-                }
-                if dbversion < 27 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN timestamp_sent INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN timestamp_rcvd INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dbversion = 27;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 27);
-                }
-                if dbversion < 34 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN hidden INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs_mdns ADD COLUMN timestamp_sent INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context, sql,
-                        "ALTER TABLE acpeerstates ADD COLUMN public_key_fingerprint TEXT DEFAULT \'\';",
-                        params![]
-                    );
-                    dc_sqlite3_execute(
-                        context, sql,
-                        "ALTER TABLE acpeerstates ADD COLUMN gossip_key_fingerprint TEXT DEFAULT \'\';",
-                        params![]
-                    );
-                    dc_sqlite3_execute(
-                        context, sql,
-                        "CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);",
-                        params![]
-                    );
-                    dc_sqlite3_execute(
-                        context, sql,
-                        "CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);",
-                        params![]
-                    );
-                    recalc_fingerprints = 1;
-                    dbversion = 34;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 34);
-                }
-                if dbversion < 39 {
-                    dc_sqlite3_execute(
-                        context, sql,
-                        "CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT \'\', timestamp INTEGER DEFAULT 0);",
-                        params![]
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE acpeerstates ADD COLUMN verified_key;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context, sql,
-                        "ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT \'\';",
-                        params![]
-                    );
-                    dc_sqlite3_execute(
-                        context, sql,
-                        "CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);",
-                        params![]
-                    );
-                    if dbversion_before_update == 34 {
-                        dc_sqlite3_execute(
-                            context,
-                            sql,
-                            "UPDATE acpeerstates SET verified_key=gossip_key, verified_key_fingerprint=gossip_key_fingerprint WHERE gossip_key_verified=2;",
-                            params![]
-                        );
-                        dc_sqlite3_execute(
-                            context, sql,
-                            "UPDATE acpeerstates SET verified_key=public_key, verified_key_fingerprint=public_key_fingerprint WHERE public_key_verified=2;",
-                            params![]
-                        );
-                    }
-                    dbversion = 39;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 39);
-                }
-                if dbversion < 40 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE jobs ADD COLUMN thread INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dbversion = 40;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 40);
-                }
-                if dbversion < 41 {
-                    update_file_paths = 1;
-                    dbversion = 41;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 41);
-                }
-                if dbversion < 42 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "UPDATE msgs SET txt=\'\' WHERE type!=10",
-                        params![],
-                    );
-                    dbversion = 42;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 42);
-                }
-                if dbversion < 44 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN mime_headers TEXT;",
-                        params![],
-                    );
-                    dbversion = 44;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 44);
-                }
-                if dbversion < 46 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN mime_in_reply_to TEXT;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN mime_references TEXT;",
-                        params![],
-                    );
-                    dbversion = 46;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 46);
-                }
-                if dbversion < 47 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE jobs ADD COLUMN tries INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dbversion = 47;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 47);
-                }
-                if dbversion < 48 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;",
-                        params![],
-                    );
-                    assert_eq!(DC_MOVE_STATE_UNDEFINED as libc::c_int, 0);
-                    assert_eq!(DC_MOVE_STATE_PENDING as libc::c_int, 1);
-                    assert_eq!(DC_MOVE_STATE_STAY as libc::c_int, 2);
-                    assert_eq!(DC_MOVE_STATE_MOVING as libc::c_int, 3);
+        // (1) update low-level database structure.
+        // this should be done before updates that use high-level objects that
+        // rely themselves on the low-level structure.
+        // --------------------------------------------------------------------
+        let mut dbversion = dbversion_before_update;
+        let mut recalc_fingerprints = 0;
+        let mut update_file_paths = 0;
 
-                    dbversion = 48;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 48);
-                }
-                if dbversion < 49 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE chats ADD COLUMN gossiped_timestamp INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dbversion = 49;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 49);
-                }
-                if dbversion < 50 {
-                    if 0 != exists_before_update {
-                        dc_sqlite3_set_config_int(context, sql, "show_emails", 2);
-                    }
-                    dbversion = 50;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 50);
-                }
-                if dbversion < 53 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);",
-                        params![]
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX locations_index1 ON locations (from_id);",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX locations_index2 ON locations (timestamp);",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE chats ADD COLUMN locations_send_begin INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE chats ADD COLUMN locations_send_until INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE chats ADD COLUMN locations_last_sent INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX chats_index3 ON chats (locations_send_until);",
-                        params![],
-                    );
-                    dbversion = 53;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 53);
-                }
-                if dbversion < 54 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE msgs ADD COLUMN location_id INTEGER DEFAULT 0;",
-                        params![],
-                    );
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "CREATE INDEX msgs_index6 ON msgs (location_id);",
-                        params![],
-                    );
-                    dbversion = 54;
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 54);
-                }
-                if dbversion < 55 {
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;",
-                        params![],
-                    );
-
-                    dc_sqlite3_set_config_int(context, sql, "dbversion", 55);
-                }
-
-                if 0 != recalc_fingerprints {
-                    sql.query_map(
-                        "SELECT addr FROM acpeerstates;",
-                        params![],
-                        |row| row.get::<_, String>(0),
-                        |addrs| {
-                            for addr in addrs {
-                                if let Some(ref mut peerstate) =
-                                    Peerstate::from_addr(context, sql, &addr?)
-                                {
-                                    peerstate.recalc_fingerprint();
-                                    peerstate.save_to_db(sql, false);
-                                }
-                            }
-                            Ok(())
-                        },
-                    )
-                    .unwrap();
-                }
-                if 0 != update_file_paths {
-                    let repl_from = dc_sqlite3_get_config(
-                        context,
-                        sql,
-                        "backup_for",
-                        Some(as_str(context.get_blobdir())),
-                    )
-                    .unwrap();
-
-                    let repl_from = dc_ensure_no_slash_safe(&repl_from);
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "UPDATE msgs SET param=replace(param, \'f=?/\', \'f=$BLOBDIR/\')",
-                        params![repl_from],
-                    );
-
-                    dc_sqlite3_execute(
-                        context,
-                        sql,
-                        "UPDATE chats SET param=replace(param, \'i=?/\', \'i=$BLOBDIR/\');",
-                        params![repl_from],
-                    );
-
-                    dc_sqlite3_set_config(context, sql, "backup_for", None);
-                }
-                current_block = 12024807525273687499;
+        if dbversion < 1 {
+            sql.execute(
+                "CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT \'\');",
+                params![],
+            )?;
+            sql.execute(
+                "CREATE INDEX leftgrps_index1 ON leftgrps (grpid);",
+                params![],
+            )?;
+            dbversion = 1;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 1);
+        }
+        if dbversion < 2 {
+            sql.execute(
+                "ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT \'\';",
+                params![],
+            )?;
+            dbversion = 2;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 2);
+        }
+        if dbversion < 7 {
+            sql.execute(
+                "CREATE TABLE keypairs (\
+                 id INTEGER PRIMARY KEY, \
+                 addr TEXT DEFAULT \'\' COLLATE NOCASE, \
+                 is_default INTEGER DEFAULT 0, \
+                 private_key, \
+                 public_key, \
+                 created INTEGER DEFAULT 0);",
+                params![],
+            )?;
+            dbversion = 7;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 7);
+        }
+        if dbversion < 10 {
+            sql.execute(
+                "CREATE TABLE acpeerstates (\
+                 id INTEGER PRIMARY KEY, \
+                 addr TEXT DEFAULT \'\' COLLATE NOCASE, \
+                 last_seen INTEGER DEFAULT 0, \
+                 last_seen_autocrypt INTEGER DEFAULT 0, \
+                 public_key, \
+                 prefer_encrypted INTEGER DEFAULT 0);",
+                params![],
+            )?;
+            sql.execute(
+                "CREATE INDEX acpeerstates_index1 ON acpeerstates (addr);",
+                params![],
+            )?;
+            dbversion = 10;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 10);
+        }
+        if dbversion < 12 {
+            sql.execute(
+                "CREATE TABLE msgs_mdns ( msg_id INTEGER,  contact_id INTEGER);",
+                params![],
+            )?;
+            sql.execute(
+                "CREATE INDEX msgs_mdns_index1 ON msgs_mdns (msg_id);",
+                params![],
+            )?;
+            dbversion = 12;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 12);
+        }
+        if dbversion < 17 {
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN archived INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute("CREATE INDEX chats_index2 ON chats (archived);", params![])?;
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN starred INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", params![])?;
+            dbversion = 17;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 17);
+        }
+        if dbversion < 18 {
+            sql.execute(
+                "ALTER TABLE acpeerstates ADD COLUMN gossip_timestamp INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute("ALTER TABLE acpeerstates ADD COLUMN gossip_key;", params![])?;
+            dbversion = 18;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 18);
+        }
+        if dbversion < 27 {
+            sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", params![])?;
+            sql.execute(
+                "CREATE INDEX chats_contacts_index2 ON chats_contacts (contact_id);",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN timestamp_sent INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN timestamp_rcvd INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            dbversion = 27;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 27);
+        }
+        if dbversion < 34 {
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN hidden INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE msgs_mdns ADD COLUMN timestamp_sent INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE acpeerstates ADD COLUMN public_key_fingerprint TEXT DEFAULT \'\';",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE acpeerstates ADD COLUMN gossip_key_fingerprint TEXT DEFAULT \'\';",
+                params![],
+            )?;
+            sql.execute(
+                "CREATE INDEX acpeerstates_index3 ON acpeerstates (public_key_fingerprint);",
+                params![],
+            )?;
+            sql.execute(
+                "CREATE INDEX acpeerstates_index4 ON acpeerstates (gossip_key_fingerprint);",
+                params![],
+            )?;
+            recalc_fingerprints = 1;
+            dbversion = 34;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 34);
+        }
+        if dbversion < 39 {
+            sql.execute(
+                "CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT \'\', timestamp INTEGER DEFAULT 0);",
+                params![]
+            )?;
+            sql.execute(
+                "ALTER TABLE acpeerstates ADD COLUMN verified_key;",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT \'\';",
+                params![],
+            )?;
+            sql.execute(
+                "CREATE INDEX acpeerstates_index5 ON acpeerstates (verified_key_fingerprint);",
+                params![],
+            )?;
+            if dbversion_before_update == 34 {
+                sql.execute(
+                    "UPDATE acpeerstates SET verified_key=gossip_key, verified_key_fingerprint=gossip_key_fingerprint WHERE gossip_key_verified=2;",
+                    params![]
+                )?;
+                sql.execute(
+                    "UPDATE acpeerstates SET verified_key=public_key, verified_key_fingerprint=public_key_fingerprint WHERE public_key_verified=2;",
+                    params![]
+                )?;
             }
+            dbversion = 39;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 39);
         }
-    } else {
-        current_block = 12024807525273687499;
-    }
-    match current_block {
-        13628706266672894061 => {}
-        _ => {
-            info!(context, 0, "Opened \"{:?}\".", dbfile.as_ref(),);
-            return 1;
+        if dbversion < 40 {
+            sql.execute(
+                "ALTER TABLE jobs ADD COLUMN thread INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            dbversion = 40;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 40);
+        }
+        if dbversion < 41 {
+            update_file_paths = 1;
+            dbversion = 41;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 41);
+        }
+        if dbversion < 42 {
+            sql.execute("UPDATE msgs SET txt=\'\' WHERE type!=10", params![])?;
+            dbversion = 42;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 42);
+        }
+        if dbversion < 44 {
+            sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", params![])?;
+            dbversion = 44;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 44);
+        }
+        if dbversion < 46 {
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN mime_in_reply_to TEXT;",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN mime_references TEXT;",
+                params![],
+            )?;
+            dbversion = 46;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 46);
+        }
+        if dbversion < 47 {
+            info!(context, 0, "[migration] v47");
+            sql.execute(
+                "ALTER TABLE jobs ADD COLUMN tries INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            dbversion = 47;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 47);
+        }
+        if dbversion < 48 {
+            info!(context, 0, "[migration] v48");
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;",
+                params![],
+            )?;
+            assert_eq!(DC_MOVE_STATE_UNDEFINED as libc::c_int, 0);
+            assert_eq!(DC_MOVE_STATE_PENDING as libc::c_int, 1);
+            assert_eq!(DC_MOVE_STATE_STAY as libc::c_int, 2);
+            assert_eq!(DC_MOVE_STATE_MOVING as libc::c_int, 3);
+
+            dbversion = 48;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 48);
+        }
+        if dbversion < 49 {
+            info!(context, 0, "[migration] v49");
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN gossiped_timestamp INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            dbversion = 49;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 49);
+        }
+        if dbversion < 50 {
+            info!(context, 0, "[migration] v50");
+            if 0 != exists_before_update {
+                dc_sqlite3_set_config_int(context, sql, "show_emails", 2);
+            }
+            dbversion = 50;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 50);
+        }
+        if dbversion < 53 {
+            info!(context, 0, "[migration] v53");
+            sql.execute(
+                "CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);",
+                params![]
+            )?;
+            sql.execute(
+                "CREATE INDEX locations_index1 ON locations (from_id);",
+                params![],
+            )?;
+            sql.execute(
+                "CREATE INDEX locations_index2 ON locations (timestamp);",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN locations_send_begin INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN locations_send_until INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute(
+                "ALTER TABLE chats ADD COLUMN locations_last_sent INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute(
+                "CREATE INDEX chats_index3 ON chats (locations_send_until);",
+                params![],
+            )?;
+            dbversion = 53;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 53);
+        }
+        if dbversion < 54 {
+            info!(context, 0, "[migration] v54");
+            sql.execute(
+                "ALTER TABLE msgs ADD COLUMN location_id INTEGER DEFAULT 0;",
+                params![],
+            )?;
+            sql.execute("CREATE INDEX msgs_index6 ON msgs (location_id);", params![])?;
+            dbversion = 54;
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 54);
+        }
+        if dbversion < 55 {
+            sql.execute(
+                "ALTER TABLE locations ADD COLUMN independent INTEGER DEFAULT 0;",
+                params![],
+            )?;
+
+            dc_sqlite3_set_config_int(context, sql, "dbversion", 55);
+        }
+
+        if 0 != recalc_fingerprints {
+            sql.query_map(
+                "SELECT addr FROM acpeerstates;",
+                params![],
+                |row| row.get::<_, String>(0),
+                |addrs| {
+                    for addr in addrs {
+                        if let Some(ref mut peerstate) = Peerstate::from_addr(context, sql, &addr?)
+                        {
+                            peerstate.recalc_fingerprint();
+                            peerstate.save_to_db(sql, false);
+                        }
+                    }
+                    Ok(())
+                },
+            )?;
+        }
+        if 0 != update_file_paths {
+            // versions before 2018-08 save the absolute paths in the database files at "param.f=";
+            // for newer versions, we copy files always to the blob directory and store relative paths.
+            // this snippet converts older databases and can be removed after some time.
+
+            info!(context, 0, "[open] update file paths");
+
+            let repl_from = dc_sqlite3_get_config(
+                context,
+                sql,
+                "backup_for",
+                Some(as_str(context.get_blobdir())),
+            )
+            .unwrap();
+
+            let repl_from = dc_ensure_no_slash_safe(&repl_from);
+            sql.execute(
+                &format!(
+                    "UPDATE msgs SET param=replace(param, \'f={}/\', \'f=$BLOBDIR/\')",
+                    repl_from
+                ),
+                NO_PARAMS,
+            )?;
+
+            sql.execute(
+                &format!(
+                    "UPDATE chats SET param=replace(param, \'i={}/\', \'i=$BLOBDIR/\');",
+                    repl_from
+                ),
+                NO_PARAMS,
+            )?;
+
+            dc_sqlite3_set_config(context, sql, "backup_for", None);
         }
     }
 
-    sql.close(context);
-    0
+    info!(context, 0, "Opened \"{:?}\".", dbfile.as_ref(),);
+
+    Ok(())
 }
 
 // handle configurations, private
@@ -875,7 +702,7 @@ pub fn dc_sqlite3_set_config(
 
     if let Some(ref value) = value {
         let exists = sql
-            .exists("SELECT value FROM config WHERE keyname=?;", params![])
+            .exists("SELECT value FROM config WHERE keyname=?;", params![key])
             .unwrap_or_default();
         if exists {
             good = dc_sqlite3_execute(
@@ -1035,17 +862,20 @@ pub fn dc_sqlite3_get_rowid(
     // the ORDER BY ensures, this function always returns the most recent id,
     // eg. if a Message-ID is splitted into different messages.
     if let Some(conn) = &*sql.connection.read().unwrap() {
-        match conn.query_row(
-            &format!(
-                "SELECT id FROM ? WHERE {}=? ORDER BY id DESC",
-                field.as_ref()
-            ),
-            &[table.as_ref(), value.as_ref()],
-            |row| row.get::<_, u32>(0),
-        ) {
+        let query = format!(
+            "SELECT id FROM {} WHERE {}='{}' ORDER BY id DESC",
+            table.as_ref(),
+            field.as_ref(),
+            value.as_ref()
+        );
+
+        match conn.query_row(&query, NO_PARAMS, |row| row.get::<_, u32>(0)) {
             Ok(id) => id,
             Err(err) => {
-                error!(context, 0, "sql: Failed to retrieve rowid: {}", err);
+                error!(
+                    context,
+                    0, "sql: Failed to retrieve rowid: {} in {}", err, query
+                );
                 0
             }
         }
@@ -1081,11 +911,14 @@ pub fn get_rowid2(
 ) -> u32 {
     match conn.query_row(
         &format!(
-            "SELECT id FROM ? WHERE {}=? AND {}=? ORDER BY id DESC",
+            "SELECT id FROM {} WHERE {}={} AND {}={} ORDER BY id DESC",
+            table.as_ref(),
             field.as_ref(),
+            value,
             field2.as_ref(),
+            value2,
         ),
-        params![table.as_ref(), value, value2],
+        NO_PARAMS,
         |row| row.get::<_, u32>(0),
     ) {
         Ok(id) => id,
