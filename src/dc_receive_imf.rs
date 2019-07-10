@@ -489,122 +489,121 @@ pub unsafe fn dc_receive_imf(
                             }
                             icnt = carray_count(mime_parser.parts) as size_t;
 
-                            let mut stmt = dc_sqlite3_prepare(
-                                context,
-                                &context.sql,
+                            context.sql.prepare(
                                 "INSERT INTO msgs \
                                  (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
                                  timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
                                  bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
-                                 VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);"
-                            ).unwrap();
-                            i = 0;
-                            loop {
-                                if !(i < icnt) {
-                                    current_block = 2756754640271984560;
-                                    break;
-                                }
-                                let part: *mut dc_mimepart_t =
-                                    carray_get(mime_parser.parts, i as libc::c_uint)
-                                        as *mut dc_mimepart_t;
-                                if !(0 != (*part).is_meta) {
-                                    if !mime_parser.location_kml.is_null()
-                                        && icnt == 1
-                                        && !(*part).msg.is_null()
-                                        && (strcmp(
-                                            (*part).msg,
-                                            b"-location-\x00" as *const u8 as *const libc::c_char,
-                                        ) == 0
-                                            || *(*part).msg.offset(0isize) as libc::c_int == 0)
-                                    {
-                                        hidden = 1;
-                                        if state == 10 {
-                                            state = 13
+                                 VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
+                                |mut stmt| {
+                                    let mut i = 0;
+                                    loop {
+                                        if !(i < icnt) {
+                                            current_block = 2756754640271984560;
+                                            break;
                                         }
-                                    }
-                                    if (*part).type_0 == 10 {
-                                        txt_raw = dc_mprintf(
-                                            b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
-                                            if !mime_parser.subject.is_null() {
-                                                mime_parser.subject
+                                        let part = carray_get(mime_parser.parts, i as libc::c_uint) as *mut dc_mimepart_t;
+                                        if !(0 != (*part).is_meta) {
+                                            if !mime_parser.location_kml.is_null()
+                                                && icnt == 1
+                                                && !(*part).msg.is_null()
+                                                && (strcmp(
+                                                    (*part).msg,
+                                                    b"-location-\x00" as *const u8 as *const libc::c_char,
+                                                ) == 0
+                                                    || *(*part).msg.offset(0isize) as libc::c_int == 0)
+                                            {
+                                                hidden = 1;
+                                                if state == 10 {
+                                                    state = 13
+                                                }
+                                            }
+                                            if (*part).type_0 == 10 {
+                                                txt_raw = dc_mprintf(
+                                                    b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
+                                                    if !mime_parser.subject.is_null() {
+                                                        mime_parser.subject
+                                                    } else {
+                                                        b"\x00" as *const u8 as *const libc::c_char
+                                                    },
+                                                    (*part).msg_raw,
+                                                )
+                                            }
+                                            if 0 != mime_parser.is_system_message {
+                                                dc_param_set_int(
+                                                    (*part).param,
+                                                    'S' as i32,
+                                                    mime_parser.is_system_message,
+                                                );
+                                            }
+
+                                            let res = stmt.execute(params![
+                                                as_str(rfc724_mid),
+                                                server_folder.as_ref(),
+                                                server_uid as libc::c_int,
+                                                chat_id as libc::c_int,
+                                                from_id as libc::c_int,
+                                                to_id as libc::c_int,
+                                                sort_timestamp,
+                                                sent_timestamp,
+                                                rcvd_timestamp,
+                                                (*part).type_0,
+                                                state,
+                                                msgrmsg,
+                                                if !(*part).msg.is_null() {
+                                                    as_str((*part).msg)
+                                                } else {
+                                                    ""
+                                                },
+                                                if !txt_raw.is_null() {
+                                                    as_str(txt_raw)
+                                                } else {
+                                                    ""
+                                                },
+                                                as_str((*(*part).param).packed),
+                                                (*part).bytes,
+                                                hidden,
+                                                if 0 != save_mime_headers {
+                                                    Some(as_str(imf_raw_not_terminated))
+                                                } else {
+                                                    None
+                                                },
+                                                as_str(mime_in_reply_to),
+                                                as_str(mime_references),
+                                            ]);
+
+                                            if res.is_err() {
+                                                info!(context, 0, "Cannot write DB.",);
+                                                /* i/o error - there is nothing more we can do - in other cases, we try to write at least an empty record */
+                                                current_block = 16282941964262048061;
+                                                break;
                                             } else {
-                                                b"\x00" as *const u8 as *const libc::c_char
-                                            },
-                                            (*part).msg_raw,
-                                        )
+                                                free(txt_raw as *mut libc::c_void);
+                                                txt_raw = 0 as *mut libc::c_char;
+                                                insert_msg_id = dc_sqlite3_get_rowid(
+                                                    context,
+                                                    &context.sql,
+                                                    "msgs",
+                                                    "rfc724_mid",
+                                                    as_str(rfc724_mid),
+                                                );
+                                                carray_add(
+                                                    created_db_entries,
+                                                    chat_id as uintptr_t as *mut libc::c_void,
+                                                    0 as *mut libc::c_uint,
+                                                );
+                                                carray_add(
+                                                    created_db_entries,
+                                                    insert_msg_id as uintptr_t as *mut libc::c_void,
+                                                    0 as *mut libc::c_uint,
+                                                );
+                                            }
+                                        }
+                                        i = i.wrapping_add(1)
                                     }
-                                    if 0 != mime_parser.is_system_message {
-                                        dc_param_set_int(
-                                            (*part).param,
-                                            'S' as i32,
-                                            mime_parser.is_system_message,
-                                        );
-                                    }
-
-                                    let res = stmt.execute(params![
-                                        as_str(rfc724_mid),
-                                        server_folder.as_ref(),
-                                        server_uid as libc::c_int,
-                                        chat_id as libc::c_int,
-                                        from_id as libc::c_int,
-                                        to_id as libc::c_int,
-                                        sort_timestamp,
-                                        sent_timestamp,
-                                        rcvd_timestamp,
-                                        (*part).type_0,
-                                        state,
-                                        msgrmsg,
-                                        if !(*part).msg.is_null() {
-                                            as_str((*part).msg)
-                                        } else {
-                                            ""
-                                        },
-                                        if !txt_raw.is_null() {
-                                            as_str(txt_raw)
-                                        } else {
-                                            ""
-                                        },
-                                        as_str((*(*part).param).packed),
-                                        (*part).bytes,
-                                        hidden,
-                                        if 0 != save_mime_headers {
-                                            Some(as_str(imf_raw_not_terminated))
-                                        } else {
-                                            None
-                                        },
-                                        as_str(mime_in_reply_to),
-                                        as_str(mime_references),
-                                    ]);
-
-                                    if res.is_err() {
-                                        info!(context, 0, "Cannot write DB.",);
-                                        /* i/o error - there is nothing more we can do - in other cases, we try to write at least an empty record */
-                                        current_block = 16282941964262048061;
-                                        break;
-                                    } else {
-                                        free(txt_raw as *mut libc::c_void);
-                                        txt_raw = 0 as *mut libc::c_char;
-                                        insert_msg_id = dc_sqlite3_get_rowid(
-                                            context,
-                                            &context.sql,
-                                            "msgs",
-                                            "rfc724_mid",
-                                            as_str(rfc724_mid),
-                                        );
-                                        carray_add(
-                                            created_db_entries,
-                                            chat_id as uintptr_t as *mut libc::c_void,
-                                            0 as *mut libc::c_uint,
-                                        );
-                                        carray_add(
-                                            created_db_entries,
-                                            insert_msg_id as uintptr_t as *mut libc::c_void,
-                                            0 as *mut libc::c_uint,
-                                        );
-                                    }
+                                    Ok(())
                                 }
-                                i = i.wrapping_add(1)
-                            }
+                            ).unwrap(); // TODO: better error handling
                             match current_block {
                                 16282941964262048061 => {}
                                 _ => {

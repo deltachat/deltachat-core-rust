@@ -409,71 +409,52 @@ pub unsafe fn dc_save_locations(
         return 0;
     }
 
-    let stmt_test = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
-    );
-    let stmt_insert = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "INSERT INTO locations\
-         (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
-         VALUES (?,?,?,?,?,?,?);",
-    );
+    context
+        .sql
+        .prepare2(
+            "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
+            "INSERT INTO locations\
+             (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
+             VALUES (?,?,?,?,?,?,?);",
+            |mut stmt_test, mut stmt_insert, conn| {
+                let mut newest_timestamp = 0;
+                let mut newest_location_id = 0;
 
-    if stmt_test.is_none() || stmt_insert.is_none() {
-        return 0;
-    }
+                for i in 0..dc_array_get_cnt(locations) {
+                    let location = dc_array_get_ptr(locations, i as size_t) as *mut dc_location_t;
 
-    let mut stmt_test = stmt_test.unwrap();
-    let mut stmt_insert = stmt_insert.unwrap();
+                    let exists =
+                        stmt_test.exists(params![(*location).timestamp, contact_id as i32])?;
 
-    let mut newest_timestamp = 0;
-    let mut newest_location_id = 0;
+                    if 0 != independent || !exists {
+                        stmt_insert.execute(params![
+                            (*location).timestamp,
+                            contact_id as i32,
+                            chat_id as i32,
+                            (*location).latitude,
+                            (*location).longitude,
+                            (*location).accuracy,
+                            independent,
+                        ])?;
 
-    for i in 0..dc_array_get_cnt(locations) {
-        // TODO: do I need to reset?
-
-        let location = dc_array_get_ptr(locations, i as size_t) as *mut dc_location_t;
-
-        let exists = stmt_test
-            .exists(params![(*location).timestamp, contact_id as i32])
-            .unwrap_or_default();
-
-        if 0 != independent || !exists {
-            // TODO: do I need to reset?
-            if stmt_insert
-                .execute(params![
-                    (*location).timestamp,
-                    contact_id as i32,
-                    chat_id as i32,
-                    (*location).latitude,
-                    (*location).longitude,
-                    (*location).accuracy,
-                    independent,
-                ])
-                .is_err()
-            {
-                return 0;
-            }
-
-            if (*location).timestamp > newest_timestamp {
-                newest_timestamp = (*location).timestamp;
-                newest_location_id = dc_sqlite3_get_rowid2(
-                    context,
-                    &context.sql,
-                    "locations",
-                    "timestamp",
-                    (*location).timestamp,
-                    "from_id",
-                    contact_id as i32,
-                );
-            }
-        }
-    }
-
-    newest_location_id
+                        if (*location).timestamp > newest_timestamp {
+                            newest_timestamp = (*location).timestamp;
+                            newest_location_id = get_rowid2(
+                                context,
+                                conn,
+                                "locations",
+                                "timestamp",
+                                (*location).timestamp,
+                                "from_id",
+                                contact_id as i32,
+                            );
+                        }
+                    }
+                }
+                Ok(newest_location_id)
+            },
+        )
+        .unwrap_or_default()
 }
 
 pub unsafe fn dc_kml_parse(
@@ -677,9 +658,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                 }
             },
             |rows| {
-                let stmt_locations = dc_sqlite3_prepare(
-                    context,
-                    &context.sql,
+                context.sql.prepare(
                     "SELECT id \
                      FROM locations \
                      WHERE from_id=? \
@@ -687,44 +666,40 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                      AND timestamp>? \
                      AND independent=0 \
                      ORDER BY timestamp;",
-                );
-                if stmt_locations.is_none() {
-                    // TODO: handle error
-                    return Ok(());
-                }
-                let mut stmt_locations = stmt_locations.unwrap();
-
-                for (chat_id, locations_send_begin, locations_last_sent) in
-                    rows.filter_map(|r| match r {
-                        Ok(Some(v)) => Some(v),
-                        _ => None,
-                    })
-                {
-                    // TODO: do I need to reset?
-                    if !stmt_locations
-                        .exists(params![1, locations_send_begin, locations_last_sent,])
-                        .unwrap_or_default()
-                    {
-                        // if there is no new location, there's nothing to send.
-                        // however, maybe we want to bypass this test eg. 15 minutes
-                        continue;
-                    }
-                    // pending locations are attached automatically to every message,
-                    // so also to this empty text message.
-                    // DC_CMD_LOCATION is only needed to create a nicer subject.
-                    //
-                    // for optimisation and to avoid flooding the sending queue,
-                    // we could sending these messages only if we're really online.
-                    // the easiest way to determine this, is to check for an empty message queue.
-                    // (might not be 100%, however, as positions are sent combined later
-                    // and dc_set_location() is typically called periodically, this is ok)
-                    let mut msg = dc_msg_new(context, 10);
-                    (*msg).hidden = 1;
-                    dc_param_set_int((*msg).param, 'S' as i32, 9);
-                    dc_send_msg(context, chat_id as u32, msg);
-                    dc_msg_unref(msg);
-                }
-                Ok(())
+                    |mut stmt_locations| {
+                        for (chat_id, locations_send_begin, locations_last_sent) in
+                            rows.filter_map(|r| match r {
+                                Ok(Some(v)) => Some(v),
+                                _ => None,
+                            })
+                        {
+                            // TODO: do I need to reset?
+                            if !stmt_locations
+                                .exists(params![1, locations_send_begin, locations_last_sent,])
+                                .unwrap_or_default()
+                            {
+                                // if there is no new location, there's nothing to send.
+                                // however, maybe we want to bypass this test eg. 15 minutes
+                                continue;
+                            }
+                            // pending locations are attached automatically to every message,
+                            // so also to this empty text message.
+                            // DC_CMD_LOCATION is only needed to create a nicer subject.
+                            //
+                            // for optimisation and to avoid flooding the sending queue,
+                            // we could sending these messages only if we're really online.
+                            // the easiest way to determine this, is to check for an empty message queue.
+                            // (might not be 100%, however, as positions are sent combined later
+                            // and dc_set_location() is typically called periodically, this is ok)
+                            let mut msg = dc_msg_new(context, 10);
+                            (*msg).hidden = 1;
+                            dc_param_set_int((*msg).param, 'S' as i32, 9);
+                            dc_send_msg(context, chat_id as u32, msg);
+                            dc_msg_unref(msg);
+                        }
+                        Ok(())
+                    },
+                )
             },
         )
         .unwrap(); // TODO: Better error handling

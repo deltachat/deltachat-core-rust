@@ -524,54 +524,50 @@ pub fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bo
     )
 }
 
-pub unsafe fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) {
+pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) -> bool {
     if msg_ids.is_null() || msg_cnt <= 0 {
-        return;
+        return false;
     }
-    let stmt = dc_sqlite3_prepare(
-        context, &context.sql,
-        "SELECT m.state, c.blocked  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id=? AND m.chat_id>9"
-    );
+    context.sql.prepare(
+        "SELECT m.state, c.blocked  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id=? AND m.chat_id>9",
+        |mut stmt| {
+            let mut send_event = false;
 
-    if stmt.is_none() {
-        // TODO: error handling
-        return;
-    }
+            for i in 0..msg_cnt {
+                // TODO: do I need to reset?
+                let id = unsafe { *msg_ids.offset(i as isize) };
+                if let Ok((curr_state, curr_blocked)) = stmt
+                    .query_row(params![id as i32], |row| {
+                        Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
+                    })
+                {
+                    if curr_blocked == 0 {
+                        if curr_state == 10 || curr_state == 13 {
+                            dc_update_msg_state(context, id, 16);
+                            info!(context, 0, "Seen message #{}.", id);
 
-    let mut stmt = stmt.unwrap();
-    let mut send_event = false;
-
-    for i in 0..msg_cnt {
-        // TODO: do I need to reset?
-        if let Ok((curr_state, curr_blocked)) = stmt
-            .query_row(params![*msg_ids.offset(i as isize) as i32], |row| {
-                Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
-            })
-        {
-            if curr_blocked == 0 {
-                if curr_state == 10 || curr_state == 13 {
-                    dc_update_msg_state(context, *msg_ids.offset(i as isize), 16);
-                    info!(context, 0, "Seen message #{}.", *msg_ids.offset(i as isize),);
-
-                    dc_job_add(
-                        context,
-                        130,
-                        *msg_ids.offset(i as isize) as libc::c_int,
-                        0 as *const libc::c_char,
-                        0,
-                    );
-                    send_event = true;
+                            unsafe { dc_job_add(
+                                context,
+                                130,
+                                id as i32,
+                                0 as *const libc::c_char,
+                                0,
+                            ) };
+                            send_event = true;
+                        }
+                    } else if curr_state == 10 {
+                        dc_update_msg_state(context, id, 13);
+                        send_event = true;
+                    }
                 }
-            } else if curr_state == 10 {
-                dc_update_msg_state(context, *msg_ids.offset(i as isize), 13);
-                send_event = true;
             }
-        }
-    }
 
-    if send_event {
-        context.call_cb(Event::MSGS_CHANGED, 0, 0);
-    }
+            if send_event {
+                context.call_cb(Event::MSGS_CHANGED, 0, 0);
+            }
+            Ok(())
+        }
+    ).is_ok()
 }
 
 pub fn dc_update_msg_state(context: &Context, msg_id: uint32_t, state: libc::c_int) -> bool {
@@ -592,26 +588,15 @@ pub fn dc_star_msgs(
     if msg_ids.is_null() || msg_cnt <= 0 || star != 0 && star != 1 {
         return false;
     }
-    let stmt = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        "UPDATE msgs SET starred=? WHERE id=?;",
-    );
-    if stmt.is_none() {
-        return false;
-    }
-
-    let mut stmt = stmt.unwrap();
-    for i in 0..msg_cnt {
-        if stmt
-            .execute(params![star, unsafe { *msg_ids.offset(i as isize) as i32 }])
-            .is_err()
-        {
-            return false;
-        }
-    }
-
-    true
+    context
+        .sql
+        .prepare("UPDATE msgs SET starred=? WHERE id=?;", |mut stmt| {
+            for i in 0..msg_cnt {
+                stmt.execute(params![star, unsafe { *msg_ids.offset(i as isize) as i32 }])?;
+            }
+            Ok(())
+        })
+        .is_ok()
 }
 
 pub unsafe fn dc_get_msg<'a>(context: &'a Context, msg_id: uint32_t) -> *mut dc_msg_t<'a> {

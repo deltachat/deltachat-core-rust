@@ -1010,81 +1010,82 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                 );
                             } else {
                                 let dir_handle = dir_handle.unwrap();
-                                let mut stmt = dc_sqlite3_prepare(
-                                    context,
-                                    &sql,
-                                    "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);"
-                                ).expect("bad sql state");
 
-                                let mut processed_files_cnt = 0;
-                                for entry in dir_handle {
-                                    if entry.is_err() {
-                                        current_block = 2631791190359682872;
-                                        break;
-                                    }
-                                    let entry = entry.unwrap();
-                                    if context
-                                        .running_state
-                                        .clone()
-                                        .read()
-                                        .unwrap()
-                                        .shall_stop_ongoing
-                                    {
-                                        delete_dest_file = 1;
-                                        current_block = 11487273724841241105;
-                                        break;
-                                    } else {
-                                        processed_files_cnt += 1;
-                                        let mut permille =
-                                            processed_files_cnt * 1000 / total_files_cnt;
-                                        if permille < 10 {
-                                            permille = 10;
-                                        }
-                                        if permille > 990 {
-                                            permille = 990;
-                                        }
-                                        context.call_cb(
-                                            Event::IMEX_PROGRESS,
-                                            permille as uintptr_t,
-                                            0 as uintptr_t,
-                                        );
-
-                                        let name_f = entry.file_name();
-                                        let name = name_f.to_string_lossy();
-                                        if name.starts_with("delta-chat") && name.ends_with(".bak")
-                                        {
-                                            continue;
-                                        } else {
-                                            info!(context, 0, "EXPORTing filename={}", name);
-                                            let curr_pathNfilename = format!(
-                                                "{}/{}",
-                                                as_str(context.get_blobdir()),
-                                                name
-                                            );
-
-                                            if let Some(buf) =
-                                                dc_read_file_safe(context, &curr_pathNfilename)
+                                sql.prepare(
+                                    "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
+                                    move |mut stmt| {
+                                        let mut processed_files_cnt = 0;
+                                        for entry in dir_handle {
+                                            if entry.is_err() {
+                                                current_block = 2631791190359682872;
+                                                break;
+                                            }
+                                            let entry = entry.unwrap();
+                                            if context
+                                                .running_state
+                                                .clone()
+                                                .read()
+                                                .unwrap()
+                                                .shall_stop_ongoing
                                             {
-                                                if buf.is_empty() {
-                                                    continue;
-                                                }
-                                                if stmt.execute(params![name, buf]).is_err() {
-                                                    error!(
-                                                        context,
-                                                        0,
-                                                        "Disk full? Cannot add file \"{}\" to backup.",
-                                                        &curr_pathNfilename,
-                                                    );
-                                                    /* this is not recoverable! writing to the sqlite database should work! */
-                                                    current_block = 11487273724841241105;
-                                                    break;
-                                                }
+                                                delete_dest_file = 1;
+                                                current_block = 11487273724841241105;
+                                                break;
                                             } else {
-                                                continue;
+                                                processed_files_cnt += 1;
+                                                let mut permille =
+                                                    processed_files_cnt * 1000 / total_files_cnt;
+                                                if permille < 10 {
+                                                    permille = 10;
+                                                }
+                                                if permille > 990 {
+                                                    permille = 990;
+                                                }
+                                                context.call_cb(
+                                                    Event::IMEX_PROGRESS,
+                                                    permille as uintptr_t,
+                                                    0 as uintptr_t,
+                                                );
+
+                                                let name_f = entry.file_name();
+                                                let name = name_f.to_string_lossy();
+                                                if name.starts_with("delta-chat") && name.ends_with(".bak")
+                                                {
+                                                    continue;
+                                                } else {
+                                                    info!(context, 0, "EXPORTing filename={}", name);
+                                                    let curr_pathNfilename = format!(
+                                                        "{}/{}",
+                                                        as_str(context.get_blobdir()),
+                                                        name
+                                                    );
+
+                                                    if let Some(buf) =
+                                                        dc_read_file_safe(context, &curr_pathNfilename)
+                                                    {
+                                                        if buf.is_empty() {
+                                                            continue;
+                                                        }
+                                                        if stmt.execute(params![name, buf]).is_err() {
+                                                            error!(
+                                                                context,
+                                                                0,
+                                                                "Disk full? Cannot add file \"{}\" to backup.",
+                                                                &curr_pathNfilename,
+                                                            );
+                                                            /* this is not recoverable! writing to the sqlite database should work! */
+                                                            current_block = 11487273724841241105;
+                                                            break;
+                                                        }
+                                                    } else {
+                                                        continue;
+                                                    }
+                                                }
                                             }
                                         }
+                                        Ok(())
                                     }
-                                }
+                                ).unwrap();
                             }
                         } else {
                             info!(context, 0, "Backup: No files to copy.",);

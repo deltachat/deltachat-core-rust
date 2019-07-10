@@ -60,6 +60,32 @@ impl SQLite {
         self.connection.read().unwrap()
     }
 
+    pub fn prepare<G, H>(&self, sql: &str, g: G) -> Result<H>
+    where
+        G: FnOnce(Statement<'_>) -> Result<H>,
+    {
+        let conn_lock = self.connection.read().unwrap();
+        let conn = conn_lock.as_ref().expect("database closed");
+
+        let stmt = conn.prepare(sql)?;
+        let res = g(stmt)?;
+        Ok(res)
+    }
+
+    pub fn prepare2<G, H>(&self, sql1: &str, sql2: &str, g: G) -> Result<H>
+    where
+        G: FnOnce(Statement<'_>, Statement<'_>, &Connection) -> Result<H>,
+    {
+        let conn_lock = self.connection.read().unwrap();
+        let conn = conn_lock.as_ref().expect("database closed");
+
+        let stmt1 = conn.prepare(sql1)?;
+        let stmt2 = conn.prepare(sql2)?;
+
+        let res = g(stmt1, stmt2, conn)?;
+        Ok(res)
+    }
+
     /// Prepares and executes the statement and maps a function over the resulting rows.
     /// Then executes the second function over the returned iterator and returns the
     /// result of that function.
@@ -883,16 +909,6 @@ pub fn dc_sqlite3_set_config(
     1
 }
 
-// TODO: Remove the option from the return type
-pub fn dc_sqlite3_prepare<'a>(
-    _context: &Context,
-    _sql: &'a SQLite,
-    _querystr: &'a str,
-) -> Option<Statement<'a>> {
-    // TODO: remove once it is not used anymore
-    unimplemented!()
-}
-
 pub fn dc_sqlite3_get_config(
     context: &Context,
     sql: &SQLite,
@@ -1047,25 +1063,36 @@ pub fn dc_sqlite3_get_rowid2(
     field2: impl AsRef<str>,
     value2: i32,
 ) -> u32 {
-    // same as dc_sqlite3_get_rowid() with a key over two columns
     if let Some(conn) = &*sql.connection.read().unwrap() {
-        match conn.query_row(
-            &format!(
-                "SELECT id FROM ? WHERE {}=? AND {}=? ORDER BY id DESC",
-                field.as_ref(),
-                field2.as_ref(),
-            ),
-            params![table.as_ref(), value, value2],
-            |row| row.get::<_, u32>(0),
-        ) {
-            Ok(id) => id,
-            Err(err) => {
-                error!(context, 0, "sql: Failed to retrieve rowid2: {}", err);
-                0
-            }
-        }
+        get_rowid2(context, conn, table, field, value, field2, value2)
     } else {
         0
+    }
+}
+
+pub fn get_rowid2(
+    context: &Context,
+    conn: &Connection,
+    table: impl AsRef<str>,
+    field: impl AsRef<str>,
+    value: i64,
+    field2: impl AsRef<str>,
+    value2: i32,
+) -> u32 {
+    match conn.query_row(
+        &format!(
+            "SELECT id FROM ? WHERE {}=? AND {}=? ORDER BY id DESC",
+            field.as_ref(),
+            field2.as_ref(),
+        ),
+        params![table.as_ref(), value, value2],
+        |row| row.get::<_, u32>(0),
+    ) {
+        Ok(id) => id,
+        Err(err) => {
+            error!(context, 0, "sql: Failed to retrieve rowid2: {}", err);
+            0
+        }
     }
 }
 
