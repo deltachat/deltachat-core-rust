@@ -88,14 +88,14 @@ pub unsafe fn dc_receive_imf(
         info!(context, 0, "No header.",);
     } else {
         /* Error - even adding an empty record won't help as we do not know the message ID */
-        field = dc_mimeparser_lookup_field_r(&mut mime_parser, "Date");
+        field = dc_mimeparser_lookup_field(&mut mime_parser, "Date");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_ORIG_DATE as libc::c_int {
             let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
             if !orig_date.is_null() {
                 sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
             }
         }
-        field = dc_mimeparser_lookup_field_r(&mime_parser, "From");
+        field = dc_mimeparser_lookup_field(&mime_parser, "From");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_FROM as libc::c_int {
             let fld_from: *mut mailimf_from = (*field).fld_data.fld_from;
             if !fld_from.is_null() {
@@ -120,7 +120,7 @@ pub unsafe fn dc_receive_imf(
                 dc_array_unref(from_list);
             }
         }
-        field = dc_mimeparser_lookup_field_r(&mime_parser, "To");
+        field = dc_mimeparser_lookup_field(&mime_parser, "To");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_TO as libc::c_int {
             let fld_to: *mut mailimf_to = (*field).fld_data.fld_to;
             if !fld_to.is_null() {
@@ -140,7 +140,7 @@ pub unsafe fn dc_receive_imf(
             }
         }
         if !dc_mimeparser_get_last_nonmeta(&mime_parser).is_null() {
-            field = dc_mimeparser_lookup_field_r(&mime_parser, "Cc");
+            field = dc_mimeparser_lookup_field(&mime_parser, "Cc");
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_CC as libc::c_int {
                 let fld_cc: *mut mailimf_cc = (*field).fld_data.fld_cc;
                 if !fld_cc.is_null() {
@@ -159,7 +159,7 @@ pub unsafe fn dc_receive_imf(
                     );
                 }
             }
-            field = dc_mimeparser_lookup_field_r(&mime_parser, "Message-ID");
+            field = dc_mimeparser_lookup_field(&mime_parser, "Message-ID");
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_MESSAGE_ID as libc::c_int {
                 let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
                 if !fld_message_id.is_null() {
@@ -234,8 +234,7 @@ pub unsafe fn dc_receive_imf(
                         if 0 != incoming {
                             state = if 0 != flags & 0x1 { 16 } else { 10 };
                             to_id = 1 as uint32_t;
-                            if !dc_mimeparser_lookup_field_r(&mime_parser, "Secure-Join").is_null()
-                            {
+                            if !dc_mimeparser_lookup_field(&mime_parser, "Secure-Join").is_null() {
                                 msgrmsg = 1i32;
                                 chat_id = 0i32 as uint32_t;
                                 allow_creation = 1i32;
@@ -440,7 +439,7 @@ pub unsafe fn dc_receive_imf(
                                 }
                             }
                         }
-                        field = dc_mimeparser_lookup_field_r(&mime_parser, "In-Reply-To");
+                        field = dc_mimeparser_lookup_field(&mime_parser, "In-Reply-To");
                         if !field.is_null()
                             && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int
                         {
@@ -453,7 +452,7 @@ pub unsafe fn dc_receive_imf(
                                 )
                             }
                         }
-                        field = dc_mimeparser_lookup_field_r(&mime_parser, "References");
+                        field = dc_mimeparser_lookup_field(&mime_parser, "References");
                         if !field.is_null()
                             && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int
                         {
@@ -1000,7 +999,7 @@ unsafe fn create_or_lookup_group(
         grpid = dc_strdup((*optional_field).fld_value)
     }
     if grpid.is_null() {
-        field = dc_mimeparser_lookup_field_r(mime_parser, "Message-ID");
+        field = dc_mimeparser_lookup_field(mime_parser, "Message-ID");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_MESSAGE_ID as libc::c_int {
             let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
             if !fld_message_id.is_null() {
@@ -1008,7 +1007,7 @@ unsafe fn create_or_lookup_group(
             }
         }
         if grpid.is_null() {
-            field = dc_mimeparser_lookup_field_r(mime_parser, "In-Reply-To");
+            field = dc_mimeparser_lookup_field(mime_parser, "In-Reply-To");
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
                 let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
                 if !fld_in_reply_to.is_null() {
@@ -1016,7 +1015,7 @@ unsafe fn create_or_lookup_group(
                 }
             }
             if grpid.is_null() {
-                field = dc_mimeparser_lookup_field_r(mime_parser, "References");
+                field = dc_mimeparser_lookup_field(mime_parser, "References");
                 if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int
                 {
                     let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
@@ -1182,7 +1181,7 @@ unsafe fn create_or_lookup_group(
                 /*otherwise, a pending "quit" message may pop up*/
                 /*re-create explicitly left groups only if ourself is re-added*/
                 let mut create_verified: libc::c_int = 0i32;
-                if !dc_mimeparser_lookup_field_r(mime_parser, "Chat-Verified").is_null() {
+                if !dc_mimeparser_lookup_field(mime_parser, "Chat-Verified").is_null() {
                     create_verified = 1i32;
                     if 0 == check_verified_properties(
                         context,
@@ -1842,7 +1841,7 @@ unsafe fn dc_is_reply_to_known_message(
         }
     }
     let mut field: *mut mailimf_field;
-    field = dc_mimeparser_lookup_field_r(mime_parser, "In-Reply-To");
+    field = dc_mimeparser_lookup_field(mime_parser, "In-Reply-To");
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
         let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
@@ -1854,7 +1853,7 @@ unsafe fn dc_is_reply_to_known_message(
             }
         }
     }
-    field = dc_mimeparser_lookup_field_r(mime_parser, "References");
+    field = dc_mimeparser_lookup_field(mime_parser, "References");
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
         let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {
@@ -1920,7 +1919,7 @@ unsafe fn dc_is_reply_to_messenger_message(
     - it is okay, if the referenced messages are moved to trash here
     - no check for the Chat-* headers (function is only called if it is no messenger message itself) */
     let mut field: *mut mailimf_field;
-    field = dc_mimeparser_lookup_field_r(mime_parser, "In-Reply-To");
+    field = dc_mimeparser_lookup_field(mime_parser, "In-Reply-To");
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
         let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
@@ -1932,7 +1931,7 @@ unsafe fn dc_is_reply_to_messenger_message(
             }
         }
     }
-    field = dc_mimeparser_lookup_field_r(mime_parser, "References");
+    field = dc_mimeparser_lookup_field(mime_parser, "References");
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
         let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {

@@ -932,7 +932,7 @@ unsafe fn lookup_field(
     key: *const libc::c_char,
 ) -> *const libc::c_char {
     let mut value: *const libc::c_char = 0 as *const libc::c_char;
-    let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, key);
+    let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, as_str(key));
     if field.is_null()
         || (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
         || (*field).fld_data.fld_optional_field.is_null()
