@@ -17,7 +17,6 @@ use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
 
 use crate::aheader::*;
 use crate::context::Context;
-use crate::dc_log::*;
 use crate::dc_mimeparser::*;
 use crate::dc_securejoin::*;
 use crate::dc_sqlite3::*;
@@ -521,27 +520,19 @@ unsafe fn load_or_generate_self_public_key(
             &context.sql,
         ) {
             /*set default*/
-            dc_log_warning(
-                context,
-                0,
-                b"Cannot save keypair.\x00" as *const u8 as *const libc::c_char,
-            );
+            warn!(context, 0, "Cannot save keypair.",);
         } else {
-            dc_log_info(
+            info!(
                 context,
                 0,
-                b"Keypair generated in %.3f s.\x00" as *const u8 as *const libc::c_char,
+                "Keypair generated in {:.3}s.",
                 clock().wrapping_sub(start) as libc::c_double / 1000000 as libc::c_double,
             );
         }
 
         key = Some(public_key);
     } else {
-        dc_log_warning(
-            context,
-            0,
-            b"Cannot create keypair.\x00" as *const u8 as *const libc::c_char,
-        );
+        warn!(context, 0, "Cannot create keypair.");
     }
 
     if 0 != key_creation_here {
@@ -711,12 +702,11 @@ unsafe fn update_gossip_peerstates(
 
                         gossipped_addr.insert(header.addr.clone());
                     } else {
-                        dc_log_info(
+                        info!(
                             context,
-                            0i32,
-                            b"Ignoring gossipped \"%s\" as the address is not in To/Cc list.\x00"
-                                as *const u8 as *const libc::c_char,
-                            CString::new(header.addr.clone()).unwrap().as_ptr(),
+                            0,
+                            "Ignoring gossipped \"{}\" as the address is not in To/Cc list.",
+                            &header.addr,
                         );
                     }
                 }
@@ -1079,17 +1069,15 @@ pub unsafe fn dc_ensure_secret_key_exists(context: &Context) -> libc::c_int {
 
     let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
     if self_addr.is_none() {
-        dc_log_warning(
+        warn!(
             context,
-            0i32,
-            b"Cannot ensure secret key if context is not configured.\x00" as *const u8
-                as *const libc::c_char,
+            0, "Cannot ensure secret key if context is not configured.",
         );
     } else if load_or_generate_self_public_key(context, self_addr.unwrap(), 0 as *mut mailmime)
         .is_some()
     {
         /*no random text data for seeding available*/
-        success = 1i32
+        success = 1;
     }
 
     success

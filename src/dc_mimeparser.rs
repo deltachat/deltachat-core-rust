@@ -15,7 +15,6 @@ use crate::context::Context;
 use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
-use crate::dc_log::*;
 use crate::dc_param::*;
 use crate::dc_simplify::*;
 use crate::dc_stock::*;
@@ -544,11 +543,9 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                 b"rfc822-headers\x00" as *const u8 as *const libc::c_char,
             ) == 0i32
         {
-            dc_log_info(
+            info!(
                 (*mimeparser).context,
-                0i32,
-                b"Protected headers found in text/rfc822-headers attachment: Will be ignored.\x00"
-                    as *const u8 as *const libc::c_char,
+                0, "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
             );
             return 0i32;
         }
@@ -562,11 +559,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
             ) != MAILIMF_NO_ERROR as libc::c_int
                 || (*mimeparser).header_protected.is_null()
             {
-                dc_log_warning(
-                    (*mimeparser).context,
-                    0i32,
-                    b"Protected headers parsing error.\x00" as *const u8 as *const libc::c_char,
-                );
+                warn!((*mimeparser).context, 0, "Protected headers parsing error.",);
             } else {
                 hash_header(
                     &mut (*mimeparser).header,
@@ -575,9 +568,11 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                 );
             }
         } else {
-            dc_log_info((*mimeparser).context, 0i32,
-                        b"Protected headers found in MIME header: Will be ignored as we already found an outer one.\x00"
-                            as *const u8 as *const libc::c_char);
+            info!(
+                (*mimeparser).context,
+                0,
+                "Protected headers found in MIME header: Will be ignored as we already found an outer one."
+            );
         }
     }
     match (*mime).mm_type {
@@ -769,10 +764,11 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                         }
                     }
                     if plain_cnt == 1i32 && html_cnt == 1i32 {
-                        dc_log_warning((*mimeparser).context, 0i32,
-                                       b"HACK: multipart/mixed message found with PLAIN and HTML, we\'ll skip the HTML part as this seems to be unwanted.\x00"
-                                           as *const u8 as
-                                           *const libc::c_char);
+                        warn!(
+                            (*mimeparser).context,
+                            0i32,
+                            "HACK: multipart/mixed message found with PLAIN and HTML, we\'ll skip the HTML part as this seems to be unwanted."
+                        );
                         skip_part = html_part
                     }
                     cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
@@ -1226,14 +1222,12 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                             current_block = 17788412896529399552;
                                         }
                                     } else {
-                                        dc_log_warning(
+                                        warn!(
                                             mimeparser.context,
-                                            0i32,
-                                            b"Cannot convert %i bytes from \"%s\" to \"utf-8\".\x00"
-                                                as *const u8
-                                                as *const libc::c_char,
+                                            0,
+                                            "Cannot convert {} bytes from \"{}\" to \"utf-8\".",
                                             decoded_data_bytes as libc::c_int,
-                                            charset,
+                                            as_str(charset),
                                         );
                                         current_block = 17788412896529399552;
                                     }

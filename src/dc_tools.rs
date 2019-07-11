@@ -8,7 +8,6 @@ use rand::{thread_rng, Rng};
 
 use crate::context::Context;
 use crate::dc_array::*;
-use crate::dc_log::*;
 use crate::types::*;
 use crate::x::*;
 
@@ -1173,12 +1172,7 @@ pub unsafe fn dc_delete_file(context: &Context, pathNfilename: *const libc::c_ch
             success = 1;
         }
         Err(_err) => {
-            dc_log_warning(
-                context,
-                0i32,
-                b"Cannot delete \"%s\".\x00" as *const u8 as *const libc::c_char,
-                pathNfilename,
-            );
+            warn!(context, 0, "Cannot delete \"{}\".", as_str(pathNfilename),);
         }
     }
 
@@ -1208,13 +1202,7 @@ pub unsafe fn dc_copy_file(
             success = 1;
         }
         Err(_) => {
-            dc_log_error(
-                context,
-                0,
-                b"Cannot copy \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
-                src,
-                dest,
-            );
+            error!(context, 0, "Cannot copy \"{}\" to \"{}\".", src_p, dest_p,);
         }
     }
 
@@ -1237,11 +1225,11 @@ pub unsafe fn dc_create_folder(
                     success = 1;
                 }
                 Err(_err) => {
-                    dc_log_warning(
+                    warn!(
                         context,
-                        0i32,
-                        b"Cannot create directory \"%s\".\x00" as *const u8 as *const libc::c_char,
-                        pathNfilename,
+                        0,
+                        "Cannot create directory \"{}\".",
+                        as_str(pathNfilename),
                     );
                 }
             }

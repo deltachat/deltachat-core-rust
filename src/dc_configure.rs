@@ -4,7 +4,6 @@ use crate::constants::Event;
 use crate::context::Context;
 use crate::dc_e2ee::*;
 use crate::dc_job::*;
-use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_saxparser::*;
 use crate::dc_sqlite3::*;
@@ -56,11 +55,9 @@ pub struct outlk_autodiscover_t<'a> {
 // connect
 pub unsafe fn dc_configure(context: &Context) {
     if 0 != dc_has_ongoing(context) {
-        dc_log_warning(
+        warn!(
             context,
-            0i32,
-            b"There is already another ongoing process running.\x00" as *const u8
-                as *const libc::c_char,
+            0, "There is already another ongoing process running.",
         );
         return;
     }
@@ -110,11 +107,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
     if !(0 == dc_alloc_ongoing(context)) {
         ongoing_allocated_here = 1i32;
         if !context.sql.is_open() {
-            dc_log_error(
-                context,
-                0i32,
-                b"Cannot configure, database not opened.\x00" as *const u8 as *const libc::c_char,
-            );
+            error!(context, 0, "Cannot configure, database not opened.",);
         } else {
             context.inbox.read().unwrap().disconnect(context);
             context
@@ -130,11 +123,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                 .imap
                 .disconnect(context);
             context.smtp.clone().lock().unwrap().disconnect();
-            dc_log_info(
-                context,
-                0i32,
-                b"Configure ...\x00" as *const u8 as *const libc::c_char,
-            );
+            info!(context, 0, "Configure ...",);
 
             let s_a = context.running_state.clone();
             let s = s_a.read().unwrap();
@@ -1001,14 +990,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                 );
                                                                                 dc_ensure_secret_key_exists(context);
                                                                                 success = 1;
-                                                                                dc_log_info(
+                                                                                info!(
                                                                                     context,
-                                                                                            0,
-                                                                                            b"Configure completed.\x00"
-                                                                                            as
-                                                                                            *const u8
-                                                                                            as
-                                                                                            *const libc::c_char);
+                                                                                    0,
+                                                                                    "Configure completed."
+                                                                                );
                                                                                 if !s.shall_stop_ongoing
                                                                             {
                                                                                 context.call_cb(
@@ -1483,11 +1469,9 @@ unsafe fn outlk_autodiscover_starttag_cb(
 }
 pub unsafe fn dc_alloc_ongoing(context: &Context) -> libc::c_int {
     if 0 != dc_has_ongoing(context) {
-        dc_log_warning(
+        warn!(
             context,
-            0,
-            b"There is already another ongoing process running.\x00" as *const u8
-                as *const libc::c_char,
+            0, "There is already another ongoing process running.",
         );
         return 0;
     }

@@ -4,7 +4,6 @@ use crate::dc_array::*;
 use crate::dc_chatlist::*;
 use crate::dc_contact::*;
 use crate::dc_job::*;
-use crate::dc_log::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
@@ -192,12 +191,9 @@ pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32
             send_event = 1i32
         }
     } else if !dc_real_contact_exists(context, contact_id) && contact_id != 1i32 as libc::c_uint {
-        dc_log_warning(
+        warn!(
             context,
-            0i32,
-            b"Cannot create chat, contact %i does not exist.\x00" as *const u8
-                as *const libc::c_char,
-            contact_id as libc::c_int,
+            0, "Cannot create chat, contact {} does not exist.", contact_id as libc::c_int,
         );
     } else {
         dc_create_or_lookup_nchat_by_contact_id(
@@ -377,21 +373,15 @@ unsafe fn prepare_msg_common<'a>(
     {
         pathNfilename = dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
         if pathNfilename.is_null() {
-            dc_log_error(
+            error!(
                 context,
-                0i32,
-                b"Attachment missing for message of type #%i.\x00" as *const u8
-                    as *const libc::c_char,
+                0,
+                "Attachment missing for message of type #{}.",
                 (*msg).type_0 as libc::c_int,
             );
             current_block = 2171833246886114521;
         } else if (*msg).state == 18i32 && 0 == dc_is_blobdir_path(context, pathNfilename) {
-            dc_log_error(
-                context,
-                0i32,
-                b"Files must be created in the blob-directory.\x00" as *const u8
-                    as *const libc::c_char,
-            );
+            error!(context, 0, "Files must be created in the blob-directory.",);
             current_block = 2171833246886114521;
         } else if 0 == dc_make_rel_and_copy(context, &mut pathNfilename) {
             current_block = 2171833246886114521;
@@ -416,20 +406,20 @@ unsafe fn prepare_msg_common<'a>(
                 dc_param_set((*msg).param, 'm' as i32, better_mime_0);
                 free(better_mime_0 as *mut libc::c_void);
             }
-            dc_log_info(
+            info!(
                 context,
-                0i32,
-                b"Attaching \"%s\" for message type #%i.\x00" as *const u8 as *const libc::c_char,
-                pathNfilename,
+                0,
+                "Attaching \"{}\" for message type #{}.",
+                as_str(pathNfilename),
                 (*msg).type_0 as libc::c_int,
             );
             current_block = 17281240262373992796;
         }
     } else {
-        dc_log_error(
+        error!(
             context,
-            0i32,
-            b"Cannot send messages of type #%i.\x00" as *const u8 as *const libc::c_char,
+            0,
+            "Cannot send messages of type #{}.",
             (*msg).type_0 as libc::c_int,
         );
         current_block = 2171833246886114521;
@@ -476,29 +466,20 @@ unsafe fn prepare_msg_raw(
     let mut location_id = 0;
 
     if !((*chat).type_0 == 100 || (*chat).type_0 == 120 || (*chat).type_0 == 130) {
-        dc_log_error(
-            context,
-            0,
-            b"Cannot send to chat type #%i.\x00" as *const u8 as *const libc::c_char,
-            (*chat).type_0,
-        );
+        error!(context, 0, "Cannot send to chat type #{}.", (*chat).type_0,);
     } else if ((*chat).type_0 == 120 || (*chat).type_0 == 130)
         && 0 == dc_is_contact_in_chat(context, (*chat).id, 1 as uint32_t)
     {
-        dc_log_event(
+        log_event!(
             context,
             Event::ERROR_SELF_NOT_IN_GROUP,
             0,
-            b"Cannot send message; self not in group.\x00" as *const u8 as *const libc::c_char,
+            "Cannot send message; self not in group.",
         );
     } else {
         let from = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
         if from.is_none() {
-            dc_log_error(
-                context,
-                0,
-                b"Cannot send message, not configured.\x00" as *const u8 as *const libc::c_char,
-            );
+            error!(context, 0, "Cannot send message, not configured.",);
         } else {
             let from_c = to_cstring(from.unwrap());
             new_rfc724_mid = dc_create_outgoing_rfc724_mid(
@@ -521,11 +502,10 @@ unsafe fn prepare_msg_raw(
                     to_id = id;
                     current_block = 5689316957504528238;
                 } else {
-                    dc_log_error(
+                    error!(
                         context,
                         0,
-                        b"Cannot send message, contact for chat #%i not found.\x00" as *const u8
-                            as *const libc::c_char,
+                        "Cannot send message, contact for chat #{} not found.",
                         (*chat).id,
                     );
                     current_block = 10477488590406205504;
@@ -1514,12 +1494,11 @@ pub unsafe fn dc_add_contact_to_chat_ex(
             || !dc_chat_load_from_db(chat, chat_id))
         {
             if !(dc_is_contact_in_chat(context, chat_id, 1 as uint32_t) == 1) {
-                dc_log_event(
+                log_event!(
                     context,
                     Event::ERROR_SELF_NOT_IN_GROUP,
                     0,
-                    b"Cannot add contact to group; self not in group.\x00" as *const u8
-                        as *const libc::c_char,
+                    "Cannot add contact to group; self not in group.",
                 );
             } else {
                 /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
@@ -1545,10 +1524,9 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                         // else continue and send status mail
                         if (*chat).type_0 == 130 {
                             if dc_contact_is_verified(contact) != 2 {
-                                dc_log_error(
+                                error!(
                                     context, 0,
-                                    b"Only bidirectional verified contacts can be added to verified groups.\x00"
-                                        as *const u8 as *const libc::c_char
+                                    "Only bidirectional verified contacts can be added to verified groups."
                                 );
                                 current_block = 12326129973959287090;
                             } else {
@@ -1674,12 +1652,11 @@ pub unsafe fn dc_remove_contact_from_chat(
         /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
         if !(0 == real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
             if !(dc_is_contact_in_chat(context, chat_id, 1 as uint32_t) == 1) {
-                dc_log_event(
+                log_event!(
                     context,
                     Event::ERROR_SELF_NOT_IN_GROUP,
                     0,
-                    b"Cannot remove contact from chat; self not in group.\x00" as *const u8
-                        as *const libc::c_char,
+                    "Cannot remove contact from chat; self not in group.",
                 );
             } else {
                 /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
@@ -1774,12 +1751,11 @@ pub unsafe fn dc_set_chat_name(
             if strcmp((*chat).name, new_name) == 0i32 {
                 success = 1i32
             } else if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
-                dc_log_event(
+                log_event!(
                     context,
                     Event::ERROR_SELF_NOT_IN_GROUP,
-                    0i32,
-                    b"Cannot set chat name; self not in group\x00" as *const u8
-                        as *const libc::c_char,
+                    0,
+                    "Cannot set chat name; self not in group",
                 );
             } else {
                 /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
@@ -1838,12 +1814,11 @@ pub unsafe fn dc_set_chat_profile_image(
     if !(chat_id <= 9i32 as libc::c_uint) {
         if !(0i32 == real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
             if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
-                dc_log_event(
+                log_event!(
                     context,
                     Event::ERROR_SELF_NOT_IN_GROUP,
-                    0i32,
-                    b"Cannot set chat profile image; self not in group.\x00" as *const u8
-                        as *const libc::c_char,
+                    0,
+                    "Cannot set chat profile image; self not in group.",
                 );
             } else {
                 /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */

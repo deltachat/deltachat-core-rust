@@ -6,7 +6,6 @@ use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_jobthread::*;
-use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_move::*;
@@ -265,19 +264,19 @@ unsafe fn cb_precheck_imf(
         if *old_server_folder.offset(0isize) as libc::c_int == 0i32
             && old_server_uid == 0i32 as libc::c_uint
         {
-            dc_log_info(
+            info!(
                 context,
-                0i32,
-                b"[move] detected bbc-self %s\x00" as *const u8 as *const libc::c_char,
-                rfc724_mid,
+                0,
+                "[move] detected bbc-self {}",
+                as_str(rfc724_mid),
             );
             mark_seen = 1i32
         } else if as_str(old_server_folder) != server_folder {
-            dc_log_info(
+            info!(
                 context,
-                0i32,
-                b"[move] detected moved message %s\x00" as *const u8 as *const libc::c_char,
-                rfc724_mid,
+                0,
+                "[move] detected moved message {}",
+                as_str(rfc724_mid),
             );
             dc_update_msg_move_state(context, rfc724_mid, DC_MOVE_STATE_STAY);
         }

@@ -3,7 +3,6 @@ use crate::context::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_job::*;
-use crate::dc_log::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_saxparser::*;
@@ -472,12 +471,9 @@ pub unsafe fn dc_kml_parse(
     };
 
     if content_bytes > (1 * 1024 * 1024) {
-        dc_log_warning(
+        warn!(
             context,
-            0,
-            b"A kml-files with %i bytes is larger than reasonably expected.\x00" as *const u8
-                as *const libc::c_char,
-            content_bytes,
+            0, "A kml-files with {} bytes is larger than reasonably expected.", content_bytes,
         );
     } else {
         content_nullterminated = dc_null_terminate(content, content_bytes as libc::c_int);
@@ -630,11 +626,9 @@ pub unsafe fn dc_kml_unref(kml: *mut dc_kml_t) {
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mut dc_job_t) {
     let now = time();
     let mut continue_streaming: libc::c_int = 1;
-    dc_log_info(
+    info!(
         context,
-        0,
-        b" ----------------- MAYBE_SEND_LOCATIONS -------------- \x00" as *const u8
-            as *const libc::c_char,
+        0, " ----------------- MAYBE_SEND_LOCATIONS -------------- ",
     );
 
     context

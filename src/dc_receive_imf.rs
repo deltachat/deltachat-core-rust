@@ -14,7 +14,6 @@ use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_location::*;
-use crate::dc_log::*;
 use crate::dc_mimeparser::*;
 use crate::dc_move::*;
 use crate::dc_msg::*;
@@ -82,19 +81,11 @@ pub unsafe fn dc_receive_imf(
     );
     to_ids = dc_array_new(16 as size_t);
     if to_ids.is_null() || created_db_entries.is_null() || rr_event_to_send.is_null() {
-        dc_log_info(
-            context,
-            0,
-            b"Bad param.\x00" as *const u8 as *const libc::c_char,
-        );
+        info!(context, 0, "Bad param.",);
     } else {
         dc_mimeparser_parse(&mut mime_parser, imf_raw_not_terminated, imf_raw_bytes);
         if mime_parser.header.is_empty() {
-            dc_log_info(
-                context,
-                0,
-                b"No header.\x00" as *const u8 as *const libc::c_char,
-            );
+            info!(context, 0, "No header.",);
         } else {
             /* Error - even adding an empty record won't help as we do not know the message ID */
             field = dc_mimeparser_lookup_field(
@@ -195,11 +186,7 @@ pub unsafe fn dc_receive_imf(
                 if rfc724_mid.is_null() {
                     rfc724_mid = dc_create_incoming_rfc724_mid(sent_timestamp, from_id, to_ids);
                     if rfc724_mid.is_null() {
-                        dc_log_info(
-                            context,
-                            0,
-                            b"Cannot create Message-ID.\x00" as *const u8 as *const libc::c_char,
-                        );
+                        info!(context, 0, "Cannot create Message-ID.",);
                         current_block = 16282941964262048061;
                     } else {
                         current_block = 777662472977924419;
@@ -316,12 +303,9 @@ pub unsafe fn dc_receive_imf(
                                 if chat_id == 0 as libc::c_uint {
                                     if 0 != dc_mimeparser_is_mailinglist_message(&mime_parser) {
                                         chat_id = 3 as uint32_t;
-                                        dc_log_info(
+                                        info!(
                                             context,
-                                            0,
-                                            b"Message belongs to a mailing list and is ignored.\x00"
-                                                as *const u8
-                                                as *const libc::c_char,
+                                            0, "Message belongs to a mailing list and is ignored.",
                                         );
                                     }
                                 }
@@ -352,10 +336,11 @@ pub unsafe fn dc_receive_imf(
                                             != dc_is_reply_to_known_message(context, &mime_parser)
                                         {
                                             dc_scaleup_contact_origin(context, from_id, 0x100);
-                                            dc_log_info(context, 0,
-                                                        b"Message is a reply to a known message, mark sender as known.\x00"
-                                                            as *const u8 as
-                                                            *const libc::c_char);
+                                            info!(
+                                                context,
+                                                0,
+                                                "Message is a reply to a known message, mark sender as known.",
+                                            );
                                             incoming_origin = if incoming_origin > 0x100 {
                                                 incoming_origin
                                             } else {
@@ -1343,15 +1328,14 @@ unsafe fn create_or_lookup_group(
                             }
                             if 0 != ok {
                                 let chat: *mut Chat = dc_chat_new(context);
-                                dc_log_info(
+                                info!(
                                     context,
                                     0,
-                                    b"New group image set to %s.\x00" as *const u8
-                                        as *const libc::c_char,
+                                    "New group image set to {}.",
                                     if !grpimage.is_null() {
-                                        b"DELETED\x00" as *const u8 as *const libc::c_char
+                                        "DELETED".to_string()
                                     } else {
-                                        grpimage
+                                        to_string(grpimage)
                                     },
                                 );
                                 dc_chat_load_from_db(chat, chat_id);

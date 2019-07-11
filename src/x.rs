@@ -45,12 +45,6 @@ extern "C" {
             unsafe extern "C" fn(_: *const libc::c_void, _: *const libc::c_void) -> libc::c_int,
         >,
     );
-    pub fn vsnprintf(
-        _: *mut libc::c_char,
-        _: libc::c_ulong,
-        _: *const libc::c_char,
-        _: std::ffi::VaList,
-    ) -> libc::c_int;
 
     // -- DC Methods
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;

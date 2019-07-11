@@ -375,7 +375,7 @@ pub fn dc_add_or_lookup_contact(
             } else {
                 update_name = true;
             }
-            if origin == 0x10 && as_str(name) != row_authname {
+            if origin == 0x10 && !name.is_null() && as_str(name) != row_authname {
                 update_authname = true;
             }
             Ok((row_id, row_name, row_addr, row_origin, row_authname))
@@ -391,7 +391,11 @@ pub fn dc_add_or_lookup_contact(
                 &context.sql,
                 "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
                 params![
-                    if update_name { as_str(name) } else { &row_name },
+                    if update_name {
+                        to_string(name)
+                    } else {
+                        row_name
+                    },
                     if update_addr { addr } else { &row_addr },
                     if origin > row_origin {
                         origin
@@ -399,9 +403,9 @@ pub fn dc_add_or_lookup_contact(
                         row_origin
                     },
                     if update_authname {
-                        as_str(name)
+                        to_string(name)
                     } else {
-                        &row_authname
+                        row_authname
                     },
                     row_id
                 ],
@@ -412,7 +416,7 @@ pub fn dc_add_or_lookup_contact(
                     context,
                     &context.sql,
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    params![as_str(name), 100, row_id]
+                    params![to_string(name), 100, row_id]
                 );
             }
             unsafe { *sth_modified = 1 };
@@ -422,11 +426,7 @@ pub fn dc_add_or_lookup_contact(
             context,
             &context.sql,
             "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
-            params![
-                if !name.is_null() { as_str(name) } else { "" },
-                addr,
-                origin,
-            ],
+            params![to_string(name), addr, origin,],
         ) {
             row_id = dc_sqlite3_get_rowid(context, &context.sql, "contacts", "addr", addr);
             unsafe { *sth_modified = 2 };

@@ -3,7 +3,6 @@ use crate::context::*;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_job::*;
-use crate::dc_log::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
 use crate::dc_param::*;
@@ -1162,12 +1161,7 @@ pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *con
         }
         if !error.is_null() {
             dc_param_set((*msg).param, 'L' as i32, error);
-            dc_log_error(
-                context,
-                0,
-                b"%s\x00" as *const u8 as *const libc::c_char,
-                error,
-            );
+            error!(context, 0, "{}", as_str(error),);
         }
 
         if dc_sqlite3_execute(

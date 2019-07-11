@@ -12,7 +12,6 @@ use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_e2ee::*;
 use crate::dc_job::*;
-use crate::dc_log::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
@@ -51,13 +50,11 @@ pub unsafe fn dc_imex_has_backup(
     let dir_name = as_path(dir_name);
     let dir_iter = std::fs::read_dir(dir_name);
     if dir_iter.is_err() {
-        dc_log_info(
+        info!(
             context,
-            0i32,
-            b"Backup check: Cannot open directory \"%s\".\x00" as *const u8 as *const libc::c_char,
-            CString::new(format!("{}", dir_name.display()))
-                .unwrap()
-                .as_ptr(),
+            0,
+            "Backup check: Cannot open directory \"{}\".\x00",
+            dir_name.display(),
         );
         return 0 as *mut libc::c_char;
     }
@@ -88,12 +85,7 @@ pub unsafe fn dc_imex_has_backup(
         Some(path) => match path.to_c_string() {
             Ok(cstr) => dc_strdup(cstr.as_ptr()),
             Err(err) => {
-                dc_log_error(
-                    context,
-                    0i32,
-                    b"Invalid backup filename: %s\x00" as *const u8 as *const libc::c_char,
-                    CString::new(format!("{}", err)).unwrap().as_ptr(),
-                );
+                error!(context, 0, "Invalid backup filename: {}", err);
                 std::ptr::null_mut()
             }
         },
@@ -170,12 +162,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                 if !(msg_id == 0i32 as libc::c_uint) {
                                     dc_msg_unref(msg);
                                     msg = 0 as *mut dc_msg_t;
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Wait for setup message being sent ...\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Wait for setup message being sent ...",);
                                     loop {
                                         if context
                                             .running_state
@@ -199,13 +186,8 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                     match current_block {
                                         6116957410927263949 => {}
                                         _ => {
-                                            dc_log_info(
-                                                context,
-                                                0i32,
-                                                b"... setup message sent.\x00" as *const u8
-                                                    as *const libc::c_char,
-                                            );
-                                            success = 1i32
+                                            info!(context, 0, "... setup message sent.",);
+                                            success = 1;
                                         }
                                     }
                                 }
@@ -557,32 +539,21 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
         param1 = dc_param_get((*job).param, 'E' as i32, 0 as *const libc::c_char);
         param2 = dc_param_get((*job).param, 'F' as i32, 0 as *const libc::c_char);
         if param1.is_null() {
-            dc_log_error(
-                context,
-                0i32,
-                b"No Import/export dir/file given.\x00" as *const u8 as *const libc::c_char,
-            );
+            error!(context, 0, "No Import/export dir/file given.",);
         } else {
-            dc_log_info(
-                context,
-                0i32,
-                b"Import/export process started.\x00" as *const u8 as *const libc::c_char,
-            );
+            info!(context, 0, "Import/export process started.",);
             context.call_cb(Event::IMEX_PROGRESS, 10i32 as uintptr_t, 0i32 as uintptr_t);
             if !context.sql.is_open() {
-                dc_log_error(
-                    context,
-                    0i32,
-                    b"Import/export: Database not opened.\x00" as *const u8 as *const libc::c_char,
-                );
+                error!(context, 0, "Import/export: Database not opened.",);
             } else {
                 if what == 1i32 || what == 11i32 {
                     /* before we export anything, make sure the private key exists */
                     if 0 == dc_ensure_secret_key_exists(context) {
-                        dc_log_error(context, 0i32,
-                                         b"Import/export: Cannot create private key or private key not available.\x00"
-                                             as *const u8 as
-                                             *const libc::c_char);
+                        error!(
+                            context,
+                            0,
+                            "Import/export: Cannot create private key or private key not available.",
+                        );
                         current_block = 3568988166330621280;
                     } else {
                         dc_create_folder(context, param1);
@@ -629,12 +600,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             match current_block {
                                 3568988166330621280 => {}
                                 _ => {
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Import/export completed.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Import/export completed.",);
                                     success = 1i32
                                 }
                             }
@@ -674,12 +640,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             match current_block {
                                 3568988166330621280 => {}
                                 _ => {
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Import/export completed.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Import/export completed.",);
                                     success = 1i32
                                 }
                             }
@@ -719,12 +680,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             match current_block {
                                 3568988166330621280 => {}
                                 _ => {
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Import/export completed.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Import/export completed.",);
                                     success = 1i32
                                 }
                             }
@@ -764,12 +720,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             match current_block {
                                 3568988166330621280 => {}
                                 _ => {
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Import/export completed.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Import/export completed.",);
                                     success = 1i32
                                 }
                             }
@@ -936,11 +887,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     let buffer = to_cstring(res);
     let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
     if dest_pathNfilename.is_null() {
-        dc_log_error(
-            context,
-            0,
-            b"Cannot get backup file name.\x00" as *const u8 as *const libc::c_char,
-        );
+        error!(context, 0, "Cannot get backup file name.",);
 
         return success;
     }
@@ -950,12 +897,12 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     dc_sqlite3_try_execute(context, &context.sql, "VACUUM;");
     context.sql.close(context);
     let mut closed = true;
-    dc_log_info(
+    info!(
         context,
         0,
-        b"Backup \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
-        context.get_dbfile(),
-        dest_pathNfilename,
+        "Backup \"{}\" to \"{}\".",
+        as_str(context.get_dbfile()),
+        as_str(dest_pathNfilename),
     );
     if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
@@ -986,12 +933,11 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                     let dir = std::path::Path::new(as_str(context.get_blobdir()));
                     let dir_handle = std::fs::read_dir(dir);
                     if dir_handle.is_err() {
-                        dc_log_error(
+                        error!(
                             context,
                             0,
-                            b"Backup: Cannot get info for blob-directory \"%s\".\x00" as *const u8
-                                as *const libc::c_char,
-                            context.get_blobdir(),
+                            "Backup: Cannot get info for blob-directory \"{}\".",
+                            as_str(context.get_blobdir()),
                         );
                     } else {
                         let dir_handle = dir_handle.unwrap();
@@ -1150,11 +1096,11 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
         let dir = std::path::Path::new(as_str(dir_name));
         let dir_handle = std::fs::read_dir(dir);
         if dir_handle.is_err() {
-            dc_log_error(
+            error!(
                 context,
                 0,
-                b"Import: Cannot open directory \"%s\".\x00" as *const u8 as *const libc::c_char,
-                dir_name,
+                "Import: Cannot open directory \"{}\".",
+                as_str(dir_name),
             );
         } else {
             let dir_handle = dir_handle.unwrap();
@@ -1178,12 +1124,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     dir_name,
                     name_c.as_ptr(),
                 );
-                dc_log_info(
-                    context,
-                    0,
-                    b"Checking: %s\x00" as *const u8 as *const libc::c_char,
-                    path_plus_name,
-                );
+                info!(context, 0, "Checking: {}", as_str(path_plus_name));
                 free(buf as *mut libc::c_void);
                 buf = 0 as *mut libc::c_char;
                 if 0 == dc_read_file(
@@ -1225,12 +1166,11 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 )
                 .is_null()
                 {
-                    dc_log_info(
+                    info!(
                         context,
-                        0i32,
-                        b"Treating \"%s\" as a legacy private key.\x00" as *const u8
-                            as *const libc::c_char,
-                        path_plus_name,
+                        0,
+                        "Treating \"{}\" as a legacy private key.",
+                        as_str(path_plus_name),
                     );
                     set_default = 0i32
                 }
@@ -1240,11 +1180,11 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 imported_cnt += 1
             }
             if imported_cnt == 0i32 {
-                dc_log_error(
+                error!(
                     context,
-                    0i32,
-                    b"No private keys found in \"%s\".\x00" as *const u8 as *const libc::c_char,
-                    dir_name,
+                    0,
+                    "No private keys found in \"{}\".",
+                    as_str(dir_name),
                 );
             }
         }
@@ -1343,20 +1283,10 @@ unsafe fn export_key_to_asc_file(
             id,
         )
     }
-    dc_log_info(
-        context,
-        0i32,
-        b"Exporting key %s\x00" as *const u8 as *const libc::c_char,
-        file_name,
-    );
+    info!(context, 0, "Exporting key {}", as_str(file_name),);
     dc_delete_file(context, file_name);
     if !key.write_asc_to_file(file_name, context) {
-        dc_log_error(
-            context,
-            0i32,
-            b"Cannot write key to %s\x00" as *const u8 as *const libc::c_char,
-            file_name,
-        );
+        error!(context, 0, "Cannot write key to {}", as_str(file_name),);
     } else {
         context.call_cb(
             Event::IMEX_FILE_WRITTEN,

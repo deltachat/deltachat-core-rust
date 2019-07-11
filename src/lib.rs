@@ -18,7 +18,7 @@ extern crate smallvec;
 extern crate rusqlite;
 
 #[macro_use]
-pub mod dc_log;
+mod log;
 
 pub mod aheader;
 pub mod constants;

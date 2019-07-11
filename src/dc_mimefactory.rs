@@ -14,7 +14,6 @@ use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
-use crate::dc_log::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_sqlite3::*;
@@ -602,12 +601,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         grpimage = dc_param_get((*chat).param, 'i' as i32, 0 as *const libc::c_char)
                     }
                     if 0 != dc_param_get_int((*msg).param, 'F' as i32, 0) & 0x1 {
-                        dc_log_info(
+                        info!(
                             (*msg).context,
                             0,
-                            b"sending secure-join message \'%s\' >>>>>>>>>>>>>>>>>>>>>>>>>\x00"
-                                as *const u8 as *const libc::c_char,
-                            b"vg-member-added\x00" as *const u8 as *const libc::c_char,
+                            "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                            "vg-member-added",
                         );
                         mailimf_fields_add(
                             imf_fields,
@@ -669,12 +667,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 let step: *mut libc::c_char =
                     dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
                 if !step.is_null() {
-                    dc_log_info(
+                    info!(
                         (*msg).context,
                         0,
-                        b"sending secure-join message \'%s\' >>>>>>>>>>>>>>>>>>>>>>>>>\x00"
-                            as *const u8 as *const libc::c_char,
-                        step,
+                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                        as_str(step),
                     );
                     mailimf_fields_add(
                         imf_fields,

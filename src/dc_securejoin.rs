@@ -9,7 +9,6 @@ use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_contact::*;
 use crate::dc_e2ee::*;
-use crate::dc_log::*;
 use crate::dc_lot::*;
 use crate::dc_mimeparser::*;
 use crate::dc_msg::*;
@@ -144,29 +143,17 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
     let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
     let mut join_vg: libc::c_int = 0i32;
     let mut qr_scan: *mut dc_lot_t = 0 as *mut dc_lot_t;
-    dc_log_info(
-        context,
-        0i32,
-        b"Requesting secure-join ...\x00" as *const u8 as *const libc::c_char,
-    );
+    info!(context, 0, "Requesting secure-join ...",);
     dc_ensure_secret_key_exists(context);
     ongoing_allocated = dc_alloc_ongoing(context);
     if !(ongoing_allocated == 0i32) {
         qr_scan = dc_check_qr(context, qr);
         if qr_scan.is_null() || (*qr_scan).state != 200i32 && (*qr_scan).state != 202i32 {
-            dc_log_error(
-                context,
-                0i32,
-                b"Unknown QR code.\x00" as *const u8 as *const libc::c_char,
-            );
+            error!(context, 0, "Unknown QR code.",);
         } else {
             contact_chat_id = dc_create_chat_by_contact_id(context, (*qr_scan).id);
             if contact_chat_id == 0i32 as libc::c_uint {
-                dc_log_error(
-                    context,
-                    0i32,
-                    b"Unknown contact.\x00" as *const u8 as *const libc::c_char,
-                );
+                error!(context, 0, "Unknown contact.",);
             } else if !(context
                 .running_state
                 .clone()
@@ -183,11 +170,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                 }
                 if 0 != fingerprint_equals_sender(context, (*qr_scan).fingerprint, contact_chat_id)
                 {
-                    dc_log_info(
-                        context,
-                        0i32,
-                        b"Taking protocol shortcut.\x00" as *const u8 as *const libc::c_char,
-                    );
+                    info!(context, 0, "Taking protocol shortcut.");
                     context.bob.clone().write().unwrap().expects = 6;
                     context.call_cb(
                         Event::SECUREJOIN_JOINER_PROGRESS,
@@ -375,12 +358,11 @@ pub unsafe fn dc_handle_securejoin_handshake(
             b"Secure-Join\x00" as *const u8 as *const libc::c_char,
         );
         if !step.is_null() {
-            dc_log_info(
+            info!(
                 context,
-                0i32,
-                b">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'%s\' received\x00" as *const u8
-                    as *const libc::c_char,
-                step,
+                0,
+                ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received",
+                as_str(step),
             );
             join_vg = (strncmp(step, b"vg-\x00" as *const u8 as *const libc::c_char, 3) == 0)
                 as libc::c_int;
@@ -456,12 +438,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 };
 
                 if cond {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"auth-required message out of sync.\x00" as *const u8
-                            as *const libc::c_char,
-                    );
+                    warn!(context, 0, "auth-required message out of sync.",);
                     // no error, just aborted somehow or a mail from another handshake
                     current_block = 4378276786830486580;
                 } else {
@@ -501,11 +478,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         end_bobs_joining(context, 0i32);
                         current_block = 4378276786830486580;
                     } else {
-                        dc_log_info(
-                            context,
-                            0i32,
-                            b"Fingerprint verified.\x00" as *const u8 as *const libc::c_char,
-                        );
+                        info!(context, 0, "Fingerprint verified.",);
                         own_fingerprint = get_self_fingerprint(context);
                         context.call_cb(
                             Event::SECUREJOIN_JOINER_PROGRESS,
@@ -572,11 +545,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     );
                     current_block = 4378276786830486580;
                 } else {
-                    dc_log_info(
-                        context,
-                        0i32,
-                        b"Fingerprint verified.\x00" as *const u8 as *const libc::c_char,
-                    );
+                    info!(context, 0, "Fingerprint verified.",);
                     // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
                     let auth_0: *const libc::c_char;
                     auth_0 = lookup_field(
@@ -607,11 +576,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         current_block = 4378276786830486580;
                     } else {
                         dc_scaleup_contact_origin(context, contact_id, 0x1000000i32);
-                        dc_log_info(
-                            context,
-                            0i32,
-                            b"Auth verified.\x00" as *const u8 as *const libc::c_char,
-                        );
+                        info!(context, 0, "Auth verified.",);
                         secure_connection_established(context, contact_chat_id);
                         context.call_cb(
                             Event::CONTACTS_CHANGED,
@@ -635,12 +600,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 0 as *mut libc::c_int,
                             );
                             if group_chat_id == 0i32 as libc::c_uint {
-                                dc_log_error(
-                                    context,
-                                    0i32,
-                                    b"Chat %s not found.\x00" as *const u8 as *const libc::c_char,
-                                    grpid,
-                                );
+                                error!(context, 0, "Chat {} not found.", as_str(grpid),);
                                 current_block = 4378276786830486580;
                             } else {
                                 dc_add_contact_to_chat_ex(
@@ -682,12 +642,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     ret = 0x1i32
                 }
                 if context.bob.clone().read().unwrap().expects != 6 {
-                    dc_log_info(
-                        context,
-                        0i32,
-                        b"Message belongs to a different handshake.\x00" as *const u8
-                            as *const libc::c_char,
-                    );
+                    info!(context, 0, "Message belongs to a different handshake.",);
                     current_block = 4378276786830486580;
                 } else {
                     let cond = {
@@ -695,11 +650,9 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         scan.is_null() || 0 != join_vg && (*scan).state != 202
                     };
                     if cond {
-                        dc_log_warning(
+                        warn!(
                             context,
-                            0i32,
-                            b"Message out of sync or belongs to a different handshake.\x00"
-                                as *const u8 as *const libc::c_char,
+                            0, "Message out of sync or belongs to a different handshake.",
                         );
                         current_block = 4378276786830486580;
                     } else {
@@ -767,10 +720,11 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                                     as *const libc::c_char,
                                             ),
                                         ) {
-                                            dc_log_info(context, 0i32,
-                                                        b"Message belongs to a different handshake (scaled up contact anyway to allow creation of group).\x00"
-                                                            as *const u8 as
-                                                            *const libc::c_char);
+                                            info!(
+                                                context,
+                                                0,
+                                                "Message belongs to a different handshake (scaled up contact anyway to allow creation of group)."
+                                            );
                                             current_block = 4378276786830486580;
                                         } else {
                                             current_block = 9180031981464905198;
@@ -814,12 +768,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 ============================================================ */
                 contact = dc_get_contact(context, contact_id);
                 if contact.is_null() || 0 == dc_contact_is_verified(contact) {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"vg-member-added-received invalid.\x00" as *const u8
-                            as *const libc::c_char,
-                    );
+                    warn!(context, 0, "vg-member-added-received invalid.",);
                     current_block = 4378276786830486580;
                 } else {
                     context.call_cb(
@@ -920,13 +869,7 @@ unsafe fn could_not_establish_secure_connection(
         },
     );
     dc_add_device_msg(context, contact_chat_id, msg);
-    dc_log_error(
-        context,
-        0i32,
-        b"%s (%s)\x00" as *const u8 as *const libc::c_char,
-        msg,
-        details,
-    );
+    error!(context, 0, "{} ({})", as_str(msg), to_string(details),);
     free(msg as *mut libc::c_void);
     dc_contact_unref(contact);
 }
@@ -961,27 +904,15 @@ unsafe fn encrypted_and_signed(
     expected_fingerprint: *const libc::c_char,
 ) -> libc::c_int {
     if 0 == mimeparser.e2ee_helper.encrypted {
-        dc_log_warning(
-            mimeparser.context,
-            0i32,
-            b"Message not encrypted.\x00" as *const u8 as *const libc::c_char,
-        );
+        warn!(mimeparser.context, 0, "Message not encrypted.",);
         return 0i32;
     }
     if mimeparser.e2ee_helper.signatures.len() <= 0 {
-        dc_log_warning(
-            mimeparser.context,
-            0i32,
-            b"Message not signed.\x00" as *const u8 as *const libc::c_char,
-        );
+        warn!(mimeparser.context, 0, "Message not signed.",);
         return 0i32;
     }
     if expected_fingerprint.is_null() {
-        dc_log_warning(
-            mimeparser.context,
-            0i32,
-            b"Fingerprint for comparison missing.\x00" as *const u8 as *const libc::c_char,
-        );
+        warn!(mimeparser.context, 0, "Fingerprint for comparison missing.",);
         return 0i32;
     }
     if !mimeparser
@@ -989,14 +920,13 @@ unsafe fn encrypted_and_signed(
         .signatures
         .contains(as_str(expected_fingerprint))
     {
-        dc_log_warning(
+        warn!(
             mimeparser.context,
-            0i32,
-            b"Message does not match expected fingerprint %s.\x00" as *const u8
-                as *const libc::c_char,
-            expected_fingerprint,
+            0,
+            "Message does not match expected fingerprint {}.",
+            as_str(expected_fingerprint),
         );
-        return 0i32;
+        return 0;
     }
 
     1

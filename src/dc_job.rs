@@ -12,7 +12,6 @@ use crate::dc_configure::*;
 use crate::dc_imex::*;
 use crate::dc_jobthread::*;
 use crate::dc_location::*;
-use crate::dc_log::*;
 use crate::dc_loginparam::*;
 use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
@@ -304,21 +303,11 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
         13109137661213826276 => {
             filename = dc_param_get(job.param, 'f' as i32, 0 as *const libc::c_char);
             if filename.is_null() {
-                dc_log_warning(
-                    context,
-                    0i32,
-                    b"Missing file name for job %d\x00" as *const u8 as *const libc::c_char,
-                    job.job_id,
-                );
+                warn!(context, 0, "Missing file name for job {}", job.job_id,);
             } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
                 recipients = dc_param_get(job.param, 'R' as i32, 0 as *const libc::c_char);
                 if recipients.is_null() {
-                    dc_log_warning(
-                        context,
-                        0i32,
-                        b"Missing recipients for job %d\x00" as *const u8 as *const libc::c_char,
-                        job.job_id,
-                    );
+                    warn!(context, 0, "Missing recipients for job {}", job.job_id,);
                 } else {
                     let recipients_list = std::ffi::CStr::from_ptr(recipients)
                         .to_str()
@@ -337,11 +326,10 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
                     before the generated mime was sent out */
                     if 0 != job.foreign_id {
                         if 0 == dc_msg_exists(context, job.foreign_id) {
-                            dc_log_warning(
+                            warn!(
                                 context,
-                                0i32,
-                                b"Message %i for job %i does not exist\x00" as *const u8
-                                    as *const libc::c_char,
+                                0,
+                                "Message {} for job {} does not exist",
                                 job.foreign_id,
                                 job.job_id,
                             );
@@ -746,12 +734,11 @@ unsafe fn dc_add_smtp_job(
         (*mimefactory).rfc724_mid,
     );
     if pathNfilename.is_null() {
-        dc_log_error(
+        error!(
             context,
-            0i32,
-            b"Could not find free file name for message with ID <%s>.\x00" as *const u8
-                as *const libc::c_char,
-            (*mimefactory).rfc724_mid,
+            0,
+            "Could not find free file name for message with ID <{}>.",
+            to_string((*mimefactory).rfc724_mid),
         );
     } else if 0
         == dc_write_file(
@@ -761,12 +748,12 @@ unsafe fn dc_add_smtp_job(
             (*(*mimefactory).out).len,
         )
     {
-        dc_log_error(
+        error!(
             context,
-            0i32,
-            b"Could not write message <%s> to \"%s\".\x00" as *const u8 as *const libc::c_char,
-            (*mimefactory).rfc724_mid,
-            pathNfilename,
+            0,
+            "Could not write message <{}> to \"{}\".",
+            to_string((*mimefactory).rfc724_mid),
+            as_str(pathNfilename),
         );
     } else {
         recipients = dc_str_from_clist(
@@ -837,11 +824,7 @@ pub unsafe fn dc_job_add(
 }
 
 pub unsafe fn dc_interrupt_smtp_idle(context: &Context) {
-    dc_log_info(
-        context,
-        0i32,
-        b"Interrupting SMTP-idle...\x00" as *const u8 as *const libc::c_char,
-    );
+    info!(context, 0, "Interrupting SMTP-idle...",);
 
     let &(ref lock, ref cvar) = &*context.smtp_state.clone();
     let mut state = lock.lock().unwrap();
@@ -852,11 +835,7 @@ pub unsafe fn dc_interrupt_smtp_idle(context: &Context) {
 }
 
 pub unsafe fn dc_interrupt_imap_idle(context: &Context) {
-    dc_log_info(
-        context,
-        0i32,
-        b"Interrupting IMAP-IDLE...\x00" as *const u8 as *const libc::c_char,
-    );
+    info!(context, 0, "Interrupting IMAP-IDLE...",);
 
     *context.perform_inbox_jobs_needed.write().unwrap() = 1;
     context.inbox.read().unwrap().interrupt_idle();
@@ -874,11 +853,9 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_jo
     {
         /* eg. device messages have no Message-ID */
         if dc_rfc724_mid_cnt(context, (*msg).rfc724_mid) != 1i32 {
-            dc_log_info(
+            info!(
                 context,
-                0i32,
-                b"The message is deleted from the server when all parts are deleted.\x00"
-                    as *const u8 as *const libc::c_char,
+                0, "The message is deleted from the server when all parts are deleted.",
             );
             delete_from_server = 0i32
         }
@@ -939,31 +916,19 @@ pub unsafe fn dc_perform_imap_fetch(context: &Context) {
         return;
     }
     if dc_sqlite3_get_config_int(context, &context.sql, "inbox_watch", 1) == 0 {
-        dc_log_info(
-            context,
-            0,
-            b"INBOX-watch disabled.\x00" as *const u8 as *const libc::c_char,
-        );
+        info!(context, 0, "INBOX-watch disabled.",);
         return;
     }
-    dc_log_info(
-        context,
-        0,
-        b"INBOX-fetch started...\x00" as *const u8 as *const libc::c_char,
-    );
+    info!(context, 0, "INBOX-fetch started...",);
     inbox.fetch(context);
     if inbox.should_reconnect() {
-        dc_log_info(
-            context,
-            0,
-            b"INBOX-fetch aborted, starting over...\x00" as *const u8 as *const libc::c_char,
-        );
+        info!(context, 0, "INBOX-fetch aborted, starting over...",);
         inbox.fetch(context);
     }
-    dc_log_info(
+    info!(
         context,
         0,
-        b"INBOX-fetch done in %.0f ms.\x00" as *const u8 as *const libc::c_char,
+        "INBOX-fetch done in {:.4} ms.",
         clock().wrapping_sub(start) as libc::c_double * 1000.0f64 / 1000000 as libc::c_double,
     );
 }
@@ -1066,11 +1031,9 @@ pub unsafe fn dc_perform_smtp_idle(context: &Context) {
         let mut state = lock.lock().unwrap();
 
         if state.perform_jobs_needed == 1 {
-            dc_log_info(
+            info!(
                 context,
-                0,
-                b"SMTP-idle will not be started because of waiting jobs.\x00" as *const u8
-                    as *const libc::c_char,
+                0, "SMTP-idle will not be started because of waiting jobs.",
             );
         } else {
             let dur = get_next_wakeup_time(context, 5000);
@@ -1088,11 +1051,7 @@ pub unsafe fn dc_perform_smtp_idle(context: &Context) {
         }
     }
 
-    dc_log_info(
-        context,
-        0,
-        b"SMTP-idle ended.\x00" as *const u8 as *const libc::c_char,
-    );
+    info!(context, 0, "SMTP-idle ended.",);
 }
 
 unsafe fn get_next_wakeup_time(context: &Context, thread: libc::c_int) -> Duration {
@@ -1168,11 +1127,9 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
     dc_mimefactory_init(&mut mimefactory, context);
     /* load message data */
     if 0 == dc_mimefactory_load_msg(&mut mimefactory, msg_id) || mimefactory.from_addr.is_null() {
-        dc_log_warning(
+        warn!(
             context,
-            0i32,
-            b"Cannot load data to send, maybe the message is deleted in between.\x00" as *const u8
-                as *const libc::c_char,
+            0, "Cannot load data to send, maybe the message is deleted in between.",
         );
     } else {
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
