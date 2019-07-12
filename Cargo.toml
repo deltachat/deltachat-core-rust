@@ -39,7 +39,6 @@ rusqlite = { version = "0.19", features = ["bundled"] }
 addr = "0.2.0"
 r2d2_sqlite = "0.11.0"
 r2d2 = "0.8.5"
-backtrace = "0.3.32"
 
 [dev-dependencies]
 tempfile = "3.0"

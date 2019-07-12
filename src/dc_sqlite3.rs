@@ -691,12 +691,12 @@ pub fn dc_sqlite3_set_config(
     key: impl AsRef<str>,
     value: Option<&str>,
 ) -> libc::c_int {
-    let key = key.as_ref();
     if !sql.is_open() {
         error!(context, 0, "dc_sqlite3_set_config(): Database not ready.");
         return 0;
     }
 
+    let key = key.as_ref();
     let good;
 
     if let Some(ref value) = value {
@@ -767,7 +767,7 @@ where
     match sql.execute(querystr.as_ref(), params) {
         Ok(_) => true,
         Err(err) => {
-            error!(context, 0, "dc_sqlite_exectue failed: {:?}", err);
+            error!(context, 0, "dc_sqlite3_execute failed: {:?}", err);
             false
         }
     }
@@ -788,6 +788,10 @@ where
 {
     match sql.query_row(query, params, |row| row.get::<_, T>(column)) {
         Ok(res) => Some(res),
+        Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => None,
+        Err(Error::Sql(rusqlite::Error::InvalidColumnType(_, _, rusqlite::types::Type::Null))) => {
+            None
+        }
         Err(err) => {
             error!(context, 0, "sql: Failed query_row: {}", err);
             None
