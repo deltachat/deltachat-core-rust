@@ -13,6 +13,8 @@ use crate::peerstate::*;
 use crate::types::*;
 use crate::x::*;
 
+const DC_GCL_VERIFIED_ONLY: u32 = 0x01;
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_contact_t<'a> {
@@ -523,23 +525,9 @@ pub fn dc_get_contacts(
     let mut add_self = false;
     let ret = unsafe { dc_array_new(100) };
 
-    if 0 == listflags & 0x1 || query.is_null() {
-        add_self = true;
-
-        context.sql.query_map(
-            "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;",
-            params![self_addr, 9, 0x100],
-            |row| row.get::<_, i32>(0),
-            |ids| {
-                for id in ids {
-                    unsafe { dc_array_add_id(ret, id? as u32) };
-                }
-                Ok(())
-            }
-        ).unwrap(); // TODO: better error handling
-    } else {
+    if (listflags & DC_GCL_VERIFIED_ONLY) > 0 || !query.is_null() {
         let s3strLikeCmd = format!("%{}%", if !query.is_null() { as_str(query) } else { "" });
-
+        eprintln!("query '{}'", &s3strLikeCmd);
         context
             .sql
             .query_map(
@@ -583,6 +571,20 @@ pub fn dc_get_contacts(
             add_self = true;
         }
         unsafe { free(self_name2 as *mut _) };
+    } else {
+        add_self = true;
+
+        context.sql.query_map(
+            "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;",
+            params![self_addr, 9, 0x100],
+            |row| row.get::<_, i32>(0),
+            |ids| {
+                for id in ids {
+                    unsafe { dc_array_add_id(ret, id? as u32) };
+                }
+                Ok(())
+            }
+        ).unwrap(); // TODO: better error handling
     }
 
     if 0 != listflags & 0x2 && add_self {

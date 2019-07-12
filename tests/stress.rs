@@ -10,6 +10,7 @@ use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
 use deltachat::dc_configure::*;
+use deltachat::dc_contact::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_location::*;
 use deltachat::dc_lot::*;
@@ -942,6 +943,31 @@ fn test_stress_tests() {
     unsafe {
         let context = create_test_context();
         stress_functions(&context.ctx);
+    }
+}
+
+#[test]
+fn test_get_contacts() {
+    unsafe {
+        let context = create_test_context();
+        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("some2").as_ptr());
+        assert_eq!(dc_array_get_cnt(contacts), 0);
+        dc_array_unref(contacts);
+
+        let id = dc_create_contact(
+            &context.ctx,
+            to_cstring("bob").as_ptr(),
+            to_cstring("bob@mail.de").as_ptr(),
+        );
+        assert_ne!(id, 0);
+
+        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("bob").as_ptr());
+        assert_eq!(dc_array_get_cnt(contacts), 1);
+        dc_array_unref(contacts);
+
+        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("alice").as_ptr());
+        assert_eq!(dc_array_get_cnt(contacts), 0);
+        dc_array_unref(contacts);
     }
 }
 
