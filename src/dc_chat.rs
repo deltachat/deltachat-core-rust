@@ -683,8 +683,8 @@ unsafe fn prepare_msg_raw(
                             if !(*msg).text.is_null() { Some(as_str((*msg).text)) } else { None },
                             if (*(*msg).param).packed.is_null() { None } else { Some(as_str((*(*msg).param).packed)) },
                             (*msg).hidden,
-                            as_str(new_in_reply_to),
-                            as_str(new_references),
+                            to_string(new_in_reply_to),
+                            to_string(new_references),
                             location_id as i32,
                         ]
                     ) {
@@ -821,7 +821,7 @@ pub unsafe fn dc_chat_update_param(chat: *mut Chat) -> libc::c_int {
         (*chat).context,
         &(*chat).context.sql,
         "UPDATE chats SET param=? WHERE id=?",
-        params![as_str((*(*chat).param).packed), (*chat).id as i32],
+        params![to_string((*(*chat).param).packed), (*chat).id as i32],
     ) as libc::c_int
 }
 
@@ -991,7 +991,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                         } else {
                             ""
                         },
-                        as_str((*(*msg).param).packed),
+                        to_string((*(*msg).param).packed),
                         1,
                     ]
                 ) {
