@@ -12,9 +12,9 @@ use deltachat::dc_lot::*;
 use deltachat::dc_msg::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_receive_imf::*;
-use deltachat::dc_sqlite3::*;
 use deltachat::dc_tools::*;
 use deltachat::peerstate::*;
+use deltachat::sql;
 use deltachat::types::*;
 use deltachat::x::*;
 use num_traits::FromPrimitive;
@@ -25,11 +25,11 @@ use num_traits::FromPrimitive;
 pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     info!(context, 0, "Resetting tables ({})...", bits);
     if 0 != bits & 1 {
-        dc_sqlite3_execute(context, &context.sql, "DELETE FROM jobs;", params![]);
+        sql::execute(context, &context.sql, "DELETE FROM jobs;", params![]);
         info!(context, 0, "(1) Jobs reset.");
     }
     if 0 != bits & 2 {
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "DELETE FROM acpeerstates;",
@@ -38,41 +38,41 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
         info!(context, 0, "(2) Peerstates reset.");
     }
     if 0 != bits & 4 {
-        dc_sqlite3_execute(context, &context.sql, "DELETE FROM keypairs;", params![]);
+        sql::execute(context, &context.sql, "DELETE FROM keypairs;", params![]);
         info!(context, 0, "(4) Private keypairs reset.");
     }
     if 0 != bits & 8 {
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "DELETE FROM contacts WHERE id>9;",
             params![],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "DELETE FROM chats WHERE id>9;",
             params![],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "DELETE FROM chats_contacts;",
             params![],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "DELETE FROM msgs WHERE id>9;",
             params![],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "DELETE FROM config WHERE keyname LIKE \'imap.%\' OR keyname LIKE \'configured%\';",
             params![],
         );
-        dc_sqlite3_execute(context, &context.sql, "DELETE FROM leftgrps;", params![]);
+        sql::execute(context, &context.sql, "DELETE FROM leftgrps;", params![]);
         info!(context, 0, "(8) Rest but server config reset.");
     }
 
@@ -124,7 +124,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     /* if `spec` is given, remember it for later usage; if it is not given, try to use the last one */
     if !spec.is_null() {
         real_spec = dc_strdup(spec);
-        dc_sqlite3_set_config(
+        sql::set_config(
             context,
             &context.sql,
             "import_spec",
@@ -132,7 +132,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         );
         current_block = 7149356873433890176;
     } else {
-        let rs = dc_sqlite3_get_config(context, &context.sql, "import_spec", None);
+        let rs = sql::get_config(context, &context.sql, "import_spec", None);
         if rs.is_none() {
             error!(context, 0, "Import: No file or folder given.");
             current_block = 8522321847195001863;
@@ -618,7 +618,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             dc_maybe_network(context);
         }
         "housekeeping" => {
-            dc_housekeeping(context);
+            sql::housekeeping(context);
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };

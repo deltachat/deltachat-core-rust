@@ -32,6 +32,7 @@ pub mod oauth2;
 pub mod peerstate;
 pub mod pgp;
 pub mod smtp;
+pub mod sql;
 pub mod types;
 pub mod x;
 
@@ -58,7 +59,6 @@ pub mod dc_receive_imf;
 pub mod dc_saxparser;
 pub mod dc_securejoin;
 pub mod dc_simplify;
-pub mod dc_sqlite3;
 pub mod dc_stock;
 pub mod dc_strencode;
 pub mod dc_token;

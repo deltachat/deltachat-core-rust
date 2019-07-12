@@ -6,9 +6,9 @@ use std::time::{Duration, SystemTime};
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
-use crate::dc_sqlite3::*;
 use crate::dc_tools::as_str;
 use crate::oauth2::dc_get_oauth2_access_token;
+use crate::sql;
 use crate::types::*;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
@@ -1598,9 +1598,9 @@ impl Imap {
             }
         }
 
-        dc_sqlite3_set_config_int(context, &context.sql, "folders_configured", 3);
+        sql::set_config_int(context, &context.sql, "folders_configured", 3);
         if let Some(ref mvbox_folder) = mvbox_folder {
-            dc_sqlite3_set_config(
+            sql::set_config(
                 context,
                 &context.sql,
                 "configured_mvbox_folder",
@@ -1608,7 +1608,7 @@ impl Imap {
             );
         }
         if let Some(ref sentbox_folder) = sentbox_folder {
-            dc_sqlite3_set_config(
+            sql::set_config(
                 context,
                 &context.sql,
                 "configured_sentbox_folder",

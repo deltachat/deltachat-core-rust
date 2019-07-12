@@ -14,13 +14,13 @@ use crate::x::*;
 const DC_OPEN_READONLY: usize = 0x01;
 
 /// A wrapper around the underlying Sqlite3 object.
-pub struct SQLite {
+pub struct Sql {
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
 }
 
-impl SQLite {
-    pub fn new() -> SQLite {
-        SQLite {
+impl Sql {
+    pub fn new() -> Sql {
+        Sql {
             pool: RwLock::new(None),
         }
     }
@@ -40,7 +40,7 @@ impl SQLite {
 
     // return true on success, false on failure
     pub fn open(&self, context: &Context, dbfile: &std::path::Path, flags: libc::c_int) -> bool {
-        match dc_sqlite3_open(context, self, dbfile, flags) {
+        match open(context, self, dbfile, flags) {
             Ok(_) => true,
             Err(Error::SqlAlreadyOpen) => false,
             Err(_) => {
@@ -155,9 +155,9 @@ fn table_exists(conn: &Connection, name: impl AsRef<str>) -> bool {
 
 // Return 1 -> success
 // Return 0 -> failure
-fn dc_sqlite3_open(
+fn open(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     dbfile: impl AsRef<std::path::Path>,
     flags: libc::c_int,
 ) -> Result<()> {
@@ -321,11 +321,11 @@ fn dc_sqlite3_open(
                 // cannot create the tables - maybe we cannot write?
                 return Err(Error::SqlFailedToOpen);
             } else {
-                dc_sqlite3_set_config_int(context, sql, "dbversion", 0);
+                set_config_int(context, sql, "dbversion", 0);
             }
         } else {
             exists_before_update = 1;
-            dbversion_before_update = dc_sqlite3_get_config_int(context, sql, "dbversion", 0);
+            dbversion_before_update = get_config_int(context, sql, "dbversion", 0);
         }
 
         // (1) update low-level database structure.
@@ -346,7 +346,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 1;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 1);
+            set_config_int(context, sql, "dbversion", 1);
         }
         if dbversion < 2 {
             sql.execute(
@@ -354,7 +354,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 2;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 2);
+            set_config_int(context, sql, "dbversion", 2);
         }
         if dbversion < 7 {
             sql.execute(
@@ -368,7 +368,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 7;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 7);
+            set_config_int(context, sql, "dbversion", 7);
         }
         if dbversion < 10 {
             sql.execute(
@@ -386,7 +386,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 10;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 10);
+            set_config_int(context, sql, "dbversion", 10);
         }
         if dbversion < 12 {
             sql.execute(
@@ -398,7 +398,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 12;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 12);
+            set_config_int(context, sql, "dbversion", 12);
         }
         if dbversion < 17 {
             sql.execute(
@@ -412,7 +412,7 @@ fn dc_sqlite3_open(
             )?;
             sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", params![])?;
             dbversion = 17;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 17);
+            set_config_int(context, sql, "dbversion", 17);
         }
         if dbversion < 18 {
             sql.execute(
@@ -421,7 +421,7 @@ fn dc_sqlite3_open(
             )?;
             sql.execute("ALTER TABLE acpeerstates ADD COLUMN gossip_key;", params![])?;
             dbversion = 18;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 18);
+            set_config_int(context, sql, "dbversion", 18);
         }
         if dbversion < 27 {
             sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", params![])?;
@@ -438,7 +438,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 27;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 27);
+            set_config_int(context, sql, "dbversion", 27);
         }
         if dbversion < 34 {
             sql.execute(
@@ -467,7 +467,7 @@ fn dc_sqlite3_open(
             )?;
             recalc_fingerprints = 1;
             dbversion = 34;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 34);
+            set_config_int(context, sql, "dbversion", 34);
         }
         if dbversion < 39 {
             sql.execute(
@@ -497,7 +497,7 @@ fn dc_sqlite3_open(
                 )?;
             }
             dbversion = 39;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 39);
+            set_config_int(context, sql, "dbversion", 39);
         }
         if dbversion < 40 {
             sql.execute(
@@ -505,22 +505,22 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 40;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 40);
+            set_config_int(context, sql, "dbversion", 40);
         }
         if dbversion < 41 {
             update_file_paths = 1;
             dbversion = 41;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 41);
+            set_config_int(context, sql, "dbversion", 41);
         }
         if dbversion < 42 {
             sql.execute("UPDATE msgs SET txt=\'\' WHERE type!=10", params![])?;
             dbversion = 42;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 42);
+            set_config_int(context, sql, "dbversion", 42);
         }
         if dbversion < 44 {
             sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", params![])?;
             dbversion = 44;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 44);
+            set_config_int(context, sql, "dbversion", 44);
         }
         if dbversion < 46 {
             sql.execute(
@@ -532,7 +532,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 46;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 46);
+            set_config_int(context, sql, "dbversion", 46);
         }
         if dbversion < 47 {
             info!(context, 0, "[migration] v47");
@@ -541,7 +541,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 47;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 47);
+            set_config_int(context, sql, "dbversion", 47);
         }
         if dbversion < 48 {
             info!(context, 0, "[migration] v48");
@@ -555,7 +555,7 @@ fn dc_sqlite3_open(
             assert_eq!(DC_MOVE_STATE_MOVING as libc::c_int, 3);
 
             dbversion = 48;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 48);
+            set_config_int(context, sql, "dbversion", 48);
         }
         if dbversion < 49 {
             info!(context, 0, "[migration] v49");
@@ -564,15 +564,15 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 49;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 49);
+            set_config_int(context, sql, "dbversion", 49);
         }
         if dbversion < 50 {
             info!(context, 0, "[migration] v50");
             if 0 != exists_before_update {
-                dc_sqlite3_set_config_int(context, sql, "show_emails", 2);
+                set_config_int(context, sql, "show_emails", 2);
             }
             dbversion = 50;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 50);
+            set_config_int(context, sql, "dbversion", 50);
         }
         if dbversion < 53 {
             info!(context, 0, "[migration] v53");
@@ -605,7 +605,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
             dbversion = 53;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 53);
+            set_config_int(context, sql, "dbversion", 53);
         }
         if dbversion < 54 {
             info!(context, 0, "[migration] v54");
@@ -615,7 +615,7 @@ fn dc_sqlite3_open(
             )?;
             sql.execute("CREATE INDEX msgs_index6 ON msgs (location_id);", params![])?;
             dbversion = 54;
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 54);
+            set_config_int(context, sql, "dbversion", 54);
         }
         if dbversion < 55 {
             sql.execute(
@@ -623,7 +623,7 @@ fn dc_sqlite3_open(
                 params![],
             )?;
 
-            dc_sqlite3_set_config_int(context, sql, "dbversion", 55);
+            set_config_int(context, sql, "dbversion", 55);
         }
 
         if 0 != recalc_fingerprints {
@@ -650,7 +650,7 @@ fn dc_sqlite3_open(
 
             info!(context, 0, "[open] update file paths");
 
-            let repl_from = dc_sqlite3_get_config(
+            let repl_from = get_config(
                 context,
                 sql,
                 "backup_for",
@@ -675,7 +675,7 @@ fn dc_sqlite3_open(
                 NO_PARAMS,
             )?;
 
-            dc_sqlite3_set_config(context, sql, "backup_for", None);
+            set_config(context, sql, "backup_for", None);
         }
     }
 
@@ -685,14 +685,14 @@ fn dc_sqlite3_open(
 }
 
 // handle configurations, private
-pub fn dc_sqlite3_set_config(
+pub fn set_config(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     key: impl AsRef<str>,
     value: Option<&str>,
 ) -> libc::c_int {
     if !sql.is_open() {
-        error!(context, 0, "dc_sqlite3_set_config(): Database not ready.");
+        error!(context, 0, "set_config(): Database not ready.");
         return 0;
     }
 
@@ -704,14 +704,14 @@ pub fn dc_sqlite3_set_config(
             .exists("SELECT value FROM config WHERE keyname=?;", params![key])
             .unwrap_or_default();
         if exists {
-            good = dc_sqlite3_execute(
+            good = execute(
                 context,
                 sql,
                 "UPDATE config SET value=? WHERE keyname=?;",
                 params![value, key],
             );
         } else {
-            good = dc_sqlite3_execute(
+            good = execute(
                 context,
                 sql,
                 "INSERT INTO config (keyname, value) VALUES (?, ?);",
@@ -719,7 +719,7 @@ pub fn dc_sqlite3_set_config(
             );
         }
     } else {
-        good = dc_sqlite3_execute(
+        good = execute(
             context,
             sql,
             "DELETE FROM config WHERE keyname=?;",
@@ -728,23 +728,23 @@ pub fn dc_sqlite3_set_config(
     }
 
     if !good {
-        error!(context, 0, "dc_sqlite3_set_config(): Cannot change value.",);
+        error!(context, 0, "set_config(): Cannot change value.",);
         return 0;
     }
 
     1
 }
 
-pub fn dc_sqlite3_get_config(
+pub fn get_config(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     key: impl AsRef<str>,
     def: Option<&str>,
 ) -> Option<String> {
     if !sql.is_open() || key.as_ref().is_empty() {
         return None;
     }
-    dc_sqlite3_query_row(
+    query_row(
         context,
         sql,
         "SELECT value FROM config WHERE keyname=?;",
@@ -754,12 +754,7 @@ pub fn dc_sqlite3_get_config(
     .or_else(|| def.map(|s| s.to_string()))
 }
 
-pub fn dc_sqlite3_execute<P>(
-    context: &Context,
-    sql: &SQLite,
-    querystr: impl AsRef<str>,
-    params: P,
-) -> bool
+pub fn execute<P>(context: &Context, sql: &Sql, querystr: impl AsRef<str>, params: P) -> bool
 where
     P: IntoIterator,
     P::Item: rusqlite::ToSql,
@@ -767,16 +762,16 @@ where
     match sql.execute(querystr.as_ref(), params) {
         Ok(_) => true,
         Err(err) => {
-            error!(context, 0, "dc_sqlite3_execute failed: {:?}", err);
+            error!(context, 0, "execute failed: {:?}", err);
             false
         }
     }
 }
 
 // TODO Remove the Option<> from the return type.
-pub fn dc_sqlite3_query_row<P, T>(
+pub fn query_row<P, T>(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     query: &str,
     params: P,
     column: usize,
@@ -799,52 +794,43 @@ where
     }
 }
 
-pub fn dc_sqlite3_set_config_int(
+pub fn set_config_int(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     key: impl AsRef<str>,
     value: i32,
 ) -> libc::c_int {
-    dc_sqlite3_set_config(context, sql, key, Some(&format!("{}", value)))
+    set_config(context, sql, key, Some(&format!("{}", value)))
 }
 
-pub fn dc_sqlite3_get_config_int(
-    context: &Context,
-    sql: &SQLite,
-    key: impl AsRef<str>,
-    def: i32,
-) -> i32 {
-    dc_sqlite3_get_config(context, sql, key, None)
+pub fn get_config_int(context: &Context, sql: &Sql, key: impl AsRef<str>, def: i32) -> i32 {
+    get_config(context, sql, key, None)
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(|| def)
 }
 
-pub fn dc_sqlite3_set_config_int64(
+pub fn set_config_int64(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     key: impl AsRef<str>,
     value: i64,
 ) -> libc::c_int {
-    dc_sqlite3_set_config(context, sql, key, Some(&format!("{}", value)))
+    set_config(context, sql, key, Some(&format!("{}", value)))
 }
 
-pub fn dc_sqlite3_get_config_int64(
+pub fn get_config_int64(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     key: impl AsRef<str>,
     def: Option<i64>,
 ) -> i64 {
-    let ret = dc_sqlite3_get_config(context, sql, key, None);
+    let ret = get_config(context, sql, key, None);
     ret.map(|r| r.parse().unwrap_or_default())
         .unwrap_or_else(|| def.unwrap_or_default())
 }
 
-pub fn dc_sqlite3_try_execute(
-    context: &Context,
-    sql: &SQLite,
-    querystr: impl AsRef<str>,
-) -> libc::c_int {
-    // same as dc_sqlite3_execute() but does not pass error to ui
+pub fn try_execute(context: &Context, sql: &Sql, querystr: impl AsRef<str>) -> libc::c_int {
+    // same as execute() but does not pass error to ui
     match sql.execute(querystr.as_ref(), params![]) {
         Ok(_) => 1,
         Err(err) => {
@@ -860,9 +846,9 @@ pub fn dc_sqlite3_try_execute(
     }
 }
 
-pub fn dc_sqlite3_get_rowid(
+pub fn get_rowid(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     table: impl AsRef<str>,
     field: impl AsRef<str>,
     value: impl AsRef<str>,
@@ -889,9 +875,9 @@ pub fn dc_sqlite3_get_rowid(
     }
 }
 
-pub fn dc_sqlite3_get_rowid2(
+pub fn get_rowid2(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     table: impl AsRef<str>,
     field: impl AsRef<str>,
     value: i64,
@@ -899,14 +885,14 @@ pub fn dc_sqlite3_get_rowid2(
     value2: i32,
 ) -> u32 {
     sql.with_conn(|conn| {
-        Ok(get_rowid2(
+        Ok(get_rowid2_with_conn(
             context, conn, table, field, value, field2, value2,
         ))
     })
     .unwrap_or_else(|_| 0)
 }
 
-pub fn get_rowid2(
+pub fn get_rowid2_with_conn(
     context: &Context,
     conn: &Connection,
     table: impl AsRef<str>,
@@ -935,7 +921,7 @@ pub fn get_rowid2(
     }
 }
 
-pub fn dc_housekeeping(context: &Context) {
+pub fn housekeeping(context: &Context) {
     let mut files_in_use = HashSet::new();
     let mut unreferenced_count = 0;
 

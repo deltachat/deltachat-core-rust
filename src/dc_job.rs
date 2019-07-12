@@ -16,10 +16,10 @@ use crate::dc_loginparam::*;
 use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::imap::*;
 use crate::keyhistory::*;
+use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -152,7 +152,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                     dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context, &mut job);
                 }
                 105 => {
-                    dc_housekeeping(context);
+                    sql::housekeeping(context);
                 }
                 _ => {}
             }
@@ -254,7 +254,7 @@ unsafe fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
 }
 
 fn dc_job_update(context: &Context, job: &dc_job_t) -> bool {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "UPDATE jobs SET desired_timestamp=?, tries=?, param=? WHERE id=?;",
@@ -361,7 +361,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
                                 dc_delete_file(context, filename);
                                 if 0 != job.foreign_id {
                                     dc_update_msg_state(context, job.foreign_id, 26i32);
-                                    let chat_id: i32 = dc_sqlite3_query_row(
+                                    let chat_id: i32 = sql::query_row(
                                         context,
                                         &context.sql,
                                         "SELECT chat_id FROM msgs WHERE id=?",
@@ -420,11 +420,11 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
     match current_block {
         2473556513754201174 => {
             if dc_msg_load_from_db(msg, context, job.foreign_id) {
-                if dc_sqlite3_get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
+                if sql::get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
                     inbox.configure_folders(context, 0x1i32);
                 }
                 let dest_folder =
-                    dc_sqlite3_get_config(context, &context.sql, "configured_mvbox_folder", None);
+                    sql::get_config(context, &context.sql, "configured_mvbox_folder", None);
 
                 if let Some(dest_folder) = dest_folder {
                     let server_folder = as_str((*msg).server_folder);
@@ -516,11 +516,11 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             }
             if 0 != dc_param_get_int(job.param, 'M' as i32, 0i32) {
-                if dc_sqlite3_get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
+                if sql::get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
                     inbox.configure_folders(context, 0x1i32);
                 }
                 let dest_folder =
-                    dc_sqlite3_get_config(context, &context.sql, "configured_mvbox_folder", None);
+                    sql::get_config(context, &context.sql, "configured_mvbox_folder", None);
                 if let Some(dest_folder) = dest_folder {
                     if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
                         as libc::c_uint
@@ -565,7 +565,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                             }
                             _ => {
                                 if 0 != dc_param_get_int((*msg).param, 'r' as i32, 0i32)
-                                    && 0 != dc_sqlite3_get_config_int(
+                                    && 0 != sql::get_config_int(
                                         context,
                                         &context.sql,
                                         "mdns_enabled",
@@ -621,7 +621,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                             }
                             _ => {
                                 if 0 != dc_param_get_int((*msg).param, 'r' as i32, 0i32)
-                                    && 0 != dc_sqlite3_get_config_int(
+                                    && 0 != sql::get_config_int(
                                         context,
                                         &context.sql,
                                         "mdns_enabled",
@@ -798,7 +798,7 @@ pub unsafe fn dc_job_add(
         return;
     };
 
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "INSERT INTO jobs (added_timestamp, thread, action, foreign_id, param, desired_timestamp) VALUES (?,?,?,?,?,?);",
@@ -900,7 +900,7 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_jo
 
 /* delete all pending jobs with the given action */
 pub fn dc_job_kill_action(context: &Context, action: libc::c_int) -> bool {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "DELETE FROM jobs WHERE action=?;",
@@ -915,7 +915,7 @@ pub unsafe fn dc_perform_imap_fetch(context: &Context) {
     if 0 == connect_to_inbox(context, &inbox) {
         return;
     }
-    if dc_sqlite3_get_config_int(context, &context.sql, "inbox_watch", 1) == 0 {
+    if sql::get_config_int(context, &context.sql, "inbox_watch", 1) == 0 {
         info!(context, 0, "INBOX-watch disabled.",);
         return;
     }
@@ -951,7 +951,7 @@ pub fn dc_perform_imap_idle(context: &Context) {
 }
 
 pub unsafe fn dc_perform_mvbox_fetch(context: &Context) {
-    let use_network = dc_sqlite3_get_config_int(context, &context.sql, "mvbox_watch", 1);
+    let use_network = sql::get_config_int(context, &context.sql, "mvbox_watch", 1);
     dc_jobthread_fetch(
         context,
         &mut context.mvbox_thread.clone().write().unwrap(),
@@ -960,7 +960,7 @@ pub unsafe fn dc_perform_mvbox_fetch(context: &Context) {
 }
 
 pub unsafe fn dc_perform_mvbox_idle(context: &Context) {
-    let use_network = dc_sqlite3_get_config_int(context, &context.sql, "mvbox_watch", 1);
+    let use_network = sql::get_config_int(context, &context.sql, "mvbox_watch", 1);
 
     dc_jobthread_idle(
         context,
@@ -974,7 +974,7 @@ pub unsafe fn dc_interrupt_mvbox_idle(context: &Context) {
 }
 
 pub unsafe fn dc_perform_sentbox_fetch(context: &Context) {
-    let use_network = dc_sqlite3_get_config_int(context, &context.sql, "sentbox_watch", 1);
+    let use_network = sql::get_config_int(context, &context.sql, "sentbox_watch", 1);
     dc_jobthread_fetch(
         context,
         &mut context.sentbox_thread.clone().write().unwrap(),
@@ -983,7 +983,7 @@ pub unsafe fn dc_perform_sentbox_fetch(context: &Context) {
 }
 
 pub unsafe fn dc_perform_sentbox_idle(context: &Context) {
-    let use_network = dc_sqlite3_get_config_int(context, &context.sql, "sentbox_watch", 1);
+    let use_network = sql::get_config_int(context, &context.sql, "sentbox_watch", 1);
     dc_jobthread_idle(
         context,
         &context.sentbox_thread.clone().read().unwrap(),
@@ -1055,7 +1055,7 @@ pub unsafe fn dc_perform_smtp_idle(context: &Context) {
 }
 
 unsafe fn get_next_wakeup_time(context: &Context, thread: libc::c_int) -> Duration {
-    let t: i64 = dc_sqlite3_query_row(
+    let t: i64 = sql::query_row(
         context,
         &context.sql,
         "SELECT MIN(desired_timestamp) FROM jobs WHERE thread=?;",

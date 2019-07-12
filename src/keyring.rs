@@ -2,8 +2,8 @@ use std::borrow::Cow;
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_sqlite3::*;
 use crate::key::*;
+use crate::sql::{self, Sql};
 
 #[derive(Default, Clone, Debug)]
 pub struct Keyring<'a> {
@@ -31,9 +31,9 @@ impl<'a> Keyring<'a> {
         &mut self,
         context: &Context,
         self_addr: impl AsRef<str>,
-        sql: &SQLite,
+        sql: &Sql,
     ) -> bool {
-        dc_sqlite3_query_row(
+        sql::query_row(
             context,
             sql,
             "SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;",

@@ -16,10 +16,10 @@ use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -190,9 +190,8 @@ pub unsafe fn dc_mimefactory_load_msg(
                     0 as *const libc::c_char,
                 );
                 let email_to_remove = to_string(email_to_remove_c);
-                let self_addr =
-                    dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some(""))
-                        .unwrap_or_default();
+                let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""))
+                    .unwrap_or_default();
 
                 if !email_to_remove.is_empty() && email_to_remove != self_addr {
                     if clist_search_string_nocase((*factory).recipients_addr, email_to_remove_c)
@@ -213,7 +212,7 @@ pub unsafe fn dc_mimefactory_load_msg(
             }
             if command != 6
                 && command != 7
-                && 0 != dc_sqlite3_get_config_int(context, &context.sql, "mdns_enabled", 1)
+                && 0 != sql::get_config_int(context, &context.sql, "mdns_enabled", 1)
             {
                 (*factory).req_mdn = 1
             }
@@ -249,7 +248,7 @@ pub unsafe fn dc_mimefactory_load_msg(
 unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     (*factory).from_addr = strdup(
         to_cstring(
-            dc_sqlite3_get_config(
+            sql::get_config(
                 (*factory).context,
                 &(*factory).context.sql,
                 "configured_addr",
@@ -261,7 +260,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     );
     (*factory).from_displayname = strdup(
         to_cstring(
-            dc_sqlite3_get_config(
+            sql::get_config(
                 (*factory).context,
                 &(*factory).context.sql,
                 "displayname",
@@ -273,7 +272,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     );
     (*factory).selfstatus = strdup(
         to_cstring(
-            dc_sqlite3_get_config(
+            sql::get_config(
                 (*factory).context,
                 &(*factory).context.sql,
                 "selfstatus",
@@ -302,7 +301,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
     (*factory).recipients_names = clist_new();
     (*factory).recipients_addr = clist_new();
     (*factory).msg = dc_msg_new_untyped((*factory).context);
-    if 0 != dc_sqlite3_get_config_int(
+    if 0 != sql::get_config_int(
         (*factory).context,
         &(*factory).context.sql,
         "mdns_enabled",

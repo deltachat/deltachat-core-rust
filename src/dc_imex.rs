@@ -14,11 +14,11 @@ use crate::dc_e2ee::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::pgp::*;
+use crate::sql::{self, Sql};
 use crate::types::*;
 use crate::x::*;
 
@@ -67,10 +67,10 @@ pub unsafe fn dc_imex_has_backup(
                 let name = dirent.file_name();
                 let name = name.to_string_lossy();
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
-                    let sql = SQLite::new();
+                    let sql = Sql::new();
                     if sql.open(context, &path, 0x1) {
                         let curr_backup_time =
-                            dc_sqlite3_get_config_int(context, &sql, "backup_time", 0) as u64;
+                            sql::get_config_int(context, &sql, "backup_time", 0) as u64;
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);
                             newest_backup_time = curr_backup_time;
@@ -223,10 +223,10 @@ pub unsafe extern "C" fn dc_render_setup_file(
         passphrase_begin[2usize] = 0i32 as libc::c_char;
         /* create the payload */
         if !(0 == dc_ensure_secret_key_exists(context)) {
-            let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None)
-                .unwrap_or_default();
+            let self_addr =
+                sql::get_config(context, &context.sql, "configured_addr", None).unwrap_or_default();
             let curr_private_key = Key::from_self_private(context, self_addr, &context.sql);
-            let e2ee_enabled = dc_sqlite3_get_config_int(context, &context.sql, "e2ee_enabled", 1);
+            let e2ee_enabled = sql::get_config_int(context, &context.sql, "e2ee_enabled", 1);
 
             let headers = if 0 != e2ee_enabled {
                 Some(("Autocrypt-Prefer-Encrypt", "mutual"))
@@ -387,7 +387,7 @@ fn set_self_key(
     let (private_key, public_key, header) = keys.unwrap();
     let preferencrypt = header.get("Autocrypt-Prefer-Encrypt");
 
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
@@ -397,7 +397,7 @@ fn set_self_key(
     }
 
     if 0 != set_default {
-        if !dc_sqlite3_execute(
+        if !sql::execute(
             context,
             &context.sql,
             "UPDATE keypairs SET is_default=0;",
@@ -409,7 +409,7 @@ fn set_self_key(
         error!(context, 0, "File does not contain a private key.",);
     }
 
-    let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
+    let self_addr = sql::get_config(context, &context.sql, "configured_addr", None);
 
     if self_addr.is_none() {
         error!(context, 0, "Missing self addr");
@@ -430,8 +430,8 @@ fn set_self_key(
 
     match preferencrypt.map(|s| s.as_str()) {
         Some("") => 0,
-        Some("nopreference") => dc_sqlite3_set_config_int(context, &context.sql, "e2ee_enabled", 0),
-        Some("mutual") => dc_sqlite3_set_config_int(context, &context.sql, "e2ee_enabled", 1),
+        Some("nopreference") => sql::set_config_int(context, &context.sql, "e2ee_enabled", 0),
+        Some("mutual") => sql::set_config_int(context, &context.sql, "e2ee_enabled", 1),
         _ => 1,
     }
 }
@@ -781,7 +781,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         return 0;
     }
 
-    let total_files_cnt = dc_sqlite3_query_row::<_, isize>(
+    let total_files_cnt = sql::query_row::<_, isize>(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM backup_blobs;",
@@ -859,8 +859,8 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 if !loop_success {
                     return Err(format_err!("fail").into());
                 }
-                dc_sqlite3_execute(context, &context.sql, "DROP TABLE backup_blobs;", params![]);
-                dc_sqlite3_try_execute(context, &context.sql, "VACUUM;");
+                sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![]);
+                sql::try_execute(context, &context.sql, "VACUUM;");
                 Ok(())
             },
         )
@@ -892,9 +892,9 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         return success;
     }
 
-    dc_housekeeping(context);
+    sql::housekeeping(context);
 
-    dc_sqlite3_try_execute(context, &context.sql, "VACUUM;");
+    sql::try_execute(context, &context.sql, "VACUUM;");
     context.sql.close(context);
     let mut closed = true;
     info!(
@@ -909,10 +909,10 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         closed = false;
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
-        let sql = SQLite::new();
+        let sql = Sql::new();
         if sql.open(context, as_path(dest_pathNfilename), 0) {
             if !sql.table_exists("backup_blobs") {
-                if !dc_sqlite3_execute(
+                if !sql::execute(
                     context,
                     &sql,
                     "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
@@ -1040,7 +1040,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                         match current_block {
                             11487273724841241105 => {}
                             _ => {
-                                if 0 != dc_sqlite3_set_config_int(
+                                if 0 != sql::set_config_int(
                                     context,
                                     &sql,
                                     "backup_time",

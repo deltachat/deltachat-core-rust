@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use crate::context::Context;
-use crate::dc_sqlite3::*;
+use crate::sql::{self, Sql};
 
 #[derive(Default, Debug)]
 pub struct dc_loginparam_t {
@@ -29,43 +29,43 @@ pub fn dc_loginparam_new() -> dc_loginparam_t {
 
 pub fn dc_loginparam_read(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     prefix: impl AsRef<str>,
 ) -> dc_loginparam_t {
     let prefix = prefix.as_ref();
 
     let key = format!("{}addr", prefix);
-    let addr = dc_sqlite3_get_config(context, sql, key, None)
+    let addr = sql::get_config(context, sql, key, None)
         .unwrap_or_default()
         .trim()
         .to_string();
 
     let key = format!("{}mail_server", prefix);
-    let mail_server = dc_sqlite3_get_config(context, sql, key, None).unwrap_or_default();
+    let mail_server = sql::get_config(context, sql, key, None).unwrap_or_default();
 
     let key = format!("{}mail_port", prefix);
-    let mail_port = dc_sqlite3_get_config_int(context, sql, key, 0);
+    let mail_port = sql::get_config_int(context, sql, key, 0);
 
     let key = format!("{}mail_user", prefix);
-    let mail_user = dc_sqlite3_get_config(context, sql, key, None).unwrap_or_default();
+    let mail_user = sql::get_config(context, sql, key, None).unwrap_or_default();
 
     let key = format!("{}mail_pw", prefix);
-    let mail_pw = dc_sqlite3_get_config(context, sql, key, None).unwrap_or_default();
+    let mail_pw = sql::get_config(context, sql, key, None).unwrap_or_default();
 
     let key = format!("{}send_server", prefix);
-    let send_server = dc_sqlite3_get_config(context, sql, key, None).unwrap_or_default();
+    let send_server = sql::get_config(context, sql, key, None).unwrap_or_default();
 
     let key = format!("{}send_port", prefix);
-    let send_port = dc_sqlite3_get_config_int(context, sql, key, 0);
+    let send_port = sql::get_config_int(context, sql, key, 0);
 
     let key = format!("{}send_user", prefix);
-    let send_user = dc_sqlite3_get_config(context, sql, key, None).unwrap_or_default();
+    let send_user = sql::get_config(context, sql, key, None).unwrap_or_default();
 
     let key = format!("{}send_pw", prefix);
-    let send_pw = dc_sqlite3_get_config(context, sql, key, None).unwrap_or_default();
+    let send_pw = sql::get_config(context, sql, key, None).unwrap_or_default();
 
     let key = format!("{}server_flags", prefix);
-    let server_flags = dc_sqlite3_get_config_int(context, sql, key, 0);
+    let server_flags = sql::get_config_int(context, sql, key, 0);
 
     dc_loginparam_t {
         addr: addr.to_string(),
@@ -84,40 +84,40 @@ pub fn dc_loginparam_read(
 pub fn dc_loginparam_write(
     context: &Context,
     loginparam: &dc_loginparam_t,
-    sql: &SQLite,
+    sql: &Sql,
     prefix: impl AsRef<str>,
 ) {
     let prefix = prefix.as_ref();
 
     let key = format!("{}addr", prefix);
-    dc_sqlite3_set_config(context, sql, key, Some(&loginparam.addr));
+    sql::set_config(context, sql, key, Some(&loginparam.addr));
 
     let key = format!("{}mail_server", prefix);
-    dc_sqlite3_set_config(context, sql, key, Some(&loginparam.mail_server));
+    sql::set_config(context, sql, key, Some(&loginparam.mail_server));
 
     let key = format!("{}mail_port", prefix);
-    dc_sqlite3_set_config_int(context, sql, key, loginparam.mail_port);
+    sql::set_config_int(context, sql, key, loginparam.mail_port);
 
     let key = format!("{}mail_user", prefix);
-    dc_sqlite3_set_config(context, sql, key, Some(&loginparam.mail_user));
+    sql::set_config(context, sql, key, Some(&loginparam.mail_user));
 
     let key = format!("{}mail_pw", prefix);
-    dc_sqlite3_set_config(context, sql, key, Some(&loginparam.mail_pw));
+    sql::set_config(context, sql, key, Some(&loginparam.mail_pw));
 
     let key = format!("{}send_server", prefix);
-    dc_sqlite3_set_config(context, sql, key, Some(&loginparam.send_server));
+    sql::set_config(context, sql, key, Some(&loginparam.send_server));
 
     let key = format!("{}send_port", prefix);
-    dc_sqlite3_set_config_int(context, sql, key, loginparam.send_port);
+    sql::set_config_int(context, sql, key, loginparam.send_port);
 
     let key = format!("{}send_user", prefix);
-    dc_sqlite3_set_config(context, sql, key, Some(&loginparam.send_user));
+    sql::set_config(context, sql, key, Some(&loginparam.send_user));
 
     let key = format!("{}send_pw", prefix);
-    dc_sqlite3_set_config(context, sql, key, Some(&loginparam.send_pw));
+    sql::set_config(context, sql, key, Some(&loginparam.send_pw));
 
     let key = format!("{}server_flags", prefix);
-    dc_sqlite3_set_config_int(context, sql, key, loginparam.server_flags);
+    sql::set_config_int(context, sql, key, loginparam.server_flags);
 }
 
 fn unset_empty(s: &String) -> Cow<String> {

@@ -5,11 +5,11 @@ use crate::context::*;
 use crate::dc_array::*;
 use crate::dc_e2ee::*;
 use crate::dc_loginparam::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::peerstate::*;
+use crate::sql::{self, Sql};
 use crate::types::*;
 use crate::x::*;
 
@@ -29,7 +29,7 @@ pub struct dc_contact_t<'a> {
 }
 
 pub fn dc_marknoticed_contact(context: &Context, contact_id: u32) {
-    if dc_sqlite3_execute(
+    if sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET state=13 WHERE from_id=? AND state=10;",
@@ -71,12 +71,12 @@ pub unsafe fn dc_lookup_contact_id_by_addr(
     let addr_normalized_c = dc_addr_normalize(addr);
     let addr_normalized = as_str(addr_normalized_c);
     let addr_self =
-        dc_sqlite3_get_config(context, &context.sql, "configured_addr", None).unwrap_or_default();
+        sql::get_config(context, &context.sql, "configured_addr", None).unwrap_or_default();
 
     let contact_id = if addr_normalized == addr_self {
         1
     } else {
-        dc_sqlite3_query_row(
+        sql::query_row(
             context,
             &context.sql,
             "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
@@ -155,7 +155,7 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
     if dc_contact_load_from_db(contact, &context.sql, contact_id)
         && (*contact).blocked != new_blocking
     {
-        if dc_sqlite3_execute(
+        if sql::execute(
             context,
             &context.sql,
             "UPDATE contacts SET blocked=? WHERE id=?;",
@@ -166,7 +166,7 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
             // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
             // However, I'm not sure about this point; it may be confusing if the user wants to add other people;
             // this would result in recreating the same group...)
-            if dc_sqlite3_execute(
+            if sql::execute(
                 context,
                 &context.sql,
                 "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
@@ -260,7 +260,7 @@ pub unsafe fn dc_contact_empty(mut contact: *mut dc_contact_t) {
 /* contacts with at least this origin value start a new "normal" chat, defaults to off */
 pub unsafe fn dc_contact_load_from_db(
     contact: *mut dc_contact_t,
-    sql: &SQLite,
+    sql: &Sql,
     contact_id: u32,
 ) -> bool {
     if contact.is_null() || (*contact).magic != 0xc047ac7i32 as libc::c_uint {
@@ -274,7 +274,7 @@ pub unsafe fn dc_contact_load_from_db(
         (*contact).name = dc_stock_str((*contact).context, 2);
         (*contact).addr = dc_strdup(
             to_cstring(
-                dc_sqlite3_get_config((*contact).context, sql, "configured_addr", Some(""))
+                sql::get_config((*contact).context, sql, "configured_addr", Some(""))
                     .unwrap_or_default(),
             )
             .as_ptr(),
@@ -331,8 +331,8 @@ pub fn dc_add_or_lookup_contact(
 
     let addr_c = unsafe { dc_addr_normalize(addr__) };
     let addr = as_str(addr_c);
-    let addr_self = dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some(""))
-        .unwrap_or_default();
+    let addr_self =
+        sql::get_config(context, &context.sql, "configured_addr", Some("")).unwrap_or_default();
 
     if addr == addr_self {
         return 1;
@@ -388,7 +388,7 @@ pub fn dc_add_or_lookup_contact(
             update_addr = true;
         }
         if update_name || update_authname || update_addr || origin > row_origin {
-            dc_sqlite3_execute(
+            sql::execute(
                 context,
                 &context.sql,
                 "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
@@ -414,7 +414,7 @@ pub fn dc_add_or_lookup_contact(
             );
 
             if update_name {
-                dc_sqlite3_execute(
+                sql::execute(
                     context,
                     &context.sql,
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
@@ -424,13 +424,13 @@ pub fn dc_add_or_lookup_contact(
             unsafe { *sth_modified = 1 };
         }
     } else {
-        if dc_sqlite3_execute(
+        if sql::execute(
             context,
             &context.sql,
             "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
             params![to_string(name), addr, origin,],
         ) {
-            row_id = dc_sqlite3_get_rowid(context, &context.sql, "contacts", "addr", addr);
+            row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
             unsafe { *sth_modified = 2 };
         } else {
             error!(context, 0, "Cannot add contact.");
@@ -519,8 +519,8 @@ pub fn dc_get_contacts(
     listflags: u32,
     query: *const libc::c_char,
 ) -> *mut dc_array_t {
-    let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some(""))
-        .unwrap_or_default();
+    let self_addr =
+        sql::get_config(context, &context.sql, "configured_addr", Some("")).unwrap_or_default();
 
     let mut add_self = false;
     let ret = unsafe { dc_array_new(100) };
@@ -558,8 +558,8 @@ pub fn dc_get_contacts(
             )
             .unwrap(); // TODO: Better error handling
 
-        let self_name = dc_sqlite3_get_config(context, &context.sql, "displayname", Some(""))
-            .unwrap_or_default();
+        let self_name =
+            sql::get_config(context, &context.sql, "displayname", Some("")).unwrap_or_default();
 
         let self_name2 = unsafe { dc_stock_str(context, 2) };
 
@@ -595,7 +595,7 @@ pub fn dc_get_contacts(
 }
 
 pub fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
-    dc_sqlite3_query_row(
+    sql::query_row(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
@@ -757,7 +757,7 @@ pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
         return false;
     }
 
-    let count_contacts: i32 = dc_sqlite3_query_row(
+    let count_contacts: i32 = sql::query_row(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
@@ -767,7 +767,7 @@ pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
     .unwrap_or_default();
 
     let count_msgs: i32 = if count_contacts > 0 {
-        dc_sqlite3_query_row(
+        sql::query_row(
             context,
             &context.sql,
             "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
@@ -780,7 +780,7 @@ pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
     };
 
     if count_msgs > 0 {
-        if dc_sqlite3_execute(
+        if sql::execute(
             context,
             &context.sql,
             "DELETE FROM contacts WHERE id=?;",
@@ -974,9 +974,7 @@ pub fn dc_addr_equals_self(context: &Context, addr: *const libc::c_char) -> libc
 
     if !addr.is_null() {
         let normalized_addr = unsafe { dc_addr_normalize(addr) };
-        if let Some(self_addr) =
-            dc_sqlite3_get_config(context, &context.sql, "configured_addr", None)
-        {
+        if let Some(self_addr) = sql::get_config(context, &context.sql, "configured_addr", None) {
             ret = (as_str(normalized_addr) == self_addr) as libc::c_int;
         }
         unsafe { free(normalized_addr as *mut libc::c_void) };
@@ -1016,7 +1014,7 @@ pub fn dc_get_real_contact_cnt(context: &Context) -> usize {
         return 0;
     }
 
-    dc_sqlite3_query_row::<_, isize>(
+    sql::query_row::<_, isize>(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM contacts WHERE id>?;",

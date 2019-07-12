@@ -6,9 +6,9 @@ use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_saxparser::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
+use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -48,7 +48,7 @@ pub unsafe fn dc_send_locations_to_chat(
     let is_sending_locations_before: bool;
     if !(seconds < 0i32 || chat_id <= 9i32 as libc::c_uint) {
         is_sending_locations_before = dc_is_sending_locations_to_chat(context, chat_id);
-        if dc_sqlite3_execute(
+        if sql::execute(
             context,
             &context.sql,
             "UPDATE chats    \
@@ -244,7 +244,7 @@ unsafe fn is_marker(txt: *const libc::c_char) -> libc::c_int {
 }
 
 pub fn dc_delete_all_locations(context: &Context) -> bool {
-    if !dc_sqlite3_execute(context, &context.sql, "DELETE FROM locations;", params![]) {
+    if !sql::execute(context, &context.sql, "DELETE FROM locations;", params![]) {
         return false;
     }
     context.call_cb(Event::LOCATION_CHANGED, 0, 0);
@@ -261,7 +261,7 @@ pub fn dc_get_location_kml(
     let mut location_count: libc::c_int = 0;
     let mut ret = String::new();
 
-    let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some(""));
+    let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""));
 
     if self_addr.is_none() {
         return std::ptr::null_mut();
@@ -380,7 +380,7 @@ pub unsafe fn dc_get_message_kml(
 }
 
 pub fn dc_set_kml_sent_timestamp(context: &Context, chat_id: u32, timestamp: i64) -> bool {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "UPDATE chats SET locations_last_sent=? WHERE id=?;",
@@ -389,7 +389,7 @@ pub fn dc_set_kml_sent_timestamp(context: &Context, chat_id: u32, timestamp: i64
 }
 
 pub fn dc_set_msg_location_id(context: &Context, msg_id: u32, location_id: u32) -> bool {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET location_id=? WHERE id=?;",
@@ -438,7 +438,7 @@ pub unsafe fn dc_save_locations(
 
                         if (*location).timestamp > newest_timestamp {
                             newest_timestamp = (*location).timestamp;
-                            newest_location_id = get_rowid2(
+                            newest_location_id = sql::get_rowid2_with_conn(
                                 context,
                                 conn,
                                 "locations",

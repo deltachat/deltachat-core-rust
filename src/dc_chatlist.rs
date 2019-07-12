@@ -4,9 +4,9 @@ use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_lot::*;
 use crate::dc_msg::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
+use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -243,7 +243,7 @@ unsafe fn dc_chatlist_load_from_db(
 
 // Context functions to work with chatlist
 pub fn dc_get_archived_cnt(context: &Context) -> libc::c_int {
-    dc_sqlite3_query_row(
+    sql::query_row(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
@@ -255,7 +255,7 @@ pub fn dc_get_archived_cnt(context: &Context) -> libc::c_int {
 
 fn get_last_deaddrop_fresh_msg(context: &Context) -> u32 {
     // we have an index over the state-column, this should be sufficient as there are typically only few fresh messages
-    dc_sqlite3_query_row(
+    sql::query_row(
         context,
         &context.sql,
         "SELECT m.id  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  \

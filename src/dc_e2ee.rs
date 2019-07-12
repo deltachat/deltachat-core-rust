@@ -19,12 +19,12 @@ use crate::aheader::*;
 use crate::context::Context;
 use crate::dc_mimeparser::*;
 use crate::dc_securejoin::*;
-use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp::*;
+use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -81,14 +81,13 @@ pub unsafe fn dc_e2ee_encrypt(
         || plain.is_null())
     {
         /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
-        let prefer_encrypt =
-            if 0 != dc_sqlite3_get_config_int(context, &context.sql, "e2ee_enabled", 1) {
-                EncryptPreference::Mutual
-            } else {
-                EncryptPreference::NoPreference
-            };
+        let prefer_encrypt = if 0 != sql::get_config_int(context, &context.sql, "e2ee_enabled", 1) {
+            EncryptPreference::Mutual
+        } else {
+            EncryptPreference::NoPreference
+        };
 
-        let addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
+        let addr = sql::get_config(context, &context.sql, "configured_addr", None);
 
         if let Some(addr) = addr {
             if let Some(public_key) =
@@ -598,7 +597,7 @@ pub unsafe fn dc_e2ee_decrypt(
             }
         }
         /* load private key for decryption */
-        let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
+        let self_addr = sql::get_config(context, &context.sql, "configured_addr", None);
         if let Some(self_addr) = self_addr {
             if private_keyring.load_self_private_for_decrypting(context, self_addr, &context.sql) {
                 if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
@@ -1067,7 +1066,7 @@ pub unsafe fn dc_ensure_secret_key_exists(context: &Context) -> libc::c_int {
     (this is to gain some extra-random-seed by the message content and the timespan between program start and message sending) */
     let mut success: libc::c_int = 0i32;
 
-    let self_addr = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
+    let self_addr = sql::get_config(context, &context.sql, "configured_addr", None);
     if self_addr.is_none() {
         warn!(
             context,

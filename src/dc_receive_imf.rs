@@ -19,11 +19,11 @@ use crate::dc_move::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_securejoin::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::peerstate::*;
+use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -232,12 +232,8 @@ pub unsafe fn dc_receive_imf(
                             by checking the state before the message body is downloaded */
                             let mut allow_creation: libc::c_int = 1;
                             if msgrmsg == 0 {
-                                let show_emails: libc::c_int = dc_sqlite3_get_config_int(
-                                    context,
-                                    &context.sql,
-                                    "show_emails",
-                                    0,
-                                );
+                                let show_emails: libc::c_int =
+                                    sql::get_config_int(context, &context.sql, "show_emails", 0);
                                 if show_emails == 0 {
                                     chat_id = 3 as uint32_t;
                                     allow_creation = 0
@@ -434,12 +430,8 @@ pub unsafe fn dc_receive_imf(
                             dc_unarchive_chat(context, chat_id);
                             // if the mime-headers should be saved, find out its size
                             // (the mime-header ends with an empty line)
-                            let save_mime_headers = dc_sqlite3_get_config_int(
-                                context,
-                                &context.sql,
-                                "save_mime_headers",
-                                0,
-                            );
+                            let save_mime_headers =
+                                sql::get_config_int(context, &context.sql, "save_mime_headers", 0);
                             field = dc_mimeparser_lookup_field(
                                 &mime_parser,
                                 b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
@@ -565,7 +557,7 @@ pub unsafe fn dc_receive_imf(
                                             } else {
                                                 free(txt_raw as *mut libc::c_void);
                                                 txt_raw = 0 as *mut libc::c_char;
-                                                insert_msg_id = dc_sqlite3_get_rowid(
+                                                insert_msg_id = sql::get_rowid(
                                                     context,
                                                     &context.sql,
                                                     "msgs",
@@ -632,7 +624,7 @@ pub unsafe fn dc_receive_imf(
                 _ => {
                     if carray_count(mime_parser.reports) > 0 as libc::c_uint {
                         let mdns_enabled =
-                            dc_sqlite3_get_config_int(context, &context.sql, "mdns_enabled", 1);
+                            sql::get_config_int(context, &context.sql, "mdns_enabled", 1);
                         icnt = carray_count(mime_parser.reports) as size_t;
                         i = 0 as size_t;
                         while i < icnt {
@@ -812,7 +804,7 @@ pub unsafe fn dc_receive_imf(
                                         );
                                         dc_param_set_int(param, 'z' as i32, server_uid as i32);
                                         if 0 != mime_parser.is_send_by_messenger
-                                            && 0 != dc_sqlite3_get_config_int(
+                                            && 0 != sql::get_config_int(
                                                 context,
                                                 &context.sql,
                                                 "mvbox_move",
@@ -960,7 +952,7 @@ unsafe fn calc_timestamps(
     }
     *sort_timestamp = message_timestamp;
     if 0 != is_fresh_msg {
-        let last_msg_time: Option<i64> = dc_sqlite3_query_row(
+        let last_msg_time: Option<i64> = sql::query_row(
             context,
             &context.sql,
             "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?",
@@ -1216,9 +1208,8 @@ unsafe fn create_or_lookup_group(
             }
             /* check if the group does not exist but should be created */
             group_explicitly_left = dc_is_group_explicitly_left(context, grpid);
-            let self_addr =
-                dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some(""))
-                    .unwrap_or_default();
+            let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""))
+                .unwrap_or_default();
             if chat_id == 0 as libc::c_uint
                 && 0 == dc_mimeparser_is_mailinglist_message(mime_parser)
                 && !grpid.is_null()
@@ -1291,7 +1282,7 @@ unsafe fn create_or_lookup_group(
                             && !grpname.is_null()
                             && strlen(grpname) < 200
                         {
-                            if dc_sqlite3_execute(
+                            if sql::execute(
                                 context,
                                 &context.sql,
                                 "UPDATE chats SET name=? WHERE id=?;",
@@ -1352,7 +1343,7 @@ unsafe fn create_or_lookup_group(
                             } else {
                                 0 as *mut libc::c_char
                             };
-                            dc_sqlite3_execute(
+                            sql::execute(
                                 context,
                                 &context.sql,
                                 "DELETE FROM chats_contacts WHERE chat_id=?;",
@@ -1560,7 +1551,7 @@ fn create_group_record(
     create_blocked: libc::c_int,
     create_verified: libc::c_int,
 ) -> u32 {
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "INSERT INTO chats (type, name, grpid, blocked) VALUES(?, ?, ?, ?);",
@@ -1574,7 +1565,7 @@ fn create_group_record(
         return 0;
     }
 
-    dc_sqlite3_get_rowid(context, &context.sql, "chats", "grpid", as_str(grpid))
+    sql::get_rowid(context, &context.sql, "chats", "grpid", as_str(grpid))
 }
 
 unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) -> *mut libc::c_char {
@@ -1585,10 +1576,9 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
      */
     let member_ids_str = dc_array_get_string(member_ids, b",\x00" as *const u8 as *const _);
-    let member_cs =
-        dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some("no-self"))
-            .unwrap()
-            .to_lowercase();
+    let member_cs = sql::get_config(context, &context.sql, "configured_addr", Some("no-self"))
+        .unwrap()
+        .to_lowercase();
 
     let members = context
         .sql
@@ -2098,8 +2088,7 @@ unsafe fn add_or_lookup_contact_by_addr(
         return;
     }
     *check_self = 0;
-    let self_addr =
-        dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some("")).unwrap();
+    let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some("")).unwrap();
 
     if dc_addr_cmp(self_addr, as_str(addr_spec)) {
         *check_self = 1;

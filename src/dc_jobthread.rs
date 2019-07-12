@@ -2,8 +2,8 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use crate::context::Context;
 use crate::dc_configure::*;
-use crate::dc_sqlite3::*;
 use crate::imap::Imap;
+use crate::sql;
 use crate::x::*;
 
 #[repr(C)]
@@ -137,11 +137,11 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
     } else {
         ret_connected = dc_connect_to_configured_imap(context, &jobthread.imap);
         if !(0 == ret_connected) {
-            if dc_sqlite3_get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
+            if sql::get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
                 jobthread.imap.configure_folders(context, 0x1);
             }
             let mvbox_name =
-                dc_sqlite3_get_config(context, &context.sql, jobthread.folder_config_name, None);
+                sql::get_config(context, &context.sql, jobthread.folder_config_name, None);
             if let Some(name) = mvbox_name {
                 jobthread.imap.set_watch_folder(name);
             } else {

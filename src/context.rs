@@ -11,12 +11,12 @@ use crate::dc_lot::dc_lot_t;
 use crate::dc_move::*;
 use crate::dc_msg::*;
 use crate::dc_receive_imf::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::imap::*;
 use crate::key::*;
 use crate::smtp::*;
+use crate::sql::{self, Sql};
 use crate::types::*;
 use crate::x::*;
 
@@ -68,7 +68,7 @@ pub struct Context {
     pub userdata: *mut libc::c_void,
     pub dbfile: Arc<RwLock<*mut libc::c_char>>,
     pub blobdir: Arc<RwLock<*mut libc::c_char>>,
-    pub sql: SQLite,
+    pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<i32>>,
     pub probe_imap_network: Arc<RwLock<i32>>,
@@ -192,7 +192,7 @@ pub fn dc_context_new(
         cb,
         os_name: unsafe { dc_strdup_keep_null(os_name) },
         running_state: Arc::new(RwLock::new(Default::default())),
-        sql: SQLite::new(),
+        sql: Sql::new(),
         smtp: Arc::new(Mutex::new(Smtp::new())),
         smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
         oauth2_critical: Arc::new(Mutex::new(())),
@@ -304,7 +304,7 @@ unsafe fn cb_set_config(context: &Context, key: *const libc::c_char, value: *con
     } else {
         Some(as_str(value))
     };
-    dc_sqlite3_set_config(context, &context.sql, as_str(key), v);
+    sql::set_config(context, &context.sql, as_str(key), v);
 }
 
 /* *
@@ -324,7 +324,7 @@ unsafe fn cb_get_config(
     } else {
         Some(as_str(def))
     };
-    let res = dc_sqlite3_get_config(context, &context.sql, as_str(key), d);
+    let res = sql::get_config(context, &context.sql, as_str(key), d);
     if let Some(res) = res {
         strdup(to_cstring(res).as_ptr())
     } else {
@@ -423,20 +423,20 @@ pub fn dc_set_config(context: &Context, key: impl AsRef<str>, value: Option<&str
         "selfavatar" if value.is_some() => {
             let mut rel_path = unsafe { dc_strdup(to_cstring(value.unwrap()).as_ptr()) };
             if 0 != unsafe { dc_make_rel_and_copy(context, &mut rel_path) } {
-                ret = dc_sqlite3_set_config(context, &context.sql, key, Some(as_str(rel_path)));
+                ret = sql::set_config(context, &context.sql, key, Some(as_str(rel_path)));
             }
             unsafe { free(rel_path as *mut libc::c_void) };
         }
         "inbox_watch" => {
-            ret = dc_sqlite3_set_config(context, &context.sql, key, value);
+            ret = sql::set_config(context, &context.sql, key, value);
             unsafe { dc_interrupt_imap_idle(context) };
         }
         "sentbox_watch" => {
-            ret = dc_sqlite3_set_config(context, &context.sql, key, value);
+            ret = sql::set_config(context, &context.sql, key, value);
             unsafe { dc_interrupt_sentbox_idle(context) };
         }
         "mvbox_watch" => {
-            ret = dc_sqlite3_set_config(context, &context.sql, key, value);
+            ret = sql::set_config(context, &context.sql, key, value);
             unsafe { dc_interrupt_mvbox_idle(context) };
         }
         "selfstatus" => {
@@ -447,11 +447,11 @@ pub fn dc_set_config(context: &Context, key: impl AsRef<str>, value: Option<&str
                 value
             };
 
-            ret = dc_sqlite3_set_config(context, &context.sql, key, val);
+            ret = sql::set_config(context, &context.sql, key, val);
             unsafe { free(def as *mut libc::c_void) };
         }
         _ => {
-            ret = dc_sqlite3_set_config(context, &context.sql, key, value);
+            ret = sql::set_config(context, &context.sql, key, value);
         }
     }
     ret
@@ -479,7 +479,7 @@ pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
 
     let value = match key.as_ref() {
         "selfavatar" => {
-            let rel_path = dc_sqlite3_get_config(context, &context.sql, key.as_ref(), None);
+            let rel_path = sql::get_config(context, &context.sql, key.as_ref(), None);
             rel_path.map(|p| {
                 let v = unsafe { dc_get_abs_path(context, to_cstring(p).as_ptr()) };
                 let r = to_string(v);
@@ -487,7 +487,7 @@ pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
                 r
             })
         }
-        _ => dc_sqlite3_get_config(context, &context.sql, key.as_ref(), None),
+        _ => sql::get_config(context, &context.sql, key.as_ref(), None),
     };
 
     if value.is_some() {
@@ -539,17 +539,17 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let unset = "0";
     let l = dc_loginparam_read(context, &context.sql, "");
     let l2 = dc_loginparam_read(context, &context.sql, "configured_");
-    let displayname = dc_sqlite3_get_config(context, &context.sql, "displayname", None);
+    let displayname = sql::get_config(context, &context.sql, "displayname", None);
     let chats = dc_get_chat_cnt(context) as usize;
     let real_msgs = dc_get_real_msg_cnt(context) as usize;
     let deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as usize;
     let contacts = dc_get_real_contact_cnt(context) as usize;
-    let is_configured = dc_sqlite3_get_config_int(context, &context.sql, "configured", 0);
-    let dbversion = dc_sqlite3_get_config_int(context, &context.sql, "dbversion", 0);
-    let e2ee_enabled = dc_sqlite3_get_config_int(context, &context.sql, "e2ee_enabled", 1);
-    let mdns_enabled = dc_sqlite3_get_config_int(context, &context.sql, "mdns_enabled", 1);
+    let is_configured = sql::get_config_int(context, &context.sql, "configured", 0);
+    let dbversion = sql::get_config_int(context, &context.sql, "dbversion", 0);
+    let e2ee_enabled = sql::get_config_int(context, &context.sql, "e2ee_enabled", 1);
+    let mdns_enabled = sql::get_config_int(context, &context.sql, "mdns_enabled", 1);
 
-    let prv_key_cnt: Option<isize> = dc_sqlite3_query_row(
+    let prv_key_cnt: Option<isize> = sql::query_row(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM keypairs;",
@@ -557,7 +557,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         0,
     );
 
-    let pub_key_cnt: Option<isize> = dc_sqlite3_query_row(
+    let pub_key_cnt: Option<isize> = sql::query_row(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM acpeerstates;",
@@ -574,19 +574,18 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
 
     let l_readable_str = dc_loginparam_get_readable(&l);
     let l2_readable_str = dc_loginparam_get_readable(&l2);
-    let inbox_watch = dc_sqlite3_get_config_int(context, &context.sql, "inbox_watch", 1);
-    let sentbox_watch = dc_sqlite3_get_config_int(context, &context.sql, "sentbox_watch", 1);
-    let mvbox_watch = dc_sqlite3_get_config_int(context, &context.sql, "mvbox_watch", 1);
-    let mvbox_move = dc_sqlite3_get_config_int(context, &context.sql, "mvbox_move", 1);
-    let folders_configured =
-        dc_sqlite3_get_config_int(context, &context.sql, "folders_configured", 0);
-    let configured_sentbox_folder = dc_sqlite3_get_config(
+    let inbox_watch = sql::get_config_int(context, &context.sql, "inbox_watch", 1);
+    let sentbox_watch = sql::get_config_int(context, &context.sql, "sentbox_watch", 1);
+    let mvbox_watch = sql::get_config_int(context, &context.sql, "mvbox_watch", 1);
+    let mvbox_move = sql::get_config_int(context, &context.sql, "mvbox_move", 1);
+    let folders_configured = sql::get_config_int(context, &context.sql, "folders_configured", 0);
+    let configured_sentbox_folder = sql::get_config(
         context,
         &context.sql,
         "configured_sentbox_folder",
         Some("<unset>"),
     );
-    let configured_mvbox_folder = dc_sqlite3_get_config(
+    let configured_mvbox_folder = sql::get_config(
         context,
         &context.sql,
         "configured_mvbox_folder",
@@ -753,8 +752,7 @@ pub fn dc_is_inbox(_context: &Context, folder_name: impl AsRef<str>) -> bool {
 }
 
 pub fn dc_is_sentbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
-    let sentbox_name =
-        dc_sqlite3_get_config(context, &context.sql, "configured_sentbox_folder", None);
+    let sentbox_name = sql::get_config(context, &context.sql, "configured_sentbox_folder", None);
     if let Some(name) = sentbox_name {
         name == folder_name.as_ref()
     } else {
@@ -763,7 +761,7 @@ pub fn dc_is_sentbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
 }
 
 pub fn dc_is_mvbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
-    let mvbox_name = dc_sqlite3_get_config(context, &context.sql, "configured_mvbox_folder", None);
+    let mvbox_name = sql::get_config(context, &context.sql, "configured_mvbox_folder", None);
 
     if let Some(name) = mvbox_name {
         name == folder_name.as_ref()

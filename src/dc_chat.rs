@@ -6,9 +6,9 @@ use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
+use crate::sql::{self, Sql};
 use crate::types::*;
 use crate::x::*;
 
@@ -101,7 +101,7 @@ pub unsafe fn dc_unblock_chat(context: &Context, chat_id: uint32_t) {
 }
 
 pub fn dc_block_chat(context: &Context, chat_id: u32, new_blocking: libc::c_int) -> bool {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "UPDATE chats SET blocked=? WHERE id=?;",
@@ -257,7 +257,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
                 (*contact).addr
             };
 
-        if dc_sqlite3_execute(
+        if sql::execute(
             context,
             &context.sql,
             "INSERT INTO chats (type, name, param, blocked, grpid) VALUES(?, ?, ?, ?, ?)",
@@ -269,7 +269,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
                 as_str((*contact).addr),
             ],
         ) {
-            chat_id = dc_sqlite3_get_rowid(
+            chat_id = sql::get_rowid(
                 context,
                 &context.sql,
                 "chats",
@@ -277,7 +277,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
                 as_str((*contact).addr),
             );
 
-            dc_sqlite3_execute(
+            sql::execute(
                 context,
                 &context.sql,
                 "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
@@ -476,7 +476,7 @@ unsafe fn prepare_msg_raw(
             "Cannot send message; self not in group.",
         );
     } else {
-        let from = dc_sqlite3_get_config(context, &context.sql, "configured_addr", None);
+        let from = sql::get_config(context, &context.sql, "configured_addr", None);
         if from.is_none() {
             error!(context, 0, "Cannot send message, not configured.",);
         } else {
@@ -491,7 +491,7 @@ unsafe fn prepare_msg_raw(
             );
 
             if (*chat).type_0 == 100 {
-                if let Some(id) = dc_sqlite3_query_row(
+                if let Some(id) = sql::query_row(
                     context,
                     &context.sql,
                     "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
@@ -526,8 +526,7 @@ unsafe fn prepare_msg_raw(
                     so that E2EE is no longer available at a later point (reset, changed settings),
                     we do not send the message out at all */
                     do_guarantee_e2ee = 0;
-                    e2ee_enabled =
-                        dc_sqlite3_get_config_int(context, &context.sql, "e2ee_enabled", 1);
+                    e2ee_enabled = sql::get_config_int(context, &context.sql, "e2ee_enabled", 1);
                     if 0 != e2ee_enabled && dc_param_get_int((*msg).param, 'u' as i32, 0) == 0 {
                         let mut can_encrypt: libc::c_int = 1;
                         let mut all_mutual: libc::c_int = 1;
@@ -633,7 +632,7 @@ unsafe fn prepare_msg_raw(
                     // add independent location to database
 
                     if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
-                        if dc_sqlite3_execute(
+                        if sql::execute(
                             context,
                             &context.sql,
                             "INSERT INTO locations \
@@ -655,7 +654,7 @@ unsafe fn prepare_msg_raw(
                                 ),
                             ],
                         ) {
-                            location_id = dc_sqlite3_get_rowid2(
+                            location_id = sql::get_rowid2(
                                 context,
                                 &context.sql,
                                 "locations",
@@ -669,7 +668,7 @@ unsafe fn prepare_msg_raw(
 
                     // add message to the database
 
-                    if dc_sqlite3_execute(
+                    if sql::execute(
                         context,
                         &context.sql,
                         "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
@@ -689,7 +688,7 @@ unsafe fn prepare_msg_raw(
                             location_id as i32,
                         ]
                     ) {
-                        msg_id = dc_sqlite3_get_rowid(
+                        msg_id = sql::get_rowid(
                             context,
                             &context.sql,
                             "msgs",
@@ -788,11 +787,11 @@ pub unsafe fn dc_chat_is_self_talk(chat: *const Chat) -> libc::c_int {
 // TODO should return bool /rtn
 unsafe fn last_msg_in_chat_encrypted(
     context: &Context,
-    sql: &SQLite,
+    sql: &Sql,
     chat_id: uint32_t,
 ) -> libc::c_int {
     let mut last_is_encrypted: libc::c_int = 0i32;
-    let packed: Option<String> = dc_sqlite3_query_row(
+    let packed: Option<String> = sql::query_row(
         context,
         sql,
         "SELECT param  \
@@ -818,7 +817,7 @@ unsafe fn last_msg_in_chat_encrypted(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_chat_update_param(chat: *mut Chat) -> libc::c_int {
-    dc_sqlite3_execute(
+    sql::execute(
         (*chat).context,
         &(*chat).context.sql,
         "UPDATE chats SET param=? WHERE id=?",
@@ -844,7 +843,7 @@ pub unsafe fn dc_is_contact_in_chat(
 }
 
 pub fn dc_unarchive_chat(context: &Context, chat_id: u32) {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "UPDATE chats SET archived=0 WHERE id=?",
@@ -980,7 +979,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
         match current_block {
             14513523936503887211 => {}
             _ => {
-                if dc_sqlite3_execute(
+                if sql::execute(
                     context,
                     &context.sql,
                     "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
@@ -1006,7 +1005,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
 }
 
 fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
-    let draft_msg_id: i32 = dc_sqlite3_query_row(
+    let draft_msg_id: i32 = sql::query_row(
         context,
         &context.sql,
         "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
@@ -1070,7 +1069,7 @@ pub unsafe fn dc_get_chat_msgs(
     };
 
     let success = if chat_id == 1 {
-        let show_emails = dc_sqlite3_get_config_int(context, &context.sql, "show_emails", 0);
+        let show_emails = sql::get_config_int(context, &context.sql, "show_emails", 0);
         context.sql.query_map(
             "SELECT m.id, m.timestamp FROM msgs m \
              LEFT JOIN chats ON m.chat_id=chats.id \
@@ -1119,7 +1118,7 @@ pub unsafe fn dc_get_chat_msgs(
 }
 
 pub fn dc_get_msg_cnt(context: &Context, chat_id: u32) -> libc::c_int {
-    dc_sqlite3_query_row(
+    sql::query_row(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
@@ -1130,7 +1129,7 @@ pub fn dc_get_msg_cnt(context: &Context, chat_id: u32) -> libc::c_int {
 }
 
 pub fn dc_get_fresh_msg_cnt(context: &Context, chat_id: u32) -> libc::c_int {
-    dc_sqlite3_query_row(
+    sql::query_row(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM msgs  \
@@ -1154,7 +1153,7 @@ pub fn dc_marknoticed_chat(context: &Context, chat_id: u32) -> bool {
     {
         return false;
     }
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "UPDATE msgs    \
@@ -1180,7 +1179,7 @@ pub fn dc_marknoticed_all_chats(context: &Context) -> bool {
         return false;
     }
 
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "UPDATE msgs    \
@@ -1286,7 +1285,7 @@ pub fn dc_archive_chat(context: &Context, chat_id: u32, archive: libc::c_int) ->
         return true;
     }
     if 0 != archive {
-        if !dc_sqlite3_execute(
+        if !sql::execute(
             context,
             &context.sql,
             "UPDATE msgs SET state=13 WHERE chat_id=? AND state=10;",
@@ -1295,7 +1294,7 @@ pub fn dc_archive_chat(context: &Context, chat_id: u32, archive: libc::c_int) ->
             return false;
         }
     }
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "UPDATE chats SET archived=? WHERE id=?;",
@@ -1320,7 +1319,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
     }
     unsafe { dc_chat_unref(obj) };
 
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
@@ -1328,7 +1327,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
     ) {
         return;
     }
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "DELETE FROM msgs WHERE chat_id=?;",
@@ -1336,7 +1335,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
     ) {
         return;
     }
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "DELETE FROM chats_contacts WHERE chat_id=?;",
@@ -1344,7 +1343,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
     ) {
         return;
     }
-    if !dc_sqlite3_execute(
+    if !sql::execute(
         context,
         &context.sql,
         "DELETE FROM chats WHERE id=?;",
@@ -1421,7 +1420,7 @@ pub unsafe fn dc_create_group_chat(
     let draft_txt = dc_stock_str_repl_string(context, 14, chat_name);
     let grpid = as_str(dc_create_id());
 
-    if dc_sqlite3_execute(
+    if sql::execute(
         context,
         &context.sql,
         "INSERT INTO chats (type, name, grpid, param) VALUES(?, ?, ?, \'U=1\');",
@@ -1431,7 +1430,7 @@ pub unsafe fn dc_create_group_chat(
             grpid
         ],
     ) {
-        chat_id = dc_sqlite3_get_rowid(context, &context.sql, "chats", "grpid", grpid);
+        chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid);
         if chat_id != 0 {
             if 0 != dc_add_to_chat_contacts_table(context, chat_id, 1) {
                 let draft_msg = dc_msg_new(context, 10);
@@ -1461,7 +1460,7 @@ pub fn dc_add_to_chat_contacts_table(
 ) -> libc::c_int {
     // add a contact to a chat; the function does not check the type or if any of the record exist or are already
     // added to the chat!
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
@@ -1510,9 +1509,8 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     dc_param_set((*chat).param, 'U' as i32, 0 as *const libc::c_char);
                     dc_chat_update_param(chat);
                 }
-                let self_addr =
-                    dc_sqlite3_get_config(context, &context.sql, "configured_addr", Some(""))
-                        .unwrap_or_default();
+                let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""))
+                    .unwrap_or_default();
                 if as_str((*contact).addr) != &self_addr {
                     // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
                     // if SELF is not in the group, members cannot be added at all.
@@ -1619,7 +1617,7 @@ pub fn dc_set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64
             0, "set gossiped_timestamp for chat #{} to {}.", chat_id, timestamp,
         );
 
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "UPDATE chats SET gossiped_timestamp=? WHERE id=?;",
@@ -1630,7 +1628,7 @@ pub fn dc_set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64
             context,
             0, "set gossiped_timestamp for all chats to {}.", timestamp,
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "UPDATE chats SET gossiped_timestamp=?;",
@@ -1696,7 +1694,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                         );
                     }
                 }
-                if dc_sqlite3_execute(
+                if sql::execute(
                     context,
                     &context.sql,
                     "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
@@ -1718,7 +1716,7 @@ pub unsafe fn dc_remove_contact_from_chat(
 
 pub fn dc_set_group_explicitly_left(context: &Context, grpid: *const libc::c_char) {
     if 0 == dc_is_group_explicitly_left(context, grpid) {
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "INSERT INTO leftgrps (grpid) VALUES(?);",
@@ -1765,7 +1763,7 @@ pub unsafe fn dc_set_chat_name(
                 );
             } else {
                 /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
-                if dc_sqlite3_execute(
+                if sql::execute(
                     context,
                     &context.sql,
                     "UPDATE chats SET name=? WHERE id={};",
@@ -2025,7 +2023,7 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
     if (*chat).type_0 == 100 && 0 != dc_param_exists((*chat).param, 'K' as i32) {
         ret = dc_stock_str((*chat).context, 50)
     } else if (*chat).type_0 == 100 {
-        let ret_raw: String = dc_sqlite3_query_row(
+        let ret_raw: String = sql::query_row(
             (*chat).context,
             &(*chat).context.sql,
             "SELECT c.addr FROM chats_contacts cc  \
@@ -2052,7 +2050,7 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
 }
 
 pub fn dc_get_chat_contact_cnt(context: &Context, chat_id: u32) -> libc::c_int {
-    dc_sqlite3_query_row(
+    sql::query_row(
         context,
         &context.sql,
         "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
@@ -2150,7 +2148,7 @@ pub unsafe fn dc_chat_is_sending_locations(chat: *const Chat) -> libc::c_int {
 pub fn dc_get_chat_cnt(context: &Context) -> usize {
     if context.sql.is_open() {
         /* no database, no chats - this is no error (needed eg. for information) */
-        dc_sqlite3_query_row::<_, isize>(
+        sql::query_row::<_, isize>(
             context,
             &context.sql,
             "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
@@ -2224,7 +2222,7 @@ pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc
         return;
     }
 
-    let msg_id = dc_sqlite3_get_rowid(
+    let msg_id = sql::get_rowid(
         context,
         &context.sql,
         "msgs",

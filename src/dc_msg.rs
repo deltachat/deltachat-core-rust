@@ -6,10 +6,10 @@ use crate::dc_job::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
 use crate::dc_param::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::pgp::*;
+use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -52,7 +52,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     dc_msg_load_from_db(msg, context, msg_id);
     dc_contact_load_from_db(contact_from, &context.sql, (*msg).from_id);
 
-    let rawtxt: Option<String> = dc_sqlite3_query_row(
+    let rawtxt: Option<String> = sql::query_row(
         context,
         &context.sql,
         "SELECT txt_raw FROM msgs WHERE id=?;",
@@ -475,7 +475,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
 }
 
 pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut libc::c_char {
-    let headers: Option<String> = dc_sqlite3_query_row(
+    let headers: Option<String> = sql::query_row(
         context,
         &context.sql,
         "SELECT mime_headers FROM msgs WHERE id=?;",
@@ -515,7 +515,7 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
 }
 
 pub fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET chat_id=? WHERE id=?;",
@@ -570,7 +570,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
 }
 
 pub fn dc_update_msg_state(context: &Context, msg_id: uint32_t, state: libc::c_int) -> bool {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET state=? WHERE id=?;",
@@ -1075,7 +1075,7 @@ pub unsafe fn dc_msg_save_param_to_disk(msg: *mut dc_msg_t) -> bool {
         return false;
     }
 
-    dc_sqlite3_execute(
+    sql::execute(
         (*msg).context,
         &(*msg).context.sql,
         "UPDATE msgs SET param=? WHERE id=?;",
@@ -1092,13 +1092,13 @@ pub unsafe fn dc_msg_new_load<'a>(context: &'a Context, msg_id: uint32_t) -> *mu
 pub unsafe fn dc_delete_msg_from_db(context: &Context, msg_id: uint32_t) {
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     if dc_msg_load_from_db(msg, context, msg_id) {
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "DELETE FROM msgs WHERE id=?;",
             params![(*msg).id as i32],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
             "DELETE FROM msgs_mdns WHERE msg_id=?;",
@@ -1120,7 +1120,7 @@ pub unsafe fn dc_msg_exists(context: &Context, msg_id: uint32_t) -> libc::c_int 
         return 0;
     }
 
-    let chat_id: Option<i32> = dc_sqlite3_query_row(
+    let chat_id: Option<i32> = sql::query_row(
         context,
         &context.sql,
         "SELECT chat_id FROM msgs WHERE id=?;",
@@ -1144,7 +1144,7 @@ pub fn dc_update_msg_move_state(
 ) -> bool {
     // we update the move_state for all messages belonging to a given Message-ID
     // so that the state stay intact when parts are deleted
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET move_state=? WHERE rfc724_mid=?;",
@@ -1164,7 +1164,7 @@ pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *con
             error!(context, 0, "{}", as_str(error),);
         }
 
-        if dc_sqlite3_execute(
+        if sql::execute(
             context,
             &context.sql,
             "UPDATE msgs SET state=?, param=? WHERE id=?;",
@@ -1243,7 +1243,7 @@ pub unsafe fn dc_mdn_from_ext(
                 read_by_all = 1;
             } else {
                 /* send event about new state */
-                let ist_cnt: i32 = dc_sqlite3_query_row(
+                let ist_cnt: i32 = sql::query_row(
                     context,
                     &context.sql,
                     "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",

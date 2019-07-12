@@ -1,6 +1,6 @@
 use crate::context::Context;
-use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
+use crate::sql;
 use crate::x::strdup;
 
 // Token namespaces
@@ -20,7 +20,7 @@ pub fn dc_token_save(
         return false;
     }
     // foreign_id may be 0
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         &context.sql,
         "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
@@ -33,7 +33,7 @@ pub fn dc_token_lookup(
     namespc: dc_tokennamespc_t,
     foreign_id: u32,
 ) -> *mut libc::c_char {
-    if let Some(token) = dc_sqlite3_query_row::<_, String>(
+    if let Some(token) = sql::query_row::<_, String>(
         context,
         &context.sql,
         "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",

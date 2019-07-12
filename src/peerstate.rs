@@ -7,8 +7,8 @@ use crate::aheader::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_chat::*;
-use crate::dc_sqlite3::*;
 use crate::key::*;
+use crate::sql::{self, Sql};
 
 /// Peerstate represents the state of an Autocrypt peer.
 pub struct Peerstate<'a> {
@@ -164,17 +164,13 @@ impl<'a> Peerstate<'a> {
         res
     }
 
-    pub fn from_addr(context: &'a Context, _sql: &SQLite, addr: &str) -> Option<Self> {
+    pub fn from_addr(context: &'a Context, _sql: &Sql, addr: &str) -> Option<Self> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, verified_key, verified_key_fingerprint FROM acpeerstates  WHERE addr=? COLLATE NOCASE;";
 
         Self::from_stmt(context, query, &[addr])
     }
 
-    pub fn from_fingerprint(
-        context: &'a Context,
-        _sql: &SQLite,
-        fingerprint: &str,
-    ) -> Option<Self> {
+    pub fn from_fingerprint(context: &'a Context, _sql: &Sql, fingerprint: &str) -> Option<Self> {
         let query = "SELECT addr, last_seen, last_seen_autocrypt, prefer_encrypted, public_key, \
                      gossip_timestamp, gossip_key, public_key_fingerprint, gossip_key_fingerprint, \
                      verified_key, verified_key_fingerprint \
@@ -383,7 +379,7 @@ impl<'a> Peerstate<'a> {
         success
     }
 
-    pub fn save_to_db(&self, sql: &SQLite, create: bool) -> bool {
+    pub fn save_to_db(&self, sql: &Sql, create: bool) -> bool {
         let mut success = false;
 
         if self.addr.is_none() {
@@ -391,7 +387,7 @@ impl<'a> Peerstate<'a> {
         }
 
         if create {
-            if !dc_sqlite3_execute(
+            if !sql::execute(
                 self.context,
                 sql,
                 "INSERT INTO acpeerstates (addr) VALUES(?);",
@@ -402,7 +398,7 @@ impl<'a> Peerstate<'a> {
         }
 
         if self.to_save == Some(ToSave::All) || create {
-            success = dc_sqlite3_execute(
+            success = sql::execute(
                 self.context,
                 sql,
 		"UPDATE acpeerstates \
@@ -425,7 +421,7 @@ impl<'a> Peerstate<'a> {
                 ],
             );
         } else if self.to_save == Some(ToSave::Timestamps) {
-            success = dc_sqlite3_execute(
+            success = sql::execute(
                 self.context,
                 sql,
                 "UPDATE acpeerstates SET last_seen=?, last_seen_autocrypt=?, gossip_timestamp=? \

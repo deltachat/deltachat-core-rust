@@ -10,8 +10,8 @@ use pgp::types::{KeyTrait, SecretKeyTrait};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
+use crate::sql::{self, Sql};
 use crate::x::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -145,11 +145,11 @@ impl Key {
     pub fn from_self_public(
         context: &Context,
         self_addr: impl AsRef<str>,
-        sql: &SQLite,
+        sql: &Sql,
     ) -> Option<Self> {
         let addr = self_addr.as_ref();
 
-        dc_sqlite3_query_row(
+        sql::query_row(
             context,
             sql,
             "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
@@ -162,9 +162,9 @@ impl Key {
     pub fn from_self_private(
         context: &Context,
         self_addr: impl AsRef<str>,
-        sql: &SQLite,
+        sql: &Sql,
     ) -> Option<Self> {
-        dc_sqlite3_query_row(
+        sql::query_row(
             context,
             sql,
             "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
@@ -301,9 +301,9 @@ pub fn dc_key_save_self_keypair(
     private_key: &Key,
     addr: impl AsRef<str>,
     is_default: libc::c_int,
-    sql: &SQLite,
+    sql: &Sql,
 ) -> bool {
-    dc_sqlite3_execute(
+    sql::execute(
         context,
         sql,
         "INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);",

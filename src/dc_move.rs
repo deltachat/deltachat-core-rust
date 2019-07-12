@@ -2,10 +2,10 @@ use crate::constants::*;
 use crate::context::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
-use crate::dc_sqlite3::*;
+use crate::sql;
 
 pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u32) {
-    if dc_sqlite3_get_config_int(context, &context.sql, "mvbox_move", 1) == 0 {
+    if sql::get_config_int(context, &context.sql, "mvbox_move", 1) == 0 {
         return;
     }
 
