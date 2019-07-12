@@ -541,12 +541,12 @@ pub unsafe fn dc_receive_imf(
                                                 (*part).bytes,
                                                 hidden,
                                                 if 0 != save_mime_headers {
-                                                    Some(as_str(imf_raw_not_terminated))
+                                                    Some(to_string(imf_raw_not_terminated))
                                                 } else {
                                                     None
                                                 },
-                                                as_str(mime_in_reply_to),
-                                                as_str(mime_references),
+                                                to_string(mime_in_reply_to),
+                                                to_string(mime_references),
                                             ]);
 
                                             if res.is_err() {

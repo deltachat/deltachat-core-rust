@@ -1180,9 +1180,16 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         /* create message */
         if 0 == dc_mimefactory_render(&mut mimefactory) {
             dc_set_msg_failed(context, msg_id, mimefactory.error);
-        } else if 0 != dc_param_get_int((*mimefactory.msg).param, 'c' as i32, 0i32)
+        } else if 0 != dc_param_get_int((*mimefactory.msg).param, 'c' as i32, 0)
             && 0 == mimefactory.out_encrypted
         {
+            warn!(
+                context,
+                0,
+                "e2e encryption unavailable {} - {}",
+                msg_id,
+                dc_param_get_int((*mimefactory.msg).param, 'c' as i32, 0),
+            );
             dc_set_msg_failed(
                 context,
                 msg_id,
