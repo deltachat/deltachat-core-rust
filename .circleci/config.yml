@@ -181,9 +181,9 @@ workflows:
             - cargo_fetch
 
       # Linux Desktop 32bit
-      - test_i686-unknown-linux-gnu:
-          requires:
-            - cargo_fetch
+      # - test_i686-unknown-linux-gnu:
+      #     requires:
+      #       - cargo_fetch
 
       # Android 64bit
       # - test_aarch64-linux-android:
