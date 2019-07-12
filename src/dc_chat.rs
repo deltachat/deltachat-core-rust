@@ -835,12 +835,13 @@ pub unsafe fn dc_is_contact_in_chat(
     /* this function works for group and for normal chats, however, it is more useful for group chats.
     DC_CONTACT_ID_SELF may be used to check, if the user itself is in a group chat (DC_CONTACT_ID_SELF is not added to normal chats) */
 
-    dc_sqlite3_execute(
-        context,
-        &context.sql,
-        "SELECT contact_id FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
-        params![chat_id as i32, contact_id as i32],
-    ) as libc::c_int
+    context
+        .sql
+        .exists(
+            "SELECT contact_id FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
+            params![chat_id as i32, contact_id as i32],
+        )
+        .unwrap_or_default() as libc::c_int
 }
 
 pub fn dc_unarchive_chat(context: &Context, chat_id: u32) {
@@ -1144,12 +1145,14 @@ pub fn dc_get_fresh_msg_cnt(context: &Context, chat_id: u32) -> libc::c_int {
 }
 
 pub fn dc_marknoticed_chat(context: &Context, chat_id: u32) -> bool {
-    if !dc_sqlite3_execute(
-        context,
-        &context.sql,
-        "SELECT id FROM msgs  WHERE chat_id=? AND state=10;",
-        params![chat_id as i32],
-    ) {
+    if !context
+        .sql
+        .exists(
+            "SELECT id FROM msgs  WHERE chat_id=? AND state=10;",
+            params![chat_id as i32],
+        )
+        .unwrap_or_default()
+    {
         return false;
     }
     if !dc_sqlite3_execute(
@@ -1166,13 +1169,15 @@ pub fn dc_marknoticed_chat(context: &Context, chat_id: u32) -> bool {
 }
 
 pub fn dc_marknoticed_all_chats(context: &Context) -> bool {
-    if !dc_sqlite3_execute(
-        context,
-        &context.sql,
-        "SELECT id FROM msgs  \
-         WHERE state=10;",
-        params![],
-    ) {
+    if !context
+        .sql
+        .exists(
+            "SELECT id FROM msgs  \
+             WHERE state=10;",
+            params![],
+        )
+        .unwrap_or_default()
+    {
         return false;
     }
 
@@ -1595,12 +1600,13 @@ fn real_group_exists(context: &Context, chat_id: u32) -> libc::c_int {
         return 02;
     }
 
-    dc_sqlite3_execute(
-        context,
-        &context.sql,
-        "SELECT id FROM chats  WHERE id=?    AND (type=120 OR type=130);",
-        params![chat_id as i32],
-    ) as libc::c_int
+    context
+        .sql
+        .exists(
+            "SELECT id FROM chats  WHERE id=?    AND (type=120 OR type=130);",
+            params![chat_id as i32],
+        )
+        .unwrap_or_default() as libc::c_int
 }
 
 pub fn dc_reset_gossiped_timestamp(context: &Context, chat_id: u32) {
@@ -1724,12 +1730,13 @@ pub fn dc_set_group_explicitly_left(context: &Context, grpid: *const libc::c_cha
 
 // TODO should return bool /rtn
 pub fn dc_is_group_explicitly_left(context: &Context, grpid: *const libc::c_char) -> libc::c_int {
-    dc_sqlite3_execute(
-        context,
-        &context.sql,
-        "SELECT id FROM leftgrps WHERE grpid=?;",
-        params![as_str(grpid)],
-    ) as libc::c_int
+    context
+        .sql
+        .exists(
+            "SELECT id FROM leftgrps WHERE grpid=?;",
+            params![as_str(grpid)],
+        )
+        .unwrap_or_default() as libc::c_int
 }
 
 // TODO should return bool /rtn
