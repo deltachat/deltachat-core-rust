@@ -181,9 +181,9 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
 }
 
 pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32_t) -> uint32_t {
-    let mut chat_id: uint32_t = 0i32 as uint32_t;
-    let mut chat_blocked: libc::c_int = 0i32;
-    let mut send_event: libc::c_int = 0i32;
+    let mut chat_id = 0;
+    let mut chat_blocked = 0;
+    let mut send_event = 0;
     dc_lookup_real_nchat_by_contact_id(context, contact_id, &mut chat_id, &mut chat_blocked);
     if 0 != chat_id {
         if 0 != chat_blocked {
@@ -204,7 +204,7 @@ pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32
             0 as *mut libc::c_int,
         );
         if 0 != chat_id {
-            send_event = 1i32
+            send_event = 1;
         }
         dc_scaleup_contact_origin(context, contact_id, 0x800i32);
     }
@@ -221,25 +221,25 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
     ret_chat_id: *mut uint32_t,
     ret_chat_blocked: *mut libc::c_int,
 ) {
-    let mut chat_id: uint32_t = 0i32 as uint32_t;
-    let mut chat_blocked: libc::c_int = 0i32;
+    let mut chat_id = 0;
+    let mut chat_blocked = 0;
     let contact: *mut dc_contact_t;
     let chat_name: *mut libc::c_char;
 
     if !ret_chat_id.is_null() {
-        *ret_chat_id = 0i32 as uint32_t
+        *ret_chat_id = 0;
     }
     if !ret_chat_blocked.is_null() {
-        *ret_chat_blocked = 0i32
+        *ret_chat_blocked = 0;
     }
     if !context.sql.is_open() {
         return;
     }
-    if contact_id == 0i32 as libc::c_uint {
+    if contact_id == 0 as libc::c_uint {
         return;
     }
     dc_lookup_real_nchat_by_contact_id(context, contact_id, &mut chat_id, &mut chat_blocked);
-    if chat_id != 0i32 as libc::c_uint {
+    if chat_id != 0 {
         if !ret_chat_id.is_null() {
             *ret_chat_id = chat_id
         }
@@ -269,7 +269,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
                 as_str((*contact).addr),
             ],
         ) {
-            let chat_id = dc_sqlite3_get_rowid(
+            chat_id = dc_sqlite3_get_rowid(
                 context,
                 &context.sql,
                 "chats",
@@ -312,15 +312,14 @@ pub fn dc_lookup_real_nchat_by_contact_id(
         return;
     }
 
-    context.sql.query_row(
+    if let Ok((id, blocked)) = context.sql.query_row(
         "SELECT c.id, c.blocked FROM chats c INNER JOIN chats_contacts j ON c.id=j.chat_id WHERE c.type=100 AND c.id>9 AND j.contact_id=?;",
         params![contact_id as i32],
-        |row| {
-            unsafe { *ret_chat_id = row.get(0)? };
-            unsafe { *ret_chat_blocked = row.get(1)? };
-            Ok(())
-        }
-    );
+        |row| Ok((row.get(0)?, row.get(1)?)),
+    ) {
+        unsafe { *ret_chat_id = id };
+        unsafe { *ret_chat_blocked = blocked };
+    }
 }
 
 pub unsafe fn dc_get_chat_id_by_contact_id(context: &Context, contact_id: uint32_t) -> uint32_t {
