@@ -39,7 +39,6 @@ pub unsafe fn dc_receive_imf(
     /* the function returns the number of created messages in the database */
     let mut incoming: libc::c_int = 1;
     let mut incoming_origin: libc::c_int = 0;
-    let to_ids: *mut dc_array_t;
     let mut to_self: libc::c_int = 0;
     let mut from_id: uint32_t = 0 as uint32_t;
     let mut from_id_blocked: libc::c_int = 0;
@@ -59,14 +58,18 @@ pub unsafe fn dc_receive_imf(
     let mut sort_timestamp = 0;
     let mut sent_timestamp = 0;
     let mut rcvd_timestamp = 0;
-    let mut mime_parser = dc_mimeparser_new(context);
     let mut field: *const mailimf_field;
     let mut mime_in_reply_to = 0 as *mut libc::c_char;
     let mut mime_references = 0 as *mut libc::c_char;
-    let created_db_entries = carray_new(16 as libc::c_uint);
+    let mut created_db_entries = Vec::new();
     let mut create_event_to_send = Some(Event::MSGS_CHANGED);
-    let rr_event_to_send = carray_new(16 as libc::c_uint);
+    let mut rr_event_to_send = Vec::new();
     let mut txt_raw = 0 as *mut libc::c_char;
+
+    // XXX converting the below "to_ids" to a Vec quickly leads to lots of changes
+    // so we keep it as a dc_array for now
+    let to_ids = dc_array_new(16);
+    assert!(!to_ids.is_null());
 
     info!(
         context,
@@ -79,578 +82,530 @@ pub unsafe fn dc_receive_imf(
         },
         server_uid,
     );
-    to_ids = dc_array_new(16 as size_t);
-    if to_ids.is_null() || created_db_entries.is_null() || rr_event_to_send.is_null() {
-        info!(context, 0, "Bad param.",);
+
+    let mut mime_parser = dc_mimeparser_new(context);
+    dc_mimeparser_parse(&mut mime_parser, imf_raw_not_terminated, imf_raw_bytes);
+    if mime_parser.header.is_empty() {
+        info!(context, 0, "No header.",);
     } else {
-        dc_mimeparser_parse(&mut mime_parser, imf_raw_not_terminated, imf_raw_bytes);
-        if mime_parser.header.is_empty() {
-            info!(context, 0, "No header.",);
-        } else {
-            /* Error - even adding an empty record won't help as we do not know the message ID */
-            field = dc_mimeparser_lookup_field(
-                &mut mime_parser,
-                b"Date\x00" as *const u8 as *const libc::c_char,
-            );
-            if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_ORIG_DATE as libc::c_int {
-                let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
-                if !orig_date.is_null() {
-                    sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
-                }
+        /* Error - even adding an empty record won't help as we do not know the message ID */
+        field = dc_mimeparser_lookup_field(&mut mime_parser, "Date");
+        if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_ORIG_DATE as libc::c_int {
+            let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
+            if !orig_date.is_null() {
+                sent_timestamp = dc_timestamp_from_date((*orig_date).dt_date_time)
             }
-            field = dc_mimeparser_lookup_field(
-                &mime_parser,
-                b"From\x00" as *const u8 as *const libc::c_char,
-            );
-            if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_FROM as libc::c_int {
-                let fld_from: *mut mailimf_from = (*field).fld_data.fld_from;
-                if !fld_from.is_null() {
-                    let mut check_self: libc::c_int = 0;
-                    let from_list: *mut dc_array_t = dc_array_new(16 as size_t);
-                    dc_add_or_lookup_contacts_by_mailbox_list(
-                        context,
-                        (*fld_from).frm_mb_list,
-                        0x10,
-                        from_list,
-                        &mut check_self,
-                    );
-                    if 0 != check_self {
-                        incoming = 0;
-                        if 0 != dc_mimeparser_sender_equals_recipient(&mime_parser) {
-                            from_id = 1 as uint32_t
-                        }
-                    } else if dc_array_get_cnt(from_list) >= 1 {
-                        from_id = dc_array_get_id(from_list, 0 as size_t);
-                        incoming_origin =
-                            dc_get_contact_origin(context, from_id, &mut from_id_blocked)
+        }
+        field = dc_mimeparser_lookup_field(&mime_parser, "From");
+        if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_FROM as libc::c_int {
+            let fld_from: *mut mailimf_from = (*field).fld_data.fld_from;
+            if !fld_from.is_null() {
+                let mut check_self: libc::c_int = 0;
+                let from_list: *mut dc_array_t = dc_array_new(16 as size_t);
+                dc_add_or_lookup_contacts_by_mailbox_list(
+                    context,
+                    (*fld_from).frm_mb_list,
+                    0x10,
+                    from_list,
+                    &mut check_self,
+                );
+                if 0 != check_self {
+                    incoming = 0;
+                    if 0 != dc_mimeparser_sender_equals_recipient(&mime_parser) {
+                        from_id = 1 as uint32_t
                     }
-                    dc_array_unref(from_list);
+                } else if dc_array_get_cnt(from_list) >= 1 {
+                    from_id = dc_array_get_id(from_list, 0 as size_t);
+                    incoming_origin = dc_get_contact_origin(context, from_id, &mut from_id_blocked)
                 }
+                dc_array_unref(from_list);
             }
-            field = dc_mimeparser_lookup_field(
-                &mime_parser,
-                b"To\x00" as *const u8 as *const libc::c_char,
-            );
-            if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_TO as libc::c_int {
-                let fld_to: *mut mailimf_to = (*field).fld_data.fld_to;
-                if !fld_to.is_null() {
+        }
+        field = dc_mimeparser_lookup_field(&mime_parser, "To");
+        if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_TO as libc::c_int {
+            let fld_to: *mut mailimf_to = (*field).fld_data.fld_to;
+            if !fld_to.is_null() {
+                dc_add_or_lookup_contacts_by_address_list(
+                    context,
+                    (*fld_to).to_addr_list,
+                    if 0 == incoming {
+                        0x4000
+                    } else if incoming_origin >= 0x100 {
+                        0x400
+                    } else {
+                        0x40
+                    },
+                    to_ids,
+                    &mut to_self,
+                );
+            }
+        }
+        if !dc_mimeparser_get_last_nonmeta(&mime_parser).is_null() {
+            field = dc_mimeparser_lookup_field(&mime_parser, "Cc");
+            if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_CC as libc::c_int {
+                let fld_cc: *mut mailimf_cc = (*field).fld_data.fld_cc;
+                if !fld_cc.is_null() {
                     dc_add_or_lookup_contacts_by_address_list(
                         context,
-                        (*fld_to).to_addr_list,
+                        (*fld_cc).cc_addr_list,
                         if 0 == incoming {
-                            0x4000
+                            0x2000
                         } else if incoming_origin >= 0x100 {
-                            0x400
+                            0x200
                         } else {
-                            0x40
+                            0x20
                         },
                         to_ids,
-                        &mut to_self,
+                        0 as *mut libc::c_int,
                     );
                 }
             }
-            if !dc_mimeparser_get_last_nonmeta(&mime_parser).is_null() {
-                field = dc_mimeparser_lookup_field(
-                    &mime_parser,
-                    b"Cc\x00" as *const u8 as *const libc::c_char,
-                );
-                if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_CC as libc::c_int {
-                    let fld_cc: *mut mailimf_cc = (*field).fld_data.fld_cc;
-                    if !fld_cc.is_null() {
-                        dc_add_or_lookup_contacts_by_address_list(
-                            context,
-                            (*fld_cc).cc_addr_list,
-                            if 0 == incoming {
-                                0x2000
-                            } else if incoming_origin >= 0x100 {
-                                0x200
-                            } else {
-                                0x20
-                            },
-                            to_ids,
-                            0 as *mut libc::c_int,
-                        );
-                    }
+            field = dc_mimeparser_lookup_field(&mime_parser, "Message-ID");
+            if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_MESSAGE_ID as libc::c_int {
+                let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
+                if !fld_message_id.is_null() {
+                    rfc724_mid = dc_strdup((*fld_message_id).mid_value)
                 }
-                field = dc_mimeparser_lookup_field(
-                    &mime_parser,
-                    b"Message-ID\x00" as *const u8 as *const libc::c_char,
-                );
-                if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_MESSAGE_ID as libc::c_int
-                {
-                    let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
-                    if !fld_message_id.is_null() {
-                        rfc724_mid = dc_strdup((*fld_message_id).mid_value)
-                    }
-                }
+            }
+            if rfc724_mid.is_null() {
+                rfc724_mid = dc_create_incoming_rfc724_mid(sent_timestamp, from_id, to_ids);
                 if rfc724_mid.is_null() {
-                    rfc724_mid = dc_create_incoming_rfc724_mid(sent_timestamp, from_id, to_ids);
-                    if rfc724_mid.is_null() {
-                        info!(context, 0, "Cannot create Message-ID.",);
-                        current_block = 16282941964262048061;
-                    } else {
-                        current_block = 777662472977924419;
-                    }
+                    info!(context, 0, "Cannot create Message-ID.",);
+                    current_block = 16282941964262048061;
                 } else {
                     current_block = 777662472977924419;
                 }
-                match current_block {
-                    16282941964262048061 => {}
-                    _ => {
-                        /* check, if the mail is already in our database - if so, just update the folder/uid (if the mail was moved around) and finish.
-                        (we may get a mail twice eg. if it is moved between folders. make sure, this check is done eg. before securejoin-processing) */
-                        let mut old_server_folder: *mut libc::c_char = 0 as *mut libc::c_char;
-                        let mut old_server_uid: uint32_t = 0 as uint32_t;
-                        if 0 != dc_rfc724_mid_exists(
-                            context,
-                            rfc724_mid,
-                            &mut old_server_folder,
-                            &mut old_server_uid,
-                        ) {
-                            if as_str(old_server_folder) != server_folder.as_ref()
-                                || old_server_uid != server_uid
-                            {
-                                dc_update_server_uid(
-                                    context,
-                                    rfc724_mid,
-                                    server_folder.as_ref(),
-                                    server_uid,
-                                );
+            } else {
+                current_block = 777662472977924419;
+            }
+            match current_block {
+                16282941964262048061 => {}
+                _ => {
+                    /* check, if the mail is already in our database - if so, just update the folder/uid (if the mail was moved around) and finish.
+                    (we may get a mail twice eg. if it is moved between folders. make sure, this check is done eg. before securejoin-processing) */
+                    let mut old_server_folder: *mut libc::c_char = 0 as *mut libc::c_char;
+                    let mut old_server_uid: uint32_t = 0 as uint32_t;
+                    if 0 != dc_rfc724_mid_exists(
+                        context,
+                        rfc724_mid,
+                        &mut old_server_folder,
+                        &mut old_server_uid,
+                    ) {
+                        if as_str(old_server_folder) != server_folder.as_ref()
+                            || old_server_uid != server_uid
+                        {
+                            dc_update_server_uid(
+                                context,
+                                rfc724_mid,
+                                server_folder.as_ref(),
+                                server_uid,
+                            );
+                        }
+                        free(old_server_folder as *mut libc::c_void);
+                        info!(context, 0, "Message already in DB.");
+                        current_block = 16282941964262048061;
+                    } else {
+                        msgrmsg = mime_parser.is_send_by_messenger;
+                        if msgrmsg == 0
+                            && 0 != dc_is_reply_to_messenger_message(context, &mime_parser)
+                        {
+                            msgrmsg = 2
+                        }
+                        /* incoming non-chat messages may be discarded;
+                        maybe this can be optimized later,
+                        by checking the state before the message body is downloaded */
+                        let mut allow_creation: libc::c_int = 1;
+                        if msgrmsg == 0 {
+                            let show_emails: libc::c_int =
+                                sql::get_config_int(context, &context.sql, "show_emails", 0);
+                            if show_emails == 0 {
+                                chat_id = 3 as uint32_t;
+                                allow_creation = 0
+                            } else if show_emails == 1 {
+                                allow_creation = 0
                             }
-                            free(old_server_folder as *mut libc::c_void);
-                            info!(context, 0, "Message already in DB.");
-                            current_block = 16282941964262048061;
-                        } else {
-                            msgrmsg = mime_parser.is_send_by_messenger;
-                            if msgrmsg == 0
-                                && 0 != dc_is_reply_to_messenger_message(context, &mime_parser)
-                            {
-                                msgrmsg = 2
-                            }
-                            /* incoming non-chat messages may be discarded;
-                            maybe this can be optimized later,
-                            by checking the state before the message body is downloaded */
-                            let mut allow_creation: libc::c_int = 1;
-                            if msgrmsg == 0 {
-                                let show_emails: libc::c_int =
-                                    sql::get_config_int(context, &context.sql, "show_emails", 0);
-                                if show_emails == 0 {
-                                    chat_id = 3 as uint32_t;
-                                    allow_creation = 0
-                                } else if show_emails == 1 {
-                                    allow_creation = 0
+                        }
+                        if 0 != incoming {
+                            state = if 0 != flags & 0x1 { 16 } else { 10 };
+                            to_id = 1 as uint32_t;
+                            if !dc_mimeparser_lookup_field(&mime_parser, "Secure-Join").is_null() {
+                                msgrmsg = 1;
+                                chat_id = 0 as uint32_t;
+                                allow_creation = 1;
+                                let handshake: libc::c_int =
+                                    dc_handle_securejoin_handshake(context, &mime_parser, from_id);
+                                if 0 != handshake & 0x2 {
+                                    hidden = 1;
+                                    add_delete_job = handshake & 0x4;
+                                    state = 16
                                 }
                             }
-                            if 0 != incoming {
-                                state = if 0 != flags & 0x1 { 16 } else { 10 };
-                                to_id = 1 as uint32_t;
-                                if !dc_mimeparser_lookup_field(
-                                    &mime_parser,
-                                    b"Secure-Join\x00" as *const u8 as *const libc::c_char,
-                                )
-                                .is_null()
+                            let mut test_normal_chat_id: uint32_t = 0 as uint32_t;
+                            let mut test_normal_chat_id_blocked: libc::c_int = 0;
+                            dc_lookup_real_nchat_by_contact_id(
+                                context,
+                                from_id,
+                                &mut test_normal_chat_id,
+                                &mut test_normal_chat_id_blocked,
+                            );
+                            if chat_id == 0 as libc::c_uint {
+                                let create_blocked: libc::c_int = if 0 != test_normal_chat_id
+                                    && test_normal_chat_id_blocked == 0
+                                    || incoming_origin >= 0x7fffffff
                                 {
-                                    msgrmsg = 1;
-                                    chat_id = 0 as uint32_t;
-                                    allow_creation = 1;
-                                    let handshake: libc::c_int = dc_handle_securejoin_handshake(
-                                        context,
-                                        &mime_parser,
-                                        from_id,
-                                    );
-                                    if 0 != handshake & 0x2 {
-                                        hidden = 1;
-                                        add_delete_job = handshake & 0x4;
-                                        state = 16
-                                    }
-                                }
-                                let mut test_normal_chat_id: uint32_t = 0 as uint32_t;
-                                let mut test_normal_chat_id_blocked: libc::c_int = 0;
-                                dc_lookup_real_nchat_by_contact_id(
+                                    0
+                                } else {
+                                    2
+                                };
+                                create_or_lookup_group(
                                     context,
-                                    from_id,
-                                    &mut test_normal_chat_id,
-                                    &mut test_normal_chat_id_blocked,
+                                    &mut mime_parser,
+                                    allow_creation,
+                                    create_blocked,
+                                    from_id as int32_t,
+                                    to_ids,
+                                    &mut chat_id,
+                                    &mut chat_id_blocked,
                                 );
-                                if chat_id == 0 as libc::c_uint {
-                                    let create_blocked: libc::c_int = if 0 != test_normal_chat_id
-                                        && test_normal_chat_id_blocked == 0
-                                        || incoming_origin >= 0x7fffffff
-                                    {
+                                if 0 != chat_id && 0 != chat_id_blocked && 0 == create_blocked {
+                                    dc_unblock_chat(context, chat_id);
+                                    chat_id_blocked = 0
+                                }
+                            }
+                            if chat_id == 0 as libc::c_uint {
+                                if 0 != dc_mimeparser_is_mailinglist_message(&mime_parser) {
+                                    chat_id = 3 as uint32_t;
+                                    info!(
+                                        context,
+                                        0, "Message belongs to a mailing list and is ignored.",
+                                    );
+                                }
+                            }
+                            if chat_id == 0 as libc::c_uint {
+                                let create_blocked_0: libc::c_int =
+                                    if incoming_origin >= 0x7fffffff || from_id == to_id {
                                         0
                                     } else {
                                         2
                                     };
+                                if 0 != test_normal_chat_id {
+                                    chat_id = test_normal_chat_id;
+                                    chat_id_blocked = test_normal_chat_id_blocked
+                                } else if 0 != allow_creation {
+                                    dc_create_or_lookup_nchat_by_contact_id(
+                                        context,
+                                        from_id,
+                                        create_blocked_0,
+                                        &mut chat_id,
+                                        &mut chat_id_blocked,
+                                    );
+                                }
+                                if 0 != chat_id && 0 != chat_id_blocked {
+                                    if 0 == create_blocked_0 {
+                                        dc_unblock_chat(context, chat_id);
+                                        chat_id_blocked = 0
+                                    } else if 0
+                                        != dc_is_reply_to_known_message(context, &mime_parser)
+                                    {
+                                        dc_scaleup_contact_origin(context, from_id, 0x100);
+                                        info!(
+                                            context,
+                                            0,
+                                            "Message is a reply to a known message, mark sender as known.",
+                                        );
+                                        incoming_origin = if incoming_origin > 0x100 {
+                                            incoming_origin
+                                        } else {
+                                            0x100
+                                        }
+                                    }
+                                }
+                            }
+                            if chat_id == 0 as libc::c_uint {
+                                chat_id = 3 as uint32_t
+                            }
+                            if 0 != chat_id_blocked && state == 10 {
+                                if incoming_origin < 0x100 && msgrmsg == 0 {
+                                    state = 13
+                                }
+                            }
+                        } else {
+                            state = 26;
+                            from_id = 1 as uint32_t;
+                            if dc_array_get_cnt(to_ids) >= 1 {
+                                to_id = dc_array_get_id(to_ids, 0 as size_t);
+                                if chat_id == 0 as libc::c_uint {
                                     create_or_lookup_group(
                                         context,
                                         &mut mime_parser,
                                         allow_creation,
-                                        create_blocked,
+                                        0,
                                         from_id as int32_t,
                                         to_ids,
                                         &mut chat_id,
                                         &mut chat_id_blocked,
                                     );
-                                    if 0 != chat_id && 0 != chat_id_blocked && 0 == create_blocked {
+                                    if 0 != chat_id && 0 != chat_id_blocked {
                                         dc_unblock_chat(context, chat_id);
                                         chat_id_blocked = 0
                                     }
                                 }
-                                if chat_id == 0 as libc::c_uint {
-                                    if 0 != dc_mimeparser_is_mailinglist_message(&mime_parser) {
-                                        chat_id = 3 as uint32_t;
-                                        info!(
-                                            context,
-                                            0, "Message belongs to a mailing list and is ignored.",
-                                        );
-                                    }
-                                }
-                                if chat_id == 0 as libc::c_uint {
-                                    let create_blocked_0: libc::c_int =
-                                        if incoming_origin >= 0x7fffffff || from_id == to_id {
+                                if chat_id == 0 as libc::c_uint && 0 != allow_creation {
+                                    let create_blocked_1: libc::c_int =
+                                        if 0 != msgrmsg && !dc_is_contact_blocked(context, to_id) {
                                             0
                                         } else {
                                             2
                                         };
-                                    if 0 != test_normal_chat_id {
-                                        chat_id = test_normal_chat_id;
-                                        chat_id_blocked = test_normal_chat_id_blocked
-                                    } else if 0 != allow_creation {
-                                        dc_create_or_lookup_nchat_by_contact_id(
-                                            context,
-                                            from_id,
-                                            create_blocked_0,
-                                            &mut chat_id,
-                                            &mut chat_id_blocked,
-                                        );
-                                    }
-                                    if 0 != chat_id && 0 != chat_id_blocked {
-                                        if 0 == create_blocked_0 {
-                                            dc_unblock_chat(context, chat_id);
-                                            chat_id_blocked = 0
-                                        } else if 0
-                                            != dc_is_reply_to_known_message(context, &mime_parser)
-                                        {
-                                            dc_scaleup_contact_origin(context, from_id, 0x100);
-                                            info!(
-                                                context,
-                                                0,
-                                                "Message is a reply to a known message, mark sender as known.",
-                                            );
-                                            incoming_origin = if incoming_origin > 0x100 {
-                                                incoming_origin
-                                            } else {
-                                                0x100
-                                            }
-                                        }
-                                    }
-                                }
-                                if chat_id == 0 as libc::c_uint {
-                                    chat_id = 3 as uint32_t
-                                }
-                                if 0 != chat_id_blocked && state == 10 {
-                                    if incoming_origin < 0x100 && msgrmsg == 0 {
-                                        state = 13
-                                    }
-                                }
-                            } else {
-                                state = 26;
-                                from_id = 1 as uint32_t;
-                                if dc_array_get_cnt(to_ids) >= 1 {
-                                    to_id = dc_array_get_id(to_ids, 0 as size_t);
-                                    if chat_id == 0 as libc::c_uint {
-                                        create_or_lookup_group(
-                                            context,
-                                            &mut mime_parser,
-                                            allow_creation,
-                                            0,
-                                            from_id as int32_t,
-                                            to_ids,
-                                            &mut chat_id,
-                                            &mut chat_id_blocked,
-                                        );
-                                        if 0 != chat_id && 0 != chat_id_blocked {
-                                            dc_unblock_chat(context, chat_id);
-                                            chat_id_blocked = 0
-                                        }
-                                    }
-                                    if chat_id == 0 as libc::c_uint && 0 != allow_creation {
-                                        let create_blocked_1: libc::c_int = if 0 != msgrmsg
-                                            && !dc_is_contact_blocked(context, to_id)
-                                        {
-                                            0
-                                        } else {
-                                            2
-                                        };
-                                        dc_create_or_lookup_nchat_by_contact_id(
-                                            context,
-                                            to_id,
-                                            create_blocked_1,
-                                            &mut chat_id,
-                                            &mut chat_id_blocked,
-                                        );
-                                        if 0 != chat_id
-                                            && 0 != chat_id_blocked
-                                            && 0 == create_blocked_1
-                                        {
-                                            dc_unblock_chat(context, chat_id);
-                                            chat_id_blocked = 0
-                                        }
-                                    }
-                                }
-                                if chat_id == 0 as libc::c_uint {
-                                    if dc_array_get_cnt(to_ids) == 0 && 0 != to_self {
-                                        dc_create_or_lookup_nchat_by_contact_id(
-                                            context,
-                                            1 as uint32_t,
-                                            0,
-                                            &mut chat_id,
-                                            &mut chat_id_blocked,
-                                        );
-                                        if 0 != chat_id && 0 != chat_id_blocked {
-                                            dc_unblock_chat(context, chat_id);
-                                            chat_id_blocked = 0
-                                        }
-                                    }
-                                }
-                                if chat_id == 0 as libc::c_uint {
-                                    chat_id = 3 as uint32_t
-                                }
-                            }
-                            calc_timestamps(
-                                context,
-                                chat_id,
-                                from_id,
-                                sent_timestamp,
-                                if 0 != flags & 0x1 { 0 } else { 1 },
-                                &mut sort_timestamp,
-                                &mut sent_timestamp,
-                                &mut rcvd_timestamp,
-                            );
-                            dc_unarchive_chat(context, chat_id);
-                            // if the mime-headers should be saved, find out its size
-                            // (the mime-header ends with an empty line)
-                            let save_mime_headers =
-                                sql::get_config_int(context, &context.sql, "save_mime_headers", 0);
-                            field = dc_mimeparser_lookup_field(
-                                &mime_parser,
-                                b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
-                            );
-                            if !field.is_null()
-                                && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int
-                            {
-                                let fld_in_reply_to: *mut mailimf_in_reply_to =
-                                    (*field).fld_data.fld_in_reply_to;
-                                if !fld_in_reply_to.is_null() {
-                                    mime_in_reply_to = dc_str_from_clist(
-                                        (*(*field).fld_data.fld_in_reply_to).mid_list,
-                                        b" \x00" as *const u8 as *const libc::c_char,
-                                    )
-                                }
-                            }
-                            field = dc_mimeparser_lookup_field(
-                                &mime_parser,
-                                b"References\x00" as *const u8 as *const libc::c_char,
-                            );
-                            if !field.is_null()
-                                && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int
-                            {
-                                let fld_references: *mut mailimf_references =
-                                    (*field).fld_data.fld_references;
-                                if !fld_references.is_null() {
-                                    mime_references = dc_str_from_clist(
-                                        (*(*field).fld_data.fld_references).mid_list,
-                                        b" \x00" as *const u8 as *const libc::c_char,
-                                    )
-                                }
-                            }
-                            icnt = carray_count(mime_parser.parts) as size_t;
-
-                            context.sql.prepare(
-                                "INSERT INTO msgs \
-                                 (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
-                                 timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
-                                 bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
-                                 VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
-                                |mut stmt| {
-                                    let mut i = 0;
-                                    loop {
-                                        if !(i < icnt) {
-                                            current_block = 2756754640271984560;
-                                            break;
-                                        }
-                                        let part = carray_get(mime_parser.parts, i as libc::c_uint) as *mut dc_mimepart_t;
-                                        if !(0 != (*part).is_meta) {
-                                            if !mime_parser.location_kml.is_null()
-                                                && icnt == 1
-                                                && !(*part).msg.is_null()
-                                                && (strcmp(
-                                                    (*part).msg,
-                                                    b"-location-\x00" as *const u8 as *const libc::c_char,
-                                                ) == 0
-                                                    || *(*part).msg.offset(0isize) as libc::c_int == 0)
-                                            {
-                                                hidden = 1;
-                                                if state == 10 {
-                                                    state = 13
-                                                }
-                                            }
-                                            if (*part).type_0 == 10 {
-                                                txt_raw = dc_mprintf(
-                                                    b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
-                                                    if !mime_parser.subject.is_null() {
-                                                        mime_parser.subject
-                                                    } else {
-                                                        b"\x00" as *const u8 as *const libc::c_char
-                                                    },
-                                                    (*part).msg_raw,
-                                                )
-                                            }
-                                            if 0 != mime_parser.is_system_message {
-                                                dc_param_set_int(
-                                                    (*part).param,
-                                                    'S' as i32,
-                                                    mime_parser.is_system_message,
-                                                );
-                                            }
-
-                                            let res = stmt.execute(params![
-                                                as_str(rfc724_mid),
-                                                server_folder.as_ref(),
-                                                server_uid as libc::c_int,
-                                                chat_id as libc::c_int,
-                                                from_id as libc::c_int,
-                                                to_id as libc::c_int,
-                                                sort_timestamp,
-                                                sent_timestamp,
-                                                rcvd_timestamp,
-                                                (*part).type_0,
-                                                state,
-                                                msgrmsg,
-                                                if !(*part).msg.is_null() {
-                                                    as_str((*part).msg)
-                                                } else {
-                                                    ""
-                                                },
-                                                if !txt_raw.is_null() {
-                                                    as_str(txt_raw)
-                                                } else {
-                                                    ""
-                                                },
-                                                as_str((*(*part).param).packed),
-                                                (*part).bytes,
-                                                hidden,
-                                                if 0 != save_mime_headers {
-                                                    Some(to_string(imf_raw_not_terminated))
-                                                } else {
-                                                    None
-                                                },
-                                                to_string(mime_in_reply_to),
-                                                to_string(mime_references),
-                                            ]);
-
-                                            if res.is_err() {
-                                                info!(context, 0, "Cannot write DB.",);
-                                                /* i/o error - there is nothing more we can do - in other cases, we try to write at least an empty record */
-                                                current_block = 16282941964262048061;
-                                                break;
-                                            } else {
-                                                free(txt_raw as *mut libc::c_void);
-                                                txt_raw = 0 as *mut libc::c_char;
-                                                insert_msg_id = sql::get_rowid(
-                                                    context,
-                                                    &context.sql,
-                                                    "msgs",
-                                                    "rfc724_mid",
-                                                    as_str(rfc724_mid),
-                                                );
-                                                carray_add(
-                                                    created_db_entries,
-                                                    chat_id as uintptr_t as *mut libc::c_void,
-                                                    0 as *mut libc::c_uint,
-                                                );
-                                                carray_add(
-                                                    created_db_entries,
-                                                    insert_msg_id as uintptr_t as *mut libc::c_void,
-                                                    0 as *mut libc::c_uint,
-                                                );
-                                            }
-                                        }
-                                        i = i.wrapping_add(1)
-                                    }
-                                    Ok(())
-                                }
-                            ).unwrap(); // TODO: better error handling
-                            match current_block {
-                                16282941964262048061 => {}
-                                _ => {
-                                    info!(
+                                    dc_create_or_lookup_nchat_by_contact_id(
                                         context,
+                                        to_id,
+                                        create_blocked_1,
+                                        &mut chat_id,
+                                        &mut chat_id_blocked,
+                                    );
+                                    if 0 != chat_id && 0 != chat_id_blocked && 0 == create_blocked_1
+                                    {
+                                        dc_unblock_chat(context, chat_id);
+                                        chat_id_blocked = 0
+                                    }
+                                }
+                            }
+                            if chat_id == 0 as libc::c_uint {
+                                if dc_array_get_cnt(to_ids) == 0 && 0 != to_self {
+                                    dc_create_or_lookup_nchat_by_contact_id(
+                                        context,
+                                        1 as uint32_t,
                                         0,
-                                        "Message has {} parts and is assigned to chat #{}.",
-                                        icnt,
-                                        chat_id,
+                                        &mut chat_id,
+                                        &mut chat_id_blocked,
                                     );
-                                    if chat_id == 3 as libc::c_uint {
-                                        create_event_to_send = None;
-                                    } else if 0 != incoming && state == 10 {
-                                        if 0 != from_id_blocked {
-                                            create_event_to_send = None;
-                                        } else if 0 != chat_id_blocked {
-                                            create_event_to_send = Some(Event::MSGS_CHANGED);
+                                    if 0 != chat_id && 0 != chat_id_blocked {
+                                        dc_unblock_chat(context, chat_id);
+                                        chat_id_blocked = 0
+                                    }
+                                }
+                            }
+                            if chat_id == 0 as libc::c_uint {
+                                chat_id = 3 as uint32_t
+                            }
+                        }
+                        calc_timestamps(
+                            context,
+                            chat_id,
+                            from_id,
+                            sent_timestamp,
+                            if 0 != flags & 0x1 { 0 } else { 1 },
+                            &mut sort_timestamp,
+                            &mut sent_timestamp,
+                            &mut rcvd_timestamp,
+                        );
+                        dc_unarchive_chat(context, chat_id);
+                        // if the mime-headers should be saved, find out its size
+                        // (the mime-header ends with an empty line)
+                        let save_mime_headers =
+                            sql::get_config_int(context, &context.sql, "save_mime_headers", 0);
+                        field = dc_mimeparser_lookup_field(&mime_parser, "In-Reply-To");
+                        if !field.is_null()
+                            && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int
+                        {
+                            let fld_in_reply_to: *mut mailimf_in_reply_to =
+                                (*field).fld_data.fld_in_reply_to;
+                            if !fld_in_reply_to.is_null() {
+                                mime_in_reply_to = dc_str_from_clist(
+                                    (*(*field).fld_data.fld_in_reply_to).mid_list,
+                                    b" \x00" as *const u8 as *const libc::c_char,
+                                )
+                            }
+                        }
+                        field = dc_mimeparser_lookup_field(&mime_parser, "References");
+                        if !field.is_null()
+                            && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int
+                        {
+                            let fld_references: *mut mailimf_references =
+                                (*field).fld_data.fld_references;
+                            if !fld_references.is_null() {
+                                mime_references = dc_str_from_clist(
+                                    (*(*field).fld_data.fld_references).mid_list,
+                                    b" \x00" as *const u8 as *const libc::c_char,
+                                )
+                            }
+                        }
+                        icnt = carray_count(mime_parser.parts) as size_t;
+
+                        context.sql.prepare(
+                            "INSERT INTO msgs \
+                             (rfc724_mid, server_folder, server_uid, chat_id, from_id, to_id, timestamp, \
+                             timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
+                             bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
+                             VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
+                            |mut stmt| {
+                                let mut i = 0;
+                                loop {
+                                    if !(i < icnt) {
+                                        current_block = 2756754640271984560;
+                                        break;
+                                    }
+                                    let part = carray_get(mime_parser.parts, i as libc::c_uint) as *mut dc_mimepart_t;
+                                    if !(0 != (*part).is_meta) {
+                                        if !mime_parser.location_kml.is_null()
+                                            && icnt == 1
+                                            && !(*part).msg.is_null()
+                                            && (strcmp(
+                                                (*part).msg,
+                                                b"-location-\x00" as *const u8 as *const libc::c_char,
+                                            ) == 0
+                                                || *(*part).msg.offset(0isize) as libc::c_int == 0)
+                                        {
+                                            hidden = 1;
+                                            if state == 10 {
+                                                state = 13
+                                            }
+                                        }
+                                        if (*part).type_0 == 10 {
+                                            txt_raw = dc_mprintf(
+                                                b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
+                                                if !mime_parser.subject.is_null() {
+                                                    mime_parser.subject
+                                                } else {
+                                                    b"\x00" as *const u8 as *const libc::c_char
+                                                },
+                                                (*part).msg_raw,
+                                            )
+                                        }
+                                        if 0 != mime_parser.is_system_message {
+                                            dc_param_set_int(
+                                                (*part).param,
+                                                'S' as i32,
+                                                mime_parser.is_system_message,
+                                            );
+                                        }
+
+                                        let res = stmt.execute(params![
+                                            as_str(rfc724_mid),
+                                            server_folder.as_ref(),
+                                            server_uid as libc::c_int,
+                                            chat_id as libc::c_int,
+                                            from_id as libc::c_int,
+                                            to_id as libc::c_int,
+                                            sort_timestamp,
+                                            sent_timestamp,
+                                            rcvd_timestamp,
+                                            (*part).type_0,
+                                            state,
+                                            msgrmsg,
+                                            if !(*part).msg.is_null() {
+                                                as_str((*part).msg)
+                                            } else {
+                                                ""
+                                            },
+                                            if !txt_raw.is_null() {
+                                                as_str(txt_raw)
+                                            } else {
+                                                ""
+                                            },
+                                            as_str((*(*part).param).packed),
+                                            (*part).bytes,
+                                            hidden,
+                                            if 0 != save_mime_headers {
+                                                Some(to_string(imf_raw_not_terminated))
+                                            } else {
+                                                None
+                                            },
+                                            to_string(mime_in_reply_to),
+                                            to_string(mime_references),
+                                        ]);
+
+                                        if res.is_err() {
+                                            info!(context, 0, "Cannot write DB.",);
+                                            /* i/o error - there is nothing more we can do - in other cases, we try to write at least an empty record */
+                                            current_block = 16282941964262048061;
+                                            break;
                                         } else {
-                                            create_event_to_send = Some(Event::INCOMING_MSG);
+                                            free(txt_raw as *mut libc::c_void);
+                                            txt_raw = 0 as *mut libc::c_char;
+                                            insert_msg_id = sql::get_rowid(
+                                                context,
+                                                &context.sql,
+                                                "msgs",
+                                                "rfc724_mid",
+                                                as_str(rfc724_mid),
+                                            );
+                                            created_db_entries.push((chat_id as usize, insert_msg_id as usize));
                                         }
                                     }
-                                    dc_do_heuristics_moves(
-                                        context,
-                                        server_folder.as_ref(),
-                                        insert_msg_id,
-                                    );
-                                    current_block = 18330534242458572360;
+                                    i = i.wrapping_add(1)
                                 }
+                                Ok(())
+                            }
+                        ).unwrap(); // TODO: better error handling
+                        match current_block {
+                            16282941964262048061 => {}
+                            _ => {
+                                info!(
+                                    context,
+                                    0,
+                                    "Message has {} parts and is assigned to chat #{}.",
+                                    icnt,
+                                    chat_id,
+                                );
+                                if chat_id == 3 as libc::c_uint {
+                                    create_event_to_send = None;
+                                } else if 0 != incoming && state == 10 {
+                                    if 0 != from_id_blocked {
+                                        create_event_to_send = None;
+                                    } else if 0 != chat_id_blocked {
+                                        create_event_to_send = Some(Event::MSGS_CHANGED);
+                                    } else {
+                                        create_event_to_send = Some(Event::INCOMING_MSG);
+                                    }
+                                }
+                                dc_do_heuristics_moves(
+                                    context,
+                                    server_folder.as_ref(),
+                                    insert_msg_id,
+                                );
+                                current_block = 18330534242458572360;
                             }
                         }
                     }
                 }
-            } else {
-                if sent_timestamp > time() {
-                    sent_timestamp = time()
-                }
-                current_block = 18330534242458572360;
             }
-            match current_block {
-                16282941964262048061 => {}
-                _ => {
-                    if carray_count(mime_parser.reports) > 0 as libc::c_uint {
-                        let mdns_enabled =
-                            sql::get_config_int(context, &context.sql, "mdns_enabled", 1);
-                        icnt = carray_count(mime_parser.reports) as size_t;
-                        i = 0 as size_t;
-                        while i < icnt {
-                            let mut mdn_consumed: libc::c_int = 0;
-                            let report_root: *mut mailmime =
-                                carray_get(mime_parser.reports, i as libc::c_uint) as *mut mailmime;
-                            let report_type: *mut mailmime_parameter = mailmime_find_ct_parameter(
-                                report_root,
-                                b"report-type\x00" as *const u8 as *const libc::c_char,
-                            );
-                            if !(report_root.is_null()
-                                || report_type.is_null()
-                                || (*report_type).pa_value.is_null())
+        } else {
+            if sent_timestamp > time() {
+                sent_timestamp = time()
+            }
+            current_block = 18330534242458572360;
+        }
+        match current_block {
+            16282941964262048061 => {}
+            _ => {
+                if carray_count(mime_parser.reports) > 0 as libc::c_uint {
+                    let mdns_enabled =
+                        sql::get_config_int(context, &context.sql, "mdns_enabled", 1);
+                    icnt = carray_count(mime_parser.reports) as size_t;
+                    i = 0 as size_t;
+                    while i < icnt {
+                        let mut mdn_consumed: libc::c_int = 0;
+                        let report_root: *mut mailmime =
+                            carray_get(mime_parser.reports, i as libc::c_uint) as *mut mailmime;
+                        let report_type: *mut mailmime_parameter = mailmime_find_ct_parameter(
+                            report_root,
+                            b"report-type\x00" as *const u8 as *const libc::c_char,
+                        );
+                        if !(report_root.is_null()
+                            || report_type.is_null()
+                            || (*report_type).pa_value.is_null())
+                        {
+                            if strcmp(
+                                (*report_type).pa_value,
+                                b"disposition-notification\x00" as *const u8 as *const libc::c_char,
+                            ) == 0
+                                && (*(*report_root).mm_data.mm_multipart.mm_mp_list).count >= 2
                             {
-                                if strcmp(
-                                    (*report_type).pa_value,
-                                    b"disposition-notification\x00" as *const u8
-                                        as *const libc::c_char,
-                                ) == 0
-                                    && (*(*report_root).mm_data.mm_multipart.mm_mp_list).count >= 2
-                                {
-                                    if 0 != mdns_enabled {
-                                        let report_data: *mut mailmime = (if !if !(*(*report_root)
-                                            .mm_data
-                                            .mm_multipart
-                                            .mm_mp_list)
+                                if 0 != mdns_enabled {
+                                    let report_data: *mut mailmime =
+                                        (if !if !(*(*report_root).mm_data.mm_multipart.mm_mp_list)
                                             .first
                                             .is_null()
                                         {
@@ -675,221 +630,194 @@ pub unsafe fn dc_receive_imf(
                                             .data
                                         } else {
                                             0 as *mut libc::c_void
-                                        })
-                                            as *mut mailmime;
-                                        if !report_data.is_null()
-                                            && (*(*(*report_data).mm_content_type).ct_type).tp_type
-                                                == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int
-                                            && (*(*(*(*report_data).mm_content_type).ct_type)
-                                                .tp_data
-                                                .tp_composite_type)
-                                                .ct_type
-                                                == MAILMIME_COMPOSITE_TYPE_MESSAGE as libc::c_int
-                                            && strcmp(
-                                                (*(*report_data).mm_content_type).ct_subtype,
-                                                b"disposition-notification\x00" as *const u8
-                                                    as *const libc::c_char,
-                                            ) == 0
-                                        {
-                                            let mut report_body: *const libc::c_char =
-                                                0 as *const libc::c_char;
-                                            let mut report_body_bytes: size_t = 0 as size_t;
-                                            let mut to_mmap_string_unref: *mut libc::c_char =
-                                                0 as *mut libc::c_char;
-                                            if 0 != mailmime_transfer_decode(
-                                                report_data,
-                                                &mut report_body,
-                                                &mut report_body_bytes,
-                                                &mut to_mmap_string_unref,
-                                            ) {
-                                                let mut report_parsed: *mut mailmime =
-                                                    0 as *mut mailmime;
-                                                let mut dummy: size_t = 0 as size_t;
-                                                if mailmime_parse(
-                                                    report_body,
-                                                    report_body_bytes,
-                                                    &mut dummy,
-                                                    &mut report_parsed,
-                                                ) == MAIL_NO_ERROR as libc::c_int
-                                                    && !report_parsed.is_null()
-                                                {
-                                                    let report_fields: *mut mailimf_fields =
-                                                        mailmime_find_mailimf_fields(report_parsed);
-                                                    if !report_fields.is_null() {
-                                                        let  of_disposition:
-                                                                *mut mailimf_optional_field =
-                                                            mailimf_find_optional_field(report_fields,
-                                                                                        b"Disposition\x00"
-                                                                                            as
-                                                                                            *const u8
-                                                                                            as
-                                                                                            *const libc::c_char);
-                                                        let  of_org_msgid:
-                                                                *mut mailimf_optional_field =
-                                                            mailimf_find_optional_field(report_fields,
-                                                                                        b"Original-Message-ID\x00"
-                                                                                            as
-                                                                                            *const u8
-                                                                                            as
-                                                                                            *const libc::c_char);
-                                                        if !of_disposition.is_null()
-                                                            && !(*of_disposition)
-                                                                .fld_value
-                                                                .is_null()
-                                                            && !of_org_msgid.is_null()
-                                                            && !(*of_org_msgid).fld_value.is_null()
+                                        }) as *mut mailmime;
+                                    if !report_data.is_null()
+                                        && (*(*(*report_data).mm_content_type).ct_type).tp_type
+                                            == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int
+                                        && (*(*(*(*report_data).mm_content_type).ct_type)
+                                            .tp_data
+                                            .tp_composite_type)
+                                            .ct_type
+                                            == MAILMIME_COMPOSITE_TYPE_MESSAGE as libc::c_int
+                                        && strcmp(
+                                            (*(*report_data).mm_content_type).ct_subtype,
+                                            b"disposition-notification\x00" as *const u8
+                                                as *const libc::c_char,
+                                        ) == 0
+                                    {
+                                        let mut report_body: *const libc::c_char =
+                                            0 as *const libc::c_char;
+                                        let mut report_body_bytes: size_t = 0 as size_t;
+                                        let mut to_mmap_string_unref: *mut libc::c_char =
+                                            0 as *mut libc::c_char;
+                                        if 0 != mailmime_transfer_decode(
+                                            report_data,
+                                            &mut report_body,
+                                            &mut report_body_bytes,
+                                            &mut to_mmap_string_unref,
+                                        ) {
+                                            let mut report_parsed: *mut mailmime =
+                                                0 as *mut mailmime;
+                                            let mut dummy: size_t = 0 as size_t;
+                                            if mailmime_parse(
+                                                report_body,
+                                                report_body_bytes,
+                                                &mut dummy,
+                                                &mut report_parsed,
+                                            ) == MAIL_NO_ERROR as libc::c_int
+                                                && !report_parsed.is_null()
+                                            {
+                                                let report_fields: *mut mailimf_fields =
+                                                    mailmime_find_mailimf_fields(report_parsed);
+                                                if !report_fields.is_null() {
+                                                    let  of_disposition:
+                                                    *mut mailimf_optional_field =
+                                                        mailimf_find_optional_field(report_fields,
+                                                                                    b"Disposition\x00"
+                                                                                    as
+                                                                                    *const u8
+                                                                                    as
+                                                                                    *const libc::c_char);
+                                                    let of_org_msgid: *mut mailimf_optional_field =
+                                                        mailimf_find_optional_field(
+                                                            report_fields,
+                                                            b"Original-Message-ID\x00" as *const u8
+                                                                as *const libc::c_char,
+                                                        );
+                                                    if !of_disposition.is_null()
+                                                        && !(*of_disposition).fld_value.is_null()
+                                                        && !of_org_msgid.is_null()
+                                                        && !(*of_org_msgid).fld_value.is_null()
+                                                    {
+                                                        let mut rfc724_mid_0: *mut libc::c_char =
+                                                            0 as *mut libc::c_char;
+                                                        dummy = 0 as size_t;
+                                                        if mailimf_msg_id_parse(
+                                                            (*of_org_msgid).fld_value,
+                                                            strlen((*of_org_msgid).fld_value),
+                                                            &mut dummy,
+                                                            &mut rfc724_mid_0,
+                                                        ) == MAIL_NO_ERROR as libc::c_int
+                                                            && !rfc724_mid_0.is_null()
                                                         {
-                                                            let mut rfc724_mid_0:
-                                                                    *mut libc::c_char =
-                                                                0 as
-                                                                    *mut libc::c_char;
-                                                            dummy = 0 as size_t;
-                                                            if mailimf_msg_id_parse(
-                                                                (*of_org_msgid).fld_value,
-                                                                strlen((*of_org_msgid).fld_value),
-                                                                &mut dummy,
-                                                                &mut rfc724_mid_0,
-                                                            ) == MAIL_NO_ERROR as libc::c_int
-                                                                && !rfc724_mid_0.is_null()
-                                                            {
-                                                                let mut chat_id_0: uint32_t =
-                                                                    0 as uint32_t;
-                                                                let mut msg_id: uint32_t =
-                                                                    0 as uint32_t;
-                                                                if 0 != dc_mdn_from_ext(
-                                                                    context,
-                                                                    from_id,
-                                                                    rfc724_mid_0,
-                                                                    sent_timestamp,
-                                                                    &mut chat_id_0,
-                                                                    &mut msg_id,
-                                                                ) {
-                                                                    carray_add(
-                                                                        rr_event_to_send,
-                                                                        chat_id_0 as uintptr_t
-                                                                            as *mut libc::c_void,
-                                                                        0 as *mut libc::c_uint,
-                                                                    );
-                                                                    carray_add(
-                                                                        rr_event_to_send,
-                                                                        msg_id as uintptr_t
-                                                                            as *mut libc::c_void,
-                                                                        0 as *mut libc::c_uint,
-                                                                    );
-                                                                }
-                                                                mdn_consumed = (msg_id
-                                                                    != 0 as libc::c_uint)
-                                                                    as libc::c_int;
-                                                                free(
-                                                                    rfc724_mid_0
-                                                                        as *mut libc::c_void,
-                                                                );
+                                                            let mut chat_id_0: uint32_t =
+                                                                0 as uint32_t;
+                                                            let mut msg_id: uint32_t =
+                                                                0 as uint32_t;
+                                                            if 0 != dc_mdn_from_ext(
+                                                                context,
+                                                                from_id,
+                                                                rfc724_mid_0,
+                                                                sent_timestamp,
+                                                                &mut chat_id_0,
+                                                                &mut msg_id,
+                                                            ) {
+                                                                rr_event_to_send
+                                                                    .push((chat_id_0, 0));
+                                                                rr_event_to_send.push((msg_id, 0));
                                                             }
+                                                            mdn_consumed = (msg_id
+                                                                != 0 as libc::c_uint)
+                                                                as libc::c_int;
+                                                            free(rfc724_mid_0 as *mut libc::c_void);
                                                         }
                                                     }
-                                                    mailmime_free(report_parsed);
                                                 }
-                                                if !to_mmap_string_unref.is_null() {
-                                                    mmap_string_unref(to_mmap_string_unref);
-                                                }
+                                                mailmime_free(report_parsed);
+                                            }
+                                            if !to_mmap_string_unref.is_null() {
+                                                mmap_string_unref(to_mmap_string_unref);
                                             }
                                         }
                                     }
-                                    if 0 != mime_parser.is_send_by_messenger || 0 != mdn_consumed {
-                                        let param = dc_param_new();
-                                        dc_param_set(
-                                            param,
-                                            'Z' as i32,
-                                            to_cstring(server_folder.as_ref()).as_ptr(),
-                                        );
-                                        dc_param_set_int(param, 'z' as i32, server_uid as i32);
-                                        if 0 != mime_parser.is_send_by_messenger
-                                            && 0 != sql::get_config_int(
-                                                context,
-                                                &context.sql,
-                                                "mvbox_move",
-                                                1,
-                                            )
-                                        {
-                                            dc_param_set_int(param, 'M' as i32, 1);
-                                        }
-                                        dc_job_add(context, 120, 0, (*param).packed, 0);
-                                        dc_param_unref(param);
+                                }
+                                if 0 != mime_parser.is_send_by_messenger || 0 != mdn_consumed {
+                                    let param = dc_param_new();
+                                    dc_param_set(
+                                        param,
+                                        'Z' as i32,
+                                        to_cstring(server_folder.as_ref()).as_ptr(),
+                                    );
+                                    dc_param_set_int(param, 'z' as i32, server_uid as i32);
+                                    if 0 != mime_parser.is_send_by_messenger
+                                        && 0 != sql::get_config_int(
+                                            context,
+                                            &context.sql,
+                                            "mvbox_move",
+                                            1,
+                                        )
+                                    {
+                                        dc_param_set_int(param, 'M' as i32, 1);
                                     }
+                                    dc_job_add(context, 120, 0, (*param).packed, 0);
+                                    dc_param_unref(param);
                                 }
                             }
-                            i = i.wrapping_add(1)
+                        }
+                        i = i.wrapping_add(1)
+                    }
+                }
+                if !mime_parser.message_kml.is_null() && chat_id > 9 as libc::c_uint {
+                    let mut location_id_written = false;
+                    let mut send_event = false;
+
+                    if !mime_parser.message_kml.is_null()
+                        && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
+                    {
+                        let newest_location_id: uint32_t = dc_save_locations(
+                            context,
+                            chat_id,
+                            from_id,
+                            (*mime_parser.message_kml).locations,
+                            1,
+                        );
+                        if 0 != newest_location_id && 0 == hidden {
+                            dc_set_msg_location_id(context, insert_msg_id, newest_location_id);
+                            location_id_written = true;
+                            send_event = true;
                         }
                     }
-                    if !mime_parser.message_kml.is_null() && chat_id > 9 as libc::c_uint {
-                        let mut location_id_written = false;
-                        let mut send_event = false;
 
-                        if !mime_parser.message_kml.is_null()
-                            && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
+                    if !mime_parser.location_kml.is_null()
+                        && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
+                    {
+                        let contact = dc_get_contact(context, from_id);
+                        if !(*mime_parser.location_kml).addr.is_null()
+                            && !contact.is_null()
+                            && !(*contact).addr.is_null()
+                            && strcasecmp((*contact).addr, (*mime_parser.location_kml).addr) == 0
                         {
-                            let newest_location_id: uint32_t = dc_save_locations(
+                            let newest_location_id = dc_save_locations(
                                 context,
                                 chat_id,
                                 from_id,
-                                (*mime_parser.message_kml).locations,
-                                1,
+                                (*mime_parser.location_kml).locations,
+                                0,
                             );
-                            if 0 != newest_location_id && 0 == hidden {
+                            if newest_location_id != 0 && hidden == 0 && !location_id_written {
                                 dc_set_msg_location_id(context, insert_msg_id, newest_location_id);
-                                location_id_written = true;
-                                send_event = true;
                             }
+                            send_event = true;
                         }
-
-                        if !mime_parser.location_kml.is_null()
-                            && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
-                        {
-                            let contact = dc_get_contact(context, from_id);
-                            if !(*mime_parser.location_kml).addr.is_null()
-                                && !contact.is_null()
-                                && !(*contact).addr.is_null()
-                                && strcasecmp((*contact).addr, (*mime_parser.location_kml).addr)
-                                    == 0
-                            {
-                                let newest_location_id = dc_save_locations(
-                                    context,
-                                    chat_id,
-                                    from_id,
-                                    (*mime_parser.location_kml).locations,
-                                    0,
-                                );
-                                if newest_location_id != 0 && hidden == 0 && !location_id_written {
-                                    dc_set_msg_location_id(
-                                        context,
-                                        insert_msg_id,
-                                        newest_location_id,
-                                    );
-                                }
-                                send_event = true;
-                            }
-                            dc_contact_unref(contact);
-                        }
-                        if send_event {
-                            context.call_cb(
-                                Event::LOCATION_CHANGED,
-                                from_id as uintptr_t,
-                                0 as uintptr_t,
-                            );
-                        }
+                        dc_contact_unref(contact);
                     }
-
-                    if 0 != add_delete_job && carray_count(created_db_entries) >= 2 as libc::c_uint
-                    {
-                        dc_job_add(
-                            context,
-                            110,
-                            carray_get(created_db_entries, 1 as libc::c_uint) as uintptr_t
-                                as libc::c_int,
-                            0 as *const libc::c_char,
-                            0,
+                    if send_event {
+                        context.call_cb(
+                            Event::LOCATION_CHANGED,
+                            from_id as uintptr_t,
+                            0 as uintptr_t,
                         );
                     }
+                }
+
+                if 0 != add_delete_job && !created_db_entries.is_empty() {
+                    dc_job_add(
+                        context,
+                        DC_JOB_DELETE_MSG_ON_IMAP,
+                        created_db_entries[0].1 as i32,
+                        0 as *const libc::c_char,
+                        0,
+                    );
                 }
             }
         }
@@ -899,36 +827,16 @@ pub unsafe fn dc_receive_imf(
     free(mime_in_reply_to as *mut libc::c_void);
     free(mime_references as *mut libc::c_void);
     dc_array_unref(to_ids);
-    if !created_db_entries.is_null() {
-        if let Some(create_event_to_send) = create_event_to_send {
-            let mut i_0: size_t = 0;
-            let icnt_0: size_t = carray_count(created_db_entries) as size_t;
-            while i_0 < icnt_0 {
-                context.call_cb(
-                    create_event_to_send,
-                    carray_get(created_db_entries, i_0 as libc::c_uint) as uintptr_t,
-                    carray_get(created_db_entries, i_0.wrapping_add(1) as libc::c_uint)
-                        as uintptr_t,
-                );
-                i_0 = (i_0 as libc::c_ulong).wrapping_add(2 as libc::c_ulong) as size_t as size_t
-            }
+
+    if let Some(create_event_to_send) = create_event_to_send {
+        for (msg_id, insert_id) in &created_db_entries {
+            context.call_cb(create_event_to_send, *msg_id, *insert_id);
         }
-        carray_free(created_db_entries);
     }
-    if !rr_event_to_send.is_null() {
-        let mut i_1: size_t;
-        let icnt_1: size_t = carray_count(rr_event_to_send) as size_t;
-        i_1 = 0 as size_t;
-        while i_1 < icnt_1 {
-            context.call_cb(
-                Event::MSG_READ,
-                carray_get(rr_event_to_send, i_1 as libc::c_uint) as uintptr_t,
-                carray_get(rr_event_to_send, i_1.wrapping_add(1) as libc::c_uint) as uintptr_t,
-            );
-            i_1 = (i_1 as libc::c_ulong).wrapping_add(2 as libc::c_ulong) as size_t as size_t
-        }
-        carray_free(rr_event_to_send);
+    for (chat_id, msg_id) in &rr_event_to_send {
+        context.call_cb(Event::MSG_READ, *chat_id as uintptr_t, *msg_id as uintptr_t);
     }
+
     free(txt_raw as *mut libc::c_void);
 }
 
@@ -1034,10 +942,7 @@ unsafe fn create_or_lookup_group(
         grpid = dc_strdup((*optional_field).fld_value)
     }
     if grpid.is_null() {
-        field = dc_mimeparser_lookup_field(
-            mime_parser,
-            b"Message-ID\x00" as *const u8 as *const libc::c_char,
-        );
+        field = dc_mimeparser_lookup_field(mime_parser, "Message-ID");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_MESSAGE_ID as libc::c_int {
             let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
             if !fld_message_id.is_null() {
@@ -1045,10 +950,7 @@ unsafe fn create_or_lookup_group(
             }
         }
         if grpid.is_null() {
-            field = dc_mimeparser_lookup_field(
-                mime_parser,
-                b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
-            );
+            field = dc_mimeparser_lookup_field(mime_parser, "In-Reply-To");
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
                 let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
                 if !fld_in_reply_to.is_null() {
@@ -1056,10 +958,7 @@ unsafe fn create_or_lookup_group(
                 }
             }
             if grpid.is_null() {
-                field = dc_mimeparser_lookup_field(
-                    mime_parser,
-                    b"References\x00" as *const u8 as *const libc::c_char,
-                );
+                field = dc_mimeparser_lookup_field(mime_parser, "References");
                 if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int
                 {
                     let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
@@ -1221,12 +1120,7 @@ unsafe fn create_or_lookup_group(
                 /*otherwise, a pending "quit" message may pop up*/
                 /*re-create explicitly left groups only if ourself is re-added*/
                 let mut create_verified: libc::c_int = 0;
-                if !dc_mimeparser_lookup_field(
-                    mime_parser,
-                    b"Chat-Verified\x00" as *const u8 as *const libc::c_char,
-                )
-                .is_null()
-                {
+                if !dc_mimeparser_lookup_field(mime_parser, "Chat-Verified").is_null() {
                     create_verified = 1;
                     if 0 == check_verified_properties(
                         context,
@@ -1815,8 +1709,7 @@ unsafe fn dc_is_reply_to_known_message(
 ) -> libc::c_int {
     /* check if the message is a reply to a known message; the replies are identified by the Message-ID from
     `In-Reply-To`/`References:` (to support non-Delta-Clients) or from `Chat-Predecessor:` (Delta clients, see comment in dc_chat.c) */
-    let optional_field: *mut mailimf_optional_field;
-    optional_field = dc_mimeparser_lookup_optional_field(
+    let optional_field = dc_mimeparser_lookup_optional_field(
         mime_parser,
         b"Chat-Predecessor\x00" as *const u8 as *const libc::c_char,
     );
@@ -1825,11 +1718,7 @@ unsafe fn dc_is_reply_to_known_message(
             return 1;
         }
     }
-    let mut field: *mut mailimf_field;
-    field = dc_mimeparser_lookup_field(
-        mime_parser,
-        b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
-    );
+    let field = dc_mimeparser_lookup_field(mime_parser, "In-Reply-To");
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
         let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
@@ -1841,10 +1730,7 @@ unsafe fn dc_is_reply_to_known_message(
             }
         }
     }
-    field = dc_mimeparser_lookup_field(
-        mime_parser,
-        b"References\x00" as *const u8 as *const libc::c_char,
-    );
+    let field = dc_mimeparser_lookup_field(mime_parser, "References");
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
         let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {
@@ -1912,11 +1798,7 @@ unsafe fn dc_is_reply_to_messenger_message(
     - checks also if any of the referenced IDs are send by a messenger
     - it is okay, if the referenced messages are moved to trash here
     - no check for the Chat-* headers (function is only called if it is no messenger message itself) */
-    let mut field: *mut mailimf_field;
-    field = dc_mimeparser_lookup_field(
-        mime_parser,
-        b"In-Reply-To\x00" as *const u8 as *const libc::c_char,
-    );
+    let field = dc_mimeparser_lookup_field(mime_parser, "In-Reply-To");
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
         let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
@@ -1928,10 +1810,7 @@ unsafe fn dc_is_reply_to_messenger_message(
             }
         }
     }
-    field = dc_mimeparser_lookup_field(
-        mime_parser,
-        b"References\x00" as *const u8 as *const libc::c_char,
-    );
+    let field = dc_mimeparser_lookup_field(mime_parser, "References");
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
         let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {

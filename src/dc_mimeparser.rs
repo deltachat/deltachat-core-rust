@@ -175,10 +175,7 @@ pub unsafe fn dc_mimeparser_parse(
             &mut (*mimeparser).e2ee_helper,
         );
         dc_mimeparser_parse_mime_recursive(mimeparser, (*mimeparser).mimeroot);
-        let field: *mut mailimf_field = dc_mimeparser_lookup_field(
-            mimeparser,
-            b"Subject\x00" as *const u8 as *const libc::c_char,
-        );
+        let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, "Subject");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
             (*mimeparser).subject =
                 dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)
@@ -191,12 +188,7 @@ pub unsafe fn dc_mimeparser_parse(
         {
             (*mimeparser).is_send_by_messenger = 1i32
         }
-        if !dc_mimeparser_lookup_field(
-            mimeparser,
-            b"Autocrypt-Setup-Message\x00" as *const u8 as *const libc::c_char,
-        )
-        .is_null()
-        {
+        if !dc_mimeparser_lookup_field(mimeparser, "Autocrypt-Setup-Message").is_null() {
             let mut i: libc::c_int;
             let mut has_setup_file: libc::c_int = 0i32;
             i = 0i32;
@@ -237,11 +229,7 @@ pub unsafe fn dc_mimeparser_parse(
                 }
             }
         }
-        if !dc_mimeparser_lookup_field(
-            mimeparser,
-            b"Chat-Group-Image\x00" as *const u8 as *const libc::c_char,
-        )
-        .is_null()
+        if !dc_mimeparser_lookup_field(mimeparser, "Chat-Group-Image").is_null()
             && carray_count((*mimeparser).parts) >= 1i32 as libc::c_uint
         {
             let textpart: *mut dc_mimepart_t =
@@ -383,10 +371,8 @@ pub unsafe fn dc_mimeparser_parse(
                 {
                     let dn_to_addr: *mut libc::c_char = mailimf_find_first_addr(mb_list);
                     if !dn_to_addr.is_null() {
-                        let from_field: *mut mailimf_field = dc_mimeparser_lookup_field(
-                            mimeparser,
-                            b"From\x00" as *const u8 as *const libc::c_char,
-                        );
+                        let from_field: *mut mailimf_field =
+                            dc_mimeparser_lookup_field(mimeparser, "From");
                         if !from_field.is_null()
                             && (*from_field).fld_type == MAILIMF_FIELD_FROM as libc::c_int
                             && !(*from_field).fld_data.fld_from.is_null()
@@ -487,13 +473,14 @@ pub unsafe fn mailimf_find_first_addr(mb_list: *const mailimf_mailbox_list) -> *
 }
 
 /* the following functions can be used only after a call to dc_mimeparser_parse() */
+
 pub fn dc_mimeparser_lookup_field(
     mimeparser: &dc_mimeparser_t,
-    field_name: *const libc::c_char,
+    field_name: &str,
 ) -> *mut mailimf_field {
     mimeparser
         .header
-        .get(as_str(field_name))
+        .get(field_name)
         .map(|v| *v)
         .unwrap_or_else(|| std::ptr::null_mut())
 }
@@ -1621,12 +1608,7 @@ pub unsafe fn mailmime_transfer_decode(
 
 // TODO should return bool /rtn
 pub unsafe fn dc_mimeparser_is_mailinglist_message(mimeparser: &dc_mimeparser_t) -> libc::c_int {
-    if !dc_mimeparser_lookup_field(
-        &mimeparser,
-        b"List-Id\x00" as *const u8 as *const libc::c_char,
-    )
-    .is_null()
-    {
+    if !dc_mimeparser_lookup_field(&mimeparser, "List-Id").is_null() {
         return 1i32;
     }
     let precedence: *mut mailimf_optional_field = dc_mimeparser_lookup_optional_field(
