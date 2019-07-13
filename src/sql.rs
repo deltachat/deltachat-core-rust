@@ -98,7 +98,13 @@ impl Sql {
     /// Prepares and executes the statement and maps a function over the resulting rows.
     /// Then executes the second function over the returned iterator and returns the
     /// result of that function.
-    pub fn query_map<T, P, F, G, H>(&self, sql: &str, params: P, f: F, mut g: G) -> Result<H>
+    pub fn query_map<T, P, F, G, H>(
+        &self,
+        sql: impl AsRef<str>,
+        params: P,
+        f: F,
+        mut g: G,
+    ) -> Result<H>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
@@ -106,7 +112,8 @@ impl Sql {
         G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
         self.with_conn(|conn| {
-            let mut stmt = conn.prepare(sql)?;
+            eprintln!("query_map {}", sql.as_ref());
+            let mut stmt = conn.prepare(sql.as_ref())?;
             let res = stmt.query_map(params, f)?;
             g(res)
         })
@@ -126,13 +133,13 @@ impl Sql {
         })
     }
 
-    pub fn query_row<T, P, F>(&self, sql: &str, params: P, f: F) -> Result<T>
+    pub fn query_row<T, P, F>(&self, sql: impl AsRef<str>, params: P, f: F) -> Result<T>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
-        self.with_conn(|conn| conn.query_row(sql, params, f).map_err(Into::into))
+        self.with_conn(|conn| conn.query_row(sql.as_ref(), params, f).map_err(Into::into))
     }
 
     pub fn table_exists(&self, name: impl AsRef<str>) -> bool {
@@ -210,12 +217,12 @@ fn open(
             sql.execute(
                 "CREATE TABLE contacts (\
                  id INTEGER PRIMARY KEY AUTOINCREMENT, \
-                 name TEXT DEFAULT \'\', \
-                 addr TEXT DEFAULT \'\' COLLATE NOCASE, \
+                 name TEXT DEFAULT '', \
+                 addr TEXT DEFAULT '' COLLATE NOCASE, \
                  origin INTEGER DEFAULT 0, \
                  blocked INTEGER DEFAULT 0, \
                  last_seen INTEGER DEFAULT 0, \
-                 param TEXT DEFAULT \'\');",
+                 param TEXT DEFAULT '');",
                 params![],
             )?;
             sql.execute(
@@ -228,21 +235,21 @@ fn open(
             )?;
             sql.execute(
                 "INSERT INTO contacts (id,name,origin) VALUES \
-                 (1,\'self\',262144), (2,\'device\',262144), (3,\'rsvd\',262144), \
-                 (4,\'rsvd\',262144), (5,\'rsvd\',262144), (6,\'rsvd\',262144), \
-                 (7,\'rsvd\',262144), (8,\'rsvd\',262144), (9,\'rsvd\',262144);",
+                 (1,'self',262144), (2,'device',262144), (3,'rsvd',262144), \
+                 (4,'rsvd',262144), (5,'rsvd',262144), (6,'rsvd',262144), \
+                 (7,'rsvd',262144), (8,'rsvd',262144), (9,'rsvd',262144);",
                 params![],
             )?;
             sql.execute(
                 "CREATE TABLE chats (\
                  id INTEGER PRIMARY KEY AUTOINCREMENT,  \
                  type INTEGER DEFAULT 0, \
-                 name TEXT DEFAULT \'\', \
+                 name TEXT DEFAULT '', \
                  draft_timestamp INTEGER DEFAULT 0, \
-                 draft_txt TEXT DEFAULT \'\', \
+                 draft_txt TEXT DEFAULT '', \
                  blocked INTEGER DEFAULT 0, \
-                 grpid TEXT DEFAULT \'\', \
-                 param TEXT DEFAULT \'\');",
+                 grpid TEXT DEFAULT '', \
+                 param TEXT DEFAULT '');",
                 params![],
             )?;
             sql.execute("CREATE INDEX chats_index1 ON chats (grpid);", params![])?;
@@ -256,16 +263,16 @@ fn open(
             )?;
             sql.execute(
                 "INSERT INTO chats (id,type,name) VALUES \
-                 (1,120,\'deaddrop\'), (2,120,\'rsvd\'), (3,120,\'trash\'), \
-                 (4,120,\'msgs_in_creation\'), (5,120,\'starred\'), (6,120,\'archivedlink\'), \
-                 (7,100,\'rsvd\'), (8,100,\'rsvd\'), (9,100,\'rsvd\');",
+                 (1,120,'deaddrop'), (2,120,'rsvd'), (3,120,'trash'), \
+                 (4,120,'msgs_in_creation'), (5,120,'starred'), (6,120,'archivedlink'), \
+                 (7,100,'rsvd'), (8,100,'rsvd'), (9,100,'rsvd');",
                 params![],
             )?;
             sql.execute(
                 "CREATE TABLE msgs (\
                  id INTEGER PRIMARY KEY AUTOINCREMENT, \
-                 rfc724_mid TEXT DEFAULT \'\', \
-                 server_folder TEXT DEFAULT \'\', \
+                 rfc724_mid TEXT DEFAULT '', \
+                 server_folder TEXT DEFAULT '', \
                  server_uid INTEGER DEFAULT 0, \
                  chat_id INTEGER DEFAULT 0, \
                  from_id INTEGER DEFAULT 0, \
@@ -275,9 +282,9 @@ fn open(
                  state INTEGER DEFAULT 0, \
                  msgrmsg INTEGER DEFAULT 1, \
                  bytes INTEGER DEFAULT 0, \
-                 txt TEXT DEFAULT \'\', \
-                 txt_raw TEXT DEFAULT \'\', \
-                 param TEXT DEFAULT \'\');",
+                 txt TEXT DEFAULT '', \
+                 txt_raw TEXT DEFAULT '', \
+                 param TEXT DEFAULT '');",
                 params![],
             )?;
             sql.execute("CREATE INDEX msgs_index1 ON msgs (rfc724_mid);", params![])?;
@@ -286,9 +293,9 @@ fn open(
             sql.execute("CREATE INDEX msgs_index4 ON msgs (state);", params![])?;
             sql.execute(
                 "INSERT INTO msgs (id,msgrmsg,txt) VALUES \
-                 (1,0,\'marker1\'), (2,0,\'rsvd\'), (3,0,\'rsvd\'), \
-                 (4,0,\'rsvd\'), (5,0,\'rsvd\'), (6,0,\'rsvd\'), (7,0,\'rsvd\'), \
-                 (8,0,\'rsvd\'), (9,0,\'daymarker\');",
+                 (1,0,'marker1'), (2,0,'rsvd'), (3,0,'rsvd'), \
+                 (4,0,'rsvd'), (5,0,'rsvd'), (6,0,'rsvd'), (7,0,'rsvd'), \
+                 (8,0,'rsvd'), (9,0,'daymarker');",
                 params![],
             )?;
             sql.execute(
@@ -298,7 +305,7 @@ fn open(
                  desired_timestamp INTEGER DEFAULT 0, \
                  action INTEGER, \
                  foreign_id INTEGER, \
-                 param TEXT DEFAULT \'\');",
+                 param TEXT DEFAULT '');",
                 params![],
             )?;
             sql.execute(
@@ -338,7 +345,7 @@ fn open(
 
         if dbversion < 1 {
             sql.execute(
-                "CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT \'\');",
+                "CREATE TABLE leftgrps ( id INTEGER PRIMARY KEY, grpid TEXT DEFAULT '');",
                 params![],
             )?;
             sql.execute(
@@ -350,7 +357,7 @@ fn open(
         }
         if dbversion < 2 {
             sql.execute(
-                "ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT \'\';",
+                "ALTER TABLE contacts ADD COLUMN authname TEXT DEFAULT '';",
                 params![],
             )?;
             dbversion = 2;
@@ -360,7 +367,7 @@ fn open(
             sql.execute(
                 "CREATE TABLE keypairs (\
                  id INTEGER PRIMARY KEY, \
-                 addr TEXT DEFAULT \'\' COLLATE NOCASE, \
+                 addr TEXT DEFAULT '' COLLATE NOCASE, \
                  is_default INTEGER DEFAULT 0, \
                  private_key, \
                  public_key, \
@@ -374,7 +381,7 @@ fn open(
             sql.execute(
                 "CREATE TABLE acpeerstates (\
                  id INTEGER PRIMARY KEY, \
-                 addr TEXT DEFAULT \'\' COLLATE NOCASE, \
+                 addr TEXT DEFAULT '' COLLATE NOCASE, \
                  last_seen INTEGER DEFAULT 0, \
                  last_seen_autocrypt INTEGER DEFAULT 0, \
                  public_key, \
@@ -450,11 +457,11 @@ fn open(
                 params![],
             )?;
             sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN public_key_fingerprint TEXT DEFAULT \'\';",
+                "ALTER TABLE acpeerstates ADD COLUMN public_key_fingerprint TEXT DEFAULT '';",
                 params![],
             )?;
             sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN gossip_key_fingerprint TEXT DEFAULT \'\';",
+                "ALTER TABLE acpeerstates ADD COLUMN gossip_key_fingerprint TEXT DEFAULT '';",
                 params![],
             )?;
             sql.execute(
@@ -471,7 +478,7 @@ fn open(
         }
         if dbversion < 39 {
             sql.execute(
-                "CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT \'\', timestamp INTEGER DEFAULT 0);",
+                "CREATE TABLE tokens ( id INTEGER PRIMARY KEY, namespc INTEGER DEFAULT 0, foreign_id INTEGER DEFAULT 0, token TEXT DEFAULT '', timestamp INTEGER DEFAULT 0);",
                 params![]
             )?;
             sql.execute(
@@ -479,7 +486,7 @@ fn open(
                 params![],
             )?;
             sql.execute(
-                "ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT \'\';",
+                "ALTER TABLE acpeerstates ADD COLUMN verified_key_fingerprint TEXT DEFAULT '';",
                 params![],
             )?;
             sql.execute(
@@ -513,7 +520,7 @@ fn open(
             set_config_int(context, sql, "dbversion", 41);
         }
         if dbversion < 42 {
-            sql.execute("UPDATE msgs SET txt=\'\' WHERE type!=10", params![])?;
+            sql.execute("UPDATE msgs SET txt='' WHERE type!=10", params![])?;
             dbversion = 42;
             set_config_int(context, sql, "dbversion", 42);
         }
@@ -661,7 +668,7 @@ fn open(
             let repl_from = dc_ensure_no_slash_safe(&repl_from);
             sql.execute(
                 &format!(
-                    "UPDATE msgs SET param=replace(param, \'f={}/\', \'f=$BLOBDIR/\')",
+                    "UPDATE msgs SET param=replace(param, 'f={}/', 'f=$BLOBDIR/')",
                     repl_from
                 ),
                 NO_PARAMS,
@@ -669,7 +676,7 @@ fn open(
 
             sql.execute(
                 &format!(
-                    "UPDATE chats SET param=replace(param, \'i={}/\', \'i=$BLOBDIR/\');",
+                    "UPDATE chats SET param=replace(param, 'i={}/', 'i=$BLOBDIR/');",
                     repl_from
                 ),
                 NO_PARAMS,
@@ -762,7 +769,13 @@ where
     match sql.execute(querystr.as_ref(), params) {
         Ok(_) => true,
         Err(err) => {
-            error!(context, 0, "execute failed: {:?}", err);
+            error!(
+                context,
+                0,
+                "execute failed: {:?} for {}",
+                err,
+                querystr.as_ref()
+            );
             false
         }
     }

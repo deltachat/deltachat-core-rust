@@ -1361,9 +1361,12 @@ unsafe fn create_or_lookup_adhoc_group(
             if dc_array_get_cnt(chat_ids) > 0 {
                 chat_ids_str = dc_array_get_string(chat_ids, b",\x00" as *const u8 as *const _);
                 let res = context.sql.query_row(
-                    "SELECT c.id, c.blocked  FROM chats c  \
-                     LEFT JOIN msgs m ON m.chat_id=c.id  WHERE c.id IN(?)  ORDER BY m.timestamp DESC, m.id DESC  LIMIT 1;",
-                    params![as_str(chat_ids_str)],
+                    format!(
+                        "SELECT c.id, c.blocked  FROM chats c  \
+                         LEFT JOIN msgs m ON m.chat_id=c.id  WHERE c.id IN({})  ORDER BY m.timestamp DESC, m.id DESC  LIMIT 1;",
+                        as_str(chat_ids_str),
+                    ),
+                    params![],
                     |row| {
                         Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
                     }
@@ -1477,8 +1480,11 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     let members = context
         .sql
         .query_map(
-            "SELECT addr FROM contacts WHERE id IN(?) AND id!=1",
-            params![as_str(member_ids_str)],
+            format!(
+                "SELECT addr FROM contacts WHERE id IN({}) AND id!=1",
+                as_str(member_ids_str)
+            ),
+            params![],
             |row| row.get::<_, String>(0),
             |rows| {
                 let mut addrs = rows.collect::<Result<Vec<_>, _>>()?;
@@ -1535,8 +1541,11 @@ unsafe fn search_chat_ids_by_contact_ids(
                 dc_array_get_string(contact_ids, b",\x00" as *const u8 as *const libc::c_char);
 
             context.sql.query_map(
-                "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN(?))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
-                params![as_str(contact_ids_str)],
+                format!(
+                    "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
+                    as_str(contact_ids_str)
+                ),
+                params![],
                 |row| Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?)),
                 |rows| {
                     let mut last_chat_id = 0;
@@ -1634,9 +1643,12 @@ unsafe fn check_verified_properties(
     let ok = context
         .sql
         .query_map(
-            "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
-             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN(?) ",
-            params![&to_ids_str],
+            format!(
+                "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
+                 LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
+                &to_ids_str,
+            ),
+            params![],
             |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
             |rows| {
                 for row in rows {

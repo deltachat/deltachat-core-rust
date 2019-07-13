@@ -27,19 +27,14 @@ pub unsafe fn dc_get_chatlist<'a>(
     query_str: *const libc::c_char,
     query_id: uint32_t,
 ) -> *mut dc_chatlist_t<'a> {
-    let mut success: libc::c_int = 0i32;
-    let obj: *mut dc_chatlist_t = dc_chatlist_new(context);
+    let obj = dc_chatlist_new(context);
 
-    if !(0 == dc_chatlist_load_from_db(obj, listflags, query_str, query_id)) {
-        success = 1i32
+    if 0 != dc_chatlist_load_from_db(obj, listflags, query_str, query_id) {
+        return obj;
     }
 
-    if 0 != success {
-        return obj;
-    } else {
-        dc_chatlist_unref(obj);
-        return 0 as *mut dc_chatlist_t;
-    };
+    dc_chatlist_unref(obj);
+    return 0 as *mut dc_chatlist_t;
 }
 
 /**
@@ -122,8 +117,6 @@ unsafe fn dc_chatlist_load_from_db(
     query__: *const libc::c_char,
     query_contact_id: u32,
 ) -> libc::c_int {
-    //clock_t       start = clock();
-
     if chatlist.is_null() || (*chatlist).magic != 0xc4a71157u32 {
         return 0;
     }
@@ -142,15 +135,27 @@ unsafe fn dc_chatlist_load_from_db(
     // for the deaddrop, however, they should really be hidden, however, _currently_ the deaddrop is not
     // shown at all permanent in the chatlist.
 
-    let process_fn = |row: &rusqlite::Row| {
-        dc_array_add_id((*chatlist).chatNlastmsg_ids, row.get(0)?);
-        dc_array_add_id((*chatlist).chatNlastmsg_ids, row.get(1)?);
+    let process_row = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?));
+
+    let process_rows = |rows: rusqlite::MappedRows<_>| {
+        for row in rows {
+            let (id1, id2) = row?;
+
+            dc_array_add_id((*chatlist).chatNlastmsg_ids, id1);
+            dc_array_add_id((*chatlist).chatNlastmsg_ids, id2);
+        }
         Ok(())
     };
 
-    let success =
-        if query_contact_id != 0 {
-            (*chatlist).context.sql.query_map(
+    // nb: the query currently shows messages from blocked contacts in groups.
+    // however, for normal-groups, this is okay as the message is also returned by dc_get_chat_msgs()
+    // (otherwise it would be hard to follow conversations, wa and tg do the same)
+    // for the deaddrop, however, they should really be hidden, however, _currently_ the deaddrop is not
+    // shown at all permanent in the chatlist.
+
+    let success = if query_contact_id != 0 {
+        // show chats shared with a given contact
+        (*chatlist).context.sql.query_map(
             "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
              ON c.id=m.chat_id        \
              AND m.timestamp=( SELECT MAX(timestamp)   \
@@ -159,74 +164,67 @@ unsafe fn dc_chatlist_load_from_db(
              AND c.blocked=0 AND c.id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?)  \
              GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
             params![query_contact_id as i32],
-            process_fn,
-            |res| res.collect::<rusqlite::Result<Vec<_>>>().map_err(Into::into),
+            process_row,
+            process_rows,
         )
-        } else if 0 != listflags & 0x1 {
+    } else if 0 != listflags & 0x1 {
+        // show archived chats
+        (*chatlist).context.sql.query_map(
+            "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
+             ON c.id=m.chat_id        \
+             AND m.timestamp=( SELECT MAX(timestamp)   \
+             FROM msgs  WHERE chat_id=c.id    \
+             AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
+             AND c.blocked=0 AND c.archived=1  GROUP BY c.id  \
+             ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+            params![],
+            process_row,
+            process_rows,
+        )
+    } else if query__.is_null() {
+        //  show normal chatlist
+        if 0 == listflags & 0x2 {
+            let last_deaddrop_fresh_msg_id = get_last_deaddrop_fresh_msg((*chatlist).context);
+            if last_deaddrop_fresh_msg_id > 0 {
+                dc_array_add_id((*chatlist).chatNlastmsg_ids, 1);
+                dc_array_add_id((*chatlist).chatNlastmsg_ids, last_deaddrop_fresh_msg_id);
+            }
+            add_archived_link_item = 1;
+        }
+        (*chatlist).context.sql.query_map(
+            "SELECT c.id, m.id FROM chats c  \
+             LEFT JOIN msgs m         \
+             ON c.id=m.chat_id        \
+             AND m.timestamp=( SELECT MAX(timestamp)   \
+             FROM msgs  WHERE chat_id=c.id    \
+             AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
+             AND c.blocked=0 AND c.archived=0  \
+             GROUP BY c.id  \
+             ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+            params![],
+            process_row,
+            process_rows,
+        )
+    } else {
+        let query = to_string(query__).trim().to_string();
+        if query.is_empty() {
+            return 1;
+        } else {
+            let strLikeCmd = format!("%{}%", query);
             (*chatlist).context.sql.query_map(
                 "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
                  ON c.id=m.chat_id        \
                  AND m.timestamp=( SELECT MAX(timestamp)   \
                  FROM msgs  WHERE chat_id=c.id    \
                  AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-                 AND c.blocked=0 AND c.archived=1  GROUP BY c.id  \
-                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                params![],
-                process_fn,
-                |res| {
-                    res.collect::<rusqlite::Result<Vec<_>>>()
-                        .map_err(Into::into)
-                },
+                 AND c.blocked=0 AND c.name LIKE ?  \
+                 GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
+                params![strLikeCmd],
+                process_row,
+                process_rows,
             )
-        } else if query__.is_null() {
-            if 0 == listflags & 0x2 {
-                let last_deaddrop_fresh_msg_id = get_last_deaddrop_fresh_msg((*chatlist).context);
-                if last_deaddrop_fresh_msg_id > 0 {
-                    dc_array_add_id((*chatlist).chatNlastmsg_ids, 1);
-                    dc_array_add_id((*chatlist).chatNlastmsg_ids, last_deaddrop_fresh_msg_id);
-                }
-                add_archived_link_item = 1;
-            }
-            (*chatlist).context.sql.query_map(
-                "SELECT c.id, m.id FROM chats c  \
-                 LEFT JOIN msgs m         \
-                 ON c.id=m.chat_id        \
-                 AND m.timestamp=( SELECT MAX(timestamp)   \
-                 FROM msgs  WHERE chat_id=c.id    \
-                 AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-                 AND c.blocked=0 AND c.archived=0  \
-                 GROUP BY c.id  \
-                 ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                params![],
-                process_fn,
-                |res| {
-                    res.collect::<rusqlite::Result<Vec<_>>>()
-                        .map_err(Into::into)
-                },
-            )
-        } else {
-            let query = to_string(query__).trim().to_string();
-            if query.is_empty() {
-                return 1;
-            } else {
-                let strLikeCmd = format!("%{}%", query);
-                (*chatlist).context.sql.query_map(
-                    "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
-                     ON c.id=m.chat_id        \
-                     AND m.timestamp=( SELECT MAX(timestamp)   \
-                     FROM msgs  WHERE chat_id=c.id    \
-                     AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
-                     AND c.blocked=0 AND c.name LIKE ?  \
-                     GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                    params![strLikeCmd],
-                    process_fn,
-                    |res| {
-                        res.collect::<rusqlite::Result<Vec<_>>>()
-                            .map_err(Into::into)
-                    },
-                )
-            }
-        };
+        }
+    };
 
     if 0 != add_archived_link_item && dc_get_archived_cnt((*chatlist).context) > 0 {
         if dc_array_get_cnt((*chatlist).chatNlastmsg_ids) == 0 && 0 != listflags & 0x4 {
@@ -236,9 +234,18 @@ unsafe fn dc_chatlist_load_from_db(
         dc_array_add_id((*chatlist).chatNlastmsg_ids, 6 as uint32_t);
         dc_array_add_id((*chatlist).chatNlastmsg_ids, 0 as uint32_t);
     }
-    (*chatlist).cnt = dc_array_get_cnt((*chatlist).chatNlastmsg_ids).wrapping_div(2);
+    (*chatlist).cnt = dc_array_get_cnt((*chatlist).chatNlastmsg_ids) / 2;
 
-    success.is_ok() as libc::c_int
+    match success {
+        Ok(_) => 1,
+        Err(err) => {
+            error!(
+                (*chatlist).context,
+                0, "chatlist: failed to load from database: {:?}", err
+            );
+            0
+        }
+    }
 }
 
 // Context functions to work with chatlist

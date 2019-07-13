@@ -260,14 +260,15 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
         if sql::execute(
             context,
             &context.sql,
-            "INSERT INTO chats (type, name, param, blocked, grpid) VALUES(?, ?, ?, ?, ?)",
-            params![
+            format!(
+                "INSERT INTO chats (type, name, param, blocked, grpid) VALUES({}, '{}', '{}', {}, '{}')",
                 100,
                 as_str(chat_name),
                 if contact_id == 1 { "K=1" } else { "" },
                 create_blocked,
                 as_str((*contact).addr),
-            ],
+            ),
+            params![],
         ) {
             chat_id = sql::get_rowid(
                 context,
@@ -280,8 +281,8 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
             sql::execute(
                 context,
                 &context.sql,
-                "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
-                params![chat_id, contact_id],
+                format!("INSERT INTO chats_contacts (chat_id, contact_id) VALUES({}, {})", chat_id, contact_id),
+                params![],
             );
         }
     }
@@ -1766,8 +1767,12 @@ pub unsafe fn dc_set_chat_name(
                 if sql::execute(
                     context,
                     &context.sql,
-                    "UPDATE chats SET name=? WHERE id={};",
-                    params![as_str(new_name), chat_id as i32],
+                    format!(
+                        "UPDATE chats SET name='{}' WHERE id={};",
+                        as_str(new_name),
+                        chat_id as i32
+                    ),
+                    params![],
                 ) {
                     if dc_param_get_int((*chat).param, 'U' as i32, 0i32) == 0i32 {
                         (*msg).type_0 = 10i32;
@@ -1909,8 +1914,11 @@ pub unsafe fn dc_forward_msgs(
         context
             .sql
             .query_map(
-                "SELECT id FROM msgs WHERE id IN(?) ORDER BY timestamp,id",
-                params![as_str(idsstr)],
+                format!(
+                    "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
+                    as_str(idsstr)
+                ),
+                params![],
                 |row| row.get::<_, i32>(0),
                 |ids| {
                     for id in ids {
