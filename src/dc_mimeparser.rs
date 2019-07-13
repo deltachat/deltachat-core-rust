@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 
 use charset::Charset;
 use mmime::mailimf::*;
@@ -17,9 +17,9 @@ use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_param::*;
 use crate::dc_simplify::*;
-use crate::dc_stock::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
@@ -667,11 +667,18 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                 40 => {
                     let mut part: *mut dc_mimepart_t = dc_mimepart_new();
                     (*part).type_0 = 10i32;
-                    let msg_body: *mut libc::c_char = dc_stock_str((*mimeparser).context, 29i32);
-                    (*part).msg =
-                        dc_mprintf(b"[%s]\x00" as *const u8 as *const libc::c_char, msg_body);
+                    let msg_body = CString::new(
+                        (*mimeparser)
+                            .context
+                            .stock_str(StockMessage::CantDecryptMsgBody)
+                            .as_ref(),
+                    )
+                    .unwrap();
+                    (*part).msg = dc_mprintf(
+                        b"[%s]\x00" as *const u8 as *const libc::c_char,
+                        msg_body.as_ptr(),
+                    );
                     (*part).msg_raw = dc_strdup((*part).msg);
-                    free(msg_body as *mut libc::c_void);
                     carray_add(
                         (*mimeparser).parts,
                         part as *mut libc::c_void,

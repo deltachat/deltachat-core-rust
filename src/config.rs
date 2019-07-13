@@ -4,9 +4,9 @@ use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 use crate::constants::DC_VERSION_STR;
 use crate::context::Context;
 use crate::dc_job::*;
-use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::error::Error;
+use crate::stock::StockMessage;
 use crate::x::*;
 
 /// The available configuration keys.
@@ -94,12 +94,7 @@ impl Context {
 
         // Default values
         match key {
-            Config::Selfstatus => {
-                let s = unsafe { dc_stock_str(self, 13) };
-                let res = to_string(s);
-                unsafe { free(s as *mut _) };
-                Some(res)
-            }
+            Config::Selfstatus => Some(self.stock_str(StockMessage::StatusLine).into_owned()),
             _ => key.get_str("default").map(|s| s.to_string()),
         }
     }
@@ -129,15 +124,14 @@ impl Context {
                 ret
             }
             Config::Selfstatus => {
-                let def = unsafe { dc_stock_str(self, 13) };
-                let val = if value.is_none() || value.unwrap() == as_str(def) {
+                let def = self.stock_str(StockMessage::StatusLine);
+                let val = if value.is_none() || value.unwrap() == def {
                     None
                 } else {
                     value
                 };
 
                 let ret = self.sql.set_config(self, key, val);
-                unsafe { free(def as *mut libc::c_void) };
                 ret
             }
             _ => self.sql.set_config(self, key, value),

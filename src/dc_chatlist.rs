@@ -4,8 +4,8 @@ use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_lot::*;
 use crate::dc_msg::*;
-use crate::dc_stock::*;
 use crate::dc_tools::*;
+use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
@@ -375,7 +375,8 @@ pub unsafe fn dc_chatlist_get_summary<'a>(
                 if (*chat).id == 6i32 as libc::c_uint {
                     (*ret).text2 = dc_strdup(0 as *const libc::c_char)
                 } else if lastmsg.is_null() || (*lastmsg).from_id == 0i32 as libc::c_uint {
-                    (*ret).text2 = dc_stock_str((*chatlist).context, 1i32)
+                    (*ret).text2 =
+                        to_cstring((*chatlist).context.stock_str(StockMessage::NoMessages));
                 } else {
                     dc_lot_fill(ret, lastmsg, chat, lastcontact, (*chatlist).context);
                 }

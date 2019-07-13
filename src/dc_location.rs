@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use crate::constants::Event;
 use crate::context::*;
 use crate::dc_array::*;
@@ -6,9 +8,9 @@ use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
 use crate::dc_saxparser::*;
-use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::sql;
+use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
@@ -71,7 +73,6 @@ pub unsafe fn dc_send_locations_to_chat(
 ) {
     let now = time();
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
-    let mut stock_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let is_sending_locations_before: bool;
     if !(seconds < 0i32 || chat_id <= 9i32 as libc::c_uint) {
         is_sending_locations_before = dc_is_sending_locations_to_chat(context, chat_id);
@@ -96,24 +97,23 @@ pub unsafe fn dc_send_locations_to_chat(
         {
             if 0 != seconds && !is_sending_locations_before {
                 msg = dc_msg_new(context, 10i32);
-                (*msg).text = dc_stock_system_msg(
-                    context,
-                    64,
-                    0 as *const libc::c_char,
-                    0 as *const libc::c_char,
+                (*msg).text = to_cstring(context.stock_system_msg(
+                    StockMessage::MsgLocationEnabled,
+                    "",
+                    "",
                     0,
-                );
+                ));
                 dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 8);
                 dc_send_msg(context, chat_id, msg);
             } else if 0 == seconds && is_sending_locations_before {
-                stock_str = dc_stock_system_msg(
-                    context,
-                    65i32,
-                    0 as *const libc::c_char,
-                    0 as *const libc::c_char,
-                    0i32 as uint32_t,
-                );
-                dc_add_device_msg(context, chat_id, stock_str);
+                let stock_str = CString::new(context.stock_system_msg(
+                    StockMessage::MsgLocationDisabled,
+                    "",
+                    "",
+                    0,
+                ))
+                .unwrap();
+                dc_add_device_msg(context, chat_id, stock_str.as_ptr());
             }
             context.call_cb(
                 Event::CHAT_MODIFIED,
@@ -132,7 +132,6 @@ pub unsafe fn dc_send_locations_to_chat(
             }
         }
     }
-    free(stock_str as *mut libc::c_void);
     dc_msg_unref(msg);
 }
 
@@ -736,7 +735,6 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
     // if so, a device-message is added if not yet done.
 
     let chat_id = (*job).foreign_id;
-    let mut stock_str = 0 as *mut libc::c_char;
 
     if let Ok((send_begin, send_until)) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
@@ -753,14 +751,8 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
                     "UPDATE chats    SET locations_send_begin=0, locations_send_until=0  WHERE id=?",
                     params![chat_id as i32],
                 ).is_ok() {
-                    stock_str = dc_stock_system_msg(
-                        context,
-                        65,
-                        0 as *const libc::c_char,
-                        0 as *const libc::c_char,
-                        0,
-                    );
-                    dc_add_device_msg(context, chat_id, stock_str);
+                    let stock_str = CString::new(context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)).unwrap();
+                    dc_add_device_msg(context, chat_id, stock_str.as_ptr());
                     context.call_cb(
                         Event::CHAT_MODIFIED,
                         chat_id as usize,
@@ -770,5 +762,4 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
             }
         }
     }
-    free(stock_str as *mut libc::c_void);
 }
