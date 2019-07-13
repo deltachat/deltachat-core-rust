@@ -1,7 +1,7 @@
 environment:
   matrix:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
-      TARGET: x86_64-pc-windows-msvc
+      target: x86_64-pc-windows-msvc
 
 install:
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
@@ -14,7 +14,7 @@ install:
 build: false
 
 test_script:
-- cargo test --release
+  - cargo test --release
 
 cache:
   - target
