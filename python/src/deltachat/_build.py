@@ -2,6 +2,7 @@ import distutils.ccompiler
 import distutils.log
 import distutils.sysconfig
 import tempfile
+import platform
 import os
 import cffi
 
@@ -10,7 +11,18 @@ def ffibuilder():
     projdir = os.environ.get('DCC_RS_DEV')
     target = os.environ.get('DCC_RS_TARGET', 'release')
     if projdir:
-        libs = ['rt', 'dl', 'm']
+        if platform.system() == 'Darwin':
+            libs = ['resolv', 'dl']
+            extra_link_args = [
+                    '-framework', 'CoreFoundation',
+                    '-framework', 'CoreServices',
+                    '-framework', 'Security',
+            ]
+        elif platform.system() == 'Linux':
+            libs = ['rt', 'dl', 'm']
+            extra_link_args = []
+        else:
+            raise NotImplementedError("Compilation not supported yet on Windows, can you help?")
         objs = [os.path.join(projdir, 'target', target, 'libdeltachat.a')]
         incs = [os.path.join(projdir, 'deltachat-ffi')]
     else:
@@ -43,6 +55,7 @@ def ffibuilder():
         include_dirs=incs,
         libraries=libs,
         extra_objects=objs,
+        extra_link_args=extra_link_args,
     )
     builder.cdef("""
         typedef int... time_t;
@@ -53,15 +66,18 @@ def ffibuilder():
     distutils.log.set_verbosity(distutils.log.INFO)
     cc = distutils.ccompiler.new_compiler(force=True)
     distutils.sysconfig.customize_compiler(cc)
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.h') as src_fp:
-        src_fp.write('#include <deltachat.h>')
-        src_fp.flush()
-        with tempfile.NamedTemporaryFile(mode='r') as dst_fp:
-            cc.preprocess(source=src_fp.name,
-                          output_file=dst_fp.name,
-                          include_dirs=incs,
-                          macros=[('PY_CFFI', '1')])
+    with tempfile.TemporaryDirectory() as tmpdir:
+        src_name = os.path.join(tmpdir, "prep.h")
+        dst_name = os.path.join(tmpdir, "prep2.c")
+        with open(src_name, "w") as src_fp:
+            src_fp.write('#include <deltachat.h>')
+        cc.preprocess(source=src_name,
+                      output_file=dst_name,
+                      include_dirs=incs,
+                      macros=[('PY_CFFI', '1')])
+        with open(dst_name, "r") as dst_fp:
             builder.cdef(dst_fp.read())
+
     builder.cdef("""
         extern "Python" uintptr_t py_dc_callback(
             dc_context_t* context,
