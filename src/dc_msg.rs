@@ -428,6 +428,10 @@ pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> i64 {
 }
 
 pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id: u32) -> bool {
+    if msg.is_null() {
+        return false;
+    }
+
     context.sql.query_row(
         "SELECT  \
          m.id,rfc724_mid,m.mime_in_reply_to,m.server_folder,m.server_uid,m.move_state,m.chat_id,  \

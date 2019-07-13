@@ -121,8 +121,8 @@ fn main() {
         }
         dc_chatlist_unref(chats);
 
-        *running.clone().write().unwrap() = false;
-        println!("stopping threads");
+        thread::sleep(duration);
+
         // let msglist = dc_get_chat_msgs(&ctx, chat_id, 0, 0);
         // for i in 0..dc_array_get_cnt(msglist) {
         //     let msg_id = dc_array_get_id(msglist, i);
@@ -133,6 +133,9 @@ fn main() {
         // }
         // dc_array_unref(msglist);
 
+        println!("stopping threads");
+
+        *running.clone().write().unwrap() = false;
         deltachat::dc_job::dc_interrupt_imap_idle(&ctx);
         deltachat::dc_job::dc_interrupt_smtp_idle(&ctx);
 

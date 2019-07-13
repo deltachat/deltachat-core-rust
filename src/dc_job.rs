@@ -59,28 +59,15 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
 }
 
 unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
-    let process_row = |row: &rusqlite::Row| {
-        let job = dc_job_t {
-            job_id: row.get(0)?,
-            action: row.get(1)?,
-            foreign_id: row.get(2)?,
-            desired_timestamp: row.get(5)?,
-            added_timestamp: row.get(4)?,
-            tries: row.get(6)?,
-            param: dc_param_new(),
-            try_again: 0,
-            pending_error: 0 as *mut libc::c_char,
-        };
-
-        let packed: String = row.get(3)?;
-        dc_param_set_packed(job.param, to_cstring(packed).as_ptr());
-        Ok(job)
-    };
-
     let query = if probe_network == 0 {
+        // processing for first-try and after backoff-timeouts:
+        // process jobs in the order they were added.
         "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
          FROM jobs WHERE thread=? AND desired_timestamp<=? ORDER BY action DESC, added_timestamp;"
     } else {
+        // processing after call to dc_maybe_network():
+        // process _all_ pending jobs that failed before
+        // in the order of their backoff-times.
         "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
          FROM jobs WHERE thread=? AND tries>0 ORDER BY desired_timestamp, action DESC;"
     };
@@ -95,10 +82,31 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
 
     let jobs: Vec<dc_job_t> = context
         .sql
-        .query_map(query, params, process_row, |jobs| {
-            jobs.collect::<Result<Vec<dc_job_t>, _>>()
-                .map_err(Into::into)
-        })
+        .query_map(
+            query,
+            params,
+            |row| {
+                let job = dc_job_t {
+                    job_id: row.get(0)?,
+                    action: row.get(1)?,
+                    foreign_id: row.get(2)?,
+                    desired_timestamp: row.get(5)?,
+                    added_timestamp: row.get(4)?,
+                    tries: row.get(6)?,
+                    param: dc_param_new(),
+                    try_again: 0,
+                    pending_error: 0 as *mut libc::c_char,
+                };
+
+                let packed: String = row.get(3)?;
+                dc_param_set_packed(job.param, to_cstring(packed).as_ptr());
+                Ok(job)
+            },
+            |jobs| {
+                jobs.collect::<Result<Vec<dc_job_t>, _>>()
+                    .map_err(Into::into)
+            },
+        )
         .unwrap_or_default();
 
     for mut job in jobs {
@@ -111,49 +119,34 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             job.action,
         );
 
+        // some configuration jobs are "exclusive":
+        // - they are always executed in the imap-thread and the smtp-thread is suspended during execution
+        // - they may change the database handle change the database handle; we do not keep old pointers therefore
+        // - they can be re-executed one time AT_ONCE, but they are not save in the database for later execution
         if 900 == job.action || 910 == job.action {
             dc_job_kill_action(context, job.action);
             dc_jobthread_suspend(context, &context.sentbox_thread.clone().read().unwrap(), 1);
             dc_jobthread_suspend(context, &context.mvbox_thread.clone().read().unwrap(), 1);
             dc_suspend_smtp_thread(context, 1);
         }
+
         let mut tries = 0;
         while tries <= 1 {
+            // this can be modified by a job using dc_job_try_again_later()
             job.try_again = 0;
+
             match job.action {
-                5901 => {
-                    dc_job_do_DC_JOB_SEND(context, &mut job);
-                }
-                110 => {
-                    dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context, &mut job);
-                }
-                130 => {
-                    dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context, &mut job);
-                }
-                120 => {
-                    dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context, &mut job);
-                }
-                200 => {
-                    dc_job_do_DC_JOB_MOVE_MSG(context, &mut job);
-                }
-                5011 => {
-                    dc_job_do_DC_JOB_SEND(context, &mut job);
-                }
-                900 => {
-                    dc_job_do_DC_JOB_CONFIGURE_IMAP(context, &mut job);
-                }
-                910 => {
-                    dc_job_do_DC_JOB_IMEX_IMAP(context, &mut job);
-                }
-                5005 => {
-                    dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &mut job);
-                }
-                5007 => {
-                    dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context, &mut job);
-                }
-                105 => {
-                    sql::housekeeping(context);
-                }
+                5901 => dc_job_do_DC_JOB_SEND(context, &mut job),
+                110 => dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context, &mut job),
+                130 => dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context, &mut job),
+                120 => dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context, &mut job),
+                200 => dc_job_do_DC_JOB_MOVE_MSG(context, &mut job),
+                5011 => dc_job_do_DC_JOB_SEND(context, &mut job),
+                900 => dc_job_do_DC_JOB_CONFIGURE_IMAP(context, &mut job),
+                910 => dc_job_do_DC_JOB_IMEX_IMAP(context, &mut job),
+                5005 => dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &mut job),
+                5007 => dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context, &mut job),
+                105 => sql::housekeeping(context),
                 _ => {}
             }
             if job.try_again != -1 {
@@ -175,6 +168,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             dc_suspend_smtp_thread(context, 0);
             break;
         } else if job.try_again == 2 {
+            // just try over next loop unconditionally, the ui typically interrupts idle when the file (video) is ready
             info!(
                 context,
                 0,

@@ -130,24 +130,24 @@ pub unsafe fn dc_jobthread_fetch(
  ******************************************************************************/
 
 unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc::c_int {
-    let mut ret_connected: libc::c_int;
-
     if jobthread.imap.is_connected() {
-        ret_connected = 1;
-    } else {
-        ret_connected = dc_connect_to_configured_imap(context, &jobthread.imap);
-        if !(0 == ret_connected) {
-            if sql::get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
-                jobthread.imap.configure_folders(context, 0x1);
-            }
-            let mvbox_name =
-                sql::get_config(context, &context.sql, jobthread.folder_config_name, None);
-            if let Some(name) = mvbox_name {
-                jobthread.imap.set_watch_folder(name);
-            } else {
-                jobthread.imap.disconnect(context);
-                ret_connected = 0;
-            }
+        return 1;
+    }
+
+    let mut ret_connected = dc_connect_to_configured_imap(context, &jobthread.imap);
+
+    if !(0 == ret_connected) {
+        if sql::get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
+            jobthread.imap.configure_folders(context, 0x1);
+        }
+
+        if let Some(mvbox_name) =
+            sql::get_config(context, &context.sql, jobthread.folder_config_name, None)
+        {
+            jobthread.imap.set_watch_folder(mvbox_name);
+        } else {
+            jobthread.imap.disconnect(context);
+            ret_connected = 0;
         }
     }
 
