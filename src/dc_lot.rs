@@ -2,8 +2,8 @@ use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_msg::*;
-use crate::dc_stock::*;
 use crate::dc_tools::*;
+use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
@@ -134,14 +134,14 @@ pub unsafe fn dc_lot_fill(
         return;
     }
     if (*msg).state == 19i32 {
-        (*lot).text1 = dc_stock_str(context, 3i32);
+        (*lot).text1 = to_cstring(context.stock_str(StockMessage::Draft));
         (*lot).text1_meaning = 1i32
     } else if (*msg).from_id == 1i32 as libc::c_uint {
         if 0 != dc_msg_is_info(msg) || 0 != dc_chat_is_self_talk(chat) {
             (*lot).text1 = 0 as *mut libc::c_char;
             (*lot).text1_meaning = 0i32
         } else {
-            (*lot).text1 = dc_stock_str(context, 2i32);
+            (*lot).text1 = to_cstring(context.stock_str(StockMessage::SelfMsg));
             (*lot).text1_meaning = 3i32
         }
     } else if chat.is_null() {

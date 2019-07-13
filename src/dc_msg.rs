@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use crate::constants::*;
 use crate::context::*;
 use crate::dc_chat::*;
@@ -6,10 +8,10 @@ use crate::dc_job::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
 use crate::dc_param::*;
-use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::pgp::*;
 use crate::sql;
+use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
@@ -836,17 +838,16 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
     let mut ret;
     let mut prefix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut label: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut append_text: libc::c_int = 1i32;
     match type_0 {
-        20 => prefix = dc_stock_str(context, 9i32),
-        21 => prefix = dc_stock_str(context, 23i32),
-        50 => prefix = dc_stock_str(context, 10i32),
-        41 => prefix = dc_stock_str(context, 7i32),
+        20 => prefix = to_cstring(context.stock_str(StockMessage::Image)),
+        21 => prefix = to_cstring(context.stock_str(StockMessage::Gif)),
+        50 => prefix = to_cstring(context.stock_str(StockMessage::Video)),
+        41 => prefix = to_cstring(context.stock_str(StockMessage::VoiceMessage)),
         40 | 60 => {
-            if dc_param_get_int(param, DC_PARAM_CMD as i32, 0) == 6i32 {
-                prefix = dc_stock_str(context, 42i32);
+            if dc_param_get_int(param, DC_PARAM_CMD as i32, 0) == 6 {
+                prefix = to_cstring(context.stock_str(StockMessage::AcSetupMsgSubject));
                 append_text = 0i32
             } else {
                 pathNfilename = dc_param_get(
@@ -855,24 +856,26 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
                     b"ErrFilename\x00" as *const u8 as *const libc::c_char,
                 );
                 value = dc_get_filename(pathNfilename);
-                label = dc_stock_str(
-                    context,
-                    if type_0 == DC_MSG_AUDIO as libc::c_int {
-                        11i32
-                    } else {
-                        12i32
-                    },
-                );
+                let label = CString::new(
+                    context
+                        .stock_str(if type_0 == DC_MSG_AUDIO {
+                            StockMessage::Audio
+                        } else {
+                            StockMessage::File
+                        })
+                        .as_ref(),
+                )
+                .unwrap();
                 prefix = dc_mprintf(
                     b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-                    label,
+                    label.as_ptr(),
                     value,
                 )
             }
         }
         _ => {
             if dc_param_get_int(param, DC_PARAM_CMD as i32, 0) == 9i32 {
-                prefix = dc_stock_str(context, 66i32);
+                prefix = to_cstring(context.stock_str(StockMessage::Location));
                 append_text = 0i32
             }
         }
@@ -897,7 +900,6 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
     }
     free(prefix as *mut libc::c_void);
     free(pathNfilename as *mut libc::c_void);
-    free(label as *mut libc::c_void);
     free(value as *mut libc::c_void);
     if ret.is_null() {
         ret = dc_strdup(0 as *const libc::c_char)

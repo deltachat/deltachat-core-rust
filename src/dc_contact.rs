@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use crate::aheader::EncryptPreference;
 use crate::config;
 use crate::constants::*;
@@ -5,11 +7,11 @@ use crate::context::Context;
 use crate::dc_array::*;
 use crate::dc_e2ee::*;
 use crate::dc_loginparam::*;
-use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::peerstate::*;
 use crate::sql::{self, Sql};
+use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
@@ -276,7 +278,7 @@ pub unsafe fn dc_contact_load_from_db(
 
     if contact_id == 1 as libc::c_uint {
         (*contact).id = contact_id;
-        (*contact).name = dc_stock_str((*contact).context, 2);
+        (*contact).name = to_cstring((*contact).context.stock_str(StockMessage::SelfMsg));
         (*contact).addr = to_cstring(
             (*contact)
                 .context
@@ -575,16 +577,15 @@ pub fn dc_get_contacts(
             .get_config(context, "displayname")
             .unwrap_or_default();
 
-        let self_name2 = unsafe { dc_stock_str(context, 2) };
+        let self_name2 = CString::new(context.stock_str(StockMessage::SelfMsg).as_ref()).unwrap();
 
         if query.is_null()
             || self_addr.contains(as_str(query))
             || self_name.contains(as_str(query))
-            || 0 != unsafe { dc_str_contains(self_name2, query) }
+            || 0 != unsafe { dc_str_contains(self_name2.as_ptr(), query) }
         {
             add_self = true;
         }
-        unsafe { free(self_name2 as *mut _) };
     } else {
         add_self = true;
 
@@ -650,7 +651,6 @@ pub unsafe fn dc_get_contact_encrinfo(
     let mut fingerprint_self = 0 as *mut libc::c_char;
     let mut fingerprint_other_verified = 0 as *mut libc::c_char;
     let mut fingerprint_other_unverified = 0 as *mut libc::c_char;
-    let mut p: *mut libc::c_char;
 
     if !(!dc_contact_load_from_db(contact, &context.sql, contact_id)) {
         let peerstate = Peerstate::from_addr(context, &context.sql, as_str((*contact).addr));
@@ -660,23 +660,18 @@ pub unsafe fn dc_get_contact_encrinfo(
 
         if peerstate.is_some() && peerstate.as_ref().and_then(|p| p.peek_key(0)).is_some() {
             let peerstate = peerstate.as_ref().unwrap();
-            p = dc_stock_str(
-                context,
-                if peerstate.prefer_encrypt == EncryptPreference::Mutual {
-                    34i32
-                } else {
-                    25i32
-                },
-            );
-            ret += as_str(p);
-            free(p as *mut libc::c_void);
+            let p = context.stock_str(if peerstate.prefer_encrypt == EncryptPreference::Mutual {
+                StockMessage::E2ePreferred
+            } else {
+                StockMessage::E2eAvailable
+            });
+            ret += &p;
             if self_key.is_none() {
                 dc_ensure_secret_key_exists(context);
                 self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
             }
-            p = dc_stock_str(context, 30i32);
-            ret += &format!(" {}:", as_str(p));
-            free(p as *mut libc::c_void);
+            let p = context.stock_str(StockMessage::FingerPrints);
+            ret += &format!(" {}:", p);
 
             fingerprint_self = self_key
                 .map(|k| k.formatted_fingerprint_c())
@@ -717,13 +712,9 @@ pub unsafe fn dc_get_contact_encrinfo(
                 );
             }
         } else if 0 == loginparam.server_flags & 0x400 && 0 == loginparam.server_flags & 0x40000 {
-            p = dc_stock_str(context, 27);
-            ret += as_str(p);
-            free(p as *mut libc::c_void);
+            ret += &context.stock_str(StockMessage::EncrTransp);
         } else {
-            p = dc_stock_str(context, 28);
-            ret += as_str(p);
-            free(p as *mut libc::c_void);
+            ret += &context.stock_str(StockMessage::EncrNone);
         }
     }
 

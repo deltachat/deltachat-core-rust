@@ -14,11 +14,11 @@ use crate::dc_e2ee::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::pgp::*;
 use crate::sql::{self, Sql};
+use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
@@ -260,25 +260,19 @@ pub unsafe extern "C" fn dc_render_setup_file(
                         replacement,
                     );
                     free(replacement as *mut libc::c_void);
-                    let setup_message_title: *mut libc::c_char = dc_stock_str(context, 42i32);
-                    let mut setup_message_body: *mut libc::c_char = dc_stock_str(context, 43i32);
-                    dc_str_replace(
-                        &mut setup_message_body,
-                        b"\r\x00" as *const u8 as *const libc::c_char,
-                        0 as *const libc::c_char,
-                    );
-                    dc_str_replace(
-                        &mut setup_message_body,
-                        b"\n\x00" as *const u8 as *const libc::c_char,
-                        b"<br>\x00" as *const u8 as *const libc::c_char,
-                    );
+                    let setup_message_title =
+                        CString::new(context.stock_str(StockMessage::AcSetupMsgSubject).as_ref())
+                            .unwrap();
+                    let setup_message_body = context.stock_str(StockMessage::AcSetupMsgBody);
+                    let msg_body_head: &str = setup_message_body.split('\r').next().unwrap();
+                    let msg_body_html = CString::new(msg_body_head.replace("\n", "<br>")).unwrap();
                     ret_setupfilecontent =
                         dc_mprintf(b"<!DOCTYPE html>\r\n<html>\r\n<head>\r\n<title>%s</title>\r\n</head>\r\n<body>\r\n<h1>%s</h1>\r\n<p>%s</p>\r\n<pre>\r\n%s\r\n</pre>\r\n</body>\r\n</html>\r\n\x00"
-                                       as *const u8 as *const libc::c_char,
-                                   setup_message_title, setup_message_title,
-                                   setup_message_body, encr_string);
-                    free(setup_message_title as *mut libc::c_void);
-                    free(setup_message_body as *mut libc::c_void);
+                                   as *const u8 as *const libc::c_char,
+                                   setup_message_title.as_ptr(),
+                                   setup_message_title.as_ptr(),
+                                   msg_body_html.as_ptr(),
+                                   encr_string);
                     free(encr_string as *mut libc::c_void);
                 }
             }
