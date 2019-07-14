@@ -116,7 +116,6 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
     unsafe { dc_chat_empty(chat) };
 
     let context = unsafe { (*chat).context };
-    info!(context, 0, "loading chat {}", chat_id);
 
     let res = context.sql.query_row(
         "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
@@ -704,7 +703,6 @@ unsafe fn prepare_msg_raw(
                             "rfc724_mid",
                             as_str(new_rfc724_mid),
                         );
-                        info!(context, 0, "got msg_id {}", msg_id);
                     } else {
                         error!(
                             context,
@@ -869,7 +867,6 @@ pub unsafe fn dc_send_msg<'a>(
     if msg.is_null() {
         return 0;
     }
-
     if (*msg).state != 18 {
         if 0 == prepare_msg_common(context, chat_id, msg) {
             return 0;
@@ -1317,15 +1314,14 @@ pub fn dc_archive_chat(context: &Context, chat_id: u32, archive: libc::c_int) ->
     true
 }
 
-pub fn dc_delete_chat(context: &Context, chat_id: u32) {
+pub fn dc_delete_chat(context: &Context, chat_id: u32) -> bool {
     /* Up to 2017-11-02 deleting a group also implied leaving it, see above why we have changed this. */
-    if chat_id > 9 {
-        return;
+    if chat_id <= 9 {
+        return false;
     }
     let obj = unsafe { dc_chat_new(context) };
     if !dc_chat_load_from_db(obj, chat_id) {
-        unsafe { dc_chat_unref(obj) };
-        return;
+        return false;
     }
     unsafe { dc_chat_unref(obj) };
 
@@ -1335,7 +1331,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
         "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
         params![chat_id as i32],
     ) {
-        return;
+        return false;
     }
     if !sql::execute(
         context,
@@ -1343,7 +1339,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
         "DELETE FROM msgs WHERE chat_id=?;",
         params![chat_id as i32],
     ) {
-        return;
+        return false;
     }
     if !sql::execute(
         context,
@@ -1351,7 +1347,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
         "DELETE FROM chats_contacts WHERE chat_id=?;",
         params![chat_id as i32],
     ) {
-        return;
+        return false;
     }
     if !sql::execute(
         context,
@@ -1359,12 +1355,15 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) {
         "DELETE FROM chats WHERE id=?;",
         params![chat_id as i32],
     ) {
-        return;
+        return false;
     }
 
     context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+
     dc_job_kill_action(context, 105);
     unsafe { dc_job_add(context, 105, 0, 0 as *const libc::c_char, 10) };
+
+    true
 }
 
 pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t {
