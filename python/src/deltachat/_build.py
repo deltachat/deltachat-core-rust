@@ -5,6 +5,7 @@ import tempfile
 import platform
 import os
 import cffi
+import shutil
 
 
 def ffibuilder():
@@ -66,7 +67,8 @@ def ffibuilder():
     distutils.log.set_verbosity(distutils.log.INFO)
     cc = distutils.ccompiler.new_compiler(force=True)
     distutils.sysconfig.customize_compiler(cc)
-    with tempfile.TemporaryDirectory() as tmpdir:
+    tmpdir = tempfile.mkdtemp()
+    try:
         src_name = os.path.join(tmpdir, "prep.h")
         dst_name = os.path.join(tmpdir, "prep2.c")
         with open(src_name, "w") as src_fp:
@@ -77,6 +79,8 @@ def ffibuilder():
                       macros=[('PY_CFFI', '1')])
         with open(dst_name, "r") as dst_fp:
             builder.cdef(dst_fp.read())
+    finally:
+        shutil.rmtree(tmpdir)
 
     builder.cdef("""
         extern "Python" uintptr_t py_dc_callback(
