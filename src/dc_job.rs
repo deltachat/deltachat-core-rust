@@ -1095,7 +1095,7 @@ pub fn dc_job_action_exists(context: &Context, action: libc::c_int) -> bool {
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
 pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+    let mut success = 0;
     let mut mimefactory = dc_mimefactory_t {
         from_addr: 0 as *mut libc::c_char,
         from_displayname: 0 as *mut libc::c_char,
@@ -1232,9 +1232,10 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 0 as *const libc::c_char,
                 0 as *const libc::c_char,
             );
-            success = dc_add_smtp_job(context, 5901i32, &mut mimefactory)
+            success = dc_add_smtp_job(context, 5901i32, &mut mimefactory);
         }
     }
     dc_mimefactory_empty(&mut mimefactory);
-    return success;
+
+    success
 }

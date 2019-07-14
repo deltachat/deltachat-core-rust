@@ -135,14 +135,20 @@ unsafe fn dc_chatlist_load_from_db(
     // for the deaddrop, however, they should really be hidden, however, _currently_ the deaddrop is not
     // shown at all permanent in the chatlist.
 
-    let process_row = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?));
+    let process_row = |row: &rusqlite::Row| {
+        let chat_id: i32 = row.get(0)?;
+        // TODO: verify that it is okay for this to be Null
+        let msg_id: i32 = row.get(1).unwrap_or_default();
+
+        Ok((chat_id, msg_id))
+    };
 
     let process_rows = |rows: rusqlite::MappedRows<_>| {
         for row in rows {
             let (id1, id2) = row?;
 
-            dc_array_add_id((*chatlist).chatNlastmsg_ids, id1);
-            dc_array_add_id((*chatlist).chatNlastmsg_ids, id2);
+            dc_array_add_id((*chatlist).chatNlastmsg_ids, id1 as u32);
+            dc_array_add_id((*chatlist).chatNlastmsg_ids, id2 as u32);
         }
         Ok(())
     };
@@ -228,11 +234,11 @@ unsafe fn dc_chatlist_load_from_db(
 
     if 0 != add_archived_link_item && dc_get_archived_cnt((*chatlist).context) > 0 {
         if dc_array_get_cnt((*chatlist).chatNlastmsg_ids) == 0 && 0 != listflags & 0x4 {
-            dc_array_add_id((*chatlist).chatNlastmsg_ids, 7 as uint32_t);
-            dc_array_add_id((*chatlist).chatNlastmsg_ids, 0 as uint32_t);
+            dc_array_add_id((*chatlist).chatNlastmsg_ids, 7);
+            dc_array_add_id((*chatlist).chatNlastmsg_ids, 0);
         }
-        dc_array_add_id((*chatlist).chatNlastmsg_ids, 6 as uint32_t);
-        dc_array_add_id((*chatlist).chatNlastmsg_ids, 0 as uint32_t);
+        dc_array_add_id((*chatlist).chatNlastmsg_ids, 6);
+        dc_array_add_id((*chatlist).chatNlastmsg_ids, 0);
     }
     (*chatlist).cnt = dc_array_get_cnt((*chatlist).chatNlastmsg_ids) / 2;
 

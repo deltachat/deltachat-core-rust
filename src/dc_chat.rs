@@ -113,71 +113,79 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
     if chat.is_null() || unsafe { (*chat).magic != 0xc4a7c4a7u32 } {
         return false;
     }
-
     unsafe { dc_chat_empty(chat) };
 
     let context = unsafe { (*chat).context };
+    info!(context, 0, "loading chat {}", chat_id);
 
-    context
-        .sql
-        .query_row(
-            "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
-             c.blocked, c.gossiped_timestamp, c.locations_send_until  \
-             FROM chats c WHERE c.id=?;",
-            params![chat_id as i32],
-            |row| {
-                let c = unsafe { &mut *chat };
+    let res = context.sql.query_row(
+        "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
+         c.blocked, c.gossiped_timestamp, c.locations_send_until  \
+         FROM chats c WHERE c.id=?;",
+        params![chat_id as i32],
+        |row| {
+            let c = unsafe { &mut *chat };
 
-                c.id = row.get(0)?;
-                c.type_0 = row.get(1)?;
-                c.name = {
-                    let raw: String = row.get(2)?;
-                    unsafe { strdup(to_cstring(raw).as_ptr()) }
-                };
-                c.grpid = {
-                    let raw: String = row.get(3)?;
-                    unsafe { strdup(to_cstring(raw).as_ptr()) }
-                };
+            c.id = row.get(0)?;
+            c.type_0 = row.get(1)?;
+            c.name = {
+                let raw: String = row.get(2)?;
+                unsafe { strdup(to_cstring(raw).as_ptr()) }
+            };
+            c.grpid = {
+                let raw: String = row.get(3)?;
+                unsafe { strdup(to_cstring(raw).as_ptr()) }
+            };
 
-                let packed: String = row.get(4)?;
-                unsafe { dc_param_set_packed((*chat).param, to_cstring(&packed).as_ptr()) };
-                c.archived = row.get(5)?;
-                c.blocked = row.get(6)?;
-                c.gossiped_timestamp = row.get(7)?;
-                c.is_sending_locations = row.get(8)?;
+            let packed: String = row.get(4)?;
+            unsafe { dc_param_set_packed((*chat).param, to_cstring(&packed).as_ptr()) };
+            c.archived = row.get(5)?;
+            c.blocked = row.get(6)?;
+            c.gossiped_timestamp = row.get(7)?;
+            c.is_sending_locations = row.get(8)?;
 
-                match c.id {
-                    1 => unsafe {
-                        free((*chat).name as *mut libc::c_void);
-                        (*chat).name = dc_stock_str((*chat).context, 8);
-                    },
-                    6 => unsafe {
-                        free((*chat).name as *mut libc::c_void);
-                        let tempname: *mut libc::c_char = dc_stock_str((*chat).context, 40);
-                        (*chat).name = dc_mprintf(
-                            b"%s (%i)\x00" as *const u8 as *const libc::c_char,
-                            tempname,
-                            dc_get_archived_cnt((*chat).context),
-                        );
-                        free(tempname as *mut libc::c_void);
-                    },
-                    5 => unsafe {
-                        free((*chat).name as *mut libc::c_void);
-                        (*chat).name = dc_stock_str((*chat).context, 41);
-                    },
-                    _ => {
-                        if 0 != unsafe { dc_param_exists((*chat).param, 'K' as i32) } {
-                            unsafe {
-                                free((*chat).name as *mut libc::c_void);
-                                (*chat).name = dc_stock_str((*chat).context, 2);
-                            }
+            match c.id {
+                1 => unsafe {
+                    free((*chat).name as *mut libc::c_void);
+                    (*chat).name = dc_stock_str((*chat).context, 8);
+                },
+                6 => unsafe {
+                    free((*chat).name as *mut libc::c_void);
+                    let tempname: *mut libc::c_char = dc_stock_str((*chat).context, 40);
+                    (*chat).name = dc_mprintf(
+                        b"%s (%i)\x00" as *const u8 as *const libc::c_char,
+                        tempname,
+                        dc_get_archived_cnt((*chat).context),
+                    );
+                    free(tempname as *mut libc::c_void);
+                },
+                5 => unsafe {
+                    free((*chat).name as *mut libc::c_void);
+                    (*chat).name = dc_stock_str((*chat).context, 41);
+                },
+                _ => {
+                    if 0 != unsafe { dc_param_exists((*chat).param, 'K' as i32) } {
+                        unsafe {
+                            free((*chat).name as *mut libc::c_void);
+                            (*chat).name = dc_stock_str((*chat).context, 2);
                         }
                     }
                 }
-                Ok(())
-            },
-        )
-        .is_ok()
+            }
+            Ok(())
+        },
+    );
+
+    match res {
+        Ok(_) => true,
+        Err(err) => {
+            error!(
+                context,
+                0, "chat: failed to load from db {}: {:?}", chat_id, err
+            );
+            false
+        }
+    }
 }
 
 pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32_t) -> uint32_t {
@@ -696,6 +704,7 @@ unsafe fn prepare_msg_raw(
                             "rfc724_mid",
                             as_str(new_rfc724_mid),
                         );
+                        info!(context, 0, "got msg_id {}", msg_id);
                     } else {
                         error!(
                             context,
@@ -858,20 +867,21 @@ pub unsafe fn dc_send_msg<'a>(
     msg: *mut dc_msg_t<'a>,
 ) -> uint32_t {
     if msg.is_null() {
-        return 0i32 as uint32_t;
+        return 0;
     }
-    if (*msg).state != 18i32 {
+
+    if (*msg).state != 18 {
         if 0 == prepare_msg_common(context, chat_id, msg) {
-            return 0i32 as uint32_t;
+            return 0;
         }
     } else {
-        if chat_id != 0i32 as libc::c_uint && chat_id != (*msg).chat_id {
-            return 0i32 as uint32_t;
+        if chat_id != 0 && chat_id != (*msg).chat_id {
+            return 0;
         }
-        dc_update_msg_state(context, (*msg).id, 20i32);
+        dc_update_msg_state(context, (*msg).id, 20);
     }
     if 0 == dc_job_send_msg(context, (*msg).id) {
-        return 0i32 as uint32_t;
+        return 0;
     }
     context.call_cb(
         Event::MSGS_CHANGED,
@@ -884,19 +894,18 @@ pub unsafe fn dc_send_msg<'a>(
     }
 
     if 0 == chat_id {
-        let forwards: *mut libc::c_char =
-            dc_param_get((*msg).param, 'P' as i32, 0 as *const libc::c_char);
+        let forwards = dc_param_get((*msg).param, 'P' as i32, 0 as *const libc::c_char);
         if !forwards.is_null() {
-            let mut p: *mut libc::c_char = forwards;
+            let mut p = forwards;
             while 0 != *p {
-                let id: int32_t = strtol(p, &mut p, 10i32) as int32_t;
+                let id = strtol(p, &mut p, 10) as int32_t;
                 if 0 == id {
                     // avoid hanging if user tampers with db
                     break;
                 } else {
-                    let copy: *mut dc_msg_t = dc_get_msg(context, id as uint32_t);
+                    let copy = dc_get_msg(context, id as uint32_t);
                     if !copy.is_null() {
-                        dc_send_msg(context, 0i32 as uint32_t, copy);
+                        dc_send_msg(context, 0 as uint32_t, copy);
                     }
                     dc_msg_unref(copy);
                 }
@@ -915,11 +924,11 @@ pub unsafe fn dc_send_text_msg(
     chat_id: uint32_t,
     text_to_send: *const libc::c_char,
 ) -> uint32_t {
-    let mut msg: *mut dc_msg_t = dc_msg_new(context, 10i32);
-    let mut ret: uint32_t = 0i32 as uint32_t;
-    if !(chat_id <= 9i32 as libc::c_uint || text_to_send.is_null()) {
+    let mut msg = dc_msg_new(context, 10);
+    let mut ret = 0;
+    if !(chat_id <= 9 || text_to_send.is_null()) {
         (*msg).text = dc_strdup(text_to_send);
-        ret = dc_send_msg(context, chat_id, msg)
+        ret = dc_send_msg(context, chat_id, msg);
     }
     dc_msg_unref(msg);
     ret

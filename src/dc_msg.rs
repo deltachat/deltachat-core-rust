@@ -432,7 +432,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
         return false;
     }
 
-    context.sql.query_row(
+    let res = context.sql.query_row(
         "SELECT  \
          m.id,rfc724_mid,m.mime_in_reply_to,m.server_folder,m.server_uid,m.move_state,m.chat_id,  \
          m.from_id,m.to_id,m.timestamp,m.timestamp_sent,m.timestamp_rcvd, m.type,m.state,m.msgrmsg,m.txt,  \
@@ -460,7 +460,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                (*msg).text = dc_strdup(to_cstring(row.get::<_, String>(15)?).as_ptr());
+                (*msg).text = dc_strdup(to_cstring(row.get::<_, String>(15).unwrap_or_default()).as_ptr());
                 dc_param_set_packed(
                     (*msg).param,
                     to_cstring(row.get::<_, String>(16)?).as_ptr()
@@ -475,7 +475,15 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
             }
             Ok(())
         }
-    ).is_ok()
+    );
+
+    match res {
+        Ok(_) => true,
+        Err(err) => {
+            error!(context, 0, "msg: load from db failed: {:?}", err);
+            false
+        }
+    }
 }
 
 pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut libc::c_char {

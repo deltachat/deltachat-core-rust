@@ -111,6 +111,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     msg_id: uint32_t,
 ) -> libc::c_int {
     if factory.is_null() || msg_id <= 9 || !(*factory).msg.is_null() {
+        info!((*factory).context, 0, "mimefactory: null");
         return 0;
     }
 
@@ -125,9 +126,12 @@ pub unsafe fn dc_mimefactory_load_msg(
     if dc_msg_load_from_db((*factory).msg, context, msg_id)
         && dc_chat_load_from_db((*factory).chat, (*(*factory).msg).chat_id)
     {
+        info!(context, 0, "mimefactory: loaded msg and chat",);
         load_from(factory);
         (*factory).req_mdn = 0;
         if 0 != dc_chat_is_self_talk((*factory).chat) {
+            info!(context, 0, "mimefactory: selftalk");
+
             clist_insert_after(
                 (*factory).recipients_names,
                 (*(*factory).recipients_names).last,
@@ -139,6 +143,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 dc_strdup((*factory).from_addr) as *mut libc::c_void,
             );
         } else {
+            info!(context, 0, "mimefactory: query map");
             context
                 .sql
                 .query_map(
@@ -153,6 +158,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                         Ok((authname, addr))
                     },
                     |rows| {
+                        info!(context, 0, "mimefactory: processing rows");
                         for row in rows {
                             let (authname, addr) = row?;
                             let addr_c = to_cstring(addr);
@@ -217,6 +223,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 (*factory).req_mdn = 1
             }
         }
+        info!(context, 0, "mimefactory: loading in reply to");
 
         let row = context.sql.query_row(
             "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
@@ -228,9 +235,17 @@ pub unsafe fn dc_mimefactory_load_msg(
                 Ok((in_reply_to, references))
             },
         );
-        if let Ok((in_reply_to, references)) = row {
-            (*factory).in_reply_to = dc_strdup(to_cstring(in_reply_to).as_ptr());
-            (*factory).references = dc_strdup(to_cstring(references).as_ptr());
+        match row {
+            Ok((in_reply_to, references)) => {
+                (*factory).in_reply_to = dc_strdup(to_cstring(in_reply_to).as_ptr());
+                (*factory).references = dc_strdup(to_cstring(references).as_ptr());
+            }
+            Err(err) => {
+                error!(
+                    context,
+                    0, "mimefactory: failed to load mime_in_reply_to: {:?}", err
+                );
+            }
         }
 
         success = 1;
