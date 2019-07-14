@@ -1,3 +1,10 @@
+0.600.1
+---------
+
+- introduce automatic versioning via setuptools_scm, 
+  based on py-X.Y.Z tags 
+
+
 0.600.0
 ---------
 
