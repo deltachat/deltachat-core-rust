@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
 
+use deltachat::config;
 use deltachat::constants::Event;
 use deltachat::context::*;
 use deltachat::dc_chat::*;
@@ -85,8 +86,8 @@ fn main() {
         let args = std::env::args().collect::<Vec<String>>();
         assert_eq!(args.len(), 2, "missing password");
         let pw = args[1].clone();
-        dc_set_config(&ctx, "addr", Some("d@testrun.org"));
-        dc_set_config(&ctx, "mail_pw", Some(&pw));
+        config::set(&ctx, "addr", Some("d@testrun.org"));
+        config::set(&ctx, "mail_pw", Some(&pw));
         dc_configure(&ctx);
 
         thread::sleep(duration);

@@ -1,7 +1,7 @@
 use crate::aheader::EncryptPreference;
+use crate::config;
 use crate::constants::Event;
 use crate::context::Context;
-use crate::context::*;
 use crate::dc_array::*;
 use crate::dc_e2ee::*;
 use crate::dc_loginparam::*;
@@ -882,7 +882,7 @@ pub fn dc_contact_get_profile_image(contact: *const dc_contact_t) -> *mut libc::
     }
 
     if unsafe { (*contact).id } == 1 {
-        let avatar = dc_get_config(unsafe { (*contact).context }, "selfavatar");
+        let avatar = config::get(unsafe { (*contact).context }, "selfavatar");
         if !avatar.is_empty() {
             image_abs = unsafe { dc_strdup(to_cstring(avatar).as_ptr()) };
         }

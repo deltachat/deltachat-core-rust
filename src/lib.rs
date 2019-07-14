@@ -21,6 +21,7 @@ extern crate rusqlite;
 mod log;
 
 pub mod aheader;
+pub mod config;
 pub mod constants;
 pub mod context;
 pub mod error;

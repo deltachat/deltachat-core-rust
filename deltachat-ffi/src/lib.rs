@@ -91,7 +91,7 @@ pub unsafe extern "C" fn dc_set_config(
     assert!(!key.is_null(), "invalid key");
     let context = &*context;
 
-    context::dc_set_config(context, dc_tools::as_str(key), as_opt_str(value))
+    config::set(context, dc_tools::as_str(key), as_opt_str(value))
 }
 
 #[no_mangle]
@@ -103,7 +103,7 @@ pub unsafe extern "C" fn dc_get_config(
     assert!(!key.is_null(), "invalid key");
     let context = &*context;
 
-    into_cstring(context::dc_get_config(context, dc_tools::as_str(key)))
+    into_cstring(config::get(context, dc_tools::as_str(key)))
 }
 
 #[no_mangle]

@@ -17,6 +17,7 @@ use std::borrow::Cow::{self, Borrowed, Owned};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
+use deltachat::config;
 use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_configure::*;
@@ -514,7 +515,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             dc_configure(&ctx.read().unwrap());
         }
         "oauth2" => {
-            let addr = dc_get_config(&ctx.read().unwrap(), "addr");
+            let addr = config::get(&ctx.read().unwrap(), "addr");
             if addr.is_empty() {
                 println!("oauth2: set addr first.");
             } else {

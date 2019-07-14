@@ -11,7 +11,6 @@ use crate::dc_lot::dc_lot_t;
 use crate::dc_move::*;
 use crate::dc_msg::*;
 use crate::dc_receive_imf::*;
-use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::imap::*;
 use crate::key::*;
@@ -19,49 +18,6 @@ use crate::smtp::*;
 use crate::sql::{self, Sql};
 use crate::types::*;
 use crate::x::*;
-
-const CONFIG_KEYS: [&'static str; 33] = [
-    "addr",
-    "mail_server",
-    "mail_user",
-    "mail_pw",
-    "mail_port",
-    "send_server",
-    "send_user",
-    "send_pw",
-    "send_port",
-    "server_flags",
-    "imap_folder",
-    "displayname",
-    "selfstatus",
-    "selfavatar",
-    "e2ee_enabled",
-    "mdns_enabled",
-    "inbox_watch",
-    "sentbox_watch",
-    "mvbox_watch",
-    "mvbox_move",
-    "show_emails",
-    "save_mime_headers",
-    "configured_addr",
-    "configured_mail_server",
-    "configured_mail_user",
-    "configured_mail_pw",
-    "configured_mail_port",
-    "configured_send_server",
-    "configured_send_user",
-    "configured_send_pw",
-    "configured_send_port",
-    "configured_server_flags",
-    "configured",
-];
-
-// deprecated
-const SYS_CONFIG_KEYS: [&'static str; 3] = [
-    "sys.version",
-    "sys.msgsize_max_recommended",
-    "sys.config_keys",
-];
 
 #[repr(C)]
 pub struct Context {
@@ -412,128 +368,9 @@ pub unsafe fn dc_get_blobdir(context: &Context) -> *mut libc::c_char {
     dc_strdup(*context.blobdir.clone().read().unwrap())
 }
 
-pub fn dc_set_config(context: &Context, key: impl AsRef<str>, value: Option<&str>) -> libc::c_int {
-    let mut ret = 0;
-
-    if !is_settable_config_key(key.as_ref()) {
-        return 0;
-    }
-
-    match key.as_ref() {
-        "selfavatar" if value.is_some() => {
-            let mut rel_path = unsafe { dc_strdup(to_cstring(value.unwrap()).as_ptr()) };
-            if 0 != unsafe { dc_make_rel_and_copy(context, &mut rel_path) } {
-                ret = sql::set_config(context, &context.sql, key, Some(as_str(rel_path)));
-            }
-            unsafe { free(rel_path as *mut libc::c_void) };
-        }
-        "inbox_watch" => {
-            ret = sql::set_config(context, &context.sql, key, value);
-            unsafe { dc_interrupt_imap_idle(context) };
-        }
-        "sentbox_watch" => {
-            ret = sql::set_config(context, &context.sql, key, value);
-            unsafe { dc_interrupt_sentbox_idle(context) };
-        }
-        "mvbox_watch" => {
-            ret = sql::set_config(context, &context.sql, key, value);
-            unsafe { dc_interrupt_mvbox_idle(context) };
-        }
-        "selfstatus" => {
-            let def = unsafe { dc_stock_str(context, 13) };
-            let val = if value.is_none() || value.unwrap() == as_str(def) {
-                None
-            } else {
-                value
-            };
-
-            ret = sql::set_config(context, &context.sql, key, val);
-            unsafe { free(def as *mut libc::c_void) };
-        }
-        _ => {
-            ret = sql::set_config(context, &context.sql, key, value);
-        }
-    }
-    ret
-}
-
 /* ******************************************************************************
  * INI-handling, Information
  ******************************************************************************/
-
-fn is_settable_config_key(key: impl AsRef<str>) -> bool {
-    CONFIG_KEYS
-        .into_iter()
-        .find(|c| **c == key.as_ref())
-        .is_some()
-}
-
-pub fn dc_get_config(context: &Context, key: impl AsRef<str>) -> String {
-    if key.as_ref().starts_with("sys") {
-        return get_sys_config_str(key.as_ref());
-    }
-
-    if !is_gettable_config_key(key.as_ref()) {
-        return "".into();
-    }
-
-    let value = match key.as_ref() {
-        "selfavatar" => {
-            let rel_path = sql::get_config(context, &context.sql, key.as_ref(), None);
-            rel_path.map(|p| {
-                let v = unsafe { dc_get_abs_path(context, to_cstring(p).as_ptr()) };
-                let r = to_string(v);
-                unsafe { free(v as *mut _) };
-                r
-            })
-        }
-        _ => sql::get_config(context, &context.sql, key.as_ref(), None),
-    };
-
-    if value.is_some() {
-        return value.unwrap();
-    }
-
-    match key.as_ref() {
-        "e2ee_enabled" => "1".into(),
-        "mdns_enabled" => "1".into(),
-        "imap_folder" => "INBOX".into(),
-        "inbox_watch" => "1".into(),
-        "sentbox_watch" | "mvbox_watch" | "mvbox_move" => "1".into(),
-        "show_emails" => "0".into(),
-        "selfstatus" => {
-            let s = unsafe { dc_stock_str(context, 13) };
-            let res = to_string(s);
-            unsafe { free(s as *mut _) };
-            res
-        }
-        _ => "".into(),
-    }
-}
-
-fn is_gettable_config_key(key: impl AsRef<str>) -> bool {
-    SYS_CONFIG_KEYS
-        .into_iter()
-        .find(|c| **c == key.as_ref())
-        .is_some()
-        || is_settable_config_key(key)
-}
-
-fn get_sys_config_str(key: impl AsRef<str>) -> String {
-    match key.as_ref() {
-        "sys.version" => std::str::from_utf8(DC_VERSION_STR).unwrap().into(),
-        "sys.msgsize_max_recommended" => format!("{}", 24 * 1024 * 1024 / 4 * 3),
-        "sys.config_keys" => get_config_keys_str(),
-        _ => "".into(),
-    }
-}
-
-fn get_config_keys_str() -> String {
-    let keys = &CONFIG_KEYS[..].join(" ");
-    let sys_keys = &SYS_CONFIG_KEYS[..].join(" ");
-
-    format!(" {} {} ", keys, sys_keys)
-}
 
 pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let unset = "0";

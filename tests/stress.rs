@@ -6,6 +6,7 @@ use std::ffi::CString;
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
 
+use deltachat::config;
 use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
@@ -247,7 +248,7 @@ unsafe fn stress_functions(context: &Context) {
         free(fn1 as *mut libc::c_void);
     }
 
-    let res = dc_get_config(context, "sys.config_keys");
+    let res = config::get(context, "sys.config_keys");
 
     assert!(!res.contains(" probably_never_a_key "));
     assert!(res.contains(" addr "));
