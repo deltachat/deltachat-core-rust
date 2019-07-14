@@ -2,7 +2,12 @@ from deltachat import capi, const
 from deltachat.capi import ffi
 from deltachat.account import Account  # noqa
 
-__version__ = "0.600.0"
+from pkg_resources import get_distribution, DistributionNotFound
+try:
+    __version__ = get_distribution(__name__).version
+except DistributionNotFound:
+    # package is not installed
+    __version__ = "0.0.0.dev0-unknown"
 
 
 _DC_CALLBACK_MAP = {}

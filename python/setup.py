@@ -4,14 +4,19 @@ import re
 
 
 def main():
-    long_description, version = read_meta()
+    with open("README.rst") as f:
+        long_description = f.read()
     setuptools.setup(
         name='deltachat',
-        version=version,
+        setup_requires=['setuptools_scm', 'cffi>=1.0.0'],
+        use_scm_version = {
+            "root": "..",
+            "relative_to": __file__,
+            'tag_regex': r'^(?P<prefix>py-)?(?P<version>[^\+]+)(?P<suffix>.*)?$',
+        },
         description='Python bindings for the Delta Chat Core library using CFFI against the Rust-implemented libdeltachat',
         long_description=long_description,
         author='holger krekel, Floris Bruynooghe, Bjoern Petersen and contributors',
-        setup_requires=['cffi>=1.0.0'],
         install_requires=['cffi>=1.0.0', 'attrs', 'six'],
         packages=setuptools.find_packages('src'),
         package_dir={'': 'src'},
@@ -25,19 +30,6 @@ def main():
             'Topic :: Software Development :: Libraries',
         ],
     )
-
-
-def read_meta():
-    with open(os.path.join("src", "deltachat", "__init__.py")) as f:
-        for line in f:
-            m = re.match('__version__ = "(\S*).*"', line)
-            if m:
-                version, = m.groups()
-                break
-
-    with open("README.rst") as f:
-        long_desc = f.read()
-    return long_desc, version
 
 
 if __name__ == "__main__":
