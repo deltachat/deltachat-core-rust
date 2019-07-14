@@ -8,7 +8,6 @@ use crate::context::Context;
 use crate::dc_job::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
-use crate::sql;
 use crate::x::*;
 
 /// The available configuration keys.
@@ -83,7 +82,7 @@ pub fn get(context: &Context, key: impl AsRef<str>) -> String {
         Ok(config_key) => {
             let value = match config_key {
                 Config::Selfavatar => {
-                    let rel_path = sql::get_config(context, &context.sql, key, None);
+                    let rel_path = context.sql.get_config(context, key, None);
                     rel_path.map(|p| {
                         let v = unsafe { dc_get_abs_path(context, to_cstring(p).as_ptr()) };
                         let r = to_string(v);
@@ -91,7 +90,7 @@ pub fn get(context: &Context, key: impl AsRef<str>) -> String {
                         r
                     })
                 }
-                _ => sql::get_config(context, &context.sql, key, None),
+                _ => context.sql.get_config(context, key, None),
             };
 
             if value.is_some() {
@@ -151,20 +150,20 @@ pub fn set(context: &Context, key: impl AsRef<str>, value: Option<&str>) -> libc
         Ok(Config::Selfavatar) if value.is_some() => {
             let mut rel_path = unsafe { dc_strdup(to_cstring(value.unwrap()).as_ptr()) };
             if 0 != unsafe { dc_make_rel_and_copy(context, &mut rel_path) } {
-                ret = sql::set_config(context, &context.sql, key, Some(as_str(rel_path)));
+                ret = context.sql.set_config(context, key, Some(as_str(rel_path)));
             }
             unsafe { free(rel_path as *mut libc::c_void) };
         }
         Ok(Config::InboxWatch) => {
-            ret = sql::set_config(context, &context.sql, key, value);
+            ret = context.sql.set_config(context, key, value);
             unsafe { dc_interrupt_imap_idle(context) };
         }
         Ok(Config::SentboxWatch) => {
-            ret = sql::set_config(context, &context.sql, key, value);
+            ret = context.sql.set_config(context, key, value);
             unsafe { dc_interrupt_sentbox_idle(context) };
         }
         Ok(Config::MvboxWatch) => {
-            ret = sql::set_config(context, &context.sql, key, value);
+            ret = context.sql.set_config(context, key, value);
             unsafe { dc_interrupt_mvbox_idle(context) };
         }
         Ok(Config::Selfstatus) => {
@@ -175,11 +174,11 @@ pub fn set(context: &Context, key: impl AsRef<str>, value: Option<&str>) -> libc
                 value
             };
 
-            ret = sql::set_config(context, &context.sql, key, val);
+            ret = context.sql.set_config(context, key, val);
             unsafe { free(def as *mut libc::c_void) };
         }
         Ok(_) => {
-            ret = sql::set_config(context, &context.sql, key, value);
+            ret = context.sql.set_config(context, key, value);
         }
         Err(_) => {}
     }

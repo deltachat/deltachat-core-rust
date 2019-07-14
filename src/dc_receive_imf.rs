@@ -217,7 +217,7 @@ pub unsafe fn dc_receive_imf(
                         let mut allow_creation: libc::c_int = 1;
                         if msgrmsg == 0 {
                             let show_emails: libc::c_int =
-                                sql::get_config_int(context, &context.sql, "show_emails", 0);
+                                context.sql.get_config_int(context, "show_emails", 0);
                             if show_emails == 0 {
                                 chat_id = 3 as uint32_t;
                                 allow_creation = 0
@@ -404,7 +404,7 @@ pub unsafe fn dc_receive_imf(
                         // if the mime-headers should be saved, find out its size
                         // (the mime-header ends with an empty line)
                         let save_mime_headers =
-                            sql::get_config_int(context, &context.sql, "save_mime_headers", 0);
+                            context.sql.get_config_int(context, "save_mime_headers", 0);
                         field = dc_mimeparser_lookup_field(&mime_parser, "In-Reply-To");
                         if !field.is_null()
                             && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int
@@ -581,8 +581,7 @@ pub unsafe fn dc_receive_imf(
             16282941964262048061 => {}
             _ => {
                 if carray_count(mime_parser.reports) > 0 as libc::c_uint {
-                    let mdns_enabled =
-                        sql::get_config_int(context, &context.sql, "mdns_enabled", 1);
+                    let mdns_enabled = context.sql.get_config_int(context, "mdns_enabled", 1);
                     icnt = carray_count(mime_parser.reports) as size_t;
                     i = 0 as size_t;
                     while i < icnt {
@@ -740,12 +739,7 @@ pub unsafe fn dc_receive_imf(
                                     );
                                     dc_param_set_int(param, 'z' as i32, server_uid as i32);
                                     if 0 != mime_parser.is_send_by_messenger
-                                        && 0 != sql::get_config_int(
-                                            context,
-                                            &context.sql,
-                                            "mvbox_move",
-                                            1,
-                                        )
+                                        && 0 != context.sql.get_config_int(context, "mvbox_move", 1)
                                     {
                                         dc_param_set_int(param, 'M' as i32, 1);
                                     }
@@ -860,9 +854,8 @@ unsafe fn calc_timestamps(
     }
     *sort_timestamp = message_timestamp;
     if 0 != is_fresh_msg {
-        let last_msg_time: Option<i64> = sql::query_row(
+        let last_msg_time: Option<i64> = context.sql.query_row_col(
             context,
-            &context.sql,
             "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?",
             params![chat_id as i32, from_id as i32, *sort_timestamp],
             0,
@@ -1107,7 +1100,9 @@ unsafe fn create_or_lookup_group(
             }
             /* check if the group does not exist but should be created */
             group_explicitly_left = dc_is_group_explicitly_left(context, grpid);
-            let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""))
+            let self_addr = context
+                .sql
+                .get_config(context, "configured_addr", Some(""))
                 .unwrap_or_default();
             if chat_id == 0 as libc::c_uint
                 && 0 == dc_mimeparser_is_mailinglist_message(mime_parser)
@@ -1473,7 +1468,9 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
      */
     let member_ids_str = dc_array_get_string(member_ids, b",\x00" as *const u8 as *const _);
-    let member_cs = sql::get_config(context, &context.sql, "configured_addr", Some("no-self"))
+    let member_cs = context
+        .sql
+        .get_config(context, "configured_addr", Some("no-self"))
         .unwrap()
         .to_lowercase();
 
@@ -1979,7 +1976,10 @@ unsafe fn add_or_lookup_contact_by_addr(
         return;
     }
     *check_self = 0;
-    let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some("")).unwrap();
+    let self_addr = context
+        .sql
+        .get_config(context, "configured_addr", Some(""))
+        .unwrap();
 
     if dc_addr_cmp(self_addr, as_str(addr_spec)) {
         *check_self = 1;

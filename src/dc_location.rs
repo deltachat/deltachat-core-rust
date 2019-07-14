@@ -261,7 +261,7 @@ pub fn dc_get_location_kml(
     let mut location_count: libc::c_int = 0;
     let mut ret = String::new();
 
-    let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""));
+    let self_addr = context.sql.get_config(context, "configured_addr", Some(""));
 
     if self_addr.is_none() {
         return std::ptr::null_mut();

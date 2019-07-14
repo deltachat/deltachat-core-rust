@@ -19,7 +19,6 @@ use crate::dc_param::*;
 use crate::dc_stock::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
-use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -196,7 +195,9 @@ pub unsafe fn dc_mimefactory_load_msg(
                     0 as *const libc::c_char,
                 );
                 let email_to_remove = to_string(email_to_remove_c);
-                let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""))
+                let self_addr = context
+                    .sql
+                    .get_config(context, "configured_addr", Some(""))
                     .unwrap_or_default();
 
                 if !email_to_remove.is_empty() && email_to_remove != self_addr {
@@ -218,7 +219,7 @@ pub unsafe fn dc_mimefactory_load_msg(
             }
             if command != 6
                 && command != 7
-                && 0 != sql::get_config_int(context, &context.sql, "mdns_enabled", 1)
+                && 0 != context.sql.get_config_int(context, "mdns_enabled", 1)
             {
                 (*factory).req_mdn = 1
             }
@@ -261,39 +262,31 @@ pub unsafe fn dc_mimefactory_load_msg(
 }
 
 unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
+    let context = (*factory).context;
     (*factory).from_addr = strdup(
         to_cstring(
-            sql::get_config(
-                (*factory).context,
-                &(*factory).context.sql,
-                "configured_addr",
-                None,
-            )
-            .unwrap_or_default(),
+            context
+                .sql
+                .get_config(context, "configured_addr", None)
+                .unwrap_or_default(),
         )
         .as_ptr(),
     );
     (*factory).from_displayname = strdup(
         to_cstring(
-            sql::get_config(
-                (*factory).context,
-                &(*factory).context.sql,
-                "displayname",
-                None,
-            )
-            .unwrap_or_default(),
+            context
+                .sql
+                .get_config(context, "displayname", None)
+                .unwrap_or_default(),
         )
         .as_ptr(),
     );
     (*factory).selfstatus = strdup(
         to_cstring(
-            sql::get_config(
-                (*factory).context,
-                &(*factory).context.sql,
-                "selfstatus",
-                None,
-            )
-            .unwrap_or_default(),
+            context
+                .sql
+                .get_config(context, "selfstatus", None)
+                .unwrap_or_default(),
         )
         .as_ptr(),
     );
@@ -316,12 +309,11 @@ pub unsafe fn dc_mimefactory_load_mdn(
     (*factory).recipients_names = clist_new();
     (*factory).recipients_addr = clist_new();
     (*factory).msg = dc_msg_new_untyped((*factory).context);
-    if 0 != sql::get_config_int(
-        (*factory).context,
-        &(*factory).context.sql,
-        "mdns_enabled",
-        1,
-    ) {
+    if 0 != (*factory)
+        .context
+        .sql
+        .get_config_int((*factory).context, "mdns_enabled", 1)
+    {
         // MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ...
         contact = dc_contact_new((*factory).context);
         if !(!dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)

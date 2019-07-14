@@ -484,7 +484,7 @@ unsafe fn prepare_msg_raw(
             "Cannot send message; self not in group.",
         );
     } else {
-        let from = sql::get_config(context, &context.sql, "configured_addr", None);
+        let from = context.sql.get_config(context, "configured_addr", None);
         if from.is_none() {
             error!(context, 0, "Cannot send message, not configured.",);
         } else {
@@ -499,9 +499,8 @@ unsafe fn prepare_msg_raw(
             );
 
             if (*chat).type_0 == 100 {
-                if let Some(id) = sql::query_row(
+                if let Some(id) = context.sql.query_row_col(
                     context,
-                    &context.sql,
                     "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
                     params![(*chat).id as i32],
                     0,
@@ -534,7 +533,7 @@ unsafe fn prepare_msg_raw(
                     so that E2EE is no longer available at a later point (reset, changed settings),
                     we do not send the message out at all */
                     do_guarantee_e2ee = 0;
-                    e2ee_enabled = sql::get_config_int(context, &context.sql, "e2ee_enabled", 1);
+                    e2ee_enabled = context.sql.get_config_int(context, "e2ee_enabled", 1);
                     if 0 != e2ee_enabled && dc_param_get_int((*msg).param, 'u' as i32, 0) == 0 {
                         let mut can_encrypt: libc::c_int = 1;
                         let mut all_mutual: libc::c_int = 1;
@@ -799,9 +798,8 @@ unsafe fn last_msg_in_chat_encrypted(
     chat_id: uint32_t,
 ) -> libc::c_int {
     let mut last_is_encrypted: libc::c_int = 0i32;
-    let packed: Option<String> = sql::query_row(
+    let packed: Option<String> = sql.query_row_col(
         context,
-        sql,
         "SELECT param  \
          FROM msgs  WHERE timestamp=(SELECT MAX(timestamp) FROM msgs WHERE chat_id=?)  \
          ORDER BY id DESC;",
@@ -1012,14 +1010,15 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
 }
 
 fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
-    let draft_msg_id: i32 = sql::query_row(
-        context,
-        &context.sql,
-        "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
-        params![chat_id as i32, 19],
-        0,
-    )
-    .unwrap_or_default();
+    let draft_msg_id: i32 = context
+        .sql
+        .query_row_col(
+            context,
+            "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
+            params![chat_id as i32, 19],
+            0,
+        )
+        .unwrap_or_default();
 
     draft_msg_id as u32
 }
@@ -1076,7 +1075,7 @@ pub unsafe fn dc_get_chat_msgs(
     };
 
     let success = if chat_id == 1 {
-        let show_emails = sql::get_config_int(context, &context.sql, "show_emails", 0);
+        let show_emails = context.sql.get_config_int(context, "show_emails", 0);
         context.sql.query_map(
             "SELECT m.id, m.timestamp FROM msgs m \
              LEFT JOIN chats ON m.chat_id=chats.id \
@@ -1125,28 +1124,30 @@ pub unsafe fn dc_get_chat_msgs(
 }
 
 pub fn dc_get_msg_cnt(context: &Context, chat_id: u32) -> libc::c_int {
-    sql::query_row(
-        context,
-        &context.sql,
-        "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
-        params![chat_id as i32],
-        0,
-    )
-    .unwrap_or_default()
+    context
+        .sql
+        .query_row_col(
+            context,
+            "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
+            params![chat_id as i32],
+            0,
+        )
+        .unwrap_or_default()
 }
 
 pub fn dc_get_fresh_msg_cnt(context: &Context, chat_id: u32) -> libc::c_int {
-    sql::query_row(
-        context,
-        &context.sql,
-        "SELECT COUNT(*) FROM msgs  \
-         WHERE state=10   \
-         AND hidden=0    \
-         AND chat_id=?;",
-        params![chat_id as i32],
-        0,
-    )
-    .unwrap_or_default()
+    context
+        .sql
+        .query_row_col(
+            context,
+            "SELECT COUNT(*) FROM msgs  \
+             WHERE state=10   \
+             AND hidden=0    \
+             AND chat_id=?;",
+            params![chat_id as i32],
+            0,
+        )
+        .unwrap_or_default()
 }
 
 pub fn dc_marknoticed_chat(context: &Context, chat_id: u32) -> bool {
@@ -1518,7 +1519,9 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     dc_param_set((*chat).param, 'U' as i32, 0 as *const libc::c_char);
                     dc_chat_update_param(chat);
                 }
-                let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""))
+                let self_addr = context
+                    .sql
+                    .get_config(context, "configured_addr", Some(""))
                     .unwrap_or_default();
                 if as_str((*contact).addr) != &self_addr {
                     // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
@@ -2039,16 +2042,18 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
     if (*chat).type_0 == 100 && 0 != dc_param_exists((*chat).param, 'K' as i32) {
         ret = dc_stock_str((*chat).context, 50)
     } else if (*chat).type_0 == 100 {
-        let ret_raw: String = sql::query_row(
-            (*chat).context,
-            &(*chat).context.sql,
-            "SELECT c.addr FROM chats_contacts cc  \
-             LEFT JOIN contacts c ON c.id=cc.contact_id  \
-             WHERE cc.chat_id=?;",
-            params![(*chat).id as i32],
-            0,
-        )
-        .unwrap_or_else(|| "Err".into());
+        let ret_raw: String = (*chat)
+            .context
+            .sql
+            .query_row_col(
+                (*chat).context,
+                "SELECT c.addr FROM chats_contacts cc  \
+                 LEFT JOIN contacts c ON c.id=cc.contact_id  \
+                 WHERE cc.chat_id=?;",
+                params![(*chat).id as i32],
+                0,
+            )
+            .unwrap_or_else(|| "Err".into());
         ret = dc_strdup(to_cstring(ret_raw).as_ptr());
     } else if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
         if (*chat).id == 1 {
@@ -2066,14 +2071,15 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
 }
 
 pub fn dc_get_chat_contact_cnt(context: &Context, chat_id: u32) -> libc::c_int {
-    sql::query_row(
-        context,
-        &context.sql,
-        "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
-        params![chat_id as i32],
-        0,
-    )
-    .unwrap_or_default()
+    context
+        .sql
+        .query_row_col(
+            context,
+            "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
+            params![chat_id as i32],
+            0,
+        )
+        .unwrap_or_default()
 }
 
 pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char {
@@ -2164,14 +2170,15 @@ pub unsafe fn dc_chat_is_sending_locations(chat: *const Chat) -> libc::c_int {
 pub fn dc_get_chat_cnt(context: &Context) -> usize {
     if context.sql.is_open() {
         /* no database, no chats - this is no error (needed eg. for information) */
-        sql::query_row::<_, isize>(
-            context,
-            &context.sql,
-            "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
-            params![],
-            0,
-        )
-        .unwrap_or_default() as usize
+        context
+            .sql
+            .query_row_col::<_, isize>(
+                context,
+                "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
+                params![],
+                0,
+            )
+            .unwrap_or_default() as usize
     } else {
         0
     }

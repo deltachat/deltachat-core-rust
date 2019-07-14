@@ -33,9 +33,8 @@ pub fn dc_token_lookup(
     namespc: dc_tokennamespc_t,
     foreign_id: u32,
 ) -> *mut libc::c_char {
-    if let Some(token) = sql::query_row::<_, String>(
+    if let Some(token) = context.sql.query_row_col::<_, String>(
         context,
-        &context.sql,
         "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
         params![namespc as i32, foreign_id as i32],
         0,

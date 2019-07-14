@@ -8,7 +8,6 @@ use crate::context::Context;
 use crate::dc_loginparam::*;
 use crate::dc_tools::as_str;
 use crate::oauth2::dc_get_oauth2_access_token;
-use crate::sql;
 use crate::types::*;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
@@ -1598,19 +1597,15 @@ impl Imap {
             }
         }
 
-        sql::set_config_int(context, &context.sql, "folders_configured", 3);
+        context.sql.set_config_int(context, "folders_configured", 3);
         if let Some(ref mvbox_folder) = mvbox_folder {
-            sql::set_config(
-                context,
-                &context.sql,
-                "configured_mvbox_folder",
-                Some(mvbox_folder),
-            );
+            context
+                .sql
+                .set_config(context, "configured_mvbox_folder", Some(mvbox_folder));
         }
         if let Some(ref sentbox_folder) = sentbox_folder {
-            sql::set_config(
+            context.sql.set_config(
                 context,
-                &context.sql,
                 "configured_sentbox_folder",
                 Some(sentbox_folder.name()),
             );

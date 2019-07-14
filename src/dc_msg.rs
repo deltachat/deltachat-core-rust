@@ -52,9 +52,8 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     dc_msg_load_from_db(msg, context, msg_id);
     dc_contact_load_from_db(contact_from, &context.sql, (*msg).from_id);
 
-    let rawtxt: Option<String> = sql::query_row(
+    let rawtxt: Option<String> = context.sql.query_row_col(
         context,
-        &context.sql,
         "SELECT txt_raw FROM msgs WHERE id=?;",
         params![msg_id as i32],
         0,
@@ -487,9 +486,8 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
 }
 
 pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut libc::c_char {
-    let headers: Option<String> = sql::query_row(
+    let headers: Option<String> = context.sql.query_row_col(
         context,
-        &context.sql,
         "SELECT mime_headers FROM msgs WHERE id=?;",
         params![msg_id as i32],
         0,
@@ -1132,9 +1130,8 @@ pub unsafe fn dc_msg_exists(context: &Context, msg_id: uint32_t) -> libc::c_int 
         return 0;
     }
 
-    let chat_id: Option<i32> = sql::query_row(
+    let chat_id: Option<i32> = context.sql.query_row_col(
         context,
-        &context.sql,
         "SELECT chat_id FROM msgs WHERE id=?;",
         params![msg_id as i32],
         0,
@@ -1255,14 +1252,15 @@ pub unsafe fn dc_mdn_from_ext(
                 read_by_all = 1;
             } else {
                 /* send event about new state */
-                let ist_cnt: i32 = sql::query_row(
-                    context,
-                    &context.sql,
-                    "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
-                    params![*ret_msg_id as i32],
-                    0,
-                )
-                .unwrap_or_default();
+                let ist_cnt: i32 = context
+                    .sql
+                    .query_row_col(
+                        context,
+                        "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
+                        params![*ret_msg_id as i32],
+                        0,
+                    )
+                    .unwrap_or_default();
                 /*
                 Groupsize:  Min. MDNs
 

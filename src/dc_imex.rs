@@ -69,8 +69,7 @@ pub unsafe fn dc_imex_has_backup(
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
                     let sql = Sql::new();
                     if sql.open(context, &path, 0x1) {
-                        let curr_backup_time =
-                            sql::get_config_int(context, &sql, "backup_time", 0) as u64;
+                        let curr_backup_time = sql.get_config_int(context, "backup_time", 0) as u64;
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);
                             newest_backup_time = curr_backup_time;
@@ -223,10 +222,12 @@ pub unsafe extern "C" fn dc_render_setup_file(
         passphrase_begin[2usize] = 0i32 as libc::c_char;
         /* create the payload */
         if !(0 == dc_ensure_secret_key_exists(context)) {
-            let self_addr =
-                sql::get_config(context, &context.sql, "configured_addr", None).unwrap_or_default();
+            let self_addr = context
+                .sql
+                .get_config(context, "configured_addr", None)
+                .unwrap_or_default();
             let curr_private_key = Key::from_self_private(context, self_addr, &context.sql);
-            let e2ee_enabled = sql::get_config_int(context, &context.sql, "e2ee_enabled", 1);
+            let e2ee_enabled = context.sql.get_config_int(context, "e2ee_enabled", 1);
 
             let headers = if 0 != e2ee_enabled {
                 Some(("Autocrypt-Prefer-Encrypt", "mutual"))
@@ -409,7 +410,7 @@ fn set_self_key(
         error!(context, 0, "File does not contain a private key.",);
     }
 
-    let self_addr = sql::get_config(context, &context.sql, "configured_addr", None);
+    let self_addr = context.sql.get_config(context, "configured_addr", None);
 
     if self_addr.is_none() {
         error!(context, 0, "Missing self addr");
@@ -430,8 +431,8 @@ fn set_self_key(
 
     match preferencrypt.map(|s| s.as_str()) {
         Some("") => 0,
-        Some("nopreference") => sql::set_config_int(context, &context.sql, "e2ee_enabled", 0),
-        Some("mutual") => sql::set_config_int(context, &context.sql, "e2ee_enabled", 1),
+        Some("nopreference") => context.sql.set_config_int(context, "e2ee_enabled", 0),
+        Some("mutual") => context.sql.set_config_int(context, "e2ee_enabled", 1),
         _ => 1,
     }
 }
@@ -781,14 +782,10 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         return 0;
     }
 
-    let total_files_cnt = sql::query_row::<_, isize>(
-        context,
-        &context.sql,
-        "SELECT COUNT(*) FROM backup_blobs;",
-        params![],
-        0,
-    )
-    .unwrap_or_default() as usize;
+    let total_files_cnt = context
+        .sql
+        .query_row_col::<_, isize>(context, "SELECT COUNT(*) FROM backup_blobs;", params![], 0)
+        .unwrap_or_default() as usize;
     info!(
         context,
         0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
@@ -1040,12 +1037,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                         match current_block {
                             11487273724841241105 => {}
                             _ => {
-                                if 0 != sql::set_config_int(
-                                    context,
-                                    &sql,
-                                    "backup_time",
-                                    now as i32,
-                                ) {
+                                if 0 != sql.set_config_int(context, "backup_time", now as i32) {
                                     context.call_cb(
                                         Event::IMEX_FILE_WRITTEN,
                                         dest_pathNfilename as uintptr_t,

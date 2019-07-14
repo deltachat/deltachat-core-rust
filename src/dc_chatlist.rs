@@ -6,7 +6,6 @@ use crate::dc_lot::*;
 use crate::dc_msg::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
-use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -256,30 +255,32 @@ unsafe fn dc_chatlist_load_from_db(
 
 // Context functions to work with chatlist
 pub fn dc_get_archived_cnt(context: &Context) -> libc::c_int {
-    sql::query_row(
-        context,
-        &context.sql,
-        "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
-        params![],
-        0,
-    )
-    .unwrap_or_default()
+    context
+        .sql
+        .query_row_col(
+            context,
+            "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
+            params![],
+            0,
+        )
+        .unwrap_or_default()
 }
 
 fn get_last_deaddrop_fresh_msg(context: &Context) -> u32 {
     // we have an index over the state-column, this should be sufficient as there are typically only few fresh messages
-    sql::query_row(
-        context,
-        &context.sql,
-        "SELECT m.id  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  \
-         WHERE m.state=10   \
-         AND m.hidden=0    \
-         AND c.blocked=2 \
-         ORDER BY m.timestamp DESC, m.id DESC;",
-        params![],
-        0,
-    )
-    .unwrap_or_default()
+    context
+        .sql
+        .query_row_col(
+            context,
+            "SELECT m.id  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  \
+             WHERE m.state=10   \
+             AND m.hidden=0    \
+             AND c.blocked=2 \
+             ORDER BY m.timestamp DESC, m.id DESC;",
+            params![],
+            0,
+        )
+        .unwrap_or_default()
 }
 
 pub unsafe fn dc_chatlist_get_cnt(chatlist: *const dc_chatlist_t) -> size_t {

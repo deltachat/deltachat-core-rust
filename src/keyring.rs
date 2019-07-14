@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use crate::constants::*;
 use crate::context::Context;
 use crate::key::*;
-use crate::sql::{self, Sql};
+use crate::sql::Sql;
 
 #[derive(Default, Clone, Debug)]
 pub struct Keyring<'a> {
@@ -33,9 +33,8 @@ impl<'a> Keyring<'a> {
         self_addr: impl AsRef<str>,
         sql: &Sql,
     ) -> bool {
-        sql::query_row(
+        sql.query_row_col(
             context,
-            sql,
             "SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;",
             &[self_addr.as_ref()],
             0,

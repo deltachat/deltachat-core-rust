@@ -20,7 +20,6 @@ use crate::dc_token::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::peerstate::*;
-use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -52,7 +51,7 @@ pub unsafe fn dc_get_securejoin_qr(
         auth = dc_create_id();
         dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, auth);
     }
-    let self_addr = sql::get_config(context, &context.sql, "configured_addr", None);
+    let self_addr = context.sql.get_config(context, "configured_addr", None);
 
     let cleanup = |fingerprint, chat, group_name, group_name_urlencoded| {
         free(fingerprint as *mut libc::c_void);
@@ -75,7 +74,10 @@ pub unsafe fn dc_get_securejoin_qr(
     }
 
     let self_addr = self_addr.unwrap();
-    let self_name = sql::get_config(context, &context.sql, "displayname", Some("")).unwrap();
+    let self_name = context
+        .sql
+        .get_config(context, "displayname", Some(""))
+        .unwrap();
     fingerprint = get_self_fingerprint(context);
 
     if fingerprint.is_null() {
@@ -124,7 +126,7 @@ pub unsafe fn dc_get_securejoin_qr(
 }
 
 fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {
-    if let Some(self_addr) = sql::get_config(context, &context.sql, "configured_addr", None) {
+    if let Some(self_addr) = context.sql.get_config(context, "configured_addr", None) {
         if let Some(key) = Key::from_self_public(context, self_addr, &context.sql) {
             return key.fingerprint_c();
         }
@@ -919,14 +921,15 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
     //   with things they cannot fix, so the user is just kicked from the verified group
     //   (and he will know this and can fix this)
     if Some(DegradeEvent::FingerprintChanged) == peerstate.degrade_event {
-        let contact_id: i32 = sql::query_row(
-            context,
-            &context.sql,
-            "SELECT id FROM contacts WHERE addr=?;",
-            params![&peerstate.addr],
-            0,
-        )
-        .unwrap_or_default();
+        let contact_id: i32 = context
+            .sql
+            .query_row_col(
+                context,
+                "SELECT id FROM contacts WHERE addr=?;",
+                params![&peerstate.addr],
+                0,
+            )
+            .unwrap_or_default();
         if contact_id > 0 {
             dc_create_or_lookup_nchat_by_contact_id(
                 context,

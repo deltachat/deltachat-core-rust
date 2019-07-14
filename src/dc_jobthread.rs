@@ -3,7 +3,6 @@ use std::sync::{Arc, Condvar, Mutex};
 use crate::context::Context;
 use crate::dc_configure::*;
 use crate::imap::Imap;
-use crate::sql;
 use crate::x::*;
 
 #[repr(C)]
@@ -137,12 +136,14 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
     let mut ret_connected = dc_connect_to_configured_imap(context, &jobthread.imap);
 
     if !(0 == ret_connected) {
-        if sql::get_config_int(context, &context.sql, "folders_configured", 0) < 3 {
+        if context.sql.get_config_int(context, "folders_configured", 0) < 3 {
             jobthread.imap.configure_folders(context, 0x1);
         }
 
         if let Some(mvbox_name) =
-            sql::get_config(context, &context.sql, jobthread.folder_config_name, None)
+            context
+                .sql
+                .get_config(context, jobthread.folder_config_name, None)
         {
             jobthread.imap.set_watch_folder(mvbox_name);
         } else {

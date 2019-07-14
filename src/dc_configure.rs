@@ -9,7 +9,6 @@ use crate::dc_saxparser::*;
 use crate::dc_tools::*;
 use crate::imap::*;
 use crate::oauth2::*;
-use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -75,7 +74,7 @@ pub unsafe fn dc_has_ongoing(context: &Context) -> libc::c_int {
     }
 }
 pub fn dc_is_configured(context: &Context) -> libc::c_int {
-    if sql::get_config_int(context, &context.sql, "configured", 0) > 0 {
+    if context.sql.get_config_int(context, "configured", 0) > 0 {
         1
     } else {
         0
@@ -168,12 +167,9 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                     .and_then(|e| e.parse().ok())
                             {
                                 param.addr = oauth2_addr;
-                                sql::set_config(
-                                    context,
-                                    &context.sql,
-                                    "addr",
-                                    Some(param.addr.as_str()),
-                                );
+                                context
+                                    .sql
+                                    .set_config(context, "addr", Some(param.addr.as_str()));
                             }
                             if s.shall_stop_ongoing {
                                 current_block = 2927484062889439186;
@@ -900,25 +896,21 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                             as uintptr_t,
                                                                         0 as uintptr_t,
                                                                     );
-                                                                        flags
-                                                                            =
-                                                                            if 0
-                                                                            !=
-                                                                            sql::get_config_int(
-                                                                                context, &context.sql,
-                                                                                "mvbox_watch",
-                                                                                1
-                                                                            )
-                                                                            ||
-                                                                            0
-                                                                            !=
-                                                                            sql::get_config_int(
-                                                                                context,
-                                                                                &context.sql,
-                                                                                "mvbox_move",
-                                                                                1
-                                                                            )
-                                                                        {
+                                                                        flags = if 0
+                                                                            != context
+                                                                                .sql
+                                                                                .get_config_int(
+                                                                                    context,
+                                                                                    "mvbox_watch",
+                                                                                    1,
+                                                                                )
+                                                                            || 0 != context
+                                                                                .sql
+                                                                                .get_config_int(
+                                                                                    context,
+                                                                                    "mvbox_move",
+                                                                                    1,
+                                                                                ) {
                                                                             0x1
                                                                         } else {
                                                                             0
@@ -959,12 +951,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                 &context.sql,
                                                                                 "configured_",
                                                                             );
-                                                                            sql::set_config_int(
-                                                                                context,
-                                                                                &context.sql,
-                                                                                "configured",
-                                                                                1,
-                                                                            );
+                                                                            context
+                                                                                .sql
+                                                                                .set_config_int(
+                                                                                    context,
+                                                                                    "configured",
+                                                                                    1,
+                                                                                );
                                                                             if !s.shall_stop_ongoing
                                                                             {
                                                                                 context.call_cb(
@@ -1489,7 +1482,7 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
 
     if imap.is_connected() {
         ret_connected = 1
-    } else if sql::get_config_int(context, &context.sql, "configured", 0) == 0 {
+    } else if context.sql.get_config_int(context, "configured", 0) == 0 {
         warn!(context, 0, "Not configured, cannot connect.",);
     } else {
         let param = dc_loginparam_read(context, &context.sql, "configured_");

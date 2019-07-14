@@ -125,15 +125,12 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     /* if `spec` is given, remember it for later usage; if it is not given, try to use the last one */
     if !spec.is_null() {
         real_spec = dc_strdup(spec);
-        sql::set_config(
-            context,
-            &context.sql,
-            "import_spec",
-            Some(as_str(real_spec)),
-        );
+        context
+            .sql
+            .set_config(context, "import_spec", Some(as_str(real_spec)));
         current_block = 7149356873433890176;
     } else {
-        let rs = sql::get_config(context, &context.sql, "import_spec", None);
+        let rs = context.sql.get_config(context, "import_spec", None);
         if rs.is_none() {
             error!(context, 0, "Import: No file or folder given.");
             current_block = 8522321847195001863;

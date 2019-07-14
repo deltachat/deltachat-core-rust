@@ -146,6 +146,138 @@ impl Sql {
         self.with_conn(|conn| Ok(table_exists(conn, name)))
             .unwrap_or_default()
     }
+
+    pub fn query_row_col<P, T>(
+        &self,
+        context: &Context,
+        query: &str,
+        params: P,
+        column: usize,
+    ) -> Option<T>
+    where
+        P: IntoIterator,
+        P::Item: rusqlite::ToSql,
+        T: rusqlite::types::FromSql,
+    {
+        match self.query_row(query, params, |row| row.get::<_, T>(column)) {
+            Ok(res) => Some(res),
+            Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => None,
+            Err(Error::Sql(rusqlite::Error::InvalidColumnType(
+                _,
+                _,
+                rusqlite::types::Type::Null,
+            ))) => None,
+            Err(err) => {
+                error!(context, 0, "sql: Failed query_row: {}", err);
+                None
+            }
+        }
+    }
+
+    /// Set private configuration options.
+    pub fn set_config(
+        &self,
+        context: &Context,
+        key: impl AsRef<str>,
+        value: Option<&str>,
+    ) -> libc::c_int {
+        if !self.is_open() {
+            error!(context, 0, "set_config(): Database not ready.");
+            return 0;
+        }
+
+        let key = key.as_ref();
+        let good;
+
+        if let Some(ref value) = value {
+            let exists = self
+                .exists("SELECT value FROM config WHERE keyname=?;", params![key])
+                .unwrap_or_default();
+            if exists {
+                good = execute(
+                    context,
+                    self,
+                    "UPDATE config SET value=? WHERE keyname=?;",
+                    params![value, key],
+                );
+            } else {
+                good = execute(
+                    context,
+                    self,
+                    "INSERT INTO config (keyname, value) VALUES (?, ?);",
+                    params![key, value],
+                );
+            }
+        } else {
+            good = execute(
+                context,
+                self,
+                "DELETE FROM config WHERE keyname=?;",
+                params![key],
+            );
+        }
+
+        if !good {
+            error!(context, 0, "set_config(): Cannot change value.",);
+            return 0;
+        }
+
+        1
+    }
+
+    /// Get configuration options from the database.
+    pub fn get_config(
+        &self,
+        context: &Context,
+        key: impl AsRef<str>,
+        def: Option<&str>,
+    ) -> Option<String> {
+        if !self.is_open() || key.as_ref().is_empty() {
+            return None;
+        }
+        self.query_row_col(
+            context,
+            "SELECT value FROM config WHERE keyname=?;",
+            params![key.as_ref()],
+            0,
+        )
+        .or_else(|| def.map(|s| s.to_string()))
+    }
+
+    pub fn set_config_int(
+        &self,
+        context: &Context,
+        key: impl AsRef<str>,
+        value: i32,
+    ) -> libc::c_int {
+        self.set_config(context, key, Some(&format!("{}", value)))
+    }
+
+    pub fn get_config_int(&self, context: &Context, key: impl AsRef<str>, def: i32) -> i32 {
+        self.get_config(context, key, None)
+            .and_then(|s| s.parse().ok())
+            .unwrap_or_else(|| def)
+    }
+
+    pub fn set_config_int64(
+        &self,
+        context: &Context,
+        key: impl AsRef<str>,
+        value: i64,
+    ) -> libc::c_int {
+        self.set_config(context, key, Some(&format!("{}", value)))
+    }
+
+    pub fn get_config_int64(
+        &self,
+        context: &Context,
+        key: impl AsRef<str>,
+        def: Option<i64>,
+    ) -> i64 {
+        let ret = self.get_config(context, key, None);
+        ret.map(|r| r.parse().unwrap_or_default())
+            .unwrap_or_else(|| def.unwrap_or_default())
+    }
 }
 
 fn table_exists(conn: &Connection, name: impl AsRef<str>) -> bool {
@@ -328,11 +460,11 @@ fn open(
                 // cannot create the tables - maybe we cannot write?
                 return Err(Error::SqlFailedToOpen);
             } else {
-                set_config_int(context, sql, "dbversion", 0);
+                sql.set_config_int(context, "dbversion", 0);
             }
         } else {
             exists_before_update = 1;
-            dbversion_before_update = get_config_int(context, sql, "dbversion", 0);
+            dbversion_before_update = sql.get_config_int(context, "dbversion", 0);
         }
 
         // (1) update low-level database structure.
@@ -353,7 +485,7 @@ fn open(
                 params![],
             )?;
             dbversion = 1;
-            set_config_int(context, sql, "dbversion", 1);
+            sql.set_config_int(context, "dbversion", 1);
         }
         if dbversion < 2 {
             sql.execute(
@@ -361,7 +493,7 @@ fn open(
                 params![],
             )?;
             dbversion = 2;
-            set_config_int(context, sql, "dbversion", 2);
+            sql.set_config_int(context, "dbversion", 2);
         }
         if dbversion < 7 {
             sql.execute(
@@ -375,7 +507,7 @@ fn open(
                 params![],
             )?;
             dbversion = 7;
-            set_config_int(context, sql, "dbversion", 7);
+            sql.set_config_int(context, "dbversion", 7);
         }
         if dbversion < 10 {
             sql.execute(
@@ -393,7 +525,7 @@ fn open(
                 params![],
             )?;
             dbversion = 10;
-            set_config_int(context, sql, "dbversion", 10);
+            sql.set_config_int(context, "dbversion", 10);
         }
         if dbversion < 12 {
             sql.execute(
@@ -405,7 +537,7 @@ fn open(
                 params![],
             )?;
             dbversion = 12;
-            set_config_int(context, sql, "dbversion", 12);
+            sql.set_config_int(context, "dbversion", 12);
         }
         if dbversion < 17 {
             sql.execute(
@@ -419,7 +551,7 @@ fn open(
             )?;
             sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", params![])?;
             dbversion = 17;
-            set_config_int(context, sql, "dbversion", 17);
+            sql.set_config_int(context, "dbversion", 17);
         }
         if dbversion < 18 {
             sql.execute(
@@ -428,7 +560,7 @@ fn open(
             )?;
             sql.execute("ALTER TABLE acpeerstates ADD COLUMN gossip_key;", params![])?;
             dbversion = 18;
-            set_config_int(context, sql, "dbversion", 18);
+            sql.set_config_int(context, "dbversion", 18);
         }
         if dbversion < 27 {
             sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", params![])?;
@@ -445,7 +577,7 @@ fn open(
                 params![],
             )?;
             dbversion = 27;
-            set_config_int(context, sql, "dbversion", 27);
+            sql.set_config_int(context, "dbversion", 27);
         }
         if dbversion < 34 {
             sql.execute(
@@ -474,7 +606,7 @@ fn open(
             )?;
             recalc_fingerprints = 1;
             dbversion = 34;
-            set_config_int(context, sql, "dbversion", 34);
+            sql.set_config_int(context, "dbversion", 34);
         }
         if dbversion < 39 {
             sql.execute(
@@ -504,7 +636,7 @@ fn open(
                 )?;
             }
             dbversion = 39;
-            set_config_int(context, sql, "dbversion", 39);
+            sql.set_config_int(context, "dbversion", 39);
         }
         if dbversion < 40 {
             sql.execute(
@@ -512,22 +644,22 @@ fn open(
                 params![],
             )?;
             dbversion = 40;
-            set_config_int(context, sql, "dbversion", 40);
+            sql.set_config_int(context, "dbversion", 40);
         }
         if dbversion < 41 {
             update_file_paths = 1;
             dbversion = 41;
-            set_config_int(context, sql, "dbversion", 41);
+            sql.set_config_int(context, "dbversion", 41);
         }
         if dbversion < 42 {
             sql.execute("UPDATE msgs SET txt='' WHERE type!=10", params![])?;
             dbversion = 42;
-            set_config_int(context, sql, "dbversion", 42);
+            sql.set_config_int(context, "dbversion", 42);
         }
         if dbversion < 44 {
             sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", params![])?;
             dbversion = 44;
-            set_config_int(context, sql, "dbversion", 44);
+            sql.set_config_int(context, "dbversion", 44);
         }
         if dbversion < 46 {
             sql.execute(
@@ -539,7 +671,7 @@ fn open(
                 params![],
             )?;
             dbversion = 46;
-            set_config_int(context, sql, "dbversion", 46);
+            sql.set_config_int(context, "dbversion", 46);
         }
         if dbversion < 47 {
             info!(context, 0, "[migration] v47");
@@ -548,7 +680,7 @@ fn open(
                 params![],
             )?;
             dbversion = 47;
-            set_config_int(context, sql, "dbversion", 47);
+            sql.set_config_int(context, "dbversion", 47);
         }
         if dbversion < 48 {
             info!(context, 0, "[migration] v48");
@@ -562,7 +694,7 @@ fn open(
             assert_eq!(DC_MOVE_STATE_MOVING as libc::c_int, 3);
 
             dbversion = 48;
-            set_config_int(context, sql, "dbversion", 48);
+            sql.set_config_int(context, "dbversion", 48);
         }
         if dbversion < 49 {
             info!(context, 0, "[migration] v49");
@@ -571,15 +703,15 @@ fn open(
                 params![],
             )?;
             dbversion = 49;
-            set_config_int(context, sql, "dbversion", 49);
+            sql.set_config_int(context, "dbversion", 49);
         }
         if dbversion < 50 {
             info!(context, 0, "[migration] v50");
             if 0 != exists_before_update {
-                set_config_int(context, sql, "show_emails", 2);
+                sql.set_config_int(context, "show_emails", 2);
             }
             dbversion = 50;
-            set_config_int(context, sql, "dbversion", 50);
+            sql.set_config_int(context, "dbversion", 50);
         }
         if dbversion < 53 {
             info!(context, 0, "[migration] v53");
@@ -612,7 +744,7 @@ fn open(
                 params![],
             )?;
             dbversion = 53;
-            set_config_int(context, sql, "dbversion", 53);
+            sql.set_config_int(context, "dbversion", 53);
         }
         if dbversion < 54 {
             info!(context, 0, "[migration] v54");
@@ -622,7 +754,7 @@ fn open(
             )?;
             sql.execute("CREATE INDEX msgs_index6 ON msgs (location_id);", params![])?;
             dbversion = 54;
-            set_config_int(context, sql, "dbversion", 54);
+            sql.set_config_int(context, "dbversion", 54);
         }
         if dbversion < 55 {
             sql.execute(
@@ -630,7 +762,7 @@ fn open(
                 params![],
             )?;
 
-            set_config_int(context, sql, "dbversion", 55);
+            sql.set_config_int(context, "dbversion", 55);
         }
 
         if 0 != recalc_fingerprints {
@@ -657,13 +789,9 @@ fn open(
 
             info!(context, 0, "[open] update file paths");
 
-            let repl_from = get_config(
-                context,
-                sql,
-                "backup_for",
-                Some(as_str(context.get_blobdir())),
-            )
-            .unwrap();
+            let repl_from = sql
+                .get_config(context, "backup_for", Some(as_str(context.get_blobdir())))
+                .unwrap();
 
             let repl_from = dc_ensure_no_slash_safe(&repl_from);
             sql.execute(
@@ -682,83 +810,13 @@ fn open(
                 NO_PARAMS,
             )?;
 
-            set_config(context, sql, "backup_for", None);
+            sql.set_config(context, "backup_for", None);
         }
     }
 
     info!(context, 0, "Opened \"{:?}\".", dbfile.as_ref(),);
 
     Ok(())
-}
-
-// handle configurations, private
-pub fn set_config(
-    context: &Context,
-    sql: &Sql,
-    key: impl AsRef<str>,
-    value: Option<&str>,
-) -> libc::c_int {
-    if !sql.is_open() {
-        error!(context, 0, "set_config(): Database not ready.");
-        return 0;
-    }
-
-    let key = key.as_ref();
-    let good;
-
-    if let Some(ref value) = value {
-        let exists = sql
-            .exists("SELECT value FROM config WHERE keyname=?;", params![key])
-            .unwrap_or_default();
-        if exists {
-            good = execute(
-                context,
-                sql,
-                "UPDATE config SET value=? WHERE keyname=?;",
-                params![value, key],
-            );
-        } else {
-            good = execute(
-                context,
-                sql,
-                "INSERT INTO config (keyname, value) VALUES (?, ?);",
-                params![key, value],
-            );
-        }
-    } else {
-        good = execute(
-            context,
-            sql,
-            "DELETE FROM config WHERE keyname=?;",
-            params![key],
-        );
-    }
-
-    if !good {
-        error!(context, 0, "set_config(): Cannot change value.",);
-        return 0;
-    }
-
-    1
-}
-
-pub fn get_config(
-    context: &Context,
-    sql: &Sql,
-    key: impl AsRef<str>,
-    def: Option<&str>,
-) -> Option<String> {
-    if !sql.is_open() || key.as_ref().is_empty() {
-        return None;
-    }
-    query_row(
-        context,
-        sql,
-        "SELECT value FROM config WHERE keyname=?;",
-        params![key.as_ref()],
-        0,
-    )
-    .or_else(|| def.map(|s| s.to_string()))
 }
 
 pub fn execute<P>(context: &Context, sql: &Sql, querystr: impl AsRef<str>, params: P) -> bool
@@ -779,67 +837,6 @@ where
             false
         }
     }
-}
-
-// TODO Remove the Option<> from the return type.
-pub fn query_row<P, T>(
-    context: &Context,
-    sql: &Sql,
-    query: &str,
-    params: P,
-    column: usize,
-) -> Option<T>
-where
-    P: IntoIterator,
-    P::Item: rusqlite::ToSql,
-    T: rusqlite::types::FromSql,
-{
-    match sql.query_row(query, params, |row| row.get::<_, T>(column)) {
-        Ok(res) => Some(res),
-        Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => None,
-        Err(Error::Sql(rusqlite::Error::InvalidColumnType(_, _, rusqlite::types::Type::Null))) => {
-            None
-        }
-        Err(err) => {
-            error!(context, 0, "sql: Failed query_row: {}", err);
-            None
-        }
-    }
-}
-
-pub fn set_config_int(
-    context: &Context,
-    sql: &Sql,
-    key: impl AsRef<str>,
-    value: i32,
-) -> libc::c_int {
-    set_config(context, sql, key, Some(&format!("{}", value)))
-}
-
-pub fn get_config_int(context: &Context, sql: &Sql, key: impl AsRef<str>, def: i32) -> i32 {
-    get_config(context, sql, key, None)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| def)
-}
-
-pub fn set_config_int64(
-    context: &Context,
-    sql: &Sql,
-    key: impl AsRef<str>,
-    value: i64,
-) -> libc::c_int {
-    set_config(context, sql, key, Some(&format!("{}", value)))
-}
-
-pub fn get_config_int64(
-    context: &Context,
-    sql: &Sql,
-    key: impl AsRef<str>,
-    def: Option<i64>,
-) -> i64 {
-    let ret = get_config(context, sql, key, None);
-    ret.map(|r| r.parse().unwrap_or_default())
-        .unwrap_or_else(|| def.unwrap_or_default())
 }
 
 pub fn try_execute(context: &Context, sql: &Sql, querystr: impl AsRef<str>) -> libc::c_int {

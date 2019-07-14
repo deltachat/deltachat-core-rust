@@ -70,15 +70,16 @@ pub unsafe fn dc_lookup_contact_id_by_addr(
 
     let addr_normalized_c = dc_addr_normalize(addr);
     let addr_normalized = as_str(addr_normalized_c);
-    let addr_self =
-        sql::get_config(context, &context.sql, "configured_addr", None).unwrap_or_default();
+    let addr_self = context
+        .sql
+        .get_config(context, "configured_addr", None)
+        .unwrap_or_default();
 
     let contact_id = if addr_normalized == addr_self {
         1
     } else {
-        sql::query_row(
+        context.sql.query_row_col(
             context,
-            &context.sql,
             "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
             params![addr_normalized, 9, 0x100],
             0
@@ -274,7 +275,10 @@ pub unsafe fn dc_contact_load_from_db(
         (*contact).name = dc_stock_str((*contact).context, 2);
         (*contact).addr = dc_strdup(
             to_cstring(
-                sql::get_config((*contact).context, sql, "configured_addr", Some(""))
+                (*contact)
+                    .context
+                    .sql
+                    .get_config((*contact).context, "configured_addr", Some(""))
                     .unwrap_or_default(),
             )
             .as_ptr(),
@@ -331,8 +335,10 @@ pub fn dc_add_or_lookup_contact(
 
     let addr_c = unsafe { dc_addr_normalize(addr__) };
     let addr = as_str(addr_c);
-    let addr_self =
-        sql::get_config(context, &context.sql, "configured_addr", Some("")).unwrap_or_default();
+    let addr_self = context
+        .sql
+        .get_config(context, "configured_addr", Some(""))
+        .unwrap_or_default();
 
     if addr == addr_self {
         return 1;
@@ -519,8 +525,10 @@ pub fn dc_get_contacts(
     listflags: u32,
     query: *const libc::c_char,
 ) -> *mut dc_array_t {
-    let self_addr =
-        sql::get_config(context, &context.sql, "configured_addr", Some("")).unwrap_or_default();
+    let self_addr = context
+        .sql
+        .get_config(context, "configured_addr", Some(""))
+        .unwrap_or_default();
 
     let mut add_self = false;
     let ret = unsafe { dc_array_new(100) };
@@ -558,8 +566,10 @@ pub fn dc_get_contacts(
             )
             .unwrap(); // TODO: Better error handling
 
-        let self_name =
-            sql::get_config(context, &context.sql, "displayname", Some("")).unwrap_or_default();
+        let self_name = context
+            .sql
+            .get_config(context, "displayname", Some(""))
+            .unwrap_or_default();
 
         let self_name2 = unsafe { dc_stock_str(context, 2) };
 
@@ -595,14 +605,15 @@ pub fn dc_get_contacts(
 }
 
 pub fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
-    sql::query_row(
-        context,
-        &context.sql,
-        "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
-        params![9],
-        0,
-    )
-    .unwrap_or_default()
+    context
+        .sql
+        .query_row_col(
+            context,
+            "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
+            params![9],
+            0,
+        )
+        .unwrap_or_default()
 }
 
 pub fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
@@ -757,24 +768,26 @@ pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
         return false;
     }
 
-    let count_contacts: i32 = sql::query_row(
-        context,
-        &context.sql,
-        "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
-        params![contact_id as i32],
-        0,
-    )
-    .unwrap_or_default();
-
-    let count_msgs: i32 = if count_contacts > 0 {
-        sql::query_row(
+    let count_contacts: i32 = context
+        .sql
+        .query_row_col(
             context,
-            &context.sql,
-            "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
-            params![contact_id as i32, contact_id as i32],
+            "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
+            params![contact_id as i32],
             0,
         )
-        .unwrap_or_default()
+        .unwrap_or_default();
+
+    let count_msgs: i32 = if count_contacts > 0 {
+        context
+            .sql
+            .query_row_col(
+                context,
+                "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
+                params![contact_id as i32, contact_id as i32],
+                0,
+            )
+            .unwrap_or_default()
     } else {
         0
     };
@@ -974,7 +987,7 @@ pub fn dc_addr_equals_self(context: &Context, addr: *const libc::c_char) -> libc
 
     if !addr.is_null() {
         let normalized_addr = unsafe { dc_addr_normalize(addr) };
-        if let Some(self_addr) = sql::get_config(context, &context.sql, "configured_addr", None) {
+        if let Some(self_addr) = context.sql.get_config(context, "configured_addr", None) {
             ret = (as_str(normalized_addr) == self_addr) as libc::c_int;
         }
         unsafe { free(normalized_addr as *mut libc::c_void) };
@@ -1014,14 +1027,15 @@ pub fn dc_get_real_contact_cnt(context: &Context) -> usize {
         return 0;
     }
 
-    sql::query_row::<_, isize>(
-        context,
-        &context.sql,
-        "SELECT COUNT(*) FROM contacts WHERE id>?;",
-        params![9],
-        0,
-    )
-    .unwrap_or_default() as usize
+    context
+        .sql
+        .query_row_col::<_, isize>(
+            context,
+            "SELECT COUNT(*) FROM contacts WHERE id>?;",
+            params![9],
+            0,
+        )
+        .unwrap_or_default() as usize
 }
 
 pub unsafe fn dc_get_contact_origin(
