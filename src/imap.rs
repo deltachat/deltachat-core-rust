@@ -467,6 +467,7 @@ impl Imap {
     }
 
     fn unsetup_handle(&self, context: &Context) {
+        info!(context, 0, "IMAP unsetup_handle starts");
         let session = self.session.lock().unwrap().0.take();
         if session.is_some() {
             match session.unwrap().close() {

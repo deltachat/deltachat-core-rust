@@ -70,6 +70,7 @@ impl Context {
     }
 
     pub fn call_cb(&self, event: Event, data1: uintptr_t, data2: uintptr_t) -> uintptr_t {
+        println!("call_cb: called");
         if let Some(cb) = self.cb {
             unsafe { cb(self, event, data1, data2) }
         } else {
@@ -135,7 +136,7 @@ pub fn dc_context_new(
     userdata: *mut libc::c_void,
     os_name: *const libc::c_char,
 ) -> Context {
-    Context {
+    let context = Context {
         blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
         dbfile: Arc::new(RwLock::new(std::ptr::null_mut())),
         inbox: Arc::new(RwLock::new({
@@ -179,7 +180,12 @@ pub fn dc_context_new(
         ))),
         probe_imap_network: Arc::new(RwLock::new(0)),
         perform_inbox_jobs_needed: Arc::new(RwLock::new(0)),
-    }
+    };
+    println!("context created");
+    info!(context, 0, "context created");
+    context
+    
+    
 }
 
 unsafe fn cb_receive_imf(
@@ -284,13 +290,21 @@ pub unsafe fn dc_context_unref(context: &mut Context) {
 }
 
 pub unsafe fn dc_close(context: &Context) {
+    println!("disconnecting inbox watch yooaa");
+    info!(
+        context,
+        0,
+        "disconnecting INBOX-watch",
+    );
     context.inbox.read().unwrap().disconnect(context);
+    info!(context, 0, "disconnecting sentbox-thread",);
     context
         .sentbox_thread
         .read()
         .unwrap()
         .imap
         .disconnect(context);
+    info!(context, 0, "disconnecting mvbox-thread",);
     context
         .mvbox_thread
         .read()
@@ -298,8 +312,10 @@ pub unsafe fn dc_close(context: &Context) {
         .imap
         .disconnect(context);
 
+    info!(context, 0, "disconnecting SMTP");
     context.smtp.clone().lock().unwrap().disconnect();
 
+    info!(context, 0, "closing SQL");
     context.sql.close(context);
     let mut dbfile = context.dbfile.write().unwrap();
     free(*dbfile as *mut libc::c_void);
