@@ -45,6 +45,9 @@ class Account(object):
         self._configkeys = self.get_config("sys.config_keys").split()
         self._imex_completed = threading.Event()
 
+    def __del__(self):
+        lib.dc_close(self._dc_context)
+
     def _check_config_key(self, name):
         if name not in self._configkeys:
             raise KeyError("{!r} not a valid config key, existing keys: {!r}".format(
@@ -414,7 +417,7 @@ class EventLogger:
             raise ValueError("{}({!r},{!r})".format(*ev))
         return ev
 
-    def get_matching(self, event_name_regex):
+    def get_matching(self, event_name_regex, check_error=True):
         self._log("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:

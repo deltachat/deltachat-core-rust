@@ -1,25 +1,26 @@
 from __future__ import print_function
 import pytest
 from deltachat import capi, Account, const, set_context_callback
+from deltachat.capi import ffi
 from deltachat.cutil import as_dc_charpointer
-from queue import Queue
+from deltachat.account import EventLogger
 
 
 def test_empty_context():
     ctx = capi.lib.dc_context_new(capi.ffi.NULL, capi.ffi.NULL, capi.ffi.NULL)
     capi.lib.dc_close(ctx)
 
-def test_set_context():
-    ctx = capi.lib.dc_context_new(capi.ffi.NULL, capi.ffi.NULL, capi.ffi.NULL)
-
-    q = Queue()
-    set_context_callback(ctx, lambda *args: q.put(args))
-
-    name = as_dc_charpointer("ein")
-    email = as_dc_charpointer("ein@kontakt.org")
-    contact_id = capi.lib.dc_create_contact(ctx, name, email)
+def test_dc_close_events():
+    ctx = capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL, ffi.NULL)
+    evlog = EventLogger(ctx)
+    evlog.set_timeout(5)
+    set_context_callback(ctx, lambda ctx, evt_name, data1, data2: evlog(evt_name, data1, data2))
     capi.lib.dc_close(ctx)
-    q.get(timeout=10)
+    # test that we get events from dc_close
+    print(evlog.get_matching("DC_EVENT_INFO", check_error=False))
+    print(evlog.get_matching("DC_EVENT_INFO", check_error=False))
+    print(evlog.get_matching("DC_EVENT_INFO", check_error=False))
+    print(evlog.get_matching("DC_EVENT_INFO", check_error=False))
 
 
 def test_wrong_db(tmpdir):
