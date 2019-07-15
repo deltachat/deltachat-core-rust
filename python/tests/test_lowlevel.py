@@ -2,13 +2,13 @@ from __future__ import print_function
 import pytest
 from deltachat import capi, Account, const, set_context_callback
 from deltachat.capi import ffi
-from deltachat.cutil import as_dc_charpointer
 from deltachat.account import EventLogger
 
 
 def test_empty_context():
     ctx = capi.lib.dc_context_new(capi.ffi.NULL, capi.ffi.NULL, capi.ffi.NULL)
     capi.lib.dc_close(ctx)
+
 
 def test_dc_close_events():
     ctx = capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL, ffi.NULL)

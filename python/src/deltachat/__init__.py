@@ -45,7 +45,7 @@ def py_dc_callback(ctx, evt, data1, data2):
         ret = callback(ctx, evt_name, data1, data2)
         if ret is None:
             ret = 0
-        assert isinstance(ret, int), repr(res)
+        assert isinstance(ret, int), repr(ret)
         if event_sig_types & 4:
             return ffi.cast('uintptr_t', ret)
         elif event_sig_types & 8:
