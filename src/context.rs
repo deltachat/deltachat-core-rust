@@ -70,7 +70,6 @@ impl Context {
     }
 
     pub fn call_cb(&self, event: Event, data1: uintptr_t, data2: uintptr_t) -> uintptr_t {
-        println!("call_cb: called");
         if let Some(cb) = self.cb {
             unsafe { cb(self, event, data1, data2) }
         } else {
@@ -181,11 +180,7 @@ pub fn dc_context_new(
         probe_imap_network: Arc::new(RwLock::new(0)),
         perform_inbox_jobs_needed: Arc::new(RwLock::new(0)),
     };
-    println!("context created");
-    info!(context, 0, "context created");
     context
-    
-    
 }
 
 unsafe fn cb_receive_imf(

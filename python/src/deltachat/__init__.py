@@ -20,7 +20,6 @@ def py_dc_callback(ctx, evt, data1, data2):
     CFFI only allows us to set one global event handler, so this one
     looks up the correct event handler for the given context.
     """
-    print("py_dc_callback", evt, data1, data2, ctx)
     try:
         callback = _DC_CALLBACK_MAP.get(ctx, lambda *a: 0)
     except AttributeError:
@@ -58,7 +57,6 @@ def py_dc_callback(ctx, evt, data1, data2):
 
 
 def set_context_callback(dc_context, func):
-    print("set_context_callback", dc_context, func)
     _DC_CALLBACK_MAP[dc_context] = func
 
 

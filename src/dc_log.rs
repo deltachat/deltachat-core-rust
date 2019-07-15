@@ -95,7 +95,6 @@ macro_rules! info {
         info!($ctx, $data1, $msg,)
     };
     ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {{
-        println!("xxx");
         let formatted = format!($msg, $($args),*);
         let formatted_c = $crate::dc_tools::to_cstring(formatted);
         $ctx.call_cb($crate::constants::Event::INFO, $data1 as uintptr_t,
