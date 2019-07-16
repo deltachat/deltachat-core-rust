@@ -341,8 +341,9 @@ class Account(object):
     def shutdown(self, wait=True):
         """ stop threads and close and remove underlying dc_context and callbacks. """
         if hasattr(self, "_dc_context"):
+            self.stop_threads(wait=False)  # to interrupt idle and tell python threads to stop
             lib.dc_close(self._dc_context)
-            self.stop_threads(wait=wait)
+            self.stop_threads(wait=wait)  # to wait for threads
             deltachat.clear_context_callback(self._dc_context)
             del self._dc_context
 
@@ -392,12 +393,18 @@ class IOThreads:
     def imap_thread_run(self):
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
+            if self._thread_quitflag:
+                break
             lib.dc_perform_imap_fetch(self._dc_context)
+            if self._thread_quitflag:
+                break
             lib.dc_perform_imap_idle(self._dc_context)
 
     def smtp_thread_run(self):
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
+            if self._thread_quitflag:
+                break
             lib.dc_perform_smtp_idle(self._dc_context)
 
 
