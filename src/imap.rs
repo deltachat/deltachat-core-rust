@@ -477,6 +477,7 @@ impl Imap {
                 }
             }
         }
+        info!(context, 0, "IMAP unsetup_handle2.");
         let stream = self.session.lock().unwrap().1.take();
         if stream.is_some() {
             match stream.unwrap().shutdown(net::Shutdown::Both) {
@@ -487,6 +488,7 @@ impl Imap {
             }
         }
 
+        info!(context, 0, "IMAP unsetup_handle3.");
         let mut cfg = self.config.write().unwrap();
         cfg.selected_folder = None;
         cfg.selected_mailbox = None;

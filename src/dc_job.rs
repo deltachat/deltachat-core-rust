@@ -49,10 +49,10 @@ pub struct dc_job_t {
 }
 
 pub unsafe fn dc_perform_imap_jobs(context: &Context) {
-    dc_log_info(
+    info!(
         context,
-        0i32,
-        b"INBOX-jobs started...\x00" as *const u8 as *const libc::c_char,
+        0,
+        "INBOX-jobs started...",
     );
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
@@ -60,13 +60,14 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
     *context.perform_inbox_jobs_needed.write().unwrap() = 0;
 
     dc_job_perform(context, 100, probe_imap_network);
-    dc_log_info(
+    info!(
         context,
-        0i32,
-        b"INBOX-jobs ended.\x00" as *const u8 as *const libc::c_char,
+        0,
+        "INBOX-jobs ended.",
     );
 }
 unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
+    // info!(context, 0, "dc_job_perform {} {}", thread, probe_network);
     let mut select_stmt: *mut sqlite3_stmt;
     let mut job = dc_job_t {
         job_id: 0,
@@ -133,6 +134,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
         let mut tries: libc::c_int = 0i32;
         while tries <= 1i32 {
             job.try_again = 0i32;
+            // info!(context, 0, "dc_job_perform action {}", job.action);
             match job.action {
                 5901 => {
                     dc_job_do_DC_JOB_SEND(context, &mut job);

@@ -306,7 +306,6 @@ pub unsafe fn dc_close(context: &Context) {
     info!(context, 0, "disconnecting SMTP");
     context.smtp.clone().lock().unwrap().disconnect();
 
-    info!(context, 0, "closing SQL");
     context.sql.close(context);
     let mut dbfile = context.dbfile.write().unwrap();
     free(*dbfile as *mut libc::c_void);
