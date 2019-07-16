@@ -393,19 +393,15 @@ class IOThreads:
     def imap_thread_run(self):
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
-            if self._thread_quitflag:
-                break
             lib.dc_perform_imap_fetch(self._dc_context)
-            if self._thread_quitflag:
-                break
             lib.dc_perform_imap_idle(self._dc_context)
+        print("IMAP_THREAD finished")
 
     def smtp_thread_run(self):
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
-            if self._thread_quitflag:
-                break
             lib.dc_perform_smtp_idle(self._dc_context)
+        print("SMTP_THREAD finished")
 
 
 class EventLogger:

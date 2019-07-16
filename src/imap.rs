@@ -472,16 +472,21 @@ impl Imap {
     fn unsetup_handle(&self, context: &Context) {
         info!(context, 0, "IMAP unsetup_handle starts");
         // self.interrupt_idle();
-        let session = self.session.lock().unwrap().take();
-        if session.is_some() {
-            match session.unwrap().close() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("failed to close connection: {:?}", err);
+        /*
+        {
+            let session = self.session.lock().unwrap().take();
+            info!(context, 0, "IMAP unsetup_handle step1");
+            if session.is_some() {
+                match session.unwrap().close() {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("failed to close connection: {:?}", err);
+                    }
                 }
             }
         }
-        info!(context, 0, "IMAP unsetup_handle2.");
+        */
+        info!(context, 0, "IMAP unsetup_handle step 2.");
         let stream = self.stream.write().unwrap().take();
         if stream.is_some() {
             match stream.unwrap().shutdown(net::Shutdown::Both) {
@@ -492,11 +497,13 @@ impl Imap {
             }
         }
 
-        info!(context, 0, "IMAP unsetup_handle3.");
-        let mut cfg = self.config.write().unwrap();
-        cfg.selected_folder = None;
-        cfg.selected_mailbox = None;
-        info!(context, 0, "IMAP disconnected.",);
+        info!(context, 0, "IMAP unsetup_handle step 3.");
+        {
+            let mut cfg = self.config.write().unwrap();
+            cfg.selected_folder = None;
+            cfg.selected_mailbox = None;
+        }
+        info!(context, 0, "IMAP unsetup_handle step 4 (disconnected).",);
     }
 
     fn free_connect_params(&self) {
@@ -581,9 +588,8 @@ impl Imap {
                         );
                         info!(context, 0, "IMAP-capabilities:{}", caps_list);
 
-                        let mut config = self.config.write().unwrap();
-                        config.can_idle = can_idle;
-                        config.has_xlist = has_xlist;
+                        self.config.write().unwrap().can_idle = can_idle;
+                        self.config.write().unwrap().has_xlist = has_xlist;
                         *self.connected.lock().unwrap() = true;
                         teardown = false;
                     }
