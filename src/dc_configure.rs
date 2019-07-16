@@ -1255,12 +1255,14 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
         }
     }
 
+    /* 
     if 0 != imap_connected_here {
         context.inbox.read().unwrap().disconnect(context);
     }
     if 0 != smtp_connected_here {
         context.smtp.clone().lock().unwrap().disconnect();
     }
+    */
     dc_loginparam_unref(param);
     dc_loginparam_unref(param_autoconfig);
     free(param_addr_urlencoded as *mut libc::c_void);

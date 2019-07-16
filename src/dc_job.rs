@@ -52,7 +52,7 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
     info!(
         context,
         0,
-        "INBOX-jobs started...",
+        "dc_perform_imap_jobs starting.",
     );
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
@@ -63,9 +63,10 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
     info!(
         context,
         0,
-        "INBOX-jobs ended.",
+        "dc_perform_imap_jobs ended.",
     );
 }
+
 unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
     // info!(context, 0, "dc_job_perform {} {}", thread, probe_network);
     let mut select_stmt: *mut sqlite3_stmt;

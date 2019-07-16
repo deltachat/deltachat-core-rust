@@ -22,6 +22,7 @@ def pytest_runtest_call(item):
     # output from concurrent threads printing between execution
     # of the test function and the teardown phase of that test function
     if "acfactory" in item.funcargs:
+        print("*"*30, "finalizing", "*"*30)
         acfactory = item.funcargs["acfactory"]
         acfactory.finalize()
 
