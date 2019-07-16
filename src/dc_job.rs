@@ -1006,6 +1006,7 @@ pub unsafe fn dc_job_kill_action(context: &Context, action: libc::c_int) {
 
 pub unsafe fn dc_perform_imap_fetch(context: &Context) {
     let inbox = context.inbox.read().unwrap();
+    info!(context, 0, "dc_perform_imap_fetch got inbox");
 
     let start: libc::clock_t = clock();
     if 0 == connect_to_inbox(context, &inbox) {

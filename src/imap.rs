@@ -468,6 +468,7 @@ impl Imap {
 
     fn unsetup_handle(&self, context: &Context) {
         info!(context, 0, "IMAP unsetup_handle starts");
+        self.interrupt_idle();
         let session = self.session.lock().unwrap().0.take();
         if session.is_some() {
             match session.unwrap().close() {
@@ -548,30 +549,41 @@ impl Imap {
         match self.session.lock().unwrap().0 {
             Some(ref mut session) => {
                 if let Ok(caps) = session.capabilities() {
-                    let can_idle = caps.has("IDLE");
-                    let has_xlist = caps.has("XLIST");
+                    if !context.sql.is_open() {
+                        warn!(
+                            context,
+                            0,
+                            "IMAP-LOGIN as {} ok but ABORTING",
+                            as_str(lp.mail_user),
+                        );
+                        self.unsetup_handle(context);
+                        self.free_connect_params();
+                        0
+                    } else {
+                        let can_idle = caps.has("IDLE");
+                        let has_xlist = caps.has("XLIST");
 
-                    let caps_list = caps.iter().fold(String::new(), |mut s, c| {
-                        s += " ";
-                        s += c;
-                        s
-                    });
+                        let caps_list = caps.iter().fold(String::new(), |mut s, c| {
+                            s += " ";
+                            s += c;
+                            s
+                        });
 
-                    log_event!(
-                        context,
-                        Event::IMAP_CONNECTED,
-                        0,
-                        "IMAP-LOGIN as {} ok",
-                        as_str(lp.mail_user),
-                    );
-                    info!(context, 0, "IMAP-capabilities:{}", caps_list);
+                        log_event!(
+                            context,
+                            Event::IMAP_CONNECTED,
+                            0,
+                            "IMAP-LOGIN as {} ok",
+                            as_str(lp.mail_user),
+                        );
+                        info!(context, 0, "IMAP-capabilities:{}", caps_list);
 
-                    let mut config = self.config.write().unwrap();
-                    config.can_idle = can_idle;
-                    config.has_xlist = has_xlist;
-                    *self.connected.lock().unwrap() = true;
-
-                    1
+                        let mut config = self.config.write().unwrap();
+                        config.can_idle = can_idle;
+                        config.has_xlist = has_xlist;
+                        *self.connected.lock().unwrap() = true;
+                        1
+                    }
                 } else {
                     self.unsetup_handle(context);
                     self.free_connect_params();
@@ -599,7 +611,7 @@ impl Imap {
     }
 
     pub fn fetch(&self, context: &Context) -> libc::c_int {
-        if !self.is_connected() {
+        if !self.is_connected() || !context.sql.is_open() {
             return 0;
         }
 
