@@ -1,5 +1,6 @@
 use std::ffi::CString;
 
+use failure::format_err;
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -11,14 +12,13 @@ use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_e2ee::*;
 use crate::dc_job::*;
-use crate::dc_log::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::pgp::*;
+use crate::sql::{self, Sql};
 use crate::types::*;
 use crate::x::*;
 
@@ -50,13 +50,11 @@ pub unsafe fn dc_imex_has_backup(
     let dir_name = as_path(dir_name);
     let dir_iter = std::fs::read_dir(dir_name);
     if dir_iter.is_err() {
-        dc_log_info(
+        info!(
             context,
-            0i32,
-            b"Backup check: Cannot open directory \"%s\".\x00" as *const u8 as *const libc::c_char,
-            CString::new(format!("{}", dir_name.display()))
-                .unwrap()
-                .as_ptr(),
+            0,
+            "Backup check: Cannot open directory \"{}\".\x00",
+            dir_name.display(),
         );
         return 0 as *mut libc::c_char;
     }
@@ -69,14 +67,9 @@ pub unsafe fn dc_imex_has_backup(
                 let name = dirent.file_name();
                 let name = name.to_string_lossy();
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
-                    let mut sql = SQLite::new();
-                    if sql.open(context, &path, 0x1i32) {
-                        let curr_backup_time = dc_sqlite3_get_config_int(
-                            context,
-                            &mut sql,
-                            b"backup_time\x00" as *const u8 as *const libc::c_char,
-                            0i32,
-                        ) as u64;
+                    let sql = Sql::new();
+                    if sql.open(context, &path, 0x1) {
+                        let curr_backup_time = sql.get_config_int(context, "backup_time", 0) as u64;
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);
                             newest_backup_time = curr_backup_time;
@@ -91,12 +84,7 @@ pub unsafe fn dc_imex_has_backup(
         Some(path) => match path.to_c_string() {
             Ok(cstr) => dc_strdup(cstr.as_ptr()),
             Err(err) => {
-                dc_log_error(
-                    context,
-                    0i32,
-                    b"Invalid backup filename: %s\x00" as *const u8 as *const libc::c_char,
-                    CString::new(format!("{}", err)).unwrap().as_ptr(),
-                );
+                error!(context, 0, "Invalid backup filename: {}", err);
                 std::ptr::null_mut()
             }
         },
@@ -173,12 +161,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                 if !(msg_id == 0i32 as libc::c_uint) {
                                     dc_msg_unref(msg);
                                     msg = 0 as *mut dc_msg_t;
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Wait for setup message being sent ...\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Wait for setup message being sent ...",);
                                     loop {
                                         if context
                                             .running_state
@@ -202,13 +185,8 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                     match current_block {
                                         6116957410927263949 => {}
                                         _ => {
-                                            dc_log_info(
-                                                context,
-                                                0i32,
-                                                b"... setup message sent.\x00" as *const u8
-                                                    as *const libc::c_char,
-                                            );
-                                            success = 1i32
+                                            info!(context, 0, "... setup message sent.",);
+                                            success = 1;
                                         }
                                     }
                                 }
@@ -236,7 +214,6 @@ pub unsafe extern "C" fn dc_render_setup_file(
     passphrase: *const libc::c_char,
 ) -> *mut libc::c_char {
     let stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
 
     let mut passphrase_begin: [libc::c_char; 8] = [0; 8];
     let mut ret_setupfilecontent: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -245,19 +222,12 @@ pub unsafe extern "C" fn dc_render_setup_file(
         passphrase_begin[2usize] = 0i32 as libc::c_char;
         /* create the payload */
         if !(0 == dc_ensure_secret_key_exists(context)) {
-            self_addr = dc_sqlite3_get_config(
-                context,
-                &context.sql,
-                b"configured_addr\x00" as *const u8 as *const libc::c_char,
-                0 as *const libc::c_char,
-            );
+            let self_addr = context
+                .sql
+                .get_config(context, "configured_addr", None)
+                .unwrap_or_default();
             let curr_private_key = Key::from_self_private(context, self_addr, &context.sql);
-            let e2ee_enabled: libc::c_int = dc_sqlite3_get_config_int(
-                context,
-                &context.sql,
-                b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
-                1i32,
-            );
+            let e2ee_enabled = context.sql.get_config_int(context, "e2ee_enabled", 1);
 
             let headers = if 0 != e2ee_enabled {
                 Some(("Autocrypt-Prefer-Encrypt", "mutual"))
@@ -311,8 +281,6 @@ pub unsafe extern "C" fn dc_render_setup_file(
     }
     sqlite3_finalize(stmt);
 
-    free(self_addr as *mut libc::c_void);
-
     ret_setupfilecontent
 }
 
@@ -355,7 +323,7 @@ pub unsafe fn dc_continue_key_transfer(
     if !(msg_id <= 9i32 as libc::c_uint || setup_code.is_null()) {
         msg = dc_get_msg(context, msg_id);
         if msg.is_null()
-            || 0 == dc_msg_is_setupmessage(msg)
+            || !dc_msg_is_setupmessage(msg)
             || {
                 filename = dc_msg_get_file(msg);
                 filename.is_null()
@@ -400,101 +368,73 @@ pub unsafe fn dc_continue_key_transfer(
 }
 
 // TODO should return bool /rtn
-unsafe fn set_self_key(
+fn set_self_key(
     context: &Context,
     armored_c: *const libc::c_char,
     set_default: libc::c_int,
 ) -> libc::c_int {
-    let mut success = 0;
-
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
-
     assert!(!armored_c.is_null(), "invalid buffer");
     let armored = as_str(armored_c);
 
-    if let Some((private_key, public_key, header)) =
-        Key::from_armored_string(armored, KeyType::Private)
-            .and_then(|(k, h)| if k.verify() { Some((k, h)) } else { None })
-            .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)))
-    {
-        stmt = dc_sqlite3_prepare(
-            context,
-            &context.sql,
-            b"DELETE FROM keypairs WHERE public_key=? OR private_key=?;\x00" as *const u8
-                as *const libc::c_char,
-        );
-        let pub_bytes = public_key.to_bytes();
-        sqlite3_bind_blob(
-            stmt,
-            1,
-            pub_bytes.as_ptr() as *const _,
-            pub_bytes.len() as libc::c_int,
-            None,
-        );
-        let priv_bytes = private_key.to_bytes();
-        sqlite3_bind_blob(
-            stmt,
-            2,
-            priv_bytes.as_ptr() as *const _,
-            priv_bytes.len() as libc::c_int,
-            None,
-        );
-        sqlite3_step(stmt);
-        sqlite3_finalize(stmt);
-        stmt = 0 as *mut sqlite3_stmt;
-        if 0 != set_default {
-            dc_sqlite3_execute(
-                context,
-                &context.sql,
-                b"UPDATE keypairs SET is_default=0;\x00" as *const u8 as *const libc::c_char,
-            );
-        }
-        self_addr = dc_sqlite3_get_config(
-            context,
-            &context.sql,
-            b"configured_addr\x00" as *const u8 as *const libc::c_char,
-            0 as *const libc::c_char,
-        );
-        if !dc_key_save_self_keypair(
-            context,
-            &public_key,
-            &private_key,
-            self_addr,
-            set_default,
-            &context.sql,
-        ) {
-            error!(context, 0, "Cannot save keypair.",);
-        } else {
-            let prefer_encrypt = header.get("Autocrypt-Prefer-Encrypt");
+    let keys = Key::from_armored_string(armored, KeyType::Private)
+        .and_then(|(k, h)| if k.verify() { Some((k, h)) } else { None })
+        .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)));
 
-            if let Some(prefer_encrypt) = prefer_encrypt {
-                if prefer_encrypt == "nopreference" {
-                    dc_sqlite3_set_config_int(
-                        context,
-                        &context.sql,
-                        b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
-                        0i32,
-                    );
-                } else if prefer_encrypt == "mutual" {
-                    dc_sqlite3_set_config_int(
-                        context,
-                        &context.sql,
-                        b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
-                        1i32,
-                    );
-                }
-            }
-            success = 1;
+    if keys.is_none() {
+        error!(context, 0, "File does not contain a valid private key.",);
+        return 0;
+    }
+
+    let (private_key, public_key, header) = keys.unwrap();
+    let preferencrypt = header.get("Autocrypt-Prefer-Encrypt");
+
+    if !sql::execute(
+        context,
+        &context.sql,
+        "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
+        params![public_key.to_bytes(), private_key.to_bytes()],
+    ) {
+        return 0;
+    }
+
+    if 0 != set_default {
+        if !sql::execute(
+            context,
+            &context.sql,
+            "UPDATE keypairs SET is_default=0;",
+            params![],
+        ) {
+            return 0;
         }
     } else {
         error!(context, 0, "File does not contain a private key.",);
     }
 
-    sqlite3_finalize(stmt);
-    free(self_addr as *mut libc::c_void);
+    let self_addr = context.sql.get_config(context, "configured_addr", None);
 
-    success
+    if self_addr.is_none() {
+        error!(context, 0, "Missing self addr");
+        return 0;
+    }
+
+    if !dc_key_save_self_keypair(
+        context,
+        &public_key,
+        &private_key,
+        self_addr.unwrap(),
+        set_default,
+        &context.sql,
+    ) {
+        error!(context, 0, "Cannot save keypair.");
+        return 0;
+    }
+
+    match preferencrypt.map(|s| s.as_str()) {
+        Some("") => 0,
+        Some("nopreference") => context.sql.set_config_int(context, "e2ee_enabled", 0),
+        Some("mutual") => context.sql.set_config_int(context, "e2ee_enabled", 1),
+        _ => 1,
+    }
 }
 
 pub unsafe fn dc_decrypt_setup_file(
@@ -600,32 +540,21 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
         param1 = dc_param_get((*job).param, 'E' as i32, 0 as *const libc::c_char);
         param2 = dc_param_get((*job).param, 'F' as i32, 0 as *const libc::c_char);
         if param1.is_null() {
-            dc_log_error(
-                context,
-                0i32,
-                b"No Import/export dir/file given.\x00" as *const u8 as *const libc::c_char,
-            );
+            error!(context, 0, "No Import/export dir/file given.",);
         } else {
-            dc_log_info(
-                context,
-                0i32,
-                b"Import/export process started.\x00" as *const u8 as *const libc::c_char,
-            );
+            info!(context, 0, "Import/export process started.",);
             context.call_cb(Event::IMEX_PROGRESS, 10i32 as uintptr_t, 0i32 as uintptr_t);
             if !context.sql.is_open() {
-                dc_log_error(
-                    context,
-                    0i32,
-                    b"Import/export: Database not opened.\x00" as *const u8 as *const libc::c_char,
-                );
+                error!(context, 0, "Import/export: Database not opened.",);
             } else {
                 if what == 1i32 || what == 11i32 {
                     /* before we export anything, make sure the private key exists */
                     if 0 == dc_ensure_secret_key_exists(context) {
-                        dc_log_error(context, 0i32,
-                                         b"Import/export: Cannot create private key or private key not available.\x00"
-                                             as *const u8 as
-                                             *const libc::c_char);
+                        error!(
+                            context,
+                            0,
+                            "Import/export: Cannot create private key or private key not available.",
+                        );
                         current_block = 3568988166330621280;
                     } else {
                         dc_create_folder(context, param1);
@@ -672,12 +601,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             match current_block {
                                 3568988166330621280 => {}
                                 _ => {
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Import/export completed.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Import/export completed.",);
                                     success = 1i32
                                 }
                             }
@@ -717,12 +641,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             match current_block {
                                 3568988166330621280 => {}
                                 _ => {
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Import/export completed.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Import/export completed.",);
                                     success = 1i32
                                 }
                             }
@@ -762,12 +681,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             match current_block {
                                 3568988166330621280 => {}
                                 _ => {
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Import/export completed.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Import/export completed.",);
                                     success = 1i32
                                 }
                             }
@@ -807,12 +721,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             match current_block {
                                 3568988166330621280 => {}
                                 _ => {
-                                    dc_log_info(
-                                        context,
-                                        0i32,
-                                        b"Import/export completed.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
+                                    info!(context, 0, "Import/export completed.",);
                                     success = 1i32
                                 }
                             }
@@ -842,65 +751,68 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
 
 // TODO should return bool /rtn
 unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> libc::c_int {
-    let current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut processed_files_cnt: libc::c_int = 0i32;
-    let total_files_cnt: libc::c_int;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let repl_from: *mut libc::c_char = 0 as *mut libc::c_char;
-    let repl_to: *mut libc::c_char = 0 as *mut libc::c_char;
-    dc_log_info(
+    info!(
         context,
-        0i32,
-        b"Import \"%s\" to \"%s\".\x00" as *const u8 as *const libc::c_char,
-        backup_to_import,
-        context.get_dbfile(),
+        0,
+        "Import \"{}\" to \"{}\".",
+        as_str(backup_to_import),
+        as_str(context.get_dbfile()),
     );
 
     if 0 != dc_is_configured(context) {
-        dc_log_error(
+        error!(context, 0, "Cannot import backups to accounts in use.");
+        return 0;
+    }
+    &context.sql.close(&context);
+    dc_delete_file(context, context.get_dbfile());
+    if 0 != dc_file_exist(context, context.get_dbfile()) {
+        error!(
             context,
-            0i32,
-            b"Cannot import backups to accounts in use.\x00" as *const u8 as *const libc::c_char,
+            0, "Cannot import backups: Cannot delete the old file.",
         );
-    } else {
-        &context.sql.close(&context);
-        dc_delete_file(context, context.get_dbfile());
-        if 0 != dc_file_exist(context, context.get_dbfile()) {
-            dc_log_error(
-                context,
-                0i32,
-                b"Cannot import backups: Cannot delete the old file.\x00" as *const u8
-                    as *const libc::c_char,
-            );
-        } else if !(0 == dc_copy_file(context, backup_to_import, context.get_dbfile())) {
-            /* error already logged */
-            /* re-open copied database file */
-            if context.sql.open(&context, as_path(context.get_dbfile()), 0) {
-                stmt = dc_sqlite3_prepare(
-                    context,
-                    &context.sql,
-                    b"SELECT COUNT(*) FROM backup_blobs;\x00" as *const u8 as *const libc::c_char,
-                );
-                sqlite3_step(stmt);
-                total_files_cnt = sqlite3_column_int(stmt, 0i32);
-                info!(
-                    context,
-                    0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt
-                );
-                sqlite3_finalize(stmt);
-                stmt = dc_sqlite3_prepare(
-                    context,
-                    &context.sql,
-                    b"SELECT file_name, file_content FROM backup_blobs ORDER BY id;\x00"
-                        as *const u8 as *const libc::c_char,
-                );
-                loop {
-                    if !(sqlite3_step(stmt) == 100i32) {
-                        current_block = 10891380440665537214;
+        return 0;
+    }
+
+    if 0 == dc_copy_file(context, backup_to_import, context.get_dbfile()) {
+        return 0;
+    }
+    /* error already logged */
+    /* re-open copied database file */
+    if !context.sql.open(&context, as_path(context.get_dbfile()), 0) {
+        return 0;
+    }
+
+    let total_files_cnt = context
+        .sql
+        .query_row_col::<_, isize>(context, "SELECT COUNT(*) FROM backup_blobs;", params![], 0)
+        .unwrap_or_default() as usize;
+    info!(
+        context,
+        0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
+    );
+
+    context
+        .sql
+        .query_map(
+            "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
+            params![],
+            |row| {
+                let name: String = row.get(0)?;
+                let blob: Vec<u8> = row.get(1)?;
+
+                Ok((name, blob))
+            },
+            |files| {
+                let mut loop_success = true;
+                let mut processed_files_cnt = 0;
+
+                for file in files {
+                    if file.is_err() {
+                        loop_success = false;
                         break;
                     }
+                    let (file_name, file_blob) = file.unwrap();
+
                     if context
                         .running_state
                         .clone()
@@ -908,84 +820,48 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                         .unwrap()
                         .shall_stop_ongoing
                     {
-                        current_block = 8648553629232744886;
+                        loop_success = false;
                         break;
                     }
                     processed_files_cnt += 1;
-                    let mut permille: libc::c_int = processed_files_cnt * 1000i32 / total_files_cnt;
-                    if permille < 10i32 {
-                        permille = 10i32
+                    let mut permille = processed_files_cnt * 1000 / total_files_cnt;
+                    if permille < 10 {
+                        permille = 10
                     }
-                    if permille > 990i32 {
-                        permille = 990i32
+                    if permille > 990 {
+                        permille = 990
                     }
-                    context.call_cb(
-                        Event::IMEX_PROGRESS,
-                        permille as uintptr_t,
-                        0i32 as uintptr_t,
-                    );
-                    let file_name: *const libc::c_char =
-                        sqlite3_column_text(stmt, 0i32) as *const libc::c_char;
-                    let file_bytes: libc::c_int = sqlite3_column_bytes(stmt, 1i32);
-                    let file_content: *const libc::c_void = sqlite3_column_blob(stmt, 1i32);
-                    if !(file_bytes > 0i32 && !file_content.is_null()) {
+                    context.call_cb(Event::IMEX_PROGRESS, permille as uintptr_t, 0);
+                    if file_blob.is_empty() {
                         continue;
                     }
-                    free(pathNfilename as *mut libc::c_void);
-                    pathNfilename = dc_mprintf(
-                        b"%s/%s\x00" as *const u8 as *const libc::c_char,
-                        context.get_blobdir(),
-                        file_name,
-                    );
-                    if !(0
-                        == dc_write_file(
-                            context,
-                            pathNfilename,
-                            file_content,
-                            file_bytes as size_t,
-                        ))
-                    {
+
+                    let pathNfilename = format!("{}/{}", as_str(context.get_blobdir()), file_name);
+                    if dc_write_file_safe(context, &pathNfilename, &file_blob) {
                         continue;
                     }
-                    dc_log_error(
+
+                    error!(
                         context,
-                        0i32,
-                        b"Storage full? Cannot write file %s with %i bytes.\x00" as *const u8
-                            as *const libc::c_char,
-                        pathNfilename,
-                        file_bytes,
+                        0,
+                        "Storage full? Cannot write file {} with {} bytes.",
+                        &pathNfilename,
+                        file_blob.len(),
                     );
-                    /* otherwise the user may believe the stuff is imported correctly, but there are files missing ... */
-                    current_block = 8648553629232744886;
+                    // otherwise the user may believe the stuff is imported correctly, but there are files missing ...
+                    loop_success = false;
                     break;
                 }
-                match current_block {
-                    8648553629232744886 => {}
-                    _ => {
-                        sqlite3_finalize(stmt);
-                        stmt = 0 as *mut sqlite3_stmt;
-                        dc_sqlite3_execute(
-                            context,
-                            &context.sql,
-                            b"DROP TABLE backup_blobs;\x00" as *const u8 as *const libc::c_char,
-                        );
-                        dc_sqlite3_try_execute(
-                            context,
-                            &context.sql,
-                            b"VACUUM;\x00" as *const u8 as *const libc::c_char,
-                        );
-                        success = 1i32
-                    }
-                }
-            }
-        }
-    }
-    free(pathNfilename as *mut libc::c_void);
-    free(repl_from as *mut libc::c_void);
-    free(repl_to as *mut libc::c_void);
-    sqlite3_finalize(stmt);
 
-    success
+                if !loop_success {
+                    return Err(format_err!("fail").into());
+                }
+                sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![]);
+                sql::try_execute(context, &context.sql, "VACUUM;");
+                Ok(())
+            },
+        )
+        .is_ok() as libc::c_int
 }
 
 /*******************************************************************************
@@ -996,15 +872,9 @@ The macro avoids weird values of 0% or 100% while still working. */
 // TODO should return bool /rtn
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut closed: libc::c_int;
+    let mut success: libc::c_int = 0;
 
-    let mut curr_pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
-    let mut buf_bytes: size_t = 0i32 as size_t;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    let mut delete_dest_file: libc::c_int = 0i32;
-    let mut dest_sql: Option<SQLite> = None;
+    let mut delete_dest_file: libc::c_int = 0;
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
     // FIXME: we should write to a temporary file first and rename it on success. this would guarantee the backup is complete. however, currently it is not clear it the import exists in the long run (may be replaced by a restore-from-imap)
     let now = time();
@@ -1014,23 +884,16 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     let buffer = to_cstring(res);
     let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
     if dest_pathNfilename.is_null() {
-        dc_log_error(
-            context,
-            0i32,
-            b"Cannot get backup file name.\x00" as *const u8 as *const libc::c_char,
-        );
+        error!(context, 0, "Cannot get backup file name.",);
 
         return success;
     }
 
-    dc_housekeeping(context);
-    dc_sqlite3_try_execute(
-        context,
-        &context.sql,
-        b"VACUUM;\x00" as *const u8 as *const libc::c_char,
-    );
-    context.sql.close(&context);
-    closed = 1i32;
+    sql::housekeeping(context);
+
+    sql::try_execute(context, &context.sql, "VACUUM;");
+    context.sql.close(context);
+    let mut closed = true;
     info!(
         context,
         0,
@@ -1040,24 +903,23 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     );
     if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
-        closed = 0i32;
+        closed = false;
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
-        let sql = SQLite::new();
+        let sql = Sql::new();
         if sql.open(context, as_path(dest_pathNfilename), 0) {
-            if 0 == dc_sqlite3_table_exists(
-                context,
-                &sql,
-                b"backup_blobs\x00" as *const u8 as *const libc::c_char,
-            ) {
-                if 0 ==
-                    dc_sqlite3_execute(context, &sql,
-                                       b"CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);\x00"
-                                       as *const u8 as
-                                       *const libc::c_char) {
-                        /* error already logged */
-                        current_block = 11487273724841241105;
-                    } else { current_block = 14648156034262866959; }
+            if !sql.table_exists("backup_blobs") {
+                if !sql::execute(
+                    context,
+                    &sql,
+                    "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
+                    params![],
+                ) {
+                    /* error already logged */
+                    current_block = 11487273724841241105;
+                } else {
+                    current_block = 14648156034262866959;
+                }
             } else {
                 current_block = 14648156034262866959;
             }
@@ -1068,12 +930,11 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                     let dir = std::path::Path::new(as_str(context.get_blobdir()));
                     let dir_handle = std::fs::read_dir(dir);
                     if dir_handle.is_err() {
-                        dc_log_error(
+                        error!(
                             context,
-                            0i32,
-                            b"Backup: Cannot get info for blob-directory \"%s\".\x00" as *const u8
-                                as *const libc::c_char,
-                            context.get_blobdir(),
+                            0,
+                            "Backup: Cannot get info for blob-directory \"{}\".",
+                            as_str(context.get_blobdir()),
                         );
                     } else {
                         let dir_handle = dir_handle.unwrap();
@@ -1092,144 +953,112 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                 );
                             } else {
                                 let dir_handle = dir_handle.unwrap();
-                                stmt = dc_sqlite3_prepare(
-                                context,
-                                &sql,
-                                b"INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);\x00"
-                                    as *const u8 as
-                                    *const libc::c_char
-                            );
 
-                                let mut processed_files_cnt = 0;
-                                for entry in dir_handle {
-                                    if entry.is_err() {
-                                        current_block = 2631791190359682872;
-                                        break;
-                                    }
-                                    let entry = entry.unwrap();
-                                    if context
-                                        .running_state
-                                        .clone()
-                                        .read()
-                                        .unwrap()
-                                        .shall_stop_ongoing
-                                    {
-                                        delete_dest_file = 1;
-                                        current_block = 11487273724841241105;
-                                        break;
-                                    } else {
-                                        processed_files_cnt += 1;
-                                        let mut permille =
-                                            processed_files_cnt * 1000 / total_files_cnt;
-                                        if permille < 10 {
-                                            permille = 10;
-                                        }
-                                        if permille > 990 {
-                                            permille = 990;
-                                        }
-                                        context.call_cb(
-                                            Event::IMEX_PROGRESS,
-                                            permille as uintptr_t,
-                                            0i32 as uintptr_t,
-                                        );
-
-                                        let name_f = entry.file_name();
-                                        let name = name_f.to_string_lossy();
-                                        if name.starts_with("delt-chat") && name.ends_with(".bak") {
-                                            continue;
-                                        } else {
-                                            info!(context, 0, "EXPORTing filename={}", name);
-                                            free(curr_pathNfilename as *mut libc::c_void);
-                                            let name_c = to_cstring(name);
-                                            curr_pathNfilename = dc_mprintf(
-                                                b"%s/%s\x00" as *const u8 as *const libc::c_char,
-                                                context.get_blobdir(),
-                                                name_c.as_ptr(),
-                                            );
-                                            free(buf);
-                                            if 0 == dc_read_file(
-                                                context,
-                                                curr_pathNfilename,
-                                                &mut buf,
-                                                &mut buf_bytes,
-                                            ) || buf.is_null()
-                                                || buf_bytes <= 0
-                                            {
-                                                continue;
+                                sql.prepare(
+                                    "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
+                                    move |mut stmt| {
+                                        let mut processed_files_cnt = 0;
+                                        for entry in dir_handle {
+                                            if entry.is_err() {
+                                                current_block = 2631791190359682872;
+                                                break;
                                             }
-                                            sqlite3_bind_text(
-                                                stmt,
-                                                1i32,
-                                                name_c.as_ptr(),
-                                                -1i32,
-                                                None,
-                                            );
-                                            sqlite3_bind_blob(
-                                                stmt,
-                                                2i32,
-                                                buf,
-                                                buf_bytes as libc::c_int,
-                                                None,
-                                            );
-                                            if sqlite3_step(stmt) != 101i32 {
-                                                dc_log_error(
-                                                context,
-                                                0i32,
-                                                b"Disk full? Cannot add file \"%s\" to backup.\x00"
-                                                    as *const u8
-                                                    as *const libc::c_char,
-                                                curr_pathNfilename,
-                                            );
-                                                /* this is not recoverable! writing to the sqlite database should work! */
+                                            let entry = entry.unwrap();
+                                            if context
+                                                .running_state
+                                                .clone()
+                                                .read()
+                                                .unwrap()
+                                                .shall_stop_ongoing
+                                            {
+                                                delete_dest_file = 1;
                                                 current_block = 11487273724841241105;
                                                 break;
                                             } else {
-                                                sqlite3_reset(stmt);
+                                                processed_files_cnt += 1;
+                                                let mut permille =
+                                                    processed_files_cnt * 1000 / total_files_cnt;
+                                                if permille < 10 {
+                                                    permille = 10;
+                                                }
+                                                if permille > 990 {
+                                                    permille = 990;
+                                                }
+                                                context.call_cb(
+                                                    Event::IMEX_PROGRESS,
+                                                    permille as uintptr_t,
+                                                    0 as uintptr_t,
+                                                );
+
+                                                let name_f = entry.file_name();
+                                                let name = name_f.to_string_lossy();
+                                                if name.starts_with("delta-chat") && name.ends_with(".bak")
+                                                {
+                                                    continue;
+                                                } else {
+                                                    info!(context, 0, "EXPORTing filename={}", name);
+                                                    let curr_pathNfilename = format!(
+                                                        "{}/{}",
+                                                        as_str(context.get_blobdir()),
+                                                        name
+                                                    );
+
+                                                    if let Some(buf) =
+                                                        dc_read_file_safe(context, &curr_pathNfilename)
+                                                    {
+                                                        if buf.is_empty() {
+                                                            continue;
+                                                        }
+                                                        if stmt.execute(params![name, buf]).is_err() {
+                                                            error!(
+                                                                context,
+                                                                0,
+                                                                "Disk full? Cannot add file \"{}\" to backup.",
+                                                                &curr_pathNfilename,
+                                                            );
+                                                            /* this is not recoverable! writing to the sqlite database should work! */
+                                                            current_block = 11487273724841241105;
+                                                            break;
+                                                        }
+                                                    } else {
+                                                        continue;
+                                                    }
+                                                }
                                             }
                                         }
+                                        Ok(())
                                     }
-                                }
+                                ).unwrap();
                             }
                         } else {
-                            info!(context, 0, "Backup: No files to copy.");
+                            info!(context, 0, "Backup: No files to copy.",);
                             current_block = 2631791190359682872;
                         }
                         match current_block {
                             11487273724841241105 => {}
                             _ => {
-                                dc_sqlite3_set_config_int(
-                                    context,
-                                    &sql,
-                                    b"backup_time\x00" as *const u8 as *const libc::c_char,
-                                    now as int32_t,
-                                );
-                                context.call_cb(
-                                    Event::IMEX_FILE_WRITTEN,
-                                    dest_pathNfilename as uintptr_t,
-                                    0i32 as uintptr_t,
-                                );
-                                success = 1i32
+                                if 0 != sql.set_config_int(context, "backup_time", now as i32) {
+                                    context.call_cb(
+                                        Event::IMEX_FILE_WRITTEN,
+                                        dest_pathNfilename as uintptr_t,
+                                        0,
+                                    );
+                                    success = 1;
+                                }
                             }
                         }
                     }
                 }
             }
         }
-        dest_sql = Some(sql);
     }
-    if 0 != closed {
+    if closed {
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
-    }
-    sqlite3_finalize(stmt);
-    if let Some(sql) = dest_sql.take() {
-        sql.close(&context);
     }
     if 0 != delete_dest_file {
         dc_delete_file(context, dest_pathNfilename);
     }
     free(dest_pathNfilename as *mut libc::c_void);
-    free(curr_pathNfilename as *mut libc::c_void);
-    free(buf);
 
     success
 }
@@ -1244,12 +1073,12 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
 
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
-    let mut imported_cnt: libc::c_int = 0i32;
+    let mut imported_cnt: libc::c_int = 0;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut buf_bytes: size_t = 0i32 as size_t;
+    let mut buf_bytes: size_t = 0 as size_t;
     // a pointer inside buf, MUST NOT be free()'d
     let mut private_key: *const libc::c_char;
     let mut buf2: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1259,11 +1088,11 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
         let dir = std::path::Path::new(as_str(dir_name));
         let dir_handle = std::fs::read_dir(dir);
         if dir_handle.is_err() {
-            dc_log_error(
+            error!(
                 context,
-                0i32,
-                b"Import: Cannot open directory \"%s\".\x00" as *const u8 as *const libc::c_char,
-                dir_name,
+                0,
+                "Import: Cannot open directory \"{}\".",
+                as_str(dir_name),
             );
         } else {
             let dir_handle = dir_handle.unwrap();
@@ -1277,7 +1106,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 let name_c = to_cstring(name_f.to_string_lossy());
                 suffix = dc_get_filesuffix_lc(name_c.as_ptr());
                 if suffix.is_null()
-                    || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0i32
+                    || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0
                 {
                     continue;
                 }
@@ -1287,12 +1116,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     dir_name,
                     name_c.as_ptr(),
                 );
-                dc_log_info(
-                    context,
-                    0i32,
-                    b"Checking: %s\x00" as *const u8 as *const libc::c_char,
-                    path_plus_name,
-                );
+                info!(context, 0, "Checking: {}", as_str(path_plus_name));
                 free(buf as *mut libc::c_void);
                 buf = 0 as *mut libc::c_char;
                 if 0 == dc_read_file(
@@ -1316,7 +1140,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 ) && strcmp(
                     buf2_headerline,
                     b"-----BEGIN PGP PUBLIC KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
+                ) == 0
                 {
                     private_key = strstr(
                         buf,
@@ -1327,19 +1151,18 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                         continue;
                     }
                 }
-                set_default = 1i32;
+                set_default = 1;
                 if !strstr(
                     name_c.as_ptr(),
                     b"legacy\x00" as *const u8 as *const libc::c_char,
                 )
                 .is_null()
                 {
-                    dc_log_info(
+                    info!(
                         context,
-                        0i32,
-                        b"Treating \"%s\" as a legacy private key.\x00" as *const u8
-                            as *const libc::c_char,
-                        path_plus_name,
+                        0,
+                        "Treating \"{}\" as a legacy private key.",
+                        as_str(path_plus_name),
                     );
                     set_default = 0i32
                 }
@@ -1349,11 +1172,11 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 imported_cnt += 1
             }
             if imported_cnt == 0i32 {
-                dc_log_error(
+                error!(
                     context,
-                    0i32,
-                    b"No private keys found in \"%s\".\x00" as *const u8 as *const libc::c_char,
-                    dir_name,
+                    0,
+                    "No private keys found in \"{}\".",
+                    as_str(dir_name),
                 );
             }
         }
@@ -1369,45 +1192,52 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
 
 // TODO should return bool /rtn
 unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
-    let mut export_errors: libc::c_int = 0i32;
-    let mut id: libc::c_int;
-    let mut is_default: libc::c_int;
-    let stmt = dc_sqlite3_prepare(
-        context,
-        &context.sql,
-        b"SELECT id, public_key, private_key, is_default FROM keypairs;\x00" as *const u8
-            as *const libc::c_char,
-    );
-    if !stmt.is_null() {
-        while sqlite3_step(stmt) == 100i32 {
-            id = sqlite3_column_int(stmt, 0i32);
-            let public_key = Key::from_stmt(stmt, 1, KeyType::Public);
-            let private_key = Key::from_stmt(stmt, 2, KeyType::Private);
+    let mut export_errors = 0;
 
-            is_default = sqlite3_column_int(stmt, 3i32);
-            if let Some(key) = public_key {
-                if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
-                    export_errors += 1
+    context
+        .sql
+        .query_map(
+            "SELECT id, public_key, private_key, is_default FROM keypairs;",
+            params![],
+            |row| {
+                let id = row.get(0)?;
+                let public_key_blob: Vec<u8> = row.get(1)?;
+                let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
+                let private_key_blob: Vec<u8> = row.get(2)?;
+                let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
+                let is_default = row.get(3)?;
+
+                Ok((id, public_key, private_key, is_default))
+            },
+            |keys| {
+                for key_pair in keys {
+                    let (id, public_key, private_key, is_default) = key_pair?;
+                    if let Some(key) = public_key {
+                        if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
+                            export_errors += 1;
+                        }
+                    } else {
+                        export_errors += 1;
+                    }
+                    if let Some(key) = private_key {
+                        if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
+                            export_errors += 1;
+                        }
+                    } else {
+                        export_errors += 1;
+                    }
                 }
-            } else {
-                export_errors += 1;
-            }
-            if let Some(key) = private_key {
-                if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
-                    export_errors += 1
-                }
-            } else {
-                export_errors += 1;
-            }
-        }
-        if export_errors == 0i32 {
-            success = 1i32
-        }
+
+                Ok(())
+            },
+        )
+        .unwrap();
+
+    if export_errors == 0 {
+        1
+    } else {
+        0
     }
-    sqlite3_finalize(stmt);
-
-    success
 }
 
 /*******************************************************************************
@@ -1445,20 +1275,10 @@ unsafe fn export_key_to_asc_file(
             id,
         )
     }
-    dc_log_info(
-        context,
-        0i32,
-        b"Exporting key %s\x00" as *const u8 as *const libc::c_char,
-        file_name,
-    );
+    info!(context, 0, "Exporting key {}", as_str(file_name),);
     dc_delete_file(context, file_name);
     if !key.write_asc_to_file(file_name, context) {
-        dc_log_error(
-            context,
-            0i32,
-            b"Cannot write key to %s\x00" as *const u8 as *const libc::c_char,
-            file_name,
-        );
+        error!(context, 0, "Cannot write key to {}", as_str(file_name),);
     } else {
         context.call_cb(
             Event::IMEX_FILE_WRITTEN,

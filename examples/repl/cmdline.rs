@@ -1,3 +1,4 @@
+use deltachat::config;
 use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
@@ -12,9 +13,9 @@ use deltachat::dc_lot::*;
 use deltachat::dc_msg::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_receive_imf::*;
-use deltachat::dc_sqlite3::*;
 use deltachat::dc_tools::*;
 use deltachat::peerstate::*;
+use deltachat::sql;
 use deltachat::types::*;
 use deltachat::x::*;
 use num_traits::FromPrimitive;
@@ -25,65 +26,58 @@ use num_traits::FromPrimitive;
 pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     info!(context, 0, "Resetting tables ({})...", bits);
     if 0 != bits & 1 {
-        dc_sqlite3_execute(
-            context,
-            &context.sql,
-            b"DELETE FROM jobs;\x00" as *const u8 as *const libc::c_char,
-        );
+        sql::execute(context, &context.sql, "DELETE FROM jobs;", params![]);
         info!(context, 0, "(1) Jobs reset.");
     }
     if 0 != bits & 2 {
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
-            b"DELETE FROM acpeerstates;\x00" as *const u8 as *const libc::c_char,
+            "DELETE FROM acpeerstates;",
+            params![],
         );
         info!(context, 0, "(2) Peerstates reset.");
     }
     if 0 != bits & 4 {
-        dc_sqlite3_execute(
-            context,
-            &context.sql,
-            b"DELETE FROM keypairs;\x00" as *const u8 as *const libc::c_char,
-        );
+        sql::execute(context, &context.sql, "DELETE FROM keypairs;", params![]);
         info!(context, 0, "(4) Private keypairs reset.");
     }
     if 0 != bits & 8 {
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
-            b"DELETE FROM contacts WHERE id>9;\x00" as *const u8 as *const libc::c_char,
+            "DELETE FROM contacts WHERE id>9;",
+            params![],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
-            b"DELETE FROM chats WHERE id>9;\x00" as *const u8 as *const libc::c_char,
+            "DELETE FROM chats WHERE id>9;",
+            params![],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
-            b"DELETE FROM chats_contacts;\x00" as *const u8 as *const libc::c_char,
+            "DELETE FROM chats_contacts;",
+            params![],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
-            b"DELETE FROM msgs WHERE id>9;\x00" as *const u8 as *const libc::c_char,
+            "DELETE FROM msgs WHERE id>9;",
+            params![],
         );
-        dc_sqlite3_execute(
+        sql::execute(
             context,
             &context.sql,
-            b"DELETE FROM config WHERE keyname LIKE \'imap.%\' OR keyname LIKE \'configured%\';\x00"
-                as *const u8 as *const libc::c_char,
+            "DELETE FROM config WHERE keyname LIKE \'imap.%\' OR keyname LIKE \'configured%\';",
+            params![],
         );
-        dc_sqlite3_execute(
-            context,
-            &context.sql,
-            b"DELETE FROM leftgrps;\x00" as *const u8 as *const libc::c_char,
-        );
+        sql::execute(context, &context.sql, "DELETE FROM leftgrps;", params![]);
         info!(context, 0, "(8) Rest but server config reset.");
     }
 
-    context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+    context.call_cb(Event::MSGS_CHANGED, 0, 0);
 
     1
 }
@@ -100,14 +94,7 @@ unsafe fn dc_poke_eml_file(context: &Context, filename: *const libc::c_char) -> 
         &mut data_bytes,
     ) == 0i32)
     {
-        dc_receive_imf(
-            context,
-            data,
-            data_bytes,
-            b"import\x00" as *const u8 as *const libc::c_char,
-            0i32 as uint32_t,
-            0i32 as uint32_t,
-        );
+        dc_receive_imf(context, data, data_bytes, "import", 0, 0);
         success = 1;
     }
     free(data as *mut libc::c_void);
@@ -138,26 +125,19 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     /* if `spec` is given, remember it for later usage; if it is not given, try to use the last one */
     if !spec.is_null() {
         real_spec = dc_strdup(spec);
-        dc_sqlite3_set_config(
-            context,
-            &context.sql,
-            b"import_spec\x00" as *const u8 as *const libc::c_char,
-            real_spec,
-        );
+        context
+            .sql
+            .set_config(context, "import_spec", Some(as_str(real_spec)));
         current_block = 7149356873433890176;
     } else {
-        real_spec = dc_sqlite3_get_config(
-            context,
-            &context.sql,
-            b"import_spec\x00" as *const u8 as *const libc::c_char,
-            0 as *const libc::c_char,
-        );
-        if real_spec.is_null() {
+        let rs = context.sql.get_config(context, "import_spec", None);
+        if rs.is_none() {
             error!(context, 0, "Import: No file or folder given.");
             current_block = 8522321847195001863;
         } else {
             current_block = 7149356873433890176;
         }
+        real_spec = strdup(to_cstring(rs.unwrap_or_default()).as_ptr());
     }
     match current_block {
         8522321847195001863 => {}
@@ -499,9 +479,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         },
         "auth" => {
             if 0 == S_IS_AUTH {
-                let is_pw =
-                    dc_get_config(context, b"mail_pw\x00" as *const u8 as *const libc::c_char);
-                if arg1 == as_str(is_pw) {
+                let is_pw = config::get(context, "mail_pw");
+                if arg1 == is_pw {
                     S_IS_AUTH = 1;
                 } else {
                     println!("Bad password.");
@@ -537,8 +516,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let msg_id: u32 = arg1.parse().unwrap();
             let msg: *mut dc_msg_t = dc_get_msg(context, msg_id);
-            if 0 != dc_msg_is_setupmessage(msg) {
-                let setupcodebegin: *mut libc::c_char = dc_msg_get_setupcodebegin(msg);
+            if dc_msg_is_setupmessage(msg) {
+                let setupcodebegin = dc_msg_get_setupcodebegin(msg);
                 println!(
                     "The setup code for setup message Msg#{} starts with: {}",
                     msg_id,
@@ -621,15 +600,14 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "set" => {
             ensure!(!arg1.is_empty(), "Argument <key> missing.");
             ensure!(
-                0 != dc_set_config(context, arg1_c_ptr, arg2_c_ptr),
+                0 != config::set(context, &arg1, Some(&arg2)),
                 "Set config failed"
             );
         }
         "get" => {
             ensure!(!arg1.is_empty(), "Argument <key> missing.");
-            let val = dc_get_config(context, arg1_c_ptr);
-            println!("{}={}", arg1, to_string(val));
-            free(val as *mut libc::c_void);
+            let val = config::get(context, &arg1);
+            println!("{}={}", arg1, val);
         }
         "info" => {
             println!("{}", to_string(dc_get_info(context)));
@@ -638,7 +616,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             dc_maybe_network(context);
         }
         "housekeeping" => {
-            dc_housekeeping(context);
+            sql::housekeeping(context);
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };
@@ -714,7 +692,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     i -= 1
                 }
             }
-            if 0 != dc_is_sending_locations_to_chat(context, 0 as uint32_t) {
+            if dc_is_sending_locations_to_chat(context, 0 as uint32_t) {
                 info!(context, 0, "Location streaming enabled.");
             }
             println!("{} chats", cnt);

@@ -17,10 +17,8 @@ use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
 
 use crate::aheader::*;
 use crate::context::Context;
-use crate::dc_log::*;
 use crate::dc_mimeparser::*;
 use crate::dc_securejoin::*;
-use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::keyring::*;
@@ -82,28 +80,17 @@ pub unsafe fn dc_e2ee_encrypt(
         || plain.is_null())
     {
         /* libEtPan's pgp_encrypt_mime() takes the parent as the new root. We just expect the root as being given to this function. */
-        let prefer_encrypt = if 0
-            != dc_sqlite3_get_config_int(
-                context,
-                &context.sql,
-                b"e2ee_enabled\x00" as *const u8 as *const libc::c_char,
-                1,
-            ) {
+        let prefer_encrypt = if 0 != context.sql.get_config_int(context, "e2ee_enabled", 1) {
             EncryptPreference::Mutual
         } else {
             EncryptPreference::NoPreference
         };
 
-        let addr = dc_sqlite3_get_config(
-            context,
-            &context.sql,
-            b"configured_addr\x00" as *const u8 as *const libc::c_char,
-            0 as *const libc::c_char,
-        );
+        let addr = context.sql.get_config(context, "configured_addr", None);
 
-        if !addr.is_null() {
+        if let Some(addr) = addr {
             if let Some(public_key) =
-                load_or_generate_self_public_key(context, addr, in_out_message)
+                load_or_generate_self_public_key(context, &addr, in_out_message)
             {
                 /*only for random-seed*/
                 if prefer_encrypt == EncryptPreference::Mutual || 0 != e2ee_guaranteed {
@@ -111,15 +98,10 @@ pub unsafe fn dc_e2ee_encrypt(
                     let mut iter1: *mut clistiter;
                     iter1 = (*recipients_addr).first;
                     while !iter1.is_null() {
-                        let recipient_addr: *const libc::c_char = (if !iter1.is_null() {
-                            (*iter1).data
-                        } else {
-                            0 as *mut libc::c_void
-                        })
-                            as *const libc::c_char;
-                        if strcasecmp(recipient_addr, addr) != 0 {
+                        let recipient_addr = to_string((*iter1).data as *const libc::c_char);
+                        if recipient_addr != addr {
                             let peerstate =
-                                Peerstate::from_addr(context, &context.sql, as_str(recipient_addr));
+                                Peerstate::from_addr(context, &context.sql, &recipient_addr);
                             if peerstate.is_some()
                                 && (peerstate.as_ref().unwrap().prefer_encrypt
                                     == EncryptPreference::Mutual
@@ -145,7 +127,7 @@ pub unsafe fn dc_e2ee_encrypt(
                 }
                 let sign_key = if 0 != do_encrypt {
                     keyring.add_ref(&public_key);
-                    let key = Key::from_self_private(context, addr, &context.sql);
+                    let key = Key::from_self_private(context, addr.clone(), &context.sql);
 
                     if key.is_none() {
                         do_encrypt = 0i32;
@@ -366,8 +348,7 @@ pub unsafe fn dc_e2ee_encrypt(
                     match current_block {
                         14181132614457621749 => {}
                         _ => {
-                            let addr = CStr::from_ptr(addr).to_str().unwrap();
-                            let aheader = Aheader::new(addr.into(), public_key, prefer_encrypt);
+                            let aheader = Aheader::new(addr, public_key, prefer_encrypt);
                             let rendered = CString::new(aheader.to_string()).unwrap();
 
                             mailimf_fields_add(
@@ -503,13 +484,13 @@ unsafe fn new_data_part(
  ******************************************************************************/
 unsafe fn load_or_generate_self_public_key(
     context: &Context,
-    self_addr: *const libc::c_char,
+    self_addr: impl AsRef<str>,
     _random_data_mime: *mut mailmime,
 ) -> Option<Key> {
     /* avoid double creation (we unlock the database during creation) */
-    static mut s_in_key_creation: libc::c_int = 0i32;
+    static mut s_in_key_creation: libc::c_int = 0;
 
-    let mut key = Key::from_self_public(context, self_addr, &context.sql);
+    let mut key = Key::from_self_public(context, &self_addr, &context.sql);
     if key.is_some() {
         return key;
     }
@@ -521,46 +502,35 @@ unsafe fn load_or_generate_self_public_key(
     let key_creation_here = 1;
     s_in_key_creation = 1;
 
-    let start: libc::clock_t = clock();
-    dc_log_info(
+    let start = clock();
+    info!(
         context,
-        0i32,
-        b"Generating keypair with %i bits, e=%i ...\x00" as *const u8 as *const libc::c_char,
-        2048i32,
-        65537i32,
+        0, "Generating keypair with {} bits, e={} ...", 2048, 65537,
     );
 
-    if let Some((public_key, private_key)) = dc_pgp_create_keypair(self_addr) {
+    if let Some((public_key, private_key)) = dc_pgp_create_keypair(&self_addr) {
         if !dc_key_save_self_keypair(
             context,
             &public_key,
             &private_key,
-            self_addr,
+            &self_addr,
             1i32,
             &context.sql,
         ) {
             /*set default*/
-            dc_log_warning(
-                context,
-                0i32,
-                b"Cannot save keypair.\x00" as *const u8 as *const libc::c_char,
-            );
+            warn!(context, 0, "Cannot save keypair.",);
         } else {
-            dc_log_info(
+            info!(
                 context,
-                0i32,
-                b"Keypair generated in %.3f s.\x00" as *const u8 as *const libc::c_char,
-                clock().wrapping_sub(start) as libc::c_double / 1000000i32 as libc::c_double,
+                0,
+                "Keypair generated in {:.3}s.",
+                clock().wrapping_sub(start) as libc::c_double / 1000000 as libc::c_double,
             );
         }
 
         key = Some(public_key);
     } else {
-        dc_log_warning(
-            context,
-            0i32,
-            b"Cannot create keypair.\x00" as *const u8 as *const libc::c_char,
-        );
+        warn!(context, 0, "Cannot create keypair.");
     }
 
     if 0 != key_creation_here {
@@ -583,7 +553,6 @@ pub unsafe fn dc_e2ee_decrypt(
     let imffields: *mut mailimf_fields = mailmime_find_mailimf_fields(in_out_message);
     let mut message_time = 0;
     let mut from: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut self_addr: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut private_keyring = Keyring::default();
     let mut public_keyring_for_validate = Keyring::default();
     let mut gossip_headers: *mut mailimf_fields = 0 as *mut mailimf_fields;
@@ -612,28 +581,23 @@ pub unsafe fn dc_e2ee_decrypt(
 
             if let Some(ref mut peerstate) = peerstate {
                 if let Some(ref header) = autocryptheader {
-                    peerstate.apply_header(&header, message_time as u64);
+                    peerstate.apply_header(&header, message_time);
                     peerstate.save_to_db(&context.sql, false);
-                } else if message_time as u64 > peerstate.last_seen_autocrypt
+                } else if message_time > peerstate.last_seen_autocrypt
                     && 0 == contains_report(in_out_message)
                 {
-                    peerstate.degrade_encryption(message_time as u64);
+                    peerstate.degrade_encryption(message_time);
                     peerstate.save_to_db(&context.sql, false);
                 }
             } else if let Some(ref header) = autocryptheader {
-                let p = Peerstate::from_header(context, header, message_time as u64);
+                let p = Peerstate::from_header(context, header, message_time);
                 p.save_to_db(&context.sql, true);
                 peerstate = Some(p);
             }
         }
         /* load private key for decryption */
-        self_addr = dc_sqlite3_get_config(
-            context,
-            &context.sql,
-            b"configured_addr\x00" as *const u8 as *const libc::c_char,
-            0 as *const libc::c_char,
-        );
-        if !self_addr.is_null() {
+        let self_addr = context.sql.get_config(context, "configured_addr", None);
+        if let Some(self_addr) = self_addr {
             if private_keyring.load_self_private_for_decrypting(context, self_addr, &context.sql) {
                 if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
                     peerstate = Peerstate::from_addr(&context, &context.sql, as_str(from));
@@ -681,7 +645,6 @@ pub unsafe fn dc_e2ee_decrypt(
     }
 
     free(from as *mut libc::c_void);
-    free(self_addr as *mut libc::c_void);
 }
 
 unsafe fn update_gossip_peerstates(
@@ -722,10 +685,10 @@ unsafe fn update_gossip_peerstates(
                         let mut peerstate =
                             Peerstate::from_addr(context, &context.sql, &header.addr);
                         if let Some(ref mut peerstate) = peerstate {
-                            peerstate.apply_gossip(header, message_time as u64);
+                            peerstate.apply_gossip(header, message_time);
                             peerstate.save_to_db(&context.sql, false);
                         } else {
-                            let p = Peerstate::from_gossip(context, header, message_time as u64);
+                            let p = Peerstate::from_gossip(context, header, message_time);
                             p.save_to_db(&context.sql, true);
                             peerstate = Some(p);
                         }
@@ -737,12 +700,11 @@ unsafe fn update_gossip_peerstates(
 
                         gossipped_addr.insert(header.addr.clone());
                     } else {
-                        dc_log_info(
+                        info!(
                             context,
-                            0i32,
-                            b"Ignoring gossipped \"%s\" as the address is not in To/Cc list.\x00"
-                                as *const u8 as *const libc::c_char,
-                            CString::new(header.addr.clone()).unwrap().as_ptr(),
+                            0,
+                            "Ignoring gossipped \"{}\" as the address is not in To/Cc list.",
+                            &header.addr,
                         );
                     }
                 }
@@ -1103,25 +1065,18 @@ pub unsafe fn dc_ensure_secret_key_exists(context: &Context) -> libc::c_int {
     (this is to gain some extra-random-seed by the message content and the timespan between program start and message sending) */
     let mut success: libc::c_int = 0i32;
 
-    let self_addr = dc_sqlite3_get_config(
-        context,
-        &context.sql,
-        b"configured_addr\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
-    );
-    if self_addr.is_null() {
-        dc_log_warning(
+    let self_addr = context.sql.get_config(context, "configured_addr", None);
+    if self_addr.is_none() {
+        warn!(
             context,
-            0i32,
-            b"Cannot ensure secret key if context is not configured.\x00" as *const u8
-                as *const libc::c_char,
+            0, "Cannot ensure secret key if context is not configured.",
         );
-    } else if load_or_generate_self_public_key(context, self_addr, 0 as *mut mailmime).is_some() {
+    } else if load_or_generate_self_public_key(context, self_addr.unwrap(), 0 as *mut mailmime)
+        .is_some()
+    {
         /*no random text data for seeding available*/
-        success = 1i32
+        success = 1;
     }
-
-    free(self_addr as *mut libc::c_void);
 
     success
 }

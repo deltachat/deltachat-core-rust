@@ -6,10 +6,13 @@ use std::ffi::CString;
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
 
+use deltachat::config;
 use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
+use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
+use deltachat::dc_contact::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_location::*;
 use deltachat::dc_lot::*;
@@ -244,15 +247,8 @@ unsafe fn stress_functions(context: &Context) {
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }
-    let keys = dc_get_config(
-        context,
-        b"sys.config_keys\x00" as *const u8 as *const libc::c_char,
-    );
-    assert!(!keys.is_null());
-    assert_ne!(0, *keys.offset(0isize) as libc::c_int);
 
-    let res = format!(" {} ", as_str(keys));
-    free(keys as *mut libc::c_void);
+    let res = config::get(context, "sys.config_keys");
 
     assert!(!res.contains(" probably_never_a_key "));
     assert!(res.contains(" addr "));
@@ -669,13 +665,11 @@ fn test_encryption_decryption() {
             j += 1
         }
 
-        let (public_key, private_key) =
-            dc_pgp_create_keypair(b"foo@bar.de\x00" as *const u8 as *const libc::c_char).unwrap();
+        let (public_key, private_key) = dc_pgp_create_keypair("foo@bar.de").unwrap();
 
         private_key.split_key().unwrap();
 
-        let (public_key2, private_key2) =
-            dc_pgp_create_keypair(b"two@zwo.de\x00" as *const u8 as *const libc::c_char).unwrap();
+        let (public_key2, private_key2) = dc_pgp_create_keypair("two@zwo.de").unwrap();
 
         assert_ne!(public_key, public_key2);
 
@@ -951,6 +945,56 @@ fn test_stress_tests() {
     unsafe {
         let context = create_test_context();
         stress_functions(&context.ctx);
+    }
+}
+
+#[test]
+fn test_get_contacts() {
+    unsafe {
+        let context = create_test_context();
+        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("some2").as_ptr());
+        assert_eq!(dc_array_get_cnt(contacts), 0);
+        dc_array_unref(contacts);
+
+        let id = dc_create_contact(
+            &context.ctx,
+            to_cstring("bob").as_ptr(),
+            to_cstring("bob@mail.de").as_ptr(),
+        );
+        assert_ne!(id, 0);
+
+        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("bob").as_ptr());
+        assert_eq!(dc_array_get_cnt(contacts), 1);
+        dc_array_unref(contacts);
+
+        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("alice").as_ptr());
+        assert_eq!(dc_array_get_cnt(contacts), 0);
+        dc_array_unref(contacts);
+    }
+}
+
+#[test]
+fn test_chat() {
+    unsafe {
+        let context = create_test_context();
+        let contact1 = dc_create_contact(
+            &context.ctx,
+            to_cstring("bob").as_ptr(),
+            to_cstring("bob@mail.de").as_ptr(),
+        );
+        assert_ne!(contact1, 0);
+
+        let chat_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
+        assert!(chat_id > 9, "chat_id too small {}", chat_id);
+        let chat = dc_chat_new(&context.ctx);
+        assert!(dc_chat_load_from_db(chat, chat_id));
+
+        let chat2_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
+        assert_eq!(chat2_id, chat_id);
+        let chat2 = dc_chat_new(&context.ctx);
+        assert!(dc_chat_load_from_db(chat2, chat2_id));
+
+        assert_eq!(as_str((*chat2).name), as_str((*chat).name));
     }
 }
 

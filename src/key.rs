@@ -10,9 +10,8 @@ use pgp::types::{KeyTrait, SecretKeyTrait};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_sqlite3::*;
 use crate::dc_tools::*;
-use crate::types::*;
+use crate::sql::{self, Sql};
 use crate::x::*;
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -113,19 +112,6 @@ impl Key {
         Self::from_slice(bytes, key_type)
     }
 
-    pub fn from_stmt(
-        stmt: *mut sqlite3_stmt,
-        index: libc::c_int,
-        key_type: KeyType,
-    ) -> Option<Self> {
-        assert!(!stmt.is_null(), "missing statement");
-
-        let data = unsafe { sqlite3_column_blob(stmt, index) as *const u8 };
-        let len = unsafe { sqlite3_column_bytes(stmt, index) };
-
-        Self::from_binary(data, len, key_type)
-    }
-
     pub fn from_armored_string(
         data: &str,
         key_type: KeyType,
@@ -158,61 +144,32 @@ impl Key {
 
     pub fn from_self_public(
         context: &Context,
-        self_addr: *const libc::c_char,
-        sql: &SQLite,
+        self_addr: impl AsRef<str>,
+        sql: &Sql,
     ) -> Option<Self> {
-        if self_addr.is_null() {
-            return None;
-        }
+        let addr = self_addr.as_ref();
 
-        let stmt = unsafe {
-            dc_sqlite3_prepare(
-                context,
-                sql,
-                b"SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
-                    as *const libc::c_char,
-            )
-        };
-        unsafe { sqlite3_bind_text(stmt, 1, self_addr, -1, None) };
-
-        let key = if unsafe { sqlite3_step(stmt) } == 100 {
-            Self::from_stmt(stmt, 0, KeyType::Public)
-        } else {
-            None
-        };
-
-        unsafe { sqlite3_finalize(stmt) };
-
-        key
+        sql.query_row_col(
+            context,
+            "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
+            &[addr],
+            0,
+        )
+        .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Public))
     }
 
     pub fn from_self_private(
         context: &Context,
-        self_addr: *const libc::c_char,
-        sql: &SQLite,
+        self_addr: impl AsRef<str>,
+        sql: &Sql,
     ) -> Option<Self> {
-        if self_addr.is_null() {
-            return None;
-        }
-
-        let stmt = unsafe {
-            dc_sqlite3_prepare(
-                context,
-                sql,
-                b"SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;\x00" as *const u8
-                    as *const libc::c_char,
-            )
-        };
-        unsafe { sqlite3_bind_text(stmt, 1, self_addr, -1, None) };
-
-        let key = if unsafe { sqlite3_step(stmt) } == 100 {
-            Self::from_stmt(stmt, 0, KeyType::Private)
-        } else {
-            None
-        };
-        unsafe { sqlite3_finalize(stmt) };
-
-        key
+        sql.query_row_col(
+            context,
+            "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
+            &[self_addr.as_ref()],
+            0,
+        )
+        .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Private))
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -340,57 +297,16 @@ pub fn dc_key_save_self_keypair(
     context: &Context,
     public_key: &Key,
     private_key: &Key,
-    addr: *const libc::c_char,
+    addr: impl AsRef<str>,
     is_default: libc::c_int,
-    sql: &SQLite,
+    sql: &Sql,
 ) -> bool {
-    if addr.is_null() {
-        return false;
-    }
-
-    let stmt = unsafe {
-        dc_sqlite3_prepare(
+    sql::execute(
         context,
         sql,
-        b"INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);\x00"
-            as *const u8 as *const libc::c_char
+        "INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);",
+        params![addr.as_ref(), is_default, public_key.to_bytes(), private_key.to_bytes(), time()],
     )
-    };
-
-    unsafe {
-        sqlite3_bind_text(stmt, 1, addr, -1, None);
-        sqlite3_bind_int(stmt, 2, is_default)
-    };
-    let pub_bytes = public_key.to_bytes();
-    let sec_bytes = private_key.to_bytes();
-    unsafe {
-        sqlite3_bind_blob(
-            stmt,
-            3,
-            pub_bytes.as_ptr() as *const _,
-            pub_bytes.len() as libc::c_int,
-            None,
-        )
-    };
-    unsafe {
-        sqlite3_bind_blob(
-            stmt,
-            4,
-            sec_bytes.as_ptr() as *const _,
-            sec_bytes.len() as libc::c_int,
-            None,
-        )
-    };
-    unsafe { sqlite3_bind_int64(stmt, 5, time() as sqlite3_int64) };
-    let success = if unsafe { sqlite3_step(stmt) } == 101 {
-        true
-    } else {
-        false
-    };
-
-    unsafe { sqlite3_finalize(stmt) };
-
-    success
 }
 
 /// Make a fingerprint human-readable, in hex format.
@@ -526,8 +442,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[test]
     #[ignore] // is too expensive
     fn test_from_slice_roundtrip() {
-        let (public_key, private_key) =
-            crate::pgp::dc_pgp_create_keypair(CString::new("hello").unwrap().as_ptr()).unwrap();
+        let (public_key, private_key) = crate::pgp::dc_pgp_create_keypair("hello").unwrap();
 
         let binary = public_key.to_bytes();
         let public_key2 = Key::from_slice(&binary, KeyType::Public).expect("invalid public key");
@@ -541,8 +456,7 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     #[test]
     #[ignore] // is too expensive
     fn test_ascii_roundtrip() {
-        let (public_key, private_key) =
-            crate::pgp::dc_pgp_create_keypair(CString::new("hello").unwrap().as_ptr()).unwrap();
+        let (public_key, private_key) = crate::pgp::dc_pgp_create_keypair("hello").unwrap();
 
         let s = public_key.to_armored_string(None).unwrap();
         let (public_key2, _) =
