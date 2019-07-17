@@ -21,7 +21,13 @@ use crate::x::*;
 // text1=URL
 // text1=error string
 pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc_lot_t {
-    let mut current_block: u64;
+    let mut qr_parsed: *mut dc_lot_t = dc_lot_new();
+    (*qr_parsed).state = 0;
+    if qr.is_null() {
+        return qr_parsed;
+    }
+
+    let mut OK_TO_CONTINUE = true;
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     // must be normalized, if set
     let mut addr: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -30,13 +36,11 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
     let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut invitenumber: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut qr_parsed: *mut dc_lot_t = dc_lot_new();
     let mut chat_id: uint32_t = 0i32 as uint32_t;
     let mut device_msg: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
-    (*qr_parsed).state = 0i32;
-    if !qr.is_null() {
+    if OK_TO_CONTINUE {
         info!(context, 0, "Scanned QR code: {}", as_str(qr),);
         /* split parameters from the qr code
         ------------------------------------ */
@@ -79,7 +83,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 dc_param_unref(param);
             }
             fingerprint = dc_normalize_fingerprint_c(payload);
-            current_block = 5023038348526654800;
         } else if strncasecmp(
             qr,
             b"mailto:\x00" as *const u8 as *const libc::c_char,
@@ -94,7 +97,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 *query = 0i32 as libc::c_char
             }
             addr = dc_strdup(payload);
-            current_block = 5023038348526654800;
         } else if strncasecmp(
             qr,
             b"SMTP:\x00" as *const u8 as *const libc::c_char,
@@ -109,7 +111,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 *colon = 0i32 as libc::c_char
             }
             addr = dc_strdup(payload);
-            current_block = 5023038348526654800;
         } else if strncasecmp(
             qr,
             b"MATMSG:\x00" as *const u8 as *const libc::c_char,
@@ -125,12 +126,11 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 if !semicolon.is_null() {
                     *semicolon = 0i32 as libc::c_char
                 }
-                current_block = 5023038348526654800;
             } else {
                 (*qr_parsed).state = 400i32;
                 (*qr_parsed).text1 =
                     dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
-                current_block = 16562876845594826114;
+                OK_TO_CONTINUE = false;
             }
         } else {
             if strncasecmp(
@@ -183,147 +183,101 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 }
                 dc_free_splitted_lines(lines);
             }
-            current_block = 5023038348526654800;
         }
-        match current_block {
-            16562876845594826114 => {}
-            _ => {
-                /* check the paramters
-                ---------------------- */
-                if !addr.is_null() {
-                    /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
-                    let mut temp: *mut libc::c_char = dc_urldecode(addr);
-                    free(addr as *mut libc::c_void);
-                    addr = temp;
-                    temp = dc_addr_normalize(addr);
-                    free(addr as *mut libc::c_void);
-                    addr = temp;
-                    if !dc_may_be_valid_addr(addr) {
-                        (*qr_parsed).state = 400i32;
-                        (*qr_parsed).text1 = dc_strdup(
-                            b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char,
-                        );
-                        current_block = 16562876845594826114;
-                    } else {
-                        current_block = 14116432890150942211;
-                    }
-                } else {
-                    current_block = 14116432890150942211;
-                }
-                match current_block {
-                    16562876845594826114 => {}
-                    _ => {
-                        if !fingerprint.is_null() {
-                            if strlen(fingerprint) != 40 {
-                                (*qr_parsed).state = 400i32;
-                                (*qr_parsed).text1 = dc_strdup(
-                                    b"Bad fingerprint length in QR code.\x00" as *const u8
-                                        as *const libc::c_char,
-                                );
-                                current_block = 16562876845594826114;
-                            } else {
-                                current_block = 5409161009579131794;
-                            }
-                        } else {
-                            current_block = 5409161009579131794;
-                        }
-                        match current_block {
-                            16562876845594826114 => {}
-                            _ => {
-                                if !fingerprint.is_null() {
-                                    let peerstate = Peerstate::from_fingerprint(
-                                        context,
-                                        &context.sql,
-                                        as_str(fingerprint),
-                                    );
-                                    if addr.is_null() || invitenumber.is_null() || auth.is_null() {
-                                        if let Some(peerstate) = peerstate {
-                                            (*qr_parsed).state = 210i32;
-                                            let c_addr = peerstate
-                                                .addr
-                                                .as_ref()
-                                                .map(to_cstring)
-                                                .unwrap_or_default();
-                                            let addr_ptr = if peerstate.addr.is_some() {
-                                                c_addr.as_ptr()
-                                            } else {
-                                                std::ptr::null()
-                                            };
-                                            (*qr_parsed).id = dc_add_or_lookup_contact(
-                                                context,
-                                                0 as *const libc::c_char,
-                                                addr_ptr,
-                                                0x80i32,
-                                                0 as *mut libc::c_int,
-                                            );
-                                            dc_create_or_lookup_nchat_by_contact_id(
-                                                context,
-                                                (*qr_parsed).id,
-                                                2i32,
-                                                &mut chat_id,
-                                                0 as *mut libc::c_int,
-                                            );
-                                            device_msg = dc_mprintf(
-                                                b"%s verified.\x00" as *const u8
-                                                    as *const libc::c_char,
-                                                peerstate.addr,
-                                            )
-                                        } else {
-                                            (*qr_parsed).text1 =
-                                                dc_format_fingerprint_c(fingerprint);
-                                            (*qr_parsed).state = 230i32
-                                        }
-                                    } else {
-                                        if !grpid.is_null() && !grpname.is_null() {
-                                            (*qr_parsed).state = 202i32;
-                                            (*qr_parsed).text1 = dc_strdup(grpname);
-                                            (*qr_parsed).text2 = dc_strdup(grpid)
-                                        } else {
-                                            (*qr_parsed).state = 200i32
-                                        }
-                                        (*qr_parsed).id = dc_add_or_lookup_contact(
-                                            context,
-                                            name,
-                                            addr,
-                                            0x80i32,
-                                            0 as *mut libc::c_int,
-                                        );
-                                        (*qr_parsed).fingerprint = dc_strdup(fingerprint);
-                                        (*qr_parsed).invitenumber = dc_strdup(invitenumber);
-                                        (*qr_parsed).auth = dc_strdup(auth)
-                                    }
-                                } else if !addr.is_null() {
-                                    (*qr_parsed).state = 320i32;
-                                    (*qr_parsed).id = dc_add_or_lookup_contact(
-                                        context,
-                                        name,
-                                        addr,
-                                        0x80i32,
-                                        0 as *mut libc::c_int,
-                                    )
-                                } else if strstr(
-                                    qr,
-                                    b"http://\x00" as *const u8 as *const libc::c_char,
-                                ) == qr as *mut libc::c_char
-                                    || strstr(
-                                        qr,
-                                        b"https://\x00" as *const u8 as *const libc::c_char,
-                                    ) == qr as *mut libc::c_char
-                                {
-                                    (*qr_parsed).state = 332i32;
-                                    (*qr_parsed).text1 = dc_strdup(qr)
-                                } else {
-                                    (*qr_parsed).state = 330i32;
-                                    (*qr_parsed).text1 = dc_strdup(qr)
-                                }
-                                if !device_msg.is_null() {
-                                    dc_add_device_msg(context, chat_id, device_msg);
-                                }
-                            }
-                        }
-                    }
-                }
+    }
+    if OK_TO_CONTINUE {
+        /* check the paramters
+        ---------------------- */
+        if !addr.is_null() {
+            /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
+            let mut temp: *mut libc::c_char = dc_urldecode(addr);
+            free(addr as *mut libc::c_void);
+            addr = temp;
+            temp = dc_addr_normalize(addr);
+            free(addr as *mut libc::c_void);
+            addr = temp;
+            if !dc_may_be_valid_addr(addr) {
+                (*qr_parsed).state = 400i32;
+                (*qr_parsed).text1 =
+                    dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
+                OK_TO_CONTINUE = false;
             }
+        }
+    }
+    if OK_TO_CONTINUE {
+        if fingerprint.is_null() || strlen(fingerprint) != 40 {
+            (*qr_parsed).state = 400i32;
+            (*qr_parsed).text1 = dc_strdup(
+                b"Bad fingerprint length in QR code.\x00" as *const u8 as *const libc::c_char,
+            );
+            OK_TO_CONTINUE = false;
+        }
+    }
+    if OK_TO_CONTINUE {
+        if !fingerprint.is_null() {
+            let peerstate = Peerstate::from_fingerprint(context, &context.sql, as_str(fingerprint));
+            if addr.is_null() || invitenumber.is_null() || auth.is_null() {
+                if let Some(peerstate) = peerstate {
+                    (*qr_parsed).state = 210i32;
+                    let c_addr = peerstate.addr.as_ref().map(to_cstring).unwrap_or_default();
+                    let addr_ptr = if peerstate.addr.is_some() {
+                        c_addr.as_ptr()
+                    } else {
+                        std::ptr::null()
+                    };
+                    (*qr_parsed).id = dc_add_or_lookup_contact(
+                        context,
+                        0 as *const libc::c_char,
+                        addr_ptr,
+                        0x80i32,
+                        0 as *mut libc::c_int,
+                    );
+                    dc_create_or_lookup_nchat_by_contact_id(
+                        context,
+                        (*qr_parsed).id,
+                        2i32,
+                        &mut chat_id,
+                        0 as *mut libc::c_int,
+                    );
+                    device_msg = dc_mprintf(
+                        b"%s verified.\x00" as *const u8 as *const libc::c_char,
+                        peerstate.addr,
+                    )
+                } else {
+                    (*qr_parsed).text1 = dc_format_fingerprint_c(fingerprint);
+                    (*qr_parsed).state = 230i32
+                }
+            } else {
+                if !grpid.is_null() && !grpname.is_null() {
+                    (*qr_parsed).state = 202i32;
+                    (*qr_parsed).text1 = dc_strdup(grpname);
+                    (*qr_parsed).text2 = dc_strdup(grpid)
+                } else {
+                    (*qr_parsed).state = 200i32
+                }
+                (*qr_parsed).id =
+                    dc_add_or_lookup_contact(context, name, addr, 0x80i32, 0 as *mut libc::c_int);
+                (*qr_parsed).fingerprint = dc_strdup(fingerprint);
+                (*qr_parsed).invitenumber = dc_strdup(invitenumber);
+                (*qr_parsed).auth = dc_strdup(auth)
+            }
+        } else if !addr.is_null() {
+            (*qr_parsed).state = 320i32;
+            (*qr_parsed).id =
+                dc_add_or_lookup_contact(context, name, addr, 0x80i32, 0 as *mut libc::c_int)
+        } else if strstr(qr, b"http://\x00" as *const u8 as *const libc::c_char)
+            == qr as *mut libc::c_char
+            || strstr(qr, b"https://\x00" as *const u8 as *const libc::c_char)
+                == qr as *mut libc::c_char
+        {
+            (*qr_parsed).state = 332i32;
+            (*qr_parsed).text1 = dc_strdup(qr)
+        } else {
+            (*qr_parsed).state = 330i32;
+            (*qr_parsed).text1 = dc_strdup(qr)
+        }
+        if !device_msg.is_null() {
+            dc_add_device_msg(context, chat_id, device_msg);
         }
     }
     free(addr as *mut libc::c_void);
