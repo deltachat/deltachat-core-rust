@@ -74,7 +74,7 @@ pub unsafe fn dc_lookup_contact_id_by_addr(
     let addr_normalized = as_str(addr_normalized_c);
     let addr_self = context
         .sql
-        .get_config(context, "configured_addr", None)
+        .get_config(context, "configured_addr")
         .unwrap_or_default();
 
     let contact_id = if addr_normalized == addr_self {
@@ -282,7 +282,7 @@ pub unsafe fn dc_contact_load_from_db(
                 (*contact)
                     .context
                     .sql
-                    .get_config((*contact).context, "configured_addr", Some(""))
+                    .get_config((*contact).context, "configured_addr")
                     .unwrap_or_default(),
             )
             .as_ptr(),
@@ -341,7 +341,7 @@ pub fn dc_add_or_lookup_contact(
     let addr = as_str(addr_c);
     let addr_self = context
         .sql
-        .get_config(context, "configured_addr", Some(""))
+        .get_config(context, "configured_addr")
         .unwrap_or_default();
 
     if addr == addr_self {
@@ -533,7 +533,7 @@ pub fn dc_get_contacts(
 ) -> *mut dc_array_t {
     let self_addr = context
         .sql
-        .get_config(context, "configured_addr", Some(""))
+        .get_config(context, "configured_addr")
         .unwrap_or_default();
 
     let mut add_self = false;
@@ -574,7 +574,7 @@ pub fn dc_get_contacts(
 
         let self_name = context
             .sql
-            .get_config(context, "displayname", Some(""))
+            .get_config(context, "displayname")
             .unwrap_or_default();
 
         let self_name2 = unsafe { dc_stock_str(context, 2) };
@@ -995,7 +995,7 @@ pub fn dc_addr_equals_self(context: &Context, addr: *const libc::c_char) -> libc
 
     if !addr.is_null() {
         let normalized_addr = unsafe { dc_addr_normalize(addr) };
-        if let Some(self_addr) = context.sql.get_config(context, "configured_addr", None) {
+        if let Some(self_addr) = context.sql.get_config(context, "configured_addr") {
             ret = (as_str(normalized_addr) == self_addr) as libc::c_int;
         }
         unsafe { free(normalized_addr as *mut libc::c_void) };

@@ -173,6 +173,7 @@ impl Sql {
     }
 
     /// Set private configuration options.
+    /// Setting `None` deletes the value.
     pub fn set_config(
         &self,
         context: &Context,
@@ -221,12 +222,7 @@ impl Sql {
     }
 
     /// Get configuration options from the database.
-    pub fn get_config(
-        &self,
-        context: &Context,
-        key: impl AsRef<str>,
-        def: Option<&str>,
-    ) -> Option<String> {
+    pub fn get_config(&self, context: &Context, key: impl AsRef<str>) -> Option<String> {
         if !self.is_open() || key.as_ref().is_empty() {
             return None;
         }
@@ -236,7 +232,6 @@ impl Sql {
             params![key.as_ref()],
             0,
         )
-        .or_else(|| def.map(|s| s.to_string()))
     }
 
     pub fn set_config_int(
@@ -248,10 +243,8 @@ impl Sql {
         self.set_config(context, key, Some(&format!("{}", value)))
     }
 
-    pub fn get_config_int(&self, context: &Context, key: impl AsRef<str>, def: i32) -> i32 {
-        self.get_config(context, key, None)
-            .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| def)
+    pub fn get_config_int(&self, context: &Context, key: impl AsRef<str>) -> Option<i32> {
+        self.get_config(context, key).and_then(|s| s.parse().ok())
     }
 
     pub fn set_config_int64(
@@ -263,15 +256,8 @@ impl Sql {
         self.set_config(context, key, Some(&format!("{}", value)))
     }
 
-    pub fn get_config_int64(
-        &self,
-        context: &Context,
-        key: impl AsRef<str>,
-        def: Option<i64>,
-    ) -> i64 {
-        let ret = self.get_config(context, key, None);
-        ret.map(|r| r.parse().unwrap_or_default())
-            .unwrap_or_else(|| def.unwrap_or_default())
+    pub fn get_config_int64(&self, context: &Context, key: impl AsRef<str>) -> Option<i64> {
+        self.get_config(context, key).and_then(|r| r.parse().ok())
     }
 }
 
@@ -287,8 +273,6 @@ fn table_exists(conn: &Connection, name: impl AsRef<str>) -> bool {
     exists
 }
 
-// Return 1 -> success
-// Return 0 -> failure
 fn open(
     context: &Context,
     sql: &Sql,
@@ -459,7 +443,7 @@ fn open(
             }
         } else {
             exists_before_update = 1;
-            dbversion_before_update = sql.get_config_int(context, "dbversion", 0);
+            dbversion_before_update = sql.get_config_int(context, "dbversion").unwrap_or_default();
         }
 
         // (1) update low-level database structure.
@@ -785,8 +769,8 @@ fn open(
             info!(context, 0, "[open] update file paths");
 
             let repl_from = sql
-                .get_config(context, "backup_for", Some(as_str(context.get_blobdir())))
-                .unwrap();
+                .get_config(context, "backup_for")
+                .unwrap_or_else(|| to_string(context.get_blobdir()));
 
             let repl_from = dc_ensure_no_slash_safe(&repl_from);
             sql.execute(

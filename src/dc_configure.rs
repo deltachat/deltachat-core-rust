@@ -74,7 +74,12 @@ pub unsafe fn dc_has_ongoing(context: &Context) -> libc::c_int {
     }
 }
 pub fn dc_is_configured(context: &Context) -> libc::c_int {
-    if context.sql.get_config_int(context, "configured", 0) > 0 {
+    if context
+        .sql
+        .get_config_int(context, "configured")
+        .unwrap_or_default()
+        > 0
+    {
         1
     } else {
         0
@@ -902,14 +907,18 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                 .get_config_int(
                                                                                     context,
                                                                                     "mvbox_watch",
-                                                                                    1,
+                                                                                )
+                                                                                .unwrap_or_else(
+                                                                                    || 1,
                                                                                 )
                                                                             || 0 != context
                                                                                 .sql
                                                                                 .get_config_int(
                                                                                     context,
                                                                                     "mvbox_move",
-                                                                                    1,
+                                                                                )
+                                                                                .unwrap_or_else(
+                                                                                    || 1,
                                                                                 ) {
                                                                             0x1
                                                                         } else {
@@ -1482,7 +1491,12 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
 
     if imap.is_connected() {
         ret_connected = 1
-    } else if context.sql.get_config_int(context, "configured", 0) == 0 {
+    } else if context
+        .sql
+        .get_config_int(context, "configured")
+        .unwrap_or_default()
+        == 0
+    {
         warn!(context, 0, "Not configured, cannot connect.",);
     } else {
         let param = dc_loginparam_read(context, &context.sql, "configured_");

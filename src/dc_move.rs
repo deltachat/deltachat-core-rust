@@ -4,7 +4,12 @@ use crate::dc_job::*;
 use crate::dc_msg::*;
 
 pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u32) {
-    if context.sql.get_config_int(context, "mvbox_move", 1) == 0 {
+    if context
+        .sql
+        .get_config_int(context, "mvbox_move")
+        .unwrap_or_else(|| 1)
+        == 0
+    {
         return;
     }
 

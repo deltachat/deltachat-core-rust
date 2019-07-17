@@ -263,13 +263,10 @@ pub fn dc_get_location_kml(
     let mut location_count: libc::c_int = 0;
     let mut ret = String::new();
 
-    let self_addr = context.sql.get_config(context, "configured_addr", Some(""));
-
-    if self_addr.is_none() {
-        return std::ptr::null_mut();
-    }
-
-    let self_addr = self_addr.unwrap();
+    let self_addr = context
+        .sql
+        .get_config(context, "configured_addr")
+        .unwrap_or_default();
 
     if let Ok((locations_send_begin, locations_send_until, locations_last_sent)) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",

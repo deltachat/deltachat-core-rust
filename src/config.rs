@@ -69,7 +69,7 @@ impl Context {
     pub fn get_config(&self, key: Config) -> Option<String> {
         let value = match key {
             Config::Selfavatar => {
-                let rel_path = self.sql.get_config(self, key, None);
+                let rel_path = self.sql.get_config(self, key);
                 rel_path.map(|p| {
                     let v = unsafe { dc_get_abs_path(self, to_cstring(p).as_ptr()) };
                     let r = to_string(v);
@@ -80,7 +80,7 @@ impl Context {
             Config::SysVersion => Some(std::str::from_utf8(DC_VERSION_STR).unwrap().into()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", 24 * 1024 * 1024 / 4 * 3)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
-            _ => self.sql.get_config(self, key, None),
+            _ => self.sql.get_config(self, key),
         };
 
         if value.is_some() {

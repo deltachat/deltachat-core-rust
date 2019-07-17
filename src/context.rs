@@ -275,17 +275,11 @@ unsafe fn cb_get_config(
     key: *const libc::c_char,
     def: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let d = if def.is_null() {
-        None
-    } else {
-        Some(as_str(def))
-    };
-    let res = context.sql.get_config(context, as_str(key), d);
-    if let Some(res) = res {
-        strdup(to_cstring(res).as_ptr())
-    } else {
-        std::ptr::null_mut()
-    }
+    let res = context
+        .sql
+        .get_config(context, as_str(key))
+        .unwrap_or_else(|| to_string(def));
+    strdup(to_cstring(res).as_ptr())
 }
 
 pub unsafe fn dc_context_unref(context: &mut Context) {
@@ -376,15 +370,27 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let unset = "0";
     let l = dc_loginparam_read(context, &context.sql, "");
     let l2 = dc_loginparam_read(context, &context.sql, "configured_");
-    let displayname = context.sql.get_config(context, "displayname", None);
+    let displayname = context.sql.get_config(context, "displayname");
     let chats = dc_get_chat_cnt(context) as usize;
     let real_msgs = dc_get_real_msg_cnt(context) as usize;
     let deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as usize;
     let contacts = dc_get_real_contact_cnt(context) as usize;
-    let is_configured = context.sql.get_config_int(context, "configured", 0);
-    let dbversion = context.sql.get_config_int(context, "dbversion", 0);
-    let e2ee_enabled = context.sql.get_config_int(context, "e2ee_enabled", 1);
-    let mdns_enabled = context.sql.get_config_int(context, "mdns_enabled", 1);
+    let is_configured = context
+        .sql
+        .get_config_int(context, "configured")
+        .unwrap_or_default();
+    let dbversion = context
+        .sql
+        .get_config_int(context, "dbversion")
+        .unwrap_or_default();
+    let e2ee_enabled = context
+        .sql
+        .get_config_int(context, "e2ee_enabled")
+        .unwrap_or_else(|| 1);
+    let mdns_enabled = context
+        .sql
+        .get_config_int(context, "mdns_enabled")
+        .unwrap_or_else(|| 1);
 
     let prv_key_cnt: Option<isize> = context.sql.query_row_col(
         context,
@@ -409,19 +415,34 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
 
     let l_readable_str = dc_loginparam_get_readable(&l);
     let l2_readable_str = dc_loginparam_get_readable(&l2);
-    let inbox_watch = context.sql.get_config_int(context, "inbox_watch", 1);
-    let sentbox_watch = context.sql.get_config_int(context, "sentbox_watch", 1);
-    let mvbox_watch = context.sql.get_config_int(context, "mvbox_watch", 1);
-    let mvbox_move = context.sql.get_config_int(context, "mvbox_move", 1);
-    let folders_configured = context.sql.get_config_int(context, "folders_configured", 0);
-    let configured_sentbox_folder =
-        context
-            .sql
-            .get_config(context, "configured_sentbox_folder", Some("<unset>"));
-    let configured_mvbox_folder =
-        context
-            .sql
-            .get_config(context, "configured_mvbox_folder", Some("<unset>"));
+    let inbox_watch = context
+        .sql
+        .get_config_int(context, "inbox_watch")
+        .unwrap_or_else(|| 1);
+    let sentbox_watch = context
+        .sql
+        .get_config_int(context, "sentbox_watch")
+        .unwrap_or_else(|| 1);
+    let mvbox_watch = context
+        .sql
+        .get_config_int(context, "mvbox_watch")
+        .unwrap_or_else(|| 1);
+    let mvbox_move = context
+        .sql
+        .get_config_int(context, "mvbox_move")
+        .unwrap_or_else(|| 1);
+    let folders_configured = context
+        .sql
+        .get_config_int(context, "folders_configured")
+        .unwrap_or_default();
+    let configured_sentbox_folder = context
+        .sql
+        .get_config(context, "configured_sentbox_folder")
+        .unwrap_or_else(|| "<unset>".to_string());
+    let configured_mvbox_folder = context
+        .sql
+        .get_config(context, "configured_mvbox_folder")
+        .unwrap_or_else(|| "<unset>".to_string());
 
     let res = format!(
         "deltachat_core_version=v{}\n\
@@ -481,8 +502,8 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         mvbox_watch,
         mvbox_move,
         folders_configured,
-        configured_sentbox_folder.unwrap_or_default(),
-        configured_mvbox_folder.unwrap_or_default(),
+        configured_sentbox_folder,
+        configured_mvbox_folder,
         mdns_enabled,
         e2ee_enabled,
         prv_key_cnt.unwrap_or_default(),
@@ -583,9 +604,7 @@ pub fn dc_is_inbox(_context: &Context, folder_name: impl AsRef<str>) -> bool {
 }
 
 pub fn dc_is_sentbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
-    let sentbox_name = context
-        .sql
-        .get_config(context, "configured_sentbox_folder", None);
+    let sentbox_name = context.sql.get_config(context, "configured_sentbox_folder");
     if let Some(name) = sentbox_name {
         name == folder_name.as_ref()
     } else {
@@ -594,9 +613,7 @@ pub fn dc_is_sentbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
 }
 
 pub fn dc_is_mvbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
-    let mvbox_name = context
-        .sql
-        .get_config(context, "configured_mvbox_folder", None);
+    let mvbox_name = context.sql.get_config(context, "configured_mvbox_folder");
 
     if let Some(name) = mvbox_name {
         name == folder_name.as_ref()

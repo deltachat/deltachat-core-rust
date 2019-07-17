@@ -216,10 +216,12 @@ pub unsafe fn dc_receive_imf(
                         by checking the state before the message body is downloaded */
                         let mut allow_creation: libc::c_int = 1;
                         if msgrmsg == 0 {
-                            let show_emails: libc::c_int =
-                                context.sql.get_config_int(context, "show_emails", 0);
+                            let show_emails = context
+                                .sql
+                                .get_config_int(context, "show_emails")
+                                .unwrap_or_default();
                             if show_emails == 0 {
-                                chat_id = 3 as uint32_t;
+                                chat_id = 3;
                                 allow_creation = 0
                             } else if show_emails == 1 {
                                 allow_creation = 0
@@ -403,8 +405,10 @@ pub unsafe fn dc_receive_imf(
                         dc_unarchive_chat(context, chat_id);
                         // if the mime-headers should be saved, find out its size
                         // (the mime-header ends with an empty line)
-                        let save_mime_headers =
-                            context.sql.get_config_int(context, "save_mime_headers", 0);
+                        let save_mime_headers = context
+                            .sql
+                            .get_config_int(context, "save_mime_headers")
+                            .unwrap_or_default();
                         field = dc_mimeparser_lookup_field(&mime_parser, "In-Reply-To");
                         if !field.is_null()
                             && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int
@@ -581,7 +585,10 @@ pub unsafe fn dc_receive_imf(
             16282941964262048061 => {}
             _ => {
                 if carray_count(mime_parser.reports) > 0 as libc::c_uint {
-                    let mdns_enabled = context.sql.get_config_int(context, "mdns_enabled", 1);
+                    let mdns_enabled = context
+                        .sql
+                        .get_config_int(context, "mdns_enabled")
+                        .unwrap_or_else(|| 1);
                     icnt = carray_count(mime_parser.reports) as size_t;
                     i = 0 as size_t;
                     while i < icnt {
@@ -739,7 +746,10 @@ pub unsafe fn dc_receive_imf(
                                     );
                                     dc_param_set_int(param, 'z' as i32, server_uid as i32);
                                     if 0 != mime_parser.is_send_by_messenger
-                                        && 0 != context.sql.get_config_int(context, "mvbox_move", 1)
+                                        && 0 != context
+                                            .sql
+                                            .get_config_int(context, "mvbox_move")
+                                            .unwrap_or_else(|| 1)
                                     {
                                         dc_param_set_int(param, 'M' as i32, 1);
                                     }
@@ -1102,7 +1112,7 @@ unsafe fn create_or_lookup_group(
             group_explicitly_left = dc_is_group_explicitly_left(context, grpid);
             let self_addr = context
                 .sql
-                .get_config(context, "configured_addr", Some(""))
+                .get_config(context, "configured_addr")
                 .unwrap_or_default();
             if chat_id == 0 as libc::c_uint
                 && 0 == dc_mimeparser_is_mailinglist_message(mime_parser)
@@ -1474,8 +1484,8 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
     let member_ids_str = dc_array_get_string(member_ids, b",\x00" as *const u8 as *const _);
     let member_cs = context
         .sql
-        .get_config(context, "configured_addr", Some("no-self"))
-        .unwrap()
+        .get_config(context, "configured_addr")
+        .unwrap_or_else(|| "no-self".to_string())
         .to_lowercase();
 
     let members = context
@@ -1982,8 +1992,8 @@ unsafe fn add_or_lookup_contact_by_addr(
     *check_self = 0;
     let self_addr = context
         .sql
-        .get_config(context, "configured_addr", Some(""))
-        .unwrap();
+        .get_config(context, "configured_addr")
+        .unwrap_or_default();
 
     if dc_addr_cmp(self_addr, as_str(addr_spec)) {
         *check_self = 1;

@@ -416,12 +416,15 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
     match current_block {
         2473556513754201174 => {
             if dc_msg_load_from_db(msg, context, job.foreign_id) {
-                if context.sql.get_config_int(context, "folders_configured", 0) < 3 {
+                if context
+                    .sql
+                    .get_config_int(context, "folders_configured")
+                    .unwrap_or_default()
+                    < 3
+                {
                     inbox.configure_folders(context, 0x1i32);
                 }
-                let dest_folder = context
-                    .sql
-                    .get_config(context, "configured_mvbox_folder", None);
+                let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
 
                 if let Some(dest_folder) = dest_folder {
                     let server_folder = as_str((*msg).server_folder);
@@ -513,12 +516,15 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             }
             if 0 != dc_param_get_int(job.param, 'M' as i32, 0i32) {
-                if context.sql.get_config_int(context, "folders_configured", 0) < 3 {
+                if context
+                    .sql
+                    .get_config_int(context, "folders_configured")
+                    .unwrap_or_default()
+                    < 3
+                {
                     inbox.configure_folders(context, 0x1i32);
                 }
-                let dest_folder = context
-                    .sql
-                    .get_config(context, "configured_mvbox_folder", None);
+                let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
                 if let Some(dest_folder) = dest_folder {
                     if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
                         as libc::c_uint
@@ -563,7 +569,10 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                             }
                             _ => {
                                 if 0 != dc_param_get_int((*msg).param, 'r' as i32, 0i32)
-                                    && 0 != context.sql.get_config_int(context, "mdns_enabled", 1)
+                                    && 0 != context
+                                        .sql
+                                        .get_config_int(context, "mdns_enabled")
+                                        .unwrap_or_else(|| 1)
                                 {
                                     let folder =
                                         CStr::from_ptr((*msg).server_folder).to_str().unwrap();
@@ -614,7 +623,10 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                             }
                             _ => {
                                 if 0 != dc_param_get_int((*msg).param, 'r' as i32, 0i32)
-                                    && 0 != context.sql.get_config_int(context, "mdns_enabled", 1)
+                                    && 0 != context
+                                        .sql
+                                        .get_config_int(context, "mdns_enabled")
+                                        .unwrap_or_else(|| 1)
                                 {
                                     let folder =
                                         CStr::from_ptr((*msg).server_folder).to_str().unwrap();
@@ -904,7 +916,12 @@ pub unsafe fn dc_perform_imap_fetch(context: &Context) {
     if 0 == connect_to_inbox(context, &inbox) {
         return;
     }
-    if context.sql.get_config_int(context, "inbox_watch", 1) == 0 {
+    if context
+        .sql
+        .get_config_int(context, "inbox_watch")
+        .unwrap_or_else(|| 1)
+        == 0
+    {
         info!(context, 0, "INBOX-watch disabled.",);
         return;
     }
@@ -940,7 +957,10 @@ pub fn dc_perform_imap_idle(context: &Context) {
 }
 
 pub unsafe fn dc_perform_mvbox_fetch(context: &Context) {
-    let use_network = context.sql.get_config_int(context, "mvbox_watch", 1);
+    let use_network = context
+        .sql
+        .get_config_int(context, "mvbox_watch")
+        .unwrap_or_else(|| 1);
     dc_jobthread_fetch(
         context,
         &mut context.mvbox_thread.clone().write().unwrap(),
@@ -949,7 +969,10 @@ pub unsafe fn dc_perform_mvbox_fetch(context: &Context) {
 }
 
 pub unsafe fn dc_perform_mvbox_idle(context: &Context) {
-    let use_network = context.sql.get_config_int(context, "mvbox_watch", 1);
+    let use_network = context
+        .sql
+        .get_config_int(context, "mvbox_watch")
+        .unwrap_or_else(|| 1);
 
     dc_jobthread_idle(
         context,
@@ -963,7 +986,10 @@ pub unsafe fn dc_interrupt_mvbox_idle(context: &Context) {
 }
 
 pub unsafe fn dc_perform_sentbox_fetch(context: &Context) {
-    let use_network = context.sql.get_config_int(context, "sentbox_watch", 1);
+    let use_network = context
+        .sql
+        .get_config_int(context, "sentbox_watch")
+        .unwrap_or_else(|| 1);
     dc_jobthread_fetch(
         context,
         &mut context.sentbox_thread.clone().write().unwrap(),
@@ -972,7 +998,10 @@ pub unsafe fn dc_perform_sentbox_fetch(context: &Context) {
 }
 
 pub unsafe fn dc_perform_sentbox_idle(context: &Context) {
-    let use_network = context.sql.get_config_int(context, "sentbox_watch", 1);
+    let use_network = context
+        .sql
+        .get_config_int(context, "sentbox_watch")
+        .unwrap_or_else(|| 1);
     dc_jobthread_idle(
         context,
         &context.sentbox_thread.clone().read().unwrap(),

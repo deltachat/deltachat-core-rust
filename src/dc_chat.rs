@@ -485,7 +485,7 @@ unsafe fn prepare_msg_raw(
             "Cannot send message; self not in group.",
         );
     } else {
-        let from = context.sql.get_config(context, "configured_addr", None);
+        let from = context.sql.get_config(context, "configured_addr");
         if from.is_none() {
             error!(context, 0, "Cannot send message, not configured.",);
         } else {
@@ -534,7 +534,10 @@ unsafe fn prepare_msg_raw(
                     so that E2EE is no longer available at a later point (reset, changed settings),
                     we do not send the message out at all */
                     do_guarantee_e2ee = 0;
-                    e2ee_enabled = context.sql.get_config_int(context, "e2ee_enabled", 1);
+                    e2ee_enabled = context
+                        .sql
+                        .get_config_int(context, "e2ee_enabled")
+                        .unwrap_or_else(|| 1);
                     if 0 != e2ee_enabled && dc_param_get_int((*msg).param, 'u' as i32, 0) == 0 {
                         let mut can_encrypt = 1;
                         let mut all_mutual = 1;
@@ -1086,7 +1089,10 @@ pub unsafe fn dc_get_chat_msgs(
     };
 
     let success = if chat_id == 1 {
-        let show_emails = context.sql.get_config_int(context, "show_emails", 0);
+        let show_emails = context
+            .sql
+            .get_config_int(context, "show_emails")
+            .unwrap_or_default();
         context.sql.query_map(
             "SELECT m.id, m.timestamp FROM msgs m \
              LEFT JOIN chats ON m.chat_id=chats.id \
@@ -1551,7 +1557,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                 }
                 let self_addr = context
                     .sql
-                    .get_config(context, "configured_addr", Some(""))
+                    .get_config(context, "configured_addr")
                     .unwrap_or_default();
                 if as_str((*contact).addr) != &self_addr {
                     // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.

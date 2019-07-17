@@ -36,37 +36,37 @@ pub fn dc_loginparam_read(
 
     let key = format!("{}addr", prefix);
     let addr = sql
-        .get_config(context, key, None)
+        .get_config(context, key)
         .unwrap_or_default()
         .trim()
         .to_string();
 
     let key = format!("{}mail_server", prefix);
-    let mail_server = sql.get_config(context, key, None).unwrap_or_default();
+    let mail_server = sql.get_config(context, key).unwrap_or_default();
 
     let key = format!("{}mail_port", prefix);
-    let mail_port = sql.get_config_int(context, key, 0);
+    let mail_port = sql.get_config_int(context, key).unwrap_or_default();
 
     let key = format!("{}mail_user", prefix);
-    let mail_user = sql.get_config(context, key, None).unwrap_or_default();
+    let mail_user = sql.get_config(context, key).unwrap_or_default();
 
     let key = format!("{}mail_pw", prefix);
-    let mail_pw = sql.get_config(context, key, None).unwrap_or_default();
+    let mail_pw = sql.get_config(context, key).unwrap_or_default();
 
     let key = format!("{}send_server", prefix);
-    let send_server = sql.get_config(context, key, None).unwrap_or_default();
+    let send_server = sql.get_config(context, key).unwrap_or_default();
 
     let key = format!("{}send_port", prefix);
-    let send_port = sql.get_config_int(context, key, 0);
+    let send_port = sql.get_config_int(context, key).unwrap_or_default();
 
     let key = format!("{}send_user", prefix);
-    let send_user = sql.get_config(context, key, None).unwrap_or_default();
+    let send_user = sql.get_config(context, key).unwrap_or_default();
 
     let key = format!("{}send_pw", prefix);
-    let send_pw = sql.get_config(context, key, None).unwrap_or_default();
+    let send_pw = sql.get_config(context, key).unwrap_or_default();
 
     let key = format!("{}server_flags", prefix);
-    let server_flags = sql.get_config_int(context, key, 0);
+    let server_flags = sql.get_config_int(context, key).unwrap_or_default();
 
     dc_loginparam_t {
         addr: addr.to_string(),

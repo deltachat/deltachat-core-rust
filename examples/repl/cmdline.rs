@@ -132,7 +132,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
             .set_config(context, "import_spec", Some(as_str(real_spec)));
         current_block = 7149356873433890176;
     } else {
-        let rs = context.sql.get_config(context, "import_spec", None);
+        let rs = context.sql.get_config(context, "import_spec");
         if rs.is_none() {
             error!(context, 0, "Import: No file or folder given.");
             current_block = 8522321847195001863;

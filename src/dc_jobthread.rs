@@ -136,14 +136,18 @@ unsafe fn connect_to_imap(context: &Context, jobthread: &dc_jobthread_t) -> libc
     let mut ret_connected = dc_connect_to_configured_imap(context, &jobthread.imap);
 
     if !(0 == ret_connected) {
-        if context.sql.get_config_int(context, "folders_configured", 0) < 3 {
+        if context
+            .sql
+            .get_config_int(context, "folders_configured")
+            .unwrap_or_default()
+            < 3
+        {
             jobthread.imap.configure_folders(context, 0x1);
         }
 
-        if let Some(mvbox_name) =
-            context
-                .sql
-                .get_config(context, jobthread.folder_config_name, None)
+        if let Some(mvbox_name) = context
+            .sql
+            .get_config(context, jobthread.folder_config_name)
         {
             jobthread.imap.set_watch_folder(mvbox_name);
         } else {

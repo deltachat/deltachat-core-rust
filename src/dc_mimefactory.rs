@@ -197,7 +197,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 let email_to_remove = to_string(email_to_remove_c);
                 let self_addr = context
                     .sql
-                    .get_config(context, "configured_addr", Some(""))
+                    .get_config(context, "configured_addr")
                     .unwrap_or_default();
 
                 if !email_to_remove.is_empty() && email_to_remove != self_addr {
@@ -219,7 +219,10 @@ pub unsafe fn dc_mimefactory_load_msg(
             }
             if command != 6
                 && command != 7
-                && 0 != context.sql.get_config_int(context, "mdns_enabled", 1)
+                && 0 != context
+                    .sql
+                    .get_config_int(context, "mdns_enabled")
+                    .unwrap_or_else(|| 1)
             {
                 (*factory).req_mdn = 1
             }
@@ -267,7 +270,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
         to_cstring(
             context
                 .sql
-                .get_config(context, "configured_addr", None)
+                .get_config(context, "configured_addr")
                 .unwrap_or_default(),
         )
         .as_ptr(),
@@ -276,7 +279,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
         to_cstring(
             context
                 .sql
-                .get_config(context, "displayname", None)
+                .get_config(context, "displayname")
                 .unwrap_or_default(),
         )
         .as_ptr(),
@@ -285,7 +288,7 @@ unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
         to_cstring(
             context
                 .sql
-                .get_config(context, "selfstatus", None)
+                .get_config(context, "selfstatus")
                 .unwrap_or_default(),
         )
         .as_ptr(),
@@ -312,7 +315,8 @@ pub unsafe fn dc_mimefactory_load_mdn(
     if 0 != (*factory)
         .context
         .sql
-        .get_config_int((*factory).context, "mdns_enabled", 1)
+        .get_config_int((*factory).context, "mdns_enabled")
+        .unwrap_or_else(|| 1)
     {
         // MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ...
         contact = dc_contact_new((*factory).context);

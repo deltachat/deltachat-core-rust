@@ -69,7 +69,9 @@ pub unsafe fn dc_imex_has_backup(
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
                     let sql = Sql::new();
                     if sql.open(context, &path, 0x1) {
-                        let curr_backup_time = sql.get_config_int(context, "backup_time", 0) as u64;
+                        let curr_backup_time =
+                            sql.get_config_int(context, "backup_time")
+                                .unwrap_or_default() as u64;
                         if curr_backup_time > newest_backup_time {
                             newest_backup_path = Some(path);
                             newest_backup_time = curr_backup_time;
@@ -224,10 +226,13 @@ pub unsafe extern "C" fn dc_render_setup_file(
         if !(0 == dc_ensure_secret_key_exists(context)) {
             let self_addr = context
                 .sql
-                .get_config(context, "configured_addr", None)
+                .get_config(context, "configured_addr")
                 .unwrap_or_default();
             let curr_private_key = Key::from_self_private(context, self_addr, &context.sql);
-            let e2ee_enabled = context.sql.get_config_int(context, "e2ee_enabled", 1);
+            let e2ee_enabled = context
+                .sql
+                .get_config_int(context, "e2ee_enabled")
+                .unwrap_or_else(|| 1);
 
             let headers = if 0 != e2ee_enabled {
                 Some(("Autocrypt-Prefer-Encrypt", "mutual"))
@@ -414,7 +419,7 @@ fn set_self_key(
         error!(context, 0, "File does not contain a private key.",);
     }
 
-    let self_addr = context.sql.get_config(context, "configured_addr", None);
+    let self_addr = context.sql.get_config(context, "configured_addr");
 
     if self_addr.is_none() {
         error!(context, 0, "Missing self addr");

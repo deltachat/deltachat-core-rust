@@ -51,7 +51,7 @@ pub unsafe fn dc_get_securejoin_qr(
         auth = dc_create_id();
         dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, auth);
     }
-    let self_addr = context.sql.get_config(context, "configured_addr", None);
+    let self_addr = context.sql.get_config(context, "configured_addr");
 
     let cleanup = |fingerprint, chat, group_name, group_name_urlencoded| {
         free(fingerprint as *mut libc::c_void);
@@ -76,8 +76,9 @@ pub unsafe fn dc_get_securejoin_qr(
     let self_addr = self_addr.unwrap();
     let self_name = context
         .sql
-        .get_config(context, "displayname", Some(""))
-        .unwrap();
+        .get_config(context, "displayname")
+        .unwrap_or_default();
+
     fingerprint = get_self_fingerprint(context);
 
     if fingerprint.is_null() {
@@ -126,7 +127,7 @@ pub unsafe fn dc_get_securejoin_qr(
 }
 
 fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {
-    if let Some(self_addr) = context.sql.get_config(context, "configured_addr", None) {
+    if let Some(self_addr) = context.sql.get_config(context, "configured_addr") {
         if let Some(key) = Key::from_self_public(context, self_addr, &context.sql) {
             return key.fingerprint_c();
         }
