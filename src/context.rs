@@ -284,7 +284,6 @@ pub unsafe fn dc_context_unref(context: &mut Context) {
 }
 
 pub unsafe fn dc_close(context: &Context) {
-    println!("disconnecting inbox watch yooaa");
     info!(context, 0, "disconnecting INBOX-watch",);
     context.inbox.read().unwrap().disconnect(context);
     info!(context, 0, "disconnecting sentbox-thread",);
