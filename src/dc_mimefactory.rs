@@ -14,13 +14,12 @@ use crate::dc_chat::*;
 use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
-use crate::dc_log::*;
 use crate::dc_msg::*;
 use crate::dc_param::*;
-use crate::dc_sqlite3::*;
 use crate::dc_stock::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::sql;
 use crate::types::*;
 use crate::x::*;
 
@@ -100,7 +99,7 @@ pub unsafe fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
         mmap_string_free((*factory).out);
         (*factory).out = 0 as *mut MMAPString
     }
-    (*factory).out_encrypted = 0i32;
+    (*factory).out_encrypted = 0;
     (*factory).loaded = DC_MF_NOTHING_LOADED;
     free((*factory).error as *mut libc::c_void);
     (*factory).error = 0 as *mut libc::c_char;
@@ -111,158 +110,180 @@ pub unsafe fn dc_mimefactory_load_msg(
     mut factory: *mut dc_mimefactory_t,
     msg_id: uint32_t,
 ) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
-    let mut stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-    if !(factory.is_null() || msg_id <= 9i32 as libc::c_uint || !(*factory).msg.is_null()) {
-        /*call empty() before */
-        let context = (*factory).context;
-        (*factory).recipients_names = clist_new();
-        (*factory).recipients_addr = clist_new();
-        (*factory).msg = dc_msg_new_untyped(context);
-        (*factory).chat = dc_chat_new(context);
-        if dc_msg_load_from_db((*factory).msg, context, msg_id)
-            && dc_chat_load_from_db((*factory).chat, (*(*factory).msg).chat_id)
-        {
-            load_from(factory);
-            (*factory).req_mdn = 0i32;
-            if 0 != dc_chat_is_self_talk((*factory).chat) {
-                clist_insert_after(
-                    (*factory).recipients_names,
-                    (*(*factory).recipients_names).last,
-                    dc_strdup_keep_null((*factory).from_displayname) as *mut libc::c_void,
+    if factory.is_null() || msg_id <= 9 || !(*factory).msg.is_null() {
+        return 0;
+    }
+
+    let mut success = 0;
+
+    /*call empty() before */
+    let context = (*factory).context;
+    (*factory).recipients_names = clist_new();
+    (*factory).recipients_addr = clist_new();
+    (*factory).msg = dc_msg_new_untyped(context);
+    (*factory).chat = dc_chat_new(context);
+    if dc_msg_load_from_db((*factory).msg, context, msg_id)
+        && dc_chat_load_from_db((*factory).chat, (*(*factory).msg).chat_id)
+    {
+        load_from(factory);
+        (*factory).req_mdn = 0;
+        if 0 != dc_chat_is_self_talk((*factory).chat) {
+            clist_insert_after(
+                (*factory).recipients_names,
+                (*(*factory).recipients_names).last,
+                dc_strdup_keep_null((*factory).from_displayname) as *mut libc::c_void,
+            );
+            clist_insert_after(
+                (*factory).recipients_addr,
+                (*(*factory).recipients_addr).last,
+                dc_strdup((*factory).from_addr) as *mut libc::c_void,
+            );
+        } else {
+            context
+                .sql
+                .query_map(
+                    "SELECT c.authname, c.addr  \
+                     FROM chats_contacts cc  \
+                     LEFT JOIN contacts c ON cc.contact_id=c.id  \
+                     WHERE cc.chat_id=? AND cc.contact_id>9;",
+                    params![(*(*factory).msg).chat_id as i32],
+                    |row| {
+                        let authname: String = row.get(0)?;
+                        let addr: String = row.get(1)?;
+                        Ok((authname, addr))
+                    },
+                    |rows| {
+                        for row in rows {
+                            let (authname, addr) = row?;
+                            let addr_c = to_cstring(addr);
+                            if clist_search_string_nocase(
+                                (*factory).recipients_addr,
+                                addr_c.as_ptr(),
+                            ) == 0
+                            {
+                                clist_insert_after(
+                                    (*factory).recipients_names,
+                                    (*(*factory).recipients_names).last,
+                                    if !authname.is_empty() {
+                                        dc_strdup(to_cstring(authname).as_ptr())
+                                    } else {
+                                        0 as *mut libc::c_char
+                                    } as *mut libc::c_void,
+                                );
+                                clist_insert_after(
+                                    (*factory).recipients_addr,
+                                    (*(*factory).recipients_addr).last,
+                                    dc_strdup(addr_c.as_ptr()) as *mut libc::c_void,
+                                );
+                            }
+                        }
+                        Ok(())
+                    },
+                )
+                .unwrap();
+
+            let command = dc_param_get_int((*(*factory).msg).param, 'S' as i32, 0);
+            if command == 5 {
+                let email_to_remove_c = dc_param_get(
+                    (*(*factory).msg).param,
+                    'E' as i32,
+                    0 as *const libc::c_char,
                 );
-                clist_insert_after(
-                    (*factory).recipients_addr,
-                    (*(*factory).recipients_addr).last,
-                    dc_strdup((*factory).from_addr) as *mut libc::c_void,
-                );
-            } else {
-                stmt =
-                    dc_sqlite3_prepare(
-                        context,
-                        &context.sql,
-                        b"SELECT c.authname, c.addr  FROM chats_contacts cc  LEFT JOIN contacts c ON cc.contact_id=c.id  WHERE cc.chat_id=? AND cc.contact_id>9;\x00"
-                            as *const u8 as
-                            *const libc::c_char);
-                sqlite3_bind_int(stmt, 1i32, (*(*factory).msg).chat_id as libc::c_int);
-                while sqlite3_step(stmt) == 100i32 {
-                    let authname: *const libc::c_char =
-                        sqlite3_column_text(stmt, 0i32) as *const libc::c_char;
-                    let addr: *const libc::c_char =
-                        sqlite3_column_text(stmt, 1i32) as *const libc::c_char;
-                    if clist_search_string_nocase((*factory).recipients_addr, addr) == 0i32 {
+                let email_to_remove = to_string(email_to_remove_c);
+                let self_addr = sql::get_config(context, &context.sql, "configured_addr", Some(""))
+                    .unwrap_or_default();
+
+                if !email_to_remove.is_empty() && email_to_remove != self_addr {
+                    if clist_search_string_nocase((*factory).recipients_addr, email_to_remove_c)
+                        == 0
+                    {
                         clist_insert_after(
                             (*factory).recipients_names,
                             (*(*factory).recipients_names).last,
-                            (if !authname.is_null() && 0 != *authname.offset(0isize) as libc::c_int
-                            {
-                                dc_strdup(authname)
-                            } else {
-                                0 as *mut libc::c_char
-                            }) as *mut libc::c_void,
+                            0 as *mut libc::c_void,
                         );
                         clist_insert_after(
                             (*factory).recipients_addr,
                             (*(*factory).recipients_addr).last,
-                            dc_strdup(addr) as *mut libc::c_void,
+                            email_to_remove_c as *mut libc::c_void,
                         );
                     }
                 }
-                sqlite3_finalize(stmt);
-                let command: libc::c_int =
-                    dc_param_get_int((*(*factory).msg).param, 'S' as i32, 0i32);
-                if command == 5i32 {
-                    let email_to_remove: *mut libc::c_char = dc_param_get(
-                        (*(*factory).msg).param,
-                        'E' as i32,
-                        0 as *const libc::c_char,
-                    );
-                    let self_addr: *mut libc::c_char = dc_sqlite3_get_config(
-                        context,
-                        &context.sql,
-                        b"configured_addr\x00" as *const u8 as *const libc::c_char,
-                        b"\x00" as *const u8 as *const libc::c_char,
-                    );
-                    if !email_to_remove.is_null() && strcasecmp(email_to_remove, self_addr) != 0i32
-                    {
-                        if clist_search_string_nocase((*factory).recipients_addr, email_to_remove)
-                            == 0i32
-                        {
-                            clist_insert_after(
-                                (*factory).recipients_names,
-                                (*(*factory).recipients_names).last,
-                                0 as *mut libc::c_void,
-                            );
-                            clist_insert_after(
-                                (*factory).recipients_addr,
-                                (*(*factory).recipients_addr).last,
-                                email_to_remove as *mut libc::c_void,
-                            );
-                        }
-                    }
-                    free(self_addr as *mut libc::c_void);
-                }
-                if command != 6i32
-                    && command != 7i32
-                    && 0 != dc_sqlite3_get_config_int(
-                        context,
-                        &context.sql,
-                        b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
-                        1i32,
-                    )
-                {
-                    (*factory).req_mdn = 1i32
-                }
             }
-            stmt = dc_sqlite3_prepare(
-                context,
-                &context.sql,
-                b"SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?\x00" as *const u8
-                    as *const libc::c_char,
-            );
-            sqlite3_bind_int(stmt, 1i32, (*(*factory).msg).id as libc::c_int);
-            if sqlite3_step(stmt) == 100i32 {
-                (*factory).in_reply_to =
-                    dc_strdup(sqlite3_column_text(stmt, 0i32) as *const libc::c_char);
-                (*factory).references =
-                    dc_strdup(sqlite3_column_text(stmt, 1i32) as *const libc::c_char)
+            if command != 6
+                && command != 7
+                && 0 != sql::get_config_int(context, &context.sql, "mdns_enabled", 1)
+            {
+                (*factory).req_mdn = 1
             }
-            sqlite3_finalize(stmt);
-            stmt = 0 as *mut sqlite3_stmt;
-            success = 1i32;
-            (*factory).loaded = DC_MF_MSG_LOADED;
-            (*factory).timestamp = (*(*factory).msg).timestamp_sort;
-            (*factory).rfc724_mid = dc_strdup((*(*factory).msg).rfc724_mid)
         }
-        if 0 != success {
-            (*factory).increation = dc_msg_is_increation((*factory).msg)
+
+        let row = context.sql.query_row(
+            "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
+            params![(*(*factory).msg).id as i32],
+            |row| {
+                let in_reply_to: String = row.get(0)?;
+                let references: String = row.get(1)?;
+
+                Ok((in_reply_to, references))
+            },
+        );
+        if let Ok((in_reply_to, references)) = row {
+            (*factory).in_reply_to = dc_strdup(to_cstring(in_reply_to).as_ptr());
+            (*factory).references = dc_strdup(to_cstring(references).as_ptr());
         }
+
+        success = 1;
+        (*factory).loaded = DC_MF_MSG_LOADED;
+        (*factory).timestamp = (*(*factory).msg).timestamp_sort;
+        (*factory).rfc724_mid = dc_strdup((*(*factory).msg).rfc724_mid)
     }
-    sqlite3_finalize(stmt);
-    return success;
+    if 0 != success {
+        (*factory).increation = dc_msg_is_increation((*factory).msg)
+    }
+
+    success
 }
 
 unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
-    (*factory).from_addr = dc_sqlite3_get_config(
-        (*factory).context,
-        &(*factory).context.sql,
-        b"configured_addr\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
+    (*factory).from_addr = strdup(
+        to_cstring(
+            sql::get_config(
+                (*factory).context,
+                &(*factory).context.sql,
+                "configured_addr",
+                None,
+            )
+            .unwrap_or_default(),
+        )
+        .as_ptr(),
     );
-    (*factory).from_displayname = dc_sqlite3_get_config(
-        (*factory).context,
-        &(*factory).context.sql,
-        b"displayname\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
+    (*factory).from_displayname = strdup(
+        to_cstring(
+            sql::get_config(
+                (*factory).context,
+                &(*factory).context.sql,
+                "displayname",
+                None,
+            )
+            .unwrap_or_default(),
+        )
+        .as_ptr(),
     );
-    (*factory).selfstatus = dc_sqlite3_get_config(
-        (*factory).context,
-        &(*factory).context.sql,
-        b"selfstatus\x00" as *const u8 as *const libc::c_char,
-        0 as *const libc::c_char,
+    (*factory).selfstatus = strdup(
+        to_cstring(
+            sql::get_config(
+                (*factory).context,
+                &(*factory).context.sql,
+                "selfstatus",
+                None,
+            )
+            .unwrap_or_default(),
+        )
+        .as_ptr(),
     );
     if (*factory).selfstatus.is_null() {
-        (*factory).selfstatus = dc_stock_str((*factory).context, 13i32)
+        (*factory).selfstatus = dc_stock_str((*factory).context, 13)
     };
 }
 
@@ -270,61 +291,63 @@ pub unsafe fn dc_mimefactory_load_mdn(
     mut factory: *mut dc_mimefactory_t,
     msg_id: uint32_t,
 ) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
-    let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
-    if !factory.is_null() {
-        (*factory).recipients_names = clist_new();
-        (*factory).recipients_addr = clist_new();
-        (*factory).msg = dc_msg_new_untyped((*factory).context);
-        if !(0
-            == dc_sqlite3_get_config_int(
-                (*factory).context,
+    if factory.is_null() {
+        return 0;
+    }
+
+    let mut success = 0;
+    let mut contact = 0 as *mut dc_contact_t;
+
+    (*factory).recipients_names = clist_new();
+    (*factory).recipients_addr = clist_new();
+    (*factory).msg = dc_msg_new_untyped((*factory).context);
+    if 0 != sql::get_config_int(
+        (*factory).context,
+        &(*factory).context.sql,
+        "mdns_enabled",
+        1,
+    ) {
+        // MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ...
+        contact = dc_contact_new((*factory).context);
+        if !(!dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
+            || !dc_contact_load_from_db(
+                contact,
                 &(*factory).context.sql,
-                b"mdns_enabled\x00" as *const u8 as *const libc::c_char,
-                1i32,
+                (*(*factory).msg).from_id,
             ))
         {
-            /* MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ... */
-            contact = dc_contact_new((*factory).context);
-            if !(!dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
-                || !dc_contact_load_from_db(
-                    contact,
-                    &(*factory).context.sql,
-                    (*(*factory).msg).from_id,
-                ))
-            {
-                if !(0 != (*contact).blocked || (*(*factory).msg).chat_id <= 9i32 as libc::c_uint) {
-                    /* Do not send MDNs trash etc.; chats.blocked is already checked by the caller in dc_markseen_msgs() */
-                    if !((*(*factory).msg).from_id <= 9i32 as libc::c_uint) {
-                        clist_insert_after(
-                            (*factory).recipients_names,
-                            (*(*factory).recipients_names).last,
-                            (if !(*contact).authname.is_null()
-                                && 0 != *(*contact).authname.offset(0isize) as libc::c_int
-                            {
-                                dc_strdup((*contact).authname)
-                            } else {
-                                0 as *mut libc::c_char
-                            }) as *mut libc::c_void,
-                        );
-                        clist_insert_after(
-                            (*factory).recipients_addr,
-                            (*(*factory).recipients_addr).last,
-                            dc_strdup((*contact).addr) as *mut libc::c_void,
-                        );
-                        load_from(factory);
-                        (*factory).timestamp = dc_create_smeared_timestamp((*factory).context);
-                        (*factory).rfc724_mid = dc_create_outgoing_rfc724_mid(
-                            0 as *const libc::c_char,
-                            (*factory).from_addr,
-                        );
-                        success = 1i32;
-                        (*factory).loaded = DC_MF_MDN_LOADED
-                    }
+            if !(0 != (*contact).blocked || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
+                // Do not send MDNs trash etc.; chats.blocked is already checked by the caller in dc_markseen_msgs()
+                if !((*(*factory).msg).from_id <= 9 as libc::c_uint) {
+                    clist_insert_after(
+                        (*factory).recipients_names,
+                        (*(*factory).recipients_names).last,
+                        (if !(*contact).authname.is_null()
+                            && 0 != *(*contact).authname.offset(0isize) as libc::c_int
+                        {
+                            dc_strdup((*contact).authname)
+                        } else {
+                            0 as *mut libc::c_char
+                        }) as *mut libc::c_void,
+                    );
+                    clist_insert_after(
+                        (*factory).recipients_addr,
+                        (*(*factory).recipients_addr).last,
+                        dc_strdup((*contact).addr) as *mut libc::c_void,
+                    );
+                    load_from(factory);
+                    (*factory).timestamp = dc_create_smeared_timestamp((*factory).context);
+                    (*factory).rfc724_mid = dc_create_outgoing_rfc724_mid(
+                        0 as *const libc::c_char,
+                        (*factory).from_addr,
+                    );
+                    success = 1;
+                    (*factory).loaded = DC_MF_MDN_LOADED
                 }
             }
         }
     }
+
     dc_contact_unref(contact);
 
     success
@@ -339,15 +362,15 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
     let mut message_text: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut message_text2: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut subject_str: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut afwd_email: libc::c_int = 0i32;
-    let mut col: libc::c_int = 0i32;
-    let mut success: libc::c_int = 0i32;
-    let mut parts: libc::c_int = 0i32;
-    let mut e2ee_guaranteed: libc::c_int = 0i32;
-    let mut min_verified: libc::c_int = 0i32;
+    let mut afwd_email: libc::c_int = 0;
+    let mut col: libc::c_int = 0;
+    let mut success: libc::c_int = 0;
+    let mut parts: libc::c_int = 0;
+    let mut e2ee_guaranteed: libc::c_int = 0;
+    let mut min_verified: libc::c_int = 0;
     // 1=add Autocrypt-header (needed eg. for handshaking), 2=no Autocrypte-header (used for MDN)
-    let mut force_plaintext: libc::c_int = 0i32;
-    let mut do_gossip: libc::c_int = 0i32;
+    let mut force_plaintext: libc::c_int = 0;
+    let mut do_gossip: libc::c_int = 0;
     let mut grpimage: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut e2ee_helper = dc_e2ee_helper_t {
         encryption_successfull: 0,
@@ -382,7 +405,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
         let mut to: *mut mailimf_address_list = 0 as *mut mailimf_address_list;
         if !(*factory).recipients_names.is_null()
             && !(*factory).recipients_addr.is_null()
-            && (*(*factory).recipients_addr).count > 0i32
+            && (*(*factory).recipients_addr).count > 0
         {
             let mut iter1: *mut clistiter;
             let mut iter2: *mut clistiter;
@@ -505,7 +528,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             let msg: *mut dc_msg_t = (*factory).msg;
             let mut meta_part: *mut mailmime = 0 as *mut mailmime;
             let mut placeholdertext: *mut libc::c_char = 0 as *mut libc::c_char;
-            if (*chat).type_0 == 130i32 {
+            if (*chat).type_0 == 130 {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -513,23 +536,23 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         strdup(b"1\x00" as *const u8 as *const libc::c_char),
                     ),
                 );
-                force_plaintext = 0i32;
-                e2ee_guaranteed = 1i32;
-                min_verified = 2i32
+                force_plaintext = 0;
+                e2ee_guaranteed = 1;
+                min_verified = 2
             } else {
-                force_plaintext = dc_param_get_int((*(*factory).msg).param, 'u' as i32, 0i32);
-                if force_plaintext == 0i32 {
-                    e2ee_guaranteed = dc_param_get_int((*(*factory).msg).param, 'c' as i32, 0i32)
+                force_plaintext = dc_param_get_int((*(*factory).msg).param, 'u' as i32, 0);
+                if force_plaintext == 0 {
+                    e2ee_guaranteed = dc_param_get_int((*(*factory).msg).param, 'c' as i32, 0)
                 }
             }
             if (*chat).gossiped_timestamp == 0
                 || ((*chat).gossiped_timestamp + (2 * 24 * 60 * 60)) < time()
             {
-                do_gossip = 1i32
+                do_gossip = 1
             }
             /* build header etc. */
-            let command: libc::c_int = dc_param_get_int((*msg).param, 'S' as i32, 0i32);
-            if (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32 {
+            let command: libc::c_int = dc_param_get_int((*msg).param, 'S' as i32, 0);
+            if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -544,7 +567,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         dc_encode_header_words((*chat).name),
                     ),
                 );
-                if command == 5i32 {
+                if command == 5 {
                     let email_to_remove: *mut libc::c_char =
                         dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
                     if !email_to_remove.is_null() {
@@ -559,8 +582,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                         );
                     }
-                } else if command == 4i32 {
-                    do_gossip = 1i32;
+                } else if command == 4 {
+                    do_gossip = 1;
                     let email_to_add: *mut libc::c_char =
                         dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
                     if !email_to_add.is_null() {
@@ -576,13 +599,12 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         );
                         grpimage = dc_param_get((*chat).param, 'i' as i32, 0 as *const libc::c_char)
                     }
-                    if 0 != dc_param_get_int((*msg).param, 'F' as i32, 0i32) & 0x1i32 {
-                        dc_log_info(
+                    if 0 != dc_param_get_int((*msg).param, 'F' as i32, 0) & 0x1 {
+                        info!(
                             (*msg).context,
-                            0i32,
-                            b"sending secure-join message \'%s\' >>>>>>>>>>>>>>>>>>>>>>>>>\x00"
-                                as *const u8 as *const libc::c_char,
-                            b"vg-member-added\x00" as *const u8 as *const libc::c_char,
+                            0,
+                            "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                            "vg-member-added",
                         );
                         mailimf_fields_add(
                             imf_fields,
@@ -592,7 +614,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                         );
                     }
-                } else if command == 2i32 {
+                } else if command == 2 {
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
@@ -606,7 +628,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                         ),
                     );
-                } else if command == 3i32 {
+                } else if command == 3 {
                     grpimage = dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
                     if grpimage.is_null() {
                         mailimf_fields_add(
@@ -619,7 +641,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     }
                 }
             }
-            if command == 8i32 {
+            if command == 8 {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -630,7 +652,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     ),
                 );
             }
-            if command == 6i32 {
+            if command == 6 {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -638,18 +660,17 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         strdup(b"v1\x00" as *const u8 as *const libc::c_char),
                     ),
                 );
-                placeholdertext = dc_stock_str((*factory).context, 43i32)
+                placeholdertext = dc_stock_str((*factory).context, 43)
             }
-            if command == 7i32 {
+            if command == 7 {
                 let step: *mut libc::c_char =
                     dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
                 if !step.is_null() {
-                    dc_log_info(
+                    info!(
                         (*msg).context,
-                        0i32,
-                        b"sending secure-join message \'%s\' >>>>>>>>>>>>>>>>>>>>>>>>>\x00"
-                            as *const u8 as *const libc::c_char,
-                        step,
+                        0,
+                        "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
+                        as_str(step),
                     );
                     mailimf_fields_add(
                         imf_fields,
@@ -667,12 +688,12 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 if strcmp(
                                     step,
                                     b"vg-request-with-auth\x00" as *const u8 as *const libc::c_char,
-                                ) == 0i32
+                                ) == 0
                                     || strcmp(
                                         step,
                                         b"vc-request-with-auth\x00" as *const u8
                                             as *const libc::c_char,
-                                    ) == 0i32
+                                    ) == 0
                                 {
                                     strdup(
                                         b"Secure-Join-Auth\x00" as *const u8 as *const libc::c_char,
@@ -718,7 +739,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             }
             if !grpimage.is_null() {
                 let mut meta: *mut dc_msg_t = dc_msg_new_untyped((*factory).context);
-                (*meta).type_0 = 20i32;
+                (*meta).type_0 = 20;
                 dc_param_set((*meta).param, 'f' as i32, grpimage);
                 let mut filename_as_sent: *mut libc::c_char = 0 as *mut libc::c_char;
                 meta_part = build_body_file(
@@ -737,8 +758,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 }
                 dc_msg_unref(meta);
             }
-            if (*msg).type_0 == 41i32 || (*msg).type_0 == 40i32 || (*msg).type_0 == 50i32 {
-                if (*msg).type_0 == 41i32 {
+            if (*msg).type_0 == 41 || (*msg).type_0 == 40 || (*msg).type_0 == 50 {
+                if (*msg).type_0 == 41 {
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
@@ -747,8 +768,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         ),
                     );
                 }
-                let duration_ms: libc::c_int = dc_param_get_int((*msg).param, 'd' as i32, 0i32);
-                if duration_ms > 0i32 {
+                let duration_ms: libc::c_int = dc_param_get_int((*msg).param, 'd' as i32, 0);
+                if duration_ms > 0 {
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
@@ -813,18 +834,18 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             free(fwdhint as *mut libc::c_void);
             free(placeholdertext as *mut libc::c_void);
             /* add attachment part */
-            if (*msg).type_0 == 20i32
-                || (*msg).type_0 == 21i32
-                || (*msg).type_0 == 40i32
-                || (*msg).type_0 == 41i32
-                || (*msg).type_0 == 50i32
-                || (*msg).type_0 == 60i32
+            if (*msg).type_0 == 20
+                || (*msg).type_0 == 21
+                || (*msg).type_0 == 40
+                || (*msg).type_0 == 41
+                || (*msg).type_0 == 50
+                || (*msg).type_0 == 60
             {
                 if 0 == is_file_size_okay(msg) {
                     let error: *mut libc::c_char = dc_mprintf(
                         b"Message exceeds the recommended %i MB.\x00" as *const u8
                             as *const libc::c_char,
-                        24i32 * 1024i32 * 1024i32 / 4i32 * 3i32 / 1000i32 / 1000i32,
+                        24 * 1024 * 1024 / 4 * 3 / 1000 / 1000,
                     );
                     set_error(factory, error);
                     free(error as *mut libc::c_void);
@@ -844,7 +865,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             match current_block {
                 11328123142868406523 => {}
                 _ => {
-                    if parts == 0i32 {
+                    if parts == 0 {
                         set_error(
                             factory,
                             b"Empty message.\x00" as *const u8 as *const libc::c_char,
@@ -887,8 +908,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             }
                         }
 
-                        if 0 != dc_is_sending_locations_to_chat((*msg).context, (*msg).chat_id) {
-                            let mut last_added_location_id: uint32_t = 0i32 as uint32_t;
+                        if dc_is_sending_locations_to_chat((*msg).context, (*msg).chat_id) {
+                            let mut last_added_location_id: uint32_t = 0 as uint32_t;
                             let kml_file: *mut libc::c_char = dc_get_location_kml(
                                 (*msg).context,
                                 (*msg).chat_id,
@@ -943,12 +964,12 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             mailmime_add_part(message, multipart);
             let p1: *mut libc::c_char;
             let p2: *mut libc::c_char;
-            if 0 != dc_param_get_int((*(*factory).msg).param, 'c' as i32, 0i32) {
-                p1 = dc_stock_str((*factory).context, 24i32)
+            if 0 != dc_param_get_int((*(*factory).msg).param, 'c' as i32, 0) {
+                p1 = dc_stock_str((*factory).context, 24)
             } else {
-                p1 = dc_msg_get_summarytext((*factory).msg, 32i32)
+                p1 = dc_msg_get_summarytext((*factory).msg, 32)
             }
-            p2 = dc_stock_str_repl_string((*factory).context, 32i32, p1);
+            p2 = dc_stock_str_repl_string((*factory).context, 32, p1);
             message_text = dc_mprintf(b"%s\r\n\x00" as *const u8 as *const libc::c_char, p2);
             free(p2 as *mut libc::c_void);
             free(p1 as *mut libc::c_void);
@@ -968,7 +989,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             let mach_mime_part: *mut mailmime = mailmime_new_empty(content_type_0, mime_fields_0);
             mailmime_set_body_text(mach_mime_part, message_text2, strlen(message_text2));
             mailmime_add_part(multipart, mach_mime_part);
-            force_plaintext = 2i32;
+            force_plaintext = 2;
             current_block = 9952640327414195044;
         } else {
             set_error(
@@ -983,7 +1004,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 if (*factory).loaded as libc::c_uint
                     == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
                 {
-                    let e: *mut libc::c_char = dc_stock_str((*factory).context, 31i32);
+                    let e: *mut libc::c_char = dc_stock_str((*factory).context, 31);
                     subject_str =
                         dc_mprintf(b"Chat: %s\x00" as *const u8 as *const libc::c_char, e);
                     free(e as *mut libc::c_void);
@@ -1019,7 +1040,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         0 as *mut mailimf_optional_field,
                     ),
                 );
-                if force_plaintext != 2i32 {
+                if force_plaintext != 2 {
                     dc_e2ee_encrypt(
                         (*factory).context,
                         (*factory).recipients_addr,
@@ -1032,14 +1053,14 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     );
                 }
                 if 0 != e2ee_helper.encryption_successfull {
-                    (*factory).out_encrypted = 1i32;
+                    (*factory).out_encrypted = 1;
                     if 0 != do_gossip {
-                        (*factory).out_gossiped = 1i32
+                        (*factory).out_gossiped = 1
                     }
                 }
                 (*factory).out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
                 mailmime_write_mem((*factory).out, &mut col, message);
-                success = 1i32
+                success = 1
             }
         }
     }
@@ -1063,15 +1084,15 @@ unsafe fn get_subject(
     let context = (*chat).context;
     let ret: *mut libc::c_char;
     let raw_subject: *mut libc::c_char =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, (*msg).param, 32i32, context);
+        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, (*msg).param, 32, context);
     let fwd: *const libc::c_char = if 0 != afwd_email {
         b"Fwd: \x00" as *const u8 as *const libc::c_char
     } else {
         b"\x00" as *const u8 as *const libc::c_char
     };
-    if dc_param_get_int((*msg).param, 'S' as i32, 0i32) == 6i32 {
-        ret = dc_stock_str(context, 42i32)
-    } else if (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32 {
+    if dc_param_get_int((*msg).param, 'S' as i32, 0) == 6 {
+        ret = dc_stock_str(context, 42)
+    } else if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
         ret = dc_mprintf(
             b"Chat: %s: %s%s\x00" as *const u8 as *const libc::c_char,
             (*chat).name,
@@ -1135,7 +1156,7 @@ unsafe fn build_body_file(
     let mut filename_to_send: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut filename_encoded: *mut libc::c_char = 0 as *mut libc::c_char;
     if !pathNfilename.is_null() {
-        if (*msg).type_0 == 41i32 {
+        if (*msg).type_0 == 41 {
             let ts = chrono::Utc.timestamp((*msg).timestamp_sort as i64, 0);
 
             let suffix = if !suffix.is_null() {
@@ -1147,9 +1168,9 @@ unsafe fn build_body_file(
                 .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
                 .to_string();
             filename_to_send = strdup(to_cstring(res).as_ptr());
-        } else if (*msg).type_0 == 40i32 {
+        } else if (*msg).type_0 == 40 {
             filename_to_send = dc_get_filename(pathNfilename)
-        } else if (*msg).type_0 == 20i32 || (*msg).type_0 == 21i32 {
+        } else if (*msg).type_0 == 20 || (*msg).type_0 == 21 {
             if base_name.is_null() {
                 base_name = b"image\x00" as *const u8 as *const libc::c_char
             }
@@ -1162,7 +1183,7 @@ unsafe fn build_body_file(
                     b"dat\x00" as *const u8 as *const libc::c_char
                 },
             )
-        } else if (*msg).type_0 == 50i32 {
+        } else if (*msg).type_0 == 50 {
             filename_to_send = dc_mprintf(
                 b"video.%s\x00" as *const u8 as *const libc::c_char,
                 if !suffix.is_null() {
@@ -1178,14 +1199,14 @@ unsafe fn build_body_file(
             if suffix.is_null() {
                 mimetype =
                     dc_strdup(b"application/octet-stream\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0i32 {
+            } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0 {
                 mimetype = dc_strdup(b"image/png\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0i32
-                || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0i32
-                || strcmp(suffix, b"jpe\x00" as *const u8 as *const libc::c_char) == 0i32
+            } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0
+                || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0
+                || strcmp(suffix, b"jpe\x00" as *const u8 as *const libc::c_char) == 0
             {
                 mimetype = dc_strdup(b"image/jpeg\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0i32 {
+            } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0 {
                 mimetype = dc_strdup(b"image/gif\x00" as *const u8 as *const libc::c_char)
             } else {
                 mimetype =
@@ -1228,7 +1249,7 @@ unsafe fn build_body_file(
                                     0 as *mut libc::c_char,
                                     0 as *mut libc::c_char,
                                     0 as *mut libc::c_char,
-                                    0i32 as size_t,
+                                    0 as size_t,
                                     mailmime_parameter_new(
                                         strdup(
                                             b"filename*\x00" as *const u8 as *const libc::c_char,
@@ -1285,12 +1306,12 @@ unsafe fn build_body_file(
  ******************************************************************************/
 
 unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> libc::c_int {
-    let mut file_size_okay: libc::c_int = 1i32;
+    let mut file_size_okay: libc::c_int = 1;
     let pathNfilename: *mut libc::c_char =
         dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
     let bytes: uint64_t = dc_get_filebytes((*msg).context, pathNfilename);
-    if bytes > (49i32 * 1024i32 * 1024i32 / 4i32 * 3i32) as libc::c_ulonglong {
-        file_size_okay = 0i32
+    if bytes > (49 * 1024 * 1024 / 4 * 3) as libc::c_ulonglong {
+        file_size_okay = 0;
     }
     free(pathNfilename as *mut libc::c_void);
 
