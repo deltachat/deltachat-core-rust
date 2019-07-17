@@ -806,7 +806,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         r_0,
                                                     );
                                                     free(r_0 as *mut libc::c_void);
-                                                    if 0 != context
+                                                    if context
                                                         .inbox
                                                         .read()
                                                         .unwrap()
@@ -854,7 +854,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         r_1,
                                                     );
                                                     free(r_1 as *mut libc::c_void);
-                                                    if 0 != context
+                                                    if context
                                                         .inbox
                                                         .read()
                                                         .unwrap()
@@ -896,7 +896,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         r_2,
                                                     );
                                                     free(r_2 as *mut libc::c_void);
-                                                    if 0 != context
+                                                    if context
                                                         .inbox
                                                         .read()
                                                         .unwrap()
@@ -964,7 +964,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                 0i32 as uintptr_t,
                                                             );
                                                             /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
-                                                            if 0 == context
+                                                            if context
                                                                 .smtp
                                                                 .clone()
                                                                 .lock()
@@ -1010,7 +1010,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                         r_3,
                                                                     );
                                                                     free(r_3 as *mut libc::c_void);
-                                                                    if 0 == context
+                                                                    if context
                                                                         .smtp
                                                                         .clone()
                                                                         .lock()
@@ -1064,7 +1064,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                             free(r_4
                                                                                  as
                                                                                  *mut libc::c_void);
-                                                                            if 0 == context
+                                                                            if context
                                                                                 .smtp
                                                                                 .clone()
                                                                                 .lock()
@@ -1735,8 +1735,8 @@ pub unsafe fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> l
             b"configured_\x00" as *const u8 as *const libc::c_char,
         );
         /*the trailing underscore is correct*/
-        if !(0 == imap.connect(context, param)) {
-            ret_connected = 2i32;
+        if imap.connect(context, param) {
+            ret_connected = 2;
         }
     }
     dc_loginparam_unref(param);

@@ -372,9 +372,9 @@ impl Imap {
         self.config.read().unwrap().should_reconnect
     }
 
-    fn setup_handle_if_needed(&self, context: &Context) -> libc::c_int {
+    fn setup_handle_if_needed(&self, context: &Context) -> bool {
         if self.config.read().unwrap().imap_server.is_empty() {
-            return 0;
+            return false;
         }
 
         if self.should_reconnect() {
@@ -383,7 +383,7 @@ impl Imap {
 
         if self.is_connected() && self.stream.read().unwrap().is_some() {
             self.config.write().unwrap().should_reconnect = false;
-            return 1;
+            return true;
         }
 
         let server_flags = self.config.read().unwrap().server_flags;
@@ -427,7 +427,7 @@ impl Imap {
                         };
                         client.authenticate("XOAUTH2", &auth)
                     } else {
-                        return 0;
+                        return false;
                     }
                 } else {
                     client.login(imap_user, imap_pw)
@@ -448,7 +448,7 @@ impl Imap {
                     err
                 );
 
-                return 0;
+                return false;
             }
         };
 
@@ -458,13 +458,13 @@ impl Imap {
             Ok((session, stream)) => {
                 *self.session.lock().unwrap() = Some(session);
                 *self.stream.write().unwrap() = Some(stream);
-                1
+                true
             }
             Err((err, _)) => {
                 log_event!(context, Event::ERROR_NETWORK, 0, "Cannot login ({})", err);
                 self.unsetup_handle(context);
 
-                0
+                false
             }
         }
     }
@@ -522,17 +522,17 @@ impl Imap {
         cfg.watch_folder = None;
     }
 
-    pub fn connect(&self, context: &Context, lp: *const dc_loginparam_t) -> libc::c_int {
+    pub fn connect(&self, context: &Context, lp: *const dc_loginparam_t) -> bool {
         if lp.is_null() {
-            return 0;
+            return false;
         }
         let lp = unsafe { *lp };
         if lp.mail_server.is_null() || lp.mail_user.is_null() || lp.mail_pw.is_null() {
-            return 0;
+            return false;
         }
 
         if self.is_connected() {
-            return 1;
+            return true;
         }
 
         {
@@ -552,9 +552,9 @@ impl Imap {
             config.server_flags = server_flags;
         }
 
-        if self.setup_handle_if_needed(context) == 0 {
+        if self.setup_handle_if_needed(context) {
             self.free_connect_params();
-            return 0;
+            return false;
         }
 
         let teardown: bool;
@@ -584,10 +584,10 @@ impl Imap {
                             context,
                             Event::IMAP_CONNECTED,
                             0,
-                            "IMAP-LOGIN as {} ok",
+                            "IMAP-LOGIN as {}, capabilities: {}",
                             as_str(lp.mail_user),
+                            caps_list,
                         );
-                        info!(context, 0, "IMAP-capabilities:{}", caps_list);
 
                         self.config.write().unwrap().can_idle = can_idle;
                         self.config.write().unwrap().has_xlist = has_xlist;
@@ -605,9 +605,9 @@ impl Imap {
         if teardown {
             self.unsetup_handle(context);
             self.free_connect_params();
-            0
+            false
         } else {
-            1
+            true
         }
     }
 
@@ -1175,7 +1175,7 @@ impl Imap {
             // check for new messages. fetch_from_single_folder() has the side-effect that messages
             // are also downloaded, however, typically this would take place in the FETCH command
             // following IDLE otherwise, so this seems okay here.
-            if self.setup_handle_if_needed(context) != 0 {
+            if self.setup_handle_if_needed(context) {
                 if let Some(ref watch_folder) = self.config.read().unwrap().watch_folder {
                     if 0 != self.fetch_from_single_folder(context, watch_folder) {
                         do_fake_idle = false;
