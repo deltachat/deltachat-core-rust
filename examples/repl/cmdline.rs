@@ -72,7 +72,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
         sql::execute(
             context,
             &context.sql,
-            "DELETE FROM config WHERE keyname LIKE \'imap.%\' OR keyname LIKE \'configured%\';",
+            "DELETE FROM config WHERE keyname LIKE 'imap.%' OR keyname LIKE 'configured%';",
             params![],
         );
         sql::execute(context, &context.sql, "DELETE FROM leftgrps;", params![]);
@@ -911,7 +911,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
             let seconds = arg1.parse().unwrap();
             dc_send_locations_to_chat(context, dc_chat_get_id(sel_chat), seconds);
-            println!("Locations will be sent to Chat#{} for {} seconds. Use \'setlocation <lat> <lng>\' to play around.", dc_chat_get_id(sel_chat), seconds);
+            println!("Locations will be sent to Chat#{} for {} seconds. Use 'setlocation <lat> <lng>' to play around.", dc_chat_get_id(sel_chat), seconds);
         }
         "setlocation" => {
             ensure!(
