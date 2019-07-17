@@ -177,7 +177,7 @@ pub fn dc_context_new(
     userdata: *mut libc::c_void,
     os_name: *const libc::c_char,
 ) -> Context {
-    let context = Context {
+    Context {
         blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
         dbfile: Arc::new(RwLock::new(std::ptr::null_mut())),
         inbox: Arc::new(RwLock::new({
@@ -221,8 +221,7 @@ pub fn dc_context_new(
         ))),
         probe_imap_network: Arc::new(RwLock::new(0)),
         perform_inbox_jobs_needed: Arc::new(RwLock::new(0)),
-    };
-    context
+    }
 }
 
 unsafe fn cb_receive_imf(
@@ -342,7 +341,6 @@ pub unsafe fn dc_context_unref(context: &mut Context) {
 }
 
 pub unsafe fn dc_close(context: &Context) {
-    println!("disconnecting inbox watch yooaa");
     info!(context, 0, "disconnecting INBOX-watch",);
     context.inbox.read().unwrap().disconnect(context);
     info!(context, 0, "disconnecting sentbox-thread",);
