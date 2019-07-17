@@ -834,19 +834,19 @@ where
     }
 }
 
-pub fn try_execute(context: &Context, sql: &Sql, querystr: impl AsRef<str>) -> libc::c_int {
+pub fn try_execute(context: &Context, sql: &Sql, querystr: impl AsRef<str>) -> Result<()> {
     // same as execute() but does not pass error to ui
     match sql.execute(querystr.as_ref(), params![]) {
-        Ok(_) => 1,
+        Ok(_) => Ok(()),
         Err(err) => {
             warn!(
                 context,
                 0,
                 "Try-execute for \"{}\" failed: {}",
                 querystr.as_ref(),
-                err,
+                &err,
             );
-            0
+            Err(err)
         }
     }
 }
