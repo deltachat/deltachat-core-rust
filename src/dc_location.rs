@@ -64,7 +64,9 @@ pub unsafe fn dc_send_locations_to_chat(
                 },
                 chat_id as i32,
             ],
-        ) {
+        )
+        .is_ok()
+        {
             if 0 != seconds && !is_sending_locations_before {
                 msg = dc_msg_new(context, 10i32);
                 (*msg).text = dc_stock_system_msg(
@@ -244,7 +246,7 @@ unsafe fn is_marker(txt: *const libc::c_char) -> libc::c_int {
 }
 
 pub fn dc_delete_all_locations(context: &Context) -> bool {
-    if !sql::execute(context, &context.sql, "DELETE FROM locations;", params![]) {
+    if sql::execute(context, &context.sql, "DELETE FROM locations;", params![]).is_err() {
         return false;
     }
     context.call_cb(Event::LOCATION_CHANGED, 0, 0);
@@ -386,6 +388,7 @@ pub fn dc_set_kml_sent_timestamp(context: &Context, chat_id: u32, timestamp: i64
         "UPDATE chats SET locations_last_sent=? WHERE id=?;",
         params![timestamp, chat_id as i32],
     )
+    .is_ok()
 }
 
 pub fn dc_set_msg_location_id(context: &Context, msg_id: u32, location_id: u32) -> bool {
@@ -395,6 +398,7 @@ pub fn dc_set_msg_location_id(context: &Context, msg_id: u32, location_id: u32) 
         "UPDATE msgs SET location_id=? WHERE id=?;",
         params![location_id, msg_id as i32],
     )
+    .is_ok()
 }
 
 pub unsafe fn dc_save_locations(

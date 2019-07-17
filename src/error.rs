@@ -14,6 +14,8 @@ pub enum Error {
     SqlAlreadyOpen,
     #[fail(display = "Sqlite: Failed to open")]
     SqlFailedToOpen,
+    #[fail(display = "{:?}", _0)]
+    Io(std::io::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -33,5 +35,11 @@ impl From<failure::Error> for Error {
 impl From<r2d2::Error> for Error {
     fn from(err: r2d2::Error) -> Error {
         Error::ConnectionPool(err)
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Error {
+        Error::Io(err)
     }
 }

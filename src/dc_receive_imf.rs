@@ -1176,7 +1176,9 @@ unsafe fn create_or_lookup_group(
                                 &context.sql,
                                 "UPDATE chats SET name=? WHERE id=?;",
                                 params![as_str(grpname), chat_id as i32],
-                            ) {
+                            )
+                            .is_ok()
+                            {
                                 context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0);
                             }
                         }
@@ -1443,7 +1445,7 @@ fn create_group_record(
     create_blocked: libc::c_int,
     create_verified: libc::c_int,
 ) -> u32 {
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "INSERT INTO chats (type, name, grpid, blocked) VALUES(?, ?, ?, ?);",
@@ -1453,7 +1455,9 @@ fn create_group_record(
             as_str(grpid),
             create_blocked,
         ],
-    ) {
+    )
+    .is_err()
+    {
         return 0;
     }
 

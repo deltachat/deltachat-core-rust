@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use deltachat::config;
 use deltachat::constants::*;
 use deltachat::context::*;
@@ -479,7 +481,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         },
         "auth" => {
             if 0 == S_IS_AUTH {
-                let is_pw = config::get(context, "mail_pw");
+                let is_pw = context
+                    .get_config(config::Config::MailPw)
+                    .unwrap_or_default();
                 if arg1 == is_pw {
                     S_IS_AUTH = 1;
                 } else {
@@ -599,15 +603,15 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "set" => {
             ensure!(!arg1.is_empty(), "Argument <key> missing.");
-            ensure!(
-                0 != config::set(context, &arg1, Some(&arg2)),
-                "Set config failed"
-            );
+            let key = config::Config::from_str(&arg1)?;
+            let value = if arg2.is_empty() { None } else { Some(arg2) };
+            context.set_config(key, value)?;
         }
         "get" => {
             ensure!(!arg1.is_empty(), "Argument <key> missing.");
-            let val = config::get(context, &arg1);
-            println!("{}={}", arg1, val);
+            let key = config::Config::from_str(&arg1)?;
+            let val = context.get_config(key);
+            println!("{}={:?}", key, val);
         }
         "info" => {
             println!("{}", to_string(dc_get_info(context)));

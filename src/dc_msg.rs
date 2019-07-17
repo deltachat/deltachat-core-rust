@@ -531,6 +531,7 @@ pub fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bo
         "UPDATE msgs SET chat_id=? WHERE id=?;",
         params![chat_id as i32, msg_id as i32],
     )
+    .is_ok()
 }
 
 pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) -> bool {
@@ -586,6 +587,7 @@ pub fn dc_update_msg_state(context: &Context, msg_id: uint32_t, state: libc::c_i
         "UPDATE msgs SET state=? WHERE id=?;",
         params![state, msg_id as i32],
     )
+    .is_ok()
 }
 
 pub fn dc_star_msgs(
@@ -1091,6 +1093,7 @@ pub unsafe fn dc_msg_save_param_to_disk(msg: *mut dc_msg_t) -> bool {
         "UPDATE msgs SET param=? WHERE id=?;",
         params![as_str((*(*msg).param).packed), (*msg).id as i32],
     )
+    .is_ok()
 }
 
 pub unsafe fn dc_msg_new_load<'a>(context: &'a Context, msg_id: uint32_t) -> *mut dc_msg_t<'a> {
@@ -1159,6 +1162,7 @@ pub fn dc_update_msg_move_state(
         "UPDATE msgs SET move_state=? WHERE rfc724_mid=?;",
         params![state as i32, as_str(rfc724_mid)],
     )
+    .is_ok()
 }
 
 pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *const libc::c_char) {
@@ -1178,7 +1182,9 @@ pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *con
             &context.sql,
             "UPDATE msgs SET state=?, param=? WHERE id=?;",
             params![(*msg).state, as_str((*(*msg).param).packed), msg_id as i32],
-        ) {
+        )
+        .is_ok()
+        {
             context.call_cb(
                 Event::MSG_FAILED,
                 (*msg).chat_id as uintptr_t,

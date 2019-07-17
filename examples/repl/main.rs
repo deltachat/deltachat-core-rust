@@ -515,10 +515,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             dc_configure(&ctx.read().unwrap());
         }
         "oauth2" => {
-            let addr = config::get(&ctx.read().unwrap(), "addr");
-            if addr.is_empty() {
-                println!("oauth2: set addr first.");
-            } else {
+            if let Some(addr) = ctx.read().unwrap().get_config(config::Config::Addr) {
                 let oauth2_url = dc_get_oauth2_url(
                     &ctx.read().unwrap(),
                     &addr,
@@ -529,6 +526,8 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
                 } else {
                     println!("Open the following url, set mail_pw to the generated token and server_flags to 2:\n{}", oauth2_url.unwrap());
                 }
+            } else {
+                println!("oauth2: set addr first.");
             }
         }
         "clear" => {

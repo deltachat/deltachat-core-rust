@@ -306,7 +306,7 @@ pub fn dc_key_save_self_keypair(
         sql,
         "INSERT INTO keypairs (addr, is_default, public_key, private_key, created) VALUES (?,?,?,?,?);",
         params![addr.as_ref(), is_default, public_key.to_bytes(), private_key.to_bytes(), time()],
-    )
+    ).is_ok()
 }
 
 /// Make a fingerprint human-readable, in hex format.

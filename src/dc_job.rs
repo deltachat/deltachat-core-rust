@@ -259,6 +259,7 @@ fn dc_job_update(context: &Context, job: &dc_job_t) -> bool {
             job.job_id as i32,
         ],
     )
+    .is_ok()
 }
 
 unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: libc::c_int) {
@@ -893,6 +894,7 @@ pub fn dc_job_kill_action(context: &Context, action: libc::c_int) -> bool {
         "DELETE FROM jobs WHERE action=?;",
         params![action],
     )
+    .is_ok()
 }
 
 pub unsafe fn dc_perform_imap_fetch(context: &Context) {

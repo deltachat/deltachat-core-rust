@@ -10,6 +10,8 @@
 #[macro_use]
 extern crate human_panic;
 
+use std::str::FromStr;
+
 use deltachat::*;
 
 // TODO: constants
@@ -91,7 +93,10 @@ pub unsafe extern "C" fn dc_set_config(
     assert!(!key.is_null(), "invalid key");
     let context = &*context;
 
-    config::set(context, dc_tools::as_str(key), as_opt_str(value))
+    match config::Config::from_str(dc_tools::as_str(key)) {
+        Ok(key) => context.set_config(key, as_opt_str(value)).is_ok() as libc::c_int,
+        Err(_) => 0,
+    }
 }
 
 #[no_mangle]
@@ -103,7 +108,13 @@ pub unsafe extern "C" fn dc_get_config(
     assert!(!key.is_null(), "invalid key");
     let context = &*context;
 
-    into_cstring(config::get(context, dc_tools::as_str(key)))
+    match config::Config::from_str(dc_tools::as_str(key)) {
+        Ok(key) => {
+            let value = context.get_config(key).unwrap_or_default();
+            into_cstring(value)
+        }
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]

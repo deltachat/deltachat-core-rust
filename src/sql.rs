@@ -30,11 +30,9 @@ impl Sql {
     }
 
     pub fn close(&self, context: &Context) {
-        let mut pool = self.pool.write().unwrap();
-        if pool.is_some() {
-            pool.take();
-            // drop closes the connection
-        }
+        let _ = self.pool.write().unwrap().take();
+        // drop closes the connection
+
         info!(context, 0, "Database closed.");
     }
 
@@ -180,49 +178,46 @@ impl Sql {
         context: &Context,
         key: impl AsRef<str>,
         value: Option<&str>,
-    ) -> libc::c_int {
+    ) -> Result<()> {
         if !self.is_open() {
             error!(context, 0, "set_config(): Database not ready.");
-            return 0;
+            return Err(Error::SqlNoConnection);
         }
 
         let key = key.as_ref();
-        let good;
-
-        if let Some(ref value) = value {
-            let exists = self
-                .exists("SELECT value FROM config WHERE keyname=?;", params![key])
-                .unwrap_or_default();
+        let res = if let Some(ref value) = value {
+            let exists = self.exists("SELECT value FROM config WHERE keyname=?;", params![key])?;
             if exists {
-                good = execute(
+                execute(
                     context,
                     self,
                     "UPDATE config SET value=? WHERE keyname=?;",
                     params![value, key],
-                );
+                )
             } else {
-                good = execute(
+                execute(
                     context,
                     self,
                     "INSERT INTO config (keyname, value) VALUES (?, ?);",
                     params![key, value],
-                );
+                )
             }
         } else {
-            good = execute(
+            execute(
                 context,
                 self,
                 "DELETE FROM config WHERE keyname=?;",
                 params![key],
-            );
-        }
+            )
+        };
 
-        if !good {
-            error!(context, 0, "set_config(): Cannot change value.",);
-            return 0;
+        match res {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                error!(context, 0, "set_config(): Cannot change value. {:?}", &err);
+                Err(err.into())
+            }
         }
-
-        1
     }
 
     /// Get configuration options from the database.
@@ -249,7 +244,7 @@ impl Sql {
         context: &Context,
         key: impl AsRef<str>,
         value: i32,
-    ) -> libc::c_int {
+    ) -> Result<()> {
         self.set_config(context, key, Some(&format!("{}", value)))
     }
 
@@ -264,7 +259,7 @@ impl Sql {
         context: &Context,
         key: impl AsRef<str>,
         value: i64,
-    ) -> libc::c_int {
+    ) -> Result<()> {
         self.set_config(context, key, Some(&format!("{}", value)))
     }
 
@@ -819,22 +814,22 @@ fn open(
     Ok(())
 }
 
-pub fn execute<P>(context: &Context, sql: &Sql, querystr: impl AsRef<str>, params: P) -> bool
+pub fn execute<P>(context: &Context, sql: &Sql, querystr: impl AsRef<str>, params: P) -> Result<()>
 where
     P: IntoIterator,
     P::Item: rusqlite::ToSql,
 {
     match sql.execute(querystr.as_ref(), params) {
-        Ok(_) => true,
+        Ok(_) => Ok(()),
         Err(err) => {
             error!(
                 context,
                 0,
                 "execute failed: {:?} for {}",
-                err,
+                &err,
                 querystr.as_ref()
             );
-            false
+            Err(err.into())
         }
     }
 }

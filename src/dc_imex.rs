@@ -388,22 +388,26 @@ fn set_self_key(
     let (private_key, public_key, header) = keys.unwrap();
     let preferencrypt = header.get("Autocrypt-Prefer-Encrypt");
 
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "DELETE FROM keypairs WHERE public_key=? OR private_key=?;",
         params![public_key.to_bytes(), private_key.to_bytes()],
-    ) {
+    )
+    .is_err()
+    {
         return 0;
     }
 
     if 0 != set_default {
-        if !sql::execute(
+        if sql::execute(
             context,
             &context.sql,
             "UPDATE keypairs SET is_default=0;",
             params![],
-        ) {
+        )
+        .is_err()
+        {
             return 0;
         }
     } else {
@@ -431,8 +435,14 @@ fn set_self_key(
 
     match preferencrypt.map(|s| s.as_str()) {
         Some("") => 0,
-        Some("nopreference") => context.sql.set_config_int(context, "e2ee_enabled", 0),
-        Some("mutual") => context.sql.set_config_int(context, "e2ee_enabled", 1),
+        Some("nopreference") => context
+            .sql
+            .set_config_int(context, "e2ee_enabled", 0)
+            .is_ok() as libc::c_int,
+        Some("mutual") => context
+            .sql
+            .set_config_int(context, "e2ee_enabled", 1)
+            .is_ok() as libc::c_int,
         _ => 1,
     }
 }
@@ -856,7 +866,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 if !loop_success {
                     return Err(format_err!("fail").into());
                 }
-                sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![]);
+                sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
                 sql::try_execute(context, &context.sql, "VACUUM;");
                 Ok(())
             },
@@ -909,12 +919,14 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         let sql = Sql::new();
         if sql.open(context, as_path(dest_pathNfilename), 0) {
             if !sql.table_exists("backup_blobs") {
-                if !sql::execute(
+                if sql::execute(
                     context,
                     &sql,
                     "CREATE TABLE backup_blobs (id INTEGER PRIMARY KEY, file_name, file_content);",
                     params![],
-                ) {
+                )
+                .is_err()
+                {
                     /* error already logged */
                     current_block = 11487273724841241105;
                 } else {
@@ -1037,7 +1049,10 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                         match current_block {
                             11487273724841241105 => {}
                             _ => {
-                                if 0 != sql.set_config_int(context, "backup_time", now as i32) {
+                                if sql
+                                    .set_config_int(context, "backup_time", now as i32)
+                                    .is_ok()
+                                {
                                     context.call_cb(
                                         Event::IMEX_FILE_WRITTEN,
                                         dest_pathNfilename as uintptr_t,

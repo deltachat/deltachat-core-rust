@@ -26,6 +26,7 @@ pub fn dc_token_save(
         "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
         params![namespc as i32, foreign_id as i32, as_str(token), time()],
     )
+    .is_ok()
 }
 
 pub fn dc_token_lookup(

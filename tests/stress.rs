@@ -248,7 +248,7 @@ unsafe fn stress_functions(context: &Context) {
         free(fn1 as *mut libc::c_void);
     }
 
-    let res = config::get(context, "sys.config_keys");
+    let res = context.get_config(config::Config::SysConfigKeys).unwrap();
 
     assert!(!res.contains(" probably_never_a_key "));
     assert!(res.contains(" addr "));

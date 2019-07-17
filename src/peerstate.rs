@@ -387,12 +387,14 @@ impl<'a> Peerstate<'a> {
         }
 
         if create {
-            if !sql::execute(
+            if sql::execute(
                 self.context,
                 sql,
                 "INSERT INTO acpeerstates (addr) VALUES(?);",
                 params![self.addr.as_ref().unwrap()],
-            ) {
+            )
+            .is_err()
+            {
                 return false;
             }
         }
@@ -419,7 +421,7 @@ impl<'a> Peerstate<'a> {
                     &self.verified_key_fingerprint,
                     &self.addr,
                 ],
-            );
+            ).is_ok();
         } else if self.to_save == Some(ToSave::Timestamps) {
             success = sql::execute(
                 self.context,
@@ -432,7 +434,8 @@ impl<'a> Peerstate<'a> {
                     self.gossip_timestamp,
                     &self.addr
                 ],
-            );
+            )
+            .is_ok();
         }
 
         if self.to_save == Some(ToSave::All) || create {

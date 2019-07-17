@@ -34,7 +34,9 @@ pub fn dc_marknoticed_contact(context: &Context, contact_id: u32) {
         &context.sql,
         "UPDATE msgs SET state=13 WHERE from_id=? AND state=10;",
         params![contact_id as i32],
-    ) {
+    )
+    .is_ok()
+    {
         context.call_cb(Event::MSGS_CHANGED, 0, 0);
     }
 }
@@ -161,7 +163,9 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
             &context.sql,
             "UPDATE contacts SET blocked=? WHERE id=?;",
             params![new_blocking, contact_id as i32],
-        ) {
+        )
+        .is_ok()
+        {
             // also (un)block all chats with _only_ this contact - we do not delete them to allow a
             // non-destructive blocking->unblocking.
             // (Maybe, beside normal chats (type=100) we should also block group chats with only this user.
@@ -172,7 +176,7 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
                 &context.sql,
                 "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
                 params![new_blocking, 100, contact_id as i32],
-            ) {
+            ).is_ok() {
                 dc_marknoticed_contact(context, contact_id);
                 context.call_cb(
                     Event::CONTACTS_CHANGED,
@@ -435,7 +439,9 @@ pub fn dc_add_or_lookup_contact(
             &context.sql,
             "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
             params![to_string(name), addr, origin,],
-        ) {
+        )
+        .is_ok()
+        {
             row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
             unsafe { *sth_modified = 2 };
         } else {
@@ -798,7 +804,9 @@ pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
             &context.sql,
             "DELETE FROM contacts WHERE id=?;",
             params![contact_id as i32],
-        ) {
+        )
+        .is_ok()
+        {
             context.call_cb(Event::CONTACTS_CHANGED, 0, 0);
             true
         } else {
@@ -895,8 +903,8 @@ pub fn dc_contact_get_profile_image(contact: *const dc_contact_t) -> *mut libc::
     }
 
     if unsafe { (*contact).id } == 1 {
-        let avatar = config::get(unsafe { (*contact).context }, "selfavatar");
-        if !avatar.is_empty() {
+        let context = unsafe { (*contact) }.context;
+        if let Some(avatar) = context.get_config(config::Config::Selfavatar) {
             image_abs = unsafe { dc_strdup(to_cstring(avatar).as_ptr()) };
         }
     }

@@ -107,6 +107,7 @@ pub fn dc_block_chat(context: &Context, chat_id: u32, new_blocking: libc::c_int)
         "UPDATE chats SET blocked=? WHERE id=?;",
         params![new_blocking, chat_id as i32],
     )
+    .is_ok()
 }
 
 pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
@@ -276,7 +277,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
                 as_str((*contact).addr),
             ),
             params![],
-        ) {
+        ).is_ok() {
             chat_id = sql::get_rowid(
                 context,
                 &context.sql,
@@ -573,7 +574,9 @@ unsafe fn prepare_msg_raw(
                         );
                         match res {
                             Ok(_) => {}
-                            Err(err) => warn!("chat: failed to load peerstates: {:?}", err),
+                            Err(err) => {
+                                warn!(context, 0, "chat: failed to load peerstates: {:?}", err);
+                            }
                         }
 
                         if 0 != can_encrypt {
@@ -665,7 +668,9 @@ unsafe fn prepare_msg_raw(
                                     0.0,
                                 ),
                             ],
-                        ) {
+                        )
+                        .is_ok()
+                        {
                             location_id = sql::get_rowid2(
                                 context,
                                 &context.sql,
@@ -699,7 +704,7 @@ unsafe fn prepare_msg_raw(
                             to_string(new_references),
                             location_id as i32,
                         ]
-                    ) {
+                    ).is_ok() {
                         msg_id = sql::get_rowid(
                             context,
                             &context.sql,
@@ -833,7 +838,8 @@ pub unsafe fn dc_chat_update_param(chat: *mut Chat) -> libc::c_int {
         &(*chat).context.sql,
         "UPDATE chats SET param=? WHERE id=?",
         params![to_string((*(*chat).param).packed), (*chat).id as i32],
-    ) as libc::c_int
+    )
+    .is_ok() as libc::c_int
 }
 
 pub unsafe fn dc_is_contact_in_chat(
@@ -1004,7 +1010,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                         to_string((*(*msg).param).packed),
                         1,
                     ]
-                ) {
+                ).is_ok() {
                     sth_changed = 1;
                 }
             }
@@ -1166,13 +1172,15 @@ pub fn dc_marknoticed_chat(context: &Context, chat_id: u32) -> bool {
     {
         return false;
     }
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "UPDATE msgs    \
          SET state=13 WHERE chat_id=? AND state=10;",
         params![chat_id as i32],
-    ) {
+    )
+    .is_err()
+    {
         return false;
     }
     context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
@@ -1192,13 +1200,15 @@ pub fn dc_marknoticed_all_chats(context: &Context) -> bool {
         return false;
     }
 
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "UPDATE msgs    \
          SET state=13 WHERE state=10;",
         params![],
-    ) {
+    )
+    .is_err()
+    {
         return false;
     }
 
@@ -1298,21 +1308,25 @@ pub fn dc_archive_chat(context: &Context, chat_id: u32, archive: libc::c_int) ->
         return true;
     }
     if 0 != archive {
-        if !sql::execute(
+        if sql::execute(
             context,
             &context.sql,
             "UPDATE msgs SET state=13 WHERE chat_id=? AND state=10;",
             params![chat_id as i32],
-        ) {
+        )
+        .is_err()
+        {
             return false;
         }
     }
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "UPDATE chats SET archived=? WHERE id=?;",
         params![archive, chat_id as i32],
-    ) {
+    )
+    .is_err()
+    {
         return false;
     }
     context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
@@ -1331,36 +1345,44 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) -> bool {
     }
     unsafe { dc_chat_unref(obj) };
 
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "DELETE FROM msgs_mdns WHERE msg_id IN (SELECT id FROM msgs WHERE chat_id=?);",
         params![chat_id as i32],
-    ) {
+    )
+    .is_err()
+    {
         return false;
     }
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "DELETE FROM msgs WHERE chat_id=?;",
         params![chat_id as i32],
-    ) {
+    )
+    .is_err()
+    {
         return false;
     }
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "DELETE FROM chats_contacts WHERE chat_id=?;",
         params![chat_id as i32],
-    ) {
+    )
+    .is_err()
+    {
         return false;
     }
-    if !sql::execute(
+    if sql::execute(
         context,
         &context.sql,
         "DELETE FROM chats WHERE id=?;",
         params![chat_id as i32],
-    ) {
+    )
+    .is_err()
+    {
         return false;
     }
 
@@ -1444,7 +1466,9 @@ pub unsafe fn dc_create_group_chat(
             as_str(chat_name),
             grpid
         ],
-    ) {
+    )
+    .is_ok()
+    {
         chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid);
         if chat_id != 0 {
             if 0 != dc_add_to_chat_contacts_table(context, chat_id, 1) {
@@ -1480,7 +1504,8 @@ pub fn dc_add_to_chat_contacts_table(
         &context.sql,
         "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
         params![chat_id as i32, contact_id as i32],
-    ) as libc::c_int
+    )
+    .is_ok() as libc::c_int
 }
 
 pub unsafe fn dc_add_contact_to_chat(
@@ -1716,7 +1741,9 @@ pub unsafe fn dc_remove_contact_from_chat(
                     &context.sql,
                     "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
                     params![chat_id as i32, contact_id as i32],
-                ) {
+                )
+                .is_ok()
+                {
                     context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
                     success = 1;
                 }
@@ -1789,7 +1816,9 @@ pub unsafe fn dc_set_chat_name(
                         chat_id as i32
                     ),
                     params![],
-                ) {
+                )
+                .is_ok()
+                {
                     if dc_param_get_int((*chat).param, 'U' as i32, 0i32) == 0i32 {
                         (*msg).type_0 = 10i32;
                         (*msg).text = dc_stock_system_msg(
