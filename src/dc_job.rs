@@ -49,22 +49,14 @@ pub struct dc_job_t {
 }
 
 pub unsafe fn dc_perform_imap_jobs(context: &Context) {
-    info!(
-        context,
-        0,
-        "dc_perform_imap_jobs starting.",
-    );
+    info!(context, 0, "dc_perform_imap_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
     *context.probe_imap_network.write().unwrap() = 0;
     *context.perform_inbox_jobs_needed.write().unwrap() = 0;
 
     dc_job_perform(context, 100, probe_imap_network);
-    info!(
-        context,
-        0,
-        "dc_perform_imap_jobs ended.",
-    );
+    info!(context, 0, "dc_perform_imap_jobs ended.",);
 }
 
 unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {

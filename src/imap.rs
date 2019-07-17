@@ -471,22 +471,26 @@ impl Imap {
 
     fn unsetup_handle(&self, context: &Context) {
         info!(context, 0, "IMAP unsetup_handle starts");
-        // self.interrupt_idle();
-        /*
-        {
-            let session = self.session.lock().unwrap().take();
-            info!(context, 0, "IMAP unsetup_handle step1");
-            if session.is_some() {
-                match session.unwrap().close() {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("failed to close connection: {:?}", err);
-                    }
+
+        // XXX the next line currently can block even if all threads
+        // terminated already
+        let session = self.session.lock().unwrap().take();
+        info!(
+            context,
+            0, "IMAP unsetup_handle step1 (acquired session.lock)"
+        );
+        if session.is_some() {
+            match session.unwrap().close() {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("failed to close connection: {:?}", err);
                 }
             }
         }
-        */
-        info!(context, 0, "IMAP unsetup_handle step 2.");
+        info!(
+            context,
+            0, "IMAP unsetup_handle step 2 (closing down stream)."
+        );
         let stream = self.stream.write().unwrap().take();
         if stream.is_some() {
             match stream.unwrap().shutdown(net::Shutdown::Both) {
@@ -497,12 +501,9 @@ impl Imap {
             }
         }
 
-        info!(context, 0, "IMAP unsetup_handle step 3.");
-        {
-            let mut cfg = self.config.write().unwrap();
-            cfg.selected_folder = None;
-            cfg.selected_mailbox = None;
-        }
+        info!(context, 0, "IMAP unsetup_handle step 3 (clearing config).");
+        self.config.write().unwrap().selected_folder = None;
+        self.config.write().unwrap().selected_mailbox = None;
         info!(context, 0, "IMAP unsetup_handle step 4 (disconnected).",);
     }
 
@@ -601,7 +602,7 @@ impl Imap {
                 teardown = true;
             }
         }
-        if teardown { 
+        if teardown {
             self.unsetup_handle(context);
             self.free_connect_params();
             0

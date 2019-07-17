@@ -114,11 +114,10 @@ pub unsafe fn dc_stop_ongoing_process(context: &Context) {
 pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_job_t) {
     let flags: libc::c_int;
     let mut current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut imap_connected_here: libc::c_int = 0i32;
-    let mut smtp_connected_here: libc::c_int = 0i32;
-    let mut ongoing_allocated_here: libc::c_int = 0i32;
-    let mvbox_folder: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut success = false;
+    let mut imap_connected_here = false;
+    let mut smtp_connected_here = false;
+    let mut ongoing_allocated_here = false;
     let mut param: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
     /* just a pointer inside param, must not be freed! */
     let mut param_domain: *mut libc::c_char;
@@ -126,7 +125,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
     let mut param_autoconfig: *mut dc_loginparam_t = 0 as *mut dc_loginparam_t;
 
     if !(0 == dc_alloc_ongoing(context)) {
-        ongoing_allocated_here = 1i32;
+        ongoing_allocated_here = true;
         if !context.sql.is_open() {
             dc_log_error(
                 context,
@@ -950,7 +949,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                 match current_block {
                                                     2927484062889439186 => {}
                                                     _ => {
-                                                        imap_connected_here = 1i32;
+                                                        imap_connected_here = true;
                                                         if !s.shall_stop_ongoing {
                                                             context.call_cb(
                                                                 Event::CONFIGURE_PROGRESS,
@@ -1094,7 +1093,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                             match current_block {
                                                                 2927484062889439186 => {}
                                                                 _ => {
-                                                                    smtp_connected_here = 1i32;
+                                                                    smtp_connected_here = true;
                                                                     if !s.shall_stop_ongoing {
                                                                         context.call_cb(Event::CONFIGURE_PROGRESS,
                                                                                         (if 900i32
@@ -1205,14 +1204,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                                 as
                                                                                                 uintptr_t);
                                                                                 dc_ensure_secret_key_exists(context);
-                                                                                success = 1i32;
-                                                                                dc_log_info(context,
-                                                                                            0i32,
-                                                                                            b"Configure completed.\x00"
-                                                                                            as
-                                                                                            *const u8
-                                                                                            as
-                                                                                            *const libc::c_char);
+                                                                                success = true;
+                                                                                info!(context, 0, "Configure completed.");
                                                                                 if !s.shall_stop_ongoing
                                                                                 {
                                                                                     context.call_cb(Event::CONFIGURE_PROGRESS,
@@ -1255,26 +1248,23 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
         }
     }
 
-    /* 
-    if 0 != imap_connected_here {
-        context.inbox.read().unwrap().disconnect(context);
+    if imap_connected_here {
+        // XXX why do we want to disconnect here?
+        // context.inbox.read().unwrap().disconnect(context);
+        info!(context, 0, "Skipping INBOX/IMAP disconnect");
     }
-    if 0 != smtp_connected_here {
-        context.smtp.clone().lock().unwrap().disconnect();
+    if smtp_connected_here {
+        // XXX why do we want to disconnect here?
+        // context.smtp.clone().lock().unwrap().disconnect();
+        info!(context, 0, "Skipping SMTP disconnect");
     }
-    */
     dc_loginparam_unref(param);
     dc_loginparam_unref(param_autoconfig);
     free(param_addr_urlencoded as *mut libc::c_void);
-    if 0 != ongoing_allocated_here {
+    if ongoing_allocated_here {
         dc_free_ongoing(context);
     }
-    free(mvbox_folder as *mut libc::c_void);
-    context.call_cb(
-        Event::CONFIGURE_PROGRESS,
-        (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
-        0i32 as uintptr_t,
-    );
+    context.call_cb(Event::CONFIGURE_PROGRESS, if success { 1000 } else { 0 }, 0);
 }
 
 pub unsafe fn dc_free_ongoing(context: &Context) {
