@@ -1060,7 +1060,7 @@ impl Imap {
             let (sender, receiver) = std::sync::mpsc::channel();
             let v = self.watch.clone();
 
-            warn!(context, 0, "IMAP-IDLE SPAWNING");
+            info!(context, 0, "IMAP-IDLE SPAWNING");
             std::thread::spawn(move || {
                 let &(ref lock, ref cvar) = &*v;
                 if let Some(ref mut session) = &mut *session.lock().unwrap() {

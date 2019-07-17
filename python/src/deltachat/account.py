@@ -36,6 +36,7 @@ class Account(object):
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
             _destroy_dc_context,
         )
+        self._threads = IOThreads(self._dc_context)
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
@@ -43,7 +44,6 @@ class Account(object):
         if eventlogging:
             self._evlogger = EventLogger(self._dc_context, logid)
             deltachat.set_context_callback(self._dc_context, self._process_event)
-        self._threads = IOThreads(self._dc_context)
         self._configkeys = self.get_config("sys.config_keys").split()
         self._imex_completed = threading.Event()
 

@@ -1,12 +1,18 @@
 from __future__ import print_function
 import pytest
 import os
-from deltachat import const
+from deltachat import const, Account
 from datetime import datetime, timedelta
 from conftest import wait_configuration_progress, wait_successful_IMAP_SMTP_connection
 
 
 class TestOfflineAccount:
+    def test_wrong_db(self, tmpdir):
+        p = tmpdir.join("hello.db")
+        p.write("123")
+        with pytest.raises(ValueError):
+            Account(p.strpath)
+
     def test_getinfo(self, acfactory):
         ac1 = acfactory.get_unconfigured_account()
         d = ac1.get_info()

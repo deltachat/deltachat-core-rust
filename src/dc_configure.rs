@@ -1248,15 +1248,20 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
         }
     }
 
-    if imap_connected_here {
-        // XXX why do we want to disconnect here?
-        // context.inbox.read().unwrap().disconnect(context);
-        info!(context, 0, "Skipping INBOX/IMAP disconnect");
-    }
-    if smtp_connected_here {
-        // XXX why do we want to disconnect here?
-        // context.smtp.clone().lock().unwrap().disconnect();
-        info!(context, 0, "Skipping SMTP disconnect");
+    if !success {
+        // disconnect if configure did not succeed
+        if imap_connected_here {
+            // context.inbox.read().unwrap().disconnect(context);
+        }
+        if smtp_connected_here {
+            // context.smtp.clone().lock().unwrap().disconnect();
+        }
+    } else {
+        assert!(imap_connected_here && smtp_connected_here);
+        info!(
+            context,
+            0, "Keeping IMAP/SMTP connections open after successful configuration"
+        );
     }
     dc_loginparam_unref(param);
     dc_loginparam_unref(param_autoconfig);

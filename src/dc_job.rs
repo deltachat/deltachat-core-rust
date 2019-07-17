@@ -60,7 +60,6 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
 }
 
 unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
-    // info!(context, 0, "dc_job_perform {} {}", thread, probe_network);
     let mut select_stmt: *mut sqlite3_stmt;
     let mut job = dc_job_t {
         job_id: 0,
@@ -127,7 +126,6 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
         let mut tries: libc::c_int = 0i32;
         while tries <= 1i32 {
             job.try_again = 0i32;
-            // info!(context, 0, "dc_job_perform action {}", job.action);
             match job.action {
                 5901 => {
                     dc_job_do_DC_JOB_SEND(context, &mut job);
