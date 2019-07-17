@@ -559,12 +559,7 @@ impl Imap {
             Some(ref mut session) => {
                 if let Ok(caps) = session.capabilities() {
                     if !context.sql.is_open() {
-                        warn!(
-                            context,
-                            0,
-                            "IMAP-LOGIN as {} ok but ABORTING",
-                            lp.mail_user,
-                        );
+                        warn!(context, 0, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
                         teardown = true;
                     } else {
                         let can_idle = caps.has("IDLE");

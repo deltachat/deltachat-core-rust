@@ -1050,11 +1050,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
         dc_free_ongoing(context);
     }
 
-    context.call_cb(
-        Event::CONFIGURE_PROGRESS,
-        if success { 1000 } else { 0 },
-        0,
-    );
+    context.call_cb(Event::CONFIGURE_PROGRESS, if success { 1000 } else { 0 }, 0);
 }
 
 pub unsafe fn dc_free_ongoing(context: &Context) {

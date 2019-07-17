@@ -58,7 +58,6 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
     info!(context, 0, "dc_perform_imap_jobs ended.",);
 }
 
-
 unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
     let process_row = |row: &rusqlite::Row| {
         let job = dc_job_t {
