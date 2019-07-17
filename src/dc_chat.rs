@@ -535,16 +535,17 @@ unsafe fn prepare_msg_raw(
                     do_guarantee_e2ee = 0;
                     e2ee_enabled = context.sql.get_config_int(context, "e2ee_enabled", 1);
                     if 0 != e2ee_enabled && dc_param_get_int((*msg).param, 'u' as i32, 0) == 0 {
-                        let mut can_encrypt: libc::c_int = 1;
-                        let mut all_mutual: libc::c_int = 1;
+                        let mut can_encrypt = 1;
+                        let mut all_mutual = 1;
 
-                        context.sql.query_row(
+                        let res = context.sql.query_row(
                             "SELECT ps.prefer_encrypted, c.addr \
                              FROM chats_contacts cc  \
                              LEFT JOIN contacts c ON cc.contact_id=c.id  \
                              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
                              WHERE cc.chat_id=?  AND cc.contact_id>9;",
-                            params![(*chat).id], |row| {
+                            params![(*chat).id],
+                            |row| {
                                 let state: String = row.get(1)?;
 
                                 if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
@@ -568,8 +569,12 @@ unsafe fn prepare_msg_raw(
                                     all_mutual = 0;
                                 }
                                 Ok(())
-                            }
-                        ).unwrap();
+                            },
+                        );
+                        match res {
+                            Ok(_) => {}
+                            Err(err) => warn!("chat: failed to load peerstates: {:?}", err),
+                        }
 
                         if 0 != can_encrypt {
                             if 0 != all_mutual {
