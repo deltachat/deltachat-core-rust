@@ -1,5 +1,3 @@
-use std::ffi::CStr;
-
 use lettre::smtp::client::net::*;
 use lettre::*;
 
@@ -7,9 +5,7 @@ use crate::constants::Event;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
-use crate::dc_tools::*;
 use crate::oauth2::*;
-use crate::types::*;
 
 pub struct Smtp {
     transport: Option<lettre::smtp::SmtpTransport>,
@@ -47,30 +43,17 @@ impl Smtp {
     }
 
     /// Connect using the provided login params
-    pub fn connect(&mut self, context: &Context, lp: *const dc_loginparam_t) -> usize {
-        if lp.is_null() {
-            return 0;
-        }
-
+    pub fn connect(&mut self, context: &Context, lp: &dc_loginparam_t) -> usize {
         if self.is_connected() {
             warn!(context, 0, "SMTP already connected.");
             return 1;
         }
 
-        // Safe because we checked for null pointer above.
-        let lp = unsafe { *lp };
-
-        if lp.addr.is_null() || lp.send_server.is_null() || lp.send_port == 0 {
+        if lp.send_server.is_empty() || lp.send_port == 0 {
             log_event!(context, Event::ERROR_NETWORK, 0, "SMTP bad parameters.",);
         }
 
-        let raw_addr = unsafe {
-            CStr::from_ptr(lp.addr)
-                .to_str()
-                .expect("invalid from address")
-                .to_string()
-        };
-        self.from = if let Ok(addr) = EmailAddress::new(raw_addr) {
+        self.from = if let Ok(addr) = EmailAddress::new(lp.addr.clone()) {
             Some(addr)
         } else {
             None
@@ -81,11 +64,7 @@ impl Smtp {
             return 0;
         }
 
-        let domain = unsafe {
-            CStr::from_ptr(lp.send_server)
-                .to_str()
-                .expect("invalid send server")
-        };
+        let domain = &lp.send_server;
         let port = lp.send_port as u16;
 
         let tls = native_tls::TlsConnector::builder()
@@ -99,19 +78,19 @@ impl Smtp {
 
         let creds = if 0 != lp.server_flags & (DC_LP_AUTH_OAUTH2 as i32) {
             // oauth2
-            let addr = as_str(lp.addr);
-            let send_pw = as_str(lp.send_pw);
+            let addr = &lp.addr;
+            let send_pw = &lp.send_pw;
             let access_token = dc_get_oauth2_access_token(context, addr, send_pw, 0);
             if access_token.is_none() {
                 return 0;
             }
-            let user = as_str(lp.send_user);
+            let user = &lp.send_user;
 
-            lettre::smtp::authentication::Credentials::new(user.into(), access_token.unwrap())
+            lettre::smtp::authentication::Credentials::new(user.to_string(), access_token.unwrap())
         } else {
             // plain
-            let user = unsafe { CStr::from_ptr(lp.send_user).to_str().unwrap().to_string() };
-            let pw = unsafe { CStr::from_ptr(lp.send_pw).to_str().unwrap().to_string() };
+            let user = lp.send_user.clone();
+            let pw = lp.send_pw.clone();
             lettre::smtp::authentication::Credentials::new(user, pw)
         };
 
@@ -123,7 +102,7 @@ impl Smtp {
             lettre::smtp::ClientSecurity::Wrapper(tls_parameters)
         };
 
-        match lettre::smtp::SmtpClient::new((domain, port), security) {
+        match lettre::smtp::SmtpClient::new((domain.as_str(), port), security) {
             Ok(client) => {
                 let client = client
                     .smtp_utf8(true)
@@ -135,7 +114,7 @@ impl Smtp {
                     Event::SMTP_CONNECTED,
                     0,
                     "SMTP-LOGIN as {} ok",
-                    as_str(lp.send_user),
+                    lp.send_user,
                 );
                 1
             }

@@ -127,26 +127,26 @@ jobs:
     machine: True
     steps:
       - checkout
-      # - run: docker pull deltachat/doxygen 
+      # - run: docker pull deltachat/doxygen
       - run: docker pull deltachat/coredeps
-      - run: 
-          name: build docs, run tests and build wheels 
+      - run:
+          name: build docs, run tests and build wheels
           command: ci_scripts/ci_run.sh
           environment:
             TESTS: 1
             DOCS: 1
 
-      - run: 
-           name: copying docs and wheels to workspace 
+      - run:
+           name: copying docs and wheels to workspace
            command: |
              mkdir -p workspace/python
              # cp -av docs workspace/c-docs
              cp -av python/.docker-tox/wheelhouse workspace/
              cp -av python/doc/_build/ workspace/py-docs
 
-      - persist_to_workspace: 
-          root: workspace 
-          paths: 
+      - persist_to_workspace:
+          root: workspace
+          paths:
             # - c-docs
             - py-docs
             - wheelhouse
@@ -157,7 +157,7 @@ jobs:
       - checkout
       - attach_workspace:
           at: workspace
-      - run: ls -laR workspace 
+      - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse
 
 
@@ -175,12 +175,17 @@ workflows:
           requires:
             - cargo_fetch
 
-      # Linux Desktop
+      # Linux Desktop 64bit
       - test_x86_64-unknown-linux-gnu:
           requires:
             - cargo_fetch
 
-      # Linux Desktop
+      # Linux Desktop 32bit
+      # - test_i686-unknown-linux-gnu:
+      #     requires:
+      #       - cargo_fetch
+
+      # Android 64bit
       # - test_aarch64-linux-android:
       #     requires:
       #       - cargo_fetch

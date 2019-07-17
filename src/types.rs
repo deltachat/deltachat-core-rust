@@ -1,9 +1,9 @@
 use crate::constants::Event;
 use crate::context::Context;
 
-pub use libsqlite3_sys::*;
 pub use mmime::carray::*;
 pub use mmime::clist::*;
+pub use rusqlite::ffi::*;
 
 /// Callback function that should be given to dc_context_new().
 ///
@@ -22,7 +22,7 @@ pub type dc_receive_imf_t = unsafe fn(
     _: &Context,
     _: *const libc::c_char,
     _: size_t,
-    _: *const libc::c_char,
+    _: &str,
     _: uint32_t,
     _: uint32_t,
 ) -> ();
@@ -32,7 +32,7 @@ Context is only used for logging and to get information about
 the online state. */
 
 pub type dc_precheck_imf_t =
-    unsafe fn(_: &Context, _: *const libc::c_char, _: *const libc::c_char, _: u32) -> libc::c_int;
+    unsafe fn(_: &Context, _: *const libc::c_char, _: &str, _: u32) -> libc::c_int;
 pub type dc_set_config_t =
     unsafe fn(_: &Context, _: *const libc::c_char, _: *const libc::c_char) -> ();
 pub type dc_get_config_t =

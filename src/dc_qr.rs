@@ -1,7 +1,6 @@
 use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
-use crate::dc_log::*;
 use crate::dc_lot::*;
 use crate::dc_param::*;
 use crate::dc_strencode::*;
@@ -38,12 +37,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
     (*qr_parsed).state = 0i32;
     if !qr.is_null() {
-        dc_log_info(
-            context,
-            0i32,
-            b"Scanned QR code: %s\x00" as *const u8 as *const libc::c_char,
-            qr,
-        );
+        info!(context, 0, "Scanned QR code: {}", as_str(qr),);
         /* split parameters from the qr code
         ------------------------------------ */
         if strncasecmp(

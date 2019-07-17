@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
 
+use deltachat::config;
 use deltachat::constants::Event;
 use deltachat::context::*;
 use deltachat::dc_chat::*;
@@ -79,20 +80,14 @@ fn main() {
 
         println!("opening database {:?}", dbfile);
 
-        dc_open(&ctx, dbfile.as_ptr(), std::ptr::null());
+        assert_eq!(dc_open(&ctx, dbfile.as_ptr(), std::ptr::null()), 1);
 
         println!("configuring");
-        let pw = std::env::args().collect::<Vec<String>>()[1].clone();
-        dc_set_config(
-            &ctx,
-            CString::new("addr").unwrap().as_ptr(),
-            CString::new("d@testrun.org").unwrap().as_ptr(),
-        );
-        dc_set_config(
-            &ctx,
-            CString::new("mail_pw").unwrap().as_ptr(),
-            CString::new(pw).unwrap().as_ptr(),
-        );
+        let args = std::env::args().collect::<Vec<String>>();
+        assert_eq!(args.len(), 2, "missing password");
+        let pw = args[1].clone();
+        ctx.set_config(config::Config::Addr, Some("d@testrun.org"));
+        ctx.set_config(config::Config::MailPw, Some(&pw));
         dc_configure(&ctx);
 
         thread::sleep(duration);
@@ -127,8 +122,8 @@ fn main() {
         }
         dc_chatlist_unref(chats);
 
-        *running.clone().write().unwrap() = false;
-        println!("stopping threads");
+        thread::sleep(duration);
+
         // let msglist = dc_get_chat_msgs(&ctx, chat_id, 0, 0);
         // for i in 0..dc_array_get_cnt(msglist) {
         //     let msg_id = dc_array_get_id(msglist, i);
@@ -139,6 +134,9 @@ fn main() {
         // }
         // dc_array_unref(msglist);
 
+        println!("stopping threads");
+
+        *running.clone().write().unwrap() = false;
         deltachat::dc_job::dc_interrupt_imap_idle(&ctx);
         deltachat::dc_job::dc_interrupt_smtp_idle(&ctx);
 

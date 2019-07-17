@@ -10,6 +10,8 @@
 #[macro_use]
 extern crate human_panic;
 
+use std::str::FromStr;
+
 use deltachat::*;
 
 // TODO: constants
@@ -88,9 +90,13 @@ pub unsafe extern "C" fn dc_set_config(
     value: *mut libc::c_char,
 ) -> libc::c_int {
     assert!(!context.is_null());
+    assert!(!key.is_null(), "invalid key");
     let context = &*context;
 
-    context::dc_set_config(context, key, value)
+    match config::Config::from_str(dc_tools::as_str(key)) {
+        Ok(key) => context.set_config(key, as_opt_str(value)).is_ok() as libc::c_int,
+        Err(_) => 0,
+    }
 }
 
 #[no_mangle]
@@ -99,9 +105,16 @@ pub unsafe extern "C" fn dc_get_config(
     key: *mut libc::c_char,
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
+    assert!(!key.is_null(), "invalid key");
     let context = &*context;
 
-    context::dc_get_config(context, key)
+    match config::Config::from_str(dc_tools::as_str(key)) {
+        Ok(key) => {
+            let value = context.get_config(key).unwrap_or_default();
+            into_cstring(value)
+        }
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -411,7 +424,7 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_marknoticed_chat(context, chat_id)
+    dc_chat::dc_marknoticed_chat(context, chat_id);
 }
 
 #[no_mangle]
@@ -419,7 +432,7 @@ pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_marknoticed_all_chats(context)
+    dc_chat::dc_marknoticed_all_chats(context);
 }
 
 #[no_mangle]
@@ -460,7 +473,7 @@ pub unsafe extern "C" fn dc_archive_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_archive_chat(context, chat_id, archive)
+    dc_chat::dc_archive_chat(context, chat_id, archive);
 }
 
 #[no_mangle]
@@ -468,7 +481,8 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_delete_chat(context, chat_id)
+    // TODO: update to indiciate public api success/failure of deletion
+    dc_chat::dc_delete_chat(context, chat_id);
 }
 
 #[no_mangle]
@@ -641,7 +655,7 @@ pub unsafe extern "C" fn dc_markseen_msgs(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_msg::dc_markseen_msgs(context, msg_ids, msg_cnt)
+    dc_msg::dc_markseen_msgs(context, msg_ids, msg_cnt as usize);
 }
 
 #[no_mangle]
@@ -654,7 +668,7 @@ pub unsafe extern "C" fn dc_star_msgs(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_msg::dc_star_msgs(context, msg_ids, msg_cnt, star)
+    dc_msg::dc_star_msgs(context, msg_ids, msg_cnt, star);
 }
 
 #[no_mangle]
@@ -887,7 +901,7 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_location::dc_is_sending_locations_to_chat(context, chat_id)
+    dc_location::dc_is_sending_locations_to_chat(context, chat_id) as libc::c_int
 }
 
 #[no_mangle]
@@ -928,7 +942,7 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_location::dc_delete_all_locations(context)
+    dc_location::dc_delete_all_locations(context);
 }
 
 // dc_array_t
@@ -1337,7 +1351,7 @@ pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg::dc_msg_t) -> lib
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
-    dc_msg::dc_msg_is_setupmessage(msg)
+    dc_msg::dc_msg_is_setupmessage(msg) as libc::c_int
 }
 
 #[no_mangle]
@@ -1523,4 +1537,16 @@ pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot::dc_lot_t) -> i64
 #[no_mangle]
 pub unsafe extern "C" fn dc_str_unref(s: *mut libc::c_char) {
     libc::free(s as *mut _)
+}
+
+fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
+    if s.is_null() {
+        return None;
+    }
+
+    Some(dc_tools::as_str(s))
+}
+
+unsafe fn into_cstring(s: impl AsRef<str>) -> *mut libc::c_char {
+    dc_tools::dc_strdup(dc_tools::to_cstring(s).as_ptr())
 }
