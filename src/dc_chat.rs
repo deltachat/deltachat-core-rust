@@ -1962,19 +1962,15 @@ pub unsafe fn dc_forward_msgs(
         curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
         idsstr = dc_arr_to_string(msg_ids, msg_cnt);
 
-        let ids = context
-            .sql
-            .query_map(
-                format!(
-                    "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                    as_str(idsstr)
-                ),
-                params![],
-                |row| row.get::<_, i32>(0),
-                |ids| {
-                    ids.collect::<Result<Vec<_>, _>>().map_err(Into::into)
-                }
-            );
+        let ids = context.sql.query_map(
+            format!(
+                "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
+                as_str(idsstr)
+            ),
+            params![],
+            |row| row.get::<_, i32>(0),
+            |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+        );
 
         for id in ids.unwrap() {
             let src_msg_id = id;

@@ -81,41 +81,44 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
     };
 
     info!(context, 0, "dc_job_perform before query");
-    let jobs: Result<Vec<dc_job_t>,_> = context
-        .sql
-        .query_map(
-            query,
-            params,
-            |row| {
-                info!(context, 0, "START jobs query_maps");
-                let job = dc_job_t {
-                    job_id: row.get(0)?,
-                    action: row.get(1)?,
-                    foreign_id: row.get(2)?,
-                    desired_timestamp: row.get(5)?,
-                    added_timestamp: row.get(4)?,
-                    tries: row.get(6)?,
-                    param: dc_param_new(),
-                    try_again: 0,
-                    pending_error: 0 as *mut libc::c_char,
-                };
+    let jobs: Result<Vec<dc_job_t>, _> = context.sql.query_map(
+        query,
+        params,
+        |row| {
+            info!(context, 0, "START jobs query_maps");
+            let job = dc_job_t {
+                job_id: row.get(0)?,
+                action: row.get(1)?,
+                foreign_id: row.get(2)?,
+                desired_timestamp: row.get(5)?,
+                added_timestamp: row.get(4)?,
+                tries: row.get(6)?,
+                param: dc_param_new(),
+                try_again: 0,
+                pending_error: 0 as *mut libc::c_char,
+            };
 
-                let packed: String = row.get(3)?;
-                dc_param_set_packed(job.param, to_cstring(packed).as_ptr());
-                info!(context, 0, "DONE jobs query_maps row");
-                Ok(job)
-            },
-            |jobs| {
-                info!(context, 0, "collecting jobs");
-                let res = jobs.collect::<Result<Vec<dc_job_t>, _>>()
-                    .map_err(Into::into);
-                info!(context, 0, "collecting jobs done");
-                res
-            },
-        );
+            let packed: String = row.get(3)?;
+            dc_param_set_packed(job.param, to_cstring(packed).as_ptr());
+            info!(context, 0, "DONE jobs query_maps row");
+            Ok(job)
+        },
+        |jobs| {
+            info!(context, 0, "collecting jobs");
+            let res = jobs
+                .collect::<Result<Vec<dc_job_t>, _>>()
+                .map_err(Into::into);
+            info!(context, 0, "collecting jobs done");
+            res
+        },
+    );
     match jobs {
-      Ok(ref res) => {info!(context, 0, "query done, {:?}", res.len()); },
-      Err(ref err) => {info!(context, 0, "query failed: {:?}", err); }
+        Ok(ref res) => {
+            info!(context, 0, "query done, {:?}", res.len());
+        }
+        Err(ref err) => {
+            info!(context, 0, "query failed: {:?}", err);
+        }
     }
     for mut job in jobs.unwrap_or_default() {
         info!(
