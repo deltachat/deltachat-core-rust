@@ -374,7 +374,7 @@ pub unsafe fn dc_array_get_string(
             }
             res
         });
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 /// return comma-separated value-string from integer array
@@ -396,7 +396,7 @@ pub unsafe fn dc_arr_to_string(arr: *const uint32_t, cnt: libc::c_int) -> *mut l
             res
         },
     );
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 #[cfg(test)]

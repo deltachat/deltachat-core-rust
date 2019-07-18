@@ -175,7 +175,7 @@ unsafe fn stress_functions(context: &Context) {
             "content"
         );
 
-        free(buf);
+        free(buf as *mut _);
         assert_ne!(
             0,
             dc_delete_file(
@@ -952,24 +952,29 @@ fn test_stress_tests() {
 fn test_get_contacts() {
     unsafe {
         let context = create_test_context();
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("some2").as_ptr());
+        let name = to_cstring("some2");
+        let contacts = dc_get_contacts(&context.ctx, 0, name);
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
+        free(name as *mut _);
 
-        let id = dc_create_contact(
-            &context.ctx,
-            to_cstring("bob").as_ptr(),
-            to_cstring("bob@mail.de").as_ptr(),
-        );
+        let name = to_cstring("bob");
+        let email = to_cstring("bob@mail.de");
+        let id = dc_create_contact(&context.ctx, name, email);
         assert_ne!(id, 0);
 
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("bob").as_ptr());
+        let contacts = dc_get_contacts(&context.ctx, 0, name);
         assert_eq!(dc_array_get_cnt(contacts), 1);
         dc_array_unref(contacts);
 
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("alice").as_ptr());
+        let name2 = to_cstring("alice");
+        let contacts = dc_get_contacts(&context.ctx, 0, name2);
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
+
+        free(name as *mut _);
+        free(name2 as *mut _);
+        free(email as *mut _);
     }
 }
 
@@ -977,11 +982,12 @@ fn test_get_contacts() {
 fn test_chat() {
     unsafe {
         let context = create_test_context();
-        let contact1 = dc_create_contact(
-            &context.ctx,
-            to_cstring("bob").as_ptr(),
-            to_cstring("bob@mail.de").as_ptr(),
-        );
+        let name = to_cstring("bob");
+        let email = to_cstring("bob@mail.de");
+
+        let contact1 = dc_create_contact(&context.ctx, name, email);
+        free(name as *mut _);
+        free(email as *mut _);
         assert_ne!(contact1, 0);
 
         let chat_id = dc_create_chat_by_contact_id(&context.ctx, contact1);

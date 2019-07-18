@@ -111,7 +111,7 @@ pub unsafe extern "C" fn dc_get_config(
     match config::Config::from_str(dc_tools::as_str(key)) {
         Ok(key) => {
             let value = context.get_config(key).unwrap_or_default();
-            into_cstring(value)
+            dc_tools::to_cstring(value)
         }
         Err(_) => std::ptr::null_mut(),
     }
@@ -137,7 +137,7 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     let addr = dc_tools::to_string(addr);
     let redirect = dc_tools::to_string(redirect);
     match oauth2::dc_get_oauth2_url(context, addr, redirect) {
-        Some(res) => libc::strdup(dc_tools::to_cstring(res).as_ptr()),
+        Some(res) => dc_tools::to_cstring(res),
         None => std::ptr::null_mut(),
     }
 }
@@ -1545,8 +1545,4 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
     }
 
     Some(dc_tools::as_str(s))
-}
-
-unsafe fn into_cstring(s: impl AsRef<str>) -> *mut libc::c_char {
-    dc_tools::dc_strdup(dc_tools::to_cstring(s).as_ptr())
 }

@@ -1,7 +1,6 @@
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::sql;
-use crate::x::strdup;
 
 // Token namespaces
 pub type dc_tokennamespc_t = usize;
@@ -34,16 +33,16 @@ pub fn dc_token_lookup(
     namespc: dc_tokennamespc_t,
     foreign_id: u32,
 ) -> *mut libc::c_char {
-    if let Some(token) = context.sql.query_row_col::<_, String>(
-        context,
-        "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
-        params![namespc as i32, foreign_id as i32],
-        0,
-    ) {
-        unsafe { strdup(to_cstring(token).as_ptr()) }
-    } else {
-        std::ptr::null_mut()
-    }
+    context
+        .sql
+        .query_row_col::<_, String>(
+            context,
+            "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
+            params![namespc as i32, foreign_id as i32],
+            0,
+        )
+        .map(|s| unsafe { to_cstring(s) })
+        .unwrap_or_else(|| std::ptr::null_mut())
 }
 
 pub fn dc_token_exists(

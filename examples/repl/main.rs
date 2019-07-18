@@ -398,11 +398,10 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
 
     if args.len() == 2 {
         if 0 == unsafe {
-            dc_open(
-                &mut context,
-                to_cstring(&args[1]).as_ptr(),
-                0 as *const libc::c_char,
-            )
+            let a = to_cstring(&args[1]);
+            let res = dc_open(&mut context, a, 0 as *const _);
+            free(a as *mut _);
+            res
         } {
             println!("Error: Cannot open {}.", args[0],);
         }
@@ -482,11 +481,10 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
     let mut args = line.splitn(2, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
-    let arg1_c = to_cstring(arg1);
-    let arg1_c_ptr = if arg1.is_empty() {
+    let arg1_c = if arg1.is_empty() {
         std::ptr::null()
     } else {
-        arg1_c.as_ptr()
+        to_cstring(arg1)
     };
 
     match arg0 {
@@ -559,12 +557,14 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
         "joinqr" => {
             start_threads(ctx.clone());
             if !arg0.is_empty() {
-                dc_join_securejoin(&ctx.read().unwrap(), arg1_c_ptr);
+                dc_join_securejoin(&ctx.read().unwrap(), arg1_c);
             }
         }
         "exit" => return Ok(ExitResult::Exit),
         _ => dc_cmdline(&ctx.read().unwrap(), line)?,
     }
+
+    free(arg1_c as *mut _);
 
     Ok(ExitResult::Continue)
 }
