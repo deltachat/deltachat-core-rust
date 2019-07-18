@@ -6,8 +6,7 @@ use std::time::{Duration, SystemTime};
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
-use crate::dc_sqlite3::*;
-use crate::dc_tools::{as_str, to_string};
+use crate::dc_tools::as_str;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
 
@@ -522,12 +521,8 @@ impl Imap {
         cfg.watch_folder = None;
     }
 
-    pub fn connect(&self, context: &Context, lp: *const dc_loginparam_t) -> bool {
-        if lp.is_null() {
-            return false;
-        }
-        let lp = unsafe { *lp };
-        if lp.mail_server.is_null() || lp.mail_user.is_null() || lp.mail_pw.is_null() {
+    pub fn connect(&self, context: &Context, lp: &dc_loginparam_t) -> bool {
+        if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
             return false;
         }
 
@@ -536,19 +531,19 @@ impl Imap {
         }
 
         {
-            let addr = as_str(lp.addr);
-            let imap_server = as_str(lp.mail_server);
+            let addr = &lp.addr;
+            let imap_server = &lp.mail_server;
             let imap_port = lp.mail_port as u16;
-            let imap_user = as_str(lp.mail_user);
-            let imap_pw = as_str(lp.mail_pw);
+            let imap_user = &lp.mail_user;
+            let imap_pw = &lp.mail_pw;
             let server_flags = lp.server_flags as usize;
 
             let mut config = self.config.write().unwrap();
-            config.addr = addr.into();
-            config.imap_server = imap_server.into();
+            config.addr = addr.to_string();
+            config.imap_server = imap_server.to_string();
             config.imap_port = imap_port.into();
-            config.imap_user = imap_user.into();
-            config.imap_pw = imap_pw.into();
+            config.imap_user = imap_user.to_string();
+            config.imap_pw = imap_pw.to_string();
             config.server_flags = server_flags;
         }
 
@@ -567,28 +562,25 @@ impl Imap {
                             context,
                             0,
                             "IMAP-LOGIN as {} ok but ABORTING",
-                            as_str(lp.mail_user),
+                            lp.mail_user,
                         );
                         teardown = true;
                     } else {
                         let can_idle = caps.has("IDLE");
                         let has_xlist = caps.has("XLIST");
-
                         let caps_list = caps.iter().fold(String::new(), |mut s, c| {
                             s += " ";
                             s += c;
                             s
                         });
-
                         log_event!(
                             context,
                             Event::IMAP_CONNECTED,
                             0,
                             "IMAP-LOGIN as {}, capabilities: {}",
-                            as_str(lp.mail_user),
+                            lp.mail_user,
                             caps_list,
                         );
-
                         self.config.write().unwrap().can_idle = can_idle;
                         self.config.write().unwrap().has_xlist = has_xlist;
                         *self.connected.lock().unwrap() = true;
@@ -619,8 +611,8 @@ impl Imap {
         }
     }
 
-    pub fn set_watch_folder(&self, watch_folder: *const libc::c_char) {
-        self.config.write().unwrap().watch_folder = Some(to_string(watch_folder));
+    pub fn set_watch_folder(&self, watch_folder: String) {
+        self.config.write().unwrap().watch_folder = Some(watch_folder);
     }
 
     pub fn fetch(&self, context: &Context) -> libc::c_int {
@@ -866,9 +858,8 @@ impl Imap {
                     .expect("missing message id");
 
                 let message_id_c = CString::new(message_id).unwrap();
-                let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
                 if 0 == unsafe {
-                    (self.precheck_imf)(context, message_id_c.as_ptr(), folder_c.as_ptr(), cur_uid)
+                    (self.precheck_imf)(context, message_id_c.as_ptr(), folder.as_ref(), cur_uid)
                 } {
                     // check passed, go fetch the rest
                     if self.fetch_single_msg(context, &folder, cur_uid) == 0 {
@@ -1021,12 +1012,11 @@ impl Imap {
 
             if !is_deleted && msg.body().is_some() {
                 unsafe {
-                    let folder_c = CString::new(folder.as_ref().to_owned()).unwrap();
                     (self.receive_imf)(
                         context,
                         msg.body().unwrap().as_ptr() as *const libc::c_char,
                         msg.body().unwrap().len(),
-                        folder_c.as_ptr(),
+                        folder.as_ref(),
                         server_uid,
                         flags as u32,
                     );
@@ -1633,29 +1623,18 @@ impl Imap {
             }
         }
 
-        unsafe {
-            dc_sqlite3_set_config_int(
+        context.sql.set_config_int(context, "folders_configured", 3);
+        if let Some(ref mvbox_folder) = mvbox_folder {
+            context
+                .sql
+                .set_config(context, "configured_mvbox_folder", Some(mvbox_folder));
+        }
+        if let Some(ref sentbox_folder) = sentbox_folder {
+            context.sql.set_config(
                 context,
-                &context.sql,
-                b"folders_configured\x00" as *const u8 as *const libc::c_char,
-                3,
+                "configured_sentbox_folder",
+                Some(sentbox_folder.name()),
             );
-            if let Some(ref mvbox_folder) = mvbox_folder {
-                dc_sqlite3_set_config(
-                    context,
-                    &context.sql,
-                    b"configured_mvbox_folder\x00" as *const u8 as *const libc::c_char,
-                    CString::new(mvbox_folder.clone()).unwrap().as_ptr(),
-                );
-            }
-            if let Some(ref sentbox_folder) = sentbox_folder {
-                dc_sqlite3_set_config(
-                    context,
-                    &context.sql,
-                    b"configured_sentbox_folder\x00" as *const u8 as *const libc::c_char,
-                    CString::new(sentbox_folder.name()).unwrap().as_ptr(),
-                );
-            }
         }
     }
 

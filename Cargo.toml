@@ -1,6 +1,6 @@
 [package]
 name = "deltachat"
-version = "1.0.0-alpha.2"
+version = "1.0.0-alpha.3"
 authors = ["dignifiedquire <dignifiedquire@gmail.com>"]
 edition = "2018"
 license = "MPL"
@@ -16,7 +16,6 @@ hex = "0.3.2"
 sha2 = "0.8.0"
 rand = "0.6.5"
 smallvec = "0.6.9"
-libsqlite3-sys = { version = "0.14.0", features = ["bundled", "min_sqlite_version_3_7_16"] }
 reqwest = "0.9.15"
 num-derive = "0.2.5"
 num-traits = "0.2.6"
@@ -36,6 +35,12 @@ failure_derive = "0.1.5"
 rustyline = "4.1.0"
 lazy_static = "1.3.0"
 regex = "1.1.6"
+rusqlite = { version = "0.19", features = ["bundled"] }
+addr = "0.2.0"
+r2d2_sqlite = "0.11.0"
+r2d2 = "0.8.5"
+strum = "0.15.0"
+strum_macros = "0.15.0"
 
 [dev-dependencies]
 tempfile = "3.0"
