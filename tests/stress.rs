@@ -999,6 +999,20 @@ fn test_chat() {
 }
 
 #[test]
+fn test_wrong_db() {
+    unsafe {
+        let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
+        let dir = tempdir().unwrap();
+        let dbfile = dir.path().join("db.sqlite");
+        std::fs::write(&dbfile, b"123").unwrap();
+
+        let dbfile_c = CString::new(dbfile.to_str().unwrap()).unwrap();
+        let res = dc_open(&mut ctx, dbfile_c.as_ptr(), std::ptr::null());
+        assert_eq!(res, 0);
+    }
+}
+
+#[test]
 fn test_arr_to_string() {
     let arr2: [uint32_t; 4] = [
         0i32 as uint32_t,

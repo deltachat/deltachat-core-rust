@@ -141,7 +141,7 @@ impl Sql {
     }
 
     pub fn table_exists(&self, name: impl AsRef<str>) -> bool {
-        self.with_conn(|conn| Ok(table_exists(conn, name)))
+        self.with_conn(|conn| table_exists(conn, name))
             .unwrap_or_default()
     }
 
@@ -261,16 +261,14 @@ impl Sql {
     }
 }
 
-fn table_exists(conn: &Connection, name: impl AsRef<str>) -> bool {
+fn table_exists(conn: &Connection, name: impl AsRef<str>) -> Result<bool> {
     let mut exists = false;
     conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |_row| {
         // will only be executed if the info was found
         exists = true;
         Ok(())
-    })
-    .expect("bad sqlite state");
-
-    exists
+    })?;
+    Ok(exists)
 }
 
 fn open(
