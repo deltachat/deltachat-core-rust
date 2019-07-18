@@ -285,7 +285,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
         let loginparam = dc_loginparam_read(context, &context.sql, "configured_");
         let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
 
-        if connected {
+        if !connected {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             current_block = 14216916617354591294;
         } else {

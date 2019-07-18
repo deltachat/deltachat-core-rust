@@ -774,7 +774,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                 0 as uintptr_t,
                                                             );
                                                             /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
-                                                            if context
+                                                            if !context
                                                                 .smtp
                                                                 .clone()
                                                                 .lock()
@@ -814,7 +814,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                         0, "Trying: {}", r_3,
                                                                     );
 
-                                                                    if context
+                                                                    if !context
                                                                         .smtp
                                                                         .clone()
                                                                         .lock()
@@ -860,7 +860,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                 r_4
                                                                             );
 
-                                                                            if context
+                                                                            if !context
                                                                                 .smtp
                                                                                 .clone()
                                                                                 .lock()

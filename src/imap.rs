@@ -547,7 +547,7 @@ impl Imap {
             config.server_flags = server_flags;
         }
 
-        if self.setup_handle_if_needed(context) {
+        if !self.setup_handle_if_needed(context) {
             self.free_connect_params();
             return false;
         }
