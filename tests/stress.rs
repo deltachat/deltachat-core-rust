@@ -1,7 +1,6 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
-use std::ffi::CString;
 
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
@@ -691,7 +690,7 @@ fn test_encryption_decryption() {
         assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
 
         let ctext_signed_bytes = ctext.len();
-        let ctext_signed = CString::new(ctext).unwrap();
+        let ctext_signed = to_cstring(ctext);
 
         let ctext = dc_pgp_pk_encrypt(
             original_text as *const libc::c_void,
@@ -704,7 +703,7 @@ fn test_encryption_decryption() {
         assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
 
         let ctext_unsigned_bytes = ctext.len();
-        let ctext_unsigned = CString::new(ctext).unwrap();
+        let ctext_unsigned = to_cstring(ctext);
 
         let mut keyring = Keyring::default();
         keyring.add_owned(private_key);
@@ -718,7 +717,7 @@ fn test_encryption_decryption() {
         let mut valid_signatures: HashSet<String> = Default::default();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring,
@@ -733,7 +732,7 @@ fn test_encryption_decryption() {
 
         let empty_keyring = Keyring::default();
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &empty_keyring,
@@ -746,7 +745,7 @@ fn test_encryption_decryption() {
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring2,
@@ -761,7 +760,7 @@ fn test_encryption_decryption() {
         public_keyring2.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring2,
@@ -774,13 +773,15 @@ fn test_encryption_decryption() {
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_unsigned.as_ptr() as *const _,
+            ctext_unsigned as *const _,
             ctext_unsigned_bytes,
             &keyring,
             &public_keyring,
             Some(&mut valid_signatures),
         )
         .unwrap();
+
+        free(ctext_unsigned as *mut _);
         assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
 
         valid_signatures.clear();
@@ -791,13 +792,15 @@ fn test_encryption_decryption() {
         public_keyring.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring,
             None,
         )
         .unwrap();
+
+        free(ctext_signed as *mut _);
         assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
     }
 }
@@ -820,14 +823,14 @@ struct TestContext {
 unsafe fn create_test_context() -> TestContext {
     let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
     let dir = tempdir().unwrap();
-    let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+    let dbfile = to_cstring(dir.path().join("db.sqlite").to_str().unwrap());
     assert_eq!(
-        dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
+        dc_open(&mut ctx, dbfile, std::ptr::null()),
         1,
         "Failed to open {}",
-        as_str(dbfile.as_ptr() as *const libc::c_char)
+        as_str(dbfile as *const libc::c_char)
     );
-
+    free(dbfile as *mut _);
     TestContext { ctx: ctx, dir: dir }
 }
 
@@ -1012,8 +1015,9 @@ fn test_wrong_db() {
         let dbfile = dir.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
 
-        let dbfile_c = CString::new(dbfile.to_str().unwrap()).unwrap();
-        let res = dc_open(&mut ctx, dbfile_c.as_ptr(), std::ptr::null());
+        let dbfile_c = to_cstring(dbfile.to_str().unwrap());
+        let res = dc_open(&mut ctx, dbfile_c, std::ptr::null());
+        free(dbfile_c as *mut _);
         assert_eq!(res, 0);
     }
 }

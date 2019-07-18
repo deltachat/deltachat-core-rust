@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 
 use charset::Charset;
 use mmime::mailimf::*;
@@ -1204,8 +1204,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                             current_block = 8795901732489102124;
                                         } else {
                                             decoded_data_bytes = res.len();
-                                            let res_c = CString::new(res.as_bytes()).unwrap();
-                                            decoded_data = strdup(res_c.as_ptr());
+                                            decoded_data = res.as_ptr() as *const libc::c_char;
                                             current_block = 17788412896529399552;
                                         }
                                     } else {

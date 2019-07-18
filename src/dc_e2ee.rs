@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::str::FromStr;
 
 use mmime::clist::*;
@@ -294,10 +294,8 @@ pub unsafe fn dc_e2ee_encrypt(
                                 sign_key.as_ref(),
                             ) {
                                 let ctext_bytes = ctext_v.len();
-                                let ctext_c = CString::new(ctext_v).unwrap();
-                                let ctext = strdup(ctext_c.as_ptr());
-
-                                (*helper).cdata_to_free = ctext as *mut libc::c_void;
+                                let ctext = to_cstring(ctext_v);
+                                (*helper).cdata_to_free = ctext as *mut _;
 
                                 /* create MIME-structure that will contain the encrypted text */
                                 let mut encrypted_part: *mut mailmime = new_data_part(
@@ -354,13 +352,13 @@ pub unsafe fn dc_e2ee_encrypt(
                         14181132614457621749 => {}
                         _ => {
                             let aheader = Aheader::new(addr, public_key, prefer_encrypt);
-                            let rendered = CString::new(aheader.to_string()).unwrap();
+                            let rendered = to_cstring(aheader.to_string());
 
                             mailimf_fields_add(
                                 imffields_unprotected,
                                 mailimf_field_new_custom(
                                     strdup(b"Autocrypt\x00" as *const u8 as *const libc::c_char),
-                                    strdup(rendered.as_ptr()),
+                                    rendered,
                                 ),
                             );
                         }
@@ -935,13 +933,12 @@ unsafe fn decrypt_part(
                         add_signatures,
                     ) {
                         let plain_bytes = plain.len();
-                        let plain_c = CString::new(plain).unwrap();
-                        let plain_buf = strdup(plain_c.as_ptr());
+                        let plain_buf = plain.as_ptr() as *const libc::c_char;
 
                         let mut index: size_t = 0i32 as size_t;
                         let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;
                         if mailmime_parse(
-                            plain_buf as *const libc::c_char,
+                            plain_buf as *const _,
                             plain_bytes,
                             &mut index,
                             &mut decrypted_mime,
