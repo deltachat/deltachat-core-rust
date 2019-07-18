@@ -1007,11 +1007,12 @@ impl Imap {
             let flags = if is_seen { DC_IMAP_SEEN } else { 0 };
 
             if !is_deleted && msg.body().is_some() {
+                let body = msg.body().unwrap();
                 unsafe {
                     (self.receive_imf)(
                         context,
-                        msg.body().unwrap().as_ptr() as *const libc::c_char,
-                        msg.body().unwrap().len(),
+                        body.as_ptr() as *const libc::c_char,
+                        body.len(),
                         folder.as_ref(),
                         server_uid,
                         flags as u32,
