@@ -719,6 +719,9 @@ impl Imap {
         }
         let entry = as_str(val1);
 
+        if entry.is_empty() {
+            return (0, 0);
+        }
         // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
         let mut parts = entry.split(':');
         (

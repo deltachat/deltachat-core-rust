@@ -110,7 +110,6 @@ impl Sql {
         G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
         self.with_conn(|conn| {
-            eprintln!("query_map {}", sql.as_ref());
             let mut stmt = conn.prepare(sql.as_ref())?;
             let res = stmt.query_map(params, f)?;
             g(res)
@@ -1126,7 +1125,6 @@ mod test {
         maybe_add_file(&mut files, "$BLOBDIR/world.txt");
         maybe_add_file(&mut files, "world2.txt");
 
-        println!("{:?}", files);
         assert!(unsafe {
             is_file_in_use(
                 &mut files,

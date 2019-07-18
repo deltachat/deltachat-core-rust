@@ -1039,7 +1039,14 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
             }
         }
     }
+    if imap_connected_here {
+        context.inbox.read().unwrap().disconnect(context);
+    }
+    if smtp_connected_here {
+        context.smtp.clone().lock().unwrap().disconnect();
+    }
 
+    /*
     if !success {
         // disconnect if configure did not succeed
         if imap_connected_here {
@@ -1055,6 +1062,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
             0, "Keeping IMAP/SMTP connections open after successful configuration"
         );
     }
+    */
     if ongoing_allocated_here {
         dc_free_ongoing(context);
     }

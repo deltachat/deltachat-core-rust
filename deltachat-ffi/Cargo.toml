@@ -24,3 +24,4 @@ default = ["vendored", "nightly", "ringbuf"]
 vendored = ["deltachat/vendored"]
 nightly = ["deltachat/nightly"]
 ringbuf = ["deltachat/ringbuf"]
+
