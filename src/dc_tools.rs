@@ -177,14 +177,14 @@ pub unsafe fn dc_trim(buf: *mut libc::c_char) {
 
 /* the result must be free()'d */
 pub unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
-    let raw = to_cstring(to_string(in_0).to_lowercase());
-    strdup(raw.as_ptr())
+    to_cstring(to_string(in_0).to_lowercase())
 }
 
 pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
     let raw = to_cstring(to_string(in_0).to_lowercase());
-    assert_eq!(strlen(in_0), strlen(raw.as_ptr()));
-    memcpy(in_0 as *mut _, raw.as_ptr() as *const _, strlen(in_0));
+    assert_eq!(strlen(in_0), strlen(raw));
+    memcpy(in_0 as *mut _, raw as *const _, strlen(in_0));
+    free(raw as *mut _);
 }
 
 pub unsafe fn dc_str_contains(
@@ -232,7 +232,7 @@ pub unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut li
 
     let buf = std::slice::from_raw_parts(buf, bytes);
     let raw = hex::encode_upper(buf);
-    strdup(to_cstring(raw).as_ptr())
+    to_cstring(raw)
 }
 
 /* remove all \r characters from string */
@@ -528,7 +528,7 @@ pub unsafe fn dc_str_from_clist(
         }
     }
 
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub unsafe fn dc_str_to_clist(
@@ -670,7 +670,7 @@ pub unsafe fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
 /* the return value must be free()'d */
 pub unsafe fn dc_timestamp_to_str(wanted: i64) -> *mut libc::c_char {
     let res = dc_timestamp_to_str_safe(wanted);
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub fn dc_timestamp_to_str_safe(wanted: i64) -> String {
@@ -1255,8 +1255,12 @@ pub unsafe fn dc_write_file(
 }
 
 pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
-    let pathNfilename_abs =
-        unsafe { dc_get_abs_path(context, to_cstring(pathNfilename.as_ref()).as_ptr()) };
+    let pathNfilename_abs = unsafe {
+        let n = to_cstring(pathNfilename.as_ref());
+        let res = dc_get_abs_path(context, n);
+        free(n as *mut _);
+        res
+    };
     if pathNfilename_abs.is_null() {
         return false;
     }
@@ -1300,8 +1304,13 @@ pub unsafe fn dc_read_file(
 }
 
 pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
-    let pathNfilename_abs =
-        unsafe { dc_get_abs_path(context, to_cstring(pathNfilename.as_ref()).as_ptr()) };
+    let pathNfilename_abs = unsafe {
+        let n = to_cstring(pathNfilename.as_ref());
+        let p = dc_get_abs_path(context, n);
+        free(n as *mut _);
+        p
+    };
+
     if pathNfilename_abs.is_null() {
         return None;
     }
@@ -1538,41 +1547,32 @@ fn os_str_to_c_string_unicode(
     }
 }
 
-pub fn to_cstring<S: AsRef<str>>(s: S) -> CString {
-    CString::new(s.as_ref()).unwrap()
+/// Needs to free the result after use!
+pub unsafe fn to_cstring<S: AsRef<str>>(s: S) -> *mut libc::c_char {
+    let cstr = CString::new(s.as_ref()).expect("invalid string converted");
+    dc_strdup(cstr.as_ref().as_ptr())
 }
 
 pub fn to_string(s: *const libc::c_char) -> String {
     if s.is_null() {
         return "".into();
     }
-    match unsafe { CStr::from_ptr(s).to_str() } {
-        Ok(s) => s.to_string(),
-        Err(err) => {
-            eprintln!(
-                "invalid string: '{:?}', {:?}",
-                unsafe { CStr::from_ptr(s).to_bytes() },
-                err
-            );
-            panic!(
-                "Non utf8 string: '{:?}' ({:?})",
-                unsafe { CStr::from_ptr(s).to_bytes() },
-                err
-            );
-        }
-    }
+
+    let cstr = unsafe { CStr::from_ptr(s) };
+
+    cstr.to_str().map(|s| s.to_string()).unwrap_or_else(|err| {
+        panic!("Non utf8 string: '{:?}' ({:?})", cstr.to_bytes(), err);
+    })
 }
 
 pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
     assert!(!s.is_null(), "cannot be used on null pointers");
-    match unsafe { CStr::from_ptr(s).to_str() } {
-        Ok(s) => s,
-        Err(err) => panic!(
-            "Non utf8 string: '{:?}' ({:?})",
-            unsafe { CStr::from_ptr(s).to_bytes() },
-            err
-        ),
-    }
+
+    let cstr = unsafe { CStr::from_ptr(s) };
+
+    cstr.to_str().unwrap_or_else(|err| {
+        panic!("Non utf8 string: '{:?}' ({:?})", cstr.to_bytes(), err);
+    })
 }
 
 /// Convert a C `*char` pointer to a [std::path::Path] slice.
