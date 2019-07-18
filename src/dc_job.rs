@@ -80,12 +80,14 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
         params_probe
     };
 
-    let jobs: Vec<dc_job_t> = context
+    info!(context, 0, "dc_job_perform before query");
+    let jobs: Result<Vec<dc_job_t>,_> = context
         .sql
         .query_map(
             query,
             params,
             |row| {
+                info!(context, 0, "START jobs query_maps");
                 let job = dc_job_t {
                     job_id: row.get(0)?,
                     action: row.get(1)?,
@@ -100,16 +102,22 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
 
                 let packed: String = row.get(3)?;
                 dc_param_set_packed(job.param, to_cstring(packed).as_ptr());
+                info!(context, 0, "DONE jobs query_maps row");
                 Ok(job)
             },
             |jobs| {
-                jobs.collect::<Result<Vec<dc_job_t>, _>>()
-                    .map_err(Into::into)
+                info!(context, 0, "collecting jobs");
+                let res = jobs.collect::<Result<Vec<dc_job_t>, _>>()
+                    .map_err(Into::into);
+                info!(context, 0, "collecting jobs done");
+                res
             },
-        )
-        .unwrap_or_default();
-
-    for mut job in jobs {
+        );
+    match jobs {
+      Ok(ref res) => {info!(context, 0, "query done, {:?}", res.len()); },
+      Err(ref err) => {info!(context, 0, "query failed: {:?}", err); }
+    }
+    for mut job in jobs.unwrap_or_default() {
         info!(
             context,
             0,

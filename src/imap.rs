@@ -471,24 +471,9 @@ impl Imap {
     fn unsetup_handle(&self, context: &Context) {
         info!(context, 0, "IMAP unsetup_handle starts");
 
-        // XXX the next line currently can block even if all threads
-        // terminated already
-        let session = self.session.lock().unwrap().take();
         info!(
             context,
-            0, "IMAP unsetup_handle step1 (acquired session.lock)"
-        );
-        if session.is_some() {
-            match session.unwrap().close() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("failed to close connection: {:?}", err);
-                }
-            }
-        }
-        info!(
-            context,
-            0, "IMAP unsetup_handle step 2 (closing down stream)."
+            0, "IMAP unsetup_handle step 1 (closing down stream)."
         );
         let stream = self.stream.write().unwrap().take();
         if stream.is_some() {
@@ -496,6 +481,19 @@ impl Imap {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("failed to shutdown connection: {:?}", err);
+                }
+            }
+        }
+        info!(
+            context,
+            0, "IMAP unsetup_handle step 2 (acquired session.lock)"
+        );
+        let session = self.session.lock().unwrap().take();
+        if session.is_some() {
+            match session.unwrap().close() {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("failed to close connection: {:?}", err);
                 }
             }
         }

@@ -1962,7 +1962,7 @@ pub unsafe fn dc_forward_msgs(
         curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
         idsstr = dc_arr_to_string(msg_ids, msg_cnt);
 
-        context
+        let ids = context
             .sql
             .query_map(
                 format!(
@@ -1972,63 +1972,63 @@ pub unsafe fn dc_forward_msgs(
                 params![],
                 |row| row.get::<_, i32>(0),
                 |ids| {
-                    for id in ids {
-                        let src_msg_id = id?;
-                        if !dc_msg_load_from_db(msg, context, src_msg_id as u32) {
-                            break;
-                        }
-                        dc_param_set_packed(original_param, (*(*msg).param).packed);
-                        if (*msg).from_id != 1i32 as libc::c_uint {
-                            dc_param_set_int((*msg).param, 'a' as i32, 1i32);
-                        }
-                        dc_param_set((*msg).param, 'c' as i32, 0 as *const libc::c_char);
-                        dc_param_set((*msg).param, 'u' as i32, 0 as *const libc::c_char);
-                        dc_param_set((*msg).param, 'S' as i32, 0 as *const libc::c_char);
-                        let new_msg_id: uint32_t;
-                        if (*msg).state == 18i32 {
-                            let fresh9 = curr_timestamp;
-                            curr_timestamp = curr_timestamp + 1;
-                            new_msg_id = prepare_msg_raw(context, chat, msg, fresh9);
-                            let save_param: *mut dc_param_t = (*msg).param;
-                            (*msg).param = original_param;
-                            (*msg).id = src_msg_id as uint32_t;
-                            let old_fwd: *mut libc::c_char = dc_param_get(
-                                (*msg).param,
-                                'P' as i32,
-                                b"\x00" as *const u8 as *const libc::c_char,
-                            );
-                            let new_fwd: *mut libc::c_char = dc_mprintf(
-                                b"%s %d\x00" as *const u8 as *const libc::c_char,
-                                old_fwd,
-                                new_msg_id,
-                            );
-                            dc_param_set((*msg).param, 'P' as i32, new_fwd);
-                            dc_msg_save_param_to_disk(msg);
-                            free(new_fwd as *mut libc::c_void);
-                            free(old_fwd as *mut libc::c_void);
-                            (*msg).param = save_param
-                        } else {
-                            (*msg).state = 20i32;
-                            let fresh10 = curr_timestamp;
-                            curr_timestamp = curr_timestamp + 1;
-                            new_msg_id = prepare_msg_raw(context, chat, msg, fresh10);
-                            dc_job_send_msg(context, new_msg_id);
-                        }
-                        carray_add(
-                            created_db_entries,
-                            chat_id as uintptr_t as *mut libc::c_void,
-                            0 as *mut libc::c_uint,
-                        );
-                        carray_add(
-                            created_db_entries,
-                            new_msg_id as uintptr_t as *mut libc::c_void,
-                            0 as *mut libc::c_uint,
-                        );
-                    }
-                    Ok(())
-                },
-            )
-            .unwrap(); // TODO: better error handling
+                    ids.collect::<Result<Vec<_>, _>>().map_err(Into::into)
+                }
+            );
+
+        for id in ids.unwrap() {
+            let src_msg_id = id;
+            if !dc_msg_load_from_db(msg, context, src_msg_id as u32) {
+                break;
+            }
+            dc_param_set_packed(original_param, (*(*msg).param).packed);
+            if (*msg).from_id != 1i32 as libc::c_uint {
+                dc_param_set_int((*msg).param, 'a' as i32, 1i32);
+            }
+            dc_param_set((*msg).param, 'c' as i32, 0 as *const libc::c_char);
+            dc_param_set((*msg).param, 'u' as i32, 0 as *const libc::c_char);
+            dc_param_set((*msg).param, 'S' as i32, 0 as *const libc::c_char);
+            let new_msg_id: uint32_t;
+            if (*msg).state == 18i32 {
+                let fresh9 = curr_timestamp;
+                curr_timestamp = curr_timestamp + 1;
+                new_msg_id = prepare_msg_raw(context, chat, msg, fresh9);
+                let save_param: *mut dc_param_t = (*msg).param;
+                (*msg).param = original_param;
+                (*msg).id = src_msg_id as uint32_t;
+                let old_fwd: *mut libc::c_char = dc_param_get(
+                    (*msg).param,
+                    'P' as i32,
+                    b"\x00" as *const u8 as *const libc::c_char,
+                );
+                let new_fwd: *mut libc::c_char = dc_mprintf(
+                    b"%s %d\x00" as *const u8 as *const libc::c_char,
+                    old_fwd,
+                    new_msg_id,
+                );
+                dc_param_set((*msg).param, 'P' as i32, new_fwd);
+                dc_msg_save_param_to_disk(msg);
+                free(new_fwd as *mut libc::c_void);
+                free(old_fwd as *mut libc::c_void);
+                (*msg).param = save_param
+            } else {
+                (*msg).state = 20i32;
+                let fresh10 = curr_timestamp;
+                curr_timestamp = curr_timestamp + 1;
+                new_msg_id = prepare_msg_raw(context, chat, msg, fresh10);
+                dc_job_send_msg(context, new_msg_id);
+            }
+            carray_add(
+                created_db_entries,
+                chat_id as uintptr_t as *mut libc::c_void,
+                0 as *mut libc::c_uint,
+            );
+            carray_add(
+                created_db_entries,
+                new_msg_id as uintptr_t as *mut libc::c_void,
+                0 as *mut libc::c_uint,
+            );
+        }
     }
 
     if !created_db_entries.is_null() {
