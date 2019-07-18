@@ -99,7 +99,9 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             };
 
             let packed: String = row.get(3)?;
-            dc_param_set_packed(job.param, to_cstring(packed).as_ptr());
+            let packed_c = to_cstring(packed);
+            dc_param_set_packed(job.param, packed_c);
+            free(packed_c as *mut _);
             info!(context, 0, "DONE jobs query_maps row");
             Ok(job)
         },

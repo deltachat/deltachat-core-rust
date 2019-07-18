@@ -184,7 +184,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                                     b"Autocrypt-Gossip\x00" as *const u8
                                                         as *const libc::c_char,
                                                 ),
-                                                strdup(header.as_ptr()),
+                                                header,
                                             ),
                                         );
                                     }

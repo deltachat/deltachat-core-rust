@@ -309,7 +309,7 @@ pub unsafe fn dc_create_setup_code(_context: &Context) -> *mut libc::c_char {
         );
     }
 
-    strdup(to_cstring(ret).as_ptr())
+    to_cstring(ret)
 }
 
 // TODO should return bool /rtn
@@ -539,7 +539,7 @@ pub unsafe fn dc_normalize_setup_code(
         p1 = p1.offset(1);
     }
 
-    strdup(to_cstring(out).as_ptr())
+    to_cstring(out)
 }
 
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
@@ -895,7 +895,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         .format("delta-chat-%Y-%m-%d.bak")
         .to_string();
     let buffer = to_cstring(res);
-    let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
+    let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer);
+    free(buffer as *mut _);
     if dest_pathNfilename.is_null() {
         error!(context, 0, "Cannot get backup file name.",);
 
@@ -1094,6 +1095,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     let mut imported_cnt: libc::c_int = 0;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut name_c: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf_bytes: size_t = 0 as size_t;
@@ -1121,8 +1123,9 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 let entry = entry.unwrap();
                 free(suffix as *mut libc::c_void);
                 let name_f = entry.file_name();
-                let name_c = to_cstring(name_f.to_string_lossy());
-                suffix = dc_get_filesuffix_lc(name_c.as_ptr());
+                free(name_c as *mut libc::c_void);
+                name_c = to_cstring(name_f.to_string_lossy());
+                suffix = dc_get_filesuffix_lc(name_c);
                 if suffix.is_null()
                     || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0
                 {
@@ -1132,7 +1135,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 path_plus_name = dc_mprintf(
                     b"%s/%s\x00" as *const u8 as *const libc::c_char,
                     dir_name,
-                    name_c.as_ptr(),
+                    name_c,
                 );
                 info!(context, 0, "Checking: {}", as_str(path_plus_name));
                 free(buf as *mut libc::c_void);
@@ -1170,12 +1173,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     }
                 }
                 set_default = 1;
-                if !strstr(
-                    name_c.as_ptr(),
-                    b"legacy\x00" as *const u8 as *const libc::c_char,
-                )
-                .is_null()
-                {
+                if !strstr(name_c, b"legacy\x00" as *const u8 as *const libc::c_char).is_null() {
                     info!(
                         context,
                         0,
@@ -1200,6 +1198,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
         }
     }
 
+    free(name_c as *mut libc::c_void);
     free(suffix as *mut libc::c_void);
     free(path_plus_name as *mut libc::c_void);
     free(buf as *mut libc::c_void);
