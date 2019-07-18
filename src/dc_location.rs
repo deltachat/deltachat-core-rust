@@ -661,7 +661,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                      AND timestamp>? \
                      AND independent=0 \
                      ORDER BY timestamp;",
-                    |mut stmt_locations| {
+                    |mut stmt_locations, _| {
                         for (chat_id, locations_send_begin, locations_last_sent) in
                             rows.filter_map(|r| match r {
                                 Ok(Some(v)) => Some(v),

@@ -538,46 +538,48 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     if msg_ids.is_null() || msg_cnt <= 0 {
         return false;
     }
-    context.sql.prepare(
+    let msgs = context.sql.prepare(
         "SELECT m.state, c.blocked  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id=? AND m.chat_id>9",
-        |mut stmt| {
-            let mut send_event = false;
-
+        |mut stmt, _| {
+            let mut res = Vec::with_capacity(msg_cnt);
             for i in 0..msg_cnt {
-                // TODO: do I need to reset?
                 let id = unsafe { *msg_ids.offset(i as isize) };
-                if let Ok((curr_state, curr_blocked)) = stmt
-                    .query_row(params![id as i32], |row| {
-                        Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
-                    })
-                {
-                    if curr_blocked == 0 {
-                        if curr_state == 10 || curr_state == 13 {
-                            dc_update_msg_state(context, id, 16);
-                            info!(context, 0, "Seen message #{}.", id);
-
-                            unsafe { dc_job_add(
-                                context,
-                                130,
-                                id as i32,
-                                0 as *const libc::c_char,
-                                0,
-                            ) };
-                            send_event = true;
-                        }
-                    } else if curr_state == 10 {
-                        dc_update_msg_state(context, id, 13);
-                        send_event = true;
-                    }
-                }
+                let (state, blocked) = stmt.query_row(params![id as i32], |row| {
+                    Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
+                })?;
+                res.push((id, state, blocked));
             }
-
-            if send_event {
-                context.call_cb(Event::MSGS_CHANGED, 0, 0);
-            }
-            Ok(())
+            Ok(res)
         }
-    ).is_ok()
+    );
+
+    if msgs.is_err() {
+        warn!(context, 0, "markseen_msgs failed: {:?}", msgs);
+        return false;
+    }
+    let mut send_event = false;
+    let msgs = msgs.unwrap();
+
+    for (id, curr_state, curr_blocked) in msgs.into_iter() {
+        if curr_blocked == 0 {
+            if curr_state == 10 || curr_state == 13 {
+                dc_update_msg_state(context, id, 16);
+                info!(context, 0, "Seen message #{}.", id);
+
+                unsafe { dc_job_add(context, 130, id as i32, 0 as *const libc::c_char, 0) };
+                send_event = true;
+            }
+        } else if curr_state == 10 {
+            dc_update_msg_state(context, id, 13);
+            send_event = true;
+        }
+    }
+
+    if send_event {
+        context.call_cb(Event::MSGS_CHANGED, 0, 0);
+    }
+
+    true
 }
 
 pub fn dc_update_msg_state(context: &Context, msg_id: uint32_t, state: libc::c_int) -> bool {
@@ -601,7 +603,7 @@ pub fn dc_star_msgs(
     }
     context
         .sql
-        .prepare("UPDATE msgs SET starred=? WHERE id=?;", |mut stmt| {
+        .prepare("UPDATE msgs SET starred=? WHERE id=?;", |mut stmt, _| {
             for i in 0..msg_cnt {
                 stmt.execute(params![star, unsafe { *msg_ids.offset(i as isize) as i32 }])?;
             }
