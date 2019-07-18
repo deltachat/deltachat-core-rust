@@ -443,7 +443,7 @@ pub unsafe fn dc_receive_imf(
                              timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
                              bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
                              VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
-                            |mut stmt| {
+                            |mut stmt, conn| {
                                 let mut i = 0;
                                 loop {
                                     if !(i < icnt) {
@@ -528,9 +528,9 @@ pub unsafe fn dc_receive_imf(
                                         } else {
                                             free(txt_raw as *mut libc::c_void);
                                             txt_raw = 0 as *mut libc::c_char;
-                                            insert_msg_id = sql::get_rowid(
+                                            insert_msg_id = sql::get_rowid_with_conn(
                                                 context,
-                                                &context.sql,
+                                                conn,
                                                 "msgs",
                                                 "rfc724_mid",
                                                 as_str(rfc724_mid),

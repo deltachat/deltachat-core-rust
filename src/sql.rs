@@ -1,7 +1,8 @@
 use std::collections::HashSet;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
+use thread_local_object::ThreadLocal;
 
 use crate::constants::*;
 use crate::context::Context;
@@ -16,12 +17,14 @@ const DC_OPEN_READONLY: usize = 0x01;
 /// A wrapper around the underlying Sqlite3 object.
 pub struct Sql {
     pool: RwLock<Option<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>>,
+    in_use: Arc<ThreadLocal<String>>,
 }
 
 impl Sql {
     pub fn new() -> Sql {
         Sql {
             pool: RwLock::new(None),
+            in_use: Arc::new(ThreadLocal::new()),
         }
     }
 
@@ -31,6 +34,7 @@ impl Sql {
 
     pub fn close(&self, context: &Context) {
         let _ = self.pool.write().unwrap().take();
+        self.in_use.remove();
         // drop closes the connection
 
         info!(context, 0, "Database closed.");
@@ -53,6 +57,8 @@ impl Sql {
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
     {
+        eprintln!("SQL EXECUTE: {}", sql);
+        self.start_stmt(sql.to_string());
         self.with_conn(|conn| conn.execute(sql, params).map_err(Into::into))
     }
 
@@ -60,22 +66,25 @@ impl Sql {
     where
         G: FnOnce(&Connection) -> Result<T>,
     {
-        match &*self.pool.read().unwrap() {
+        let res = match &*self.pool.read().unwrap() {
             Some(pool) => {
                 let conn = pool.get()?;
                 g(&conn)
             }
             None => Err(Error::SqlNoConnection),
-        }
+        };
+        self.in_use.remove();
+        res
     }
 
     pub fn prepare<G, H>(&self, sql: &str, g: G) -> Result<H>
     where
-        G: FnOnce(Statement<'_>) -> Result<H>,
+        G: FnOnce(Statement<'_>, &Connection) -> Result<H>,
     {
+        self.start_stmt(sql.to_string());
         self.with_conn(|conn| {
             let stmt = conn.prepare(sql)?;
-            let res = g(stmt)?;
+            let res = g(stmt, conn)?;
             Ok(res)
         })
     }
@@ -84,6 +93,7 @@ impl Sql {
     where
         G: FnOnce(Statement<'_>, Statement<'_>, &Connection) -> Result<H>,
     {
+        self.start_stmt(format!("{} - {}", sql1, sql2));
         self.with_conn(|conn| {
             let stmt1 = conn.prepare(sql1)?;
             let stmt2 = conn.prepare(sql2)?;
@@ -109,6 +119,7 @@ impl Sql {
         F: FnMut(&rusqlite::Row) -> rusqlite::Result<T>,
         G: FnMut(rusqlite::MappedRows<F>) -> Result<H>,
     {
+        self.start_stmt(sql.as_ref().to_string());
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(sql.as_ref())?;
             let res = stmt.query_map(params, f)?;
@@ -123,6 +134,7 @@ impl Sql {
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
     {
+        self.start_stmt(sql.to_string());
         self.with_conn(|conn| {
             let mut stmt = conn.prepare(sql)?;
             let res = stmt.exists(params)?;
@@ -136,6 +148,7 @@ impl Sql {
         P::Item: rusqlite::ToSql,
         F: FnOnce(&rusqlite::Row) -> rusqlite::Result<T>,
     {
+        self.start_stmt(sql.as_ref().to_string());
         self.with_conn(|conn| conn.query_row(sql.as_ref(), params, f).map_err(Into::into))
     }
 
@@ -257,6 +270,17 @@ impl Sql {
 
     pub fn get_config_int64(&self, context: &Context, key: impl AsRef<str>) -> Option<i64> {
         self.get_config(context, key).and_then(|r| r.parse().ok())
+    }
+
+    fn start_stmt(&self, stmt: impl AsRef<str>) {
+        if let Some(query) = self.in_use.get_cloned() {
+            let bt = backtrace::Backtrace::new();
+            eprintln!("old query: {}", query);
+            eprintln!("Connection is already used from this thread: {:?}", bt);
+            panic!("Connection is already used from this thread");
+        }
+
+        self.in_use.set(stmt.as_ref().to_string());
     }
 }
 
@@ -839,6 +863,18 @@ pub fn get_rowid(
     field: impl AsRef<str>,
     value: impl AsRef<str>,
 ) -> u32 {
+    sql.start_stmt("get rowid".to_string());
+    sql.with_conn(|conn| Ok(get_rowid_with_conn(context, conn, table, field, value)))
+        .unwrap_or_else(|_| 0)
+}
+
+pub fn get_rowid_with_conn(
+    context: &Context,
+    conn: &Connection,
+    table: impl AsRef<str>,
+    field: impl AsRef<str>,
+    value: impl AsRef<str>,
+) -> u32 {
     // alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
     // the ORDER BY ensures, this function always returns the most recent id,
     // eg. if a Message-ID is splitted into different messages.
@@ -849,7 +885,7 @@ pub fn get_rowid(
         value.as_ref()
     );
 
-    match sql.query_row(&query, NO_PARAMS, |row| row.get::<_, u32>(0)) {
+    match conn.query_row(&query, NO_PARAMS, |row| row.get::<_, u32>(0)) {
         Ok(id) => id,
         Err(err) => {
             error!(
@@ -860,7 +896,6 @@ pub fn get_rowid(
         }
     }
 }
-
 pub fn get_rowid2(
     context: &Context,
     sql: &Sql,
@@ -870,6 +905,7 @@ pub fn get_rowid2(
     field2: impl AsRef<str>,
     value2: i32,
 ) -> u32 {
+    sql.start_stmt("get rowid2".to_string());
     sql.with_conn(|conn| {
         Ok(get_rowid2_with_conn(
             context, conn, table, field, value, field2, value2,

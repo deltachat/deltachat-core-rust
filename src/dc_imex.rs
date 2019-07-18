@@ -806,77 +806,75 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
     );
 
-    context
-        .sql
-        .query_map(
-            "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
-            params![],
-            |row| {
-                let name: String = row.get(0)?;
-                let blob: Vec<u8> = row.get(1)?;
+    let res = context.sql.query_map(
+        "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
+        params![],
+        |row| {
+            let name: String = row.get(0)?;
+            let blob: Vec<u8> = row.get(1)?;
 
-                Ok((name, blob))
-            },
-            |files| {
-                let mut loop_success = true;
-                let mut processed_files_cnt = 0;
+            Ok((name, blob))
+        },
+        |files| {
+            let mut loop_success = true;
+            let mut processed_files_cnt = 0;
 
-                for file in files {
-                    if file.is_err() {
-                        loop_success = false;
-                        break;
-                    }
-                    let (file_name, file_blob) = file.unwrap();
+            for file in files {
+                let (file_name, file_blob) = file?;
 
-                    if context
-                        .running_state
-                        .clone()
-                        .read()
-                        .unwrap()
-                        .shall_stop_ongoing
-                    {
-                        loop_success = false;
-                        break;
-                    }
-                    processed_files_cnt += 1;
-                    let mut permille = processed_files_cnt * 1000 / total_files_cnt;
-                    if permille < 10 {
-                        permille = 10
-                    }
-                    if permille > 990 {
-                        permille = 990
-                    }
-                    context.call_cb(Event::IMEX_PROGRESS, permille as uintptr_t, 0);
-                    if file_blob.is_empty() {
-                        continue;
-                    }
-
-                    let pathNfilename = format!("{}/{}", as_str(context.get_blobdir()), file_name);
-                    if dc_write_file_safe(context, &pathNfilename, &file_blob) {
-                        continue;
-                    }
-
-                    error!(
-                        context,
-                        0,
-                        "Storage full? Cannot write file {} with {} bytes.",
-                        &pathNfilename,
-                        file_blob.len(),
-                    );
-                    // otherwise the user may believe the stuff is imported correctly, but there are files missing ...
+                if context
+                    .running_state
+                    .clone()
+                    .read()
+                    .unwrap()
+                    .shall_stop_ongoing
+                {
                     loop_success = false;
                     break;
                 }
-
-                if !loop_success {
-                    return Err(format_err!("fail").into());
+                processed_files_cnt += 1;
+                let mut permille = processed_files_cnt * 1000 / total_files_cnt;
+                if permille < 10 {
+                    permille = 10
                 }
-                sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
-                sql::try_execute(context, &context.sql, "VACUUM;");
-                Ok(())
-            },
-        )
-        .is_ok() as libc::c_int
+                if permille > 990 {
+                    permille = 990
+                }
+                context.call_cb(Event::IMEX_PROGRESS, permille as uintptr_t, 0);
+                if file_blob.is_empty() {
+                    continue;
+                }
+
+                let pathNfilename = format!("{}/{}", as_str(context.get_blobdir()), file_name);
+                if dc_write_file_safe(context, &pathNfilename, &file_blob) {
+                    continue;
+                }
+
+                error!(
+                    context,
+                    0,
+                    "Storage full? Cannot write file {} with {} bytes.",
+                    &pathNfilename,
+                    file_blob.len(),
+                );
+                // otherwise the user may believe the stuff is imported correctly, but there are files missing ...
+                loop_success = false;
+                break;
+            }
+
+            if !loop_success {
+                return Err(format_err!("fail").into());
+            }
+            Ok(())
+        },
+    );
+
+    res.and_then(|_| {
+        sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
+        sql::try_execute(context, &context.sql, "VACUUM;")?;
+        Ok(())
+    })
+    .is_ok() as libc::c_int
 }
 
 /*******************************************************************************
@@ -973,7 +971,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
 
                                 sql.prepare(
                                     "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
-                                    move |mut stmt| {
+                                    move |mut stmt, _| {
                                         let mut processed_files_cnt = 0;
                                         for entry in dir_handle {
                                             if entry.is_err() {

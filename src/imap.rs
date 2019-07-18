@@ -1053,7 +1053,8 @@ impl Imap {
                     let mut idle = match session.idle() {
                         Ok(idle) => idle,
                         Err(err) => {
-                            panic!("failed to setup idle: {:?}", err);
+                            eprintln!("failed to setup idle: {:?}", err);
+                            return;
                         }
                     };
 
