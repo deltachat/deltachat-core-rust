@@ -57,7 +57,6 @@ impl Sql {
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
     {
-        eprintln!("SQL EXECUTE: {}", sql);
         self.start_stmt(sql.to_string());
         self.with_conn(|conn| conn.execute(sql, params).map_err(Into::into))
     }

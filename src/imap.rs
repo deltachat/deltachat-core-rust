@@ -486,7 +486,7 @@ impl Imap {
         }
         info!(
             context,
-            0, "IMAP unsetup_handle step 2 (acquired session.lock)"
+            0, "IMAP unsetup_handle step 2 (acquiring session.lock)"
         );
         let session = self.session.lock().unwrap().take();
         if session.is_some() {
