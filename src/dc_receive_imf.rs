@@ -512,7 +512,11 @@ pub unsafe fn dc_receive_imf(
                                             (*part).bytes,
                                             hidden,
                                             if 0 != save_mime_headers {
-                                                Some(to_string(imf_raw_not_terminated))
+                                                let body_string = unsafe {
+        std::str::from_utf8(std::slice::from_raw_parts(imf_raw_not_terminated as *const u8, imf_raw_bytes)).unwrap()
+    };
+
+                                                Some(body_string)
                                             } else {
                                                 None
                                             },
@@ -824,6 +828,14 @@ pub unsafe fn dc_receive_imf(
             }
         }
     }
+
+    info!(
+        context,
+        0,
+        "received message {} has Message-Id: {}",
+        server_uid,
+        to_string(rfc724_mid)
+    );
 
     free(rfc724_mid as *mut libc::c_void);
     free(mime_in_reply_to as *mut libc::c_void);
