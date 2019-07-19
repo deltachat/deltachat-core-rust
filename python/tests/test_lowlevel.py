@@ -31,7 +31,7 @@ def test_dc_close_events():
             if info_string in data2:
                 return
             else:
-                print("skipping info event", data2)
+                print("skipping event", *ev)
 
     find("disconnecting INBOX-watch")
     find("disconnecting sentbox-thread")

@@ -36,14 +36,17 @@ class Account(object):
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
             _destroy_dc_context,
         )
-        self._threads = IOThreads(self._dc_context)
+        if eventlogging:
+            self._evlogger = EventLogger(self._dc_context, logid)
+            deltachat.set_context_callback(self._dc_context, self._process_event)
+            self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
+        else:
+            self._threads = IOThreads(self._dc_context)
+
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
-        if eventlogging:
-            self._evlogger = EventLogger(self._dc_context, logid)
-            deltachat.set_context_callback(self._dc_context, self._process_event)
         self._configkeys = self.get_config("sys.config_keys").split()
         self._imex_completed = threading.Event()
 
@@ -340,7 +343,7 @@ class Account(object):
 
     def shutdown(self, wait=True):
         """ stop threads and close and remove underlying dc_context and callbacks. """
-        if hasattr(self, "_dc_context"):
+        if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
             self.stop_threads(wait=False)  # to interrupt idle and tell python threads to stop
             lib.dc_close(self._dc_context)
             self.stop_threads(wait=wait)  # to wait for threads
@@ -362,10 +365,11 @@ class Account(object):
 
 
 class IOThreads:
-    def __init__(self, dc_context):
+    def __init__(self, dc_context, log_event=lambda *args: None):
         self._dc_context = dc_context
         self._thread_quitflag = False
         self._name2thread = {}
+        self._log_event = log_event
 
     def is_started(self):
         return len(self._name2thread) > 0
@@ -391,17 +395,19 @@ class IOThreads:
                 thread.join()
 
     def imap_thread_run(self):
+        self._log_event("py-bindings-info", 0, "IMAP THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
             lib.dc_perform_imap_fetch(self._dc_context)
             lib.dc_perform_imap_idle(self._dc_context)
-        print("IMAP_THREAD finished")
+        self._log_event("py-bindings-info", 0, "IMAP THREAD FINISHED")
 
     def smtp_thread_run(self):
+        self._log_event("py-bindings-info", 0, "SMTP THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
             lib.dc_perform_smtp_idle(self._dc_context)
-        print("SMTP_THREAD finished")
+        self._log_event("py-bindings-info", 0, "SMTP THREAD FINISHED")
 
 
 class EventLogger:

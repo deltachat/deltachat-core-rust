@@ -80,12 +80,10 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
         params_probe
     };
 
-    info!(context, 0, "dc_job_perform before query");
     let jobs: Result<Vec<dc_job_t>, _> = context.sql.query_map(
         query,
         params,
         |row| {
-            info!(context, 0, "START jobs query_maps");
             let job = dc_job_t {
                 job_id: row.get(0)?,
                 action: row.get(1)?,
@@ -102,22 +100,17 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             let packed_c = to_cstring(packed);
             dc_param_set_packed(job.param, packed_c);
             free(packed_c as *mut _);
-            info!(context, 0, "DONE jobs query_maps row");
             Ok(job)
         },
         |jobs| {
-            info!(context, 0, "collecting jobs");
             let res = jobs
                 .collect::<Result<Vec<dc_job_t>, _>>()
                 .map_err(Into::into);
-            info!(context, 0, "collecting jobs done");
             res
         },
     );
     match jobs {
-        Ok(ref res) => {
-            info!(context, 0, "query done, {:?}", res.len());
-        }
+        Ok(ref res) => {} 
         Err(ref err) => {
             info!(context, 0, "query failed: {:?}", err);
         }
