@@ -64,7 +64,8 @@ def clear_context_callback(dc_context):
     try:
         _DC_CALLBACK_MAP.pop(dc_context, None)
     except AttributeError:
-         pass
+        pass
+
 
 def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
     if not _DC_EVENTNAME_MAP:
