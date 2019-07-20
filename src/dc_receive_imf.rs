@@ -503,10 +503,11 @@ pub unsafe fn dc_receive_imf(
                                             } else {
                                                 ""
                                             },
+                                            // txt_raw might contain invalid utf8
                                             if !txt_raw.is_null() {
-                                                as_str(txt_raw)
+                                                to_string_lossy(txt_raw)
                                             } else {
-                                                ""
+                                                String::new()
                                             },
                                             as_str((*(*part).param).packed),
                                             (*part).bytes,
