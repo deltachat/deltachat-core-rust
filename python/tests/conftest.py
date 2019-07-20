@@ -16,6 +16,14 @@ def pytest_addoption(parser):
     )
 
 
+def pytest_configure(config):
+    cfg = config.getoption('--liveconfig')
+    if not cfg:
+        cfg = os.getenv('DCC_PY_LIVECONFIG')
+        if cfg:
+            config.option.liveconfig = cfg
+
+
 def pytest_report_header(config, startdir):
     t = tempfile.mktemp()
     try:
@@ -24,10 +32,14 @@ def pytest_report_header(config, startdir):
         del ac
     finally:
         os.remove(t)
-    return "Deltachat core={} sqlite={}".format(
-        info['deltachat_core_version'],
-        info['sqlite_version'],
-    )
+    summary = ['Deltachat core={} sqlite={}'.format(
+         info['deltachat_core_version'],
+         info['sqlite_version'],
+     )]
+    cfg = config.getoption('--liveconfig')
+    if cfg:
+        summary.append('Liveconfig: {}'.format(os.path.abspath(cfg)))
+    return summary
 
 
 @pytest.fixture(scope="session")
@@ -64,7 +76,7 @@ def acfactory(pytestconfig, tmpdir, request):
         def configlist(self):
             configlist = []
             for line in open(fn):
-                if line.strip():
+                if line.strip() and not line.strip().startswith('#'):
                     d = {}
                     for part in line.split():
                         name, value = part.split("=")

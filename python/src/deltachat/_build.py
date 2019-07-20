@@ -30,6 +30,7 @@ def ffibuilder():
         libs = ['deltachat']
         objs = []
         incs = []
+        extra_link_args = []
     builder = cffi.FFI()
     builder.set_source(
         'deltachat.capi',
@@ -69,8 +70,8 @@ def ffibuilder():
     distutils.sysconfig.customize_compiler(cc)
     tmpdir = tempfile.mkdtemp()
     try:
-        src_name = os.path.join(tmpdir, "prep.h")
-        dst_name = os.path.join(tmpdir, "prep2.c")
+        src_name = os.path.join(tmpdir, "include.h")
+        dst_name = os.path.join(tmpdir, "expanded.h")
         with open(src_name, "w") as src_fp:
             src_fp.write('#include <deltachat.h>')
         cc.preprocess(source=src_name,

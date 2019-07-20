@@ -23,11 +23,10 @@ if [ $? != 0 ]; then
 fi
 
 pushd python
-toxargs="$@"
-if [ -e liveconfig ]; then
-    toxargs="--liveconfig liveconfig $@"
+if [ -e "./liveconfig" ]; then
+    export DCC_PY_LIVECONFIG=liveconfig
 fi
-tox $toxargs
+tox "$@"
 ret=$?
 popd
 exit $ret
