@@ -8,7 +8,7 @@ use mmime::mailmime_write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
-use crate::constants::DC_VERSION_STR;
+use crate::constants::*;
 use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -539,7 +539,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             let msg: *mut dc_msg_t = (*factory).msg;
             let mut meta_part: *mut mailmime = 0 as *mut mailmime;
             let mut placeholdertext: *mut libc::c_char = 0 as *mut libc::c_char;
-            if (*chat).type_0 == 130 {
+            if (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -563,7 +563,9 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             }
             /* build header etc. */
             let command: libc::c_int = dc_param_get_int((*msg).param, 'S' as i32, 0);
-            if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
+            if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
+                || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
+            {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -750,7 +752,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             }
             if !grpimage.is_null() {
                 let mut meta: *mut dc_msg_t = dc_msg_new_untyped((*factory).context);
-                (*meta).type_0 = 20;
+                (*meta).type_0 = DC_MSG_IMAGE as libc::c_int;
                 dc_param_set((*meta).param, 'f' as i32, grpimage);
                 let mut filename_as_sent: *mut libc::c_char = 0 as *mut libc::c_char;
                 meta_part = build_body_file(
@@ -769,8 +771,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 }
                 dc_msg_unref(meta);
             }
-            if (*msg).type_0 == 41 || (*msg).type_0 == 40 || (*msg).type_0 == 50 {
-                if (*msg).type_0 == 41 {
+            if (*msg).type_0 == DC_MSG_VOICE as libc::c_int
+                || (*msg).type_0 == DC_MSG_AUDIO as libc::c_int
+                || (*msg).type_0 == DC_MSG_VIDEO as libc::c_int
+            {
+                if (*msg).type_0 == DC_MSG_VOICE as libc::c_int {
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
@@ -845,12 +850,12 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             free(fwdhint as *mut libc::c_void);
             free(placeholdertext as *mut libc::c_void);
             /* add attachment part */
-            if (*msg).type_0 == 20
-                || (*msg).type_0 == 21
-                || (*msg).type_0 == 40
-                || (*msg).type_0 == 41
-                || (*msg).type_0 == 50
-                || (*msg).type_0 == 60
+            if (*msg).type_0 == DC_MSG_IMAGE as libc::c_int
+                || (*msg).type_0 == DC_MSG_GIF as libc::c_int
+                || (*msg).type_0 == DC_MSG_AUDIO as libc::c_int
+                || (*msg).type_0 == DC_MSG_VOICE as libc::c_int
+                || (*msg).type_0 == DC_MSG_VIDEO as libc::c_int
+                || (*msg).type_0 == DC_MSG_FILE as libc::c_int
             {
                 if 0 == is_file_size_okay(msg) {
                     let error: *mut libc::c_char = dc_mprintf(
@@ -1103,7 +1108,9 @@ unsafe fn get_subject(
     };
     if dc_param_get_int((*msg).param, 'S' as i32, 0) == 6 {
         ret = dc_stock_str(context, 42)
-    } else if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
+    } else if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
+        || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
+    {
         ret = dc_mprintf(
             b"Chat: %s: %s%s\x00" as *const u8 as *const libc::c_char,
             (*chat).name,
@@ -1167,7 +1174,7 @@ unsafe fn build_body_file(
     let mut filename_to_send: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut filename_encoded: *mut libc::c_char = 0 as *mut libc::c_char;
     if !pathNfilename.is_null() {
-        if (*msg).type_0 == 41 {
+        if (*msg).type_0 == DC_MSG_VOICE as libc::c_int {
             let ts = chrono::Utc.timestamp((*msg).timestamp_sort as i64, 0);
 
             let suffix = if !suffix.is_null() {
@@ -1179,9 +1186,11 @@ unsafe fn build_body_file(
                 .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
                 .to_string();
             filename_to_send = strdup(to_cstring(res).as_ptr());
-        } else if (*msg).type_0 == 40 {
+        } else if (*msg).type_0 == DC_MSG_AUDIO as libc::c_int {
             filename_to_send = dc_get_filename(pathNfilename)
-        } else if (*msg).type_0 == 20 || (*msg).type_0 == 21 {
+        } else if (*msg).type_0 == DC_MSG_IMAGE as libc::c_int
+            || (*msg).type_0 == DC_MSG_GIF as libc::c_int
+        {
             if base_name.is_null() {
                 base_name = b"image\x00" as *const u8 as *const libc::c_char
             }
@@ -1194,7 +1203,7 @@ unsafe fn build_body_file(
                     b"dat\x00" as *const u8 as *const libc::c_char
                 },
             )
-        } else if (*msg).type_0 == 50 {
+        } else if (*msg).type_0 == DC_MSG_VIDEO as libc::c_int {
             filename_to_send = dc_mprintf(
                 b"video.%s\x00" as *const u8 as *const libc::c_char,
                 if !suffix.is_null() {
