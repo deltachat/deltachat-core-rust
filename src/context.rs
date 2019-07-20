@@ -260,7 +260,7 @@ unsafe fn cb_set_config(context: &Context, key: *const libc::c_char, value: *con
     } else {
         Some(as_str(value))
     };
-    context.sql.set_config(context, as_str(key), v);
+    context.sql.set_config(context, as_str(key), v).ok();
 }
 
 /* *

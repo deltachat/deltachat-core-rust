@@ -48,11 +48,17 @@ pub fn dc_get_oauth2_url(
     redirect_uri: impl AsRef<str>,
 ) -> Option<String> {
     if let Some(oauth2) = Oauth2::from_address(addr) {
-        context.sql.set_config(
-            context,
-            "oauth2_pending_redirect_uri",
-            Some(redirect_uri.as_ref()),
-        );
+        if context
+            .sql
+            .set_config(
+                context,
+                "oauth2_pending_redirect_uri",
+                Some(redirect_uri.as_ref()),
+            )
+            .is_err()
+        {
+            return None;
+        }
         let oauth2_url = replace_in_uri(&oauth2.get_code, "$CLIENT_ID", &oauth2.client_id);
         let oauth2_url = replace_in_uri(&oauth2_url, "$REDIRECT_URI", redirect_uri.as_ref());
 
@@ -157,10 +163,12 @@ pub fn dc_get_oauth2_access_token(
         if let Some(ref token) = response.refresh_token {
             context
                 .sql
-                .set_config(context, "oauth2_refresh_token", Some(token));
+                .set_config(context, "oauth2_refresh_token", Some(token))
+                .ok();
             context
                 .sql
-                .set_config(context, "oauth2_refresh_token_for", Some(code.as_ref()));
+                .set_config(context, "oauth2_refresh_token_for", Some(code.as_ref()))
+                .ok();
         }
 
         // after that, save the access token.
@@ -168,7 +176,8 @@ pub fn dc_get_oauth2_access_token(
         if let Some(ref token) = response.access_token {
             context
                 .sql
-                .set_config(context, "oauth2_access_token", Some(token));
+                .set_config(context, "oauth2_access_token", Some(token))
+                .ok();
             let expires_in = response
                 .expires_in
                 // refresh a bet before
@@ -176,12 +185,14 @@ pub fn dc_get_oauth2_access_token(
                 .unwrap_or_else(|| 0);
             context
                 .sql
-                .set_config_int64(context, "oauth2_timestamp_expires", expires_in);
+                .set_config_int64(context, "oauth2_timestamp_expires", expires_in)
+                .ok();
 
             if update_redirect_uri_on_success {
                 context
                     .sql
-                    .set_config(context, "oauth2_redirect_uri", Some(redirect_uri.as_ref()));
+                    .set_config(context, "oauth2_redirect_uri", Some(redirect_uri.as_ref()))
+                    .ok();
             }
         } else {
             warn!(context, 0, "Failed to find OAuth2 access token");

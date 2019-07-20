@@ -421,7 +421,8 @@ pub fn dc_add_or_lookup_contact(
                     },
                     row_id
                 ],
-            );
+            )
+            .ok();
 
             if update_name {
                 sql::execute(
@@ -429,7 +430,7 @@ pub fn dc_add_or_lookup_contact(
                     &context.sql,
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
                     params![to_string(name), 100, row_id]
-                );
+                ).ok();
             }
             unsafe { *sth_modified = 1 };
         }

@@ -1597,18 +1597,25 @@ impl Imap {
             }
         }
 
-        context.sql.set_config_int(context, "folders_configured", 3);
+        context
+            .sql
+            .set_config_int(context, "folders_configured", 3)
+            .ok();
         if let Some(ref mvbox_folder) = mvbox_folder {
             context
                 .sql
-                .set_config(context, "configured_mvbox_folder", Some(mvbox_folder));
+                .set_config(context, "configured_mvbox_folder", Some(mvbox_folder))
+                .ok();
         }
         if let Some(ref sentbox_folder) = sentbox_folder {
-            context.sql.set_config(
-                context,
-                "configured_sentbox_folder",
-                Some(sentbox_folder.name()),
-            );
+            context
+                .sql
+                .set_config(
+                    context,
+                    "configured_sentbox_folder",
+                    Some(sentbox_folder.name()),
+                )
+                .ok();
         }
     }
 

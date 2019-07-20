@@ -174,7 +174,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                 param.addr = oauth2_addr;
                                 context
                                     .sql
-                                    .set_config(context, "addr", Some(param.addr.as_str()));
+                                    .set_config(context, "addr", Some(param.addr.as_str()))
+                                    .ok();
                             }
                             if s.shall_stop_ongoing {
                                 current_block = 2927484062889439186;
@@ -966,7 +967,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                     context,
                                                                                     "configured",
                                                                                     1,
-                                                                                );
+                                                                                )
+                                                                                .ok();
                                                                             if !s.shall_stop_ongoing
                                                                             {
                                                                                 context.call_cb(

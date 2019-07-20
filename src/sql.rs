@@ -173,7 +173,9 @@ impl Sql {
     }
 
     /// Set private configuration options.
-    /// Setting `None` deletes the value.
+    ///
+    /// Setting `None` deletes the value.  On failure an error message
+    /// will already have been logged.
     pub fn set_config(
         &self,
         context: &Context,
@@ -439,7 +441,7 @@ fn open(
                 // cannot create the tables - maybe we cannot write?
                 return Err(Error::SqlFailedToOpen);
             } else {
-                sql.set_config_int(context, "dbversion", 0);
+                sql.set_config_int(context, "dbversion", 0)?;
             }
         } else {
             exists_before_update = 1;
@@ -464,7 +466,7 @@ fn open(
                 params![],
             )?;
             dbversion = 1;
-            sql.set_config_int(context, "dbversion", 1);
+            sql.set_config_int(context, "dbversion", 1)?;
         }
         if dbversion < 2 {
             sql.execute(
@@ -472,7 +474,7 @@ fn open(
                 params![],
             )?;
             dbversion = 2;
-            sql.set_config_int(context, "dbversion", 2);
+            sql.set_config_int(context, "dbversion", 2)?;
         }
         if dbversion < 7 {
             sql.execute(
@@ -486,7 +488,7 @@ fn open(
                 params![],
             )?;
             dbversion = 7;
-            sql.set_config_int(context, "dbversion", 7);
+            sql.set_config_int(context, "dbversion", 7)?;
         }
         if dbversion < 10 {
             sql.execute(
@@ -504,7 +506,7 @@ fn open(
                 params![],
             )?;
             dbversion = 10;
-            sql.set_config_int(context, "dbversion", 10);
+            sql.set_config_int(context, "dbversion", 10)?;
         }
         if dbversion < 12 {
             sql.execute(
@@ -516,7 +518,7 @@ fn open(
                 params![],
             )?;
             dbversion = 12;
-            sql.set_config_int(context, "dbversion", 12);
+            sql.set_config_int(context, "dbversion", 12)?;
         }
         if dbversion < 17 {
             sql.execute(
@@ -530,7 +532,7 @@ fn open(
             )?;
             sql.execute("CREATE INDEX msgs_index5 ON msgs (starred);", params![])?;
             dbversion = 17;
-            sql.set_config_int(context, "dbversion", 17);
+            sql.set_config_int(context, "dbversion", 17)?;
         }
         if dbversion < 18 {
             sql.execute(
@@ -539,7 +541,7 @@ fn open(
             )?;
             sql.execute("ALTER TABLE acpeerstates ADD COLUMN gossip_key;", params![])?;
             dbversion = 18;
-            sql.set_config_int(context, "dbversion", 18);
+            sql.set_config_int(context, "dbversion", 18)?;
         }
         if dbversion < 27 {
             sql.execute("DELETE FROM msgs WHERE chat_id=1 OR chat_id=2;", params![])?;
@@ -556,7 +558,7 @@ fn open(
                 params![],
             )?;
             dbversion = 27;
-            sql.set_config_int(context, "dbversion", 27);
+            sql.set_config_int(context, "dbversion", 27)?;
         }
         if dbversion < 34 {
             sql.execute(
@@ -585,7 +587,7 @@ fn open(
             )?;
             recalc_fingerprints = 1;
             dbversion = 34;
-            sql.set_config_int(context, "dbversion", 34);
+            sql.set_config_int(context, "dbversion", 34)?;
         }
         if dbversion < 39 {
             sql.execute(
@@ -615,7 +617,7 @@ fn open(
                 )?;
             }
             dbversion = 39;
-            sql.set_config_int(context, "dbversion", 39);
+            sql.set_config_int(context, "dbversion", 39)?;
         }
         if dbversion < 40 {
             sql.execute(
@@ -623,22 +625,22 @@ fn open(
                 params![],
             )?;
             dbversion = 40;
-            sql.set_config_int(context, "dbversion", 40);
+            sql.set_config_int(context, "dbversion", 40)?;
         }
         if dbversion < 41 {
             update_file_paths = 1;
             dbversion = 41;
-            sql.set_config_int(context, "dbversion", 41);
+            sql.set_config_int(context, "dbversion", 41)?;
         }
         if dbversion < 42 {
             sql.execute("UPDATE msgs SET txt='' WHERE type!=10", params![])?;
             dbversion = 42;
-            sql.set_config_int(context, "dbversion", 42);
+            sql.set_config_int(context, "dbversion", 42)?;
         }
         if dbversion < 44 {
             sql.execute("ALTER TABLE msgs ADD COLUMN mime_headers TEXT;", params![])?;
             dbversion = 44;
-            sql.set_config_int(context, "dbversion", 44);
+            sql.set_config_int(context, "dbversion", 44)?;
         }
         if dbversion < 46 {
             sql.execute(
@@ -650,7 +652,7 @@ fn open(
                 params![],
             )?;
             dbversion = 46;
-            sql.set_config_int(context, "dbversion", 46);
+            sql.set_config_int(context, "dbversion", 46)?;
         }
         if dbversion < 47 {
             info!(context, 0, "[migration] v47");
@@ -659,7 +661,7 @@ fn open(
                 params![],
             )?;
             dbversion = 47;
-            sql.set_config_int(context, "dbversion", 47);
+            sql.set_config_int(context, "dbversion", 47)?;
         }
         if dbversion < 48 {
             info!(context, 0, "[migration] v48");
@@ -673,7 +675,7 @@ fn open(
             assert_eq!(DC_MOVE_STATE_MOVING as libc::c_int, 3);
 
             dbversion = 48;
-            sql.set_config_int(context, "dbversion", 48);
+            sql.set_config_int(context, "dbversion", 48)?;
         }
         if dbversion < 49 {
             info!(context, 0, "[migration] v49");
@@ -682,15 +684,15 @@ fn open(
                 params![],
             )?;
             dbversion = 49;
-            sql.set_config_int(context, "dbversion", 49);
+            sql.set_config_int(context, "dbversion", 49)?;
         }
         if dbversion < 50 {
             info!(context, 0, "[migration] v50");
             if 0 != exists_before_update {
-                sql.set_config_int(context, "show_emails", 2);
+                sql.set_config_int(context, "show_emails", 2)?;
             }
             dbversion = 50;
-            sql.set_config_int(context, "dbversion", 50);
+            sql.set_config_int(context, "dbversion", 50)?;
         }
         if dbversion < 53 {
             info!(context, 0, "[migration] v53");
@@ -723,7 +725,7 @@ fn open(
                 params![],
             )?;
             dbversion = 53;
-            sql.set_config_int(context, "dbversion", 53);
+            sql.set_config_int(context, "dbversion", 53)?;
         }
         if dbversion < 54 {
             info!(context, 0, "[migration] v54");
@@ -733,7 +735,7 @@ fn open(
             )?;
             sql.execute("CREATE INDEX msgs_index6 ON msgs (location_id);", params![])?;
             dbversion = 54;
-            sql.set_config_int(context, "dbversion", 54);
+            sql.set_config_int(context, "dbversion", 54)?;
         }
         if dbversion < 55 {
             sql.execute(
@@ -741,7 +743,7 @@ fn open(
                 params![],
             )?;
 
-            sql.set_config_int(context, "dbversion", 55);
+            sql.set_config_int(context, "dbversion", 55)?;
         }
 
         if 0 != recalc_fingerprints {
@@ -789,7 +791,7 @@ fn open(
                 NO_PARAMS,
             )?;
 
-            sql.set_config(context, "backup_for", None);
+            sql.set_config(context, "backup_for", None)?;
         }
     }
 

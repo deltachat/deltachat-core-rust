@@ -1110,13 +1110,15 @@ pub unsafe fn dc_delete_msg_from_db(context: &Context, msg_id: uint32_t) {
             &context.sql,
             "DELETE FROM msgs WHERE id=?;",
             params![(*msg).id as i32],
-        );
+        )
+        .ok();
         sql::execute(
             context,
             &context.sql,
             "DELETE FROM msgs_mdns WHERE msg_id=?;",
             params![(*msg).id as i32],
-        );
+        )
+        .ok();
     }
     dc_msg_unref(msg);
 }

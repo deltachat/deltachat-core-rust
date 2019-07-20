@@ -814,7 +814,7 @@ pub unsafe fn dc_job_add(
             },
             (timestamp + delay_seconds as i64)
         ]
-    );
+    ).ok();
 
     if thread == 100 {
         dc_interrupt_imap_idle(context);

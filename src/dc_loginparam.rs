@@ -91,34 +91,39 @@ pub fn dc_loginparam_write(
     let prefix = prefix.as_ref();
 
     let key = format!("{}addr", prefix);
-    sql.set_config(context, key, Some(&loginparam.addr));
+    sql.set_config(context, key, Some(&loginparam.addr)).ok();
 
     let key = format!("{}mail_server", prefix);
-    sql.set_config(context, key, Some(&loginparam.mail_server));
+    sql.set_config(context, key, Some(&loginparam.mail_server))
+        .ok();
 
     let key = format!("{}mail_port", prefix);
-    sql.set_config_int(context, key, loginparam.mail_port);
+    sql.set_config_int(context, key, loginparam.mail_port).ok();
 
     let key = format!("{}mail_user", prefix);
-    sql.set_config(context, key, Some(&loginparam.mail_user));
+    sql.set_config(context, key, Some(&loginparam.mail_user))
+        .ok();
 
     let key = format!("{}mail_pw", prefix);
-    sql.set_config(context, key, Some(&loginparam.mail_pw));
+    sql.set_config(context, key, Some(&loginparam.mail_pw)).ok();
 
     let key = format!("{}send_server", prefix);
-    sql.set_config(context, key, Some(&loginparam.send_server));
+    sql.set_config(context, key, Some(&loginparam.send_server))
+        .ok();
 
     let key = format!("{}send_port", prefix);
-    sql.set_config_int(context, key, loginparam.send_port);
+    sql.set_config_int(context, key, loginparam.send_port).ok();
 
     let key = format!("{}send_user", prefix);
-    sql.set_config(context, key, Some(&loginparam.send_user));
+    sql.set_config(context, key, Some(&loginparam.send_user))
+        .ok();
 
     let key = format!("{}send_pw", prefix);
-    sql.set_config(context, key, Some(&loginparam.send_pw));
+    sql.set_config(context, key, Some(&loginparam.send_pw)).ok();
 
     let key = format!("{}server_flags", prefix);
-    sql.set_config_int(context, key, loginparam.server_flags);
+    sql.set_config_int(context, key, loginparam.server_flags)
+        .ok();
 }
 
 fn unset_empty(s: &String) -> Cow<String> {

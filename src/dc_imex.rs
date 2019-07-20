@@ -872,7 +872,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                     return Err(format_err!("fail").into());
                 }
                 sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
-                sql::try_execute(context, &context.sql, "VACUUM;");
+                sql::try_execute(context, &context.sql, "VACUUM;").ok();
                 Ok(())
             },
         )
@@ -906,7 +906,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
 
     sql::housekeeping(context);
 
-    sql::try_execute(context, &context.sql, "VACUUM;");
+    sql::try_execute(context, &context.sql, "VACUUM;").ok();
     context.sql.close(context);
     let mut closed = true;
     info!(

@@ -1249,7 +1249,8 @@ unsafe fn create_or_lookup_group(
                                 &context.sql,
                                 "DELETE FROM chats_contacts WHERE chat_id=?;",
                                 params![chat_id as i32],
-                            );
+                            )
+                            .ok();
                             if skip.is_null() || !dc_addr_cmp(&self_addr, as_str(skip)) {
                                 dc_add_to_chat_contacts_table(context, chat_id, 1);
                             }

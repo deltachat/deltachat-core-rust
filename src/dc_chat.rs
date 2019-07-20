@@ -291,7 +291,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
                 &context.sql,
                 format!("INSERT INTO chats_contacts (chat_id, contact_id) VALUES({}, {})", chat_id, contact_id),
                 params![],
-            );
+            ).ok();
         }
     }
 
@@ -862,13 +862,15 @@ pub unsafe fn dc_is_contact_in_chat(
         .unwrap_or_default() as libc::c_int
 }
 
+// Should return Result
 pub fn dc_unarchive_chat(context: &Context, chat_id: u32) {
     sql::execute(
         context,
         &context.sql,
         "UPDATE chats SET archived=0 WHERE id=?",
         params![chat_id as i32],
-    );
+    )
+    .ok();
 }
 
 pub unsafe fn dc_send_msg<'a>(
@@ -1658,6 +1660,7 @@ pub fn dc_reset_gossiped_timestamp(context: &Context, chat_id: u32) {
     dc_set_gossiped_timestamp(context, chat_id, 0);
 }
 
+// Should return Result
 pub fn dc_set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
     if 0 != chat_id {
         info!(
@@ -1670,7 +1673,8 @@ pub fn dc_set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64
             &context.sql,
             "UPDATE chats SET gossiped_timestamp=? WHERE id=?;",
             params![timestamp, chat_id as i32],
-        );
+        )
+        .ok();
     } else {
         info!(
             context,
@@ -1681,7 +1685,8 @@ pub fn dc_set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64
             &context.sql,
             "UPDATE chats SET gossiped_timestamp=?;",
             params![timestamp],
-        );
+        )
+        .ok();
     }
 }
 
@@ -1764,6 +1769,7 @@ pub unsafe fn dc_remove_contact_from_chat(
     success
 }
 
+// Should return Result
 pub fn dc_set_group_explicitly_left(context: &Context, grpid: *const libc::c_char) {
     if 0 == dc_is_group_explicitly_left(context, grpid) {
         sql::execute(
@@ -1771,7 +1777,8 @@ pub fn dc_set_group_explicitly_left(context: &Context, grpid: *const libc::c_cha
             &context.sql,
             "INSERT INTO leftgrps (grpid) VALUES(?);",
             params![as_str(grpid)],
-        );
+        )
+        .ok();
     }
 }
 
