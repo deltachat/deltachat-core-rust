@@ -446,7 +446,10 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
 
                 (*msg).id = row.get::<_, i32>(0)? as u32;
                 (*msg).rfc724_mid = to_cstring(row.get::<_, String>(1)?);
-                (*msg).in_reply_to = to_cstring(row.get::<_, String>(2)?);
+                (*msg).in_reply_to = match row.get::<_, Option<String>>(2)? {
+                    Some(s) => to_cstring(s),
+                    None => std::ptr::null_mut(),
+                };
                 (*msg).server_folder = to_cstring(row.get::<_, String>(3)?);
                 (*msg).server_uid = row.get(4)?;
                 (*msg).move_state = row.get(5)?;
