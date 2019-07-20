@@ -68,8 +68,6 @@ impl Smtp {
         let port = lp.send_port as u16;
 
         let tls = native_tls::TlsConnector::builder()
-            // FIXME: unfortunately this is needed to make things work on macos + testrun.org
-            .danger_accept_invalid_hostnames(true)
             .min_protocol_version(Some(DEFAULT_TLS_PROTOCOLS[0]))
             .build()
             .unwrap();

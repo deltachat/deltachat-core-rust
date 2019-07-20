@@ -100,10 +100,7 @@ impl Client {
         domain: S,
     ) -> imap::error::Result<Self> {
         let stream = net::TcpStream::connect(addr)?;
-        let tls = native_tls::TlsConnector::builder()
-            .danger_accept_invalid_hostnames(true)
-            .build()
-            .unwrap();
+        let tls = native_tls::TlsConnector::builder().build().unwrap();
 
         let s = stream.try_clone().expect("cloning the stream failed");
         let tls_stream = native_tls::TlsConnector::connect(&tls, domain.as_ref(), s)?;
@@ -126,10 +123,7 @@ impl Client {
     pub fn secure<S: AsRef<str>>(self, domain: S) -> imap::error::Result<Client> {
         match self {
             Client::Insecure(client, stream) => {
-                let tls = native_tls::TlsConnector::builder()
-                    .danger_accept_invalid_hostnames(true)
-                    .build()
-                    .unwrap();
+                let tls = native_tls::TlsConnector::builder().build().unwrap();
 
                 let client_sec = client.secure(domain, &tls)?;
 
