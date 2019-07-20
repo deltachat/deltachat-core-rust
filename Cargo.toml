@@ -54,6 +54,10 @@ members = [
   "deltachat-ffi"
 ]
 
+[patch.crates-io]
+rusqlite = { git = "http://github.com/dignifiedquire/rusqlite", branch = "fix/text", features = ["bundled"] }
+
+
 [[example]]
 name = "simple"
 path = "examples/simple.rs"
