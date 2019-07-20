@@ -147,7 +147,13 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
             c.blocked = row.get(6)?;
             c.gossiped_timestamp = row.get(7)?;
             c.is_sending_locations = row.get(8)?;
+            Ok(())
+        },
+    );
 
+    match res {
+        Ok(_) => {
+            let c = unsafe { &mut *chat };
             match c.id {
                 1 => unsafe {
                     free((*chat).name as *mut libc::c_void);
@@ -176,12 +182,8 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                     }
                 }
             }
-            Ok(())
-        },
-    );
-
-    match res {
-        Ok(_) => true,
+            true
+        }
         Err(err) => {
             error!(
                 context,
