@@ -1561,10 +1561,13 @@ pub fn to_string(s: *const libc::c_char) -> String {
     let cstr = unsafe { CStr::from_ptr(s) };
 
     cstr.to_str().map(|s| s.to_string()).unwrap_or_else(|err| {
-        panic!("Non utf8 string: '{:?}' ({:?})", cstr.to_string_lossy(), err);
+        panic!(
+            "Non utf8 string: '{:?}' ({:?})",
+            cstr.to_string_lossy(),
+            err
+        );
     })
 }
-
 
 pub fn to_string_lossy(s: *const libc::c_char) -> String {
     if s.is_null() {
@@ -1573,9 +1576,9 @@ pub fn to_string_lossy(s: *const libc::c_char) -> String {
 
     let cstr = unsafe { CStr::from_ptr(s) };
 
-    cstr.to_str().map(|s| s.to_string()).unwrap_or_else(|_| {
-        cstr.to_string_lossy().to_string()
-    })
+    cstr.to_str()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|_| cstr.to_string_lossy().to_string())
 }
 
 pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
