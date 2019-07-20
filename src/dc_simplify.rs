@@ -225,7 +225,8 @@ unsafe fn dc_simplify_simplify_plain_text(
                     pending_linebreaks -= 1
                 }
             }
-            ret += &to_string(line);
+            // the incoming message might contain invalid UTF8
+            ret += &to_string_lossy(line);
             content_lines_added += 1;
             pending_linebreaks = 1i32
         }
