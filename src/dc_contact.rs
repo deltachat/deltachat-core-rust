@@ -294,7 +294,7 @@ pub unsafe fn dc_contact_load_from_db(
                 (*contact).name = to_cstring(row.get::<_, String>(0)?);
                 (*contact).addr = to_cstring(row.get::<_, String>(1)?);
                 (*contact).origin = row.get(2)?;
-                (*contact).blocked = row.get(3)?;
+                (*contact).blocked = row.get::<_, Option<i32>>(3)?.unwrap_or_default();
                 (*contact).authname = to_cstring(row.get::<_, String>(4)?);
                 Ok(())
             }

@@ -1386,7 +1386,7 @@ unsafe fn create_or_lookup_adhoc_group(
                     ),
                     params![],
                     |row| {
-                        Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
+                        Ok((row.get::<_, i32>(0)?, row.get::<_, Option<i32>>(1)?.unwrap_or_default()))
                     }
                 );
 

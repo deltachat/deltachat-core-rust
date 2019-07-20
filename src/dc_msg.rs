@@ -470,7 +470,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
                 (*msg).location_id = row.get(19)?;
-                (*msg).chat_blocked = row.get(20)?;
+                (*msg).chat_blocked = row.get::<_, Option<i32>>(20)?.unwrap_or_default();
                 if (*msg).chat_blocked == 2 {
                     dc_truncate_n_unwrap_str((*msg).text, 256, 0);
                 }
@@ -551,7 +551,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
             for i in 0..msg_cnt {
                 let id = unsafe { *msg_ids.offset(i as isize) };
                 let (state, blocked) = stmt.query_row(params![id as i32], |row| {
-                    Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
+                    Ok((row.get::<_, i32>(0)?, row.get::<_, Option<i32>>(1)?.unwrap_or_default()))
                 })?;
                 res.push((id, state, blocked));
             }

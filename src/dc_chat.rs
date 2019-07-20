@@ -144,7 +144,7 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                 free(p as *mut _);
             };
             c.archived = row.get(5)?;
-            c.blocked = row.get(6)?;
+            c.blocked = row.get::<_, Option<i32>>(6)?.unwrap_or_default();
             c.gossiped_timestamp = row.get(7)?;
             c.is_sending_locations = row.get(8)?;
             Ok(())
@@ -330,7 +330,7 @@ pub fn dc_lookup_real_nchat_by_contact_id(
     if let Ok((id, blocked)) = context.sql.query_row(
         "SELECT c.id, c.blocked FROM chats c INNER JOIN chats_contacts j ON c.id=j.chat_id WHERE c.type=100 AND c.id>9 AND j.contact_id=?;",
         params![contact_id as i32],
-        |row| Ok((row.get(0)?, row.get(1)?)),
+        |row| Ok((row.get(0)?, row.get::<_, Option<i32>>(1)?.unwrap_or_default())),
     ) {
         unsafe { *ret_chat_id = id };
         unsafe { *ret_chat_blocked = blocked };
