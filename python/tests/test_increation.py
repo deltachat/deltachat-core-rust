@@ -32,7 +32,11 @@ class TestInCreation:
         chat2.add_contact(c2)
         wait_msgs_changed(ac1, 0, 0)  # why not chat id?
         ac1.forward_messages([prepared_original], chat2)
+        # XXX there might be two EVENT_MSGS_CHANGED and only one of them
+        # is the one caused by forwarding
         forwarded_id = wait_msgs_changed(ac1, chat2.id)
+        if forwarded_id == 0:
+            forwarded_id = wait_msgs_changed(ac1, chat2.id)
         forwarded_msg = ac1.get_message_by_id(forwarded_id)
         assert forwarded_msg.get_state().is_out_preparing()
 

@@ -23,27 +23,35 @@ class Account(object):
     by the underlying deltachat c-library.  All public Account methods are
     meant to be memory-safe and return memory-safe objects.
     """
-    def __init__(self, db_path, logid=None):
+    def __init__(self, db_path, logid=None, eventlogging=True):
         """ initialize account object.
 
         :param db_path: a path to the account database. The database
                         will be created if it doesn't exist.
         :param logid: an optional logging prefix that should be used with
                       the default internal logging.
+        :param eventlogging: if False no eventlogging and no context callback will be configured
         """
         self._dc_context = ffi.gc(
             lib.dc_context_new(lib.py_dc_callback, ffi.NULL, ffi.NULL),
             _destroy_dc_context,
         )
+        if eventlogging:
+            self._evlogger = EventLogger(self._dc_context, logid)
+            deltachat.set_context_callback(self._dc_context, self._process_event)
+            self._threads = IOThreads(self._dc_context, self._evlogger._log_event)
+        else:
+            self._threads = IOThreads(self._dc_context)
+
         if hasattr(db_path, "encode"):
             db_path = db_path.encode("utf8")
         if not lib.dc_open(self._dc_context, db_path, ffi.NULL):
             raise ValueError("Could not dc_open: {}".format(db_path))
-        self._evlogger = EventLogger(self._dc_context, logid)
-        deltachat.set_context_callback(self._dc_context, self._process_event)
-        self._threads = IOThreads(self._dc_context)
         self._configkeys = self.get_config("sys.config_keys").split()
         self._imex_completed = threading.Event()
+
+    def __del__(self):
+        self.shutdown()
 
     def _check_config_key(self, name):
         if name not in self._configkeys:
@@ -333,12 +341,22 @@ class Account(object):
         lib.dc_stop_ongoing_process(self._dc_context)
         self._threads.stop(wait=wait)
 
+    def shutdown(self, wait=True):
+        """ stop threads and close and remove underlying dc_context and callbacks. """
+        if hasattr(self, "_dc_context") and hasattr(self, "_threads"):
+            self.stop_threads(wait=False)  # to interrupt idle and tell python threads to stop
+            lib.dc_close(self._dc_context)
+            self.stop_threads(wait=wait)  # to wait for threads
+            deltachat.clear_context_callback(self._dc_context)
+            del self._dc_context
+
     def _process_event(self, ctx, evt_name, data1, data2):
         assert ctx == self._dc_context
-        self._evlogger(evt_name, data1, data2)
-        method = getattr(self, "on_" + evt_name.lower(), None)
-        if method is not None:
-            method(data1, data2)
+        if hasattr(self, "_evlogger"):
+            self._evlogger(evt_name, data1, data2)
+            method = getattr(self, "on_" + evt_name.lower(), None)
+            if method is not None:
+                method(data1, data2)
         return 0
 
     def on_dc_event_imex_progress(self, data1, data2):
@@ -347,10 +365,11 @@ class Account(object):
 
 
 class IOThreads:
-    def __init__(self, dc_context):
+    def __init__(self, dc_context, log_event=lambda *args: None):
         self._dc_context = dc_context
         self._thread_quitflag = False
         self._name2thread = {}
+        self._log_event = log_event
 
     def is_started(self):
         return len(self._name2thread) > 0
@@ -376,15 +395,19 @@ class IOThreads:
                 thread.join()
 
     def imap_thread_run(self):
+        self._log_event("py-bindings-info", 0, "IMAP THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
             lib.dc_perform_imap_fetch(self._dc_context)
             lib.dc_perform_imap_idle(self._dc_context)
+        self._log_event("py-bindings-info", 0, "IMAP THREAD FINISHED")
 
     def smtp_thread_run(self):
+        self._log_event("py-bindings-info", 0, "SMTP THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_smtp_jobs(self._dc_context)
             lib.dc_perform_smtp_idle(self._dc_context)
+        self._log_event("py-bindings-info", 0, "SMTP THREAD FINISHED")
 
 
 class EventLogger:
@@ -414,7 +437,7 @@ class EventLogger:
             raise ValueError("{}({!r},{!r})".format(*ev))
         return ev
 
-    def get_matching(self, event_name_regex):
+    def get_matching(self, event_name_regex, check_error=True):
         self._log("-- waiting for event with regex: {} --".format(event_name_regex))
         rex = re.compile("(?:{}).*".format(event_name_regex))
         while 1:

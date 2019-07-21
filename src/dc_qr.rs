@@ -188,7 +188,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
         match current_block {
             16562876845594826114 => {}
             _ => {
-                /* check the paramters
+                /* check the parameters
                 ---------------------- */
                 if !addr.is_null() {
                     /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
@@ -239,13 +239,8 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
-                                            let c_addr = peerstate
-                                                .addr
-                                                .as_ref()
-                                                .map(to_cstring)
-                                                .unwrap_or_default();
-                                            let addr_ptr = if peerstate.addr.is_some() {
-                                                c_addr.as_ptr()
+                                            let addr_ptr = if let Some(ref addr) = peerstate.addr {
+                                                to_cstring(addr)
                                             } else {
                                                 std::ptr::null()
                                             };
@@ -256,6 +251,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                                 0x80i32,
                                                 0 as *mut libc::c_int,
                                             );
+                                            free(addr_ptr as *mut _);
                                             dc_create_or_lookup_nchat_by_contact_id(
                                                 context,
                                                 (*qr_parsed).id,

@@ -25,6 +25,7 @@ def ffibuilder():
         else:
             raise NotImplementedError("Compilation not supported yet on Windows, can you help?")
         objs = [os.path.join(projdir, 'target', target, 'libdeltachat.a')]
+        assert os.path.exists(objs[0]), objs
         incs = [os.path.join(projdir, 'deltachat-ffi')]
     else:
         libs = ['deltachat']

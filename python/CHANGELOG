@@ -4,6 +4,12 @@
 - introduce automatic versioning via setuptools_scm, 
   based on py-X.Y.Z tags 
 
+- integrate latest DCC core-rust with dc_close() fixes
+
+- provide a account.shutdown() method  and improve termination
+  logic also in tests. also fixes output-clubbering during 
+  test runs. 
+
 
 0.600.0
 ---------

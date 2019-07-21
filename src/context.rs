@@ -279,7 +279,7 @@ unsafe fn cb_get_config(
         .sql
         .get_config(context, as_str(key))
         .unwrap_or_else(|| to_string(def));
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub unsafe fn dc_context_unref(context: &mut Context) {
@@ -291,13 +291,16 @@ pub unsafe fn dc_context_unref(context: &mut Context) {
 }
 
 pub unsafe fn dc_close(context: &Context) {
+    info!(context, 0, "disconnecting INBOX-watch",);
     context.inbox.read().unwrap().disconnect(context);
+    info!(context, 0, "disconnecting sentbox-thread",);
     context
         .sentbox_thread
         .read()
         .unwrap()
         .imap
         .disconnect(context);
+    info!(context, 0, "disconnecting mvbox-thread",);
     context
         .mvbox_thread
         .read()
@@ -305,6 +308,7 @@ pub unsafe fn dc_close(context: &Context) {
         .imap
         .disconnect(context);
 
+    info!(context, 0, "disconnecting SMTP");
     context.smtp.clone().lock().unwrap().disconnect();
 
     context.sql.close(context);
@@ -511,7 +515,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         fingerprint_str,
     );
 
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub unsafe fn dc_get_version_str() -> *mut libc::c_char {

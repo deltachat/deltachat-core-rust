@@ -1,7 +1,6 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
-use std::ffi::CString;
 
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
@@ -175,7 +174,7 @@ unsafe fn stress_functions(context: &Context) {
             "content"
         );
 
-        free(buf);
+        free(buf as *mut _);
         assert_ne!(
             0,
             dc_delete_file(
@@ -691,7 +690,7 @@ fn test_encryption_decryption() {
         assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
 
         let ctext_signed_bytes = ctext.len();
-        let ctext_signed = CString::new(ctext).unwrap();
+        let ctext_signed = to_cstring(ctext);
 
         let ctext = dc_pgp_pk_encrypt(
             original_text as *const libc::c_void,
@@ -704,7 +703,7 @@ fn test_encryption_decryption() {
         assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
 
         let ctext_unsigned_bytes = ctext.len();
-        let ctext_unsigned = CString::new(ctext).unwrap();
+        let ctext_unsigned = to_cstring(ctext);
 
         let mut keyring = Keyring::default();
         keyring.add_owned(private_key);
@@ -718,7 +717,7 @@ fn test_encryption_decryption() {
         let mut valid_signatures: HashSet<String> = Default::default();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring,
@@ -733,7 +732,7 @@ fn test_encryption_decryption() {
 
         let empty_keyring = Keyring::default();
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &empty_keyring,
@@ -746,7 +745,7 @@ fn test_encryption_decryption() {
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring2,
@@ -761,7 +760,7 @@ fn test_encryption_decryption() {
         public_keyring2.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring2,
@@ -774,13 +773,15 @@ fn test_encryption_decryption() {
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_unsigned.as_ptr() as *const _,
+            ctext_unsigned as *const _,
             ctext_unsigned_bytes,
             &keyring,
             &public_keyring,
             Some(&mut valid_signatures),
         )
         .unwrap();
+
+        free(ctext_unsigned as *mut _);
         assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
 
         valid_signatures.clear();
@@ -791,13 +792,15 @@ fn test_encryption_decryption() {
         public_keyring.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
+            ctext_signed as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring,
             None,
         )
         .unwrap();
+
+        free(ctext_signed as *mut _);
         assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
     }
 }
@@ -820,14 +823,14 @@ struct TestContext {
 unsafe fn create_test_context() -> TestContext {
     let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
     let dir = tempdir().unwrap();
-    let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+    let dbfile = to_cstring(dir.path().join("db.sqlite").to_str().unwrap());
     assert_eq!(
-        dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
+        dc_open(&mut ctx, dbfile, std::ptr::null()),
         1,
         "Failed to open {}",
-        as_str(dbfile.as_ptr() as *const libc::c_char)
+        as_str(dbfile as *const libc::c_char)
     );
-
+    free(dbfile as *mut _);
     TestContext { ctx: ctx, dir: dir }
 }
 
@@ -952,24 +955,29 @@ fn test_stress_tests() {
 fn test_get_contacts() {
     unsafe {
         let context = create_test_context();
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("some2").as_ptr());
+        let name = to_cstring("some2");
+        let contacts = dc_get_contacts(&context.ctx, 0, name);
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
+        free(name as *mut _);
 
-        let id = dc_create_contact(
-            &context.ctx,
-            to_cstring("bob").as_ptr(),
-            to_cstring("bob@mail.de").as_ptr(),
-        );
+        let name = to_cstring("bob");
+        let email = to_cstring("bob@mail.de");
+        let id = dc_create_contact(&context.ctx, name, email);
         assert_ne!(id, 0);
 
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("bob").as_ptr());
+        let contacts = dc_get_contacts(&context.ctx, 0, name);
         assert_eq!(dc_array_get_cnt(contacts), 1);
         dc_array_unref(contacts);
 
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("alice").as_ptr());
+        let name2 = to_cstring("alice");
+        let contacts = dc_get_contacts(&context.ctx, 0, name2);
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
+
+        free(name as *mut _);
+        free(name2 as *mut _);
+        free(email as *mut _);
     }
 }
 
@@ -977,11 +985,12 @@ fn test_get_contacts() {
 fn test_chat() {
     unsafe {
         let context = create_test_context();
-        let contact1 = dc_create_contact(
-            &context.ctx,
-            to_cstring("bob").as_ptr(),
-            to_cstring("bob@mail.de").as_ptr(),
-        );
+        let name = to_cstring("bob");
+        let email = to_cstring("bob@mail.de");
+
+        let contact1 = dc_create_contact(&context.ctx, name, email);
+        free(name as *mut _);
+        free(email as *mut _);
         assert_ne!(contact1, 0);
 
         let chat_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
@@ -995,6 +1004,21 @@ fn test_chat() {
         assert!(dc_chat_load_from_db(chat2, chat2_id));
 
         assert_eq!(as_str((*chat2).name), as_str((*chat).name));
+    }
+}
+
+#[test]
+fn test_wrong_db() {
+    unsafe {
+        let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
+        let dir = tempdir().unwrap();
+        let dbfile = dir.path().join("db.sqlite");
+        std::fs::write(&dbfile, b"123").unwrap();
+
+        let dbfile_c = to_cstring(dbfile.to_str().unwrap());
+        let res = dc_open(&mut ctx, dbfile_c, std::ptr::null());
+        free(dbfile_c as *mut _);
+        assert_eq!(res, 0);
     }
 }
 
