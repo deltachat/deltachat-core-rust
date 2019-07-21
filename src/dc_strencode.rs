@@ -711,7 +711,7 @@ unsafe fn print_hex(target: *mut libc::c_char, cur: *const libc::c_char) {
     assert!(!cur.is_null());
 
     let bytes = std::slice::from_raw_parts(cur as *const _, strlen(cur));
-    let raw = to_cstring(format!("={}", &hex::encode_upper(bytes)[..2]));
+    let raw = CString::new(format!("={}", &hex::encode_upper(bytes)[..2])).unwrap();
     libc::memcpy(target as *mut _, raw.as_ptr() as *const _, 4);
 }
 

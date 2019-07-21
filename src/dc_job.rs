@@ -1,8 +1,7 @@
-use mmime::mmapstring::*;
-
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::time::Duration;
 
+use mmime::mmapstring::*;
 use rand::{thread_rng, Rng};
 
 use crate::constants::Event;
@@ -97,9 +96,9 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                     try_again: 0,
                     pending_error: 0 as *mut libc::c_char,
                 };
-
                 let packed: String = row.get(3)?;
-                dc_param_set_packed(job.param, to_cstring(packed).as_ptr());
+                let packed_c = CString::new(packed)?;
+                dc_param_set_packed(job.param, packed_c.as_ptr());
                 Ok(job)
             },
             |jobs| {

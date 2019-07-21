@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use mmime::mailimf_types::*;
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 
@@ -38,7 +40,7 @@ pub unsafe fn dc_get_securejoin_qr(
     let mut chat = 0 as *mut Chat;
     let mut group_name = 0 as *mut libc::c_char;
     let mut group_name_urlencoded = 0 as *mut libc::c_char;
-    let mut qr = None;
+    let mut qr: Option<String> = None;
 
     dc_ensure_secret_key_exists(context);
     invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id);
@@ -62,7 +64,7 @@ pub unsafe fn dc_get_securejoin_qr(
         free(group_name_urlencoded as *mut libc::c_void);
 
         if let Some(qr) = qr {
-            strdup(to_cstring(qr).as_ptr())
+            qr.strdup()
         } else {
             std::ptr::null_mut()
         }
@@ -939,8 +941,9 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
                 &mut contact_chat_id,
                 0 as *mut libc::c_int,
             );
-            let c_addr = peerstate.addr.as_ref().map(to_cstring).unwrap_or_default();
+            let c_addr: CString;
             let c_addr_ptr = if peerstate.addr.is_some() {
+                c_addr = CString::new(peerstate.addr.as_ref().unwrap().as_str()).unwrap();
                 c_addr.as_ptr()
             } else {
                 std::ptr::null_mut()

@@ -309,7 +309,7 @@ pub unsafe fn dc_create_setup_code(_context: &Context) -> *mut libc::c_char {
         );
     }
 
-    strdup(to_cstring(ret).as_ptr())
+    ret.strdup()
 }
 
 // TODO should return bool /rtn
@@ -538,8 +538,7 @@ pub unsafe fn dc_normalize_setup_code(
         }
         p1 = p1.offset(1);
     }
-
-    strdup(to_cstring(out).as_ptr())
+    out.strdup()
 }
 
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
@@ -896,7 +895,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     let res = chrono::NaiveDateTime::from_timestamp(now as i64, 0)
         .format("delta-chat-%Y-%m-%d.bak")
         .to_string();
-    let buffer = to_cstring(res);
+    let buffer = CString::new(res).unwrap();
     let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
     if dest_pathNfilename.is_null() {
         error!(context, 0, "Cannot get backup file name.",);
@@ -1122,8 +1121,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 }
                 let entry = entry.unwrap();
                 free(suffix as *mut libc::c_void);
-                let name_f = entry.file_name();
-                let name_c = to_cstring(name_f.to_string_lossy());
+                let name_c = entry.file_name().to_c_string().unwrap();
                 suffix = dc_get_filesuffix_lc(name_c.as_ptr());
                 if suffix.is_null()
                     || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0

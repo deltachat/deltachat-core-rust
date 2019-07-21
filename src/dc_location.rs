@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use crate::constants::Event;
 use crate::context::*;
 use crate::dc_array::*;
@@ -213,10 +215,9 @@ pub fn dc_get_locations(
                 (*loc).chat_id = row.get(8)?;
 
                 if 0 != (*loc).msg_id {
-                    let txt: String = row.get(9)?;
-                    let txt_c = to_cstring(txt);
-                    if 0 != is_marker(txt_c.as_ptr()) {
-                        (*loc).marker = strdup(txt_c.as_ptr());
+                    let txt = CString::new(row.get::<_, String>(9)?)?;
+                    if 0 != is_marker(txt.as_ptr()) {
+                        (*loc).marker = strdup(txt.as_ptr());
                     }
                 }
                 Ok(loc)
@@ -330,7 +331,7 @@ pub fn dc_get_location_kml(
     }
 
     if 0 != success {
-        unsafe { strdup(to_cstring(ret).as_ptr()) }
+        unsafe { ret.strdup() }
     } else {
         0 as *mut libc::c_char
     }
@@ -344,7 +345,7 @@ unsafe fn get_kml_timestamp(utc: i64) -> *mut libc::c_char {
     let res = chrono::NaiveDateTime::from_timestamp(utc, 0)
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
-    strdup(to_cstring(res).as_ptr())
+    res.strdup()
 }
 
 pub unsafe fn dc_get_message_kml(

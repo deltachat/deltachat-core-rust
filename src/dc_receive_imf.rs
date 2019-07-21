@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
 use mmime::mailmime::*;
@@ -739,11 +741,8 @@ pub unsafe fn dc_receive_imf(
                                 }
                                 if 0 != mime_parser.is_send_by_messenger || 0 != mdn_consumed {
                                     let param = dc_param_new();
-                                    dc_param_set(
-                                        param,
-                                        'Z' as i32,
-                                        to_cstring(server_folder.as_ref()).as_ptr(),
-                                    );
+                                    let tmp = CString::new(server_folder.as_ref()).unwrap();
+                                    dc_param_set(param, 'Z' as i32, tmp.as_ptr());
                                     dc_param_set_int(param, 'z' as i32, server_uid as i32);
                                     if 0 != mime_parser.is_send_by_messenger
                                         && 0 != context
@@ -1518,9 +1517,7 @@ fn hex_hash(s: impl AsRef<str>) -> *const libc::c_char {
     let bytes = s.as_ref().as_bytes();
     let result = Sha256::digest(bytes);
     let result_hex = hex::encode(&result[..8]);
-    let result_cstring = to_cstring(result_hex);
-
-    unsafe { strdup(result_cstring.as_ptr()) }
+    unsafe { result_hex.strdup() }
 }
 
 unsafe fn search_chat_ids_by_contact_ids(
@@ -1604,8 +1601,7 @@ unsafe fn check_verified_properties(
     let contact = dc_contact_new(context);
 
     let verify_fail = |reason: String| {
-        *failure_reason =
-            strdup(to_cstring(format!("{}. See \"Info\" for details.", reason)).as_ptr());
+        *failure_reason = format!("{}. See \"Info\" for details.", reason).strdup();
         warn!(context, 0, "{}", reason);
     };
 

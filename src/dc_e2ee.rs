@@ -175,8 +175,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                     let p = peerstates[i as usize]
                                         .render_gossip_header(min_verified as usize);
 
-                                    if p.is_some() {
-                                        let header = to_cstring(p.unwrap());
+                                    if let Some(pp) = p {
                                         mailimf_fields_add(
                                             imffields_encrypted,
                                             mailimf_field_new_custom(
@@ -184,7 +183,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                                     b"Autocrypt-Gossip\x00" as *const u8
                                                         as *const libc::c_char,
                                                 ),
-                                                strdup(header.as_ptr()),
+                                                pp.strdup(),
                                             ),
                                         );
                                     }

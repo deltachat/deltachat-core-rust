@@ -1,7 +1,6 @@
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::sql;
-use crate::x::strdup;
 
 // Token namespaces
 pub type dc_tokennamespc_t = usize;
@@ -40,7 +39,7 @@ pub fn dc_token_lookup(
         params![namespc as i32, foreign_id as i32],
         0,
     ) {
-        unsafe { strdup(to_cstring(token).as_ptr()) }
+        unsafe { token.strdup() }
     } else {
         std::ptr::null_mut()
     }

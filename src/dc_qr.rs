@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -239,12 +241,12 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
-                                            let c_addr = peerstate
-                                                .addr
-                                                .as_ref()
-                                                .map(to_cstring)
-                                                .unwrap_or_default();
+                                            let c_addr: CString;
                                             let addr_ptr = if peerstate.addr.is_some() {
+                                                c_addr = CString::new(
+                                                    peerstate.addr.as_ref().unwrap().as_str(),
+                                                )
+                                                .unwrap();
                                                 c_addr.as_ptr()
                                             } else {
                                                 std::ptr::null()

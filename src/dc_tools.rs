@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ffi::CString;
 use std::fs;
 use std::time::SystemTime;
 
@@ -176,12 +177,11 @@ pub unsafe fn dc_trim(buf: *mut libc::c_char) {
 
 /* the result must be free()'d */
 pub unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
-    let raw = to_cstring(to_string(in_0).to_lowercase());
-    strdup(raw.as_ptr())
+    to_string(in_0).to_lowercase().strdup()
 }
 
 pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
-    let raw = to_cstring(to_string(in_0).to_lowercase());
+    let raw = CString::new(to_string(in_0).to_lowercase()).unwrap();
     assert_eq!(strlen(in_0), strlen(raw.as_ptr()));
     memcpy(in_0 as *mut _, raw.as_ptr() as *const _, strlen(in_0));
 }
@@ -231,7 +231,7 @@ pub unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut li
 
     let buf = std::slice::from_raw_parts(buf, bytes);
     let raw = hex::encode_upper(buf);
-    strdup(to_cstring(raw).as_ptr())
+    raw.strdup()
 }
 
 /* remove all \r characters from string */
@@ -526,8 +526,7 @@ pub unsafe fn dc_str_from_clist(
             }
         }
     }
-
-    strdup(to_cstring(res).as_ptr())
+    res.strdup()
 }
 
 pub unsafe fn dc_str_to_clist(
@@ -669,7 +668,7 @@ pub unsafe fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
 /* the return value must be free()'d */
 pub unsafe fn dc_timestamp_to_str(wanted: i64) -> *mut libc::c_char {
     let res = dc_timestamp_to_str_safe(wanted);
-    strdup(to_cstring(res).as_ptr())
+    res.strdup()
 }
 
 pub fn dc_timestamp_to_str_safe(wanted: i64) -> String {
@@ -1254,8 +1253,8 @@ pub unsafe fn dc_write_file(
 }
 
 pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
-    let pathNfilename_abs =
-        unsafe { dc_get_abs_path(context, to_cstring(pathNfilename.as_ref()).as_ptr()) };
+    let tmp = CString::new(pathNfilename.as_ref()).unwrap();
+    let pathNfilename_abs = unsafe { dc_get_abs_path(context, tmp.as_ptr()) };
     if pathNfilename_abs.is_null() {
         return false;
     }
@@ -1299,8 +1298,8 @@ pub unsafe fn dc_read_file(
 }
 
 pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
-    let pathNfilename_abs =
-        unsafe { dc_get_abs_path(context, to_cstring(pathNfilename.as_ref()).as_ptr()) };
+    let tmp = CString::new(pathNfilename.as_ref()).unwrap();
+    let pathNfilename_abs = unsafe { dc_get_abs_path(context, tmp.as_ptr()) };
     if pathNfilename_abs.is_null() {
         return None;
     }
@@ -1474,7 +1473,7 @@ pub enum CStringError {
 /// }
 /// ```
 pub trait OsStrExt {
-    /// Convert a  [std::ffi::OsStr] to an [std::ffi::CString]
+    /// Convert a  [std::ffi::OsStr] to an [std::ffi::CString].
     ///
     /// This is useful to convert e.g. a [std::path::Path] to
     /// [*libc::c_char] by using
@@ -1537,8 +1536,34 @@ fn os_str_to_c_string_unicode(
     }
 }
 
-pub fn to_cstring<S: AsRef<str>>(s: S) -> std::ffi::CString {
-    std::ffi::CString::new(s.as_ref()).unwrap()
+/// Convenience methods to make transitioning from raw C strings easier.
+///
+/// To interact with (legacy) C APIs we often need to convert from
+/// Rust strings to raw C strings.  This can be clumsy to do correctly
+/// and the compiler sometimes allows it in an unsafe way.  These
+/// methods make it more succinct and help you get it right.
+pub trait StrExt {
+    /// Allocate a new raw C `*char` version of this string.
+    ///
+    /// This allocates a new raw C string which must be freed using
+    /// `free`.  It takes care of some common pitfalls with using
+    /// [CString::as_ptr].
+    ///
+    /// [CString::as_ptr]: std::ffi::CString::as_ptr
+    ///
+    /// # Panics
+    ///
+    /// This function will panic when the original string contains an
+    /// interior null byte as this can not be represented in raw C
+    /// strings.
+    unsafe fn strdup(&self) -> *mut libc::c_char;
+}
+
+impl<T: AsRef<str>> StrExt for T {
+    unsafe fn strdup(&self) -> *mut libc::c_char {
+        let tmp = CString::new(self.as_ref()).unwrap();
+        dc_strdup(tmp.as_ptr())
+    }
 }
 
 pub fn to_string(s: *const libc::c_char) -> String {

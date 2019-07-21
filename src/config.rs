@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
@@ -71,7 +73,8 @@ impl Context {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_config(self, key);
                 rel_path.map(|p| {
-                    let v = unsafe { dc_get_abs_path(self, to_cstring(p).as_ptr()) };
+                    let p_c = CString::new(p).unwrap();
+                    let v = unsafe { dc_get_abs_path(self, p_c.as_ptr()) };
                     let r = to_string(v);
                     unsafe { free(v as *mut _) };
                     r

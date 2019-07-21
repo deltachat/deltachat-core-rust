@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::str::FromStr;
 
 use deltachat::config;
@@ -139,7 +140,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         } else {
             current_block = 7149356873433890176;
         }
-        real_spec = strdup(to_cstring(rs.unwrap_or_default()).as_ptr());
+        real_spec = rs.unwrap_or_default().strdup();
     }
     match current_block {
         8522321847195001863 => {}
@@ -176,7 +177,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                         if name.ends_with(".eml") {
                             let path_plus_name = format!("{}/{}", as_str(real_spec), name);
                             info!(context, 0, "Import: {}", path_plus_name);
-                            let path_plus_name_c = to_cstring(path_plus_name);
+                            let path_plus_name_c = CString::new(path_plus_name).unwrap();
 
                             if 0 != dc_poke_eml_file(context, path_plus_name_c.as_ptr()) {
                                 read_cnt += 1
@@ -380,14 +381,14 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
     let mut args = line.splitn(3, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
-    let arg1_c = to_cstring(arg1);
+    let arg1_c = CString::new(arg1).unwrap();
     let arg1_c_ptr = if arg1.is_empty() {
         std::ptr::null()
     } else {
         arg1_c.as_ptr()
     };
     let arg2 = args.next().unwrap_or_default();
-    let arg2_c = to_cstring(arg2);
+    let arg2_c = CString::new(arg2).unwrap();
     let arg2_c_ptr = if arg2.is_empty() {
         std::ptr::null()
     } else {
@@ -935,7 +936,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No message text given.");
 
-            let msg = to_cstring(format!("{} {}", arg1, arg2));
+            let msg = CString::new(format!("{} {}", arg1, arg2)).unwrap();
 
             if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg.as_ptr()) {
                 println!("Message sent.");

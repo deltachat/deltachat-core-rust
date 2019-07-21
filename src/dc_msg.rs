@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use crate::constants::*;
 use crate::context::*;
 use crate::dc_chat::*;
@@ -63,7 +65,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += &format!("Cannot load message #{}.", msg_id as usize);
         dc_msg_unref(msg);
         dc_contact_unref(contact_from);
-        return strdup(to_cstring(ret).as_ptr());
+        return ret.strdup();
     }
     let rawtxt = rawtxt.unwrap();
     let rawtxt = dc_truncate_str(rawtxt.trim(), 100000);
@@ -91,7 +93,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         // device-internal message, no further details needed
         dc_msg_unref(msg);
         dc_contact_unref(contact_from);
-        return strdup(to_cstring(ret).as_ptr());
+        return ret.strdup();
     }
 
     context
@@ -209,7 +211,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     dc_msg_unref(msg);
     dc_contact_unref(contact_from);
-    strdup(to_cstring(ret).as_ptr())
+    ret.strdup()
 }
 
 pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> {
@@ -445,9 +447,9 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 dc_msg_empty(msg);
 
                 (*msg).id = row.get::<_, i32>(0)? as u32;
-                (*msg).rfc724_mid = dc_strdup(to_cstring(row.get::<_, String>(1)?).as_ptr());
-                (*msg).in_reply_to = dc_strdup(to_cstring(row.get::<_, String>(2)?).as_ptr());
-                (*msg).server_folder = dc_strdup(to_cstring(row.get::<_, String>(3)?).as_ptr());
+                (*msg).rfc724_mid = row.get::<_, String>(1)?.strdup();
+                (*msg).in_reply_to = row.get::<_, String>(2)?.strdup();
+                (*msg).server_folder = row.get::<_, String>(3)?.strdup();
                 (*msg).server_uid = row.get(4)?;
                 (*msg).move_state = row.get(5)?;
                 (*msg).chat_id = row.get(6)?;
@@ -459,11 +461,9 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                (*msg).text = dc_strdup(to_cstring(row.get::<_, String>(15).unwrap_or_default()).as_ptr());
-                dc_param_set_packed(
-                    (*msg).param,
-                    to_cstring(row.get::<_, String>(16)?).as_ptr()
-                );
+                (*msg).text = row.get::<_, String>(15).unwrap_or_default().strdup();
+                let tmp = CString::new(row.get::<_, String>(16)?).unwrap();
+                dc_param_set_packed((*msg).param, tmp.as_ptr());
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
                 (*msg).location_id = row.get(19)?;
@@ -494,7 +494,8 @@ pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut l
     );
 
     if let Some(headers) = headers {
-        dc_strdup_keep_null(to_cstring(headers).as_ptr())
+        let tmp = CString::new(headers).unwrap();
+        dc_strdup_keep_null(tmp.as_ptr())
     } else {
         std::ptr::null_mut()
     }
@@ -687,9 +688,7 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
-
-    let res = dc_truncate_str(as_str((*msg).text), 30000);
-    dc_strdup(to_cstring(res).as_ptr())
+    dc_truncate_str(as_str((*msg).text), 30000).strdup()
 }
 
 pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
@@ -1355,9 +1354,7 @@ pub fn dc_rfc724_mid_exists(
         &[as_str(rfc724_mid)],
         |row| {
             if !ret_server_folder.is_null() {
-                unsafe {
-                    *ret_server_folder = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr())
-                };
+                unsafe { *ret_server_folder = row.get::<_, String>(0)?.strdup() };
             }
             if !ret_server_uid.is_null() {
                 unsafe { *ret_server_uid = row.get(1)? };

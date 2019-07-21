@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use chrono::TimeZone;
 use mmime::mailimf_types::*;
 use mmime::mailimf_types_helper::*;
@@ -160,7 +162,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                         info!(context, 0, "mimefactory: processing rows");
                         for row in rows {
                             let (authname, addr) = row?;
-                            let addr_c = to_cstring(addr);
+                            let addr_c = CString::new(addr).unwrap();
                             if clist_search_string_nocase(
                                 (*factory).recipients_addr,
                                 addr_c.as_ptr(),
@@ -170,7 +172,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                                     (*factory).recipients_names,
                                     (*(*factory).recipients_names).last,
                                     if !authname.is_empty() {
-                                        dc_strdup(to_cstring(authname).as_ptr())
+                                        authname.strdup()
                                     } else {
                                         0 as *mut libc::c_char
                                     } as *mut libc::c_void,
@@ -241,8 +243,8 @@ pub unsafe fn dc_mimefactory_load_msg(
         );
         match row {
             Ok((in_reply_to, references)) => {
-                (*factory).in_reply_to = dc_strdup(to_cstring(in_reply_to).as_ptr());
-                (*factory).references = dc_strdup(to_cstring(references).as_ptr());
+                (*factory).in_reply_to = in_reply_to.strdup();
+                (*factory).references = references.strdup();
             }
             Err(err) => {
                 error!(
@@ -266,33 +268,21 @@ pub unsafe fn dc_mimefactory_load_msg(
 
 unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     let context = (*factory).context;
-    (*factory).from_addr = strdup(
-        to_cstring(
-            context
-                .sql
-                .get_config(context, "configured_addr")
-                .unwrap_or_default(),
-        )
-        .as_ptr(),
-    );
-    (*factory).from_displayname = strdup(
-        to_cstring(
-            context
-                .sql
-                .get_config(context, "displayname")
-                .unwrap_or_default(),
-        )
-        .as_ptr(),
-    );
-    (*factory).selfstatus = strdup(
-        to_cstring(
-            context
-                .sql
-                .get_config(context, "selfstatus")
-                .unwrap_or_default(),
-        )
-        .as_ptr(),
-    );
+    (*factory).from_addr = context
+        .sql
+        .get_config(context, "configured_addr")
+        .unwrap_or_default()
+        .strdup();
+    (*factory).from_displayname = context
+        .sql
+        .get_config(context, "displayname")
+        .unwrap_or_default()
+        .strdup();
+    (*factory).selfstatus = context
+        .sql
+        .get_config(context, "selfstatus")
+        .unwrap_or_default()
+        .strdup();
     if (*factory).selfstatus.is_null() {
         (*factory).selfstatus = dc_stock_str((*factory).context, 13)
     };
@@ -1185,7 +1175,7 @@ unsafe fn build_body_file(
             let res = ts
                 .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
                 .to_string();
-            filename_to_send = strdup(to_cstring(res).as_ptr());
+            filename_to_send = res.strdup();
         } else if (*msg).type_0 == DC_MSG_AUDIO as libc::c_int {
             filename_to_send = dc_get_filename(pathNfilename)
         } else if (*msg).type_0 == DC_MSG_IMAGE as libc::c_int

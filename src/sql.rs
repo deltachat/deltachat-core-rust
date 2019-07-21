@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::ffi::CString;
 use std::sync::RwLock;
 
 use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
@@ -972,7 +973,7 @@ pub fn housekeeping(context: &Context) {
                 }
                 let entry = entry.unwrap();
                 let name_f = entry.file_name();
-                let name_c = to_cstring(name_f.to_string_lossy());
+                let name_c = name_f.to_c_string().unwrap();
 
                 if unsafe {
                     is_file_in_use(&mut files_in_use, 0 as *const libc::c_char, name_c.as_ptr())
@@ -1028,7 +1029,7 @@ pub fn housekeeping(context: &Context) {
                     unreferenced_count,
                     entry.file_name()
                 );
-                let path = to_cstring(entry.path().to_str().unwrap());
+                let path = entry.path().to_c_string().unwrap();
                 unsafe { dc_delete_file(context, path.as_ptr()) };
             }
         }
@@ -1087,7 +1088,7 @@ fn maybe_add_from_param(
     context
         .sql
         .query_row(query, NO_PARAMS, |row| {
-            let v = to_cstring(row.get::<_, String>(0)?);
+            let v = CString::new(row.get::<_, String>(0)?).unwrap();
             unsafe {
                 dc_param_set_packed(param, v.as_ptr() as *const libc::c_char);
                 let file = dc_param_get(param, param_id, 0 as *const libc::c_char);

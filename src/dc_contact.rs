@@ -277,16 +277,12 @@ pub unsafe fn dc_contact_load_from_db(
     if contact_id == 1 as libc::c_uint {
         (*contact).id = contact_id;
         (*contact).name = dc_stock_str((*contact).context, 2);
-        (*contact).addr = dc_strdup(
-            to_cstring(
-                (*contact)
-                    .context
-                    .sql
-                    .get_config((*contact).context, "configured_addr")
-                    .unwrap_or_default(),
-            )
-            .as_ptr(),
-        );
+        (*contact).addr = (*contact)
+            .context
+            .sql
+            .get_config((*contact).context, "configured_addr")
+            .unwrap_or_default()
+            .strdup();
         true
     } else {
         sql.query_row(
@@ -294,11 +290,11 @@ pub unsafe fn dc_contact_load_from_db(
             params![contact_id as i32],
             |row| {
                 (*contact).id = contact_id;
-                (*contact).name = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr());
-                (*contact).addr = dc_strdup(to_cstring(row.get::<_, String>(1)?).as_ptr());
+                (*contact).name = row.get::<_, String>(0)?.strdup();
+                (*contact).addr = row.get::<_, String>(1)?.strdup();
                 (*contact).origin = row.get(2)?;
                 (*contact).blocked = row.get(3)?;
-                (*contact).authname = dc_strdup(to_cstring(row.get::<_, String>(4)?).as_ptr());
+                (*contact).authname = row.get::<_, String>(4)?.strdup();
                 Ok(())
             }
         ).is_ok()
@@ -734,8 +730,7 @@ pub unsafe fn dc_get_contact_encrinfo(
     free(fingerprint_self as *mut libc::c_void);
     free(fingerprint_other_verified as *mut libc::c_void);
     free(fingerprint_other_unverified as *mut libc::c_void);
-
-    strdup(to_cstring(ret).as_ptr())
+    ret.strdup()
 }
 
 unsafe fn cat_fingerprint(
@@ -905,7 +900,7 @@ pub fn dc_contact_get_profile_image(contact: *const dc_contact_t) -> *mut libc::
     if unsafe { (*contact).id } == 1 {
         let context = unsafe { (*contact) }.context;
         if let Some(avatar) = context.get_config(config::Config::Selfavatar) {
-            image_abs = unsafe { dc_strdup(to_cstring(avatar).as_ptr()) };
+            image_abs = unsafe { avatar.strdup() };
         }
     }
     // TODO: else get image_abs from contact param

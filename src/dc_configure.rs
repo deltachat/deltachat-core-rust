@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 
 use crate::constants::Event;
@@ -1082,12 +1084,13 @@ unsafe fn moz_autoconfigure(
         tag_config: 0,
     };
 
-    let xml_raw = read_autoconf_file(context, to_cstring(url).as_ptr());
+    let url_c = CString::new(url).unwrap();
+    let xml_raw = read_autoconf_file(context, url_c.as_ptr());
     if xml_raw.is_null() {
         return None;
     }
 
-    moz_ac.in_emaillocalpart = dc_strdup(to_cstring(&param_in.addr).as_ptr());
+    moz_ac.in_emaillocalpart = param_in.addr.strdup();
     let p = strchr(moz_ac.in_emaillocalpart, '@' as i32);
 
     if p.is_null() {
@@ -1144,10 +1147,11 @@ unsafe fn moz_autoconfigure_text_cb(
     let mut moz_ac: *mut moz_autoconfigure_t = userdata as *mut moz_autoconfigure_t;
     let mut val: *mut libc::c_char = dc_strdup(text);
     dc_trim(val);
+    let tmp = CString::new((*moz_ac).in_0.addr.as_str()).unwrap();
     dc_str_replace(
         &mut val,
         b"%EMAILADDRESS%\x00" as *const u8 as *const libc::c_char,
-        to_cstring(&(*moz_ac).in_0.addr).as_ptr(),
+        tmp.as_ptr(),
     );
     dc_str_replace(
         &mut val,
@@ -1282,7 +1286,7 @@ fn read_autoconf_file(context: &Context, url: *const libc::c_char) -> *mut libc:
         .send()
         .and_then(|mut res| res.text())
     {
-        Ok(res) => unsafe { libc::strdup(to_cstring(res).as_ptr()) },
+        Ok(res) => unsafe { res.strdup() },
         Err(_err) => {
             info!(context, 0, "Can\'t read file.",);
 
@@ -1298,7 +1302,7 @@ unsafe fn outlk_autodiscover(
 ) -> Option<dc_loginparam_t> {
     let current_block: u64;
     let mut xml_raw: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut url = dc_strdup(to_cstring(url__).as_ptr());
+    let mut url = url__.strdup();
     let mut outlk_ad = outlk_autodiscover_t {
         in_0: param_in,
         out: dc_loginparam_new(),

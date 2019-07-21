@@ -237,8 +237,7 @@ unsafe fn dc_simplify_simplify_plain_text(
         ret += " [...]";
     }
     dc_free_splitted_lines(lines);
-
-    strdup(to_cstring(ret).as_ptr())
+    ret.strdup()
 }
 
 /**

@@ -14,6 +14,7 @@ extern crate lazy_static;
 extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
+use std::ffi::CString;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -398,11 +399,8 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
 
     if args.len() == 2 {
         if 0 == unsafe {
-            dc_open(
-                &mut context,
-                to_cstring(&args[1]).as_ptr(),
-                0 as *const libc::c_char,
-            )
+            let tmp = CString::new(args[1].as_str()).unwrap();
+            dc_open(&mut context, tmp.as_ptr(), 0 as *const libc::c_char)
         } {
             println!("Error: Cannot open {}.", args[0],);
         }
@@ -482,7 +480,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
     let mut args = line.splitn(2, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
-    let arg1_c = to_cstring(arg1);
+    let arg1_c = CString::new(arg1).unwrap();
     let arg1_c_ptr = if arg1.is_empty() {
         std::ptr::null()
     } else {

@@ -279,7 +279,7 @@ unsafe fn cb_get_config(
         .sql
         .get_config(context, as_str(key))
         .unwrap_or_else(|| to_string(def));
-    strdup(to_cstring(res).as_ptr())
+    res.strdup()
 }
 
 pub unsafe fn dc_context_unref(context: &mut Context) {
@@ -510,8 +510,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         pub_key_cnt.unwrap_or_default(),
         fingerprint_str,
     );
-
-    strdup(to_cstring(res).as_ptr())
+    res.strdup()
 }
 
 pub unsafe fn dc_get_version_str() -> *mut libc::c_char {

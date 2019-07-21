@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_array::*;
@@ -130,15 +132,15 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
             c.type_0 = row.get(1)?;
             c.name = {
                 let raw: String = row.get(2)?;
-                unsafe { strdup(to_cstring(raw).as_ptr()) }
+                unsafe { raw.strdup() }
             };
             c.grpid = {
                 let raw: String = row.get(3)?;
-                unsafe { strdup(to_cstring(raw).as_ptr()) }
+                unsafe { raw.strdup() }
             };
 
-            let packed: String = row.get(4)?;
-            unsafe { dc_param_set_packed((*chat).param, to_cstring(&packed).as_ptr()) };
+            let packed = CString::new(row.get::<_, String>(4)?).unwrap();
+            unsafe { dc_param_set_packed((*chat).param, packed.as_ptr()) };
             c.archived = row.get(5)?;
             c.blocked = row.get(6)?;
             c.gossiped_timestamp = row.get(7)?;
@@ -489,7 +491,7 @@ unsafe fn prepare_msg_raw(
         if from.is_none() {
             error!(context, 0, "Cannot send message, not configured.",);
         } else {
-            let from_c = to_cstring(from.unwrap());
+            let from_c = CString::new(from.unwrap()).unwrap();
             new_rfc724_mid = dc_create_outgoing_rfc724_mid(
                 if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
                     (*chat).grpid
@@ -761,9 +763,9 @@ unsafe fn get_parent_mime_headers(
                  FROM msgs WHERE chat_id=? AND from_id!=?);",
                 params![(*chat).id as i32, 1],
                 |row| {
-                    *parent_rfc724_mid = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr());
-                    *parent_in_reply_to = dc_strdup(to_cstring(row.get::<_, String>(1)?).as_ptr());
-                    *parent_references = dc_strdup(to_cstring(row.get::<_, String>(2)?).as_ptr());
+                    *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
+                    *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
+                    *parent_references = row.get::<_, String>(2)?.strdup();
                     Ok(())
                 },
             )
@@ -779,12 +781,9 @@ unsafe fn get_parent_mime_headers(
                      FROM msgs WHERE chat_id=? AND from_id==?);",
                     params![(*chat).id as i32, 1],
                     |row| {
-                        *parent_rfc724_mid =
-                            dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr());
-                        *parent_in_reply_to =
-                            dc_strdup(to_cstring(row.get::<_, String>(1)?).as_ptr());
-                        *parent_references =
-                            dc_strdup(to_cstring(row.get::<_, String>(2)?).as_ptr());
+                        *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
+                        *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
+                        *parent_references = row.get::<_, String>(2)?.strdup();
                         Ok(())
                     },
                 )
@@ -822,7 +821,7 @@ unsafe fn last_msg_in_chat_encrypted(
 
     if let Some(packed) = packed {
         let msg_param = dc_param_new();
-        let packed_c = to_cstring(packed);
+        let packed_c = CString::new(packed).unwrap();
         dc_param_set_packed(msg_param, packed_c.as_ptr());
 
         if 0 != dc_param_exists(msg_param, 'c' as i32) {
@@ -2094,7 +2093,7 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
                 0,
             )
             .unwrap_or_else(|| "Err".into());
-        ret = dc_strdup(to_cstring(ret_raw).as_ptr());
+        ret = ret_raw.strdup();
     } else if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
         if (*chat).id == 1 {
             ret = dc_stock_str((*chat).context, 8)

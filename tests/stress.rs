@@ -952,22 +952,30 @@ fn test_stress_tests() {
 fn test_get_contacts() {
     unsafe {
         let context = create_test_context();
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("some2").as_ptr());
+        let contacts = dc_get_contacts(
+            &context.ctx,
+            0,
+            b"some2\x00".as_ptr() as *const libc::c_char,
+        );
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
 
         let id = dc_create_contact(
             &context.ctx,
-            to_cstring("bob").as_ptr(),
-            to_cstring("bob@mail.de").as_ptr(),
+            b"bob\x00".as_ptr() as *const libc::c_char,
+            b"bob@mail.de\x00".as_ptr() as *const libc::c_char,
         );
         assert_ne!(id, 0);
 
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("bob").as_ptr());
+        let contacts = dc_get_contacts(&context.ctx, 0, b"bob\x00".as_ptr() as *const libc::c_char);
         assert_eq!(dc_array_get_cnt(contacts), 1);
         dc_array_unref(contacts);
 
-        let contacts = dc_get_contacts(&context.ctx, 0, to_cstring("alice").as_ptr());
+        let contacts = dc_get_contacts(
+            &context.ctx,
+            0,
+            b"alice\x00".as_ptr() as *const libc::c_char,
+        );
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
     }
@@ -979,8 +987,8 @@ fn test_chat() {
         let context = create_test_context();
         let contact1 = dc_create_contact(
             &context.ctx,
-            to_cstring("bob").as_ptr(),
-            to_cstring("bob@mail.de").as_ptr(),
+            b"bob\x00".as_ptr() as *const libc::c_char,
+            b"bob@mail.de\x00".as_ptr() as *const libc::c_char,
         );
         assert_ne!(contact1, 0);
 
