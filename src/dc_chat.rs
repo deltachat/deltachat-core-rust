@@ -1558,7 +1558,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     "Cannot add contact to group; self not in group.",
                 );
             } else {
-                /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
+                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if 0 != flags & 0x1 && dc_param_get_int((*chat).param, 'U' as i32, 0) == 1 {
                     dc_param_set((*chat).param, 'U' as i32, 0 as *const libc::c_char);
                     dc_chat_update_param(chat);
@@ -1718,7 +1718,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                     "Cannot remove contact from chat; self not in group.",
                 );
             } else {
-                /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
+                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if !contact.is_null() {
                     if dc_param_get_int((*chat).param, 'U' as i32, 0) == 0 {
                         (*msg).type_0 = 10;
@@ -1820,7 +1820,7 @@ pub unsafe fn dc_set_chat_name(
                     "Cannot set chat name; self not in group",
                 );
             } else {
-                /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
+                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if sql::execute(
                     context,
                     &context.sql,
@@ -1889,7 +1889,7 @@ pub unsafe fn dc_set_chat_profile_image(
                     "Cannot set chat profile image; self not in group.",
                 );
             } else {
-                /* we shoud respect this - whatever we send to the group, it gets discarded anyway! */
+                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if !new_image.is_null() {
                     new_image_rel = dc_strdup(new_image);
                     if 0 == dc_make_rel_and_copy(context, &mut new_image_rel) {

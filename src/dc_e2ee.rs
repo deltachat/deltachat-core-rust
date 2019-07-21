@@ -31,7 +31,7 @@ use crate::x::*;
 // attachments of 25 mb brutto should work on the majority of providers
 // (brutto examples: web.de=50, 1&1=40, t-online.de=32, gmail=25, posteo=50, yahoo=25, all-inkl=100).
 // as an upper limit, we double the size; the core won't send messages larger than this
-// to get the netto sizes, we substract 1 mb header-overhead and the base64-overhead.
+// to get the netto sizes, we subtract 1 mb header-overhead and the base64-overhead.
 // some defaults
 #[derive(Clone)]
 pub struct dc_e2ee_helper_t {
@@ -1007,7 +1007,7 @@ unsafe fn has_decrypted_pgp_armor(
  * that we could use the normal Autocrypt processing.
  *
  * @private
- * @param mime The mime struture to check
+ * @param mime The mime structure to check
  * @return 1=multipart/report found in MIME, 0=no multipart/report found
  */
 // TODO should return bool /rtn

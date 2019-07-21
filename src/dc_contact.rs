@@ -259,7 +259,7 @@ pub unsafe fn dc_contact_empty(mut contact: *mut dc_contact_t) {
 /* address is in our address book */
 /* set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() ! */
 /* set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() ! */
-/* contact added mannually by dc_create_contact(), this should be the largets origin as otherwise the user cannot modify the names */
+/* contact added manually by dc_create_contact(), this should be the largets origin as otherwise the user cannot modify the names */
 /* contacts with at least this origin value are shown in the contact list */
 /* contacts with at least this origin value are verified and known not to be spam */
 /* contacts with at least this origin value start a new "normal" chat, defaults to off */

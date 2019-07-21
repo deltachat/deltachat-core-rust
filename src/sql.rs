@@ -876,7 +876,7 @@ pub fn get_rowid_with_conn(
 ) -> u32 {
     // alternative to sqlite3_last_insert_rowid() which MUST NOT be used due to race conditions, see comment above.
     // the ORDER BY ensures, this function always returns the most recent id,
-    // eg. if a Message-ID is splitted into different messages.
+    // eg. if a Message-ID is split into different messages.
     let query = format!(
         "SELECT id FROM {} WHERE {}='{}' ORDER BY id DESC",
         table.as_ref(),

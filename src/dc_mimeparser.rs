@@ -1440,7 +1440,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
             }
         }
     }
-    /* add object? (we do not add all objetcs, eg. signatures etc. are ignored) */
+    /* add object? (we do not add all objects, eg. signatures etc. are ignored) */
     dc_simplify_unref(simplifier);
     if !transfer_decoding_buffer.is_null() {
         mmap_string_unref(transfer_decoding_buffer);

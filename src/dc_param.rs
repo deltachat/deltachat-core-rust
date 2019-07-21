@@ -18,7 +18,7 @@ pub const DC_PARAM_GUARANTEE_E2EE: char = 'c';
 pub const DC_PARAM_ERRONEOUS_E2EE: char = 'e';
 /// for msgs: force unencrypted message, either DC_FP_ADD_AUTOCRYPT_HEADER (1), DC_FP_NO_AUTOCRYPT_HEADER (2) or 0
 pub const DC_PARAM_FORCE_PLAINTEXT: char = 'u';
-/// for msgs: an incoming message which requestes a MDN (aka read receipt)
+/// for msgs: an incoming message which requests a MDN (aka read receipt)
 pub const DC_PARAM_WANTS_MDN: char = 'r';
 /// for msgs
 pub const DC_PARAM_FORWARDED: char = 'a';
@@ -60,10 +60,10 @@ pub const DC_PARAM_SELFTALK: char = 'K';
 pub const DC_FP_ADD_AUTOCRYPT_HEADER: u8 = 1;
 pub const DC_FP_NO_AUTOCRYPT_HEADER: u8 = 2;
 
-/// An object for handling key=value parameter lists; for the key, curently only
+/// An object for handling key=value parameter lists; for the key, currently only
 /// a single character is allowed.
 ///
-/// The object is used eg. by Chat or dc_msg_t, for readable paramter names,
+/// The object is used eg. by Chat or dc_msg_t, for readable parameter names,
 /// these classes define some DC_PARAM_* constantats.
 ///
 /// Only for library-internal use.

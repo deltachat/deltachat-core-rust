@@ -224,8 +224,8 @@ pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> 
  * If you want an update, you have to recreate the object.
  */
 // to check if a mail was sent, use dc_msg_is_sent()
-// approx. max. lenght returned by dc_msg_get_text()
-// approx. max. lenght returned by dc_get_msg_info()
+// approx. max. length returned by dc_msg_get_text()
+// approx. max. length returned by dc_get_msg_info()
 pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: libc::c_int) -> *mut dc_msg_t<'a> {
     let mut msg: *mut dc_msg_t;
     msg = calloc(1, ::std::mem::size_of::<dc_msg_t>()) as *mut dc_msg_t;
