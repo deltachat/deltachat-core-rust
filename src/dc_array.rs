@@ -412,22 +412,17 @@ mod tests {
             let arr = dc_array_new(7 as size_t);
             assert_eq!(dc_array_get_cnt(arr), 0);
 
-            let mut i: libc::c_int = 0;
-            while i < 1000 {
+            for i in 0..1000 {
                 dc_array_add_id(arr, (i + 2) as uint32_t);
-                i += 1
             }
 
             assert_eq!(dc_array_get_cnt(arr), 1000);
 
-            i = 0;
-
-            while i < 1000i32 {
+            for i in 0..1000 {
                 assert_eq!(
                     dc_array_get_id(arr, i as size_t),
                     (i + 1i32 * 2i32) as libc::c_uint
                 );
-                i += 1
             }
 
             assert_eq!(dc_array_get_id(arr, -1i32 as size_t), 0);
