@@ -187,11 +187,11 @@ pub unsafe fn dc_mimefactory_load_msg(
                 )
                 .unwrap();
 
-            let command = dc_param_get_int((*(*factory).msg).param, 'S' as i32, 0);
+            let command = dc_param_get_int((*(*factory).msg).param, DC_PARAM_CMD as i32, 0);
             if command == 5 {
                 let email_to_remove_c = dc_param_get(
                     (*(*factory).msg).param,
-                    'E' as i32,
+                    DC_PARAM_CMD_ARG as i32,
                     0 as *const libc::c_char,
                 );
                 let email_to_remove = to_string(email_to_remove_c);
@@ -551,9 +551,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 e2ee_guaranteed = 1;
                 min_verified = 2
             } else {
-                force_plaintext = dc_param_get_int((*(*factory).msg).param, 'u' as i32, 0);
+                force_plaintext =
+                    dc_param_get_int((*(*factory).msg).param, DC_PARAM_FORCE_PLAINTEXT as i32, 0);
                 if force_plaintext == 0 {
-                    e2ee_guaranteed = dc_param_get_int((*(*factory).msg).param, 'c' as i32, 0)
+                    e2ee_guaranteed =
+                        dc_param_get_int((*(*factory).msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 0)
                 }
             }
             if (*chat).gossiped_timestamp == 0
@@ -562,7 +564,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 do_gossip = 1
             }
             /* build header etc. */
-            let command: libc::c_int = dc_param_get_int((*msg).param, 'S' as i32, 0);
+            let command: libc::c_int = dc_param_get_int((*msg).param, DC_PARAM_CMD as i32, 0);
             if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
                 || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
             {
@@ -581,8 +583,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     ),
                 );
                 if command == 5 {
-                    let email_to_remove: *mut libc::c_char =
-                        dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
+                    let email_to_remove: *mut libc::c_char = dc_param_get(
+                        (*msg).param,
+                        DC_PARAM_CMD_ARG as i32,
+                        0 as *const libc::c_char,
+                    );
                     if !email_to_remove.is_null() {
                         mailimf_fields_add(
                             imf_fields,
@@ -597,8 +602,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     }
                 } else if command == 4 {
                     do_gossip = 1;
-                    let email_to_add: *mut libc::c_char =
-                        dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
+                    let email_to_add: *mut libc::c_char = dc_param_get(
+                        (*msg).param,
+                        DC_PARAM_CMD_ARG as i32,
+                        0 as *const libc::c_char,
+                    );
                     if !email_to_add.is_null() {
                         mailimf_fields_add(
                             imf_fields,
@@ -610,9 +618,13 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 email_to_add,
                             ),
                         );
-                        grpimage = dc_param_get((*chat).param, 'i' as i32, 0 as *const libc::c_char)
+                        grpimage = dc_param_get(
+                            (*chat).param,
+                            DC_PARAM_PROFILE_IMAGE as i32,
+                            0 as *const libc::c_char,
+                        )
                     }
-                    if 0 != dc_param_get_int((*msg).param, 'F' as i32, 0) & 0x1 {
+                    if 0 != dc_param_get_int((*msg).param, DC_PARAM_CMD_ARG2 as i32, 0) & 0x1 {
                         info!(
                             (*msg).context,
                             0,
@@ -636,13 +648,17 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                             dc_param_get(
                                 (*msg).param,
-                                'E' as i32,
+                                DC_PARAM_CMD_ARG as i32,
                                 b"\x00" as *const u8 as *const libc::c_char,
                             ),
                         ),
                     );
                 } else if command == 3 {
-                    grpimage = dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
+                    grpimage = dc_param_get(
+                        (*msg).param,
+                        DC_PARAM_CMD_ARG as i32,
+                        0 as *const libc::c_char,
+                    );
                     if grpimage.is_null() {
                         mailimf_fields_add(
                             imf_fields,
@@ -676,8 +692,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 placeholdertext = dc_stock_str((*factory).context, 43)
             }
             if command == 7 {
-                let step: *mut libc::c_char =
-                    dc_param_get((*msg).param, 'E' as i32, 0 as *const libc::c_char);
+                let step: *mut libc::c_char = dc_param_get(
+                    (*msg).param,
+                    DC_PARAM_CMD_ARG as i32,
+                    0 as *const libc::c_char,
+                );
                 if !step.is_null() {
                     info!(
                         (*msg).context,
@@ -692,8 +711,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             step,
                         ),
                     );
-                    let param2: *mut libc::c_char =
-                        dc_param_get((*msg).param, 'F' as i32, 0 as *const libc::c_char);
+                    let param2: *mut libc::c_char = dc_param_get(
+                        (*msg).param,
+                        DC_PARAM_CMD_ARG2 as i32,
+                        0 as *const libc::c_char,
+                    );
                     if !param2.is_null() {
                         mailimf_fields_add(
                             imf_fields,
@@ -721,8 +743,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                         );
                     }
-                    let fingerprint: *mut libc::c_char =
-                        dc_param_get((*msg).param, 'G' as i32, 0 as *const libc::c_char);
+                    let fingerprint: *mut libc::c_char = dc_param_get(
+                        (*msg).param,
+                        DC_PARAM_CMD_ARG3 as i32,
+                        0 as *const libc::c_char,
+                    );
                     if !fingerprint.is_null() {
                         mailimf_fields_add(
                             imf_fields,
@@ -735,8 +760,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                         );
                     }
-                    let grpid: *mut libc::c_char =
-                        dc_param_get((*msg).param, 'H' as i32, 0 as *const libc::c_char);
+                    let grpid: *mut libc::c_char = dc_param_get(
+                        (*msg).param,
+                        DC_PARAM_CMD_ARG4 as i32,
+                        0 as *const libc::c_char,
+                    );
                     if !grpid.is_null() {
                         mailimf_fields_add(
                             imf_fields,
@@ -753,7 +781,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             if !grpimage.is_null() {
                 let mut meta: *mut dc_msg_t = dc_msg_new_untyped((*factory).context);
                 (*meta).type_0 = DC_MSG_IMAGE as libc::c_int;
-                dc_param_set((*meta).param, 'f' as i32, grpimage);
+                dc_param_set((*meta).param, DC_PARAM_FILE as i32, grpimage);
                 let mut filename_as_sent: *mut libc::c_char = 0 as *mut libc::c_char;
                 meta_part = build_body_file(
                     meta,
@@ -784,7 +812,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         ),
                     );
                 }
-                let duration_ms: libc::c_int = dc_param_get_int((*msg).param, 'd' as i32, 0);
+                let duration_ms: libc::c_int =
+                    dc_param_get_int((*msg).param, DC_PARAM_DURATION as i32, 0);
                 if duration_ms > 0 {
                     mailimf_fields_add(
                         imf_fields,
@@ -798,7 +827,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     );
                 }
             }
-            afwd_email = dc_param_exists((*msg).param, 'a' as i32);
+            afwd_email = dc_param_exists((*msg).param, DC_PARAM_FORWARDED as i32);
             let mut fwdhint: *mut libc::c_char = 0 as *mut libc::c_char;
             if 0 != afwd_email {
                 fwdhint = dc_strdup(
@@ -980,7 +1009,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             mailmime_add_part(message, multipart);
             let p1: *mut libc::c_char;
             let p2: *mut libc::c_char;
-            if 0 != dc_param_get_int((*(*factory).msg).param, 'c' as i32, 0) {
+            if 0 != dc_param_get_int((*(*factory).msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 0) {
                 p1 = dc_stock_str((*factory).context, 24)
             } else {
                 p1 = dc_msg_get_summarytext((*factory).msg, 32)
@@ -1106,7 +1135,7 @@ unsafe fn get_subject(
     } else {
         b"\x00" as *const u8 as *const libc::c_char
     };
-    if dc_param_get_int((*msg).param, 'S' as i32, 0) == 6 {
+    if dc_param_get_int((*msg).param, DC_PARAM_CMD as i32, 0) == 6 {
         ret = dc_stock_str(context, 42)
     } else if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
         || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
@@ -1167,9 +1196,12 @@ unsafe fn build_body_file(
     let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
     let content: *mut mailmime_content;
     let pathNfilename: *mut libc::c_char =
-        dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
-    let mut mimetype: *mut libc::c_char =
-        dc_param_get((*msg).param, 'm' as i32, 0 as *const libc::c_char);
+        dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
+    let mut mimetype: *mut libc::c_char = dc_param_get(
+        (*msg).param,
+        DC_PARAM_MIMETYPE as i32,
+        0 as *const libc::c_char,
+    );
     let suffix: *mut libc::c_char = dc_get_filesuffix_lc(pathNfilename);
     let mut filename_to_send: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut filename_encoded: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1328,7 +1360,7 @@ unsafe fn build_body_file(
 unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> libc::c_int {
     let mut file_size_okay: libc::c_int = 1;
     let pathNfilename: *mut libc::c_char =
-        dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
+        dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
     let bytes: uint64_t = dc_get_filebytes((*msg).context, pathNfilename);
     if bytes > (49 * 1024 * 1024 / 4 * 3) as libc::c_ulonglong {
         file_size_okay = 0;

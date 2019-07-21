@@ -741,17 +741,21 @@ pub unsafe fn dc_receive_imf(
                                     let param = dc_param_new();
                                     dc_param_set(
                                         param,
-                                        'Z' as i32,
+                                        DC_PARAM_SERVER_FOLDER as i32,
                                         to_cstring(server_folder.as_ref()).as_ptr(),
                                     );
-                                    dc_param_set_int(param, 'z' as i32, server_uid as i32);
+                                    dc_param_set_int(
+                                        param,
+                                        DC_PARAM_SERVER_UID as i32,
+                                        server_uid as i32,
+                                    );
                                     if 0 != mime_parser.is_send_by_messenger
                                         && 0 != context
                                             .sql
                                             .get_config_int(context, "mvbox_move")
                                             .unwrap_or_else(|| 1)
                                     {
-                                        dc_param_set_int(param, 'M' as i32, 1);
+                                        dc_param_set_int(param, DC_PARAM_ALSO_MOVE as i32, 1);
                                     }
                                     dc_job_add(context, 120, 0, (*param).packed, 0);
                                     dc_param_unref(param);
@@ -1210,7 +1214,7 @@ unsafe fn create_or_lookup_group(
                                     if (*part).type_0 == 20 {
                                         grpimage = dc_param_get(
                                             (*part).param,
-                                            'f' as i32,
+                                            DC_PARAM_FILE as i32,
                                             0 as *const libc::c_char,
                                         );
                                         ok = 1
@@ -1231,7 +1235,11 @@ unsafe fn create_or_lookup_group(
                                     },
                                 );
                                 dc_chat_load_from_db(chat, chat_id);
-                                dc_param_set((*chat).param, 'i' as i32, grpimage);
+                                dc_param_set(
+                                    (*chat).param,
+                                    DC_PARAM_PROFILE_IMAGE as i32,
+                                    grpimage,
+                                );
                                 dc_chat_update_param(chat);
                                 dc_chat_unref(chat);
                                 free(grpimage as *mut libc::c_void);

@@ -267,23 +267,23 @@ unsafe fn send_handshake_msg(
         step,
     );
     (*msg).hidden = 1i32;
-    dc_param_set_int((*msg).param, 'S' as i32, 7i32);
-    dc_param_set((*msg).param, 'E' as i32, step);
+    dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 7);
+    dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, step);
     if !param2.is_null() {
-        dc_param_set((*msg).param, 'F' as i32, param2);
+        dc_param_set((*msg).param, DC_PARAM_CMD_ARG2 as i32, param2);
     }
     if !fingerprint.is_null() {
-        dc_param_set((*msg).param, 'G' as i32, fingerprint);
+        dc_param_set((*msg).param, DC_PARAM_CMD_ARG3 as i32, fingerprint);
     }
     if !grpid.is_null() {
-        dc_param_set((*msg).param, 'H' as i32, grpid);
+        dc_param_set((*msg).param, DC_PARAM_CMD_ARG4 as i32, grpid);
     }
     if strcmp(step, b"vg-request\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(step, b"vc-request\x00" as *const u8 as *const libc::c_char) == 0i32
     {
-        dc_param_set_int((*msg).param, 'u' as i32, 1i32);
+        dc_param_set_int((*msg).param, DC_PARAM_FORCE_PLAINTEXT as i32, 1);
     } else {
-        dc_param_set_int((*msg).param, 'c' as i32, 1i32);
+        dc_param_set_int((*msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 1);
     }
     dc_send_msg(context, contact_chat_id, msg);
     dc_msg_unref(msg);

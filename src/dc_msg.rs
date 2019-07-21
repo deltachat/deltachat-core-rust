@@ -142,18 +142,22 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += ", Location sent";
     }
 
-    let e2ee_errors = dc_param_get_int((*msg).param, 'e' as i32, 0);
+    let e2ee_errors = dc_param_get_int((*msg).param, DC_PARAM_ERRONEOUS_E2EE as i32, 0);
 
     if 0 != e2ee_errors {
         if 0 != e2ee_errors & 0x2 {
             ret += ", Encrypted, no valid signature";
         }
-    } else if 0 != dc_param_get_int((*msg).param, 'c' as i32, 0) {
+    } else if 0 != dc_param_get_int((*msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 0) {
         ret += ", Encrypted";
     }
 
     ret += "\n";
-    p = dc_param_get((*msg).param, 'L' as i32, 0 as *const libc::c_char);
+    p = dc_param_get(
+        (*msg).param,
+        DC_PARAM_ERROR as i32,
+        0 as *const libc::c_char,
+    );
     if !p.is_null() {
         ret += &format!("Error: {}", as_str(p));
         free(p as *mut libc::c_void);
@@ -184,12 +188,12 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += &format!("Mimetype: {}\n", as_str(p));
         free(p as *mut libc::c_void);
     }
-    let w = dc_param_get_int((*msg).param, 'w' as i32, 0);
-    let h = dc_param_get_int((*msg).param, 'h' as i32, 0);
+    let w = dc_param_get_int((*msg).param, DC_PARAM_WIDTH as i32, 0);
+    let h = dc_param_get_int((*msg).param, DC_PARAM_HEIGHT as i32, 0);
     if w != 0 || h != 0 {
         ret += &format!("Dimension: {} x {}\n", w, h,);
     }
-    let duration = dc_param_get_int((*msg).param, 'd' as i32, 0);
+    let duration = dc_param_get_int((*msg).param, DC_PARAM_DURATION as i32, 0);
     if duration != 0 {
         ret += &format!("Duration: {} ms\n", duration,);
     }
@@ -269,9 +273,13 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut file: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        ret = dc_param_get((*msg).param, 'm' as i32, 0 as *const libc::c_char);
+        ret = dc_param_get(
+            (*msg).param,
+            DC_PARAM_MIMETYPE as i32,
+            0 as *const libc::c_char,
+        );
         if ret.is_null() {
-            file = dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
+            file = dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
             if !file.is_null() {
                 dc_msg_guess_msgtype_from_suffix(file, 0 as *mut libc::c_int, &mut ret);
                 if ret.is_null() {
@@ -348,7 +356,7 @@ pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut file_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut file_abs: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        file_rel = dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
+        file_rel = dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
         if !file_rel.is_null() {
             file_abs = dc_get_abs_path((*msg).context, file_rel)
         }
@@ -696,7 +704,7 @@ pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        pathNfilename = dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
+        pathNfilename = dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
         if !pathNfilename.is_null() {
             ret = dc_get_filename(pathNfilename)
         }
@@ -713,7 +721,7 @@ pub unsafe fn dc_msg_get_filebytes(msg: *const dc_msg_t) -> uint64_t {
     let mut ret: uint64_t = 0i32 as uint64_t;
     let mut file: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        file = dc_param_get((*msg).param, 'f' as i32, 0 as *const libc::c_char);
+        file = dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
         if !file.is_null() {
             ret = dc_get_filebytes((*msg).context, file)
         }
@@ -728,7 +736,7 @@ pub unsafe fn dc_msg_get_width(msg: *const dc_msg_t) -> libc::c_int {
         return 0i32;
     }
 
-    dc_param_get_int((*msg).param, 'w' as i32, 0i32)
+    dc_param_get_int((*msg).param, DC_PARAM_WIDTH as i32, 0)
 }
 
 pub unsafe fn dc_msg_get_height(msg: *const dc_msg_t) -> libc::c_int {
@@ -736,7 +744,7 @@ pub unsafe fn dc_msg_get_height(msg: *const dc_msg_t) -> libc::c_int {
         return 0i32;
     }
 
-    dc_param_get_int((*msg).param, 'h' as i32, 0i32)
+    dc_param_get_int((*msg).param, DC_PARAM_HEIGHT as i32, 0)
 }
 
 pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> libc::c_int {
@@ -744,7 +752,7 @@ pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> libc::c_int {
         return 0;
     }
 
-    dc_param_get_int((*msg).param, 'd' as i32, 0i32)
+    dc_param_get_int((*msg).param, DC_PARAM_DURATION as i32, 0)
 }
 
 // TODO should return bool /rtn
@@ -752,7 +760,7 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
-    if dc_param_get_int((*msg).param, 'c' as i32, 0i32) != 0i32 {
+    if dc_param_get_int((*msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 0) != 0i32 {
         return 1i32;
     }
 
@@ -835,13 +843,13 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
         50 => prefix = dc_stock_str(context, 10i32),
         41 => prefix = dc_stock_str(context, 7i32),
         40 | 60 => {
-            if dc_param_get_int(param, 'S' as i32, 0i32) == 6i32 {
+            if dc_param_get_int(param, DC_PARAM_CMD as i32, 0) == 6i32 {
                 prefix = dc_stock_str(context, 42i32);
                 append_text = 0i32
             } else {
                 pathNfilename = dc_param_get(
                     param,
-                    'f' as i32,
+                    DC_PARAM_FILE as i32,
                     b"ErrFilename\x00" as *const u8 as *const libc::c_char,
                 );
                 value = dc_get_filename(pathNfilename);
@@ -861,7 +869,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
             }
         }
         _ => {
-            if dc_param_get_int(param, 'S' as i32, 0i32) == 9i32 {
+            if dc_param_get_int(param, DC_PARAM_CMD as i32, 0) == 9i32 {
                 prefix = dc_stock_str(context, 66i32);
                 append_text = 0i32
             }
@@ -925,7 +933,7 @@ pub unsafe fn dc_msg_is_forwarded(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
-    return if 0 != dc_param_get_int((*msg).param, 'a' as i32, 0i32) {
+    return if 0 != dc_param_get_int((*msg).param, DC_PARAM_FORWARDED as i32, 0) {
         1i32
     } else {
         0i32
@@ -937,7 +945,7 @@ pub unsafe fn dc_msg_is_info(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0i32;
     }
-    let cmd: libc::c_int = dc_param_get_int((*msg).param, 'S' as i32, 0i32);
+    let cmd: libc::c_int = dc_param_get_int((*msg).param, DC_PARAM_CMD as i32, 0);
     if (*msg).from_id == 2i32 as libc::c_uint
         || (*msg).to_id == 2i32 as libc::c_uint
         || 0 != cmd && cmd != 6i32
@@ -971,7 +979,7 @@ pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> bool {
         return false;
     }
 
-    if dc_param_get_int((*msg).param, 'S' as i32, 0) == 6 {
+    if dc_param_get_int((*msg).param, DC_PARAM_CMD as i32, 0) == 6 {
         true
     } else {
         true
@@ -1045,23 +1053,23 @@ pub unsafe fn dc_msg_set_file(
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    dc_param_set((*msg).param, 'f' as i32, file);
-    dc_param_set((*msg).param, 'm' as i32, filemime);
+    dc_param_set((*msg).param, DC_PARAM_FILE as i32, file);
+    dc_param_set((*msg).param, DC_PARAM_MIMETYPE as i32, filemime);
 }
 
 pub unsafe fn dc_msg_set_dimension(msg: *mut dc_msg_t, width: libc::c_int, height: libc::c_int) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    dc_param_set_int((*msg).param, 'w' as i32, width);
-    dc_param_set_int((*msg).param, 'h' as i32, height);
+    dc_param_set_int((*msg).param, DC_PARAM_WIDTH as i32, width);
+    dc_param_set_int((*msg).param, DC_PARAM_HEIGHT as i32, height);
 }
 
 pub unsafe fn dc_msg_set_duration(msg: *mut dc_msg_t, duration: libc::c_int) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    dc_param_set_int((*msg).param, 'd' as i32, duration);
+    dc_param_set_int((*msg).param, DC_PARAM_DURATION as i32, duration);
 }
 
 pub unsafe fn dc_msg_latefiling_mediasize(
@@ -1072,11 +1080,11 @@ pub unsafe fn dc_msg_latefiling_mediasize(
 ) {
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if width > 0i32 && height > 0i32 {
-            dc_param_set_int((*msg).param, 'w' as i32, width);
-            dc_param_set_int((*msg).param, 'h' as i32, height);
+            dc_param_set_int((*msg).param, DC_PARAM_WIDTH as i32, width);
+            dc_param_set_int((*msg).param, DC_PARAM_HEIGHT as i32, height);
         }
         if duration > 0i32 {
-            dc_param_set_int((*msg).param, 'd' as i32, duration);
+            dc_param_set_int((*msg).param, DC_PARAM_DURATION as i32, duration);
         }
         dc_msg_save_param_to_disk(msg);
     };
@@ -1173,7 +1181,7 @@ pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *con
             (*msg).state = 24
         }
         if !error.is_null() {
-            dc_param_set((*msg).param, 'L' as i32, error);
+            dc_param_set((*msg).param, DC_PARAM_ERROR as i32, error);
             error!(context, 0, "{}", as_str(error),);
         }
 

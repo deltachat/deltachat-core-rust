@@ -34,9 +34,9 @@ pub unsafe fn dc_imex(
     param2: *const libc::c_char,
 ) {
     let param: *mut dc_param_t = dc_param_new();
-    dc_param_set_int(param, 'S' as i32, what);
-    dc_param_set(param, 'E' as i32, param1);
-    dc_param_set(param, 'F' as i32, param2);
+    dc_param_set_int(param, DC_PARAM_CMD as i32, what);
+    dc_param_set(param, DC_PARAM_CMD_ARG as i32, param1);
+    dc_param_set(param, DC_PARAM_CMD_ARG2 as i32, param2);
     dc_job_kill_action(context, 910i32);
     dc_job_add(context, 910i32, 0i32, (*param).packed, 0i32);
     dc_param_unref(param);
@@ -143,15 +143,15 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                         if !(chat_id == 0i32 as libc::c_uint) {
                             msg = dc_msg_new_untyped(context);
                             (*msg).type_0 = 60i32;
-                            dc_param_set((*msg).param, 'f' as i32, setup_file_name);
+                            dc_param_set((*msg).param, DC_PARAM_FILE as i32, setup_file_name);
                             dc_param_set(
                                 (*msg).param,
-                                'm' as i32,
+                                DC_PARAM_MIMETYPE as i32,
                                 b"application/autocrypt-setup\x00" as *const u8
                                     as *const libc::c_char,
                             );
-                            dc_param_set_int((*msg).param, 'S' as i32, 6i32);
-                            dc_param_set_int((*msg).param, 'u' as i32, 2i32);
+                            dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 6);
+                            dc_param_set_int((*msg).param, DC_PARAM_FORCE_PLAINTEXT as i32, 2);
                             if !context
                                 .running_state
                                 .clone()
@@ -551,9 +551,17 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
     let mut param2: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(0 == dc_alloc_ongoing(context)) {
         ongoing_allocated_here = 1i32;
-        what = dc_param_get_int((*job).param, 'S' as i32, 0i32);
-        param1 = dc_param_get((*job).param, 'E' as i32, 0 as *const libc::c_char);
-        param2 = dc_param_get((*job).param, 'F' as i32, 0 as *const libc::c_char);
+        what = dc_param_get_int((*job).param, DC_PARAM_CMD as i32, 0);
+        param1 = dc_param_get(
+            (*job).param,
+            DC_PARAM_CMD_ARG as i32,
+            0 as *const libc::c_char,
+        );
+        param2 = dc_param_get(
+            (*job).param,
+            DC_PARAM_CMD_ARG2 as i32,
+            0 as *const libc::c_char,
+        );
         if param1.is_null() {
             error!(context, 0, "No Import/export dir/file given.",);
         } else {

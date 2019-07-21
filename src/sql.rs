@@ -131,6 +131,7 @@ impl Sql {
         })
     }
 
+    /// Execute a query which is expected to return one row.
     pub fn query_row<T, P, F>(&self, sql: impl AsRef<str>, params: P, f: F) -> Result<T>
     where
         P: IntoIterator,
