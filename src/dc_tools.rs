@@ -563,7 +563,7 @@ pub unsafe fn dc_str_to_color(str: *const libc::c_char) -> libc::c_int {
     /* the colors must fulfill some criterions as:
     - contrast to black and to white
     - work as a text-color
-    - being noticable on a typical map
+    - being noticeable on a typical map
     - harmonize together while being different enough
     (therefore, we cannot just use random rgb colors :) */
     static mut colors: [uint32_t; 16] = [
@@ -1582,7 +1582,7 @@ pub fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
     as_path_unicode(s)
 }
 
-// Implmentation for as_path() on Windows.
+// Implementation for as_path() on Windows.
 //
 // Having this as a separate function means it can be tested on unix
 // too.

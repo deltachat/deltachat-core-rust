@@ -188,7 +188,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
         match current_block {
             16562876845594826114 => {}
             _ => {
-                /* check the paramters
+                /* check the parameters
                 ---------------------- */
                 if !addr.is_null() {
                     /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */

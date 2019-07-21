@@ -100,7 +100,7 @@ impl Context {
     }
 
     /// Set the given config key.
-    /// If `None` is passed as a value the value is cleared and set to the deafult if there is one.
+    /// If `None` is passed as a value the value is cleared and set to the default if there is one.
     pub fn set_config(&self, key: Config, value: Option<&str>) -> Result<(), Error> {
         match key {
             Config::Selfavatar if value.is_some() => {
