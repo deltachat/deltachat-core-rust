@@ -215,7 +215,9 @@ pub unsafe fn dc_receive_imf(
                         maybe this can be optimized later,
                         by checking the state before the message body is downloaded */
                         let mut allow_creation: libc::c_int = 1;
-                        if msgrmsg == 0 {
+                        if mime_parser.is_system_message != DC_CMD_AUTOCRYPT_SETUP_MESSAGE
+                            && msgrmsg == 0
+                        {
                             let show_emails = context
                                 .sql
                                 .get_config_int(context, "show_emails")
