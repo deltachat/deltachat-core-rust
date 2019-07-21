@@ -15,6 +15,22 @@ pub struct dc_array_t {
     pub array: *mut uintptr_t,
 }
 
+impl dc_array_t {
+    pub fn new() -> Self {
+        dc_array_t {
+            magic: DC_ARRAY_MAGIC,
+            allocated: 0,
+            count: 0,
+            type_0: 0,
+            array: 0 as *mut uintptr_t,
+        }
+    }
+
+    pub fn as_ptr(self) -> *mut Self {
+        Box::into_raw(Box::new(self))
+    }
+}
+
 /**
  * @class dc_array_t
  *
@@ -32,7 +48,7 @@ pub unsafe fn dc_array_unref(mut array: *mut dc_array_t) {
     }
     free((*array).array as *mut libc::c_void);
     (*array).magic = 0i32 as uint32_t;
-    free(array as *mut libc::c_void);
+    Box::from_raw(array);
 }
 
 pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
@@ -260,23 +276,20 @@ pub unsafe fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
 }
 
 pub unsafe fn dc_array_new_typed(type_0: libc::c_int, initsize: size_t) -> *mut dc_array_t {
-    let mut array: *mut dc_array_t;
-    array = calloc(1, ::std::mem::size_of::<dc_array_t>()) as *mut dc_array_t;
-    assert!(!array.is_null());
+    let mut array = dc_array_t::new();
 
-    (*array).magic = DC_ARRAY_MAGIC;
-    (*array).count = 0i32 as size_t;
-    (*array).allocated = if initsize < 1 { 1 } else { initsize };
-    (*array).type_0 = type_0;
-    (*array).array = malloc(
-        (*array)
+    array.allocated = if initsize < 1 { 1 } else { initsize };
+    array.type_0 = type_0;
+    array.array = malloc(
+        array
             .allocated
             .wrapping_mul(::std::mem::size_of::<uintptr_t>()),
     ) as *mut uintptr_t;
-    if (*array).array.is_null() {
+    if array.array.is_null() {
         exit(48i32);
     }
-    array
+
+    array.as_ptr()
 }
 
 pub unsafe fn dc_array_empty(mut array: *mut dc_array_t) {
