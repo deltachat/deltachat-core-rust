@@ -7,7 +7,6 @@ const DC_ARRAY_MAGIC: uint32_t = 0x000a11aa;
 
 /* * the structure behind dc_array_t */
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct dc_array_t {
     pub magic: uint32_t,
     pub allocated: size_t,
