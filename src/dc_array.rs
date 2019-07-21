@@ -3,6 +3,7 @@ use crate::dc_tools::*;
 use crate::types::*;
 
 const DC_ARRAY_MAGIC: uint32_t = 0x000a11aa;
+const DC_ARRAY_LOCATIONS: libc::c_int = 1;
 
 /* * the structure behind dc_array_t */
 #[derive(Copy, Clone)]
@@ -26,7 +27,7 @@ pub unsafe fn dc_array_unref(mut array: *mut dc_array_t) {
     if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
         return;
     }
-    if (*array).type_0 == 1i32 {
+    if (*array).type_0 == DC_ARRAY_LOCATIONS {
         dc_array_free_ptr(array);
     }
     free((*array).array as *mut libc::c_void);
@@ -40,7 +41,11 @@ pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
     }
     let mut i: size_t = 0i32 as size_t;
     while i < (*array).count {
-        Box::from_raw(*(*array).array.offset(i as isize) as *mut dc_location);
+        if (*array).type_0 == DC_ARRAY_LOCATIONS {
+            Box::from_raw(*(*array).array.offset(i as isize) as *mut dc_location);
+        } else {
+            free(*(*array).array.offset(i as isize) as *mut libc::c_void);
+        }
         *(*array).array.offset(i as isize) = 0i32 as uintptr_t;
         i = i.wrapping_add(1)
     }
@@ -89,7 +94,7 @@ pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32
     if array.is_null() || (*array).magic != DC_ARRAY_MAGIC || index >= (*array).count {
         return 0i32 as uint32_t;
     }
-    if (*array).type_0 == 1i32 {
+    if (*array).type_0 == DC_ARRAY_LOCATIONS {
         return (*(*(*array).array.offset(index as isize) as *mut dc_location)).location_id;
     }
     *(*array).array.offset(index as isize) as uint32_t
@@ -106,7 +111,7 @@ pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> 
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as libc::c_double;
@@ -118,7 +123,7 @@ pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) ->
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as libc::c_double;
@@ -130,7 +135,7 @@ pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> 
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as libc::c_double;
@@ -142,7 +147,7 @@ pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) ->
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0;
@@ -154,7 +159,7 @@ pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> u
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as uint32_t;
@@ -166,7 +171,7 @@ pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as uint32_t;
@@ -178,7 +183,7 @@ pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> ui
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0i32 as uint32_t;
@@ -190,7 +195,7 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0 as *mut libc::c_char;
@@ -216,7 +221,7 @@ pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -
     if array.is_null()
         || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).count
-        || (*array).type_0 != 1i32
+        || (*array).type_0 != DC_ARRAY_LOCATIONS
         || *(*array).array.offset(index as isize) == 0
     {
         return 0;
