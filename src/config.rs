@@ -71,7 +71,12 @@ impl Context {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_config(self, key);
                 rel_path.map(|p| {
-                    let v = unsafe { dc_get_abs_path(self, to_cstring(p).as_ptr()) };
+                    let v = unsafe {
+                        let n = to_cstring(p);
+                        let res = dc_get_abs_path(self, n);
+                        free(n as *mut libc::c_void);
+                        res
+                    };
                     let r = to_string(v);
                     unsafe { free(v as *mut _) };
                     r

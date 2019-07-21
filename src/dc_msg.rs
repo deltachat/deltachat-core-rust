@@ -63,7 +63,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += &format!("Cannot load message #{}.", msg_id as usize);
         dc_msg_unref(msg);
         dc_contact_unref(contact_from);
-        return strdup(to_cstring(ret).as_ptr());
+        return to_cstring(ret);
     }
     let rawtxt = rawtxt.unwrap();
     let rawtxt = dc_truncate_str(rawtxt.trim(), 100000);
@@ -91,7 +91,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         // device-internal message, no further details needed
         dc_msg_unref(msg);
         dc_contact_unref(contact_from);
-        return strdup(to_cstring(ret).as_ptr());
+        return to_cstring(ret);
     }
 
     context
@@ -209,7 +209,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     dc_msg_unref(msg);
     dc_contact_unref(contact_from);
-    strdup(to_cstring(ret).as_ptr())
+    to_cstring(ret)
 }
 
 pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> {
@@ -445,9 +445,12 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 dc_msg_empty(msg);
 
                 (*msg).id = row.get::<_, i32>(0)? as u32;
-                (*msg).rfc724_mid = dc_strdup(to_cstring(row.get::<_, String>(1)?).as_ptr());
-                (*msg).in_reply_to = dc_strdup(to_cstring(row.get::<_, String>(2)?).as_ptr());
-                (*msg).server_folder = dc_strdup(to_cstring(row.get::<_, String>(3)?).as_ptr());
+                (*msg).rfc724_mid = to_cstring(row.get::<_, String>(1)?);
+                (*msg).in_reply_to = match row.get::<_, Option<String>>(2)? {
+                    Some(s) => to_cstring(s),
+                    None => std::ptr::null_mut(),
+                };
+                (*msg).server_folder = to_cstring(row.get::<_, String>(3)?);
                 (*msg).server_uid = row.get(4)?;
                 (*msg).move_state = row.get(5)?;
                 (*msg).chat_id = row.get(6)?;
@@ -459,15 +462,15 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                (*msg).text = dc_strdup(to_cstring(row.get::<_, String>(15).unwrap_or_default()).as_ptr());
+                (*msg).text = to_cstring(row.get::<_, String>(15).unwrap_or_default());
                 dc_param_set_packed(
                     (*msg).param,
-                    to_cstring(row.get::<_, String>(16)?).as_ptr()
+                    to_cstring(row.get::<_, String>(16)?)
                 );
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
                 (*msg).location_id = row.get(19)?;
-                (*msg).chat_blocked = row.get(20)?;
+                (*msg).chat_blocked = row.get::<_, Option<i32>>(20)?.unwrap_or_default();
                 if (*msg).chat_blocked == 2 {
                     dc_truncate_n_unwrap_str((*msg).text, 256, 0);
                 }
@@ -478,10 +481,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
 
     match res {
         Ok(_) => true,
-        Err(err) => {
-            error!(context, 0, "msg: load from db failed: {:?}", err);
-            false
-        }
+        Err(err) => false,
     }
 }
 
@@ -494,7 +494,10 @@ pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut l
     );
 
     if let Some(headers) = headers {
-        dc_strdup_keep_null(to_cstring(headers).as_ptr())
+        let h = to_cstring(headers);
+        let res = dc_strdup_keep_null(h);
+        free(h as *mut _);
+        res
     } else {
         std::ptr::null_mut()
     }
@@ -538,46 +541,48 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     if msg_ids.is_null() || msg_cnt <= 0 {
         return false;
     }
-    context.sql.prepare(
+    let msgs = context.sql.prepare(
         "SELECT m.state, c.blocked  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  WHERE m.id=? AND m.chat_id>9",
-        |mut stmt| {
-            let mut send_event = false;
-
+        |mut stmt, _| {
+            let mut res = Vec::with_capacity(msg_cnt);
             for i in 0..msg_cnt {
-                // TODO: do I need to reset?
                 let id = unsafe { *msg_ids.offset(i as isize) };
-                if let Ok((curr_state, curr_blocked)) = stmt
-                    .query_row(params![id as i32], |row| {
-                        Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
-                    })
-                {
-                    if curr_blocked == 0 {
-                        if curr_state == 10 || curr_state == 13 {
-                            dc_update_msg_state(context, id, 16);
-                            info!(context, 0, "Seen message #{}.", id);
-
-                            unsafe { dc_job_add(
-                                context,
-                                130,
-                                id as i32,
-                                0 as *const libc::c_char,
-                                0,
-                            ) };
-                            send_event = true;
-                        }
-                    } else if curr_state == 10 {
-                        dc_update_msg_state(context, id, 13);
-                        send_event = true;
-                    }
-                }
+                let (state, blocked) = stmt.query_row(params![id as i32], |row| {
+                    Ok((row.get::<_, i32>(0)?, row.get::<_, Option<i32>>(1)?.unwrap_or_default()))
+                })?;
+                res.push((id, state, blocked));
             }
-
-            if send_event {
-                context.call_cb(Event::MSGS_CHANGED, 0, 0);
-            }
-            Ok(())
+            Ok(res)
         }
-    ).is_ok()
+    );
+
+    if msgs.is_err() {
+        warn!(context, 0, "markseen_msgs failed: {:?}", msgs);
+        return false;
+    }
+    let mut send_event = false;
+    let msgs = msgs.unwrap();
+
+    for (id, curr_state, curr_blocked) in msgs.into_iter() {
+        if curr_blocked == 0 {
+            if curr_state == 10 || curr_state == 13 {
+                dc_update_msg_state(context, id, 16);
+                info!(context, 0, "Seen message #{}.", id);
+
+                unsafe { dc_job_add(context, 130, id as i32, 0 as *const libc::c_char, 0) };
+                send_event = true;
+            }
+        } else if curr_state == 10 {
+            dc_update_msg_state(context, id, 13);
+            send_event = true;
+        }
+    }
+
+    if send_event {
+        context.call_cb(Event::MSGS_CHANGED, 0, 0);
+    }
+
+    true
 }
 
 pub fn dc_update_msg_state(context: &Context, msg_id: uint32_t, state: libc::c_int) -> bool {
@@ -601,7 +606,7 @@ pub fn dc_star_msgs(
     }
     context
         .sql
-        .prepare("UPDATE msgs SET starred=? WHERE id=?;", |mut stmt| {
+        .prepare("UPDATE msgs SET starred=? WHERE id=?;", |mut stmt, _| {
             for i in 0..msg_cnt {
                 stmt.execute(params![star, unsafe { *msg_ids.offset(i as isize) as i32 }])?;
             }
@@ -689,7 +694,7 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
     }
 
     let res = dc_truncate_str(as_str((*msg).text), 30000);
-    dc_strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
@@ -1355,9 +1360,7 @@ pub fn dc_rfc724_mid_exists(
         &[as_str(rfc724_mid)],
         |row| {
             if !ret_server_folder.is_null() {
-                unsafe {
-                    *ret_server_folder = dc_strdup(to_cstring(row.get::<_, String>(0)?).as_ptr())
-                };
+                unsafe { *ret_server_folder = to_cstring(row.get::<_, String>(0)?) };
             }
             if !ret_server_uid.is_null() {
                 unsafe { *ret_server_uid = row.get(1)? };

@@ -215,8 +215,10 @@ pub fn dc_get_locations(
                 if 0 != (*loc).msg_id {
                     let txt: String = row.get(9)?;
                     let txt_c = to_cstring(txt);
-                    if 0 != is_marker(txt_c.as_ptr()) {
-                        (*loc).marker = strdup(txt_c.as_ptr());
+                    if 0 != is_marker(txt_c) {
+                        (*loc).marker = txt_c;
+                    } else {
+                        free(txt_c as *mut _);
                     }
                 }
                 Ok(loc)
@@ -330,9 +332,9 @@ pub fn dc_get_location_kml(
     }
 
     if 0 != success {
-        unsafe { strdup(to_cstring(ret).as_ptr()) }
+        unsafe { to_cstring(ret) }
     } else {
-        0 as *mut libc::c_char
+        std::ptr::null_mut()
     }
 }
 
@@ -344,7 +346,7 @@ unsafe fn get_kml_timestamp(utc: i64) -> *mut libc::c_char {
     let res = chrono::NaiveDateTime::from_timestamp(utc, 0)
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub unsafe fn dc_get_message_kml(
@@ -661,7 +663,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                      AND timestamp>? \
                      AND independent=0 \
                      ORDER BY timestamp;",
-                    |mut stmt_locations| {
+                    |mut stmt_locations, _| {
                         for (chat_id, locations_send_begin, locations_last_sent) in
                             rows.filter_map(|r| match r {
                                 Ok(Some(v)) => Some(v),

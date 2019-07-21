@@ -443,7 +443,7 @@ pub unsafe fn dc_receive_imf(
                              timestamp_sent, timestamp_rcvd, type, state, msgrmsg,  txt, txt_raw, param, \
                              bytes, hidden, mime_headers,  mime_in_reply_to, mime_references) \
                              VALUES (?,?,?,?,?,?, ?,?,?,?,?,?, ?,?,?,?,?,?, ?,?);",
-                            |mut stmt| {
+                            |mut stmt, conn| {
                                 let mut i = 0;
                                 loop {
                                     if !(i < icnt) {
@@ -503,16 +503,21 @@ pub unsafe fn dc_receive_imf(
                                             } else {
                                                 ""
                                             },
+                                            // txt_raw might contain invalid utf8
                                             if !txt_raw.is_null() {
-                                                as_str(txt_raw)
+                                                to_string_lossy(txt_raw)
                                             } else {
-                                                ""
+                                                String::new()
                                             },
                                             as_str((*(*part).param).packed),
                                             (*part).bytes,
                                             hidden,
                                             if 0 != save_mime_headers {
-                                                Some(to_string(imf_raw_not_terminated))
+                                                let body_string = unsafe {
+        std::str::from_utf8(std::slice::from_raw_parts(imf_raw_not_terminated as *const u8, imf_raw_bytes)).unwrap()
+    };
+
+                                                Some(body_string)
                                             } else {
                                                 None
                                             },
@@ -528,9 +533,9 @@ pub unsafe fn dc_receive_imf(
                                         } else {
                                             free(txt_raw as *mut libc::c_void);
                                             txt_raw = 0 as *mut libc::c_char;
-                                            insert_msg_id = sql::get_rowid(
+                                            insert_msg_id = sql::get_rowid_with_conn(
                                                 context,
-                                                &context.sql,
+                                                conn,
                                                 "msgs",
                                                 "rfc724_mid",
                                                 as_str(rfc724_mid),
@@ -739,11 +744,9 @@ pub unsafe fn dc_receive_imf(
                                 }
                                 if 0 != mime_parser.is_send_by_messenger || 0 != mdn_consumed {
                                     let param = dc_param_new();
-                                    dc_param_set(
-                                        param,
-                                        'Z' as i32,
-                                        to_cstring(server_folder.as_ref()).as_ptr(),
-                                    );
+                                    let server_folder_c = to_cstring(server_folder.as_ref());
+                                    dc_param_set(param, 'Z' as i32, server_folder_c);
+                                    free(server_folder_c as *mut _);
                                     dc_param_set_int(param, 'z' as i32, server_uid as i32);
                                     if 0 != mime_parser.is_send_by_messenger
                                         && 0 != context
@@ -826,6 +829,14 @@ pub unsafe fn dc_receive_imf(
             }
         }
     }
+
+    info!(
+        context,
+        0,
+        "received message {} has Message-Id: {}",
+        server_uid,
+        to_string(rfc724_mid)
+    );
 
     free(rfc724_mid as *mut libc::c_void);
     free(mime_in_reply_to as *mut libc::c_void);
@@ -1375,7 +1386,7 @@ unsafe fn create_or_lookup_adhoc_group(
                     ),
                     params![],
                     |row| {
-                        Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?))
+                        Ok((row.get::<_, i32>(0)?, row.get::<_, Option<i32>>(1)?.unwrap_or_default()))
                     }
                 );
 
@@ -1518,9 +1529,7 @@ fn hex_hash(s: impl AsRef<str>) -> *const libc::c_char {
     let bytes = s.as_ref().as_bytes();
     let result = Sha256::digest(bytes);
     let result_hex = hex::encode(&result[..8]);
-    let result_cstring = to_cstring(result_hex);
-
-    unsafe { strdup(result_cstring.as_ptr()) }
+    unsafe { to_cstring(result_hex) as *const _ }
 }
 
 unsafe fn search_chat_ids_by_contact_ids(
@@ -1604,8 +1613,7 @@ unsafe fn check_verified_properties(
     let contact = dc_contact_new(context);
 
     let verify_fail = |reason: String| {
-        *failure_reason =
-            strdup(to_cstring(format!("{}. See \"Info\" for details.", reason)).as_ptr());
+        *failure_reason = to_cstring(format!("{}. See \"Info\" for details.", reason));
         warn!(context, 0, "{}", reason);
     };
 
@@ -1651,68 +1659,61 @@ unsafe fn check_verified_properties(
     let to_ids_str = to_string(to_ids_str_c);
     free(to_ids_str_c as *mut libc::c_void);
 
-    let ok = context
-        .sql
-        .query_map(
-            format!(
-                "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
-                 LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-                &to_ids_str,
-            ),
-            params![],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
-            |rows| {
-                for row in rows {
-                    let (to_addr, mut is_verified) = row?;
-                    let mut peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
-                    if mimeparser.e2ee_helper.gossipped_addr.contains(&to_addr)
-                        && peerstate.is_some()
-                    {
-                        let peerstate = peerstate.as_mut().unwrap();
+    let rows = context.sql.query_map(
+        format!(
+            "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
+             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
+            &to_ids_str,
+        ),
+        params![],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
+        |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+    );
 
-                        // if we're here, we know the gossip key is verified:
-                        // - use the gossip-key as verified-key if there is no verified-key
-                        // - OR if the verified-key does not match public-key or gossip-key
-                        //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
-                        //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
-                        if 0 == is_verified
-                            || peerstate.verified_key_fingerprint
-                                != peerstate.public_key_fingerprint
-                                && peerstate.verified_key_fingerprint
-                                    != peerstate.gossip_key_fingerprint
-                        {
-                            info!(
-                                context,
-                                0,
-                                "{} has verfied {}.",
-                                as_str((*contact).addr),
-                                to_addr,
-                            );
-                            let fp = peerstate.gossip_key_fingerprint.clone();
-                            if let Some(fp) = fp {
-                                peerstate.set_verified(0, &fp, 2);
-                                peerstate.save_to_db(&context.sql, false);
-                                is_verified = 1;
-                            }
-                        }
-                    }
-                    if 0 == is_verified {
-                        verify_fail(format!(
-                            "{} is not a member of this verified group",
-                            to_addr
-                        ));
-                        cleanup();
-                        return Err(failure::format_err!("not a valid member").into());
-                    }
+    if rows.is_err() {
+        cleanup();
+        return 0;
+    }
+    for (to_addr, mut is_verified) in rows.unwrap().into_iter() {
+        let mut peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
+        if mimeparser.e2ee_helper.gossipped_addr.contains(&to_addr) && peerstate.is_some() {
+            let peerstate = peerstate.as_mut().unwrap();
+
+            // if we're here, we know the gossip key is verified:
+            // - use the gossip-key as verified-key if there is no verified-key
+            // - OR if the verified-key does not match public-key or gossip-key
+            //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
+            //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
+            if 0 == is_verified
+                || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
+                    && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
+            {
+                info!(
+                    context,
+                    0,
+                    "{} has verfied {}.",
+                    as_str((*contact).addr),
+                    to_addr,
+                );
+                let fp = peerstate.gossip_key_fingerprint.clone();
+                if let Some(fp) = fp {
+                    peerstate.set_verified(0, &fp, 2);
+                    peerstate.save_to_db(&context.sql, false);
+                    is_verified = 1;
                 }
-                Ok(())
-            },
-        )
-        .is_ok(); // TODO: Better default
+            }
+        }
+        if 0 == is_verified {
+            verify_fail(format!(
+                "{} is not a member of this verified group",
+                to_addr
+            ));
+            cleanup();
+            return 0;
+        }
+    }
 
-    cleanup();
-
-    ok as libc::c_int
+    1
 }
 
 unsafe fn set_better_msg(mime_parser: &dc_mimeparser_t, better_msg: *mut *mut libc::c_char) {

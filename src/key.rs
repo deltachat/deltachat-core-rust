@@ -89,6 +89,9 @@ impl Key {
     }
 
     pub fn from_slice(bytes: &[u8], key_type: KeyType) -> Option<Self> {
+        if 0 == bytes.len() {
+            return None;
+        }
         let res: Result<Key, _> = match key_type {
             KeyType::Public => SignedPublicKey::from_bytes(Cursor::new(bytes)).map(Into::into),
             KeyType::Private => SignedSecretKey::from_bytes(Cursor::new(bytes)).map(Into::into),

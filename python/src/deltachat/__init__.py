@@ -43,6 +43,9 @@ def py_dc_callback(ctx, evt, data1, data2):
 
     try:
         ret = callback(ctx, evt_name, data1, data2)
+        if ret is None:
+            ret = 0
+        assert isinstance(ret, int), repr(ret)
         if event_sig_types & 4:
             return ffi.cast('uintptr_t', ret)
         elif event_sig_types & 8:
@@ -58,7 +61,10 @@ def set_context_callback(dc_context, func):
 
 
 def clear_context_callback(dc_context):
-    _DC_CALLBACK_MAP.pop(dc_context, None)
+    try:
+        _DC_CALLBACK_MAP.pop(dc_context, None)
+    except AttributeError:
+        pass
 
 
 def get_dc_event_name(integer, _DC_EVENTNAME_MAP={}):
