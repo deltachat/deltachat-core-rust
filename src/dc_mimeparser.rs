@@ -833,6 +833,7 @@ unsafe fn hash_header(
             18 => key = b"References\x00" as *const u8 as *const libc::c_char,
             19 => key = b"Subject\x00" as *const u8 as *const libc::c_char,
             22 => {
+                // MAILIMF_FIELD_OPTIONAL_FIELD
                 let optional_field: *const mailimf_optional_field =
                     (*field).fld_data.fld_optional_field;
                 if !optional_field.is_null() {
@@ -842,18 +843,16 @@ unsafe fn hash_header(
             _ => {}
         }
         if !key.is_null() {
-            let key_len: libc::c_int = strlen(key) as libc::c_int;
-            // XXX the optional field above may contain invalid UTF8
-            if out.contains_key(&to_string_lossy(key)) {
-                if (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
-                    || key_len > 5i32
-                        && strncasecmp(key, b"Chat-\x00" as *const u8 as *const libc::c_char, 5)
-                            == 0i32
-                {
-                    out.insert(to_string(key), field);
-                }
-            } else {
-                out.insert(to_string(key), field);
+            // XXX the optional field sometimes contains invalid UTF8
+            // which should not happen (according to the mime standard).
+            // This might point to a bug in our mime parsing/processing
+            // logic. As mmime/dc_mimeparser is scheduled fore replacement
+            // anyway we just use a lossy conversion.
+            let key_r = &to_string_lossy(key);
+            if !out.contains_key(key_r) || // key already exists, only overwrite known types (protected headers)
+                (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as i32 || key_r.starts_with("Chat-")
+            {
+                out.insert(key_r.to_string(), field);
             }
         }
         cur1 = if !cur1.is_null() {

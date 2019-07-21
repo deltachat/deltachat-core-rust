@@ -184,13 +184,16 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
             }
             true
         }
-        Err(err) => {
-            error!(
-                context,
-                0, "chat: failed to load from db {}: {:?}", chat_id, err
-            );
-            false
-        }
+        Err(err) => match err {
+            QueryReturnedNoRows => false,
+            _ => {
+                error!(
+                    context,
+                    0, "chat: failed to load from db {}: {:?}", chat_id, err
+                );
+                false
+            }
+        },
     }
 }
 
