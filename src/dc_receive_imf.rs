@@ -1659,68 +1659,62 @@ unsafe fn check_verified_properties(
     let to_ids_str = to_string(to_ids_str_c);
     free(to_ids_str_c as *mut libc::c_void);
 
-    let ok = context
-        .sql
-        .query_map(
-            format!(
-                "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
-                 LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-                &to_ids_str,
-            ),
-            params![],
-            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
-            |rows| {
-                for row in rows {
-                    let (to_addr, mut is_verified) = row?;
-                    let mut peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
-                    if mimeparser.e2ee_helper.gossipped_addr.contains(&to_addr)
-                        && peerstate.is_some()
-                    {
-                        let peerstate = peerstate.as_mut().unwrap();
+    let rows = context.sql.query_map(
+        format!(
+            "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
+             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
+            &to_ids_str,
+        ),
+        params![],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
+        |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+    );
 
-                        // if we're here, we know the gossip key is verified:
-                        // - use the gossip-key as verified-key if there is no verified-key
-                        // - OR if the verified-key does not match public-key or gossip-key
-                        //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
-                        //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
-                        if 0 == is_verified
-                            || peerstate.verified_key_fingerprint
-                                != peerstate.public_key_fingerprint
-                                && peerstate.verified_key_fingerprint
-                                    != peerstate.gossip_key_fingerprint
-                        {
-                            info!(
-                                context,
-                                0,
-                                "{} has verfied {}.",
-                                as_str((*contact).addr),
-                                to_addr,
-                            );
-                            let fp = peerstate.gossip_key_fingerprint.clone();
-                            if let Some(fp) = fp {
-                                peerstate.set_verified(0, &fp, 2);
-                                peerstate.save_to_db(&context.sql, false);
-                                is_verified = 1;
-                            }
-                        }
-                    }
-                    if 0 == is_verified {
-                        verify_fail(format!(
-                            "{} is not a member of this verified group",
-                            to_addr
-                        ));
-                        cleanup();
-                        return Err(failure::format_err!("not a valid memember").into());
-                    }
+    if rows.is_err() {
+        cleanup();
+        return 0;
+    }
+
+    for (to_addr, mut is_verified) in rows.unwrap().into_iter() {
+        let mut peerstate = Peerstate::from_addr(context, &context.sql, &to_addr);
+        if mimeparser.e2ee_helper.gossipped_addr.contains(&to_addr) && peerstate.is_some() {
+            let peerstate = peerstate.as_mut().unwrap();
+
+            // if we're here, we know the gossip key is verified:
+            // - use the gossip-key as verified-key if there is no verified-key
+            // - OR if the verified-key does not match public-key or gossip-key
+            //   (otherwise a verified key can _only_ be updated through QR scan which might be annoying,
+            //   see https://github.com/nextleap-project/countermitm/issues/46 for a discussion about this point)
+            if 0 == is_verified
+                || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
+                    && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
+            {
+                info!(
+                    context,
+                    0,
+                    "{} has verfied {}.",
+                    as_str((*contact).addr),
+                    to_addr,
+                );
+                let fp = peerstate.gossip_key_fingerprint.clone();
+                if let Some(fp) = fp {
+                    peerstate.set_verified(0, &fp, 2);
+                    peerstate.save_to_db(&context.sql, false);
+                    is_verified = 1;
                 }
-                Ok(())
-            },
-        )
-        .is_ok(); // TODO: Better default
+            }
+        }
+        if 0 == is_verified {
+            verify_fail(format!(
+                "{} is not a member of this verified group",
+                to_addr
+            ));
+            cleanup();
+            return 0;
+        }
+    }
 
-    cleanup();
-
-    ok as libc::c_int
+    1
 }
 
 unsafe fn set_better_msg(mime_parser: &dc_mimeparser_t, better_msg: *mut *mut libc::c_char) {
