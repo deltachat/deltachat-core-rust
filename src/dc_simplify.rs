@@ -225,7 +225,8 @@ unsafe fn dc_simplify_simplify_plain_text(
                     pending_linebreaks -= 1
                 }
             }
-            ret += &to_string(line);
+            // the incoming message might contain invalid UTF8
+            ret += &to_string_lossy(line);
             content_lines_added += 1;
             pending_linebreaks = 1i32
         }
@@ -238,7 +239,7 @@ unsafe fn dc_simplify_simplify_plain_text(
     }
     dc_free_splitted_lines(lines);
 
-    strdup(to_cstring(ret).as_ptr())
+    to_cstring(ret)
 }
 
 /**
@@ -261,7 +262,7 @@ unsafe fn is_quoted_headline(buf: *const libc::c_char) -> bool {
     /* This function may be called for the line _directly_ before a quote.
     The function checks if the line contains sth. like "On 01.02.2016, xy@z wrote:" in various languages.
     - Currently, we simply check if the last character is a ':'.
-    - Checking for the existance of an email address may fail (headlines may show the user's name instead of the address) */
+    - Checking for the existence of an email address may fail (headlines may show the user's name instead of the address) */
     let buf_len: libc::c_int = strlen(buf) as libc::c_int;
     if buf_len > 80i32 {
         return false;

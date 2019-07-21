@@ -43,10 +43,10 @@ impl Smtp {
     }
 
     /// Connect using the provided login params
-    pub fn connect(&mut self, context: &Context, lp: &dc_loginparam_t) -> usize {
+    pub fn connect(&mut self, context: &Context, lp: &dc_loginparam_t) -> bool {
         if self.is_connected() {
             warn!(context, 0, "SMTP already connected.");
-            return 1;
+            return true;
         }
 
         if lp.send_server.is_empty() || lp.send_port == 0 {
@@ -61,7 +61,7 @@ impl Smtp {
 
         if self.from.is_none() {
             // TODO: print error
-            return 0;
+            return false;
         }
 
         let domain = &lp.send_server;
@@ -82,7 +82,7 @@ impl Smtp {
             let send_pw = &lp.send_pw;
             let access_token = dc_get_oauth2_access_token(context, addr, send_pw, 0);
             if access_token.is_none() {
-                return 0;
+                return false;
             }
             let user = &lp.send_user;
 
@@ -116,11 +116,11 @@ impl Smtp {
                     "SMTP-LOGIN as {} ok",
                     lp.send_user,
                 );
-                1
+                true
             }
             Err(err) => {
                 warn!(context, 0, "SMTP: failed to establish connection {:?}", err);
-                0
+                false
             }
         }
     }

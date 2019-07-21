@@ -3,67 +3,69 @@ use crate::types::*;
 use crate::x::*;
 
 /// for msgs and jobs
-pub const DC_PARAM_FILE: char = 'f';
+pub const DC_PARAM_FILE: char = 'f'; // string
 /// for msgs
-pub const DC_PARAM_WIDTH: char = 'w';
+pub const DC_PARAM_WIDTH: char = 'w'; // int
 /// for msgs
-pub const DC_PARAM_HEIGHT: char = 'h';
+pub const DC_PARAM_HEIGHT: char = 'h'; // int
 /// for msgs
-pub const DC_PARAM_DURATION: char = 'd';
+pub const DC_PARAM_DURATION: char = 'd'; // int
 /// for msgs
-pub const DC_PARAM_MIMETYPE: char = 'm';
+pub const DC_PARAM_MIMETYPE: char = 'm'; // string
 /// for msgs: incoming: message is encryoted, outgoing: guarantee E2EE or the message is not send
-pub const DC_PARAM_GUARANTEE_E2EE: char = 'c';
+pub const DC_PARAM_GUARANTEE_E2EE: char = 'c'; // int (bool?)
 /// for msgs: decrypted with validation errors or without mutual set, if neither 'c' nor 'e' are preset, the messages is only transport encrypted
-pub const DC_PARAM_ERRONEOUS_E2EE: char = 'e';
+pub const DC_PARAM_ERRONEOUS_E2EE: char = 'e'; // int
 /// for msgs: force unencrypted message, either DC_FP_ADD_AUTOCRYPT_HEADER (1), DC_FP_NO_AUTOCRYPT_HEADER (2) or 0
-pub const DC_PARAM_FORCE_PLAINTEXT: char = 'u';
-/// for msgs: an incoming message which requestes a MDN (aka read receipt)
-pub const DC_PARAM_WANTS_MDN: char = 'r';
+pub const DC_PARAM_FORCE_PLAINTEXT: char = 'u'; // int (bool?)
+/// for msgs: an incoming message which requests a MDN (aka read receipt)
+pub const DC_PARAM_WANTS_MDN: char = 'r'; // int (bool?)
 /// for msgs
-pub const DC_PARAM_FORWARDED: char = 'a';
+pub const DC_PARAM_FORWARDED: char = 'a'; // int (bool?)
 /// for msgs
-pub const DC_PARAM_CMD: char = 'S';
+pub const DC_PARAM_CMD: char = 'S'; // int
 /// for msgs
-pub const DC_PARAM_CMD_ARG: char = 'E';
+pub const DC_PARAM_CMD_ARG: char = 'E'; // string
 /// for msgs
-pub const DC_PARAM_CMD_ARG2: char = 'F';
+pub const DC_PARAM_CMD_ARG2: char = 'F'; // string
 /// for msgs
-pub const DC_PARAM_CMD_ARG3: char = 'G';
+pub const DC_PARAM_CMD_ARG3: char = 'G'; // string
 /// for msgs
-pub const DC_PARAM_CMD_ARG4: char = 'H';
+pub const DC_PARAM_CMD_ARG4: char = 'H'; // string
 /// for msgs
-pub const DC_PARAM_ERROR: char = 'L';
+pub const DC_PARAM_ERROR: char = 'L'; // string
 /// for msgs in PREPARING: space-separated list of message IDs of forwarded copies
-pub const DC_PARAM_PREP_FORWARDS: char = 'P';
+pub const DC_PARAM_PREP_FORWARDS: char = 'P'; // string
 /// for msgs
-pub const DC_PARAM_SET_LATITUDE: char = 'l';
+pub const DC_PARAM_SET_LATITUDE: char = 'l'; // float
 /// for msgs
-pub const DC_PARAM_SET_LONGITUDE: char = 'n';
+pub const DC_PARAM_SET_LONGITUDE: char = 'n'; // float
 
 /// for jobs
-pub const DC_PARAM_SERVER_FOLDER: char = 'Z';
+pub const DC_PARAM_SERVER_FOLDER: char = 'Z'; // string
 /// for jobs
-pub const DC_PARAM_SERVER_UID: char = 'z';
+pub const DC_PARAM_SERVER_UID: char = 'z'; // int
 /// for jobs
-pub const DC_PARAM_ALSO_MOVE: char = 'M';
+pub const DC_PARAM_ALSO_MOVE: char = 'M'; // int (bool?)
 /// for jobs: space-separated list of message recipients
-pub const DC_PARAM_RECIPIENTS: char = 'R';
+pub const DC_PARAM_RECIPIENTS: char = 'R'; // stringap
 /// for groups
-pub const DC_PARAM_UNPROMOTED: char = 'U';
+pub const DC_PARAM_UNPROMOTED: char = 'U'; // int (bool?)
 /// for groups and contacts
-pub const DC_PARAM_PROFILE_IMAGE: char = 'i';
+pub const DC_PARAM_PROFILE_IMAGE: char = 'i'; // string (bytes?)
 /// for chats
 pub const DC_PARAM_SELFTALK: char = 'K';
+
+// missing: 's', 'x', 'g'
 
 // values for DC_PARAM_FORCE_PLAINTEXT
 pub const DC_FP_ADD_AUTOCRYPT_HEADER: u8 = 1;
 pub const DC_FP_NO_AUTOCRYPT_HEADER: u8 = 2;
 
-/// An object for handling key=value parameter lists; for the key, curently only
+/// An object for handling key=value parameter lists; for the key, currently only
 /// a single character is allowed.
 ///
-/// The object is used eg. by Chat or dc_msg_t, for readable paramter names,
+/// The object is used eg. by Chat or dc_msg_t, for readable parameter names,
 /// these classes define some DC_PARAM_* constantats.
 ///
 /// Only for library-internal use.

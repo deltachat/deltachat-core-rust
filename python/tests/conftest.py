@@ -16,18 +16,41 @@ def pytest_addoption(parser):
     )
 
 
+def pytest_configure(config):
+    cfg = config.getoption('--liveconfig')
+    if not cfg:
+        cfg = os.getenv('DCC_PY_LIVECONFIG')
+        if cfg:
+            config.option.liveconfig = cfg
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_runtest_call(item):
+    # perform early finalization because we otherwise get cloberred
+    # output from concurrent threads printing between execution
+    # of the test function and the teardown phase of that test function
+    if "acfactory" in item.funcargs:
+        print("*"*30, "finalizing", "*"*30)
+        acfactory = item.funcargs["acfactory"]
+        acfactory.finalize()
+
+
 def pytest_report_header(config, startdir):
     t = tempfile.mktemp()
     try:
-        ac = Account(t)
+        ac = Account(t, eventlogging=False)
         info = ac.get_info()
-        del ac
+        ac.shutdown()
     finally:
         os.remove(t)
-    return "Deltachat core={} sqlite={}".format(
-        info['deltachat_core_version'],
-        info['sqlite_version'],
-    )
+    summary = ['Deltachat core={} sqlite={}'.format(
+         info['deltachat_core_version'],
+         info['sqlite_version'],
+     )]
+    cfg = config.getoption('--liveconfig')
+    if cfg:
+        summary.append('Liveconfig: {}'.format(os.path.abspath(cfg)))
+    return summary
 
 
 @pytest.fixture(scope="session")
@@ -52,7 +75,6 @@ def acfactory(pytestconfig, tmpdir, request):
             self.live_count = 0
             self.offline_count = 0
             self._finalizers = []
-            request.addfinalizer(self.finalize)
             self.init_time = time.time()
 
         def finalize(self):
@@ -64,7 +86,7 @@ def acfactory(pytestconfig, tmpdir, request):
         def configlist(self):
             configlist = []
             for line in open(fn):
-                if line.strip():
+                if line.strip() and not line.strip().startswith('#'):
                     d = {}
                     for part in line.split():
                         name, value = part.split("=")
@@ -78,6 +100,7 @@ def acfactory(pytestconfig, tmpdir, request):
             ac = Account(tmpdb.strpath, logid="ac{}".format(self.offline_count))
             ac._evlogger.init_time = self.init_time
             ac._evlogger.set_timeout(2)
+            self._finalizers.append(ac.shutdown)
             return ac
 
         def get_configured_offline_account(self):
@@ -103,7 +126,7 @@ def acfactory(pytestconfig, tmpdir, request):
             ac._evlogger.set_timeout(30)
             ac.configure(**configdict)
             ac.start_threads()
-            self._finalizers.append(lambda: ac.stop_threads(wait=False))
+            self._finalizers.append(ac.shutdown)
             return ac
 
         def clone_online_account(self, account):
@@ -114,7 +137,7 @@ def acfactory(pytestconfig, tmpdir, request):
             ac._evlogger.set_timeout(30)
             ac.configure(addr=account.get_config("addr"), mail_pw=account.get_config("mail_pw"))
             ac.start_threads()
-            self._finalizers.append(lambda: ac.stop_threads(wait=False))
+            self._finalizers.append(ac.shutdown)
             return ac
 
     return AccountMaker()

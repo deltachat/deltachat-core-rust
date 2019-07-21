@@ -76,7 +76,7 @@ pub unsafe fn dc_send_locations_to_chat(
                     0 as *const libc::c_char,
                     0,
                 );
-                dc_param_set_int((*msg).param, 'S' as i32, 8i32);
+                dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 8);
                 dc_send_msg(context, chat_id, msg);
             } else if 0 == seconds && is_sending_locations_before {
                 stock_str = dc_stock_system_msg(
@@ -215,8 +215,10 @@ pub fn dc_get_locations(
                 if 0 != (*loc).msg_id {
                     let txt: String = row.get(9)?;
                     let txt_c = to_cstring(txt);
-                    if 0 != is_marker(txt_c.as_ptr()) {
-                        (*loc).marker = strdup(txt_c.as_ptr());
+                    if 0 != is_marker(txt_c) {
+                        (*loc).marker = txt_c;
+                    } else {
+                        free(txt_c as *mut _);
                     }
                 }
                 Ok(loc)
@@ -330,9 +332,9 @@ pub fn dc_get_location_kml(
     }
 
     if 0 != success {
-        unsafe { strdup(to_cstring(ret).as_ptr()) }
+        unsafe { to_cstring(ret) }
     } else {
-        0 as *mut libc::c_char
+        std::ptr::null_mut()
     }
 }
 
@@ -344,7 +346,7 @@ unsafe fn get_kml_timestamp(utc: i64) -> *mut libc::c_char {
     let res = chrono::NaiveDateTime::from_timestamp(utc, 0)
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub unsafe fn dc_get_message_kml(
@@ -661,7 +663,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                      AND timestamp>? \
                      AND independent=0 \
                      ORDER BY timestamp;",
-                    |mut stmt_locations| {
+                    |mut stmt_locations, _| {
                         for (chat_id, locations_send_begin, locations_last_sent) in
                             rows.filter_map(|r| match r {
                                 Ok(Some(v)) => Some(v),
@@ -688,7 +690,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                             // and dc_set_location() is typically called periodically, this is ok)
                             let mut msg = dc_msg_new(context, 10);
                             (*msg).hidden = 1;
-                            dc_param_set_int((*msg).param, 'S' as i32, 9);
+                            dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 9);
                             dc_send_msg(context, chat_id as u32, msg);
                             dc_msg_unref(msg);
                         }

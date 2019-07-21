@@ -56,16 +56,23 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 fragment = fragment.offset(1isize);
                 let param: *mut dc_param_t = dc_param_new();
                 dc_param_set_urlencoded(param, fragment);
-                addr = dc_param_get(param, 'a' as i32, 0 as *const libc::c_char);
+                addr = dc_param_get(param, DC_PARAM_FORWARDED as i32, 0 as *const libc::c_char);
                 if !addr.is_null() {
-                    let mut urlencoded: *mut libc::c_char =
-                        dc_param_get(param, 'n' as i32, 0 as *const libc::c_char);
+                    let mut urlencoded: *mut libc::c_char = dc_param_get(
+                        param,
+                        DC_PARAM_SET_LONGITUDE as i32,
+                        0 as *const libc::c_char,
+                    );
                     if !urlencoded.is_null() {
                         name = dc_urldecode(urlencoded);
                         dc_normalize_name(name);
                         free(urlencoded as *mut libc::c_void);
                     }
-                    invitenumber = dc_param_get(param, 'i' as i32, 0 as *const libc::c_char);
+                    invitenumber = dc_param_get(
+                        param,
+                        DC_PARAM_PROFILE_IMAGE as i32,
+                        0 as *const libc::c_char,
+                    );
                     auth = dc_param_get(param, 's' as i32, 0 as *const libc::c_char);
                     grpid = dc_param_get(param, 'x' as i32, 0 as *const libc::c_char);
                     if !grpid.is_null() {
@@ -188,7 +195,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
         match current_block {
             16562876845594826114 => {}
             _ => {
-                /* check the paramters
+                /* check the parameters
                 ---------------------- */
                 if !addr.is_null() {
                     /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
@@ -239,13 +246,8 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
-                                            let c_addr = peerstate
-                                                .addr
-                                                .as_ref()
-                                                .map(to_cstring)
-                                                .unwrap_or_default();
-                                            let addr_ptr = if peerstate.addr.is_some() {
-                                                c_addr.as_ptr()
+                                            let addr_ptr = if let Some(ref addr) = peerstate.addr {
+                                                to_cstring(addr)
                                             } else {
                                                 std::ptr::null()
                                             };
@@ -256,6 +258,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                                 0x80i32,
                                                 0 as *mut libc::c_int,
                                             );
+                                            free(addr_ptr as *mut _);
                                             dc_create_or_lookup_nchat_by_contact_id(
                                                 context,
                                                 (*qr_parsed).id,

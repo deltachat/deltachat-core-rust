@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 
 use charset::Charset;
 use mmime::mailimf::*;
@@ -323,7 +323,7 @@ pub unsafe fn dc_mimeparser_parse(
             while i_1 < icnt_0 {
                 let part_2: *mut dc_mimepart_t =
                     carray_get((*mimeparser).parts, i_1 as libc::c_uint) as *mut dc_mimepart_t;
-                dc_param_set_int((*part_2).param, 'a' as i32, 1i32);
+                dc_param_set_int((*part_2).param, DC_PARAM_FORWARDED as i32, 1);
                 i_1 += 1
             }
         }
@@ -348,7 +348,7 @@ pub unsafe fn dc_mimeparser_parse(
                 if !field_0.is_null() {
                     let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
                     if duration_ms > 0i32 && duration_ms < 24i32 * 60i32 * 60i32 * 1000i32 {
-                        dc_param_set_int((*part_3).param, 'd' as i32, duration_ms);
+                        dc_param_set_int((*part_3).param, DC_PARAM_DURATION as i32, duration_ms);
                     }
                 }
             }
@@ -385,7 +385,11 @@ pub unsafe fn dc_mimeparser_parse(
                                     let part_4: *mut dc_mimepart_t =
                                         dc_mimeparser_get_last_nonmeta(mimeparser);
                                     if !part_4.is_null() {
-                                        dc_param_set_int((*part_4).param, 'r' as i32, 1i32);
+                                        dc_param_set_int(
+                                            (*part_4).param,
+                                            DC_PARAM_WANTS_MDN as i32,
+                                            1,
+                                        );
                                     }
                                 }
                                 free(from_addr as *mut libc::c_void);
@@ -833,6 +837,7 @@ unsafe fn hash_header(
             18 => key = b"References\x00" as *const u8 as *const libc::c_char,
             19 => key = b"Subject\x00" as *const u8 as *const libc::c_char,
             22 => {
+                // MAILIMF_FIELD_OPTIONAL_FIELD
                 let optional_field: *const mailimf_optional_field =
                     (*field).fld_data.fld_optional_field;
                 if !optional_field.is_null() {
@@ -842,17 +847,16 @@ unsafe fn hash_header(
             _ => {}
         }
         if !key.is_null() {
-            let key_len: libc::c_int = strlen(key) as libc::c_int;
-            if out.contains_key(as_str(key)) {
-                if (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
-                    || key_len > 5i32
-                        && strncasecmp(key, b"Chat-\x00" as *const u8 as *const libc::c_char, 5)
-                            == 0i32
-                {
-                    out.insert(to_string(key), field);
-                }
-            } else {
-                out.insert(to_string(key), field);
+            // XXX the optional field sometimes contains invalid UTF8
+            // which should not happen (according to the mime standard).
+            // This might point to a bug in our mime parsing/processing
+            // logic. As mmime/dc_mimeparser is scheduled fore replacement
+            // anyway we just use a lossy conversion.
+            let key_r = &to_string_lossy(key);
+            if !out.contains_key(key_r) || // key already exists, only overwrite known types (protected headers)
+                (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as i32 || key_r.starts_with("Chat-")
+            {
+                out.insert(key_r.to_string(), field);
             }
         }
         cur1 = if !cur1.is_null() {
@@ -1204,8 +1208,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                             current_block = 8795901732489102124;
                                         } else {
                                             decoded_data_bytes = res.len();
-                                            let res_c = CString::new(res.as_bytes()).unwrap();
-                                            decoded_data = strdup(res_c.as_ptr());
+                                            decoded_data = res.as_ptr() as *const libc::c_char;
                                             current_block = 17788412896529399552;
                                         }
                                     } else {
@@ -1341,8 +1344,9 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                         }
                         if !filename_parts.is_empty() {
                             free(desired_filename as *mut libc::c_void);
-                            desired_filename =
-                                dc_decode_ext_header(to_cstring(filename_parts).as_ptr());
+                            let parts_c = to_cstring(filename_parts);
+                            desired_filename = dc_decode_ext_header(parts_c);
+                            free(parts_c as *mut _);
                         }
                         if desired_filename.is_null() {
                             let param = mailmime_find_ct_parameter(
@@ -1440,7 +1444,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
             }
         }
     }
-    /* add object? (we do not add all objetcs, eg. signatures etc. are ignored) */
+    /* add object? (we do not add all objects, eg. signatures etc. are ignored) */
     dc_simplify_unref(simplifier);
     if !transfer_decoding_buffer.is_null() {
         mmap_string_unref(transfer_decoding_buffer);
@@ -1486,8 +1490,8 @@ unsafe fn do_add_single_file_part(
             (*part).type_0 = msg_type;
             (*part).int_mimetype = mime_type;
             (*part).bytes = decoded_data_bytes as libc::c_int;
-            dc_param_set((*part).param, 'f' as i32, pathNfilename);
-            dc_param_set((*part).param, 'm' as i32, raw_mime);
+            dc_param_set((*part).param, DC_PARAM_FILE as i32, pathNfilename);
+            dc_param_set((*part).param, DC_PARAM_MIMETYPE as i32, raw_mime);
             if mime_type == 80i32 {
                 let mut w: uint32_t = 0i32 as uint32_t;
                 let mut h: uint32_t = 0i32 as uint32_t;
@@ -1497,8 +1501,8 @@ unsafe fn do_add_single_file_part(
                     &mut w,
                     &mut h,
                 ) {
-                    dc_param_set_int((*part).param, 'w' as i32, w as int32_t);
-                    dc_param_set_int((*part).param, 'h' as i32, h as int32_t);
+                    dc_param_set_int((*part).param, DC_PARAM_WIDTH as i32, w as int32_t);
+                    dc_param_set_int((*part).param, DC_PARAM_HEIGHT as i32, h as int32_t);
                 }
             }
             do_add_single_part(parser, part);
@@ -1511,9 +1515,9 @@ unsafe fn do_add_single_file_part(
 
 unsafe fn do_add_single_part(parser: &dc_mimeparser_t, part: *mut dc_mimepart_t) {
     if 0 != (*parser).e2ee_helper.encrypted && (*parser).e2ee_helper.signatures.len() > 0 {
-        dc_param_set_int((*part).param, 'c' as i32, 1i32);
+        dc_param_set_int((*part).param, DC_PARAM_GUARANTEE_E2EE as i32, 1);
     } else if 0 != (*parser).e2ee_helper.encrypted {
-        dc_param_set_int((*part).param, 'e' as i32, 0x2i32);
+        dc_param_set_int((*part).param, DC_PARAM_ERRONEOUS_E2EE as i32, 0x2);
     }
     carray_add(
         (*parser).parts,

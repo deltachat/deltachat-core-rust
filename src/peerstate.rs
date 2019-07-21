@@ -462,10 +462,12 @@ mod tests {
     use super::*;
     use pretty_assertions::assert_eq;
 
-    use std::ffi::{CStr, CString};
+    use std::ffi::CStr;
     use tempfile::{tempdir, TempDir};
 
     use crate::context::*;
+    use crate::dc_tools::to_cstring;
+    use crate::x::free;
 
     #[test]
     fn test_peerstate_save_to_db() {
@@ -520,15 +522,15 @@ mod tests {
     unsafe fn create_test_context() -> TestContext {
         let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
         let dir = tempdir().unwrap();
-        let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+        let dbfile = to_cstring(dir.path().join("db.sqlite").to_str().unwrap());
         assert_eq!(
-            dc_open(&mut ctx, dbfile.as_ptr(), std::ptr::null()),
+            dc_open(&mut ctx, dbfile, std::ptr::null()),
             1,
             "Failed to open {}",
-            CStr::from_ptr(dbfile.as_ptr() as *const libc::c_char)
-                .to_str()
-                .unwrap()
+            CStr::from_ptr(dbfile as *const _).to_str().unwrap()
         );
+
+        free(dbfile as *mut _);
 
         TestContext { ctx: ctx, dir: dir }
     }

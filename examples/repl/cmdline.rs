@@ -146,7 +146,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         } else {
             current_block = 7149356873433890176;
         }
-        real_spec = strdup(to_cstring(rs.unwrap_or_default()).as_ptr());
+        real_spec = to_cstring(rs.unwrap_or_default());
     }
     match current_block {
         8522321847195001863 => {}
@@ -184,10 +184,10 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                             let path_plus_name = format!("{}/{}", as_str(real_spec), name);
                             info!(context, 0, "Import: {}", path_plus_name);
                             let path_plus_name_c = to_cstring(path_plus_name);
-
-                            if 0 != dc_poke_eml_file(context, path_plus_name_c.as_ptr()) {
+                            if 0 != dc_poke_eml_file(context, path_plus_name_c) {
                                 read_cnt += 1
                             }
+                            free(path_plus_name_c as *mut _);
                         }
                     }
                     current_block = 1622411330066726685;
@@ -387,18 +387,16 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
     let mut args = line.splitn(3, ' ');
     let arg0 = args.next().unwrap_or_default();
     let arg1 = args.next().unwrap_or_default();
-    let arg1_c = to_cstring(arg1);
-    let arg1_c_ptr = if arg1.is_empty() {
+    let arg1_c = if arg1.is_empty() {
         std::ptr::null()
     } else {
-        arg1_c.as_ptr()
+        to_cstring(arg1) as *const _
     };
     let arg2 = args.next().unwrap_or_default();
-    let arg2_c = to_cstring(arg2);
-    let arg2_c_ptr = if arg2.is_empty() {
+    let arg2_c = if arg2.is_empty() {
         std::ptr::null()
     } else {
-        arg2_c.as_ptr()
+        to_cstring(arg2) as *const _
     };
 
     match arg0 {
@@ -504,7 +502,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <file> missing");
             dc_close(context);
             ensure!(
-                0 != dc_open(context, arg1_c_ptr, 0 as *const libc::c_char),
+                0 != dc_open(context, arg1_c, 0 as *const libc::c_char),
                 "Open failed"
             );
         }
@@ -545,7 +543,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <setup-code> expected"
             );
-            if 0 == dc_continue_key_transfer(context, arg1.parse().unwrap(), arg2_c_ptr) {
+            if 0 == dc_continue_key_transfer(context, arg1.parse().unwrap(), arg2_c) {
                 bail!("Continue key transfer failed");
             }
         }
@@ -560,7 +558,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            dc_imex(context, 12, arg1_c_ptr, 0 as *const libc::c_char);
+            dc_imex(context, 12, arg1_c, 0 as *const libc::c_char);
         }
         "export-keys" => {
             dc_imex(context, 1, context.get_blobdir(), 0 as *const libc::c_char);
@@ -597,7 +595,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             free(setup_code as *mut libc::c_void);
         }
         "poke" => {
-            ensure!(0 != poke_spec(context, arg1_c_ptr), "Poke failed");
+            ensure!(0 != poke_spec(context, arg1_c), "Poke failed");
         }
         "reset" => {
             ensure!(!arg1.is_empty(), "Argument <bits> missing: 1=jobs, 2=peerstates, 4=private keys, 8=rest but server config");
@@ -631,7 +629,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };
-            let chatlist = dc_get_chatlist(context, listflags, arg1_c_ptr, 0 as uint32_t);
+            let chatlist = dc_get_chatlist(context, listflags, arg1_c, 0 as uint32_t);
             ensure!(!chatlist.is_null(), "Failed to retrieve chatlist");
 
             let mut i: libc::c_int;
@@ -789,8 +787,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "creategroup" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            let chat_id_1: libc::c_int =
-                dc_create_group_chat(context, 0, arg1_c_ptr) as libc::c_int;
+            let chat_id_1: libc::c_int = dc_create_group_chat(context, 0, arg1_c) as libc::c_int;
             if chat_id_1 != 0 {
                 println!("Group#{} created successfully.", chat_id_1,);
             } else {
@@ -799,8 +796,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "createverified" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            let chat_id_2: libc::c_int =
-                dc_create_group_chat(context, 1, arg1_c_ptr) as libc::c_int;
+            let chat_id_2: libc::c_int = dc_create_group_chat(context, 1, arg1_c) as libc::c_int;
             if chat_id_2 != 0 {
                 println!("VerifiedGroup#{} created successfully.", chat_id_2,);
             } else {
@@ -839,7 +835,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "groupname" => {
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            if 0 != dc_set_chat_name(context, dc_chat_get_id(sel_chat), arg1_c_ptr) {
+            if 0 != dc_set_chat_name(context, dc_chat_get_id(sel_chat), arg1_c) {
                 println!("Chat name set");
             } else {
                 bail!("Failed to set chat name");
@@ -853,7 +849,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 context,
                 dc_chat_get_id(sel_chat),
                 if !arg1.is_empty() {
-                    arg1_c_ptr
+                    arg1_c
                 } else {
                     std::ptr::null_mut()
                 },
@@ -944,9 +940,11 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
             let msg = to_cstring(format!("{} {}", arg1, arg2));
 
-            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg.as_ptr()) {
+            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg) {
                 println!("Message sent.");
+                free(msg as *mut _);
             } else {
+                free(msg as *mut _);
                 bail!("Sending failed.");
             }
         }
@@ -967,8 +965,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty() && !arg2.is_empty(), "No file given.");
 
             let msg_0 = dc_msg_new(context, if arg0 == "sendimage" { 20 } else { 60 });
-            dc_msg_set_file(msg_0, arg1_c_ptr, 0 as *const libc::c_char);
-            dc_msg_set_text(msg_0, arg2_c_ptr);
+            dc_msg_set_file(msg_0, arg1_c, 0 as *const libc::c_char);
+            dc_msg_set_text(msg_0, arg2_c);
             dc_send_msg(context, dc_chat_get_id(sel_chat), msg_0);
             dc_msg_unref(msg_0);
         }
@@ -981,7 +979,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 0 as libc::c_uint
             };
 
-            let msglist_0 = dc_search_msgs(context, chat, arg1_c_ptr);
+            let msglist_0 = dc_search_msgs(context, chat, arg1_c);
 
             if !msglist_0.is_null() {
                 log_msglist(context, msglist_0);
@@ -994,7 +992,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
             if !arg1.is_empty() {
                 let draft_0 = dc_msg_new(context, 10);
-                dc_msg_set_text(draft_0, arg1_c_ptr);
+                dc_msg_set_text(draft_0, arg1_c);
                 dc_set_draft(context, dc_chat_get_id(sel_chat), draft_0);
                 dc_msg_unref(draft_0);
                 println!("Draft saved.");
@@ -1086,7 +1084,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 } else {
                     0x2
                 },
-                arg1_c_ptr,
+                arg1_c,
             );
             if !contacts.is_null() {
                 log_contactlist(context, contacts);
@@ -1102,13 +1100,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             if !arg2.is_empty() {
                 let book = dc_mprintf(
                     b"%s\n%s\x00" as *const u8 as *const libc::c_char,
-                    arg1_c_ptr,
-                    arg2_c_ptr,
+                    arg1_c,
+                    arg2_c,
                 );
                 dc_add_address_book(context, book);
                 free(book as *mut libc::c_void);
             } else {
-                if 0 == dc_create_contact(context, 0 as *const libc::c_char, arg1_c_ptr) {
+                if 0 == dc_create_contact(context, 0 as *const libc::c_char, arg1_c) {
                     bail!("Failed to create contact");
                 }
             }
@@ -1155,7 +1153,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "checkqr" => {
             ensure!(!arg1.is_empty(), "Argument <qr-content> missing.");
-            let res = dc_check_qr(context, arg1_c_ptr);
+            let res = dc_check_qr(context, arg1_c);
             println!(
                 "state={}, id={}, text1={}, text2={}",
                 (*res).state as libc::c_int,
@@ -1183,7 +1181,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
             if 0 != dc_read_file(
                 context,
-                arg1_c_ptr,
+                arg1_c,
                 &mut buf as *mut *mut libc::c_uchar as *mut *mut libc::c_void,
                 &mut buf_bytes,
             ) {
@@ -1200,6 +1198,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
     if !sel_chat.is_null() {
         dc_chat_unref(sel_chat);
     }
+
+    free(arg1_c as *mut _);
+    free(arg2_c as *mut _);
 
     Ok(())
 }

@@ -2,7 +2,7 @@
 # ensures this even if the user has not set core.autocrlf.
 *  text=auto
 
-# binary files should be detected by git, however, to be sure, you can add them here explictly
+# binary files should be detected by git, however, to be sure, you can add them here explicitly
 *.png  binary
 *.jpg  binary
 *.gif  binary

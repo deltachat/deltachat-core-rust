@@ -80,9 +80,9 @@ pub const DC_STATE_OUT_FAILED: usize = 24;
 pub const DC_STATE_OUT_DELIVERED: usize = 26;
 pub const DC_STATE_OUT_MDN_RCVD: usize = 28;
 
-/// approx. max. lenght returned by dc_msg_get_text()
+/// approx. max. length returned by dc_msg_get_text()
 pub const DC_MAX_GET_TEXT_LEN: usize = 30000;
-/// approx. max. lenght returned by dc_get_msg_info()
+/// approx. max. length returned by dc_get_msg_info()
 pub const DC_MAX_GET_INFO_LEN: usize = 100000;
 
 pub const DC_CONTACT_ID_SELF: usize = 1;
@@ -119,7 +119,7 @@ pub const DC_MSG_AUDIO: usize = 40;
 /// A voice message that was directly recorded by the user.
 /// For all other audio messages, the type #DC_MSG_AUDIO should be used.
 /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
-/// and retieved via dc_msg_get_file(), dc_msg_get_duration()
+/// and retrieved via dc_msg_get_file(), dc_msg_get_duration()
 pub const DC_MSG_VOICE: usize = 41;
 
 /// Video messages.
@@ -173,12 +173,12 @@ pub const DC_LP_SMTP_SOCKET_SSL: usize = 0x20000;
 /// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_SMTP_SOCKET_PLAIN: usize = 0x40000;
 
-/// if none of these flags are set, the default is choosen
+/// if none of these flags are set, the default is chosen
 pub const DC_LP_AUTH_FLAGS: usize = (DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL);
-/// if none of these flags are set, the default is choosen
+/// if none of these flags are set, the default is chosen
 pub const DC_LP_IMAP_SOCKET_FLAGS: usize =
     (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_SSL | DC_LP_IMAP_SOCKET_PLAIN);
-/// if none of these flags are set, the default is choosen
+/// if none of these flags are set, the default is chosen
 pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
     (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
 
@@ -237,7 +237,7 @@ pub enum Event {
     /// The library-user should report an error to the end-user.
     /// Passed to the callback given to dc_context_new().
     ///
-    /// As most things are asynchrounous, things may go wrong at any time and the user
+    /// As most things are asynchronous, things may go wrong at any time and the user
     /// should not be disturbed by a dialog or so.  Instead, use a bubble or so.
     ///
     /// However, for ongoing processes (eg. dc_configure())
@@ -265,7 +265,7 @@ pub enum Event {
     ///
     /// Moreover, if the UI detects that the device is offline,
     /// it is probably more useful to report this to the user
-    /// instread of the string from data2.
+    /// instead of the string from data2.
     ///
     /// @param data1 (int) 1=first/new network error, should be reported the user;
     ///     0=subsequent network error, should be logged only
@@ -491,3 +491,12 @@ pub enum KeyType {
     Public = 0,
     Private = 1,
 }
+
+pub const DC_CMD_GROUPNAME_CHANGED: libc::c_int = 2;
+pub const DC_CMD_GROUPIMAGE_CHANGED: libc::c_int = 3;
+pub const DC_CMD_MEMBER_ADDED_TO_GROUP: libc::c_int = 4;
+pub const DC_CMD_MEMBER_REMOVED_FROM_GROUP: libc::c_int = 5;
+pub const DC_CMD_AUTOCRYPT_SETUP_MESSAGE: libc::c_int = 6;
+pub const DC_CMD_SECUREJOIN_MESSAGE: libc::c_int = 7;
+pub const DC_CMD_LOCATION_STREAMING_ENABLED: libc::c_int = 8;
+pub const DC_CMD_LOCATION_ONLY: libc::c_int = 9;
