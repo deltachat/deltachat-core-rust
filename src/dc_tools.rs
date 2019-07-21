@@ -1078,40 +1078,28 @@ pub unsafe fn dc_get_abs_path(
     context: &Context,
     pathNfilename: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !pathNfilename.is_null() {
-        pathNfilename_abs = dc_strdup(pathNfilename);
-        if strncmp(
-            pathNfilename_abs,
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            8,
-        ) == 0i32
-        {
-            if !context.has_blobdir() {
-                current_block = 3805228753452640762;
-            } else {
-                dc_str_replace(
-                    &mut pathNfilename_abs,
-                    b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-                    context.get_blobdir(),
-                );
-                current_block = 6937071982253665452;
-            }
-        } else {
-            current_block = 6937071982253665452;
-        }
-        match current_block {
-            3805228753452640762 => {}
-            _ => success = 1i32,
-        }
-    }
-    if 0 == success {
-        free(pathNfilename_abs as *mut libc::c_void);
-        pathNfilename_abs = 0 as *mut libc::c_char
+    if pathNfilename.is_null() {
+        return 0 as *mut libc::c_char;
     }
 
+    let starts = strncmp(
+        pathNfilename,
+        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
+        8,
+    ) == 0i32;
+
+    if starts && !context.has_blobdir() {
+        return 0 as *mut libc::c_char;
+    }
+
+    let mut pathNfilename_abs: *mut libc::c_char = dc_strdup(pathNfilename);
+    if starts && context.has_blobdir() {
+        dc_str_replace(
+            &mut pathNfilename_abs,
+            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
+            context.get_blobdir(),
+        );
+    }
     pathNfilename_abs
 }
 
