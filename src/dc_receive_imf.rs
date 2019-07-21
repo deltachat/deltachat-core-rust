@@ -884,7 +884,7 @@ unsafe fn calc_timestamps(
 }
 
 /* the function tries extracts the group-id from the message and returns the
-corresponding chat_id.  If the chat_id is not existant, it is created.
+corresponding chat_id.  If the chat_id is not existent, it is created.
 If the message contains groups commands (name, profile image, changed members),
 they are executed as well.
 
@@ -1397,7 +1397,7 @@ unsafe fn create_or_lookup_adhoc_group(
                         /* we do not check if the message is a reply to another group, this may result in
                         chats with unclear member list. instead we create a new group in the following lines ... */
                         /* create a new ad-hoc group
-                        - there is no need to check if this group exists; otherwise we would have catched it above */
+                        - there is no need to check if this group exists; otherwise we would have caught it above */
                         grpid = create_adhoc_grp_id(context, member_ids);
                         if !grpid.is_null() {
                             if !mime_parser.subject.is_null()
@@ -1477,7 +1477,7 @@ fn create_group_record(
 unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) -> *mut libc::c_char {
     /* algorithm:
     - sort normalized, lowercased, e-mail addresses alphabetically
-    - put all e-mail addresses into a single string, separate the addresss by a single comma
+    - put all e-mail addresses into a single string, separate the address by a single comma
     - sha-256 this string (without possibly terminating null-characters)
     - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
      */
@@ -1702,7 +1702,7 @@ unsafe fn check_verified_properties(
                             to_addr
                         ));
                         cleanup();
-                        return Err(failure::format_err!("not a valid memember").into());
+                        return Err(failure::format_err!("not a valid member").into());
                     }
                 }
                 Ok(())

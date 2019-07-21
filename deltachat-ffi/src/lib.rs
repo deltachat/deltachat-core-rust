@@ -481,7 +481,7 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
     assert!(!context.is_null());
     let context = &*context;
 
-    // TODO: update to indiciate public api success/failure of deletion
+    // TODO: update to indicate public api success/failure of deletion
     dc_chat::dc_delete_chat(context, chat_id);
 }
 
