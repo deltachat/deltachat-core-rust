@@ -39,15 +39,13 @@ pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
     if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
         return;
     }
-    let mut i: size_t = 0i32 as size_t;
-    while i < (*array).count {
+    for i in 0..(*array).count {
         if (*array).type_0 == DC_ARRAY_LOCATIONS {
             Box::from_raw(*(*array).array.offset(i as isize) as *mut dc_location);
         } else {
             free(*(*array).array.offset(i as isize) as *mut libc::c_void);
         }
         *(*array).array.offset(i as isize) = 0i32 as uintptr_t;
-        i = i.wrapping_add(1)
     }
 }
 
