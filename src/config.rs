@@ -71,7 +71,12 @@ impl Context {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_config(self, key);
                 rel_path.map(|p| {
-                    let v = unsafe { dc_get_abs_path(self, to_cstring(p).as_ptr()) };
+                    let v = unsafe {
+                        let n = to_cstring(p);
+                        let res = dc_get_abs_path(self, n);
+                        free(n as *mut libc::c_void);
+                        res
+                    };
                     let r = to_string(v);
                     unsafe { free(v as *mut _) };
                     r
@@ -100,7 +105,7 @@ impl Context {
     }
 
     /// Set the given config key.
-    /// If `None` is passed as a value the value is cleared and set to the deafult if there is one.
+    /// If `None` is passed as a value the value is cleared and set to the default if there is one.
     pub fn set_config(&self, key: Config, value: Option<&str>) -> Result<(), Error> {
         match key {
             Config::Selfavatar if value.is_some() => {

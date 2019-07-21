@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::ffi::{CStr, CString};
 use std::fs;
 use std::time::SystemTime;
 
@@ -176,14 +177,14 @@ pub unsafe fn dc_trim(buf: *mut libc::c_char) {
 
 /* the result must be free()'d */
 pub unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
-    let raw = to_cstring(to_string(in_0).to_lowercase());
-    strdup(raw.as_ptr())
+    to_cstring(to_string(in_0).to_lowercase())
 }
 
 pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
     let raw = to_cstring(to_string(in_0).to_lowercase());
-    assert_eq!(strlen(in_0), strlen(raw.as_ptr()));
-    memcpy(in_0 as *mut _, raw.as_ptr() as *const _, strlen(in_0));
+    assert_eq!(strlen(in_0), strlen(raw));
+    memcpy(in_0 as *mut _, raw as *const _, strlen(in_0));
+    free(raw as *mut _);
 }
 
 pub unsafe fn dc_str_contains(
@@ -231,7 +232,7 @@ pub unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut li
 
     let buf = std::slice::from_raw_parts(buf, bytes);
     let raw = hex::encode_upper(buf);
-    strdup(to_cstring(raw).as_ptr())
+    to_cstring(raw)
 }
 
 /* remove all \r characters from string */
@@ -527,7 +528,7 @@ pub unsafe fn dc_str_from_clist(
         }
     }
 
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub unsafe fn dc_str_to_clist(
@@ -563,7 +564,7 @@ pub unsafe fn dc_str_to_color(str: *const libc::c_char) -> libc::c_int {
     /* the colors must fulfill some criterions as:
     - contrast to black and to white
     - work as a text-color
-    - being noticable on a typical map
+    - being noticeable on a typical map
     - harmonize together while being different enough
     (therefore, we cannot just use random rgb colors :) */
     static mut colors: [uint32_t; 16] = [
@@ -669,7 +670,7 @@ pub unsafe fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
 /* the return value must be free()'d */
 pub unsafe fn dc_timestamp_to_str(wanted: i64) -> *mut libc::c_char {
     let res = dc_timestamp_to_str_safe(wanted);
-    strdup(to_cstring(res).as_ptr())
+    to_cstring(res)
 }
 
 pub fn dc_timestamp_to_str_safe(wanted: i64) -> String {
@@ -1077,40 +1078,28 @@ pub unsafe fn dc_get_abs_path(
     context: &Context,
     pathNfilename: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut pathNfilename_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !pathNfilename.is_null() {
-        pathNfilename_abs = dc_strdup(pathNfilename);
-        if strncmp(
-            pathNfilename_abs,
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            8,
-        ) == 0i32
-        {
-            if !context.has_blobdir() {
-                current_block = 3805228753452640762;
-            } else {
-                dc_str_replace(
-                    &mut pathNfilename_abs,
-                    b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-                    context.get_blobdir(),
-                );
-                current_block = 6937071982253665452;
-            }
-        } else {
-            current_block = 6937071982253665452;
-        }
-        match current_block {
-            3805228753452640762 => {}
-            _ => success = 1i32,
-        }
-    }
-    if 0 == success {
-        free(pathNfilename_abs as *mut libc::c_void);
-        pathNfilename_abs = 0 as *mut libc::c_char
+    if pathNfilename.is_null() {
+        return 0 as *mut libc::c_char;
     }
 
+    let starts = strncmp(
+        pathNfilename,
+        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
+        8,
+    ) == 0i32;
+
+    if starts && !context.has_blobdir() {
+        return 0 as *mut libc::c_char;
+    }
+
+    let mut pathNfilename_abs: *mut libc::c_char = dc_strdup(pathNfilename);
+    if starts && context.has_blobdir() {
+        dc_str_replace(
+            &mut pathNfilename_abs,
+            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
+            context.get_blobdir(),
+        );
+    }
     pathNfilename_abs
 }
 
@@ -1254,8 +1243,12 @@ pub unsafe fn dc_write_file(
 }
 
 pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
-    let pathNfilename_abs =
-        unsafe { dc_get_abs_path(context, to_cstring(pathNfilename.as_ref()).as_ptr()) };
+    let pathNfilename_abs = unsafe {
+        let n = to_cstring(pathNfilename.as_ref());
+        let res = dc_get_abs_path(context, n);
+        free(n as *mut _);
+        res
+    };
     if pathNfilename_abs.is_null() {
         return false;
     }
@@ -1299,8 +1292,13 @@ pub unsafe fn dc_read_file(
 }
 
 pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
-    let pathNfilename_abs =
-        unsafe { dc_get_abs_path(context, to_cstring(pathNfilename.as_ref()).as_ptr()) };
+    let pathNfilename_abs = unsafe {
+        let n = to_cstring(pathNfilename.as_ref());
+        let p = dc_get_abs_path(context, n);
+        free(n as *mut _);
+        p
+    };
+
     if pathNfilename_abs.is_null() {
         return None;
     }
@@ -1506,20 +1504,20 @@ pub trait OsStrExt {
     ///
     /// On windows when the string contains invalid Unicode
     /// `[Err]([CStringError::NotUnicode])` is returned.
-    fn to_c_string(&self) -> Result<std::ffi::CString, CStringError>;
+    fn to_c_string(&self) -> Result<CString, CStringError>;
 }
 
 impl<T: AsRef<std::ffi::OsStr>> OsStrExt for T {
     #[cfg(not(target_os = "windows"))]
-    fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
+    fn to_c_string(&self) -> Result<CString, CStringError> {
         use std::os::unix::ffi::OsStrExt;
-        std::ffi::CString::new(self.as_ref().as_bytes()).map_err(|err| match err {
+        CString::new(self.as_ref().as_bytes()).map_err(|err| match err {
             std::ffi::NulError { .. } => CStringError::InteriorNullByte,
         })
     }
 
     #[cfg(target_os = "windows")]
-    fn to_c_string(&self) -> Result<std::ffi::CString, CStringError> {
+    fn to_c_string(&self) -> Result<CString, CStringError> {
         os_str_to_c_string_unicode(&self)
     }
 }
@@ -1528,29 +1526,57 @@ impl<T: AsRef<std::ffi::OsStr>> OsStrExt for T {
 #[allow(dead_code)]
 fn os_str_to_c_string_unicode(
     os_str: &dyn AsRef<std::ffi::OsStr>,
-) -> Result<std::ffi::CString, CStringError> {
+) -> Result<CString, CStringError> {
     match os_str.as_ref().to_str() {
-        Some(val) => std::ffi::CString::new(val.as_bytes()).map_err(|err| match err {
+        Some(val) => CString::new(val.as_bytes()).map_err(|err| match err {
             std::ffi::NulError { .. } => CStringError::InteriorNullByte,
         }),
         None => Err(CStringError::NotUnicode),
     }
 }
 
-pub fn to_cstring<S: AsRef<str>>(s: S) -> std::ffi::CString {
-    std::ffi::CString::new(s.as_ref()).unwrap()
+/// Needs to free the result after use!
+pub unsafe fn to_cstring<S: AsRef<str>>(s: S) -> *mut libc::c_char {
+    let cstr = CString::new(s.as_ref()).expect("invalid string converted");
+    dc_strdup(cstr.as_ref().as_ptr())
 }
 
 pub fn to_string(s: *const libc::c_char) -> String {
     if s.is_null() {
         return "".into();
     }
-    unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap().to_string() }
+
+    let cstr = unsafe { CStr::from_ptr(s) };
+
+    cstr.to_str().map(|s| s.to_string()).unwrap_or_else(|err| {
+        panic!(
+            "Non utf8 string: '{:?}' ({:?})",
+            cstr.to_string_lossy(),
+            err
+        );
+    })
+}
+
+pub fn to_string_lossy(s: *const libc::c_char) -> String {
+    if s.is_null() {
+        return "".into();
+    }
+
+    let cstr = unsafe { CStr::from_ptr(s) };
+
+    cstr.to_str()
+        .map(|s| s.to_string())
+        .unwrap_or_else(|_| cstr.to_string_lossy().to_string())
 }
 
 pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
     assert!(!s.is_null(), "cannot be used on null pointers");
-    unsafe { std::ffi::CStr::from_ptr(s).to_str().unwrap() }
+
+    let cstr = unsafe { CStr::from_ptr(s) };
+
+    cstr.to_str().unwrap_or_else(|err| {
+        panic!("Non utf8 string: '{:?}' ({:?})", cstr.to_bytes(), err);
+    })
 }
 
 /// Convert a C `*char` pointer to a [std::path::Path] slice.
@@ -1582,7 +1608,7 @@ pub fn as_path<'a>(s: *const libc::c_char) -> &'a std::path::Path {
     as_path_unicode(s)
 }
 
-// Implmentation for as_path() on Windows.
+// Implementation for as_path() on Windows.
 //
 // Having this as a separate function means it can be tested on unix
 // too.
@@ -1981,7 +2007,7 @@ mod tests {
         let some_dir = std::path::Path::new(&some_str);
         assert_eq!(
             some_dir.as_os_str().to_c_string().unwrap(),
-            std::ffi::CString::new("/some/valid/utf8").unwrap()
+            CString::new("/some/valid/utf8").unwrap()
         );
     }
 
@@ -2006,7 +2032,7 @@ mod tests {
         let some_dir = std::path::Path::new(&some_str);
         assert_eq!(
             some_dir.as_os_str().to_c_string().unwrap(),
-            std::ffi::CString::new("/some/valid/utf8").unwrap()
+            CString::new("/some/valid/utf8").unwrap()
         );
     }
 
@@ -2015,7 +2041,7 @@ mod tests {
         let some_str = std::ffi::OsString::from("foo");
         assert_eq!(
             os_str_to_c_string_unicode(&some_str).unwrap(),
-            std::ffi::CString::new("foo").unwrap()
+            CString::new("foo").unwrap()
         );
     }
 
@@ -2025,7 +2051,7 @@ mod tests {
         let some_path = std::path::Path::new(&some_str);
         assert_eq!(
             os_str_to_c_string_unicode(&some_path).unwrap(),
-            std::ffi::CString::new("/some/path").unwrap()
+            CString::new("/some/path").unwrap()
         );
     }
 
@@ -2040,15 +2066,15 @@ mod tests {
 
     #[test]
     fn test_as_path() {
-        let some_path = std::ffi::CString::new("/some/path").unwrap();
+        let some_path = CString::new("/some/path").unwrap();
         let ptr = some_path.as_ptr();
         assert_eq!(as_path(ptr), std::ffi::OsString::from("/some/path"))
     }
 
     #[test]
     fn test_as_path_unicode_fn() {
-        let some_path = std::ffi::CString::new("/some/path").unwrap();
+        let some_path = CString::new("/some/path").unwrap();
         let ptr = some_path.as_ptr();
-        assert_eq!(as_path_unicode(ptr), std::ffi::OsString::from("/some/path"))
+        assert_eq!(as_path_unicode(ptr), std::ffi::OsString::from("/some/path"));
     }
 }

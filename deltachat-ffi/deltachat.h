@@ -503,8 +503,8 @@ int             dc_chat_is_sending_locations (const dc_chat_t*);
 #define         DC_STATE_OUT_MDN_RCVD        28
 
 
-#define         DC_MAX_GET_TEXT_LEN          30000 // approx. max. lenght returned by dc_msg_get_text()
-#define         DC_MAX_GET_INFO_LEN          100000 // approx. max. lenght returned by dc_get_msg_info()
+#define         DC_MAX_GET_TEXT_LEN          30000 // approx. max. length returned by dc_msg_get_text()
+#define         DC_MAX_GET_INFO_LEN          100000 // approx. max. length returned by dc_get_msg_info()
 
 
 dc_msg_t*       dc_msg_new                    (dc_context_t*, int viewtype);
@@ -667,7 +667,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
  * A voice message that was directly recorded by the user.
  * For all other audio messages, the type #DC_MSG_AUDIO should be used.
  * File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
- * and retieved via dc_msg_get_file(), dc_msg_get_duration()
+ * and retrieved via dc_msg_get_file(), dc_msg_get_duration()
  */
 #define DC_MSG_VOICE     41
 
@@ -768,9 +768,9 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
  * @}
  */
 
-#define DC_LP_AUTH_FLAGS        (DC_LP_AUTH_OAUTH2|DC_LP_AUTH_NORMAL) // if none of these flags are set, the default is choosen
-#define DC_LP_IMAP_SOCKET_FLAGS (DC_LP_IMAP_SOCKET_STARTTLS|DC_LP_IMAP_SOCKET_SSL|DC_LP_IMAP_SOCKET_PLAIN) // if none of these flags are set, the default is choosen
-#define DC_LP_SMTP_SOCKET_FLAGS (DC_LP_SMTP_SOCKET_STARTTLS|DC_LP_SMTP_SOCKET_SSL|DC_LP_SMTP_SOCKET_PLAIN) // if none of these flags are set, the default is choosen
+#define DC_LP_AUTH_FLAGS        (DC_LP_AUTH_OAUTH2|DC_LP_AUTH_NORMAL) // if none of these flags are set, the default is chosen
+#define DC_LP_IMAP_SOCKET_FLAGS (DC_LP_IMAP_SOCKET_STARTTLS|DC_LP_IMAP_SOCKET_SSL|DC_LP_IMAP_SOCKET_PLAIN) // if none of these flags are set, the default is chosen
+#define DC_LP_SMTP_SOCKET_FLAGS (DC_LP_SMTP_SOCKET_STARTTLS|DC_LP_SMTP_SOCKET_SSL|DC_LP_SMTP_SOCKET_PLAIN) // if none of these flags are set, the default is chosen
 
 
 
@@ -851,7 +851,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
  * The library-user should report an error to the end-user.
  * Passed to the callback given to dc_context_new().
  *
- * As most things are asynchrounous, things may go wrong at any time and the user
+ * As most things are asynchronous, things may go wrong at any time and the user
  * should not be disturbed by a dialog or so.  Instead, use a bubble or so.
  *
  * However, for ongoing processes (eg. dc_configure())
@@ -882,7 +882,7 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
  *
  * Moreover, if the UI detects that the device is offline,
  * it is probably more useful to report this to the user
- * instread of the string from data2.
+ * instead of the string from data2.
  *
  * @param data1 (int) 1=first/new network error, should be reported the user;
  *     0=subsequent network error, should be logged only

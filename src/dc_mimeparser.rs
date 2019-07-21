@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 
 use charset::Charset;
 use mmime::mailimf::*;
@@ -837,6 +837,7 @@ unsafe fn hash_header(
             18 => key = b"References\x00" as *const u8 as *const libc::c_char,
             19 => key = b"Subject\x00" as *const u8 as *const libc::c_char,
             22 => {
+                // MAILIMF_FIELD_OPTIONAL_FIELD
                 let optional_field: *const mailimf_optional_field =
                     (*field).fld_data.fld_optional_field;
                 if !optional_field.is_null() {
@@ -846,17 +847,16 @@ unsafe fn hash_header(
             _ => {}
         }
         if !key.is_null() {
-            let key_len: libc::c_int = strlen(key) as libc::c_int;
-            if out.contains_key(as_str(key)) {
-                if (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
-                    || key_len > 5i32
-                        && strncasecmp(key, b"Chat-\x00" as *const u8 as *const libc::c_char, 5)
-                            == 0i32
-                {
-                    out.insert(to_string(key), field);
-                }
-            } else {
-                out.insert(to_string(key), field);
+            // XXX the optional field sometimes contains invalid UTF8
+            // which should not happen (according to the mime standard).
+            // This might point to a bug in our mime parsing/processing
+            // logic. As mmime/dc_mimeparser is scheduled fore replacement
+            // anyway we just use a lossy conversion.
+            let key_r = &to_string_lossy(key);
+            if !out.contains_key(key_r) || // key already exists, only overwrite known types (protected headers)
+                (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as i32 || key_r.starts_with("Chat-")
+            {
+                out.insert(key_r.to_string(), field);
             }
         }
         cur1 = if !cur1.is_null() {
@@ -1208,8 +1208,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                             current_block = 8795901732489102124;
                                         } else {
                                             decoded_data_bytes = res.len();
-                                            let res_c = CString::new(res.as_bytes()).unwrap();
-                                            decoded_data = strdup(res_c.as_ptr());
+                                            decoded_data = res.as_ptr() as *const libc::c_char;
                                             current_block = 17788412896529399552;
                                         }
                                     } else {
@@ -1345,8 +1344,9 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                         }
                         if !filename_parts.is_empty() {
                             free(desired_filename as *mut libc::c_void);
-                            desired_filename =
-                                dc_decode_ext_header(to_cstring(filename_parts).as_ptr());
+                            let parts_c = to_cstring(filename_parts);
+                            desired_filename = dc_decode_ext_header(parts_c);
+                            free(parts_c as *mut _);
                         }
                         if desired_filename.is_null() {
                             let param = mailmime_find_ct_parameter(
@@ -1444,7 +1444,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
             }
         }
     }
-    /* add object? (we do not add all objetcs, eg. signatures etc. are ignored) */
+    /* add object? (we do not add all objects, eg. signatures etc. are ignored) */
     dc_simplify_unref(simplifier);
     if !transfer_decoding_buffer.is_null() {
         mmap_string_unref(transfer_decoding_buffer);

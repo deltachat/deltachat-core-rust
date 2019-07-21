@@ -62,7 +62,7 @@ pub unsafe fn dc_get_securejoin_qr(
         free(group_name_urlencoded as *mut libc::c_void);
 
         if let Some(qr) = qr {
-            strdup(to_cstring(qr).as_ptr())
+            to_cstring(qr)
         } else {
             std::ptr::null_mut()
         }
@@ -939,15 +939,15 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
                 &mut contact_chat_id,
                 0 as *mut libc::c_int,
             );
-            let c_addr = peerstate.addr.as_ref().map(to_cstring).unwrap_or_default();
-            let c_addr_ptr = if peerstate.addr.is_some() {
-                c_addr.as_ptr()
+            let c_addr_ptr = if let Some(ref addr) = peerstate.addr {
+                to_cstring(addr)
             } else {
                 std::ptr::null_mut()
             };
             let msg = dc_stock_str_repl_string(context, 37, c_addr_ptr);
             dc_add_device_msg(context, contact_chat_id, msg);
             free(msg as *mut libc::c_void);
+            free(c_addr_ptr as *mut _);
             context.call_cb(
                 Event::CHAT_MODIFIED,
                 contact_chat_id as uintptr_t,

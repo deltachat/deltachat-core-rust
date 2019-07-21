@@ -309,7 +309,7 @@ pub unsafe fn dc_create_setup_code(_context: &Context) -> *mut libc::c_char {
         );
     }
 
-    strdup(to_cstring(ret).as_ptr())
+    to_cstring(ret)
 }
 
 // TODO should return bool /rtn
@@ -539,7 +539,7 @@ pub unsafe fn dc_normalize_setup_code(
         p1 = p1.offset(1);
     }
 
-    strdup(to_cstring(out).as_ptr())
+    to_cstring(out)
 }
 
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
@@ -814,77 +814,75 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
     );
 
-    context
-        .sql
-        .query_map(
-            "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
-            params![],
-            |row| {
-                let name: String = row.get(0)?;
-                let blob: Vec<u8> = row.get(1)?;
+    let res = context.sql.query_map(
+        "SELECT file_name, file_content FROM backup_blobs ORDER BY id;",
+        params![],
+        |row| {
+            let name: String = row.get(0)?;
+            let blob: Vec<u8> = row.get(1)?;
 
-                Ok((name, blob))
-            },
-            |files| {
-                let mut loop_success = true;
-                let mut processed_files_cnt = 0;
+            Ok((name, blob))
+        },
+        |files| {
+            let mut loop_success = true;
+            let mut processed_files_cnt = 0;
 
-                for file in files {
-                    if file.is_err() {
-                        loop_success = false;
-                        break;
-                    }
-                    let (file_name, file_blob) = file.unwrap();
+            for file in files {
+                let (file_name, file_blob) = file?;
 
-                    if context
-                        .running_state
-                        .clone()
-                        .read()
-                        .unwrap()
-                        .shall_stop_ongoing
-                    {
-                        loop_success = false;
-                        break;
-                    }
-                    processed_files_cnt += 1;
-                    let mut permille = processed_files_cnt * 1000 / total_files_cnt;
-                    if permille < 10 {
-                        permille = 10
-                    }
-                    if permille > 990 {
-                        permille = 990
-                    }
-                    context.call_cb(Event::IMEX_PROGRESS, permille as uintptr_t, 0);
-                    if file_blob.is_empty() {
-                        continue;
-                    }
-
-                    let pathNfilename = format!("{}/{}", as_str(context.get_blobdir()), file_name);
-                    if dc_write_file_safe(context, &pathNfilename, &file_blob) {
-                        continue;
-                    }
-
-                    error!(
-                        context,
-                        0,
-                        "Storage full? Cannot write file {} with {} bytes.",
-                        &pathNfilename,
-                        file_blob.len(),
-                    );
-                    // otherwise the user may believe the stuff is imported correctly, but there are files missing ...
+                if context
+                    .running_state
+                    .clone()
+                    .read()
+                    .unwrap()
+                    .shall_stop_ongoing
+                {
                     loop_success = false;
                     break;
                 }
-
-                if !loop_success {
-                    return Err(format_err!("fail").into());
+                processed_files_cnt += 1;
+                let mut permille = processed_files_cnt * 1000 / total_files_cnt;
+                if permille < 10 {
+                    permille = 10
                 }
-                sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
-                sql::try_execute(context, &context.sql, "VACUUM;");
-                Ok(())
-            },
-        )
-        .is_ok() as libc::c_int
+                if permille > 990 {
+                    permille = 990
+                }
+                context.call_cb(Event::IMEX_PROGRESS, permille as uintptr_t, 0);
+                if file_blob.is_empty() {
+                    continue;
+                }
+
+                let pathNfilename = format!("{}/{}", as_str(context.get_blobdir()), file_name);
+                if dc_write_file_safe(context, &pathNfilename, &file_blob) {
+                    continue;
+                }
+
+                error!(
+                    context,
+                    0,
+                    "Storage full? Cannot write file {} with {} bytes.",
+                    &pathNfilename,
+                    file_blob.len(),
+                );
+                // otherwise the user may believe the stuff is imported correctly, but there are files missing ...
+                loop_success = false;
+                break;
+            }
+
+            if !loop_success {
+                return Err(format_err!("fail").into());
+            }
+            Ok(())
+        },
+    );
+
+    res.and_then(|_| {
+        sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
+        sql::try_execute(context, &context.sql, "VACUUM;")?;
+        Ok(())
+    })
+    .is_ok() as libc::c_int
 }
 
 /*******************************************************************************
@@ -905,7 +903,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         .format("delta-chat-%Y-%m-%d.bak")
         .to_string();
     let buffer = to_cstring(res);
-    let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
+    let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer);
+    free(buffer as *mut _);
     if dest_pathNfilename.is_null() {
         error!(context, 0, "Cannot get backup file name.",);
 
@@ -981,7 +980,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
 
                                 sql.prepare(
                                     "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
-                                    move |mut stmt| {
+                                    move |mut stmt, _| {
                                         let mut processed_files_cnt = 0;
                                         for entry in dir_handle {
                                             if entry.is_err() {
@@ -1104,6 +1103,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     let mut imported_cnt: libc::c_int = 0;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut name_c: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf_bytes: size_t = 0 as size_t;
@@ -1131,8 +1131,9 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 let entry = entry.unwrap();
                 free(suffix as *mut libc::c_void);
                 let name_f = entry.file_name();
-                let name_c = to_cstring(name_f.to_string_lossy());
-                suffix = dc_get_filesuffix_lc(name_c.as_ptr());
+                free(name_c as *mut libc::c_void);
+                name_c = to_cstring(name_f.to_string_lossy());
+                suffix = dc_get_filesuffix_lc(name_c);
                 if suffix.is_null()
                     || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0
                 {
@@ -1142,7 +1143,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 path_plus_name = dc_mprintf(
                     b"%s/%s\x00" as *const u8 as *const libc::c_char,
                     dir_name,
-                    name_c.as_ptr(),
+                    name_c,
                 );
                 info!(context, 0, "Checking: {}", as_str(path_plus_name));
                 free(buf as *mut libc::c_void);
@@ -1180,12 +1181,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     }
                 }
                 set_default = 1;
-                if !strstr(
-                    name_c.as_ptr(),
-                    b"legacy\x00" as *const u8 as *const libc::c_char,
-                )
-                .is_null()
-                {
+                if !strstr(name_c, b"legacy\x00" as *const u8 as *const libc::c_char).is_null() {
                     info!(
                         context,
                         0,
@@ -1210,6 +1206,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
         }
     }
 
+    free(name_c as *mut libc::c_void);
     free(suffix as *mut libc::c_void);
     free(path_plus_name as *mut libc::c_void);
     free(buf as *mut libc::c_void);

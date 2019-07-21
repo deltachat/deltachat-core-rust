@@ -48,14 +48,14 @@ pub struct dc_job_t {
 }
 
 pub unsafe fn dc_perform_imap_jobs(context: &Context) {
-    info!(context, 0, "INBOX-jobs started...",);
+    info!(context, 0, "dc_perform_imap_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
     *context.probe_imap_network.write().unwrap() = 0;
     *context.perform_inbox_jobs_needed.write().unwrap() = 0;
 
     dc_job_perform(context, 100, probe_imap_network);
-    info!(context, 0, "INBOX-jobs ended.",);
+    info!(context, 0, "dc_perform_imap_jobs ended.",);
 }
 
 unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
@@ -80,36 +80,42 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
         params_probe
     };
 
-    let jobs: Vec<dc_job_t> = context
-        .sql
-        .query_map(
-            query,
-            params,
-            |row| {
-                let job = dc_job_t {
-                    job_id: row.get(0)?,
-                    action: row.get(1)?,
-                    foreign_id: row.get(2)?,
-                    desired_timestamp: row.get(5)?,
-                    added_timestamp: row.get(4)?,
-                    tries: row.get(6)?,
-                    param: dc_param_new(),
-                    try_again: 0,
-                    pending_error: 0 as *mut libc::c_char,
-                };
+    let jobs: Result<Vec<dc_job_t>, _> = context.sql.query_map(
+        query,
+        params,
+        |row| {
+            let job = dc_job_t {
+                job_id: row.get(0)?,
+                action: row.get(1)?,
+                foreign_id: row.get(2)?,
+                desired_timestamp: row.get(5)?,
+                added_timestamp: row.get(4)?,
+                tries: row.get(6)?,
+                param: dc_param_new(),
+                try_again: 0,
+                pending_error: 0 as *mut libc::c_char,
+            };
 
-                let packed: String = row.get(3)?;
-                dc_param_set_packed(job.param, to_cstring(packed).as_ptr());
-                Ok(job)
-            },
-            |jobs| {
-                jobs.collect::<Result<Vec<dc_job_t>, _>>()
-                    .map_err(Into::into)
-            },
-        )
-        .unwrap_or_default();
-
-    for mut job in jobs {
+            let packed: String = row.get(3)?;
+            let packed_c = to_cstring(packed);
+            dc_param_set_packed(job.param, packed_c);
+            free(packed_c as *mut _);
+            Ok(job)
+        },
+        |jobs| {
+            let res = jobs
+                .collect::<Result<Vec<dc_job_t>, _>>()
+                .map_err(Into::into);
+            res
+        },
+    );
+    match jobs {
+        Ok(ref res) => {}
+        Err(ref err) => {
+            info!(context, 0, "query failed: {:?}", err);
+        }
+    }
+    for mut job in jobs.unwrap_or_default() {
         info!(
             context,
             0,
@@ -285,7 +291,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
         let loginparam = dc_loginparam_read(context, &context.sql, "configured_");
         let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
 
-        if 0 == connected {
+        if !connected {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             current_block = 14216916617354591294;
         } else {
