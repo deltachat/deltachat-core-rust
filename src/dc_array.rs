@@ -237,16 +237,13 @@ pub unsafe fn dc_array_search_id(
         return false;
     }
     let data: *mut uintptr_t = (*array).array;
-    let mut i: size_t = 0;
-    let cnt: size_t = (*array).count;
-    while i < cnt {
+    for i in 0..(*array).count {
         if *data.offset(i as isize) == needle as size_t {
             if !ret_index.is_null() {
                 *ret_index = i
             }
             return true;
         }
-        i = i.wrapping_add(1)
     }
     false
 }
