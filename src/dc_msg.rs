@@ -481,9 +481,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
 
     match res {
         Ok(_) => true,
-        Err(err) => {
-            false
-        }
+        Err(err) => false,
     }
 }
 
