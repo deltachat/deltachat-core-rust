@@ -86,8 +86,9 @@ fn main() {
         let args = std::env::args().collect::<Vec<String>>();
         assert_eq!(args.len(), 2, "missing password");
         let pw = args[1].clone();
-        ctx.set_config(config::Config::Addr, Some("d@testrun.org"));
-        ctx.set_config(config::Config::MailPw, Some(&pw));
+        ctx.set_config(config::Config::Addr, Some("d@testrun.org"))
+            .unwrap();
+        ctx.set_config(config::Config::MailPw, Some(&pw)).unwrap();
         dc_configure(&ctx);
 
         thread::sleep(duration);

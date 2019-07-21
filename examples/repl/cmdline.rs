@@ -28,7 +28,7 @@ use num_traits::FromPrimitive;
 pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
     info!(context, 0, "Resetting tables ({})...", bits);
     if 0 != bits & 1 {
-        sql::execute(context, &context.sql, "DELETE FROM jobs;", params![]);
+        sql::execute(context, &context.sql, "DELETE FROM jobs;", params![]).unwrap();
         info!(context, 0, "(1) Jobs reset.");
     }
     if 0 != bits & 2 {
@@ -37,11 +37,12 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
             &context.sql,
             "DELETE FROM acpeerstates;",
             params![],
-        );
+        )
+        .unwrap();
         info!(context, 0, "(2) Peerstates reset.");
     }
     if 0 != bits & 4 {
-        sql::execute(context, &context.sql, "DELETE FROM keypairs;", params![]);
+        sql::execute(context, &context.sql, "DELETE FROM keypairs;", params![]).unwrap();
         info!(context, 0, "(4) Private keypairs reset.");
     }
     if 0 != bits & 8 {
@@ -50,32 +51,37 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
             &context.sql,
             "DELETE FROM contacts WHERE id>9;",
             params![],
-        );
+        )
+        .unwrap();
         sql::execute(
             context,
             &context.sql,
             "DELETE FROM chats WHERE id>9;",
             params![],
-        );
+        )
+        .unwrap();
         sql::execute(
             context,
             &context.sql,
             "DELETE FROM chats_contacts;",
             params![],
-        );
+        )
+        .unwrap();
         sql::execute(
             context,
             &context.sql,
             "DELETE FROM msgs WHERE id>9;",
             params![],
-        );
+        )
+        .unwrap();
         sql::execute(
             context,
             &context.sql,
             "DELETE FROM config WHERE keyname LIKE 'imap.%' OR keyname LIKE 'configured%';",
             params![],
-        );
-        sql::execute(context, &context.sql, "DELETE FROM leftgrps;", params![]);
+        )
+        .unwrap();
+        sql::execute(context, &context.sql, "DELETE FROM leftgrps;", params![]).unwrap();
         info!(context, 0, "(8) Rest but server config reset.");
     }
 
@@ -129,7 +135,8 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         real_spec = dc_strdup(spec);
         context
             .sql
-            .set_config(context, "import_spec", Some(as_str(real_spec)));
+            .set_config(context, "import_spec", Some(as_str(real_spec)))
+            .unwrap();
         current_block = 7149356873433890176;
     } else {
         let rs = context.sql.get_config(context, "import_spec");
