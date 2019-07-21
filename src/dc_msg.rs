@@ -482,8 +482,6 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
     match res {
         Ok(_) => true,
         Err(err) => {
-            // error!(context, 0, "msg: load from db failed: {:?}", err);
-            panic!("msg: load from db failed: {:?}", err);
             false
         }
     }
