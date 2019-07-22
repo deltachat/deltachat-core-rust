@@ -47,6 +47,14 @@ impl dc_array_t {
     pub fn len(&self) -> usize {
         self.array.len()
     }
+
+    pub unsafe fn unref(&mut self) {
+        if self.type_0 == DC_ARRAY_LOCATIONS {
+            for &e in self.array.iter() {
+                Box::from_raw(e as *mut dc_location);
+            }
+        }
+    }
 }
 
 /**
@@ -60,11 +68,6 @@ impl dc_array_t {
 pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
     if array.is_null() {
         return;
-    }
-    if (*array).type_0 == DC_ARRAY_LOCATIONS {
-        for &e in (*array).array.iter() {
-            Box::from_raw(e as *mut dc_location);
-        }
     }
     Box::from_raw(array);
 }
