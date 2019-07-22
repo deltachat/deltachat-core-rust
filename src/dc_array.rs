@@ -22,6 +22,14 @@ impl dc_array_t {
     pub fn as_ptr(self) -> *mut Self {
         Box::into_raw(Box::new(self))
     }
+
+    pub fn add_uint(&mut self, item: uintptr_t) {
+        self.array.push(item);
+    }
+
+    pub fn add_id(&mut self, item: uint32_t) {
+        self.add_uint(item as uintptr_t);
+    }
 }
 
 /**
@@ -57,14 +65,15 @@ pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
 }
 
 pub unsafe fn dc_array_add_uint(array: *mut dc_array_t, item: uintptr_t) {
-    if array.is_null() {
-        return;
+    if !array.is_null() {
+        (*array).add_uint(item);
     }
-    (*array).array.push(item);
 }
 
 pub unsafe fn dc_array_add_id(array: *mut dc_array_t, item: uint32_t) {
-    dc_array_add_uint(array, item as uintptr_t);
+    if !array.is_null() {
+        (*array).add_id(item);
+    }
 }
 
 pub unsafe fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut libc::c_void) {
