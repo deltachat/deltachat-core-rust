@@ -42,6 +42,11 @@ impl dc_array_t {
     pub fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
+
+    /// Returns the number of elements in the array.
+    pub fn len(&self) -> usize {
+        self.array.len()
+    }
 }
 
 /**
@@ -84,18 +89,18 @@ pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
     if array.is_null() {
         return 0i32 as size_t;
     }
-    (*array).array.len()
+    (*array).len()
 }
 
 pub unsafe fn dc_array_get_uint(array: *const dc_array_t, index: size_t) -> uintptr_t {
-    if array.is_null() || index >= (*array).array.len() {
+    if array.is_null() || index >= (*array).len() {
         return 0i32 as uintptr_t;
     }
     (*array).array[index]
 }
 
 pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    if array.is_null() || index >= (*array).array.len() {
+    if array.is_null() || index >= (*array).len() {
         return 0i32 as uint32_t;
     }
     if (*array).type_0 == DC_ARRAY_LOCATIONS {
@@ -105,7 +110,7 @@ pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32
 }
 
 pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut libc::c_void {
-    if array.is_null() || index >= (*array).array.len() {
+    if array.is_null() || index >= (*array).len() {
         return 0 as *mut libc::c_void;
     }
     (*array).array[index] as *mut libc::c_void
@@ -113,7 +118,7 @@ pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut 
 
 pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -124,7 +129,7 @@ pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> 
 
 pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -135,7 +140,7 @@ pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) ->
 
 pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -146,7 +151,7 @@ pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> 
 
 pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) -> i64 {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -157,7 +162,7 @@ pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) ->
 
 pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -168,7 +173,7 @@ pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> u
 
 pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -179,7 +184,7 @@ pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -
 
 pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -190,7 +195,7 @@ pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> ui
 
 pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *mut libc::c_char {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -215,7 +220,7 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
  */
 pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -> libc::c_int {
     if array.is_null()
-        || index >= (*array).array.len()
+        || index >= (*array).len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
     {
@@ -275,7 +280,7 @@ pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
 }
 
 pub unsafe fn dc_array_sort_ids(array: *mut dc_array_t) {
-    if array.is_null() || (*array).array.len() <= 1 {
+    if array.is_null() || (*array).len() <= 1 {
         return;
     }
     (*array).array.sort();
@@ -288,7 +293,7 @@ pub unsafe fn dc_array_get_string(
     if array.is_null() || sep.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let cnt = (*array).array.len();
+    let cnt = (*array).len();
     let sep = as_str(sep);
 
     let res =
