@@ -1021,17 +1021,3 @@ fn test_wrong_db() {
         assert_eq!(res, 0);
     }
 }
-
-#[test]
-fn test_arr_to_string() {
-    let arr2: [uint32_t; 4] = [
-        0i32 as uint32_t,
-        12i32 as uint32_t,
-        133i32 as uint32_t,
-        1999999i32 as uint32_t,
-    ];
-
-    let str_0 = unsafe { dc_arr_to_string(arr2.as_ptr(), 4i32) };
-    assert_eq!(to_string(str_0), "0,12,133,1999999");
-    unsafe { free(str_0 as *mut _) };
-}
