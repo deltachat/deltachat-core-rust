@@ -247,7 +247,7 @@ pub fn dc_get_locations(
                 Ok(loc)
             },
             |locations| {
-                let ret = unsafe { dc_array_new_typed(1, 500) };
+                let ret = dc_array_new_typed(1, 500);
 
                 for location in locations {
                     unsafe {

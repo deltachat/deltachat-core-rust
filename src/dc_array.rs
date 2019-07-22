@@ -242,11 +242,11 @@ pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
     (*array).array.as_ptr()
 }
 
-pub unsafe fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
+pub fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
     dc_array_new_typed(0, initsize)
 }
 
-pub unsafe fn dc_array_new_typed(type_0: libc::c_int, initsize: size_t) -> *mut dc_array_t {
+pub fn dc_array_new_typed(type_0: libc::c_int, initsize: size_t) -> *mut dc_array_t {
     let capacity = if initsize < 1 { 1 } else { initsize as usize };
     let mut array = dc_array_t::new(capacity);
     array.type_0 = type_0;

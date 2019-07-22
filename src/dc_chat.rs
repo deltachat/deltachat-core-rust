@@ -1285,7 +1285,7 @@ pub fn dc_get_chat_media(
         ],
         |row| row.get::<_, i32>(0),
         |ids| {
-            let ret = unsafe { dc_array_new(100) };
+            let ret = dc_array_new(100);
             for id in ids {
                 unsafe { dc_array_add_id(ret, id? as u32) };
             }
@@ -1458,7 +1458,7 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
             params![chat_id as i32],
             |row| row.get::<_, i32>(0),
             |ids| {
-                let ret = unsafe { dc_array_new(100) };
+                let ret = dc_array_new(100);
 
                 for id in ids {
                     unsafe { dc_array_add_id(ret, id? as u32) };

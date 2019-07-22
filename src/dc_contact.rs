@@ -537,7 +537,7 @@ pub fn dc_get_contacts(
         .unwrap_or_default();
 
     let mut add_self = false;
-    let ret = unsafe { dc_array_new(100) };
+    let ret = dc_array_new(100);
 
     if (listflags & DC_GCL_VERIFIED_ONLY) > 0 || !query.is_null() {
         let s3strLikeCmd = format!("%{}%", if !query.is_null() { as_str(query) } else { "" });
@@ -629,7 +629,7 @@ pub fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
             params![9],
             |row| row.get::<_, i32>(0),
             |ids| {
-                let ret = unsafe { dc_array_new(100) };
+                let ret = dc_array_new(100);
 
                 for id in ids {
                     unsafe { dc_array_add_id(ret, id? as u32) };

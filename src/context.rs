@@ -521,7 +521,7 @@ pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
             &[10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
             |row| row.get(0),
             |rows| {
-                let ret = unsafe { dc_array_new(128 as size_t) };
+                let ret = dc_array_new(128 as size_t);
 
                 for row in rows {
                     let id = row?;
@@ -560,7 +560,7 @@ pub fn dc_search_msgs(
          AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
     };
 
-    let ret = unsafe { dc_array_new(100 as size_t) };
+    let ret = dc_array_new(100 as size_t);
 
     let success = context
         .sql
