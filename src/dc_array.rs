@@ -2,13 +2,11 @@ use crate::dc_location::dc_location;
 use crate::dc_tools::*;
 use crate::types::*;
 
-const DC_ARRAY_MAGIC: uint32_t = 0x000a11aa;
 const DC_ARRAY_LOCATIONS: libc::c_int = 1;
 
 /* * the structure behind dc_array_t */
 #[derive(Clone)]
 pub struct dc_array_t {
-    pub magic: uint32_t,
     pub type_0: libc::c_int,
     pub array: Vec<uintptr_t>,
 }
@@ -16,7 +14,6 @@ pub struct dc_array_t {
 impl dc_array_t {
     pub fn new(capacity: usize) -> Self {
         dc_array_t {
-            magic: DC_ARRAY_MAGIC,
             type_0: 0,
             array: Vec::with_capacity(capacity),
         }
@@ -35,19 +32,18 @@ impl dc_array_t {
  * The items of the array are typically IDs.
  * To free an array object, use dc_array_unref().
  */
-pub unsafe fn dc_array_unref(mut array: *mut dc_array_t) {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
+pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
+    if array.is_null() {
         return;
     }
     if (*array).type_0 == DC_ARRAY_LOCATIONS {
         dc_array_free_ptr(array);
     }
-    (*array).magic = 0i32 as uint32_t;
     Box::from_raw(array);
 }
 
 pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
+    if array.is_null() {
         return;
     }
     for i in 0..(*array).array.len() {
@@ -61,7 +57,7 @@ pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
 }
 
 pub unsafe fn dc_array_add_uint(array: *mut dc_array_t, item: uintptr_t) {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
+    if array.is_null() {
         return;
     }
     (*array).array.push(item);
@@ -76,21 +72,21 @@ pub unsafe fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut libc::c_void) 
 }
 
 pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
+    if array.is_null() {
         return 0i32 as size_t;
     }
     (*array).array.len()
 }
 
 pub unsafe fn dc_array_get_uint(array: *const dc_array_t, index: size_t) -> uintptr_t {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC || index >= (*array).array.len() {
+    if array.is_null() || index >= (*array).array.len() {
         return 0i32 as uintptr_t;
     }
     (*array).array[index]
 }
 
 pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC || index >= (*array).array.len() {
+    if array.is_null() || index >= (*array).array.len() {
         return 0i32 as uint32_t;
     }
     if (*array).type_0 == DC_ARRAY_LOCATIONS {
@@ -100,7 +96,7 @@ pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32
 }
 
 pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut libc::c_void {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC || index >= (*array).array.len() {
+    if array.is_null() || index >= (*array).array.len() {
         return 0 as *mut libc::c_void;
     }
     (*array).array[index] as *mut libc::c_void
@@ -108,7 +104,6 @@ pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut 
 
 pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -120,7 +115,6 @@ pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> 
 
 pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -132,7 +126,6 @@ pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) ->
 
 pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> libc::c_double {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -144,7 +137,6 @@ pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> 
 
 pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) -> i64 {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -156,7 +148,6 @@ pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) ->
 
 pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -168,7 +159,6 @@ pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> u
 
 pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -180,7 +170,6 @@ pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -
 
 pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -192,7 +181,6 @@ pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> ui
 
 pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *mut libc::c_char {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -218,7 +206,6 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
  */
 pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -> libc::c_int {
     if array.is_null()
-        || (*array).magic != DC_ARRAY_MAGIC
         || index >= (*array).array.len()
         || (*array).type_0 != DC_ARRAY_LOCATIONS
         || (*array).array[index] == 0
@@ -234,7 +221,7 @@ pub unsafe fn dc_array_search_id(
     needle: uint32_t,
     ret_index: *mut size_t,
 ) -> bool {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
+    if array.is_null() {
         return false;
     }
     for i in 0..(*array).array.len() {
@@ -249,7 +236,7 @@ pub unsafe fn dc_array_search_id(
 }
 
 pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
+    if array.is_null() {
         return 0 as *const uintptr_t;
     }
     (*array).array.as_ptr()
@@ -267,7 +254,7 @@ pub unsafe fn dc_array_new_typed(type_0: libc::c_int, initsize: size_t) -> *mut 
 }
 
 pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
+    if array.is_null() {
         return;
     }
     (*array).array.clear();
@@ -275,7 +262,7 @@ pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
 
 pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
     let mut ret: *mut dc_array_t;
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC {
+    if array.is_null() {
         return 0 as *mut dc_array_t;
     }
     ret = dc_array_new(1);
@@ -284,7 +271,7 @@ pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
 }
 
 pub unsafe fn dc_array_sort_ids(array: *mut dc_array_t) {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC || (*array).array.len() <= 1 {
+    if array.is_null() || (*array).array.len() <= 1 {
         return;
     }
     (*array).array.sort();
@@ -294,7 +281,7 @@ pub unsafe fn dc_array_get_string(
     array: *const dc_array_t,
     sep: *const libc::c_char,
 ) -> *mut libc::c_char {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC || sep.is_null() {
+    if array.is_null() || sep.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
     let cnt = (*array).array.len();
