@@ -152,6 +152,16 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
     );
 
     match res {
+        Err(crate::error::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => false,
+        Err(err) => match err {
+            _ => {
+                error!(
+                    context,
+                    0, "chat: failed to load from db {}: {:?}", chat_id, err
+                );
+                false
+            }
+        },
         Ok(_) => {
             let c = unsafe { &mut *chat };
             match c.id {
@@ -184,16 +194,6 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
             }
             true
         }
-        Err(err) => match err {
-            QueryReturnedNoRows => false,
-            _ => {
-                error!(
-                    context,
-                    0, "chat: failed to load from db {}: {:?}", chat_id, err
-                );
-                false
-            }
-        },
     }
 }
 
