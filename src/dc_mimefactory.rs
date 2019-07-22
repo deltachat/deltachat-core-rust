@@ -355,7 +355,6 @@ pub unsafe fn dc_mimefactory_load_mdn(
 // TODO should return bool /rtn
 pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc::c_int {
     let subject: *mut mailimf_subject;
-    let mut current_block: u64;
     let imf_fields: *mut mailimf_fields;
     let mut message: *mut mailmime = 0 as *mut mailmime;
     let mut message_text: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -892,7 +891,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     );
                     set_error(factory, error);
                     free(error as *mut libc::c_void);
-                    current_block = 11328123142868406523;
+                    return cleanup(e2ee_helper); 
                 } else {
                     let file_part: *mut mailmime =
                         build_body_file(msg, 0 as *const libc::c_char, 0 as *mut *mut libc::c_char);
@@ -913,7 +912,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             factory,
                             b"Empty message.\x00" as *const u8 as *const libc::c_char,
                         );
-                        current_block = 11328123142868406523;
+                        return cleanup(e2ee_helper);
                     } else {
                         if !meta_part.is_null() {
                             mailmime_smart_add_part(message, meta_part);
@@ -985,7 +984,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 }
                             }
                         }
-                        current_block = 9952640327414195044;
                     }
                 }
             }
@@ -1039,7 +1037,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 factory,
                 b"No message loaded.\x00" as *const u8 as *const libc::c_char,
             );
-            current_block = 11328123142868406523;
+            return cleanup(e2ee_helper);
         }
         match current_block {
             11328123142868406523 => {}
