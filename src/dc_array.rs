@@ -1,7 +1,6 @@
 use crate::dc_location::dc_location;
 use crate::dc_tools::*;
 use crate::types::*;
-use crate::x::*;
 
 const DC_ARRAY_MAGIC: uint32_t = 0x000a11aa;
 
@@ -328,28 +327,6 @@ unsafe extern "C" fn cmp_intptr_t(p1: *const libc::c_void, p2: *const libc::c_vo
     };
 }
 
-pub unsafe fn dc_array_sort_strings(array: *mut dc_array_t) {
-    if array.is_null() || (*array).magic != DC_ARRAY_MAGIC || (*array).count <= 1 {
-        return;
-    }
-    qsort(
-        (*array).array as *mut libc::c_void,
-        (*array).count,
-        ::std::mem::size_of::<*mut libc::c_char>(),
-        Some(cmp_strings_t),
-    );
-}
-
-unsafe extern "C" fn cmp_strings_t(
-    p1: *const libc::c_void,
-    p2: *const libc::c_void,
-) -> libc::c_int {
-    let v1: *const libc::c_char = *(p1 as *mut *const libc::c_char);
-    let v2: *const libc::c_char = *(p2 as *mut *const libc::c_char);
-
-    strcmp(v1, v2)
-}
-
 pub unsafe fn dc_array_get_string(
     array: *const dc_array_t,
     sep: *const libc::c_char,
@@ -379,6 +356,7 @@ pub unsafe fn dc_array_get_string(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::x::*;
     use std::ffi::CStr;
 
     #[test]
@@ -427,38 +405,6 @@ mod tests {
                 "0-7-13-666-5000"
             );
             free(str as *mut libc::c_void);
-
-            dc_array_empty(arr);
-
-            dc_array_add_ptr(
-                arr,
-                b"XX\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
-            );
-            dc_array_add_ptr(
-                arr,
-                b"item1\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
-            );
-            dc_array_add_ptr(
-                arr,
-                b"bbb\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
-            );
-            dc_array_add_ptr(
-                arr,
-                b"aaa\x00" as *const u8 as *const libc::c_char as *mut libc::c_void,
-            );
-            dc_array_sort_strings(arr);
-
-            let str = dc_array_get_ptr(arr, 0 as size_t) as *mut libc::c_char;
-            assert_eq!(CStr::from_ptr(str).to_str().unwrap(), "XX");
-
-            let str = dc_array_get_ptr(arr, 1 as size_t) as *mut libc::c_char;
-            assert_eq!(CStr::from_ptr(str).to_str().unwrap(), "aaa");
-
-            let str = dc_array_get_ptr(arr, 2 as size_t) as *mut libc::c_char;
-            assert_eq!(CStr::from_ptr(str).to_str().unwrap(), "bbb");
-
-            let str = dc_array_get_ptr(arr, 3 as size_t) as *mut libc::c_char;
-            assert_eq!(CStr::from_ptr(str).to_str().unwrap(), "item1");
 
             dc_array_unref(arr);
         }
