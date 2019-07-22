@@ -379,28 +379,6 @@ pub unsafe fn dc_array_get_string(
     to_cstring(res)
 }
 
-/// return comma-separated value-string from integer array
-pub unsafe fn dc_arr_to_string(arr: *const uint32_t, cnt: libc::c_int) -> *mut libc::c_char {
-    if arr.is_null() || cnt == 0 {
-        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
-    }
-
-    let slice = std::slice::from_raw_parts(arr, cnt as usize);
-    let res = slice.iter().enumerate().fold(
-        String::with_capacity(2 * cnt as usize),
-        |mut res, (i, n)| {
-            if i == 0 {
-                res += &n.to_string();
-            } else {
-                res += ",";
-                res += &n.to_string();
-            }
-            res
-        },
-    );
-    to_cstring(res)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

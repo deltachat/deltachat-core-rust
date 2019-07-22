@@ -1999,21 +1999,26 @@ pub unsafe fn dc_forward_msgs(
     let chat = dc_chat_new(context);
     let contact = dc_contact_new(context);
     let created_db_entries = carray_new(16);
-    let mut idsstr = 0 as *mut libc::c_char;
     let mut curr_timestamp: i64;
 
     let original_param: *mut dc_param_t = dc_param_new();
     dc_unarchive_chat(context, chat_id);
     if dc_chat_load_from_db(chat, chat_id) {
         curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
-        idsstr = dc_arr_to_string(msg_ids, msg_cnt);
+        let idsstr = std::slice::from_raw_parts(msg_ids, msg_cnt as usize)
+            .iter()
+            .enumerate()
+            .fold(
+                String::with_capacity(2 * msg_cnt as usize),
+                |acc, (i, n)| (if i == 0 { acc } else { acc + "," }) + &n.to_string(),
+            );
 
         let ids = context
             .sql
             .query_map(
                 format!(
                     "SELECT id FROM msgs WHERE id IN({}) ORDER BY timestamp,id",
-                    as_str(idsstr)
+                    idsstr
                 ),
                 params![],
                 |row| row.get::<_, i32>(0),
@@ -2100,7 +2105,6 @@ pub unsafe fn dc_forward_msgs(
     dc_contact_unref(contact);
     dc_msg_unref(msg);
     dc_chat_unref(chat);
-    free(idsstr as *mut libc::c_void);
     dc_param_unref(original_param);
 }
 
