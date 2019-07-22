@@ -90,9 +90,10 @@ pub unsafe fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut libc::c_void) 
 
 pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
     if array.is_null() {
-        return 0i32 as size_t;
+        0
+    } else {
+        (*array).len()
     }
-    (*array).len()
 }
 
 pub unsafe fn dc_array_get_uint(array: *const dc_array_t, index: size_t) -> uintptr_t {
