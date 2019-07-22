@@ -201,7 +201,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 dc_free_splitted_lines(lines);
             }
         }
-        if OK_TO_CONTINUE {
             /* check the parameters
             ---------------------- */
             if !addr.is_null() {
@@ -219,9 +218,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                     return cleanup();
                 }
             }
-        }
 
-        if OK_TO_CONTINUE {
             if !fingerprint.is_null() {
                 if strlen(fingerprint) != 40 {
                     (*qr_parsed).state = 400i32;
@@ -232,9 +229,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                     return cleanup();
                 }
             }
-        }
 
-        if OK_TO_CONTINUE {
             if !fingerprint.is_null() {
                 let peerstate =
                     Peerstate::from_fingerprint(context, &context.sql, as_str(fingerprint));
@@ -306,7 +301,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
             if !device_msg.is_null() {
                 dc_add_device_msg(context, chat_id, device_msg);
             }
-        }
     }
 
     cleanup()
