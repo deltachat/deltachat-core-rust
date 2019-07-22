@@ -50,7 +50,10 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
         qr_parsed
     };
 
-    if !qr.is_null() {
+    if qr.is_null() {
+        return cleanup();
+    }
+
         info!(context, 0, "Scanned QR code: {}", as_str(qr),);
         /* split parameters from the qr code
         ------------------------------------ */
@@ -294,7 +297,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
         if !device_msg.is_null() {
             dc_add_device_msg(context, chat_id, device_msg);
         }
-    }
 
     cleanup()
 }
