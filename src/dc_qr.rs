@@ -36,6 +36,21 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
     (*qr_parsed).state = 0i32;
+
+    let cleanup = move || {
+        free(addr as *mut libc::c_void);
+        free(fingerprint as *mut libc::c_void);
+        free(payload as *mut libc::c_void);
+        free(name as *mut libc::c_void);
+        free(invitenumber as *mut libc::c_void);
+        free(auth as *mut libc::c_void);
+        free(device_msg as *mut libc::c_void);
+        free(grpname as *mut libc::c_void);
+        free(grpid as *mut libc::c_void);
+
+        qr_parsed
+    };
+
     if !qr.is_null() {
         info!(context, 0, "Scanned QR code: {}", as_str(qr),);
         /* split parameters from the qr code
@@ -294,15 +309,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
             }
         }
     }
-    free(addr as *mut libc::c_void);
-    free(fingerprint as *mut libc::c_void);
-    free(payload as *mut libc::c_void);
-    free(name as *mut libc::c_void);
-    free(invitenumber as *mut libc::c_void);
-    free(auth as *mut libc::c_void);
-    free(device_msg as *mut libc::c_void);
-    free(grpname as *mut libc::c_void);
-    free(grpid as *mut libc::c_void);
 
-    qr_parsed
+    cleanup()
 }
