@@ -51,6 +51,10 @@ impl dc_array_t {
         }
     }
 
+    pub fn get_ptr(&self, index: size_t) -> *mut libc::c_void {
+        self.array[index] as *mut libc::c_void
+    }
+
     pub fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
@@ -126,9 +130,10 @@ pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32
 
 pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut libc::c_void {
     if array.is_null() || index >= (*array).len() {
-        return 0 as *mut libc::c_void;
+        std::ptr::null_mut()
+    } else {
+        (*array).get_ptr(index)
     }
-    (*array).array[index] as *mut libc::c_void
 }
 
 pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
