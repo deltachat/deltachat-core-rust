@@ -877,7 +877,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
     );
 
     res.and_then(|_| {
-        /// only delete backup_blobs if all files were successfully extracted
+        // only delete backup_blobs if all files were successfully extracted
         sql::execute(context, &context.sql, "DROP TABLE backup_blobs;", params![])?;
         sql::try_execute(context, &context.sql, "VACUUM;").ok();
         Ok(())
