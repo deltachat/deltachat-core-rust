@@ -283,7 +283,7 @@ class TestOnlineAccount:
         ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[1] == msg_out.id
 
-    def test_two_acocunts_send_receive(self, acfactory):
+    def test_two_accounts_send_receive(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
@@ -294,13 +294,48 @@ class TestOnlineAccount:
         wait_successful_IMAP_SMTP_connection(ac2)
         wait_configuration_progress(ac2, 1000)
 
-        msg_out = chat.send_text("message1")
+        txt = "message1"
+        msg_out = chat.send_text(txt)
 
         # wait for other account to receive
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[2] == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
-        assert msg_in.text == "message1"
+        assert msg_in.text == txt
+
+    def test_two_accounts_send_receive_encrypted(self, acfactory, lp):
+        lp.sec("starting accounts, waiting for configuration")
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        c2 = ac1.create_contact(email=ac2.get_config("addr"))
+        chat = ac1.create_chat_by_contact(c2)
+        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+        wait_successful_IMAP_SMTP_connection(ac1)
+        wait_configuration_progress(ac1, 1000)
+        wait_successful_IMAP_SMTP_connection(ac2)
+        wait_configuration_progress(ac2, 1000)
+
+        lp.sec("sending message from ac1 to ac2")
+        msg_out = chat.send_text("hello")
+
+        lp.sec("wait for second account to receive")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        assert ev[2] == msg_out.id
+
+        lp.sec("chat back with text message, encrypted from ac2 to ac1")
+        chat_back = ac2.create_chat_by_message(msg_out.id)
+        txt = "https://testflight.apple.com/join/uEMc1NxS"
+        msg_back = chat_back.send_text(txt)
+
+        lp.sec("wait for first account to receive")
+        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+        if ev[2] != msg_back.id:
+            ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
+            assert ev[2] == msg_back.id
+
+        chat_back = ac1.create_chat_by_message(msg_back.id)
+        msg_in = chat_back.get_messages()[-1]
+        assert msg_in.text == text
 
     def test_forward_messages(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
