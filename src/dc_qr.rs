@@ -206,7 +206,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 }
             }
         }
-        {
+        
             if OK_TO_CONTINUE {
                 if !fingerprint.is_null() {
                     if strlen(fingerprint) != 40 {
@@ -219,7 +219,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                     }
                 }
             }
-            {
+            
                 if OK_TO_CONTINUE {
                     if !fingerprint.is_null() {
                         let peerstate =
@@ -298,8 +298,8 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                         dc_add_device_msg(context, chat_id, device_msg);
                     }
                 }
-            }
-        }
+            
+        
     }
     free(addr as *mut libc::c_void);
     free(fingerprint as *mut libc::c_void);
