@@ -899,14 +899,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         mailmime_smart_add_part(message, file_part);
                         parts += 1
                     }
-                    current_block = 13000670339742628194;
                 }
-            } else {
-                current_block = 13000670339742628194;
             }
-            match current_block {
-                11328123142868406523 => {}
-                _ => {
                     if parts == 0 {
                         set_error(
                             factory,
@@ -985,8 +979,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             }
                         }
                     }
-                }
-            }
         } else if (*factory).loaded as libc::c_uint
             == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
         {
@@ -1031,7 +1023,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             mailmime_set_body_text(mach_mime_part, message_text2, strlen(message_text2));
             mailmime_add_part(multipart, mach_mime_part);
             force_plaintext = 2;
-            current_block = 9952640327414195044;
         } else {
             set_error(
                 factory,
@@ -1039,9 +1030,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             );
             return cleanup(e2ee_helper);
         }
-        match current_block {
-            11328123142868406523 => {}
-            _ => {
                 if (*factory).loaded as libc::c_uint
                     == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
                 {
@@ -1103,8 +1091,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 (*factory).out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
                 mailmime_write_mem((*factory).out, &mut col, message);
                 success = 1
-            }
-        }
     }
     if !message.is_null() {
         mailmime_free(message);
