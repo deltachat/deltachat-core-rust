@@ -285,17 +285,18 @@ pub unsafe fn dc_array_get_string(
     let cnt = (*array).array.len();
     let sep = as_str(sep);
 
-    let res = (*array).array.iter().enumerate().fold(
-        String::with_capacity(2 * cnt),
-        |mut res, (i, n)| {
-            if i == 0 {
-                res += &n.to_string();
-            } else {
-                res += sep;
-                res += &n.to_string();
-            }
-            res
-        });
+    let res =
+        (*array)
+            .array
+            .iter()
+            .enumerate()
+            .fold(String::with_capacity(2 * cnt), |res, (i, n)| {
+                if i == 0 {
+                    res + &n.to_string()
+                } else {
+                    res + sep + &n.to_string()
+                }
+            });
     to_cstring(res)
 }
 
