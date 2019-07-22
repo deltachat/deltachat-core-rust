@@ -261,13 +261,11 @@ pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
 }
 
 pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
-    let mut ret: *mut dc_array_t;
     if array.is_null() {
-        return 0 as *mut dc_array_t;
+        std::ptr::null_mut()
+    } else {
+        (*array).clone().as_ptr()
     }
-    ret = dc_array_new(1);
-    (*ret).array = (*array).array.clone();
-    ret
 }
 
 pub unsafe fn dc_array_sort_ids(array: *mut dc_array_t) {
