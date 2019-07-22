@@ -39,6 +39,18 @@ impl dc_array_t {
         self.add_uint(item as uintptr_t);
     }
 
+    pub fn get_uint(&self, index: usize) -> uintptr_t {
+        self.array[index]
+    }
+
+    pub unsafe fn get_id(&self, index: usize) -> uint32_t {
+        if self.type_0 == DC_ARRAY_LOCATIONS {
+            (*(self.array[index] as *mut dc_location)).location_id
+        } else {
+            self.array[index] as uint32_t
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.array.is_empty()
     }
@@ -98,19 +110,18 @@ pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
 
 pub unsafe fn dc_array_get_uint(array: *const dc_array_t, index: size_t) -> uintptr_t {
     if array.is_null() || index >= (*array).len() {
-        return 0i32 as uintptr_t;
+        0
+    } else {
+        (*array).get_uint(index)
     }
-    (*array).array[index]
 }
 
 pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     if array.is_null() || index >= (*array).len() {
-        return 0i32 as uint32_t;
+        0
+    } else {
+        (*array).get_id(index)
     }
-    if (*array).type_0 == DC_ARRAY_LOCATIONS {
-        return (*((*array).array[index] as *mut dc_location)).location_id;
-    }
-    (*array).array[index] as uint32_t
 }
 
 pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut libc::c_void {
