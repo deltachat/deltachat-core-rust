@@ -379,6 +379,16 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
         gossipped_addr: Default::default(),
     };
 
+    let cleanup = move |mut helper: dc_e2ee_helper_t| {
+        dc_e2ee_thanks(&mut helper);
+        free(message_text as *mut libc::c_void);
+        free(message_text2 as *mut libc::c_void);
+        free(subject_str as *mut libc::c_void);
+        free(grpimage as *mut libc::c_void);
+
+        success
+    };
+
     if factory.is_null()
         || (*factory).loaded as libc::c_uint == DC_MF_NOTHING_LOADED as libc::c_int as libc::c_uint
         || !(*factory).out.is_null()
@@ -1085,6 +1095,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         &mut e2ee_helper,
                     );
                 }
+                
                 if 0 != e2ee_helper.encryption_successfull {
                     (*factory).out_encrypted = 1;
                     if 0 != do_gossip {
@@ -1100,13 +1111,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
     if !message.is_null() {
         mailmime_free(message);
     }
-    dc_e2ee_thanks(&mut e2ee_helper);
-    free(message_text as *mut libc::c_void);
-    free(message_text2 as *mut libc::c_void);
-    free(subject_str as *mut libc::c_void);
-    free(grpimage as *mut libc::c_void);
 
-    success
+    cleanup(e2ee_helper)
 }
 
 unsafe fn get_subject(
