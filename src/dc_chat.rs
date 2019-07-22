@@ -2164,7 +2164,7 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
             image_abs = dc_get_abs_path((*chat).context, image_rel)
         } else if (*chat).type_0 == 100i32 {
             contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-            if !(*contacts).array.is_empty() {
+            if !(*contacts).is_empty() {
                 contact = dc_get_contact((*chat).context, (*contacts).array[0] as uint32_t);
                 image_abs = dc_contact_get_profile_image(contact)
             }
@@ -2185,7 +2185,7 @@ pub unsafe fn dc_chat_get_color(chat: *const Chat) -> uint32_t {
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
         if (*chat).type_0 == 100i32 {
             contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-            if !(*contacts).array.is_empty() {
+            if !(*contacts).is_empty() {
                 contact = dc_get_contact((*chat).context, (*contacts).array[0] as uint32_t);
                 color = dc_str_to_color((*contact).addr) as uint32_t
             }

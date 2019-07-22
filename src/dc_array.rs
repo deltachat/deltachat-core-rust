@@ -38,6 +38,10 @@ impl dc_array_t {
     pub fn add_id(&mut self, item: uint32_t) {
         self.add_uint(item as uintptr_t);
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.array.is_empty()
+    }
 }
 
 /**
