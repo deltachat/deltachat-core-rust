@@ -252,7 +252,7 @@ pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
 }
 
 pub fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
-    dc_array_new_typed(0, initsize)
+    dc_array_t::new(initsize).as_ptr()
 }
 
 pub fn dc_array_new_typed(type_0: libc::c_int, initsize: size_t) -> *mut dc_array_t {
