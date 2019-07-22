@@ -53,23 +53,11 @@ pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
         return;
     }
     if (*array).type_0 == DC_ARRAY_LOCATIONS {
-        dc_array_free_ptr(array);
+        for &e in (*array).array.iter() {
+            Box::from_raw(e as *mut dc_location);
+        }
     }
     Box::from_raw(array);
-}
-
-pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
-    if array.is_null() {
-        return;
-    }
-    for i in 0..(*array).array.len() {
-        if (*array).type_0 == DC_ARRAY_LOCATIONS {
-            Box::from_raw((*array).array[i] as *mut dc_location);
-        } else {
-            free((*array).array[i] as *mut libc::c_void);
-        }
-        (*array).array[i] = 0i32 as uintptr_t;
-    }
 }
 
 pub unsafe fn dc_array_add_uint(array: *mut dc_array_t, item: uintptr_t) {
