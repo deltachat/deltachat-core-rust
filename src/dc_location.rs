@@ -247,7 +247,7 @@ pub fn dc_get_locations(
                 Ok(loc)
             },
             |locations| {
-                let ret = dc_array_new_typed(1, 500);
+                let ret = dc_array_new_locations(500);
 
                 for location in locations {
                     unsafe {
@@ -501,7 +501,7 @@ pub unsafe fn dc_kml_parse(
     } else {
         content_nullterminated = dc_null_terminate(content, content_bytes as libc::c_int);
         if !content_nullterminated.is_null() {
-            kml.locations = dc_array_new_typed(1, 100 as size_t);
+            kml.locations = dc_array_new_locations(100);
             dc_saxparser_init(
                 &mut saxparser,
                 &mut kml as *mut dc_kml_t as *mut libc::c_void,

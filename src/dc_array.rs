@@ -19,6 +19,14 @@ impl dc_array_t {
         }
     }
 
+    /// Constructs a new, empty `dc_array_t` holding locations with specified `capacity`.
+    pub fn new_locations(capacity: usize) -> Self {
+        dc_array_t {
+            type_0: DC_ARRAY_LOCATIONS,
+            array: Vec::with_capacity(capacity),
+        }
+    }
+
     pub fn as_ptr(self) -> *mut Self {
         Box::into_raw(Box::new(self))
     }
@@ -255,10 +263,8 @@ pub fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
     dc_array_t::new(initsize).as_ptr()
 }
 
-pub fn dc_array_new_typed(type_0: libc::c_int, initsize: size_t) -> *mut dc_array_t {
-    let mut array = dc_array_t::new(initsize);
-    array.type_0 = type_0;
-    array.as_ptr()
+pub fn dc_array_new_locations(initsize: size_t) -> *mut dc_array_t {
+    dc_array_t::new_locations(initsize).as_ptr()
 }
 
 pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
