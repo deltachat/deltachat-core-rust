@@ -233,8 +233,8 @@ pub unsafe fn dc_array_search_id(
     if array.is_null() {
         return false;
     }
-    for i in 0..(*array).array.len() {
-        if (*array).array[i] == needle as size_t {
+    for (i, &u) in (*array).array.iter().enumerate() {
+        if u == needle as size_t {
             if !ret_index.is_null() {
                 *ret_index = i
             }
