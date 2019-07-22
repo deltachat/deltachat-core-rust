@@ -166,6 +166,17 @@ class Account(object):
         assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
         return Contact(self._dc_context, contact_id)
 
+    def delete_contact(self, contact):
+        """ delete a Contact.
+
+        :param contact: contact object obtained
+        :returns: True if deletion succeeded (contact was deleted)
+        """
+        contact_id = contact.id
+        assert contact._dc_context == self._dc_context
+        assert contact_id > const.DC_CHAT_ID_LAST_SPECIAL
+        return bool(lib.dc_delete_contact(self._dc_context, contact_id))
+
     def get_contacts(self, query=None, with_self=False, only_verified=False):
         """ get a (filtered) list of contacts.
 

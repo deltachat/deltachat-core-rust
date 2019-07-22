@@ -796,7 +796,7 @@ pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
         0
     };
 
-    if count_msgs > 0 {
+    if count_msgs == 0 {
         if sql::execute(
             context,
             &context.sql,
@@ -808,9 +808,14 @@ pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
             context.call_cb(Event::CONTACTS_CHANGED, 0, 0);
             true
         } else {
+            error!(context, 0, "delete_contact {} failed", contact_id);
             false
         }
     } else {
+        info!(
+            context,
+            0, "could not delete contact {}, there are {} messages with it", contact_id, count_msgs
+        );
         false
     }
 }

@@ -66,7 +66,7 @@ class TestOfflineAccount:
         assert not contact1.is_blocked()
         assert not contact1.is_verified()
 
-    def test_get_contacts(self, acfactory):
+    def test_get_contacts_and_delete(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact(email="some1@hello.com", name="some1")
         contacts = ac1.get_contacts()
@@ -78,6 +78,16 @@ class TestOfflineAccount:
         assert not ac1.get_contacts(only_verified=True)
         contacts = ac1.get_contacts(with_self=True)
         assert len(contacts) == 2
+
+        assert ac1.delete_contact(contact1)
+        assert contact1 not in ac1.get_contacts()
+
+    def test_get_contacts_and_delete_fails(self, acfactory):
+        ac1 = acfactory.get_configured_offline_account()
+        contact1 = ac1.create_contact(email="some1@example.com", name="some1")
+        chat = ac1.create_chat_by_contact(contact1)
+        chat.send_text("one messae")
+        assert not ac1.delete_contact(contact1)
 
     def test_chat(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
