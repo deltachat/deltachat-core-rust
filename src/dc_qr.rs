@@ -21,7 +21,6 @@ use crate::x::*;
 // text1=URL
 // text1=error string
 pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc_lot_t {
-    let mut OK_TO_CONTINUE = true;
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     // must be normalized, if set
     let mut addr: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -148,7 +147,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 (*qr_parsed).state = 400i32;
                 (*qr_parsed).text1 =
                     dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
-                OK_TO_CONTINUE = false;
+                return cleanup();
             }
         } else {
             if strncasecmp(
@@ -217,7 +216,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                     (*qr_parsed).state = 400i32;
                     (*qr_parsed).text1 =
                         dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
-                    OK_TO_CONTINUE = false;
+                    return cleanup();
                 }
             }
         }
@@ -230,7 +229,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                         b"Bad fingerprint length in QR code.\x00" as *const u8
                             as *const libc::c_char,
                     );
-                    OK_TO_CONTINUE = false;
+                    return cleanup();
                 }
             }
         }
