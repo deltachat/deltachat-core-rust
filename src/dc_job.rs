@@ -110,7 +110,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
         },
     );
     match jobs {
-        Ok(ref res) => {}
+        Ok(ref _res) => {}
         Err(ref err) => {
             info!(context, 0, "query failed: {:?}", err);
         }

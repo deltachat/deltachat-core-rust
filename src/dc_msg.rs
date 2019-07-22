@@ -487,10 +487,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
         }
     );
 
-    match res {
-        Ok(_) => true,
-        Err(err) => false,
-    }
+    res.is_ok()
 }
 
 pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut libc::c_char {
