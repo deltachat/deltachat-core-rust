@@ -205,6 +205,8 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                     OK_TO_CONTINUE = false;
                 }
             }
+        }
+        {
             if OK_TO_CONTINUE {
                 if !fingerprint.is_null() {
                     if strlen(fingerprint) != 40 {
@@ -216,6 +218,8 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                         OK_TO_CONTINUE = false;
                     }
                 }
+            }
+            {
                 if OK_TO_CONTINUE {
                     if !fingerprint.is_null() {
                         let peerstate =
