@@ -537,7 +537,7 @@ pub fn dc_get_contacts(
         .unwrap_or_default();
 
     let mut add_self = false;
-    let ret = dc_array_new(100);
+    let mut ret = dc_array_t::new(100);
 
     if (listflags & DC_GCL_VERIFIED_ONLY) > 0 || !query.is_null() {
         let s3strLikeCmd = format!("%{}%", if !query.is_null() { as_str(query) } else { "" });
@@ -565,7 +565,7 @@ pub fn dc_get_contacts(
                 |row| row.get::<_, i32>(0),
                 |ids| {
                     for id in ids {
-                        unsafe { dc_array_add_id(ret, id? as u32) };
+                        ret.add_id(id? as u32);
                     }
                     Ok(())
                 },
@@ -595,7 +595,7 @@ pub fn dc_get_contacts(
             |row| row.get::<_, i32>(0),
             |ids| {
                 for id in ids {
-                    unsafe { dc_array_add_id(ret, id? as u32) };
+                    ret.add_id(id? as u32);
                 }
                 Ok(())
             }
@@ -603,10 +603,10 @@ pub fn dc_get_contacts(
     }
 
     if 0 != listflags & 0x2 && add_self {
-        unsafe { dc_array_add_id(ret, 1) };
+        ret.add_id(1);
     }
 
-    ret
+    ret.as_ptr()
 }
 
 pub fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
@@ -629,13 +629,13 @@ pub fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
             params![9],
             |row| row.get::<_, i32>(0),
             |ids| {
-                let ret = dc_array_new(100);
+                let mut ret = dc_array_t::new(100);
 
                 for id in ids {
-                    unsafe { dc_array_add_id(ret, id? as u32) };
+                    ret.add_id(id? as u32);
                 }
 
-                Ok(ret)
+                Ok(ret.as_ptr())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())
