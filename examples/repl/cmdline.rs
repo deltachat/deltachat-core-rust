@@ -222,10 +222,10 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
     let contact_name: *mut libc::c_char = dc_contact_get_name(contact);
     let contact_id: libc::c_int = dc_contact_get_id(contact) as libc::c_int;
     let statestr = match dc_msg_get_state(msg) {
-        20 => " o",
-        26 => " √",
-        28 => " √√",
-        24 => " !!",
+        DC_STATE_OUT_PENDING => " o",
+        DC_STATE_OUT_DELIVERED => " √",
+        DC_STATE_OUT_MDN_RCVD => " √√",
+        DC_STATE_OUT_FAILED => " !!",
         _ => "",
     };
     let temp2: *mut libc::c_char = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
@@ -252,9 +252,9 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
         },
         if dc_msg_get_from_id(msg) == 1 as libc::c_uint {
             ""
-        } else if dc_msg_get_state(msg) == 16 {
+        } else if dc_msg_get_state(msg) == DC_STATE_IN_SEEN {
             "[SEEN]"
-        } else if dc_msg_get_state(msg) == 13 {
+        } else if dc_msg_get_state(msg) == DC_STATE_IN_NOTICED {
             "[NOTICED]"
         } else {
             "[FRESH]"

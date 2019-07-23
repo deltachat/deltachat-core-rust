@@ -2,7 +2,7 @@ use mmime::mailimf_types::*;
 use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
 
 use crate::aheader::EncryptPreference;
-use crate::constants::Event;
+use crate::constants::*;
 use crate::context::Context;
 use crate::dc_array::*;
 use crate::dc_chat::*;
@@ -261,7 +261,7 @@ unsafe fn send_handshake_msg(
     grpid: *const libc::c_char,
 ) {
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    (*msg).type_0 = 10i32;
+    (*msg).type_0 = DC_MSG_TEXT;
     (*msg).text = dc_mprintf(
         b"Secure-Join: %s\x00" as *const u8 as *const libc::c_char,
         step,

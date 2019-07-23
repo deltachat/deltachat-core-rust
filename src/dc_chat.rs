@@ -359,7 +359,7 @@ pub unsafe fn dc_prepare_msg<'a>(
     if msg.is_null() || chat_id <= 9i32 as libc::c_uint {
         return 0i32 as uint32_t;
     }
-    (*msg).state = 18i32;
+    (*msg).state = DC_STATE_OUT_PREPARING;
     let msg_id: uint32_t = prepare_msg_common(context, chat_id, msg);
     context.call_cb(
         Event::MSGS_CHANGED,
@@ -367,6 +367,18 @@ pub unsafe fn dc_prepare_msg<'a>(
         (*msg).id as uintptr_t,
     );
     return msg_id;
+}
+
+pub fn msgtype_has_file(msgtype: i32) -> bool {
+    match msgtype {
+        DC_MSG_IMAGE => true,
+        DC_MSG_GIF => true,
+        DC_MSG_AUDIO => true,
+        DC_MSG_VOICE => true,
+        DC_MSG_VIDEO => true,
+        DC_MSG_FILE => true,
+        _ => false,
+    }
 }
 
 unsafe fn prepare_msg_common<'a>(
@@ -379,32 +391,29 @@ unsafe fn prepare_msg_common<'a>(
     let mut chat: *mut Chat = 0 as *mut Chat;
     (*msg).id = 0i32 as uint32_t;
     (*msg).context = context;
-    if (*msg).type_0 == 10i32 {
+    if (*msg).type_0 == DC_MSG_TEXT {
+; /* the caller should check if the message text is empty */
         current_block = 17281240262373992796;
-    } else if (*msg).type_0 == 20i32
-        || (*msg).type_0 == 21i32
-        || (*msg).type_0 == 40i32
-        || (*msg).type_0 == 41i32
-        || (*msg).type_0 == 50i32
-        || (*msg).type_0 == 60i32
-    {
+    } else if msgtype_has_file((*msg).type_0) {
         pathNfilename = dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
         if pathNfilename.is_null() {
             error!(
                 context,
                 0,
                 "Attachment missing for message of type #{}.",
-                (*msg).type_0 as libc::c_int,
+                (*msg).type_0,
             );
             current_block = 2171833246886114521;
-        } else if (*msg).state == 18i32 && 0 == dc_is_blobdir_path(context, pathNfilename) {
+        } else if (*msg).state == DC_STATE_OUT_PREPARING
+            && 0 == dc_is_blobdir_path(context, pathNfilename)
+        {
             error!(context, 0, "Files must be created in the blob-directory.",);
             current_block = 2171833246886114521;
         } else if 0 == dc_make_rel_and_copy(context, &mut pathNfilename) {
             current_block = 2171833246886114521;
         } else {
             dc_param_set((*msg).param, DC_PARAM_FILE as i32, pathNfilename);
-            if (*msg).type_0 == 60i32 || (*msg).type_0 == 20i32 {
+            if (*msg).type_0 == DC_MSG_FILE || (*msg).type_0 == DC_MSG_IMAGE {
                 let mut better_type: libc::c_int = 0i32;
                 let mut better_mime: *mut libc::c_char = 0 as *mut libc::c_char;
                 dc_msg_guess_msgtype_from_suffix(pathNfilename, &mut better_type, &mut better_mime);
@@ -428,7 +437,7 @@ unsafe fn prepare_msg_common<'a>(
                 0,
                 "Attaching \"{}\" for message type #{}.",
                 as_str(pathNfilename),
-                (*msg).type_0 as libc::c_int,
+                (*msg).type_0
             );
             current_block = 17281240262373992796;
         }
@@ -437,7 +446,7 @@ unsafe fn prepare_msg_common<'a>(
             context,
             0,
             "Cannot send messages of type #{}.",
-            (*msg).type_0 as libc::c_int,
+            (*msg).type_0
         );
         current_block = 2171833246886114521;
     }
@@ -446,8 +455,8 @@ unsafe fn prepare_msg_common<'a>(
             dc_unarchive_chat(context, chat_id);
             chat = dc_chat_new(context);
             if dc_chat_load_from_db(chat, chat_id) {
-                if (*msg).state != 18i32 {
-                    (*msg).state = 20i32
+                if (*msg).state != DC_STATE_OUT_PREPARING {
+                    (*msg).state = DC_STATE_OUT_PENDING
                 }
                 (*msg).id =
                     prepare_msg_raw(context, chat, msg, dc_create_smeared_timestamp(context));
@@ -899,7 +908,7 @@ pub unsafe fn dc_send_msg<'a>(
     if msg.is_null() {
         return 0;
     }
-    if (*msg).state != 18 {
+    if (*msg).state != DC_STATE_OUT_PREPARING {
         if 0 == prepare_msg_common(context, chat_id, msg) {
             return 0;
         }
@@ -907,7 +916,7 @@ pub unsafe fn dc_send_msg<'a>(
         if chat_id != 0 && chat_id != (*msg).chat_id {
             return 0;
         }
-        dc_update_msg_state(context, (*msg).id, 20);
+        dc_update_msg_state(context, (*msg).id, DC_STATE_OUT_PENDING);
     }
     if 0 == dc_job_send_msg(context, (*msg).id) {
         return 0;
@@ -1004,19 +1013,13 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
     }
     // save new draft
     if !msg.is_null() {
-        if (*msg).type_0 == 10i32 {
+        if (*msg).type_0 == DC_MSG_TEXT {
             if (*msg).text.is_null() || *(*msg).text.offset(0isize) as libc::c_int == 0i32 {
                 current_block = 14513523936503887211;
             } else {
                 current_block = 4495394744059808450;
             }
-        } else if (*msg).type_0 == 20i32
-            || (*msg).type_0 == 21i32
-            || (*msg).type_0 == 40i32
-            || (*msg).type_0 == 41i32
-            || (*msg).type_0 == 50i32
-            || (*msg).type_0 == 60i32
-        {
+        } else if msgtype_has_file((*msg).type_0) {
             pathNfilename =
                 dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
             if pathNfilename.is_null() {
@@ -1043,7 +1046,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                     "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
                      VALUES (?,?,?, ?,?,?,?,?);",
                     params![
-                        chat_id as i32, 1, time(), (*msg).type_0, 19,
+                        chat_id as i32, 1, time(), (*msg).type_0, DC_STATE_OUT_DRAFT,
                         if !(*msg).text.is_null() {
                             as_str((*msg).text)
                         } else {
@@ -1068,7 +1071,7 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
         .query_row_col(
             context,
             "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
-            params![chat_id as i32, 19],
+            params![chat_id as i32, DC_STATE_OUT_DRAFT],
             0,
         )
         .unwrap_or_default();
@@ -1210,8 +1213,8 @@ pub fn dc_marknoticed_chat(context: &Context, chat_id: u32) -> bool {
     if !context
         .sql
         .exists(
-            "SELECT id FROM msgs  WHERE chat_id=? AND state=10;",
-            params![chat_id as i32],
+            "SELECT id FROM msgs  WHERE chat_id=? AND state=?;",
+            params![chat_id as i32, DC_STATE_IN_FRESH],
         )
         .unwrap_or_default()
     {
@@ -1356,8 +1359,8 @@ pub fn dc_archive_chat(context: &Context, chat_id: u32, archive: libc::c_int) ->
         if sql::execute(
             context,
             &context.sql,
-            "UPDATE msgs SET state=13 WHERE chat_id=? AND state=10;",
-            params![chat_id as i32],
+            "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
+            params![DC_STATE_IN_NOTICED, chat_id as i32, DC_STATE_IN_FRESH],
         )
         .is_err()
         {
@@ -1646,7 +1649,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                         12326129973959287090 => {}
                         _ => {
                             if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 0 {
-                                (*msg).type_0 = 10;
+                                (*msg).type_0 = DC_MSG_TEXT;
                                 (*msg).text = dc_stock_system_msg(
                                     context,
                                     17,
@@ -1765,7 +1768,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if !contact.is_null() {
                     if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 0 {
-                        (*msg).type_0 = 10;
+                        (*msg).type_0 = DC_MSG_TEXT;
                         if (*contact).id == 1 as libc::c_uint {
                             dc_set_group_explicitly_left(context, (*chat).grpid);
                             (*msg).text = dc_stock_system_msg(
@@ -1880,7 +1883,7 @@ pub unsafe fn dc_set_chat_name(
                 .is_ok()
                 {
                     if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0i32) == 0i32 {
-                        (*msg).type_0 = 10i32;
+                        (*msg).type_0 = DC_MSG_TEXT;
                         (*msg).text = dc_stock_system_msg(
                             context,
                             15i32,
@@ -1956,7 +1959,7 @@ pub unsafe fn dc_set_chat_profile_image(
                             {
                                 dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 3i32);
                                 dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, new_image_rel);
-                                (*msg).type_0 = 10i32;
+                                (*msg).type_0 = DC_MSG_TEXT;
                                 (*msg).text = dc_stock_system_msg(
                                     context,
                                     if !new_image_rel.is_null() {
@@ -2057,7 +2060,7 @@ pub unsafe fn dc_forward_msgs(
             );
             dc_param_set((*msg).param, DC_PARAM_CMD as i32, 0 as *const libc::c_char);
             let new_msg_id: uint32_t;
-            if (*msg).state == 18i32 {
+            if (*msg).state == DC_STATE_OUT_PREPARING {
                 let fresh9 = curr_timestamp;
                 curr_timestamp = curr_timestamp + 1;
                 new_msg_id = prepare_msg_raw(context, chat, msg, fresh9);
@@ -2080,7 +2083,7 @@ pub unsafe fn dc_forward_msgs(
                 free(old_fwd as *mut libc::c_void);
                 (*msg).param = save_param
             } else {
-                (*msg).state = 20i32;
+                (*msg).state = DC_STATE_OUT_PENDING;
                 let fresh10 = curr_timestamp;
                 curr_timestamp = curr_timestamp + 1;
                 new_msg_id = prepare_msg_raw(context, chat, msg, fresh10);
@@ -2346,8 +2349,8 @@ pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc
             2,
             2,
             unsafe {dc_create_smeared_timestamp(context)},
-            10,
-            13,
+            DC_MSG_TEXT,
+            DC_STATE_IN_NOTICED,
             as_str(text),
             as_str(rfc724_mid),
         ]
