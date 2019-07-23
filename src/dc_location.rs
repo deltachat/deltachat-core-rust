@@ -247,17 +247,12 @@ pub fn dc_get_locations(
                 Ok(loc)
             },
             |locations| {
-                let ret = dc_array_new_locations(500);
+                let mut ret = dc_array_t::new_locations(500);
 
                 for location in locations {
-                    unsafe {
-                        dc_array_add_ptr(
-                            ret,
-                            Box::into_raw(Box::new(location?)) as *mut libc::c_void,
-                        )
-                    };
+                    ret.add_ptr(Box::into_raw(Box::new(location?)) as *mut libc::c_void);
                 }
-                Ok(ret)
+                Ok(ret.as_ptr())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())
