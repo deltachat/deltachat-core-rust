@@ -15,7 +15,7 @@ use crate::x::*;
 // location handling
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct dc_location_t {
+pub struct _dc_location {
     pub location_id: uint32_t,
     pub latitude: libc::c_double,
     pub longitude: libc::c_double,
@@ -25,6 +25,7 @@ pub struct dc_location_t {
     pub msg_id: uint32_t,
     pub chat_id: uint32_t,
     pub marker: *mut libc::c_char,
+    pub independent: uint32_t,
 }
 
 #[derive(Copy, Clone)]
@@ -33,7 +34,7 @@ pub struct dc_kml_t {
     pub addr: *mut libc::c_char,
     pub locations: *mut dc_array_t,
     pub tag: libc::c_int,
-    pub curr: dc_location_t,
+    pub curr: _dc_location,
 }
 
 // location streaming
@@ -423,7 +424,7 @@ pub unsafe fn dc_save_locations(
                 let mut newest_location_id = 0;
 
                 for i in 0..dc_array_get_cnt(locations) {
-                    let location = dc_array_get_ptr(locations, i as size_t) as *mut dc_location_t;
+                    let location = dc_array_get_ptr(locations, i as size_t) as *mut _dc_location;
 
                     let exists =
                         stmt_test.exists(params![(*location).timestamp, contact_id as i32])?;
@@ -563,8 +564,8 @@ unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
             && 0. != (*kml).curr.latitude
             && 0. != (*kml).curr.longitude
         {
-            let location: *mut dc_location_t =
-                calloc(1, ::std::mem::size_of::<dc_location_t>()) as *mut dc_location_t;
+            let location: *mut _dc_location =
+                calloc(1, ::std::mem::size_of::<_dc_location>()) as *mut _dc_location;
             *location = (*kml).curr;
             dc_array_add_ptr((*kml).locations, location as *mut libc::c_void);
         }
