@@ -71,6 +71,15 @@ impl dc_array_t {
             }
         }
     }
+
+    pub fn search_id(&self, needle: uintptr_t) -> Option<usize> {
+        for (i, &u) in self.array.iter().enumerate() {
+            if u == needle {
+                return Some(i);
+            }
+        }
+        None
+    }
 }
 
 /**
@@ -258,15 +267,14 @@ pub unsafe fn dc_array_search_id(
     if array.is_null() {
         return false;
     }
-    for (i, &u) in (*array).array.iter().enumerate() {
-        if u == needle as size_t {
-            if !ret_index.is_null() {
-                *ret_index = i
-            }
-            return true;
+    if let Some(i) = (*array).search_id(needle as uintptr_t) {
+        if !ret_index.is_null() {
+            *ret_index = i
         }
+        true
+    } else {
+        false
     }
-    false
 }
 
 pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
