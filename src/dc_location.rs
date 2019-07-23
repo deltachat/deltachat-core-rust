@@ -214,11 +214,8 @@ pub fn dc_get_locations(
 
                 if 0 != (*loc).msg_id {
                     let txt: String = row.get(9)?;
-                    let txt_c = to_cstring(txt);
-                    if 0 != is_marker(txt_c) {
-                        (*loc).marker = txt_c;
-                    } else {
-                        free(txt_c as *mut _);
+                    if is_marker(&txt) {
+                        (*loc).marker = to_cstring(txt);
                     }
                 }
                 Ok(loc)
@@ -235,16 +232,8 @@ pub fn dc_get_locations(
         .unwrap_or_else(|_| std::ptr::null_mut())
 }
 
-// TODO should be bool /rtn
-unsafe fn is_marker(txt: *const libc::c_char) -> libc::c_int {
-    if !txt.is_null() {
-        let len: libc::c_int = dc_utf8_strlen(txt) as libc::c_int;
-        if len == 1 && *txt.offset(0isize) as libc::c_int != ' ' as i32 {
-            return 1;
-        }
-    }
-
-    0
+fn is_marker(txt: &str) -> bool {
+    txt.len() == 1 && txt.chars().next().unwrap() != ' '
 }
 
 pub fn dc_delete_all_locations(context: &Context) -> bool {
