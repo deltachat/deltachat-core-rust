@@ -68,17 +68,17 @@ pub const DC_MSG_ID_MARKER1: usize = 1;
 pub const DC_MSG_ID_DAYMARKER: usize = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: usize = 9;
 
-pub const DC_STATE_UNDEFINED: usize = 0;
-pub const DC_STATE_IN_FRESH: usize = 10;
-pub const DC_STATE_IN_NOTICED: usize = 13;
-pub const DC_STATE_IN_SEEN: usize = 16;
-pub const DC_STATE_OUT_PREPARING: usize = 18;
-pub const DC_STATE_OUT_DRAFT: usize = 19;
-pub const DC_STATE_OUT_PENDING: usize = 20;
-pub const DC_STATE_OUT_FAILED: usize = 24;
+pub const DC_STATE_UNDEFINED: i32 = 0;
+pub const DC_STATE_IN_FRESH: i32 = 10;
+pub const DC_STATE_IN_NOTICED: i32 = 13;
+pub const DC_STATE_IN_SEEN: i32 = 16;
+pub const DC_STATE_OUT_PREPARING: i32 = 18;
+pub const DC_STATE_OUT_DRAFT: i32 = 19;
+pub const DC_STATE_OUT_PENDING: i32 = 20;
+pub const DC_STATE_OUT_FAILED: i32 = 24;
 /// to check if a mail was sent, use dc_msg_is_sent()
-pub const DC_STATE_OUT_DELIVERED: usize = 26;
-pub const DC_STATE_OUT_MDN_RCVD: usize = 28;
+pub const DC_STATE_OUT_DELIVERED: i32 = 26;
+pub const DC_STATE_OUT_MDN_RCVD: i32 = 28;
 
 /// approx. max. length returned by dc_msg_get_text()
 pub const DC_MAX_GET_TEXT_LEN: usize = 30000;
@@ -98,29 +98,29 @@ pub const DC_CREATE_MVBOX: usize = 1;
 /// Text message.
 /// The text of the message is set using dc_msg_set_text()
 /// and retrieved with dc_msg_get_text().
-pub const DC_MSG_TEXT: usize = 10;
+pub const DC_MSG_TEXT: i32 = 10;
 
 /// Image message.
 /// If the image is an animated GIF, the type DC_MSG_GIF should be used.
 /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
 /// and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
-pub const DC_MSG_IMAGE: usize = 20;
+pub const DC_MSG_IMAGE: i32 = 20;
 
 /// Animated GIF message.
 /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
 /// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
-pub const DC_MSG_GIF: usize = 21;
+pub const DC_MSG_GIF: i32 = 21;
 
 /// Message containing an Audio file.
 /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
 /// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
-pub const DC_MSG_AUDIO: usize = 40;
+pub const DC_MSG_AUDIO: i32 = 40;
 
 /// A voice message that was directly recorded by the user.
 /// For all other audio messages, the type #DC_MSG_AUDIO should be used.
 /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
 /// and retrieved via dc_msg_get_file(), dc_msg_get_duration()
-pub const DC_MSG_VOICE: usize = 41;
+pub const DC_MSG_VOICE: i32 = 41;
 
 /// Video messages.
 /// File, width, height and durarion
@@ -128,12 +128,12 @@ pub const DC_MSG_VOICE: usize = 41;
 /// and retrieved via
 /// dc_msg_get_file(), dc_msg_get_width(),
 /// dc_msg_get_height(), dc_msg_get_duration().
-pub const DC_MSG_VIDEO: usize = 50;
+pub const DC_MSG_VIDEO: i32 = 50;
 
 /// Message containing any file, eg. a PDF.
 /// The file is set via dc_msg_set_file()
 /// and retrieved via dc_msg_get_file().
-pub const DC_MSG_FILE: usize = 60;
+pub const DC_MSG_FILE: i32 = 60;
 
 // Flags for configuring IMAP and SMTP servers.
 // These flags are optional

@@ -127,14 +127,14 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     ret += "State: ";
     match (*msg).state {
-        10 => ret += "Fresh",
-        13 => ret += "Noticed",
-        16 => ret += "Seen",
-        26 => ret += "Delivered",
-        24 => ret += "Failed",
-        28 => ret += "Read",
-        20 => ret += "Pending",
-        18 => ret += "Preparing",
+        DC_STATE_IN_FRESH => ret += "Fresh",
+        DC_STATE_IN_NOTICED => ret += "Noticed",
+        DC_STATE_IN_SEEN => ret += "Seen",
+        DC_STATE_OUT_DELIVERED => ret += "Delivered",
+        DC_STATE_OUT_FAILED => ret += "Failed",
+        DC_STATE_OUT_MDN_RCVD => ret += "Read",
+        DC_STATE_OUT_PENDING => ret += "Pending",
+        DC_STATE_OUT_PREPARING => ret += "Preparing",
         _ => ret += &format!("{}", (*msg).state),
     }
 
@@ -172,15 +172,15 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     }
     free(p as *mut libc::c_void);
 
-    if (*msg).type_0 != 10 {
+    if (*msg).type_0 != DC_MSG_TEXT {
         ret += "Type: ";
         match (*msg).type_0 {
-            40 => ret += "Audio",
-            60 => ret += "File",
-            21 => ret += "GIF",
-            20 => ret += "Image",
-            50 => ret += "Video",
-            41 => ret += "Voice",
+            DC_MSG_AUDIO => ret += "Audio",
+            DC_MSG_FILE => ret += "File",
+            DC_MSG_GIF => ret += "GIF",
+            DC_MSG_IMAGE => ret += "Image",
+            DC_MSG_VIDEO => ret += "Video",
+            DC_MSG_VOICE => ret += "Voice",
             _ => ret += &format!("{}", (*msg).type_0),
         }
         ret += "\n";
@@ -237,7 +237,7 @@ pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: libc::c_int) -> *mu
     (*msg).context = context;
     (*msg).magic = 0x11561156i32 as uint32_t;
     (*msg).type_0 = viewtype;
-    (*msg).state = 0i32;
+    (*msg).state = 0;
     (*msg).param = dc_param_new();
 
     msg
@@ -304,7 +304,7 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
     mut ret_mime: *mut *mut libc::c_char,
 ) {
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut dummy_msgtype: libc::c_int = 0i32;
+    let mut dummy_msgtype: libc::c_int = 0;
     let mut dummy_buf: *mut libc::c_char = 0 as *mut libc::c_char;
     if !pathNfilename.is_null() {
         if ret_msgtype.is_null() {
@@ -313,37 +313,37 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
         if ret_mime.is_null() {
             ret_mime = &mut dummy_buf
         }
-        *ret_msgtype = 0i32;
+        *ret_msgtype = 0;
         *ret_mime = 0 as *mut libc::c_char;
         suffix = dc_get_filesuffix_lc(pathNfilename);
         if !suffix.is_null() {
             if strcmp(suffix, b"mp3\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_AUDIO as libc::c_int;
+                *ret_msgtype = DC_MSG_AUDIO;
                 *ret_mime = dc_strdup(b"audio/mpeg\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"aac\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_AUDIO as libc::c_int;
+                *ret_msgtype = DC_MSG_AUDIO;
                 *ret_mime = dc_strdup(b"audio/aac\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"mp4\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_VIDEO as libc::c_int;
+                *ret_msgtype = DC_MSG_VIDEO;
                 *ret_mime = dc_strdup(b"video/mp4\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                *ret_msgtype = DC_MSG_IMAGE as libc::c_int;
+                *ret_msgtype = DC_MSG_IMAGE;
                 *ret_mime = dc_strdup(b"image/jpeg\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_IMAGE as libc::c_int;
+                *ret_msgtype = DC_MSG_IMAGE;
                 *ret_mime = dc_strdup(b"image/png\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"webp\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_IMAGE as libc::c_int;
+                *ret_msgtype = DC_MSG_IMAGE;
                 *ret_mime = dc_strdup(b"image/webp\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_GIF as libc::c_int;
+                *ret_msgtype = DC_MSG_GIF;
                 *ret_mime = dc_strdup(b"image/gif\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"vcf\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(suffix, b"vcard\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                *ret_msgtype = DC_MSG_FILE as libc::c_int;
+                *ret_msgtype = DC_MSG_FILE;
                 *ret_mime = dc_strdup(b"text/vcard\x00" as *const u8 as *const libc::c_char)
             }
         }
@@ -571,14 +571,14 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
         if curr_blocked == 0 {
             if curr_state == 10 || curr_state == 13 {
-                dc_update_msg_state(context, id, 16);
+                dc_update_msg_state(context, id, DC_STATE_IN_SEEN);
                 info!(context, 0, "Seen message #{}.", id);
 
                 unsafe { dc_job_add(context, 130, id as i32, 0 as *const libc::c_char, 0) };
                 send_event = true;
             }
-        } else if curr_state == 10 {
-            dc_update_msg_state(context, id, 13);
+        } else if curr_state == DC_STATE_IN_FRESH {
+            dc_update_msg_state(context, id, DC_STATE_IN_NOTICED);
             send_event = true;
         }
     }
@@ -917,9 +917,13 @@ pub unsafe fn dc_msg_has_deviating_timestamp(msg: *const dc_msg_t) -> libc::c_in
 // TODO should return bool /rtn
 pub unsafe fn dc_msg_is_sent(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32;
+        return 0;
     }
-    return if (*msg).state >= 26i32 { 1i32 } else { 0i32 };
+    if (*msg).state >= DC_STATE_OUT_DELIVERED {
+        1
+    } else {
+        0
+    }
 }
 
 // TODO should return bool /rtn
@@ -961,16 +965,14 @@ pub unsafe fn dc_msg_is_info(msg: *const dc_msg_t) -> libc::c_int {
 // TODO should return bool /rtn
 pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32;
+        return 0;
     }
 
-    (((*msg).type_0 == DC_MSG_IMAGE as libc::c_int
-        || (*msg).type_0 == DC_MSG_GIF as libc::c_int
-        || (*msg).type_0 == DC_MSG_AUDIO as libc::c_int
-        || (*msg).type_0 == DC_MSG_VOICE as libc::c_int
-        || (*msg).type_0 == DC_MSG_VIDEO as libc::c_int
-        || (*msg).type_0 == DC_MSG_FILE as libc::c_int)
-        && (*msg).state == 18i32) as libc::c_int
+    if msgtype_has_file((*msg).type_0) && (*msg).state == DC_STATE_OUT_PREPARING {
+        1
+    } else {
+        0
+    }
 }
 
 pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> bool {
@@ -1046,7 +1048,6 @@ pub unsafe fn dc_msg_set_text(mut msg: *mut dc_msg_t, text: *const libc::c_char)
     (*msg).text = dc_strdup(text);
 }
 
-// TODO should return bool /rtn
 pub unsafe fn dc_msg_set_file(
     msg: *mut dc_msg_t,
     file: *const libc::c_char,
@@ -1177,12 +1178,18 @@ pub fn dc_update_msg_move_state(
     .is_ok()
 }
 
+fn msgstate_can_fail(state: i32) -> bool {
+    return DC_STATE_OUT_PREPARING == state
+        || DC_STATE_OUT_PENDING == state
+        || DC_STATE_OUT_DELIVERED == state;
+}
+
 pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *const libc::c_char) {
     let mut msg = dc_msg_new_untyped(context);
 
     if dc_msg_load_from_db(msg, context, msg_id) {
-        if 18 == (*msg).state || 20 == (*msg).state || 26 == (*msg).state {
-            (*msg).state = 24
+        if msgstate_can_fail((*msg).state) {
+            (*msg).state = DC_STATE_OUT_FAILED;
         }
         if !error.is_null() {
             dc_param_set((*msg).param, DC_PARAM_ERROR as i32, error);
@@ -1247,8 +1254,10 @@ pub unsafe fn dc_mdn_from_ext(
         *ret_msg_id = msg_id as u32;
         *ret_chat_id = chat_id as u32;
 
-        if !(msg_state != 18 && msg_state != 20 && msg_state != 26) {
-            /* eg. already marked as MDNS_RCVD. however, it is importent, that the message ID is set above as this will allow the caller eg. to move the message away */
+        /* if already marked as MDNS_RCVD msgstate_can_fail() returns false.
+        however, it is important, that ret_msg_id is set above as this
+        will allow the caller eg. to move the message away */
+        if msgstate_can_fail(msg_state) {
             let mdn_already_in_table = context
                 .sql
                 .exists(
@@ -1266,7 +1275,7 @@ pub unsafe fn dc_mdn_from_ext(
 
             // Normal chat? that's quite easy.
             if chat_type == 100 {
-                dc_update_msg_state(context, *ret_msg_id, 28);
+                dc_update_msg_state(context, *ret_msg_id, DC_STATE_OUT_MDN_RCVD);
                 read_by_all = 1;
             } else {
                 /* send event about new state */
@@ -1293,11 +1302,10 @@ pub unsafe fn dc_mdn_from_ext(
                  */
                 // for rounding, SELF is already included!
                 let soll_cnt = (dc_get_chat_contact_cnt(context, *ret_chat_id) + 1) / 2;
-                if !(ist_cnt < soll_cnt) {
-                    /* wait for more receipts */
-                    dc_update_msg_state(context, *ret_msg_id, 28);
+                if ist_cnt >= soll_cnt {
+                    dc_update_msg_state(context, *ret_msg_id, DC_STATE_OUT_MDN_RCVD);
                     read_by_all = 1;
-                }
+                } /* else wait for more receipts */
             }
         }
     }

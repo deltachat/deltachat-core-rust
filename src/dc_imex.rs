@@ -142,7 +142,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                         chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
                         if !(chat_id == 0i32 as libc::c_uint) {
                             msg = dc_msg_new_untyped(context);
-                            (*msg).type_0 = 60i32;
+                            (*msg).type_0 = DC_MSG_FILE;
                             dc_param_set((*msg).param, DC_PARAM_FILE as i32, setup_file_name);
                             dc_param_set(
                                 (*msg).param,

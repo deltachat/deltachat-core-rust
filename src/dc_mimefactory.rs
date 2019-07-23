@@ -787,11 +787,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 }
                 dc_msg_unref(meta);
             }
-            if (*msg).type_0 == DC_MSG_VOICE as libc::c_int
-                || (*msg).type_0 == DC_MSG_AUDIO as libc::c_int
-                || (*msg).type_0 == DC_MSG_VIDEO as libc::c_int
+            if (*msg).type_0 == DC_MSG_VOICE
+                || (*msg).type_0 == DC_MSG_AUDIO
+                || (*msg).type_0 == DC_MSG_VIDEO
             {
-                if (*msg).type_0 == DC_MSG_VOICE as libc::c_int {
+                if (*msg).type_0 == DC_MSG_VOICE {
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
@@ -867,13 +867,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             free(fwdhint as *mut libc::c_void);
             free(placeholdertext as *mut libc::c_void);
             /* add attachment part */
-            if (*msg).type_0 == DC_MSG_IMAGE as libc::c_int
-                || (*msg).type_0 == DC_MSG_GIF as libc::c_int
-                || (*msg).type_0 == DC_MSG_AUDIO as libc::c_int
-                || (*msg).type_0 == DC_MSG_VOICE as libc::c_int
-                || (*msg).type_0 == DC_MSG_VIDEO as libc::c_int
-                || (*msg).type_0 == DC_MSG_FILE as libc::c_int
-            {
+            if msgtype_has_file((*msg).type_0) {
                 if 0 == is_file_size_okay(msg) {
                     let error: *mut libc::c_char = dc_mprintf(
                         b"Message exceeds the recommended %i MB.\x00" as *const u8
@@ -1194,7 +1188,7 @@ unsafe fn build_body_file(
     let mut filename_to_send: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut filename_encoded: *mut libc::c_char = 0 as *mut libc::c_char;
     if !pathNfilename.is_null() {
-        if (*msg).type_0 == DC_MSG_VOICE as libc::c_int {
+        if (*msg).type_0 == DC_MSG_VOICE {
             let ts = chrono::Utc.timestamp((*msg).timestamp_sort as i64, 0);
 
             let suffix = if !suffix.is_null() {
@@ -1206,11 +1200,9 @@ unsafe fn build_body_file(
                 .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
                 .to_string();
             filename_to_send = to_cstring(res);
-        } else if (*msg).type_0 == DC_MSG_AUDIO as libc::c_int {
+        } else if (*msg).type_0 == DC_MSG_AUDIO {
             filename_to_send = dc_get_filename(pathNfilename)
-        } else if (*msg).type_0 == DC_MSG_IMAGE as libc::c_int
-            || (*msg).type_0 == DC_MSG_GIF as libc::c_int
-        {
+        } else if (*msg).type_0 == DC_MSG_IMAGE || (*msg).type_0 == DC_MSG_GIF {
             if base_name.is_null() {
                 base_name = b"image\x00" as *const u8 as *const libc::c_char
             }
@@ -1223,7 +1215,7 @@ unsafe fn build_body_file(
                     b"dat\x00" as *const u8 as *const libc::c_char
                 },
             )
-        } else if (*msg).type_0 == DC_MSG_VIDEO as libc::c_int {
+        } else if (*msg).type_0 == DC_MSG_VIDEO {
             filename_to_send = dc_mprintf(
                 b"video.%s\x00" as *const u8 as *const libc::c_char,
                 if !suffix.is_null() {

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use rand::{thread_rng, Rng};
 
-use crate::constants::Event;
+use crate::constants::*;
 use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
@@ -365,7 +365,11 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
                             } else {
                                 dc_delete_file(context, filename);
                                 if 0 != job.foreign_id {
-                                    dc_update_msg_state(context, job.foreign_id, 26i32);
+                                    dc_update_msg_state(
+                                        context,
+                                        job.foreign_id,
+                                        DC_STATE_OUT_DELIVERED,
+                                    );
                                     let chat_id: i32 = context
                                         .sql
                                         .query_row_col(
@@ -1170,20 +1174,15 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         );
     } else {
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
-        if (*mimefactory.msg).type_0 == 20i32
-            || (*mimefactory.msg).type_0 == 21i32
-            || (*mimefactory.msg).type_0 == 40i32
-            || (*mimefactory.msg).type_0 == 41i32
-            || (*mimefactory.msg).type_0 == 50i32
-            || (*mimefactory.msg).type_0 == 60i32
-        {
+        if msgtype_has_file((*mimefactory.msg).type_0) {
             let pathNfilename = dc_param_get(
                 (*mimefactory.msg).param,
                 DC_PARAM_FILE as i32,
                 0 as *const libc::c_char,
             );
             if !pathNfilename.is_null() {
-                if ((*mimefactory.msg).type_0 == 20i32 || (*mimefactory.msg).type_0 == 21i32)
+                if ((*mimefactory.msg).type_0 == DC_MSG_IMAGE
+                    || (*mimefactory.msg).type_0 == DC_MSG_GIF)
                     && 0 == dc_param_exists((*mimefactory.msg).param, DC_PARAM_WIDTH as i32)
                 {
                     let mut buf: *mut libc::c_uchar = 0 as *mut libc::c_uchar;

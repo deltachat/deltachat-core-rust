@@ -1,6 +1,6 @@
 use crate::aheader::EncryptPreference;
 use crate::config;
-use crate::constants::Event;
+use crate::constants::*;
 use crate::context::Context;
 use crate::dc_array::*;
 use crate::dc_e2ee::*;
@@ -32,8 +32,8 @@ pub fn dc_marknoticed_contact(context: &Context, contact_id: u32) {
     if sql::execute(
         context,
         &context.sql,
-        "UPDATE msgs SET state=13 WHERE from_id=? AND state=10;",
-        params![contact_id as i32],
+        "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
+        params![DC_STATE_IN_NOTICED, contact_id as i32, DC_STATE_IN_FRESH],
     )
     .is_ok()
     {
