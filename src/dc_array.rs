@@ -1,4 +1,4 @@
-use crate::dc_location::_dc_location;
+use crate::dc_location::dc_location;
 use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
@@ -44,7 +44,7 @@ pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
     while i < (*array).count {
         if (*array).type_0 == 1i32 {
             free(
-                (*(*(*array).array.offset(i as isize) as *mut _dc_location)).marker
+                (*(*(*array).array.offset(i as isize) as *mut dc_location)).marker
                     as *mut libc::c_void,
             );
         }
@@ -98,7 +98,7 @@ pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32
         return 0i32 as uint32_t;
     }
     if (*array).type_0 == 1i32 {
-        return (*(*(*array).array.offset(index as isize) as *mut _dc_location)).location_id;
+        return (*(*(*array).array.offset(index as isize) as *mut dc_location)).location_id;
     }
     *(*array).array.offset(index as isize) as uint32_t
 }
@@ -119,7 +119,7 @@ pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> 
     {
         return 0i32 as libc::c_double;
     }
-    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).latitude
+    (*(*(*array).array.offset(index as isize) as *mut dc_location)).latitude
 }
 
 pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
@@ -131,7 +131,7 @@ pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) ->
     {
         return 0i32 as libc::c_double;
     }
-    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).longitude
+    (*(*(*array).array.offset(index as isize) as *mut dc_location)).longitude
 }
 
 pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> libc::c_double {
@@ -143,7 +143,7 @@ pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> 
     {
         return 0i32 as libc::c_double;
     }
-    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).accuracy
+    (*(*(*array).array.offset(index as isize) as *mut dc_location)).accuracy
 }
 
 pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) -> i64 {
@@ -155,7 +155,7 @@ pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) ->
     {
         return 0;
     }
-    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).timestamp
+    (*(*(*array).array.offset(index as isize) as *mut dc_location)).timestamp
 }
 
 pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> uint32_t {
@@ -167,7 +167,7 @@ pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> u
     {
         return 0i32 as uint32_t;
     }
-    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).chat_id
+    (*(*(*array).array.offset(index as isize) as *mut dc_location)).chat_id
 }
 
 pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -> uint32_t {
@@ -179,7 +179,7 @@ pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -
     {
         return 0i32 as uint32_t;
     }
-    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).contact_id
+    (*(*(*array).array.offset(index as isize) as *mut dc_location)).contact_id
 }
 
 pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> uint32_t {
@@ -191,7 +191,7 @@ pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> ui
     {
         return 0i32 as uint32_t;
     }
-    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).msg_id
+    (*(*(*array).array.offset(index as isize) as *mut dc_location)).msg_id
 }
 
 pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *mut libc::c_char {
@@ -203,7 +203,7 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
     {
         return 0 as *mut libc::c_char;
     }
-    dc_strdup_keep_null((*(*(*array).array.offset(index as isize) as *mut _dc_location)).marker)
+    dc_strdup_keep_null((*(*(*array).array.offset(index as isize) as *mut dc_location)).marker)
 }
 
 /**
@@ -226,7 +226,7 @@ pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -
         return 0;
     }
 
-    (*(*(*array).array.offset(index as isize) as *mut _dc_location)).independent as libc::c_int
+    (*(*(*array).array.offset(index as isize) as *mut dc_location)).independent as libc::c_int
 }
 
 pub unsafe fn dc_array_search_id(

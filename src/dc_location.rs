@@ -15,7 +15,7 @@ use crate::x::*;
 // location handling
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct _dc_location {
+pub struct dc_location {
     pub location_id: uint32_t,
     pub latitude: libc::c_double,
     pub longitude: libc::c_double,
@@ -34,7 +34,7 @@ pub struct dc_kml_t {
     pub addr: *mut libc::c_char,
     pub locations: *mut dc_array_t,
     pub tag: libc::c_int,
-    pub curr: _dc_location,
+    pub curr: dc_location,
 }
 
 // location streaming
@@ -199,8 +199,8 @@ pub fn dc_get_locations(
                 timestamp_to,
             ],
             |row| unsafe {
-                let mut loc: *mut _dc_location =
-                    calloc(1, ::std::mem::size_of::<_dc_location>()) as *mut _dc_location;
+                let mut loc: *mut dc_location =
+                    calloc(1, ::std::mem::size_of::<dc_location>()) as *mut dc_location;
                 assert!(!loc.is_null(), "allocation failed");
 
                 (*loc).location_id = row.get(0)?;
@@ -413,7 +413,7 @@ pub unsafe fn dc_save_locations(
                 let mut newest_location_id = 0;
 
                 for i in 0..dc_array_get_cnt(locations) {
-                    let location = dc_array_get_ptr(locations, i as size_t) as *mut _dc_location;
+                    let location = dc_array_get_ptr(locations, i as size_t) as *mut dc_location;
 
                     let exists =
                         stmt_test.exists(params![(*location).timestamp, contact_id as i32])?;
@@ -553,8 +553,8 @@ unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
             && 0. != (*kml).curr.latitude
             && 0. != (*kml).curr.longitude
         {
-            let location: *mut _dc_location =
-                calloc(1, ::std::mem::size_of::<_dc_location>()) as *mut _dc_location;
+            let location: *mut dc_location =
+                calloc(1, ::std::mem::size_of::<dc_location>()) as *mut dc_location;
             *location = (*kml).curr;
             dc_array_add_ptr((*kml).locations, location as *mut libc::c_void);
         }
