@@ -288,10 +288,6 @@ intersphinx_mapping = {'http://docs.python.org/': None}
 autodoc_member_order = "bysource"
 # always document __init__ functions
 def skip(app, what, name, obj, skip, options):
-    import attr
-    if name == "__init__":
-        if not hasattr(obj.im_class, "__attrs_attrs__"):
-            return False
     return skip
 
 def setup(app):

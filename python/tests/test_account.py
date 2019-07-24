@@ -2,11 +2,12 @@ from __future__ import print_function
 import pytest
 import os
 from deltachat import const, Account
+from deltachat.message import Message
 from datetime import datetime, timedelta
 from conftest import wait_configuration_progress, wait_successful_IMAP_SMTP_connection
 
 
-class TestOfflineAccount:
+class TestOfflineAccountBasic:
     def test_wrong_db(self, tmpdir):
         p = tmpdir.join("hello.db")
         p.write("123")
@@ -57,9 +58,15 @@ class TestOfflineAccount:
         with pytest.raises(KeyError):
             ac1.get_config("123123")
 
+
+class TestOfflineContact:
     def test_contact_attr(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
         contact1 = ac1.create_contact(email="some1@hello.com", name="some1")
+        contact2 = ac1.create_contact(email="some1@hello.com", name="some1")
+        str(contact1)
+        repr(contact1)
+        assert contact1 == contact2
         assert contact1.id
         assert contact1.addr == "some1@hello.com"
         assert contact1.display_name == "some1"
@@ -89,26 +96,38 @@ class TestOfflineAccount:
         chat.send_text("one messae")
         assert not ac1.delete_contact(contact1)
 
-    def test_chat(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+
+class TestOfflineChat:
+    @pytest.fixture
+    def ac1(self, acfactory):
+        return acfactory.get_configured_offline_account()
+
+    @pytest.fixture
+    def chat1(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         chat = ac1.create_chat_by_contact(contact1)
         assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL, chat.id
+        return chat
 
+    def test_display(self, chat1):
+        str(chat1)
+        repr(chat1)
+
+    def test_chat_idempotent(self, chat1, ac1):
+        contact1 = chat1.get_contacts()[0]
         chat2 = ac1.create_chat_by_contact(contact1.id)
-        assert chat2.id == chat.id
-        assert chat2.get_name() == chat.get_name()
-        assert chat == chat2
-        assert not (chat != chat2)
+        assert chat2.id == chat1.id
+        assert chat2.get_name() == chat1.get_name()
+        assert chat1 == chat2
+        assert not (chat1 != chat2)
 
         for ichat in ac1.get_chats():
-            if ichat.id == chat.id:
+            if ichat.id == chat1.id:
                 break
         else:
             pytest.fail("could not find chat")
 
-    def test_group_chat_creation(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+    def test_group_chat_creation(self, ac1):
         contact1 = ac1.create_contact("some1@hello.com", name="some1")
         contact2 = ac1.create_contact("some2@hello.com", name="some2")
         chat = ac1.create_group_chat(name="title1")
@@ -121,29 +140,46 @@ class TestOfflineAccount:
         chat.set_name("title2")
         assert chat.get_name() == "title2"
 
-    def test_delete_and_send_fails(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
-        chat.delete()
+    def test_delete_and_send_fails(self, ac1, chat1):
+        chat1.delete()
         ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
         with pytest.raises(ValueError):
-            chat.send_text("msg1")
+            chat1.send_text("msg1")
 
-    def test_create_message(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
-        message = ac1.create_message("text")
-        assert message.id == 0
-        assert message._dc_msg is message._dc_msg
-        message.set_text("hello")
-        assert message.text == "hello"
-        assert message.id == 0
+    def test_prepare_message_and_send(self, ac1, chat1):
+        msg = chat1.prepare_message(Message.new(chat1.account, "text"))
+        msg.set_text("hello world")
+        assert msg.text == "hello world"
+        assert msg.id > 0
+        msg = chat1.send_prepared(msg)
+        assert "Sent" in msg.get_message_info()
+        str(msg)
+        repr(msg)
+        assert msg == ac1.get_message_by_id(msg.id)
 
-    def test_message(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
-        msg = chat.send_text("msg1")
+    def test_prepare_file(self, ac1, chat1):
+        blobdir = ac1.get_blob_dir()
+        p = os.path.join(blobdir, "somedata.txt")
+        with open(p, "w") as f:
+            f.write("some data")
+        message = chat1.prepare_message_file(p)
+        assert message.id > 0
+        message.set_text("hello world")
+        assert message.get_state().is_out_preparing()
+        assert message.text == "hello world"
+        msg = chat1.send_prepared(message)
+        s = msg.get_message_info()
+        assert "Sent" in s
+
+    def test_message_eq_contains(self, chat1):
+        msg = chat1.send_text("msg1")
+        assert msg in chat1.get_messages()
+        assert not (msg not in chat1.get_messages())
+        str(msg)
+        repr(msg)
+
+    def test_message_send_text(self, chat1):
+        msg = chat1.send_text("msg1")
         assert msg
         assert msg.view_type.is_text()
         assert msg.view_type.name == "text"
@@ -161,23 +197,17 @@ class TestOfflineAccount:
         assert not msg_state.is_out_delivered()
         assert not msg_state.is_out_mdn_received()
 
-    def test_create_chat_by_mssage_id(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
-        msg = chat.send_text("msg1")
-        assert chat == ac1.create_chat_by_message(msg)
-        assert chat == ac1.create_chat_by_message(msg.id)
+    def test_create_chat_by_message_id(self, ac1, chat1):
+        msg = chat1.send_text("msg1")
+        assert chat1 == ac1.create_chat_by_message(msg)
+        assert chat1 == ac1.create_chat_by_message(msg.id)
 
-    def test_message_image(self, acfactory, data, lp):
-        ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
+    def test_message_image(self, chat1, data, lp):
         with pytest.raises(ValueError):
-            chat.send_image(path="notexists")
+            chat1.send_image(path="notexists")
         fn = data.get_path("d.png")
         lp.sec("sending image")
-        msg = chat.send_image(fn)
+        msg = chat1.send_image(fn)
         assert msg.view_type.name == "image"
         assert msg
         assert msg.id > 0
@@ -189,13 +219,10 @@ class TestOfflineAccount:
             ("text/plain", "text/plain"),
             ("image/png", "image/png"),
     ])
-    def test_message_file(self, acfactory, data, lp, typein, typeout):
-        ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
+    def test_message_file(self, ac1, chat1, data, lp, typein, typeout):
         lp.sec("sending file")
         fn = data.get_path("r.txt")
-        msg = chat.send_file(fn, typein)
+        msg = chat1.send_file(fn, typein)
         assert msg
         assert msg.id > 0
         assert msg.view_type.name == "file"
@@ -203,6 +230,9 @@ class TestOfflineAccount:
         assert os.path.exists(msg.filename)
         assert msg.filename.endswith(msg.basename)
         assert msg.filemime == typeout
+        msg2 = chat1.send_file(fn, typein)
+        assert msg2 != msg
+        assert msg2.filename != msg.filename
 
     def test_create_chat_mismatch(self, acfactory):
         ac1 = acfactory.get_configured_offline_account()
@@ -215,12 +245,9 @@ class TestOfflineAccount:
         with pytest.raises(ValueError):
             ac2.create_chat_by_message(msg)
 
-    def test_chat_message_distinctions(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
-        contact1 = ac1.create_contact("some1@hello.com", name="some1")
-        chat = ac1.create_chat_by_contact(contact1)
+    def test_chat_message_distinctions(self, ac1, chat1):
         past1s = datetime.utcnow() - timedelta(seconds=1)
-        msg = chat.send_text("msg1")
+        msg = chat1.send_text("msg1")
         ts = msg.time_sent
         assert msg.time_received is None
         assert ts.strftime("Y")
@@ -228,8 +255,7 @@ class TestOfflineAccount:
         contact = msg.get_sender_contact()
         assert contact == ac1.get_self_contact()
 
-    def test_basic_configure_ok_addr_setting_forbidden(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+    def test_basic_configure_ok_addr_setting_forbidden(self, ac1):
         assert ac1.get_config("mail_pw")
         assert ac1.is_configured()
         with pytest.raises(ValueError):
@@ -268,10 +294,20 @@ class TestOfflineAccount:
         assert messages[0].text == "msg1"
         assert os.path.exists(messages[1].filename)
 
-    def test_ac_setup_message_fails(self, acfactory):
-        ac1 = acfactory.get_configured_offline_account()
+    def test_ac_setup_message_fails(self, ac1):
         with pytest.raises(RuntimeError):
             ac1.initiate_key_transfer()
+
+    def test_set_get_draft(self, chat1):
+        msg = Message.new(chat1.account, "text")
+        msg1 = chat1.prepare_message(msg)
+        msg1.set_text("hello")
+        chat1.set_draft(msg1)
+        msg1.set_text("obsolete")
+        msg2 = chat1.get_draft()
+        assert msg2.text == "hello"
+        chat1.set_draft(None)
+        assert chat1.get_draft() is None
 
 
 class TestOnlineAccount:
@@ -293,7 +329,7 @@ class TestOnlineAccount:
         ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         assert ev[1] == msg_out.id
 
-    def test_two_acocunts_send_receive(self, acfactory):
+    def test_two_accounts_send_receive(self, acfactory):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
@@ -390,7 +426,6 @@ class TestOnlineAccount:
         lp.step("1")
         ac1._evlogger.get_matching("DC_EVENT_MSG_READ")
         lp.step("2")
-        # ac1._evlogger.get_info_matching("Message marked as seen")
         assert msg_out.get_state().is_out_mdn_received()
 
     def test_saved_mime_on_received_message(self, acfactory, lp):
@@ -473,7 +508,7 @@ class TestOnlineAccount:
         wait_configuration_progress(ac1, 1000)
         assert ac1.get_info()["fingerprint"] != ac2.get_info()["fingerprint"]
         setup_code = ac1.initiate_key_transfer()
-        ac2._evlogger.set_timeout(10)
+        ac2._evlogger.set_timeout(30)
         ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG|DC_EVENT_MSGS_CHANGED")
         msg = ac2.get_message_by_id(ev[2])
         assert msg.is_setup_message()

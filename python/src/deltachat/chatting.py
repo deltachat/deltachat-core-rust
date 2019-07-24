@@ -1,24 +1,30 @@
 """ chatting related objects: Contact, Chat, Message. """
 
-import os
-
+import mimetypes
 from . import props
 from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
 from .capi import lib, ffi
 from . import const
-import attr
-from attr import validators as v
 from .message import Message
 
 
-@attr.s
 class Contact(object):
     """ Delta-Chat Contact.
 
     You obtain instances of it through :class:`deltachat.account.Account`.
     """
-    _dc_context = attr.ib(validator=v.instance_of(ffi.CData))
-    id = attr.ib(validator=v.instance_of(int))
+    def __init__(self, dc_context, id):
+        self._dc_context = dc_context
+        self.id = id
+
+    def __eq__(self, other):
+        return self._dc_context == other._dc_context and self.id == other.id
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __repr__(self):
+        return "<Contact id={} addr={} dc_context={}>".format(self.id, self.addr, self._dc_context)
 
     @property
     def _dc_contact(self):
@@ -46,14 +52,26 @@ class Contact(object):
         return lib.dc_contact_is_verified(self._dc_contact)
 
 
-@attr.s
 class Chat(object):
     """ Chat object which manages members and through which you can send and retrieve messages.
 
     You obtain instances of it through :class:`deltachat.account.Account`.
     """
-    _dc_context = attr.ib(validator=v.instance_of(ffi.CData))
-    id = attr.ib(validator=v.instance_of(int))
+
+    def __init__(self, account, id):
+        self.account = account
+        self._dc_context = account._dc_context
+        self.id = id
+
+    def __eq__(self, other):
+        return self.id == getattr(other, "id", None) and \
+               self._dc_context == getattr(other, "_dc_context", None)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __repr__(self):
+        return "<Chat id={} name={} dc_context={}>".format(self.id, self.get_name(), self._dc_context)
 
     @property
     def _dc_chat(self):
@@ -126,7 +144,7 @@ class Chat(object):
         msg_id = lib.dc_send_text_msg(self._dc_context, self.id, msg)
         if msg_id == 0:
             raise ValueError("message could not be send, does chat exist?")
-        return Message.from_db(self._dc_context, msg_id)
+        return Message.from_db(self.account, msg_id)
 
     def send_file(self, path, mime_type="application/octet-stream"):
         """ send a file and return the resulting Message instance.
@@ -136,14 +154,8 @@ class Chat(object):
         :raises ValueError: if message can not be send/chat does not exist.
         :returns: the resulting :class:`deltachat.message.Message` instance
         """
-        path = as_dc_charpointer(path)
-        mtype = as_dc_charpointer(mime_type)
-        msg = Message.new(self._dc_context, "file")
-        msg.set_file(path, mtype)
-        msg_id = lib.dc_send_msg(self._dc_context, self.id, msg._dc_msg)
-        if msg_id == 0:
-            raise ValueError("message could not be send, does chat exist?")
-        return Message.from_db(self._dc_context, msg_id)
+        msg = self.prepare_message_file(path=path, mime_type=mime_type)
+        return self.send_prepared(msg)
 
     def send_image(self, path):
         """ send an image message and return the resulting Message instance.
@@ -152,14 +164,22 @@ class Chat(object):
         :raises ValueError: if message can not be send/chat does not exist.
         :returns: the resulting :class:`deltachat.message.Message` instance
         """
-        if not os.path.exists(path):
-            raise ValueError("path does not exist: {!r}".format(path))
-        msg = Message.new(self._dc_context, "image")
-        msg.set_file(path)
-        msg_id = lib.dc_send_msg(self._dc_context, self.id, msg._dc_msg)
-        return Message.from_db(self._dc_context, msg_id)
+        mime_type = mimetypes.guess_type(path)[0]
+        msg = self.prepare_message_file(path=path, mime_type=mime_type, view_type="image")
+        return self.send_prepared(msg)
 
-    def prepare_file(self, path, mime_type=None, view_type="file"):
+    def prepare_message(self, msg):
+        """ create a new message.
+
+        :param msg: the message to be prepared.
+        :returns: :class:`deltachat.message.Message` instance.
+        """
+        msg_id = lib.dc_prepare_msg(self._dc_context, self.id, msg._dc_msg)
+        if msg_id == 0:
+            raise ValueError("message could not be prepared")
+        return Message.from_db(self.account, msg_id)
+
+    def prepare_message_file(self, path, mime_type=None, view_type="file"):
         """ prepare a message for sending and return the resulting Message instance.
 
         To actually send the message, call :meth:`send_prepared`.
@@ -171,14 +191,9 @@ class Chat(object):
         :raises ValueError: if message can not be prepared/chat does not exist.
         :returns: the resulting :class:`Message` instance
         """
-        path = as_dc_charpointer(path)
-        mtype = as_dc_charpointer(mime_type)
-        msg = Message.new(self._dc_context, view_type)
-        msg.set_file(path, mtype)
-        msg_id = lib.dc_prepare_msg(self._dc_context, self.id, msg._dc_msg)
-        if msg_id == 0:
-            raise ValueError("message could not be prepared, does chat exist?")
-        return Message.from_db(self._dc_context, msg_id)
+        msg = Message.new(self.account, view_type)
+        msg.set_file(path, mime_type)
+        return self.prepare_message(msg)
 
     def send_prepared(self, message):
         """ send a previously prepared message.
@@ -191,7 +206,30 @@ class Chat(object):
         msg_id = lib.dc_send_msg(self._dc_context, 0, message._dc_msg)
         if msg_id == 0:
             raise ValueError("message could not be sent")
-        return Message.from_db(self._dc_context, msg_id)
+        return Message.from_db(self.account, msg_id)
+
+    def set_draft(self, message):
+        """ set message as draft.
+
+        :param message: a :class:`Message` instance
+        :returns: None
+        """
+        if message is None:
+            lib.dc_set_draft(self._dc_context, self.id, ffi.NULL)
+        else:
+            lib.dc_set_draft(self._dc_context, self.id, message._dc_msg)
+
+    def get_draft(self):
+        """ get draft message for this chat.
+
+        :param message: a :class:`Message` instance
+        :returns: Message object or None (if no draft available)
+        """
+        x = lib.dc_get_draft(self._dc_context, self.id)
+        if x == ffi.NULL:
+            return None
+        dc_msg = ffi.gc(x, lib.dc_msg_unref)
+        return Message.from_dc_msg(self.account, dc_msg)
 
     def get_messages(self):
         """ return list of messages in this chat.
@@ -202,7 +240,7 @@ class Chat(object):
             lib.dc_get_chat_msgs(self._dc_context, self.id, 0, 0),
             lib.dc_array_unref
         )
-        return list(iter_array(dc_array, lambda x: Message.from_db(self._dc_context, x)))
+        return list(iter_array(dc_array, lambda x: Message.from_db(self.account, x)))
 
     def count_fresh_messages(self):
         """ return number of fresh messages in this chat.
