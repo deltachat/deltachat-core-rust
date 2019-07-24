@@ -1,46 +1,64 @@
 """ chatting related objects: Contact, Chat, Message. """
 
 import os
+import shutil
 from . import props
 from .cutil import from_dc_charpointer, as_dc_charpointer
 from .capi import lib, ffi
 from . import const
 from datetime import datetime
-import attr
-from attr import validators as v
 
 
-@attr.s
 class Message(object):
     """ Message object.
 
     You obtain instances of it through :class:`deltachat.account.Account` or
     :class:`deltachat.chatting.Chat`.
     """
-    _dc_context = attr.ib(validator=v.instance_of(ffi.CData))
-    try:
-        id = attr.ib(validator=v.instance_of((int, long)))
-    except NameError:  # py35
-        id = attr.ib(validator=v.instance_of(int))
+    def __init__(self, account, id=None, dc_msg=None):
+        self.account = account
+        self._dc_context = account._dc_context
+        if dc_msg is not None:
+            self._cache_dc_msg = self._dc_msg_volatile = dc_msg
+            id = lib.dc_msg_get_id(dc_msg)
+        assert id is not None
+        self.id = id
+        assert isinstance(self._dc_context, ffi.CData)
+        assert int(id) >= 0
+
+    def __eq__(self, other):
+        return self.account == other.account and self.id == other.id
+
+    def __repr__(self):
+        return "<Message id={} dc_context={}>".format(self.id, self._dc_context)
 
     @property
     def _dc_msg(self):
         if self.id > 0:
-            return ffi.gc(
-                lib.dc_get_msg(self._dc_context, self.id),
-                lib.dc_msg_unref
-            )
+            if not hasattr(self, "_cache_dc_msg"):
+                self._cache_dc_msg = ffi.gc(
+                    lib.dc_get_msg(self._dc_context, self.id),
+                    lib.dc_msg_unref
+                )
+            return self._cache_dc_msg
         return self._dc_msg_volatile
 
     @classmethod
-    def from_db(cls, _dc_context, id):
+    def from_db(cls, account, id):
+        assert hasattr(account, "_dc_context")
         assert id > 0
-        return cls(_dc_context, id)
+        return cls(account, id)
 
     @classmethod
-    def new(cls, dc_context, view_type):
-        """ create a non-persistent method. """
-        msg = cls(dc_context, 0)
+    def from_dc_msg(cls, account, dc_msg):
+        assert hasattr(account, "_dc_context")
+        return cls(account, dc_msg=dc_msg)
+
+    @classmethod
+    def new(cls, account, view_type):
+        """ create a non-persistent message. """
+        dc_context = account._dc_context
+        msg = cls(account=account, id=0)
         view_type_code = MessageType.get_typecode(view_type)
         msg._dc_msg_volatile = ffi.gc(
             lib.dc_msg_new(dc_context, view_type_code),
@@ -62,7 +80,9 @@ class Message(object):
 
     def set_text(self, text):
         """set text of this message. """
-        return lib.dc_msg_set_text(self._dc_msg, as_dc_charpointer(text))
+        assert self.id > 0, "message not prepared"
+        assert self.get_state().is_out_preparing()
+        lib.dc_msg_set_text(self._dc_msg, as_dc_charpointer(text))
 
     @props.with_doc
     def filename(self):
@@ -70,9 +90,23 @@ class Message(object):
         return from_dc_charpointer(lib.dc_msg_get_file(self._dc_msg))
 
     def set_file(self, path, mime_type=None):
-        """set file for this message. """
-        mtype = ffi.NULL if mime_type is None else mime_type
-        assert os.path.exists(path)
+        """set file for this message from path and mime_type. """
+        mtype = ffi.NULL if mime_type is None else as_dc_charpointer(mime_type)
+        if not os.path.exists(path):
+            raise ValueError("path does not exist: {!r}".format(path))
+        blobdir = self.account.get_blob_dir()
+        if not path.startswith(blobdir):
+            for i in range(50):
+                ext = "" if i == 0 else "-" + str(i)
+                dest = os.path.join(blobdir, os.path.basename(path) + ext)
+                if os.path.exists(dest):
+                    continue
+                shutil.copyfile(path, dest)
+                break
+            else:
+                raise ValueError("could not create blobdir-path for {}".format(path))
+            path = dest
+        assert path.startswith(blobdir), path
         lib.dc_msg_set_file(self._dc_msg, as_dc_charpointer(path), mtype)
 
     @props.with_doc
@@ -91,11 +125,19 @@ class Message(object):
 
         :returns: a :class:`deltachat.message.MessageType` instance.
         """
+        assert self.id > 0
         return MessageType(lib.dc_msg_get_viewtype(self._dc_msg))
 
     def is_setup_message(self):
         """ return True if this message is a setup message. """
         return lib.dc_msg_is_setupmessage(self._dc_msg)
+
+    def get_message_info(self):
+        """ Return informational text for a single message.
+
+        The text is multiline and may contain eg. the raw text of the message.
+        """
+        return from_dc_charpointer(lib.dc_get_msg_info(self._dc_context, self.id))
 
     def continue_key_transfer(self, setup_code):
         """ extract key and use it as primary key for this account. """
@@ -144,7 +186,7 @@ class Message(object):
         """
         from .chatting import Chat
         chat_id = lib.dc_msg_get_chat_id(self._dc_msg)
-        return Chat(self._dc_context, chat_id)
+        return Chat(self.account, chat_id)
 
     def get_sender_contact(self):
         """return the contact of who wrote the message.
@@ -156,10 +198,8 @@ class Message(object):
         return Contact(self._dc_context, contact_id)
 
 
-@attr.s
 class MessageType(object):
     """ DeltaChat message type, with is_* methods. """
-    _type = attr.ib(validator=v.instance_of(int))
     _mapping = {
             const.DC_MSG_TEXT: 'text',
             const.DC_MSG_IMAGE: 'image',
@@ -168,6 +208,12 @@ class MessageType(object):
             const.DC_MSG_VIDEO: 'video',
             const.DC_MSG_FILE: 'file'
     }
+
+    def __init__(self, _type):
+        self._type = _type
+
+    def __eq__(self, other):
+        return self._type == getattr(other, "_type", None)
 
     @classmethod
     def get_typecode(cls, view_type):
@@ -206,15 +252,24 @@ class MessageType(object):
         return self._type == const.DC_MSG_FILE
 
 
-@attr.s
 class MessageState(object):
     """ Current Message In/Out state, updated on each call of is_* methods.
     """
-    message = attr.ib(validator=v.instance_of(Message))
+    def __init__(self, message):
+        self.message = message
+
+    def __eq__(self, other):
+        return self.message == getattr(other, "message", None)
 
     @property
     def _msgstate(self):
-        return lib.dc_msg_get_state(self.message._dc_msg)
+        if self.message.id == 0:
+            return lib.dc_msg_get_state(self.message._dc_msg)
+        dc_msg = ffi.gc(
+            lib.dc_get_msg(self.message._dc_context, self.message.id),
+            lib.dc_msg_unref
+        )
+        return lib.dc_msg_get_state(dc_msg)
 
     def is_in_fresh(self):
         """ return True if Message is incoming fresh message (un-noticed).

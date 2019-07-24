@@ -69,6 +69,10 @@ class Account(object):
             d[key.lower()] = value
         return d
 
+    def get_blob_dir(self):
+        """ return blob directory for this account. """
+        return from_dc_charpointer(lib.dc_get_blobdir(self._dc_context))
+
     def set_config(self, name, value):
         """ set configuration values.
 
@@ -142,15 +146,6 @@ class Account(object):
         self.check_is_configured()
         return Contact(self._dc_context, const.DC_CONTACT_ID_SELF)
 
-    def create_message(self, view_type):
-        """ create a new non persistent message.
-
-        :param view_type: a string specifying "text", "video",
-                          "image", "audio" or "file".
-        :returns: :class:`deltachat.message.Message` instance.
-        """
-        return Message.new(self._dc_context, view_type)
-
     def create_contact(self, email, name=None):
         """ create a (new) Contact. If there already is a Contact
         with that e-mail address, it is unblocked and its name is
@@ -212,7 +207,7 @@ class Account(object):
             assert isinstance(contact, int)
             contact_id = contact
         chat_id = lib.dc_create_chat_by_contact_id(self._dc_context, contact_id)
-        return Chat(self._dc_context, chat_id)
+        return Chat(self, chat_id)
 
     def create_chat_by_message(self, message):
         """ create or get an existing chat object for the
@@ -229,7 +224,7 @@ class Account(object):
             assert isinstance(message, int)
             msg_id = message
         chat_id = lib.dc_create_chat_by_msg_id(self._dc_context, msg_id)
-        return Chat(self._dc_context, chat_id)
+        return Chat(self, chat_id)
 
     def create_group_chat(self, name, verified=False):
         """ create a new group chat object.
@@ -241,7 +236,7 @@ class Account(object):
         """
         bytes_name = name.encode("utf8")
         chat_id = lib.dc_create_group_chat(self._dc_context, verified, bytes_name)
-        return Chat(self._dc_context, chat_id)
+        return Chat(self, chat_id)
 
     def get_chats(self):
         """ return list of chats.
@@ -257,15 +252,15 @@ class Account(object):
         chatlist = []
         for i in range(0, lib.dc_chatlist_get_cnt(dc_chatlist)):
             chat_id = lib.dc_chatlist_get_chat_id(dc_chatlist, i)
-            chatlist.append(Chat(self._dc_context, chat_id))
+            chatlist.append(Chat(self, chat_id))
         return chatlist
 
     def get_deaddrop_chat(self):
-        return Chat(self._dc_context, const.DC_CHAT_ID_DEADDROP)
+        return Chat(self, const.DC_CHAT_ID_DEADDROP)
 
     def get_message_by_id(self, msg_id):
         """ return Message instance. """
-        return Message.from_db(self._dc_context, msg_id)
+        return Message.from_db(self, msg_id)
 
     def mark_seen_messages(self, messages):
         """ mark the given set of messages as seen.

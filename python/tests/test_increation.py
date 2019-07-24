@@ -1,6 +1,4 @@
 from __future__ import print_function
-import os
-import shutil
 from filecmp import cmp
 from deltachat import const
 from conftest import wait_configuration_progress, wait_msgs_changed
@@ -13,17 +11,14 @@ class TestInCreation:
         wait_configuration_progress(ac1, 1000)
         wait_configuration_progress(ac2, 1000)
 
-        blobdir = ac1.get_blobdir()
-
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
         chat = ac1.create_chat_by_contact(c2)
         assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
         wait_msgs_changed(ac1, 0, 0)  # why no chat id?
 
         lp.sec("create a message with a file in creation")
-        path = os.path.join(blobdir, "d.png")
-        open(path, 'a').close()
-        prepared_original = chat.prepare_file(path)
+        path = data.get_path("d.png")
+        prepared_original = chat.prepare_message_file(path)
         assert prepared_original.get_state().is_out_preparing()
         wait_msgs_changed(ac1, chat.id, prepared_original.id)
 
@@ -37,11 +32,11 @@ class TestInCreation:
         forwarded_id = wait_msgs_changed(ac1, chat2.id)
         if forwarded_id == 0:
             forwarded_id = wait_msgs_changed(ac1, chat2.id)
+            assert forwarded_id
         forwarded_msg = ac1.get_message_by_id(forwarded_id)
         assert forwarded_msg.get_state().is_out_preparing()
 
         lp.sec("finish creating the file and send it")
-        shutil.copy(data.get_path("d.png"), path)
         sent_original = chat.send_prepared(prepared_original)
         assert sent_original.id == prepared_original.id
         state = sent_original.get_state()
@@ -61,11 +56,13 @@ class TestInCreation:
         assert ev[1] == chat2.id
         assert ev[2] == forwarded_id
 
-        lp.sec("wait for both messages to arrive")
+        lp.sec("wait1 for original or forwarded messages to arrive")
         ev1 = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
         assert ev1[1] >= const.DC_CHAT_ID_LAST_SPECIAL
         received_original = ac2.get_message_by_id(ev1[2])
         assert cmp(received_original.filename, path, False)
+
+        lp.sec("wait2 for original or forwarded messages to arrive")
         ev2 = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
         assert ev2[1] >= const.DC_CHAT_ID_LAST_SPECIAL
         assert ev2[1] != ev1[1]
