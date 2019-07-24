@@ -961,12 +961,22 @@ pub unsafe fn dc_send_text_msg(
     chat_id: uint32_t,
     text_to_send: *const libc::c_char,
 ) -> uint32_t {
-    let mut msg = dc_msg_new(context, 10);
-    let mut ret = 0;
-    if !(chat_id <= 9 || text_to_send.is_null()) {
-        (*msg).text = dc_strdup(text_to_send);
-        ret = dc_send_msg(context, chat_id, msg);
+    if chat_id <= 9 {
+        warn!(
+            context,
+            0, "dc_send_text_msg: bad chat_id = {} <= 9", chat_id
+        );
+        return 0;
     }
+
+    if text_to_send.is_null() {
+        warn!(context, 0, "dc_send_text_msg: text_to_send is emtpy");
+        return 0;
+    }
+
+    let mut msg = dc_msg_new(context, 10);
+    (*msg).text = dc_strdup(text_to_send);
+    let ret = dc_send_msg(context, chat_id, msg);
     dc_msg_unref(msg);
     ret
 }
