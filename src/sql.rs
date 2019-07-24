@@ -340,7 +340,7 @@ fn open(
             info!(
                 context,
                 0,
-                "First time init: creating tables in \"{:?}\".",
+                "First time init: creating tables in {:?}.",
                 dbfile.as_ref(),
             );
             sql.execute(
@@ -816,7 +816,7 @@ fn open(
         }
     }
 
-    info!(context, 0, "Opened \"{:?}\".", dbfile.as_ref(),);
+    info!(context, 0, "Opened {:?}.", dbfile.as_ref(),);
 
     Ok(())
 }
