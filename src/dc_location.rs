@@ -28,6 +28,23 @@ pub struct dc_location {
     pub independent: uint32_t,
 }
 
+impl dc_location {
+    pub fn new() -> Self {
+        dc_location {
+            location_id: 0,
+            latitude: 0.0,
+            longitude: 0.0,
+            accuracy: 0.0,
+            timestamp: 0,
+            contact_id: 0,
+            msg_id: 0,
+            chat_id: 0,
+            marker: std::ptr::null_mut(),
+            independent: 0,
+        }
+    }
+}
+
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_kml_t {
@@ -35,6 +52,17 @@ pub struct dc_kml_t {
     pub locations: *mut dc_array_t,
     pub tag: libc::c_int,
     pub curr: dc_location,
+}
+
+impl dc_kml_t {
+    pub fn new() -> Self {
+        dc_kml_t {
+            addr: std::ptr::null_mut(),
+            locations: std::ptr::null_mut(),
+            tag: 0,
+            curr: dc_location::new(),
+        }
+    }
 }
 
 // location streaming
