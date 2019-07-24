@@ -13,7 +13,7 @@ use crate::types::*;
 use crate::x::*;
 
 // location handling
-#[derive(Copy, Clone)]
+#[derive(Clone, Default)]
 #[repr(C)]
 pub struct _dc_location {
     pub location_id: uint32_t,
@@ -24,11 +24,17 @@ pub struct _dc_location {
     pub contact_id: uint32_t,
     pub msg_id: uint32_t,
     pub chat_id: uint32_t,
-    pub marker: *mut libc::c_char,
+    pub marker: Option<String>,
     pub independent: uint32_t,
 }
 
-#[derive(Copy, Clone)]
+impl _dc_location {
+    pub fn new() -> Self {
+        Default::default()
+    }
+}
+
+#[derive(Clone)]
 #[repr(C)]
 pub struct dc_kml_t {
     pub addr: *mut libc::c_char,
@@ -198,28 +204,26 @@ pub fn dc_get_locations(
                 timestamp_from,
                 timestamp_to,
             ],
-            |row| unsafe {
-                let mut loc: *mut _dc_location =
-                    calloc(1, ::std::mem::size_of::<_dc_location>()) as *mut _dc_location;
-                assert!(!loc.is_null(), "allocation failed");
+            |row| {
+                let mut loc = _dc_location::new();
 
-                (*loc).location_id = row.get(0)?;
-                (*loc).latitude = row.get(1)?;
-                (*loc).longitude = row.get(2)?;
-                (*loc).accuracy = row.get(3)?;
-                (*loc).timestamp = row.get(4)?;
-                (*loc).independent = row.get(5)?;
-                (*loc).msg_id = row.get(6)?;
-                (*loc).contact_id = row.get(7)?;
-                (*loc).chat_id = row.get(8)?;
+                loc.location_id = row.get(0)?;
+                loc.latitude = row.get(1)?;
+                loc.longitude = row.get(2)?;
+                loc.accuracy = row.get(3)?;
+                loc.timestamp = row.get(4)?;
+                loc.independent = row.get(5)?;
+                loc.msg_id = row.get(6)?;
+                loc.contact_id = row.get(7)?;
+                loc.chat_id = row.get(8)?;
 
-                if 0 != (*loc).msg_id {
+                if 0 != loc.msg_id {
                     let txt: String = row.get(9)?;
                     if is_marker(&txt) {
-                        (*loc).marker = to_cstring(txt);
+                        loc.marker = Some(txt);
                     }
                 }
-                Ok(loc)
+                Ok(Box::into_raw(Box::new(loc)))
             },
             |locations| {
                 let ret = unsafe { dc_array_new_typed(1, 500) };
@@ -553,10 +557,13 @@ unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
             && 0. != (*kml).curr.latitude
             && 0. != (*kml).curr.longitude
         {
-            let location: *mut _dc_location =
-                calloc(1, ::std::mem::size_of::<_dc_location>()) as *mut _dc_location;
-            *location = (*kml).curr;
-            dc_array_add_ptr((*kml).locations, location as *mut libc::c_void);
+            // TODO: we have to clone and deallocate marker manually,
+            // because it is impossible to move behind a raw pointer.
+            // The long-term solution is to stop using raw pointers in this module.
+            let location = (*kml).curr.clone();
+            (*kml).curr.marker = None;
+            let location_ptr = Box::into_raw(Box::new(location));
+            dc_array_add_ptr((*kml).locations, location_ptr as *mut libc::c_void);
         }
         (*kml).tag = 0
     };
