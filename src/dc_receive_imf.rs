@@ -454,7 +454,7 @@ pub unsafe fn dc_receive_imf(
                                     }
                                     let part = carray_get(mime_parser.parts, i as libc::c_uint) as *mut dc_mimepart_t;
                                     if !(0 != (*part).is_meta) {
-                                        if !mime_parser.location_kml.is_null()
+                                        if !mime_parser.location_kml.is_none()
                                             && icnt == 1
                                             && !(*part).msg.is_null()
                                             && (strcmp(
@@ -772,18 +772,18 @@ pub unsafe fn dc_receive_imf(
                         i = i.wrapping_add(1)
                     }
                 }
-                if !mime_parser.message_kml.is_null() && chat_id > 9 as libc::c_uint {
+                if !mime_parser.message_kml.is_none() && chat_id > 9 as libc::c_uint {
                     let mut location_id_written = false;
                     let mut send_event = false;
 
-                    if !mime_parser.message_kml.is_null()
+                    if !mime_parser.message_kml.is_none()
                         && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
                     {
                         let newest_location_id: uint32_t = dc_save_locations(
                             context,
                             chat_id,
                             from_id,
-                            (*mime_parser.message_kml).locations,
+                            mime_parser.message_kml.unwrap().locations,
                             1,
                         );
                         if 0 != newest_location_id && 0 == hidden {
@@ -793,20 +793,23 @@ pub unsafe fn dc_receive_imf(
                         }
                     }
 
-                    if !mime_parser.location_kml.is_null()
+                    if !mime_parser.location_kml.is_none()
                         && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
                     {
                         let contact = dc_get_contact(context, from_id);
-                        if !(*mime_parser.location_kml).addr.is_null()
+                        if !mime_parser.location_kml.as_ref().unwrap().addr.is_null()
                             && !contact.is_null()
                             && !(*contact).addr.is_null()
-                            && strcasecmp((*contact).addr, (*mime_parser.location_kml).addr) == 0
+                            && strcasecmp(
+                                (*contact).addr,
+                                mime_parser.location_kml.as_ref().unwrap().addr,
+                            ) == 0
                         {
                             let newest_location_id = dc_save_locations(
                                 context,
                                 chat_id,
                                 from_id,
-                                (*mime_parser.location_kml).locations,
+                                mime_parser.location_kml.as_ref().unwrap().locations,
                                 0,
                             );
                             if newest_location_id != 0 && hidden == 0 && !location_id_written {

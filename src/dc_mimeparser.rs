@@ -56,8 +56,8 @@ pub struct dc_mimeparser_t<'a> {
     pub context: &'a Context,
     pub reports: *mut carray,
     pub is_system_message: libc::c_int,
-    pub location_kml: *mut dc_kml_t,
-    pub message_kml: *mut dc_kml_t,
+    pub location_kml: Option<dc_kml_t>,
+    pub message_kml: Option<dc_kml_t>,
 }
 
 // deprecated
@@ -83,8 +83,8 @@ pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
         context,
         reports: carray_new(16i32 as libc::c_uint),
         is_system_message: 0,
-        location_kml: std::ptr::null_mut(),
-        message_kml: std::ptr::null_mut(),
+        location_kml: None,
+        message_kml: None,
     }
 }
 
@@ -134,11 +134,15 @@ pub unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     (*mimeparser).decrypting_failed = 0i32;
     dc_e2ee_thanks(&mut (*mimeparser).e2ee_helper);
 
-    dc_kml_unref((*mimeparser).location_kml);
-    (*mimeparser).location_kml = 0 as *mut dc_kml_t;
+    if let Some(location_kml) = (*mimeparser).location_kml.as_mut() {
+        dc_kml_unref(location_kml as *mut dc_kml_t);
+    }
+    (*mimeparser).location_kml = None;
 
-    dc_kml_unref((*mimeparser).message_kml);
-    (*mimeparser).message_kml = 0 as *mut dc_kml_t;
+    if let Some(message_kml) = (*mimeparser).message_kml.as_mut() {
+        dc_kml_unref(message_kml as *mut dc_kml_t);
+    }
+    (*mimeparser).message_kml = None;
 }
 
 unsafe fn dc_mimepart_unref(mut mimepart: *mut dc_mimepart_t) {
@@ -1392,11 +1396,11 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         4,
                                     ) == 0i32
                                 {
-                                    (*mimeparser).location_kml = dc_kml_parse(
+                                    (*mimeparser).location_kml = Some(dc_kml_parse(
                                         (*mimeparser).context,
                                         decoded_data,
                                         decoded_data_bytes,
-                                    );
+                                    ));
                                     current_block = 8795901732489102124;
                                 } else if strncmp(
                                     desired_filename,
@@ -1411,11 +1415,11 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         4,
                                     ) == 0i32
                                 {
-                                    (*mimeparser).message_kml = dc_kml_parse(
+                                    (*mimeparser).message_kml = Some(dc_kml_parse(
                                         (*mimeparser).context,
                                         decoded_data,
                                         decoded_data_bytes,
-                                    );
+                                    ));
                                     current_block = 8795901732489102124;
                                 } else {
                                     dc_replace_bad_utf8_chars(desired_filename);

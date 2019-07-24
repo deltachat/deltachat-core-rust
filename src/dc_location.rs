@@ -481,8 +481,8 @@ pub unsafe fn dc_kml_parse(
     context: &Context,
     content: *const libc::c_char,
     content_bytes: size_t,
-) -> *mut dc_kml_t {
-    let mut kml: *mut dc_kml_t = calloc(1, ::std::mem::size_of::<dc_kml_t>()) as *mut dc_kml_t;
+) -> dc_kml_t {
+    let mut kml = dc_kml_t::new();
     let mut content_nullterminated: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut saxparser: dc_saxparser_t = dc_saxparser_t {
         starttag_cb: None,
@@ -499,8 +499,11 @@ pub unsafe fn dc_kml_parse(
     } else {
         content_nullterminated = dc_null_terminate(content, content_bytes as libc::c_int);
         if !content_nullterminated.is_null() {
-            (*kml).locations = dc_array_new_typed(1, 100 as size_t);
-            dc_saxparser_init(&mut saxparser, kml as *mut libc::c_void);
+            kml.locations = dc_array_new_typed(1, 100 as size_t);
+            dc_saxparser_init(
+                &mut saxparser,
+                &mut kml as *mut dc_kml_t as *mut libc::c_void,
+            );
             dc_saxparser_set_tag_handler(
                 &mut saxparser,
                 Some(kml_starttag_cb),
@@ -641,7 +644,6 @@ pub unsafe fn dc_kml_unref(kml: *mut dc_kml_t) {
     }
     dc_array_unref((*kml).locations);
     free((*kml).addr as *mut libc::c_void);
-    free(kml as *mut libc::c_void);
 }
 
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mut dc_job_t) {
