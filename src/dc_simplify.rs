@@ -11,26 +11,17 @@ pub struct dc_simplify_t {
     pub is_cut_at_end: libc::c_int,
 }
 
-pub unsafe fn dc_simplify_new() -> *mut dc_simplify_t {
-    let simplify: *mut dc_simplify_t;
-    simplify = calloc(1, ::std::mem::size_of::<dc_simplify_t>()) as *mut dc_simplify_t;
-    assert!(!simplify.is_null());
-
-    simplify
-}
-
-pub unsafe fn dc_simplify_unref(simplify: *mut dc_simplify_t) {
-    if simplify.is_null() {
-        return;
+impl dc_simplify_t {
+    pub fn new() -> Self {
+        dc_simplify_t {
+            is_forwarded: 0,
+            is_cut_at_begin: 0,
+            is_cut_at_end: 0,
+        }
     }
-    free(simplify as *mut libc::c_void);
-}
 
-/* Simplify and normalise text: Remove quotes, signatures, unnecessary
-lineends etc.
-The data returned from Simplify() must be free()'d when no longer used, private */
-pub unsafe fn dc_simplify_simplify(
-    mut simplify: *mut dc_simplify_t,
+pub unsafe fn simplify(
+    &mut self,
     in_unterminated: *const libc::c_char,
     in_bytes: libc::c_int,
     is_html: libc::c_int,
@@ -39,12 +30,9 @@ pub unsafe fn dc_simplify_simplify(
     /* create a copy of the given buffer */
     let mut out: *mut libc::c_char;
     let mut temp: *mut libc::c_char;
-    if simplify.is_null() || in_unterminated.is_null() || in_bytes <= 0i32 {
-        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
-    }
-    (*simplify).is_forwarded = 0i32;
-    (*simplify).is_cut_at_begin = 0i32;
-    (*simplify).is_cut_at_end = 0i32;
+    self.is_forwarded = 0i32;
+    self.is_cut_at_begin = 0i32;
+    self.is_cut_at_end = 0i32;
     out = strndup(
         in_unterminated as *mut libc::c_char,
         in_bytes as libc::c_ulong,
@@ -60,7 +48,7 @@ pub unsafe fn dc_simplify_simplify(
         }
     }
     dc_remove_cr_chars(out);
-    temp = dc_simplify_simplify_plain_text(simplify, out, is_msgrmsg);
+    temp = self.simplify_plain_text(out, is_msgrmsg);
     if !temp.is_null() {
         free(out as *mut libc::c_void);
         out = temp
@@ -73,8 +61,8 @@ pub unsafe fn dc_simplify_simplify(
 /**
  * Simplify Plain Text
  */
-unsafe fn dc_simplify_simplify_plain_text(
-    mut simplify: *mut dc_simplify_t,
+unsafe fn simplify_plain_text(
+    &mut self,
     buf_terminated: *const libc::c_char,
     is_msgrmsg: libc::c_int,
 ) -> *mut libc::c_char {
@@ -105,7 +93,7 @@ unsafe fn dc_simplify_simplify_plain_text(
             || strcmp(line, b"----\x00" as *const u8 as *const libc::c_char) == 0i32
         {
             footer_mark = 1i32;
-            (*simplify).is_cut_at_end = 1i32
+            self.is_cut_at_end = 1i32
         }
         if 0 != footer_mark {
             l_last = l - 1i32;
@@ -129,7 +117,7 @@ unsafe fn dc_simplify_simplify_plain_text(
             && strncmp(line1, b"From: \x00" as *const u8 as *const libc::c_char, 6) == 0i32
             && *line2.offset(0isize) as libc::c_int == 0i32
         {
-            (*simplify).is_forwarded = 1i32;
+            self.is_forwarded = 1i32;
             l_first += 3i32
         }
     }
@@ -143,7 +131,7 @@ unsafe fn dc_simplify_simplify_plain_text(
             || strncmp(line, b"~~~~~\x00" as *const u8 as *const libc::c_char, 5) == 0i32
         {
             l_last = l - 1i32;
-            (*simplify).is_cut_at_end = 1i32;
+            self.is_cut_at_end = 1i32;
             /* done */
             break;
         } else {
@@ -164,9 +152,10 @@ unsafe fn dc_simplify_simplify_plain_text(
         }
         if l_lastQuotedLine != -1i32 {
             l_last = l_lastQuotedLine - 1i32;
-            (*simplify).is_cut_at_end = 1i32;
+            self.is_cut_at_end = 1i32;
             if l_last > 0i32 {
-                if is_empty_line(carray_get(lines, l_last as libc::c_uint) as *mut libc::c_char) {
+                if is_empty_line(carray_get(lines, l_last as libc::c_uint) as *mut libc::c_char)
+                {
                     l_last -= 1
                 }
             }
@@ -187,7 +176,9 @@ unsafe fn dc_simplify_simplify_plain_text(
             if is_plain_quote(line) {
                 l_lastQuotedLine_0 = l
             } else if !is_empty_line(line) {
-                if is_quoted_headline(line) && 0 == hasQuotedHeadline && l_lastQuotedLine_0 == -1i32
+                if is_quoted_headline(line)
+                    && 0 == hasQuotedHeadline
+                    && l_lastQuotedLine_0 == -1i32
                 {
                     hasQuotedHeadline = 1i32
                 } else {
@@ -199,12 +190,12 @@ unsafe fn dc_simplify_simplify_plain_text(
         }
         if l_lastQuotedLine_0 != -1i32 {
             l_first = l_lastQuotedLine_0 + 1i32;
-            (*simplify).is_cut_at_begin = 1i32
+            self.is_cut_at_begin = 1i32
         }
     }
     /* re-create buffer from the remaining lines */
     let mut ret = String::new();
-    if 0 != (*simplify).is_cut_at_begin {
+    if 0 != self.is_cut_at_begin {
         ret += "[...]";
     }
     /* we write empty lines only in case and non-empty line follows */
@@ -232,14 +223,29 @@ unsafe fn dc_simplify_simplify_plain_text(
         }
         l += 1
     }
-    if 0 != (*simplify).is_cut_at_end
-        && (0 == (*simplify).is_cut_at_begin || 0 != content_lines_added)
-    {
+    if 0 != self.is_cut_at_end && (0 == self.is_cut_at_begin || 0 != content_lines_added) {
         ret += " [...]";
     }
     dc_free_splitted_lines(lines);
 
     to_cstring(ret)
+}
+}
+
+/* Simplify and normalise text: Remove quotes, signatures, unnecessary
+lineends etc.
+The data returned from Simplify() must be free()'d when no longer used, private */
+pub unsafe fn dc_simplify_simplify(
+    simplify: *mut dc_simplify_t,
+    in_unterminated: *const libc::c_char,
+    in_bytes: libc::c_int,
+    is_html: libc::c_int,
+    is_msgrmsg: libc::c_int,
+) -> *mut libc::c_char {
+    if simplify.is_null() || in_unterminated.is_null() || in_bytes <= 0i32 {
+        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
+    }
+    (*simplify).simplify(in_unterminated, in_bytes, is_html, is_msgrmsg)
 }
 
 /**
@@ -290,11 +296,11 @@ mod tests {
     #[test]
     fn test_simplify_trim() {
         unsafe {
-            let simplify: *mut dc_simplify_t = dc_simplify_new();
+            let mut simplify = dc_simplify_t::new();
             let html: *const libc::c_char =
                 b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, 1, 0);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -304,18 +310,17 @@ mod tests {
             );
 
             free(plain as *mut libc::c_void);
-            dc_simplify_unref(simplify);
         }
     }
 
     #[test]
     fn test_simplify_parse_href() {
         unsafe {
-            let simplify: *mut dc_simplify_t = dc_simplify_new();
+            let mut simplify = dc_simplify_t::new();
             let html: *const libc::c_char =
                 b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, 1, 0);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -325,19 +330,18 @@ mod tests {
             );
 
             free(plain as *mut libc::c_void);
-            dc_simplify_unref(simplify);
         }
     }
 
     #[test]
     fn test_simplify_bold_text() {
         unsafe {
-            let simplify: *mut dc_simplify_t = dc_simplify_new();
+            let mut simplify = dc_simplify_t::new();
             let html: *const libc::c_char =
                 b"<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>\x00"
                 as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, 1, 0);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -347,19 +351,18 @@ mod tests {
             );
 
             free(plain as *mut libc::c_void);
-            dc_simplify_unref(simplify);
         }
     }
 
     #[test]
     fn test_simplify_html_encoded() {
         unsafe {
-            let simplify: *mut dc_simplify_t = dc_simplify_new();
+            let mut simplify = dc_simplify_t::new();
             let html: *const libc::c_char =
                 b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&noent;&lrm;&rlm;&zwnj;&zwj;\x00"
                 as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                dc_simplify_simplify(simplify, html, strlen(html) as libc::c_int, 1, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, 1, 0);
 
             assert_eq!(
                 strcmp(plain,
@@ -369,7 +372,6 @@ mod tests {
             );
 
             free(plain as *mut libc::c_void);
-            dc_simplify_unref(simplify);
         }
     }
 }
