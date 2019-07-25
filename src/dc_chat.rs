@@ -533,7 +533,9 @@ unsafe fn prepare_msg_raw(
                     OK_TO_CONTINUE = false;
                 }
             } else {
-                if (*chat).type_0 == DC_CHAT_TYPE_GROUP || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP {
+                if (*chat).type_0 == DC_CHAT_TYPE_GROUP
+                    || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP
+                {
                     if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 1 {
                         dc_param_set(
                             (*chat).param,
@@ -545,172 +547,171 @@ unsafe fn prepare_msg_raw(
                 }
             }
             if OK_TO_CONTINUE {
-                    /* check if we can guarantee E2EE for this message.
-                    if we guarantee E2EE, and circumstances change
-                    so that E2EE is no longer available at a later point (reset, changed settings),
-                    we do not send the message out at all */
-                    do_guarantee_e2ee = 0;
-                    e2ee_enabled = context
-                        .sql
-                        .get_config_int(context, "e2ee_enabled")
-                        .unwrap_or_else(|| 1);
-                    if 0 != e2ee_enabled
-                        && dc_param_get_int((*msg).param, DC_PARAM_FORCE_PLAINTEXT as i32, 0) == 0
-                    {
-                        let mut can_encrypt = 1;
-                        let mut all_mutual = 1;
+                /* check if we can guarantee E2EE for this message.
+                if we guarantee E2EE, and circumstances change
+                so that E2EE is no longer available at a later point (reset, changed settings),
+                we do not send the message out at all */
+                do_guarantee_e2ee = 0;
+                e2ee_enabled = context
+                    .sql
+                    .get_config_int(context, "e2ee_enabled")
+                    .unwrap_or_else(|| 1);
+                if 0 != e2ee_enabled
+                    && dc_param_get_int((*msg).param, DC_PARAM_FORCE_PLAINTEXT as i32, 0) == 0
+                {
+                    let mut can_encrypt = 1;
+                    let mut all_mutual = 1;
 
-                        let res = context.sql.query_row(
-                            "SELECT ps.prefer_encrypted, c.addr \
-                             FROM chats_contacts cc  \
-                             LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-                             WHERE cc.chat_id=?  AND cc.contact_id>9;",
-                            params![(*chat).id],
-                            |row| {
-                                let state: String = row.get(1)?;
+                    let res = context.sql.query_row(
+                        "SELECT ps.prefer_encrypted, c.addr \
+                         FROM chats_contacts cc  \
+                         LEFT JOIN contacts c ON cc.contact_id=c.id  \
+                         LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
+                         WHERE cc.chat_id=?  AND cc.contact_id>9;",
+                        params![(*chat).id],
+                        |row| {
+                            let state: String = row.get(1)?;
 
-                                if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
-                                    if prefer_encrypted != 1 {
-                                        info!(
-                                            context,
-                                            0,
-                                            "[autocrypt] peerstate for {} is {}",
-                                            state,
-                                            if prefer_encrypted == 0 {
-                                                "NOPREFERENCE"
-                                            } else {
-                                                "RESET"
-                                            },
-                                        );
-                                        all_mutual = 0;
-                                    }
-                                } else {
-                                    info!(context, 0, "[autocrypt] no peerstate for {}", state,);
-                                    can_encrypt = 0;
+                            if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
+                                if prefer_encrypted != 1 {
+                                    info!(
+                                        context,
+                                        0,
+                                        "[autocrypt] peerstate for {} is {}",
+                                        state,
+                                        if prefer_encrypted == 0 {
+                                            "NOPREFERENCE"
+                                        } else {
+                                            "RESET"
+                                        },
+                                    );
                                     all_mutual = 0;
                                 }
-                                Ok(())
-                            },
-                        );
-                        match res {
-                            Ok(_) => {}
-                            Err(err) => {
-                                warn!(context, 0, "chat: failed to load peerstates: {:?}", err);
+                            } else {
+                                info!(context, 0, "[autocrypt] no peerstate for {}", state,);
+                                can_encrypt = 0;
+                                all_mutual = 0;
                             }
-                        }
-
-                        if 0 != can_encrypt {
-                            if 0 != all_mutual {
-                                do_guarantee_e2ee = 1;
-                            } else if 0
-                                != last_msg_in_chat_encrypted(context, &context.sql, (*chat).id)
-                            {
-                                do_guarantee_e2ee = 1;
-                            }
-                        }
-                    }
-                    if 0 != do_guarantee_e2ee {
-                        dc_param_set_int((*msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 1);
-                    }
-                    dc_param_set(
-                        (*msg).param,
-                        DC_PARAM_ERRONEOUS_E2EE as i32,
-                        0 as *const libc::c_char,
+                            Ok(())
+                        },
                     );
-                    if 0 == dc_chat_is_self_talk(chat)
-                        && 0 != get_parent_mime_headers(
-                            chat,
-                            &mut parent_rfc724_mid,
-                            &mut parent_in_reply_to,
-                            &mut parent_references,
-                        )
-                    {
-                        if !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                        {
-                            new_in_reply_to = dc_strdup(parent_rfc724_mid)
-                        }
-                        if !parent_references.is_null() {
-                            let space: *mut libc::c_char;
-                            space = strchr(parent_references, ' ' as i32);
-                            if !space.is_null() {
-                                *space = 0 as libc::c_char
-                            }
-                        }
-                        if !parent_references.is_null()
-                            && 0 != *parent_references.offset(0isize) as libc::c_int
-                            && !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_mprintf(
-                                b"%s %s\x00" as *const u8 as *const libc::c_char,
-                                parent_references,
-                                parent_rfc724_mid,
-                            )
-                        } else if !parent_references.is_null()
-                            && 0 != *parent_references.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_strdup(parent_references)
-                        } else if !parent_in_reply_to.is_null()
-                            && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                            && !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_mprintf(
-                                b"%s %s\x00" as *const u8 as *const libc::c_char,
-                                parent_in_reply_to,
-                                parent_rfc724_mid,
-                            )
-                        } else if !parent_in_reply_to.is_null()
-                            && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_strdup(parent_in_reply_to)
+                    match res {
+                        Ok(_) => {}
+                        Err(err) => {
+                            warn!(context, 0, "chat: failed to load peerstates: {:?}", err);
                         }
                     }
 
-                    // add independent location to database
+                    if 0 != can_encrypt {
+                        if 0 != all_mutual {
+                            do_guarantee_e2ee = 1;
+                        } else if 0 != last_msg_in_chat_encrypted(context, &context.sql, (*chat).id)
+                        {
+                            do_guarantee_e2ee = 1;
+                        }
+                    }
+                }
+                if 0 != do_guarantee_e2ee {
+                    dc_param_set_int((*msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 1);
+                }
+                dc_param_set(
+                    (*msg).param,
+                    DC_PARAM_ERRONEOUS_E2EE as i32,
+                    0 as *const libc::c_char,
+                );
+                if 0 == dc_chat_is_self_talk(chat)
+                    && 0 != get_parent_mime_headers(
+                        chat,
+                        &mut parent_rfc724_mid,
+                        &mut parent_in_reply_to,
+                        &mut parent_references,
+                    )
+                {
+                    if !parent_rfc724_mid.is_null()
+                        && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
+                    {
+                        new_in_reply_to = dc_strdup(parent_rfc724_mid)
+                    }
+                    if !parent_references.is_null() {
+                        let space: *mut libc::c_char;
+                        space = strchr(parent_references, ' ' as i32);
+                        if !space.is_null() {
+                            *space = 0 as libc::c_char
+                        }
+                    }
+                    if !parent_references.is_null()
+                        && 0 != *parent_references.offset(0isize) as libc::c_int
+                        && !parent_rfc724_mid.is_null()
+                        && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
+                    {
+                        new_references = dc_mprintf(
+                            b"%s %s\x00" as *const u8 as *const libc::c_char,
+                            parent_references,
+                            parent_rfc724_mid,
+                        )
+                    } else if !parent_references.is_null()
+                        && 0 != *parent_references.offset(0isize) as libc::c_int
+                    {
+                        new_references = dc_strdup(parent_references)
+                    } else if !parent_in_reply_to.is_null()
+                        && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
+                        && !parent_rfc724_mid.is_null()
+                        && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
+                    {
+                        new_references = dc_mprintf(
+                            b"%s %s\x00" as *const u8 as *const libc::c_char,
+                            parent_in_reply_to,
+                            parent_rfc724_mid,
+                        )
+                    } else if !parent_in_reply_to.is_null()
+                        && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
+                    {
+                        new_references = dc_strdup(parent_in_reply_to)
+                    }
+                }
 
-                    if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
-                        if sql::execute(
+                // add independent location to database
+
+                if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
+                    if sql::execute(
+                        context,
+                        &context.sql,
+                        "INSERT INTO locations \
+                         (timestamp,from_id,chat_id, latitude,longitude,independent)\
+                         VALUES (?,?,?, ?,?,1);",
+                        params![
+                            timestamp,
+                            DC_CONTACT_ID_SELF as i32,
+                            (*chat).id as i32,
+                            dc_param_get_float(
+                                (*msg).param,
+                                DC_PARAM_SET_LATITUDE as libc::c_int,
+                                0.0,
+                            ),
+                            dc_param_get_float(
+                                (*msg).param,
+                                DC_PARAM_SET_LONGITUDE as libc::c_int,
+                                0.0,
+                            ),
+                        ],
+                    )
+                    .is_ok()
+                    {
+                        location_id = sql::get_rowid2(
                             context,
                             &context.sql,
-                            "INSERT INTO locations \
-                             (timestamp,from_id,chat_id, latitude,longitude,independent)\
-                             VALUES (?,?,?, ?,?,1);",
-                            params![
-                                timestamp,
-                                DC_CONTACT_ID_SELF as i32,
-                                (*chat).id as i32,
-                                dc_param_get_float(
-                                    (*msg).param,
-                                    DC_PARAM_SET_LATITUDE as libc::c_int,
-                                    0.0,
-                                ),
-                                dc_param_get_float(
-                                    (*msg).param,
-                                    DC_PARAM_SET_LONGITUDE as libc::c_int,
-                                    0.0,
-                                ),
-                            ],
-                        )
-                        .is_ok()
-                        {
-                            location_id = sql::get_rowid2(
-                                context,
-                                &context.sql,
-                                "locations",
-                                "timestamp",
-                                timestamp,
-                                "from_id",
-                                DC_CONTACT_ID_SELF as i32,
-                            );
-                        }
+                            "locations",
+                            "timestamp",
+                            timestamp,
+                            "from_id",
+                            DC_CONTACT_ID_SELF as i32,
+                        );
                     }
+                }
 
-                    // add message to the database
+                // add message to the database
 
-                    if sql::execute(
+                if sql::execute(
                         context,
                         &context.sql,
                         "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
@@ -745,7 +746,6 @@ unsafe fn prepare_msg_raw(
                             (*chat).id,
                         );
                     }
-                
             }
         }
     }
@@ -1009,7 +1009,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
         if (*msg).type_0 == DC_MSG_TEXT {
             if (*msg).text.is_null() || *(*msg).text.offset(0isize) as libc::c_int == 0i32 {
                 OK_TO_CONTINUE = false;
-            } 
+            }
         } else if msgtype_has_file((*msg).type_0) {
             pathNfilename =
                 dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
@@ -1027,25 +1027,30 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
             OK_TO_CONTINUE = false;
         }
         if OK_TO_CONTINUE {
-                if sql::execute(
-                    context,
-                    &context.sql,
-                    "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
-                     VALUES (?,?,?, ?,?,?,?,?);",
-                    params![
-                        chat_id as i32, 1, time(), (*msg).type_0, DC_STATE_OUT_DRAFT,
-                        if !(*msg).text.is_null() {
-                            as_str((*msg).text)
-                        } else {
-                            ""
-                        },
-                        to_string((*(*msg).param).packed),
-                        1,
-                    ]
-                ).is_ok() {
-                    sth_changed = 1;
-                }
-            
+            if sql::execute(
+                context,
+                &context.sql,
+                "INSERT INTO msgs (chat_id, from_id, timestamp, type, state, txt, param, hidden) \
+                 VALUES (?,?,?, ?,?,?,?,?);",
+                params![
+                    chat_id as i32,
+                    1,
+                    time(),
+                    (*msg).type_0,
+                    DC_STATE_OUT_DRAFT,
+                    if !(*msg).text.is_null() {
+                        as_str((*msg).text)
+                    } else {
+                        ""
+                    },
+                    to_string((*(*msg).param).packed),
+                    1,
+                ],
+            )
+            .is_ok()
+            {
+                sth_changed = 1;
+            }
         }
     }
     free(pathNfilename as *mut libc::c_void);
@@ -1602,7 +1607,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                         if 0 == flags & 0x1 {
                             success = 1;
                             OK_TO_CONTINUE = false;
-                        } 
+                        }
                     } else {
                         // else continue and send status mail
                         if (*chat).type_0 == 130 {
@@ -1612,45 +1617,36 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                                     "Only bidirectional verified contacts can be added to verified groups."
                                 );
                                 OK_TO_CONTINUE = false;
-                            } 
-                        } 
+                            }
+                        }
                         if OK_TO_CONTINUE {
-                                if 0 == dc_add_to_chat_contacts_table(context, chat_id, contact_id)
-                                {
-                                    OK_TO_CONTINUE = false;
-                                } 
+                            if 0 == dc_add_to_chat_contacts_table(context, chat_id, contact_id) {
+                                OK_TO_CONTINUE = false;
+                            }
                         }
                     }
                     if OK_TO_CONTINUE {
-                            if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 0 {
-                                (*msg).type_0 = DC_MSG_TEXT;
-                                (*msg).text = dc_stock_system_msg(
-                                    context,
-                                    17,
-                                    (*contact).addr,
-                                    0 as *const libc::c_char,
-                                    1 as uint32_t,
-                                );
-                                dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 4);
-                                dc_param_set(
-                                    (*msg).param,
-                                    DC_PARAM_CMD_ARG as i32,
-                                    (*contact).addr,
-                                );
-                                dc_param_set_int((*msg).param, DC_PARAM_CMD_ARG2 as i32, flags);
-                                (*msg).id = dc_send_msg(context, chat_id, msg);
-                                context.call_cb(
-                                    Event::MSGS_CHANGED,
-                                    chat_id as uintptr_t,
-                                    (*msg).id as uintptr_t,
-                                );
-                            }
+                        if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 0 {
+                            (*msg).type_0 = DC_MSG_TEXT;
+                            (*msg).text = dc_stock_system_msg(
+                                context,
+                                17,
+                                (*contact).addr,
+                                0 as *const libc::c_char,
+                                1 as uint32_t,
+                            );
+                            dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 4);
+                            dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, (*contact).addr);
+                            dc_param_set_int((*msg).param, DC_PARAM_CMD_ARG2 as i32, flags);
+                            (*msg).id = dc_send_msg(context, chat_id, msg);
                             context.call_cb(
                                 Event::MSGS_CHANGED,
                                 chat_id as uintptr_t,
-                                0 as uintptr_t,
+                                (*msg).id as uintptr_t,
                             );
-                            success = 1;
+                        }
+                        context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0 as uintptr_t);
+                        success = 1;
                     }
                 }
             }
@@ -1916,42 +1912,41 @@ pub unsafe fn dc_set_chat_profile_image(
                     new_image_rel = dc_strdup(new_image);
                     if !dc_make_rel_and_copy(context, &mut new_image_rel) {
                         OK_TO_CONTINUE = false;
-                    } 
-                } 
+                    }
+                }
                 if OK_TO_CONTINUE {
-                        dc_param_set((*chat).param, DC_PARAM_PROFILE_IMAGE as i32, new_image_rel);
-                        if !(0 == dc_chat_update_param(chat)) {
-                            if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0i32)
-                                == 0i32
-                            {
-                                dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 3i32);
-                                dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, new_image_rel);
-                                (*msg).type_0 = DC_MSG_TEXT;
-                                (*msg).text = dc_stock_system_msg(
-                                    context,
-                                    if !new_image_rel.is_null() {
-                                        16i32
-                                    } else {
-                                        33i32
-                                    },
-                                    0 as *const libc::c_char,
-                                    0 as *const libc::c_char,
-                                    1i32 as uint32_t,
-                                );
-                                (*msg).id = dc_send_msg(context, chat_id, msg);
-                                context.call_cb(
-                                    Event::MSGS_CHANGED,
-                                    chat_id as uintptr_t,
-                                    (*msg).id as uintptr_t,
-                                );
-                            }
-                            context.call_cb(
-                                Event::CHAT_MODIFIED,
-                                chat_id as uintptr_t,
-                                0i32 as uintptr_t,
+                    dc_param_set((*chat).param, DC_PARAM_PROFILE_IMAGE as i32, new_image_rel);
+                    if !(0 == dc_chat_update_param(chat)) {
+                        if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0i32) == 0i32
+                        {
+                            dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 3i32);
+                            dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, new_image_rel);
+                            (*msg).type_0 = DC_MSG_TEXT;
+                            (*msg).text = dc_stock_system_msg(
+                                context,
+                                if !new_image_rel.is_null() {
+                                    16i32
+                                } else {
+                                    33i32
+                                },
+                                0 as *const libc::c_char,
+                                0 as *const libc::c_char,
+                                1i32 as uint32_t,
                             );
-                            success = 1i32
+                            (*msg).id = dc_send_msg(context, chat_id, msg);
+                            context.call_cb(
+                                Event::MSGS_CHANGED,
+                                chat_id as uintptr_t,
+                                (*msg).id as uintptr_t,
+                            );
                         }
+                        context.call_cb(
+                            Event::CHAT_MODIFIED,
+                            chat_id as uintptr_t,
+                            0i32 as uintptr_t,
+                        );
+                        success = 1i32
+                    }
                 }
             }
         }
