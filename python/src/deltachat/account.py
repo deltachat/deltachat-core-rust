@@ -7,9 +7,9 @@ import re
 import time
 from array import array
 try:
-    from queue import Queue
+    from queue import Queue, Empty
 except ImportError:
-    from Queue import Queue
+    from Queue import Queue, Empty
 
 import deltachat
 from . import const
@@ -438,6 +438,17 @@ class EventLogger:
         if check_error and ev[0] == "DC_EVENT_ERROR":
             raise ValueError("{}({!r},{!r})".format(*ev))
         return ev
+
+    def ensure_event_not_queued(self, event_name_regex):
+        __tracebackhide__ = True
+        rex = re.compile("(?:{}).*".format(event_name_regex))
+        while 1:
+            try:
+                ev = self._event_queue.get(False)
+            except Empty:
+                break
+            else:
+                assert not rex.match(ev[0]), "event found {}".format(ev)
 
     def get_matching(self, event_name_regex, check_error=True):
         self._log("-- waiting for event with regex: {} --".format(event_name_regex))
