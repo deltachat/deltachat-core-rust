@@ -1174,90 +1174,82 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                         if simplifier.is_none() {
                             simplifier = Some(dc_simplify_t::new());
                         }
-                                /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
-                                let charset: *const libc::c_char =
-                                    mailmime_content_charset_get((*mime).mm_content_type);
-                                if !charset.is_null()
-                                    && strcmp(
-                                        charset,
-                                        b"utf-8\x00" as *const u8 as *const libc::c_char,
-                                    ) != 0i32
-                                    && strcmp(
-                                        charset,
-                                        b"UTF-8\x00" as *const u8 as *const libc::c_char,
-                                    ) != 0i32
-                                {
-                                    if let Some(encoding) = Charset::for_label(
-                                        CStr::from_ptr(charset).to_str().unwrap().as_bytes(),
-                                    ) {
-                                        let data = std::slice::from_raw_parts(
-                                            decoded_data as *const u8,
-                                            decoded_data_bytes,
-                                        );
+                        /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
+                        let charset: *const libc::c_char =
+                            mailmime_content_charset_get((*mime).mm_content_type);
+                        if !charset.is_null()
+                            && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char)
+                                != 0i32
+                            && strcmp(charset, b"UTF-8\x00" as *const u8 as *const libc::c_char)
+                                != 0i32
+                        {
+                            if let Some(encoding) = Charset::for_label(
+                                CStr::from_ptr(charset).to_str().unwrap().as_bytes(),
+                            ) {
+                                let data = std::slice::from_raw_parts(
+                                    decoded_data as *const u8,
+                                    decoded_data_bytes,
+                                );
 
-                                        let (res, _, _) = encoding.decode(data);
-                                        if res.is_empty() {
-                                            /* no error - but nothing to add */
-                                            current_block = 8795901732489102124;
-                                        } else {
-                                            decoded_data_bytes = res.len();
-                                            decoded_data = res.as_ptr() as *const libc::c_char;
-                                            current_block = 17788412896529399552;
-                                        }
-                                    } else {
-                                        warn!(
-                                            mimeparser.context,
-                                            0,
-                                            "Cannot convert {} bytes from \"{}\" to \"utf-8\".",
-                                            decoded_data_bytes as libc::c_int,
-                                            as_str(charset),
-                                        );
-                                        current_block = 17788412896529399552;
-                                    }
+                                let (res, _, _) = encoding.decode(data);
+                                if res.is_empty() {
+                                    /* no error - but nothing to add */
+                                    current_block = 8795901732489102124;
                                 } else {
+                                    decoded_data_bytes = res.len();
+                                    decoded_data = res.as_ptr() as *const libc::c_char;
                                     current_block = 17788412896529399552;
                                 }
-                                match current_block {
-                                    8795901732489102124 => {}
-                                    _ => {
-                                        /* check header directly as is_send_by_messenger is not yet set up */
-                                        let is_msgrmsg: libc::c_int =
-                                            (dc_mimeparser_lookup_optional_field(
-                                                &mimeparser,
-                                                b"Chat-Version\x00" as *const u8
-                                                    as *const libc::c_char,
-                                            ) != 0 as *mut libc::c_void
-                                                as *mut mailimf_optional_field)
-                                                as libc::c_int;
-                                        let simplified_txt: *mut libc::c_char =
-                                            simplifier.unwrap().simplify(
-                                                decoded_data,
-                                                decoded_data_bytes as libc::c_int,
-                                                if mime_type == 70i32 { 1i32 } else { 0i32 },
-                                                is_msgrmsg,
-                                            );
-                                        if !simplified_txt.is_null()
-                                            && 0 != *simplified_txt.offset(0isize) as libc::c_int
-                                        {
-                                            part = dc_mimepart_new();
-                                            (*part).type_0 = 10i32;
-                                            (*part).int_mimetype = mime_type;
-                                            (*part).msg = simplified_txt;
-                                            (*part).msg_raw = strndup(
-                                                decoded_data,
-                                                decoded_data_bytes as libc::c_ulong,
-                                            );
-                                            do_add_single_part(mimeparser, part);
-                                            part = 0 as *mut dc_mimepart_t
-                                        } else {
-                                            free(simplified_txt as *mut libc::c_void);
-                                        }
-                                        if 0 != simplifier.unwrap().is_forwarded {
-                                            (*mimeparser).is_forwarded = 1i32
-                                        }
-                                        current_block = 10261677128829721533;
-                                    }
+                            } else {
+                                warn!(
+                                    mimeparser.context,
+                                    0,
+                                    "Cannot convert {} bytes from \"{}\" to \"utf-8\".",
+                                    decoded_data_bytes as libc::c_int,
+                                    as_str(charset),
+                                );
+                                current_block = 17788412896529399552;
+                            }
+                        } else {
+                            current_block = 17788412896529399552;
+                        }
+                        match current_block {
+                            8795901732489102124 => {}
+                            _ => {
+                                /* check header directly as is_send_by_messenger is not yet set up */
+                                let is_msgrmsg: libc::c_int = (dc_mimeparser_lookup_optional_field(
+                                    &mimeparser,
+                                    b"Chat-Version\x00" as *const u8 as *const libc::c_char,
+                                ) != 0 as *mut libc::c_void
+                                    as *mut mailimf_optional_field)
+                                    as libc::c_int;
+                                let simplified_txt: *mut libc::c_char =
+                                    simplifier.unwrap().simplify(
+                                        decoded_data,
+                                        decoded_data_bytes as libc::c_int,
+                                        if mime_type == 70i32 { 1i32 } else { 0i32 },
+                                        is_msgrmsg,
+                                    );
+                                if !simplified_txt.is_null()
+                                    && 0 != *simplified_txt.offset(0isize) as libc::c_int
+                                {
+                                    part = dc_mimepart_new();
+                                    (*part).type_0 = 10i32;
+                                    (*part).int_mimetype = mime_type;
+                                    (*part).msg = simplified_txt;
+                                    (*part).msg_raw =
+                                        strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
+                                    do_add_single_part(mimeparser, part);
+                                    part = 0 as *mut dc_mimepart_t
+                                } else {
+                                    free(simplified_txt as *mut libc::c_void);
                                 }
+                                if 0 != simplifier.unwrap().is_forwarded {
+                                    (*mimeparser).is_forwarded = 1i32
+                                }
+                                current_block = 10261677128829721533;
+                            }
+                        }
                     }
                     80 | 90 | 100 | 110 | 111 => {
                         /* try to get file name from
