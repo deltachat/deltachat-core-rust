@@ -42,13 +42,7 @@ pub unsafe fn dc_array_free_ptr(array: *mut dc_array_t) {
     }
     let mut i: size_t = 0i32 as size_t;
     while i < (*array).count {
-        if (*array).type_0 == 1i32 {
-            free(
-                (*(*(*array).array.offset(i as isize) as *mut dc_location)).marker
-                    as *mut libc::c_void,
-            );
-        }
-        free(*(*array).array.offset(i as isize) as *mut libc::c_void);
+        Box::from_raw(*(*array).array.offset(i as isize) as *mut dc_location);
         *(*array).array.offset(i as isize) = 0i32 as uintptr_t;
         i = i.wrapping_add(1)
     }
@@ -203,7 +197,11 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
     {
         return 0 as *mut libc::c_char;
     }
-    dc_strdup_keep_null((*(*(*array).array.offset(index as isize) as *mut dc_location)).marker)
+    if let Some(s) = &(*(*(*array).array.offset(index as isize) as *mut dc_location)).marker {
+        to_cstring(s)
+    } else {
+        std::ptr::null_mut()
+    }
 }
 
 /**
