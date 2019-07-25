@@ -167,10 +167,9 @@ workflows:
   test:
     jobs:
       - build_test_docs_wheel
-      # m.devpi.net is down, only up tomorrow or so 
-      # - upload_docs_wheels:
-      #     requires:
-      #         - build_test_docs_wheel
+      - upload_docs_wheels:
+          requires:
+            - build_test_docs_wheel
       - cargo_fetch
       - rustfmt:
           requires:
