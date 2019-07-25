@@ -1150,7 +1150,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     /* must not be free()'d */
     let mut decoded_data: *const libc::c_char = 0 as *const libc::c_char;
     let mut decoded_data_bytes = 0;
-    let mut simplifier: *mut dc_simplify_t = 0 as *mut dc_simplify_t;
+    let mut simplifier: Option<dc_simplify_t> = None;
     if !(mime.is_null() || (*mime).mm_data.mm_single.is_null()) {
         mime_type = mailmime_get_mime_type(mime, &mut msg_type, &mut raw_mime);
         mime_data = (*mime).mm_data.mm_single;
@@ -1171,20 +1171,9 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                 /* no always error - but no data */
                 match mime_type {
                     60 | 70 => {
-                        if simplifier.is_null() {
-                            simplifier = dc_simplify_new();
-                            if simplifier.is_null() {
-                                current_block = 8795901732489102124;
-                            } else {
-                                current_block = 13797916685926291137;
-                            }
-                        } else {
-                            current_block = 13797916685926291137;
+                        if simplifier.is_none() {
+                            simplifier = Some(dc_simplify_t::new());
                         }
-                        // TODO match on enums /rtn
-                        match current_block {
-                            8795901732489102124 => {}
-                            _ => {
                                 /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
                                 let charset: *const libc::c_char =
                                     mailmime_content_charset_get((*mime).mm_content_type);
@@ -1241,8 +1230,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                                 as *mut mailimf_optional_field)
                                                 as libc::c_int;
                                         let simplified_txt: *mut libc::c_char =
-                                            dc_simplify_simplify(
-                                                simplifier,
+                                            simplifier.unwrap().simplify(
                                                 decoded_data,
                                                 decoded_data_bytes as libc::c_int,
                                                 if mime_type == 70i32 { 1i32 } else { 0i32 },
@@ -1264,14 +1252,12 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         } else {
                                             free(simplified_txt as *mut libc::c_void);
                                         }
-                                        if 0 != (*simplifier).is_forwarded {
+                                        if 0 != simplifier.unwrap().is_forwarded {
                                             (*mimeparser).is_forwarded = 1i32
                                         }
                                         current_block = 10261677128829721533;
                                     }
                                 }
-                            }
-                        }
                     }
                     80 | 90 | 100 | 110 | 111 => {
                         /* try to get file name from
@@ -1449,7 +1435,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
         }
     }
     /* add object? (we do not add all objects, eg. signatures etc. are ignored) */
-    dc_simplify_unref(simplifier);
     if !transfer_decoding_buffer.is_null() {
         mmap_string_unref(transfer_decoding_buffer);
     }
