@@ -386,14 +386,12 @@ unsafe fn prepare_msg_common<'a>(
     chat_id: uint32_t,
     mut msg: *mut dc_msg_t<'a>,
 ) -> uint32_t {
-    let current_block: u64;
+    let mut OK_TO_CONTINUE = true;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut chat: *mut Chat = 0 as *mut Chat;
     (*msg).id = 0i32 as uint32_t;
     (*msg).context = context;
     if (*msg).type_0 == DC_MSG_TEXT {
-; /* the caller should check if the message text is empty */
-        current_block = 17281240262373992796;
+        /* the caller should check if the message text is empty */
     } else if msgtype_has_file((*msg).type_0) {
         pathNfilename = dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
         if pathNfilename.is_null() {
@@ -403,17 +401,21 @@ unsafe fn prepare_msg_common<'a>(
                 "Attachment missing for message of type #{}.",
                 (*msg).type_0,
             );
-            current_block = 2171833246886114521;
+            OK_TO_CONTINUE = false;
         } else if (*msg).state == DC_STATE_OUT_PREPARING
-            && 0 == dc_is_blobdir_path(context, pathNfilename)
+            && !dc_is_blobdir_path(context, pathNfilename)
         {
             error!(context, 0, "Files must be created in the blob-directory.",);
-            current_block = 2171833246886114521;
-        } else if 0 == dc_make_rel_and_copy(context, &mut pathNfilename) {
-            current_block = 2171833246886114521;
+            OK_TO_CONTINUE = false;
+        } else if !dc_make_rel_and_copy(context, &mut pathNfilename) {
+            OK_TO_CONTINUE = false;
         } else {
             dc_param_set((*msg).param, DC_PARAM_FILE as i32, pathNfilename);
             if (*msg).type_0 == DC_MSG_FILE || (*msg).type_0 == DC_MSG_IMAGE {
+                /* Correct the type, take care not to correct already very special formats as GIF or VOICE.
+                Typical conversions:
+                - from FILE to AUDIO/VIDEO/IMAGE
+                - from FILE/IMAGE to GIF */
                 let mut better_type: libc::c_int = 0i32;
                 let mut better_mime: *mut libc::c_char = 0 as *mut libc::c_char;
                 dc_msg_guess_msgtype_from_suffix(pathNfilename, &mut better_type, &mut better_mime);
@@ -439,7 +441,6 @@ unsafe fn prepare_msg_common<'a>(
                 as_str(pathNfilename),
                 (*msg).type_0
             );
-            current_block = 17281240262373992796;
         }
     } else {
         error!(
@@ -448,25 +449,21 @@ unsafe fn prepare_msg_common<'a>(
             "Cannot send messages of type #{}.",
             (*msg).type_0
         );
-        current_block = 2171833246886114521;
+        OK_TO_CONTINUE = false;
     }
-    match current_block {
-        17281240262373992796 => {
-            dc_unarchive_chat(context, chat_id);
-            chat = dc_chat_new(context);
-            if dc_chat_load_from_db(chat, chat_id) {
-                if (*msg).state != DC_STATE_OUT_PREPARING {
-                    (*msg).state = DC_STATE_OUT_PENDING
-                }
-                (*msg).id =
-                    prepare_msg_raw(context, chat, msg, dc_create_smeared_timestamp(context));
-                (*msg).chat_id = chat_id
+    if OK_TO_CONTINUE {
+        dc_unarchive_chat(context, chat_id);
+        let chat = dc_chat_new(context);
+        if dc_chat_load_from_db(chat, chat_id) {
+            if (*msg).state != DC_STATE_OUT_PREPARING {
+                (*msg).state = DC_STATE_OUT_PENDING
             }
+            (*msg).id = prepare_msg_raw(context, chat, msg, dc_create_smeared_timestamp(context));
+            (*msg).chat_id = chat_id
         }
-        _ => {}
+        dc_chat_unref(chat);
     }
     /* potential error already logged */
-    dc_chat_unref(chat);
     free(pathNfilename as *mut libc::c_void);
 
     (*msg).id
@@ -480,7 +477,7 @@ unsafe fn prepare_msg_raw(
 ) -> uint32_t {
     let mut do_guarantee_e2ee: libc::c_int;
     let e2ee_enabled: libc::c_int;
-    let current_block: u64;
+    let mut OK_TO_CONTINUE = true;
     let mut parent_rfc724_mid = 0 as *mut libc::c_char;
     let mut parent_references = 0 as *mut libc::c_char;
     let mut parent_in_reply_to = 0 as *mut libc::c_char;
@@ -518,7 +515,7 @@ unsafe fn prepare_msg_raw(
             );
             free(from_c as *mut _);
 
-            if (*chat).type_0 == 100 {
+            if (*chat).type_0 == DC_CHAT_TYPE_SINGLE {
                 if let Some(id) = context.sql.query_row_col(
                     context,
                     "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
@@ -526,7 +523,6 @@ unsafe fn prepare_msg_raw(
                     0,
                 ) {
                     to_id = id;
-                    current_block = 5689316957504528238;
                 } else {
                     error!(
                         context,
@@ -534,10 +530,10 @@ unsafe fn prepare_msg_raw(
                         "Cannot send message, contact for chat #{} not found.",
                         (*chat).id,
                     );
-                    current_block = 10477488590406205504;
+                    OK_TO_CONTINUE = false;
                 }
             } else {
-                if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
+                if (*chat).type_0 == DC_CHAT_TYPE_GROUP || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP {
                     if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 1 {
                         dc_param_set(
                             (*chat).param,
@@ -547,11 +543,8 @@ unsafe fn prepare_msg_raw(
                         dc_chat_update_param(chat);
                     }
                 }
-                current_block = 5689316957504528238;
             }
-            match current_block {
-                10477488590406205504 => {}
-                _ => {
+            if OK_TO_CONTINUE {
                     /* check if we can guarantee E2EE for this message.
                     if we guarantee E2EE, and circumstances change
                     so that E2EE is no longer available at a later point (reset, changed settings),
@@ -752,7 +745,7 @@ unsafe fn prepare_msg_raw(
                             (*chat).id,
                         );
                     }
-                }
+                
             }
         }
     }
@@ -1001,7 +994,7 @@ pub unsafe fn dc_set_draft(context: &Context, chat_id: uint32_t, msg: *mut dc_ms
 
 // TODO should return bool /rtn
 unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t) -> libc::c_int {
-    let current_block: u64;
+    let mut OK_TO_CONTINUE = true;
     // similar to as dc_set_draft() but does not emit an event
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let prev_draft_msg_id: uint32_t;
@@ -1015,31 +1008,25 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
     if !msg.is_null() {
         if (*msg).type_0 == DC_MSG_TEXT {
             if (*msg).text.is_null() || *(*msg).text.offset(0isize) as libc::c_int == 0i32 {
-                current_block = 14513523936503887211;
-            } else {
-                current_block = 4495394744059808450;
-            }
+                OK_TO_CONTINUE = false;
+            } 
         } else if msgtype_has_file((*msg).type_0) {
             pathNfilename =
                 dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
             if pathNfilename.is_null() {
-                current_block = 14513523936503887211;
-            } else if 0 != dc_msg_is_increation(msg)
-                && 0 == dc_is_blobdir_path(context, pathNfilename)
+                OK_TO_CONTINUE = false;
+            } else if 0 != dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, pathNfilename)
             {
-                current_block = 14513523936503887211;
-            } else if 0 == dc_make_rel_and_copy(context, &mut pathNfilename) {
-                current_block = 14513523936503887211;
+                OK_TO_CONTINUE = false;
+            } else if !dc_make_rel_and_copy(context, &mut pathNfilename) {
+                OK_TO_CONTINUE = false;
             } else {
                 dc_param_set((*msg).param, DC_PARAM_FILE as i32, pathNfilename);
-                current_block = 4495394744059808450;
             }
         } else {
-            current_block = 14513523936503887211;
+            OK_TO_CONTINUE = false;
         }
-        match current_block {
-            14513523936503887211 => {}
-            _ => {
+        if OK_TO_CONTINUE {
                 if sql::execute(
                     context,
                     &context.sql,
@@ -1058,7 +1045,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                 ).is_ok() {
                     sth_changed = 1;
                 }
-            }
+            
         }
     }
     free(pathNfilename as *mut libc::c_void);
@@ -1571,7 +1558,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
     contact_id: u32,
     flags: libc::c_int,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let mut OK_TO_CONTINUE = true;
     let mut success: libc::c_int = 0;
     let contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
     let chat: *mut Chat = dc_chat_new(context);
@@ -1614,10 +1601,8 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     if 0 != dc_is_contact_in_chat(context, chat_id, contact_id) {
                         if 0 == flags & 0x1 {
                             success = 1;
-                            current_block = 12326129973959287090;
-                        } else {
-                            current_block = 15125582407903384992;
-                        }
+                            OK_TO_CONTINUE = false;
+                        } 
                     } else {
                         // else continue and send status mail
                         if (*chat).type_0 == 130 {
@@ -1626,28 +1611,17 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                                     context, 0,
                                     "Only bidirectional verified contacts can be added to verified groups."
                                 );
-                                current_block = 12326129973959287090;
-                            } else {
-                                current_block = 13472856163611868459;
-                            }
-                        } else {
-                            current_block = 13472856163611868459;
-                        }
-                        match current_block {
-                            12326129973959287090 => {}
-                            _ => {
+                                OK_TO_CONTINUE = false;
+                            } 
+                        } 
+                        if OK_TO_CONTINUE {
                                 if 0 == dc_add_to_chat_contacts_table(context, chat_id, contact_id)
                                 {
-                                    current_block = 12326129973959287090;
-                                } else {
-                                    current_block = 15125582407903384992;
-                                }
-                            }
+                                    OK_TO_CONTINUE = false;
+                                } 
                         }
                     }
-                    match current_block {
-                        12326129973959287090 => {}
-                        _ => {
+                    if OK_TO_CONTINUE {
                             if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 0 {
                                 (*msg).type_0 = DC_MSG_TEXT;
                                 (*msg).text = dc_stock_system_msg(
@@ -1677,7 +1651,6 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                                 0 as uintptr_t,
                             );
                             success = 1;
-                        }
                     }
                 }
             }
@@ -1923,7 +1896,7 @@ pub unsafe fn dc_set_chat_profile_image(
     chat_id: uint32_t,
     new_image: *const libc::c_char,
 ) -> libc::c_int {
-    let current_block: u64;
+    let mut OK_TO_CONTINUE = true;
     let mut success: libc::c_int = 0i32;
     let chat: *mut Chat = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
@@ -1941,17 +1914,11 @@ pub unsafe fn dc_set_chat_profile_image(
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if !new_image.is_null() {
                     new_image_rel = dc_strdup(new_image);
-                    if 0 == dc_make_rel_and_copy(context, &mut new_image_rel) {
-                        current_block = 14766584022300871387;
-                    } else {
-                        current_block = 1856101646708284338;
-                    }
-                } else {
-                    current_block = 1856101646708284338;
-                }
-                match current_block {
-                    14766584022300871387 => {}
-                    _ => {
+                    if !dc_make_rel_and_copy(context, &mut new_image_rel) {
+                        OK_TO_CONTINUE = false;
+                    } 
+                } 
+                if OK_TO_CONTINUE {
                         dc_param_set((*chat).param, DC_PARAM_PROFILE_IMAGE as i32, new_image_rel);
                         if !(0 == dc_chat_update_param(chat)) {
                             if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0i32)
@@ -1985,7 +1952,6 @@ pub unsafe fn dc_set_chat_profile_image(
                             );
                             success = 1i32
                         }
-                    }
                 }
             }
         }
