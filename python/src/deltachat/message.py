@@ -40,8 +40,11 @@ class Message(object):
 
     @classmethod
     def new_empty(cls, account, view_type):
-        """ create a non-persistent message. """
-        view_type_code = MessageType.get_typecode(view_type)
+        """ create a non-persistent message.
+
+        :param: view_type is "text", "audio", "video", "file"
+        """
+        view_type_code = get_viewtype_code_from_name(view_type)
         return Message(account, ffi.gc(
             lib.dc_msg_new(account._dc_context, view_type_code),
             lib.dc_msg_unref
@@ -68,7 +71,7 @@ class Message(object):
         mtype = ffi.NULL if mime_type is None else as_dc_charpointer(mime_type)
         if not os.path.exists(path):
             raise ValueError("path does not exist: {!r}".format(path))
-        blobdir = self.account.get_blob_dir()
+        blobdir = self.account.get_blobdir()
         if not path.startswith(blobdir):
             for i in range(50):
                 ext = "" if i == 0 else "-" + str(i)
@@ -92,15 +95,6 @@ class Message(object):
     def filemime(self):
         """mime type of the file (if it exists)"""
         return from_dc_charpointer(lib.dc_msg_get_filemime(self._dc_msg))
-
-    @props.with_doc
-    def view_type(self):
-        """the view type of this message.
-
-        :returns: a :class:`deltachat.message.MessageType` instance.
-        """
-        assert self.id > 0
-        return MessageType(lib.dc_msg_get_viewtype(self._dc_msg))
 
     def is_setup_message(self):
         """ return True if this message is a setup message. """
@@ -239,56 +233,55 @@ class Message(object):
         """
         return self._msgstate == const.DC_STATE_OUT_MDN_RCVD
 
+    #
+    # Message type query methods
+    #
 
-class MessageType(object):
-    """ DeltaChat message type, with is_* methods. """
-    _mapping = {
-            const.DC_MSG_TEXT: 'text',
-            const.DC_MSG_IMAGE: 'image',
-            const.DC_MSG_GIF: 'gif',
-            const.DC_MSG_AUDIO: 'audio',
-            const.DC_MSG_VIDEO: 'video',
-            const.DC_MSG_FILE: 'file'
-    }
-
-    def __init__(self, _type):
-        self._type = _type
-
-    def __eq__(self, other):
-        return self._type == getattr(other, "_type", None)
-
-    @classmethod
-    def get_typecode(cls, view_type):
-        for code, value in cls._mapping.items():
-            if value == view_type:
-                return code
-        raise ValueError("message typecode not found for {!r}".format(view_type))
-
-    @props.with_doc
-    def name(self):
-        """ human readable type name. """
-        return self._mapping.get(self._type, "")
+    @property
+    def _view_type(self):
+        assert self.id > 0
+        return lib.dc_msg_get_viewtype(self._dc_msg)
 
     def is_text(self):
         """ return True if it's a text message. """
-        return self._type == const.DC_MSG_TEXT
+        return self._view_type == const.DC_MSG_TEXT
 
     def is_image(self):
         """ return True if it's an image message. """
-        return self._type == const.DC_MSG_IMAGE
+        return self._view_type == const.DC_MSG_IMAGE
 
     def is_gif(self):
         """ return True if it's a gif message. """
-        return self._type == const.DC_MSG_GIF
+        return self._view_type == const.DC_MSG_GIF
 
     def is_audio(self):
         """ return True if it's an audio message. """
-        return self._type == const.DC_MSG_AUDIO
+        return self._view_type == const.DC_MSG_AUDIO
 
     def is_video(self):
         """ return True if it's a video message. """
-        return self._type == const.DC_MSG_VIDEO
+        return self._view_type == const.DC_MSG_VIDEO
 
     def is_file(self):
         """ return True if it's a file message. """
-        return self._type == const.DC_MSG_FILE
+        return self._view_type == const.DC_MSG_FILE
+
+
+# some code for handling DC_MSG_* view types
+
+_view_type_mapping = {
+    const.DC_MSG_TEXT: 'text',
+    const.DC_MSG_IMAGE: 'image',
+    const.DC_MSG_GIF: 'gif',
+    const.DC_MSG_AUDIO: 'audio',
+    const.DC_MSG_VIDEO: 'video',
+    const.DC_MSG_FILE: 'file'
+}
+
+
+def get_viewtype_code_from_name(view_type_name):
+    for code, value in _view_type_mapping.items():
+        if value == view_type_name:
+            return code
+    raise ValueError("message typecode not found for {!r}, "
+                     "available {!r}".format(view_type_name, list(_view_type_mapping.values())))

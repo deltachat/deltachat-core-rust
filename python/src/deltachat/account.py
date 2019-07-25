@@ -69,10 +69,6 @@ class Account(object):
             d[key.lower()] = value
         return d
 
-    def get_blob_dir(self):
-        """ return blob directory for this account. """
-        return from_dc_charpointer(lib.dc_get_blobdir(self._dc_context))
-
     def set_config(self, name, value):
         """ set configuration values.
 

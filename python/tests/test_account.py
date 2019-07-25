@@ -158,7 +158,7 @@ class TestOfflineChat:
         assert msg == ac1.get_message_by_id(msg.id)
 
     def test_prepare_file(self, ac1, chat1):
-        blobdir = ac1.get_blob_dir()
+        blobdir = ac1.get_blobdir()
         p = os.path.join(blobdir, "somedata.txt")
         with open(p, "w") as f:
             f.write("some data")
@@ -180,13 +180,13 @@ class TestOfflineChat:
     def test_message_send_text(self, chat1):
         msg = chat1.send_text("msg1")
         assert msg
-        assert msg.view_type.is_text()
-        assert msg.view_type.name == "text"
-        assert not msg.view_type.is_audio()
-        assert not msg.view_type.is_video()
-        assert not msg.view_type.is_gif()
-        assert not msg.view_type.is_file()
-        assert not msg.view_type.is_image()
+        assert msg.is_text()
+        assert not msg.is_audio()
+        assert not msg.is_video()
+        assert not msg.is_gif()
+        assert not msg.is_file()
+        assert not msg.is_image()
+
         assert not msg.is_in_fresh()
         assert not msg.is_in_noticed()
         assert not msg.is_in_seen()
@@ -206,7 +206,7 @@ class TestOfflineChat:
         fn = data.get_path("d.png")
         lp.sec("sending image")
         msg = chat1.send_image(fn)
-        assert msg.view_type.name == "image"
+        assert msg.is_image()
         assert msg
         assert msg.id > 0
         assert os.path.exists(msg.filename)
@@ -223,8 +223,7 @@ class TestOfflineChat:
         msg = chat1.send_file(fn, typein)
         assert msg
         assert msg.id > 0
-        assert msg.view_type.name == "file"
-        assert msg.view_type.is_file()
+        assert msg.is_file()
         assert os.path.exists(msg.filename)
         assert msg.filename.endswith(msg.basename)
         assert msg.filemime == typeout
@@ -470,7 +469,7 @@ class TestOnlineAccount:
         ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
         assert ev[2] == msg_out.id
         msg_in = ac2.get_message_by_id(msg_out.id)
-        assert msg_in.view_type.is_image()
+        assert msg_in.is_image()
         assert os.path.exists(msg_in.filename)
         assert os.stat(msg_in.filename).st_size == os.stat(path).st_size
 
