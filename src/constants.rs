@@ -59,10 +59,10 @@ pub const DC_CHAT_ID_ALLDONE_HINT: usize = 7;
 /// larger chat IDs are "real" chats, their messages are "real" messages.
 pub const DC_CHAT_ID_LAST_SPECIAL: usize = 9;
 
-pub const DC_CHAT_TYPE_UNDEFINED: usize = 0;
-pub const DC_CHAT_TYPE_SINGLE: usize = 100;
-pub const DC_CHAT_TYPE_GROUP: usize = 120;
-pub const DC_CHAT_TYPE_VERIFIED_GROUP: usize = 130;
+pub const DC_CHAT_TYPE_UNDEFINED: i32 = 0;
+pub const DC_CHAT_TYPE_SINGLE: i32 = 100;
+pub const DC_CHAT_TYPE_GROUP: i32 = 120;
+pub const DC_CHAT_TYPE_VERIFIED_GROUP: i32 = 130;
 
 pub const DC_MSG_ID_MARKER1: usize = 1;
 pub const DC_MSG_ID_DAYMARKER: usize = 9;

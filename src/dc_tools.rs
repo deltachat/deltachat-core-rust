@@ -1375,15 +1375,9 @@ pub unsafe fn dc_get_fine_pathNfilename(
     ret
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_is_blobdir_path(context: &Context, path: *const libc::c_char) -> libc::c_int {
-    if strncmp(path, context.get_blobdir(), strlen(context.get_blobdir())) == 0i32
-        || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0i32
-    {
-        return 1i32;
-    }
-
-    0
+pub unsafe fn dc_is_blobdir_path(context: &Context, path: *const libc::c_char) -> bool {
+    return strncmp(path, context.get_blobdir(), strlen(context.get_blobdir())) == 0
+        || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0;
 }
 
 pub unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) {
@@ -1399,15 +1393,14 @@ pub unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) 
     };
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_char) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_char) -> bool {
+    let mut success = false;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut blobdir_path: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(path.is_null() || (*path).is_null()) {
-        if 0 != dc_is_blobdir_path(context, *path) {
+        if dc_is_blobdir_path(context, *path) {
             dc_make_rel_path(context, path);
-            success = 1i32
+            success = true;
         } else {
             filename = dc_get_filename(*path);
             if !(filename.is_null()
@@ -1425,7 +1418,7 @@ pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_ch
                 *path = blobdir_path;
                 blobdir_path = 0 as *mut libc::c_char;
                 dc_make_rel_path(context, path);
-                success = 1i32
+                success = true;
             }
         }
     }
