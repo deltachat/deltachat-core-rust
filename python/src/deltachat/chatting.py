@@ -191,7 +191,7 @@ class Chat(object):
 
         :param path: path to the file.
         :param mime_type: the mime-type of this file, defaults to auto-detection.
-        :param view_type: passed to :meth:`MessageType.new`.
+        :param view_type: "text", "image", "gif", "audio", "video", "file"
         :raises ValueError: if message can not be prepared/chat does not exist.
         :returns: the resulting :class:`Message` instance
         """

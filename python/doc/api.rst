@@ -11,8 +11,6 @@ high level API reference
 - :class:`deltachat.chatting.Contact`
 - :class:`deltachat.chatting.Chat`
 - :class:`deltachat.message.Message`
-- :class:`deltachat.message.MessageType`
-- :class:`deltachat.message.MessageState`
 
 Account
 -------
