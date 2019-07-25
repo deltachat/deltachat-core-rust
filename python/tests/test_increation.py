@@ -19,7 +19,7 @@ class TestInCreation:
         lp.sec("create a message with a file in creation")
         path = data.get_path("d.png")
         prepared_original = chat.prepare_message_file(path)
-        assert prepared_original.get_state().is_out_preparing()
+        assert prepared_original.is_out_preparing()
         wait_msgs_changed(ac1, chat.id, prepared_original.id)
 
         lp.sec("forward the message while still in creation")
@@ -34,24 +34,23 @@ class TestInCreation:
             forwarded_id = wait_msgs_changed(ac1, chat2.id)
             assert forwarded_id
         forwarded_msg = ac1.get_message_by_id(forwarded_id)
-        assert forwarded_msg.get_state().is_out_preparing()
+        assert forwarded_msg.is_out_preparing()
 
         lp.sec("finish creating the file and send it")
-        sent_original = chat.send_prepared(prepared_original)
-        assert sent_original.id == prepared_original.id
-        state = sent_original.get_state()
-        assert state.is_out_pending() or state.is_out_delivered()
-        wait_msgs_changed(ac1, chat.id, sent_original.id)
+        assert prepared_original.is_out_preparing()
+        chat.send_prepared(prepared_original)
+        assert prepared_original.is_out_pending() or prepared_original.is_out_delivered()
+        wait_msgs_changed(ac1, chat.id, prepared_original.id)
 
         lp.sec("expect the forwarded message to be sent now too")
         wait_msgs_changed(ac1, chat2.id, forwarded_id)
-        state = ac1.get_message_by_id(forwarded_id).get_state()
-        assert state.is_out_pending() or state.is_out_delivered()
+        fwd_msg = ac1.get_message_by_id(forwarded_id)
+        assert fwd_msg.is_out_pending() or fwd_msg.is_out_delivered()
 
         lp.sec("wait for the messages to be delivered to SMTP")
         ev = ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
         assert ev[1] == chat.id
-        assert ev[2] == sent_original.id
+        assert ev[2] == prepared_original.id
         ev = ac1._evlogger.get_matching("DC_EVENT_MSG_DELIVERED")
         assert ev[1] == chat2.id
         assert ev[2] == forwarded_id

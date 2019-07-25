@@ -147,11 +147,11 @@ class TestOfflineChat:
             chat1.send_text("msg1")
 
     def test_prepare_message_and_send(self, ac1, chat1):
-        msg = chat1.prepare_message(Message.new(chat1.account, "text"))
+        msg = chat1.prepare_message(Message.new_empty(chat1.account, "text"))
         msg.set_text("hello world")
         assert msg.text == "hello world"
         assert msg.id > 0
-        msg = chat1.send_prepared(msg)
+        chat1.send_prepared(msg)
         assert "Sent" in msg.get_message_info()
         str(msg)
         repr(msg)
@@ -165,11 +165,10 @@ class TestOfflineChat:
         message = chat1.prepare_message_file(p)
         assert message.id > 0
         message.set_text("hello world")
-        assert message.get_state().is_out_preparing()
+        assert message.is_out_preparing()
         assert message.text == "hello world"
-        msg = chat1.send_prepared(message)
-        s = msg.get_message_info()
-        assert "Sent" in s
+        chat1.send_prepared(message)
+        assert "Sent" in message.get_message_info()
 
     def test_message_eq_contains(self, chat1):
         msg = chat1.send_text("msg1")
@@ -188,14 +187,13 @@ class TestOfflineChat:
         assert not msg.view_type.is_gif()
         assert not msg.view_type.is_file()
         assert not msg.view_type.is_image()
-        msg_state = msg.get_state()
-        assert not msg_state.is_in_fresh()
-        assert not msg_state.is_in_noticed()
-        assert not msg_state.is_in_seen()
-        assert msg_state.is_out_pending()
-        assert not msg_state.is_out_failed()
-        assert not msg_state.is_out_delivered()
-        assert not msg_state.is_out_mdn_received()
+        assert not msg.is_in_fresh()
+        assert not msg.is_in_noticed()
+        assert not msg.is_in_seen()
+        assert msg.is_out_pending()
+        assert not msg.is_out_failed()
+        assert not msg.is_out_delivered()
+        assert not msg.is_out_mdn_received()
 
     def test_create_chat_by_message_id(self, ac1, chat1):
         msg = chat1.send_text("msg1")
@@ -299,7 +297,7 @@ class TestOfflineChat:
             ac1.initiate_key_transfer()
 
     def test_set_get_draft(self, chat1):
-        msg = Message.new(chat1.account, "text")
+        msg = Message.new_empty(chat1.account, "text")
         msg1 = chat1.prepare_message(msg)
         msg1.set_text("hello")
         chat1.set_draft(msg1)
@@ -397,7 +395,7 @@ class TestOnlineAccount:
         evt_name, data1, data2 = ev
         assert data1 == chat.id
         assert data2 == msg_out.id
-        assert msg_out.get_state().is_out_delivered()
+        assert msg_out.is_out_delivered()
 
         lp.sec("wait for ac2 to receive message")
         ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
@@ -426,7 +424,7 @@ class TestOnlineAccount:
         lp.step("1")
         ac1._evlogger.get_matching("DC_EVENT_MSG_READ")
         lp.step("2")
-        assert msg_out.get_state().is_out_mdn_received()
+        assert msg_out.is_out_mdn_received()
 
     def test_saved_mime_on_received_message(self, acfactory, lp):
         lp.sec("starting accounts, waiting for configuration")
@@ -466,7 +464,7 @@ class TestOnlineAccount:
         evt_name, data1, data2 = ev
         assert data1 == chat.id
         assert data2 == msg_out.id
-        assert msg_out.get_state().is_out_delivered()
+        assert msg_out.is_out_delivered()
 
         lp.sec("wait for ac2 to receive message")
         ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")

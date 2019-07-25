@@ -155,7 +155,8 @@ class Chat(object):
         :returns: the resulting :class:`deltachat.message.Message` instance
         """
         msg = self.prepare_message_file(path=path, mime_type=mime_type)
-        return self.send_prepared(msg)
+        self.send_prepared(msg)
+        return msg
 
     def send_image(self, path):
         """ send an image message and return the resulting Message instance.
@@ -166,10 +167,11 @@ class Chat(object):
         """
         mime_type = mimetypes.guess_type(path)[0]
         msg = self.prepare_message_file(path=path, mime_type=mime_type, view_type="image")
-        return self.send_prepared(msg)
+        self.send_prepared(msg)
+        return msg
 
     def prepare_message(self, msg):
-        """ create a new message.
+        """ create a new prepared message.
 
         :param msg: the message to be prepared.
         :returns: :class:`deltachat.message.Message` instance.
@@ -177,6 +179,8 @@ class Chat(object):
         msg_id = lib.dc_prepare_msg(self._dc_context, self.id, msg._dc_msg)
         if msg_id == 0:
             raise ValueError("message could not be prepared")
+        # invalidate passed in message which is not safe to use anymore
+        msg._dc_msg = msg.id = None
         return Message.from_db(self.account, msg_id)
 
     def prepare_message_file(self, path, mime_type=None, view_type="file"):
@@ -191,7 +195,7 @@ class Chat(object):
         :raises ValueError: if message can not be prepared/chat does not exist.
         :returns: the resulting :class:`Message` instance
         """
-        msg = Message.new(self.account, view_type)
+        msg = Message.new_empty(self.account, view_type)
         msg.set_file(path, mime_type)
         return self.prepare_message(msg)
 
@@ -201,12 +205,19 @@ class Chat(object):
         :param message: a :class:`Message` instance previously returned by
                         :meth:`prepare_file`.
         :raises ValueError: if message can not be sent.
-        :returns: a :class:`deltachat.message.Message` instance with updated state
+        :returns: a :class:`deltachat.message.Message` instance as sent out.
         """
-        msg_id = lib.dc_send_msg(self._dc_context, 0, message._dc_msg)
-        if msg_id == 0:
+        assert message.id != 0 and message.is_out_preparing()
+        # get a fresh copy of dc_msg, the core needs it
+        msg = Message.from_db(self.account, message.id)
+
+        # pass 0 as chat-id because core-docs say it's ok when out-preparing
+        sent_id = lib.dc_send_msg(self._dc_context, 0, msg._dc_msg)
+        if sent_id == 0:
             raise ValueError("message could not be sent")
-        return Message.from_db(self.account, msg_id)
+        assert sent_id == msg.id
+        # modify message in place to avoid bad state for the caller
+        msg._dc_msg = Message.from_db(self.account, sent_id)._dc_msg
 
     def set_draft(self, message):
         """ set message as draft.
@@ -229,7 +240,7 @@ class Chat(object):
         if x == ffi.NULL:
             return None
         dc_msg = ffi.gc(x, lib.dc_msg_unref)
-        return Message.from_dc_msg(self.account, dc_msg)
+        return Message(self.account, dc_msg)
 
     def get_messages(self):
         """ return list of messages in this chat.

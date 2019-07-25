@@ -15,16 +15,14 @@ class Message(object):
     You obtain instances of it through :class:`deltachat.account.Account` or
     :class:`deltachat.chatting.Chat`.
     """
-    def __init__(self, account, id=None, dc_msg=None):
+    def __init__(self, account, dc_msg):
         self.account = account
         self._dc_context = account._dc_context
-        if dc_msg is not None:
-            self._cache_dc_msg = self._dc_msg_volatile = dc_msg
-            id = lib.dc_msg_get_id(dc_msg)
-        assert id is not None
-        self.id = id
         assert isinstance(self._dc_context, ffi.CData)
-        assert int(id) >= 0
+        assert isinstance(dc_msg, ffi.CData)
+        self._dc_msg = dc_msg
+        self.id = lib.dc_msg_get_id(dc_msg)
+        assert self.id is not None and self.id >= 0, repr(self.id)
 
     def __eq__(self, other):
         return self.account == other.account and self.id == other.id
@@ -32,46 +30,22 @@ class Message(object):
     def __repr__(self):
         return "<Message id={} dc_context={}>".format(self.id, self._dc_context)
 
-    @property
-    def _dc_msg(self):
-        if self.id > 0:
-            if not hasattr(self, "_cache_dc_msg"):
-                self._cache_dc_msg = ffi.gc(
-                    lib.dc_get_msg(self._dc_context, self.id),
-                    lib.dc_msg_unref
-                )
-            return self._cache_dc_msg
-        return self._dc_msg_volatile
-
     @classmethod
     def from_db(cls, account, id):
-        assert hasattr(account, "_dc_context")
         assert id > 0
-        return cls(account, id)
+        return cls(account, ffi.gc(
+                lib.dc_get_msg(account._dc_context, id),
+                lib.dc_msg_unref
+        ))
 
     @classmethod
-    def from_dc_msg(cls, account, dc_msg):
-        assert hasattr(account, "_dc_context")
-        return cls(account, dc_msg=dc_msg)
-
-    @classmethod
-    def new(cls, account, view_type):
+    def new_empty(cls, account, view_type):
         """ create a non-persistent message. """
-        dc_context = account._dc_context
-        msg = cls(account=account, id=0)
         view_type_code = MessageType.get_typecode(view_type)
-        msg._dc_msg_volatile = ffi.gc(
-            lib.dc_msg_new(dc_context, view_type_code),
+        return Message(account, ffi.gc(
+            lib.dc_msg_new(account._dc_context, view_type_code),
             lib.dc_msg_unref
-        )
-        return msg
-
-    def get_state(self):
-        """ get the message in/out state.
-
-        :returns: :class:`deltachat.message.MessageState`
-        """
-        return MessageState(self)
+        ))
 
     @props.with_doc
     def text(self):
@@ -81,7 +55,7 @@ class Message(object):
     def set_text(self, text):
         """set text of this message. """
         assert self.id > 0, "message not prepared"
-        assert self.get_state().is_out_preparing()
+        assert self.is_out_preparing()
         lib.dc_msg_set_text(self._dc_msg, as_dc_charpointer(text))
 
     @props.with_doc
@@ -197,78 +171,19 @@ class Message(object):
         contact_id = lib.dc_msg_get_from_id(self._dc_msg)
         return Contact(self._dc_context, contact_id)
 
-
-class MessageType(object):
-    """ DeltaChat message type, with is_* methods. """
-    _mapping = {
-            const.DC_MSG_TEXT: 'text',
-            const.DC_MSG_IMAGE: 'image',
-            const.DC_MSG_GIF: 'gif',
-            const.DC_MSG_AUDIO: 'audio',
-            const.DC_MSG_VIDEO: 'video',
-            const.DC_MSG_FILE: 'file'
-    }
-
-    def __init__(self, _type):
-        self._type = _type
-
-    def __eq__(self, other):
-        return self._type == getattr(other, "_type", None)
-
-    @classmethod
-    def get_typecode(cls, view_type):
-        for code, value in cls._mapping.items():
-            if value == view_type:
-                return code
-        raise ValueError("message typecode not found for {!r}".format(view_type))
-
-    @props.with_doc
-    def name(self):
-        """ human readable type name. """
-        return self._mapping.get(self._type, "")
-
-    def is_text(self):
-        """ return True if it's a text message. """
-        return self._type == const.DC_MSG_TEXT
-
-    def is_image(self):
-        """ return True if it's an image message. """
-        return self._type == const.DC_MSG_IMAGE
-
-    def is_gif(self):
-        """ return True if it's a gif message. """
-        return self._type == const.DC_MSG_GIF
-
-    def is_audio(self):
-        """ return True if it's an audio message. """
-        return self._type == const.DC_MSG_AUDIO
-
-    def is_video(self):
-        """ return True if it's a video message. """
-        return self._type == const.DC_MSG_VIDEO
-
-    def is_file(self):
-        """ return True if it's a file message. """
-        return self._type == const.DC_MSG_FILE
-
-
-class MessageState(object):
-    """ Current Message In/Out state, updated on each call of is_* methods.
-    """
-    def __init__(self, message):
-        self.message = message
-
-    def __eq__(self, other):
-        return self.message == getattr(other, "message", None)
-
+    #
+    # Message State query methods
+    #
     @property
     def _msgstate(self):
-        if self.message.id == 0:
-            return lib.dc_msg_get_state(self.message._dc_msg)
-        dc_msg = ffi.gc(
-            lib.dc_get_msg(self.message._dc_context, self.message.id),
-            lib.dc_msg_unref
-        )
+        if self.id == 0:
+            dc_msg = self.message._dc_msg
+        else:
+            # load message from db to get a fresh/current state
+            dc_msg = ffi.gc(
+                lib.dc_get_msg(self._dc_context, self.id),
+                lib.dc_msg_unref
+            )
         return lib.dc_msg_get_state(dc_msg)
 
     def is_in_fresh(self):
@@ -323,3 +238,57 @@ class MessageState(object):
         state, you'll receive the event DC_EVENT_MSG_READ.
         """
         return self._msgstate == const.DC_STATE_OUT_MDN_RCVD
+
+
+class MessageType(object):
+    """ DeltaChat message type, with is_* methods. """
+    _mapping = {
+            const.DC_MSG_TEXT: 'text',
+            const.DC_MSG_IMAGE: 'image',
+            const.DC_MSG_GIF: 'gif',
+            const.DC_MSG_AUDIO: 'audio',
+            const.DC_MSG_VIDEO: 'video',
+            const.DC_MSG_FILE: 'file'
+    }
+
+    def __init__(self, _type):
+        self._type = _type
+
+    def __eq__(self, other):
+        return self._type == getattr(other, "_type", None)
+
+    @classmethod
+    def get_typecode(cls, view_type):
+        for code, value in cls._mapping.items():
+            if value == view_type:
+                return code
+        raise ValueError("message typecode not found for {!r}".format(view_type))
+
+    @props.with_doc
+    def name(self):
+        """ human readable type name. """
+        return self._mapping.get(self._type, "")
+
+    def is_text(self):
+        """ return True if it's a text message. """
+        return self._type == const.DC_MSG_TEXT
+
+    def is_image(self):
+        """ return True if it's an image message. """
+        return self._type == const.DC_MSG_IMAGE
+
+    def is_gif(self):
+        """ return True if it's a gif message. """
+        return self._type == const.DC_MSG_GIF
+
+    def is_audio(self):
+        """ return True if it's an audio message. """
+        return self._type == const.DC_MSG_AUDIO
+
+    def is_video(self):
+        """ return True if it's a video message. """
+        return self._type == const.DC_MSG_VIDEO
+
+    def is_file(self):
+        """ return True if it's a file message. """
+        return self._type == const.DC_MSG_FILE
