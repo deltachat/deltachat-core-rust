@@ -63,6 +63,11 @@ Single#10: yourfriends@email.org [yourfriends@email.org]
 Message sent.
 ```
 
+If `yourfriend@email.org` uses DeltaChat, but does not receive message just
+sent, it is advisable to check `Spam` folder. It is known that at least
+`gmx.com` treat such test messages as spam, unless told otherwise with web
+interface.
+
 List messages when inside a chat:
 
 ```
