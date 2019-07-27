@@ -450,6 +450,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  dellocations\n\
                  getlocations [<contact-id>]\n\
                  send <text>\n\
+                 send-garbage\n\
                  sendimage <file> [<text>]\n\
                  sendfile <file>\n\
                  draft [<text>]\n\
@@ -946,6 +947,15 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             } else {
                 free(msg as *mut _);
                 bail!("Sending failed.");
+            }
+        }
+        "send-garbage" => {
+            ensure!(!sel_chat.is_null(), "No chat selected.");
+            let msg = b"\xff\x00"; // NUL-terminated C-string, that is malformed utf-8
+            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg.as_ptr().cast()) {
+                println!("Malformed utf-8 succesfully send. Not nice.");
+            } else {
+                bail!("Garbage sending failed, as expected.");
             }
         }
         "sendempty" => {

@@ -4,6 +4,7 @@ use std::fs;
 use std::time::SystemTime;
 
 use chrono::{Local, TimeZone};
+use failure::format_err;
 use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
 
@@ -1563,13 +1564,16 @@ pub fn to_string_lossy(s: *const libc::c_char) -> String {
 }
 
 pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
+    as_str_safe(s).unwrap_or_else(|err| panic!("{}", err))
+}
+
+pub fn as_str_safe<'a>(s: *const libc::c_char) -> Result<&'a str, failure::Error> {
     assert!(!s.is_null(), "cannot be used on null pointers");
 
     let cstr = unsafe { CStr::from_ptr(s) };
 
-    cstr.to_str().unwrap_or_else(|err| {
-        panic!("Non utf8 string: '{:?}' ({:?})", cstr.to_bytes(), err);
-    })
+    cstr.to_str()
+        .map_err(|err| format_err!("Non utf8 string: '{:?}' ({:?})", cstr.to_bytes(), err))
 }
 
 /// Convert a C `*char` pointer to a [std::path::Path] slice.
