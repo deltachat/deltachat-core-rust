@@ -1203,6 +1203,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 bail!("Command failed.");
             }
         }
+        "" => (),
         _ => bail!("Unknown command: \"{}\" type ? for help.", arg0),
     }
 
