@@ -2,29 +2,21 @@ use crate::dc_location::dc_location;
 use crate::dc_tools::*;
 use crate::types::*;
 
-const DC_ARRAY_LOCATIONS: libc::c_int = 1;
-
 /* * the structure behind dc_array_t */
 #[derive(Clone)]
-pub struct dc_array_t {
-    pub type_0: libc::c_int,
-    pub array: Vec<uintptr_t>,
+pub enum dc_array_t {
+    Locations(Vec<dc_location>),
+    Uint(Vec<uintptr_t>),
 }
 
 impl dc_array_t {
     pub fn new(capacity: usize) -> Self {
-        dc_array_t {
-            type_0: 0,
-            array: Vec::with_capacity(capacity),
-        }
+        dc_array_t::Uint(Vec::with_capacity(capacity))
     }
 
     /// Constructs a new, empty `dc_array_t` holding locations with specified `capacity`.
     pub fn new_locations(capacity: usize) -> Self {
-        dc_array_t {
-            type_0: DC_ARRAY_LOCATIONS,
-            array: Vec::with_capacity(capacity),
-        }
+        dc_array_t::Locations(Vec::with_capacity(capacity))
     }
 
     pub fn as_ptr(self) -> *mut Self {
@@ -32,89 +24,117 @@ impl dc_array_t {
     }
 
     pub fn add_uint(&mut self, item: uintptr_t) {
-        self.array.push(item);
+        if let Self::Uint(array) = self {
+            array.push(item);
+        } else {
+            panic!("Attempt to add uint to array of other type");
+        }
     }
 
     pub fn add_id(&mut self, item: uint32_t) {
         self.add_uint(item as uintptr_t);
     }
 
-    pub fn get_uint(&self, index: usize) -> uintptr_t {
-        self.array[index]
+    pub fn add_location(&mut self, location: dc_location) {
+        if let Self::Locations(array) = self {
+            array.push(location)
+        } else {
+            panic!("Attempt to add a location to array of other type");
+        }
     }
 
-    pub unsafe fn get_id(&self, index: usize) -> uint32_t {
-        if self.type_0 == DC_ARRAY_LOCATIONS {
-            (*(self.array[index] as *mut dc_location)).location_id
+    pub fn get_uint(&self, index: usize) -> uintptr_t {
+        if let Self::Uint(array) = self {
+            array[index]
         } else {
-            self.array[index] as uint32_t
+            panic!("Attempt to get uint from array of other type");
+        }
+    }
+
+    pub fn get_id(&self, index: usize) -> uint32_t {
+        match self {
+            Self::Locations(array) => array[index].location_id,
+            Self::Uint(array) => array[index] as uint32_t,
         }
     }
 
     pub fn get_ptr(&self, index: size_t) -> *mut libc::c_void {
-        self.array[index] as *mut libc::c_void
-    }
-
-    pub unsafe fn get_location_ptr(&self, index: usize) -> Option<*mut dc_location> {
-        if self.type_0 == DC_ARRAY_LOCATIONS && self.array[index] != 0 {
-            Some(self.array[index] as *mut dc_location)
+        if let Self::Uint(array) = self {
+            array[index] as *mut libc::c_void
         } else {
-            None
+            panic!("Not an array of pointers");
         }
     }
 
-    pub unsafe fn get_latitude(&self, index: usize) -> libc::c_double {
-        self.get_location_ptr(index).map_or(0.0, |v| (*v).latitude)
+    pub fn get_location(&self, index: usize) -> &dc_location {
+        if let Self::Locations(array) = self {
+            &array[index]
+        } else {
+            panic!("Not an array of locations")
+        }
     }
 
-    pub unsafe fn get_longitude(&self, index: size_t) -> libc::c_double {
-        self.get_location_ptr(index).map_or(0.0, |v| (*v).longitude)
+    pub fn get_latitude(&self, index: usize) -> libc::c_double {
+        self.get_location(index).latitude
     }
 
-    pub unsafe fn get_accuracy(&self, index: size_t) -> libc::c_double {
-        self.get_location_ptr(index).map_or(0.0, |v| (*v).accuracy)
+    pub fn get_longitude(&self, index: size_t) -> libc::c_double {
+        self.get_location(index).longitude
     }
 
-    pub unsafe fn get_timestamp(&self, index: size_t) -> i64 {
-        self.get_location_ptr(index).map_or(0, |v| (*v).timestamp)
+    pub fn get_accuracy(&self, index: size_t) -> libc::c_double {
+        self.get_location(index).accuracy
     }
 
-    pub unsafe fn get_chat_id(&self, index: size_t) -> uint32_t {
-        self.get_location_ptr(index).map_or(0, |v| (*v).chat_id)
+    pub fn get_timestamp(&self, index: size_t) -> i64 {
+        self.get_location(index).timestamp
     }
 
-    pub unsafe fn get_contact_id(&self, index: size_t) -> uint32_t {
-        self.get_location_ptr(index).map_or(0, |v| (*v).contact_id)
+    pub fn get_chat_id(&self, index: size_t) -> uint32_t {
+        self.get_location(index).chat_id
     }
 
-    pub unsafe fn get_msg_id(&self, index: size_t) -> uint32_t {
-        self.get_location_ptr(index).map_or(0, |v| (*v).msg_id)
+    pub fn get_contact_id(&self, index: size_t) -> uint32_t {
+        self.get_location(index).contact_id
+    }
+
+    pub fn get_msg_id(&self, index: size_t) -> uint32_t {
+        self.get_location(index).msg_id
     }
 
     pub fn is_empty(&self) -> bool {
-        self.array.is_empty()
+        match self {
+            Self::Locations(array) => array.is_empty(),
+            Self::Uint(array) => array.is_empty(),
+        }
     }
 
     /// Returns the number of elements in the array.
     pub fn len(&self) -> usize {
-        self.array.len()
+        match self {
+            Self::Locations(array) => array.len(),
+            Self::Uint(array) => array.len(),
+        }
     }
 
-    pub unsafe fn unref(&mut self) {
-        if self.type_0 == DC_ARRAY_LOCATIONS {
-            for &e in self.array.iter() {
-                Box::from_raw(e as *mut dc_location);
-            }
+    pub fn clear(&mut self) {
+        match self {
+            Self::Locations(array) => array.clear(),
+            Self::Uint(array) => array.clear(),
         }
     }
 
     pub fn search_id(&self, needle: uintptr_t) -> Option<usize> {
-        for (i, &u) in self.array.iter().enumerate() {
-            if u == needle {
-                return Some(i);
+        if let Self::Uint(array) = self {
+            for (i, &u) in array.iter().enumerate() {
+                if u == needle {
+                    return Some(i);
+                }
             }
+            None
+        } else {
+            panic!("Attempt to search for id in array of other type");
         }
-        None
     }
 }
 
@@ -238,15 +258,16 @@ pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> ui
 }
 
 pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *mut libc::c_char {
-    if array.is_null()
-        || index >= (*array).len()
-        || (*array).type_0 != DC_ARRAY_LOCATIONS
-        || (*array).array[index] == 0
-    {
-        return 0 as *mut libc::c_char;
+    if array.is_null() || index >= (*array).len() {
+        return std::ptr::null_mut();
     }
-    if let Some(s) = &(*((*array).array[index] as *mut dc_location)).marker {
-        to_cstring(s)
+
+    if let dc_array_t::Locations(v) = &*array {
+        if let Some(s) = &v[index].marker {
+            to_cstring(s)
+        } else {
+            std::ptr::null_mut()
+        }
     } else {
         std::ptr::null_mut()
     }
@@ -263,15 +284,15 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
  *     1=Location was reported independently.
  */
 pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -> libc::c_int {
-    if array.is_null()
-        || index >= (*array).len()
-        || (*array).type_0 != DC_ARRAY_LOCATIONS
-        || (*array).array[index] == 0
-    {
+    if array.is_null() || index >= (*array).len() {
         return 0;
     }
 
-    (*((*array).array[index] as *mut dc_location)).independent as libc::c_int
+    if let dc_array_t::Locations(v) = &*array {
+        v[index].independent as libc::c_int
+    } else {
+        panic!("Attempt to get location independent field from array of something other than locations");
+    }
 }
 
 pub unsafe fn dc_array_search_id(
@@ -296,7 +317,11 @@ pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
     if array.is_null() {
         return 0 as *const uintptr_t;
     }
-    (*array).array.as_ptr()
+    if let dc_array_t::Uint(v) = &*array {
+        v.as_ptr()
+    } else {
+        panic!("Attempt to convert array of something other than uints to raw");
+    }
 }
 
 pub fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
@@ -311,7 +336,7 @@ pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
     if array.is_null() {
         return;
     }
-    (*array).array.clear();
+    (*array).clear()
 }
 
 pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
@@ -326,7 +351,11 @@ pub unsafe fn dc_array_sort_ids(array: *mut dc_array_t) {
     if array.is_null() || (*array).len() <= 1 {
         return;
     }
-    (*array).array.sort();
+    if let dc_array_t::Uint(v) = &mut *array {
+        v.sort();
+    } else {
+        panic!("Attempt to sort array of something other than uints");
+    }
 }
 
 pub unsafe fn dc_array_get_string(
@@ -336,12 +365,11 @@ pub unsafe fn dc_array_get_string(
     if array.is_null() || sep.is_null() {
         return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
     }
-    let cnt = (*array).len();
-    let sep = as_str(sep);
+    if let dc_array_t::Uint(v) = &*array {
+        let cnt = v.len();
+        let sep = as_str(sep);
 
-    let res =
-        (*array)
-            .array
+        let res = v
             .iter()
             .enumerate()
             .fold(String::with_capacity(2 * cnt), |res, (i, n)| {
@@ -351,7 +379,10 @@ pub unsafe fn dc_array_get_string(
                     res + sep + &n.to_string()
                 }
             });
-    to_cstring(res)
+        to_cstring(res)
+    } else {
+        panic!("Attempt to get string from array of other type");
+    }
 }
 
 #[cfg(test)]

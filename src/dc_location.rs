@@ -250,7 +250,7 @@ pub fn dc_get_locations(
                 let mut ret = dc_array_t::new_locations(500);
 
                 for location in locations {
-                    ret.add_ptr(Box::into_raw(Box::new(location?)) as *mut libc::c_void);
+                    ret.add_location(location?);
                 }
                 Ok(ret.as_ptr())
             },
@@ -582,10 +582,7 @@ unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
             && 0. != (*kml).curr.longitude
         {
             let location = (*kml).curr.clone();
-            dc_array_add_ptr(
-                (*kml).locations,
-                Box::into_raw(Box::new(location)) as *mut libc::c_void,
-            );
+            (*(*kml).locations).add_location(location);
         }
         (*kml).tag = 0
     };
