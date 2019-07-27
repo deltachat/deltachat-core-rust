@@ -64,3 +64,14 @@ def test_sig():
     assert sig(const.DC_EVENT_SMTP_CONNECTED) == 2
     assert sig(const.DC_EVENT_IMAP_CONNECTED) == 2
     assert sig(const.DC_EVENT_SMTP_MESSAGE_SENT) == 2
+
+
+def test_markseen_invalid_message_ids(acfactory):
+    ac1 = acfactory.get_configured_offline_account()
+    contact1 = ac1.create_contact(email="some1@example.com", name="some1")
+    chat = ac1.create_chat_by_contact(contact1)
+    chat.send_text("one messae")
+    ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+    msg_ids = [9]
+    lib.dc_markseen_msgs(ac1._dc_context, msg_ids, len(msg_ids))
+    ac1._evlogger.ensure_event_not_queued("DC_EVENT_WARNING|DC_EVENT_ERROR")

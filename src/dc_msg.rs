@@ -552,9 +552,13 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
             let mut res = Vec::with_capacity(msg_cnt);
             for i in 0..msg_cnt {
                 let id = unsafe { *msg_ids.offset(i as isize) };
-                let (state, blocked) = stmt.query_row(params![id as i32], |row| {
+                let query_res = stmt.query_row(params![id as i32], |row| {
                     Ok((row.get::<_, i32>(0)?, row.get::<_, Option<i32>>(1)?.unwrap_or_default()))
-                })?;
+                });
+                if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
+                    continue;
+                }
+                let (state, blocked) = query_res?;
                 res.push((id, state, blocked));
             }
             Ok(res)
