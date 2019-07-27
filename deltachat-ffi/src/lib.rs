@@ -1090,7 +1090,7 @@ pub type dc_chatlist_t<'a> = chatlist::Chatlist<'a>;
 pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist_t) {
     assert!(!chatlist.is_null());
 
-    let _list = &*chatlist;
+    Box::from_raw(chatlist);
 }
 
 #[no_mangle]
