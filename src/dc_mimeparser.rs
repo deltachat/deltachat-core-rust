@@ -62,11 +62,11 @@ pub struct dc_mimeparser_t<'a> {
 
 // deprecated
 pub unsafe fn dc_no_compound_msgs() {
-    s_generate_compound_msgs = 0i32;
+    S_GENERATE_COMPOUND_MSGS = 0i32;
 }
 
 // deprecated: flag to switch generation of compound messages on and off.
-static mut s_generate_compound_msgs: libc::c_int = 1i32;
+static mut S_GENERATE_COMPOUND_MSGS: libc::c_int = 1i32;
 
 pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
     dc_mimeparser_t {
@@ -249,7 +249,7 @@ pub unsafe fn dc_mimeparser_parse(
             }
         }
         if 0 != (*mimeparser).is_send_by_messenger
-            && 0 != s_generate_compound_msgs
+            && 0 != S_GENERATE_COMPOUND_MSGS
             && carray_count((*mimeparser).parts) == 2i32 as libc::c_uint
         {
             let mut textpart_0: *mut dc_mimepart_t =

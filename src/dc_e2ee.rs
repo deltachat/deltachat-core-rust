@@ -318,11 +318,11 @@ pub unsafe fn dc_e2ee_encrypt(
                                             as *mut libc::c_char,
                                     ) as *mut libc::c_void,
                                 );
-                                static mut version_content: [libc::c_char; 13] =
+                                static mut VERSION_CONTENT: [libc::c_char; 13] =
                                     [86, 101, 114, 115, 105, 111, 110, 58, 32, 49, 13, 10, 0];
                                 let version_mime: *mut mailmime = new_data_part(
-                                    version_content.as_mut_ptr() as *mut libc::c_void,
-                                    strlen(version_content.as_mut_ptr()),
+                                    VERSION_CONTENT.as_mut_ptr() as *mut libc::c_void,
+                                    strlen(VERSION_CONTENT.as_mut_ptr()),
                                     b"application/pgp-encrypted\x00" as *const u8
                                         as *const libc::c_char
                                         as *mut libc::c_char,
@@ -491,7 +491,7 @@ unsafe fn load_or_generate_self_public_key(
     _random_data_mime: *mut mailmime,
 ) -> Option<Key> {
     /* avoid double creation (we unlock the database during creation) */
-    static mut s_in_key_creation: libc::c_int = 0;
+    static mut S_IN_KEY_CREATION: libc::c_int = 0;
 
     let mut key = Key::from_self_public(context, &self_addr, &context.sql);
     if key.is_some() {
@@ -499,11 +499,11 @@ unsafe fn load_or_generate_self_public_key(
     }
 
     /* create the keypair - this may take a moment, however, as this is in a thread, this is no big deal */
-    if 0 != s_in_key_creation {
+    if 0 != S_IN_KEY_CREATION {
         return None;
     }
     let key_creation_here = 1;
-    s_in_key_creation = 1;
+    S_IN_KEY_CREATION = 1;
 
     let start = clock();
     info!(
@@ -537,7 +537,7 @@ unsafe fn load_or_generate_self_public_key(
     }
 
     if 0 != key_creation_here {
-        s_in_key_creation = 0;
+        S_IN_KEY_CREATION = 0;
     }
 
     key
