@@ -22,7 +22,7 @@ use crate::x::*;
  * and are not updated on database changes;
  * if you want an update, you have to recreate the object.
  */
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 pub struct Chat<'a> {
     magic: uint32_t,
     pub id: uint32_t,
@@ -32,7 +32,7 @@ pub struct Chat<'a> {
     pub context: &'a Context,
     pub grpid: *mut libc::c_char,
     blocked: libc::c_int,
-    pub param: *mut dc_param_t,
+    pub param: dc_param_t,
     pub gossiped_timestamp: i64,
     is_sending_locations: libc::c_int,
 }
@@ -69,7 +69,7 @@ pub unsafe fn dc_chat_new<'a>(context: &'a Context) -> *mut Chat<'a> {
     (*chat).magic = 0xc4a7c4a7u32;
     (*chat).context = context;
     (*chat).type_0 = 0i32;
-    (*chat).param = dc_param_new();
+    (*chat).param = Default::default();
     chat
 }
 
@@ -78,7 +78,6 @@ pub unsafe fn dc_chat_unref(mut chat: *mut Chat) {
         return;
     }
     dc_chat_empty(chat);
-    dc_param_unref((*chat).param);
     (*chat).magic = 0i32 as uint32_t;
     free(chat as *mut libc::c_void);
 }
@@ -95,7 +94,7 @@ pub unsafe fn dc_chat_empty(mut chat: *mut Chat) {
     (*chat).grpid = 0 as *mut libc::c_char;
     (*chat).blocked = 0i32;
     (*chat).gossiped_timestamp = 0;
-    dc_param_set_packed((*chat).param, 0 as *const libc::c_char);
+    (*chat).param = Default::default();
 }
 
 pub unsafe fn dc_unblock_chat(context: &Context, chat_id: uint32_t) {
@@ -140,11 +139,8 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
             };
 
             let packed: String = row.get(4)?;
-            unsafe {
-                let p = to_cstring(&packed);
-                dc_param_set_packed((*chat).param, p);
-                free(p as *mut _);
-            };
+            c.param = packed.parse()?;
+
             c.archived = row.get(5)?;
             c.blocked = row.get::<_, Option<i32>>(6)?.unwrap_or_default();
             c.gossiped_timestamp = row.get(7)?;
@@ -182,7 +178,7 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                     (*chat).name = to_cstring((*chat).context.stock_str(StockMessage::StarredMsgs));
                 },
                 _ => {
-                    if 0 != unsafe { dc_param_exists((*chat).param, DC_PARAM_SELFTALK as i32) } {
+                    if dc_param_exists((*chat).param, Param::Selftalk) {
                         unsafe {
                             free((*chat).name as *mut libc::c_void);
                             (*chat).name =
@@ -386,14 +382,13 @@ unsafe fn prepare_msg_common<'a>(
     mut msg: *mut dc_msg_t<'a>,
 ) -> uint32_t {
     let mut OK_TO_CONTINUE = true;
-    let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     (*msg).id = 0i32 as uint32_t;
     (*msg).context = context;
     if (*msg).type_0 == DC_MSG_TEXT {
         /* the caller should check if the message text is empty */
     } else if msgtype_has_file((*msg).type_0) {
-        pathNfilename = dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
-        if pathNfilename.is_null() {
+        let pathNfilename = dc_param_get((*msg).param, Param::File);
+        if pathNfilename.is_none() {
             error!(
                 context,
                 0,
@@ -402,44 +397,58 @@ unsafe fn prepare_msg_common<'a>(
             );
             OK_TO_CONTINUE = false;
         } else if (*msg).state == DC_STATE_OUT_PREPARING
-            && !dc_is_blobdir_path(context, pathNfilename)
+            && !dc_is_blobdir_path_r(context, pathNfilename.as_ref().unwrap())
         {
             error!(context, 0, "Files must be created in the blob-directory.",);
             OK_TO_CONTINUE = false;
-        } else if !dc_make_rel_and_copy(context, &mut pathNfilename) {
-            OK_TO_CONTINUE = false;
         } else {
-            dc_param_set((*msg).param, DC_PARAM_FILE as i32, pathNfilename);
-            if (*msg).type_0 == DC_MSG_FILE || (*msg).type_0 == DC_MSG_IMAGE {
-                /* Correct the type, take care not to correct already very special formats as GIF or VOICE.
-                Typical conversions:
-                - from FILE to AUDIO/VIDEO/IMAGE
-                - from FILE/IMAGE to GIF */
-                let mut better_type: libc::c_int = 0i32;
-                let mut better_mime: *mut libc::c_char = 0 as *mut libc::c_char;
-                dc_msg_guess_msgtype_from_suffix(pathNfilename, &mut better_type, &mut better_mime);
-                if 0 != better_type {
-                    (*msg).type_0 = better_type;
-                    dc_param_set((*msg).param, DC_PARAM_MIMETYPE as i32, better_mime);
+            let mut pathNfilename = to_cstring(pathNfilename.unwrap());
+            if !dc_make_rel_and_copy(context, &mut pathNfilename) {
+                OK_TO_CONTINUE = false;
+            } else {
+                dc_param_set(&mut (*msg).param, Param::File, as_str(pathNfilename));
+                if (*msg).type_0 == DC_MSG_FILE || (*msg).type_0 == DC_MSG_IMAGE {
+                    /* Correct the type, take care not to correct already very special formats as GIF or VOICE.
+                    Typical conversions:
+                    - from FILE to AUDIO/VIDEO/IMAGE
+                    - from FILE/IMAGE to GIF */
+                    let mut better_type = 0;
+                    let mut better_mime = std::ptr::null_mut();
+
+                    dc_msg_guess_msgtype_from_suffix(
+                        pathNfilename,
+                        &mut better_type,
+                        &mut better_mime,
+                    );
+                    if 0 != better_type && !better_mime.is_null() {
+                        (*msg).type_0 = better_type;
+                        dc_param_set(&mut (*msg).param, Param::MimeType, as_str(better_mime));
+                    }
+                    free(better_mime as *mut libc::c_void);
+                } else if !dc_param_exists(&(*msg).param, Param::MimeType) {
+                    let mut better_mime = std::ptr::null_mut();
+
+                    dc_msg_guess_msgtype_from_suffix(
+                        pathNfilename,
+                        0 as *mut libc::c_int,
+                        &mut better_mime,
+                    );
+
+                    if !better_mime.is_null() {
+                        dc_param_set(&mut (*msg).param, Param::MimeType, as_str(better_mime));
+                    }
+                    free(better_mime as *mut _);
                 }
-                free(better_mime as *mut libc::c_void);
-            } else if 0 == dc_param_exists((*msg).param, DC_PARAM_MIMETYPE as i32) {
-                let mut better_mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
-                dc_msg_guess_msgtype_from_suffix(
-                    pathNfilename,
-                    0 as *mut libc::c_int,
-                    &mut better_mime_0,
+                info!(
+                    context,
+                    0,
+                    "Attaching \"{}\" for message type #{}.",
+                    as_str(pathNfilename),
+                    (*msg).type_0
                 );
-                dc_param_set((*msg).param, DC_PARAM_MIMETYPE as i32, better_mime_0);
-                free(better_mime_0 as *mut libc::c_void);
+
+                free(pathNfilename as *mut _);
             }
-            info!(
-                context,
-                0,
-                "Attaching \"{}\" for message type #{}.",
-                as_str(pathNfilename),
-                (*msg).type_0
-            );
         }
     } else {
         error!(
@@ -462,8 +471,6 @@ unsafe fn prepare_msg_common<'a>(
         }
         dc_chat_unref(chat);
     }
-    /* potential error already logged */
-    free(pathNfilename as *mut libc::c_void);
 
     (*msg).id
 }
@@ -535,12 +542,9 @@ unsafe fn prepare_msg_raw(
                 if (*chat).type_0 == DC_CHAT_TYPE_GROUP
                     || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP
                 {
-                    if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 1 {
-                        dc_param_set(
-                            (*chat).param,
-                            DC_PARAM_UNPROMOTED as i32,
-                            0 as *const libc::c_char,
-                        );
+                    if dc_param_get_int(&(*chat).param, Param::Unpromoted).unwrap_or_default() == 1
+                    {
+                        dc_param_remove(&mut (*chat).param, Param::Unpromoted);
                         dc_chat_update_param(chat);
                     }
                 }
@@ -556,7 +560,8 @@ unsafe fn prepare_msg_raw(
                     .get_config_int(context, "e2ee_enabled")
                     .unwrap_or_else(|| 1);
                 if 0 != e2ee_enabled
-                    && dc_param_get_int((*msg).param, DC_PARAM_FORCE_PLAINTEXT as i32, 0) == 0
+                    && dc_param_get_int(&(*msg).param, Param::ForcePlaintext).unwrap_or_default()
+                        == 0
                 {
                     let mut can_encrypt = 1;
                     let mut all_mutual = 1;
@@ -611,13 +616,9 @@ unsafe fn prepare_msg_raw(
                     }
                 }
                 if 0 != do_guarantee_e2ee {
-                    dc_param_set_int((*msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 1);
+                    dc_param_set_int(&mut (*msg).param, Param::GuranteeE2ee, 1);
                 }
-                dc_param_set(
-                    (*msg).param,
-                    DC_PARAM_ERRONEOUS_E2EE as i32,
-                    0 as *const libc::c_char,
-                );
+                dc_param_remove(&mut (*msg).param, Param::ErroneousE2ee);
                 if 0 == dc_chat_is_self_talk(chat)
                     && 0 != get_parent_mime_headers(
                         chat,
@@ -671,7 +672,7 @@ unsafe fn prepare_msg_raw(
 
                 // add independent location to database
 
-                if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
+                if 0 != dc_param_exists(&(*msg).param, Param::SetLatitude) {
                     if sql::execute(
                         context,
                         &context.sql,
@@ -682,16 +683,10 @@ unsafe fn prepare_msg_raw(
                             timestamp,
                             DC_CONTACT_ID_SELF as i32,
                             (*chat).id as i32,
-                            dc_param_get_float(
-                                (*msg).param,
-                                DC_PARAM_SET_LATITUDE as libc::c_int,
-                                0.0,
-                            ),
-                            dc_param_get_float(
-                                (*msg).param,
-                                DC_PARAM_SET_LONGITUDE as libc::c_int,
-                                0.0,
-                            ),
+                            dc_param_get_float(&(*msg).param, Param::SetLatitude)
+                                .unwrap_or_defalut(),
+                            dc_param_get_float(&(*msg).param, Param::SetLongitude)
+                                .unwrap_or_default(),
                         ],
                     )
                     .is_ok()
@@ -814,9 +809,9 @@ unsafe fn get_parent_mime_headers(
 
 pub unsafe fn dc_chat_is_self_talk(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
-        return 0i32;
+        return 0;
     }
-    dc_param_exists((*chat).param, DC_PARAM_SELFTALK as i32)
+    dc_param_exists(&(*chat).param, Param::Selftalk) as libc::c_int
 }
 
 /*******************************************************************************
@@ -828,7 +823,6 @@ unsafe fn last_msg_in_chat_encrypted(
     sql: &Sql,
     chat_id: uint32_t,
 ) -> libc::c_int {
-    let mut last_is_encrypted: libc::c_int = 0i32;
     let packed: Option<String> = sql.query_row_col(
         context,
         "SELECT param  \
@@ -838,19 +832,17 @@ unsafe fn last_msg_in_chat_encrypted(
         0,
     );
 
-    if let Some(packed) = packed {
-        let msg_param = dc_param_new();
-        let packed_c = to_cstring(packed);
-        dc_param_set_packed(msg_param, packed_c);
-        free(packed_c as *mut _);
-
-        if 0 != dc_param_exists(msg_param, DC_PARAM_GUARANTEE_E2EE as i32) {
-            last_is_encrypted = 1;
+    if let Some(ref packed) = packed {
+        match packed.parse() {
+            Ok(param) => dc_param_exists(&param, Param::GuranteeE2ee) as libc::c_int,
+            Err(err) => {
+                error!(context, 0, "invalid params stored: '{}', {:?}", packed, err);
+                0
+            }
         }
-        dc_param_unref(msg_param);
+    } else {
+        0
     }
-
-    last_is_encrypted
 }
 
 // TODO should return bool /rtn
@@ -919,18 +911,14 @@ pub unsafe fn dc_send_msg<'a>(
         (*msg).id as uintptr_t,
     );
 
-    if 0 != dc_param_exists((*msg).param, DC_PARAM_SET_LATITUDE as libc::c_int) {
+    if dc_param_exists(&(*msg).param, Param::SetLatitude) {
         context.call_cb(Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF, 0);
     }
 
     if 0 == chat_id {
-        let forwards = dc_param_get(
-            (*msg).param,
-            DC_PARAM_PREP_FORWARDS as i32,
-            0 as *const libc::c_char,
-        );
-        if !forwards.is_null() {
-            let mut p = forwards;
+        let forwards = dc_param_get(&(*msg).param, Param::PrepForwards);
+        if let Some(forwards) = forwards {
+            let mut p = to_cstring(forwards);
             while 0 != *p {
                 let id = strtol(p, &mut p, 10) as int32_t;
                 if 0 == id {
@@ -944,14 +932,10 @@ pub unsafe fn dc_send_msg<'a>(
                     dc_msg_unref(copy);
                 }
             }
-            dc_param_set(
-                (*msg).param,
-                DC_PARAM_PREP_FORWARDS as i32,
-                0 as *const libc::c_char,
-            );
+            dc_param_remove(&mut (*msg).param, Param::PrepForwards);
             dc_msg_save_param_to_disk(msg);
+            free(p as *mut _);
         }
-        free(forwards as *mut libc::c_void);
     }
 
     (*msg).id
@@ -1015,17 +999,21 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                 OK_TO_CONTINUE = false;
             }
         } else if msgtype_has_file((*msg).type_0) {
-            pathNfilename =
-                dc_param_get((*msg).param, DC_PARAM_FILE as i32, 0 as *const libc::c_char);
-            if pathNfilename.is_null() {
+            pathNfilename = dc_param_get(&(*msg).param, Param::File);
+            if pathNfilename.is_none() {
                 OK_TO_CONTINUE = false;
-            } else if 0 != dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, pathNfilename)
+            } else if 0 != dc_msg_is_increation(msg)
+                && !dc_is_blobdir_path_r(context, pathNfilename.as_ref().unwrap())
             {
                 OK_TO_CONTINUE = false;
-            } else if !dc_make_rel_and_copy(context, &mut pathNfilename) {
-                OK_TO_CONTINUE = false;
             } else {
-                dc_param_set((*msg).param, DC_PARAM_FILE as i32, pathNfilename);
+                let mut pathNfilename = to_cstring(pathNfilename.unwrap());
+                if !dc_make_rel_and_copy(context, &mut pathNfilename) {
+                    OK_TO_CONTINUE = false;
+                } else {
+                    dc_param_set(&mut (*msg).param, Param::File, as_str(pathNfilename));
+                }
+                free(pathNfilename as *mut _);
             }
         } else {
             OK_TO_CONTINUE = false;
@@ -1583,13 +1571,9 @@ pub unsafe fn dc_add_contact_to_chat_ex(
             } else {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if 0 != flags & 0x1
-                    && dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 1
+                    && dc_param_get_int(&(*chat).param, Param::Unpromoted).unwrap_or_default() == 1
                 {
-                    dc_param_set(
-                        (*chat).param,
-                        DC_PARAM_UNPROMOTED as i32,
-                        0 as *const libc::c_char,
-                    );
+                    dc_param_remove(&mut (*chat).param, Param::Unpromoted);
                     dc_chat_update_param(chat);
                 }
                 let self_addr = context
@@ -1623,7 +1607,9 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                         }
                     }
                     if OK_TO_CONTINUE {
-                        if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 0 {
+                        if dc_param_get_int(&(*chat).param, Param::Unpromoted).unwrap_or_default()
+                            == 0
+                        {
                             (*msg).type_0 = DC_MSG_TEXT;
                             (*msg).text = to_cstring(context.stock_system_msg(
                                 StockMessage::MsgAddMember,
@@ -1631,9 +1617,15 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                                 "",
                                 DC_CONTACT_ID_SELF as uint32_t,
                             ));
-                            dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 4);
-                            dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, (*contact).addr);
-                            dc_param_set_int((*msg).param, DC_PARAM_CMD_ARG2 as i32, flags);
+                            dc_param_set_int(&mut (*msg).param, Param::Cmd, 4);
+                            if !(*contact).addr.is_null() {
+                                dc_param_set(
+                                    &mut (*msg).param,
+                                    Param::Arg,
+                                    as_str((*contact).addr),
+                                );
+                            }
+                            dc_param_set_int(&mut (*msg).param, Param::Arg2, flags);
                             (*msg).id = dc_send_msg(context, chat_id, msg);
                             context.call_cb(
                                 Event::MSGS_CHANGED,
@@ -1732,7 +1724,8 @@ pub unsafe fn dc_remove_contact_from_chat(
             } else {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if !contact.is_null() {
-                    if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0) == 0 {
+                    if dc_param_get_int(&(*chat).param, Param::Unpromoted).unwrap_or_default() == 0
+                    {
                         (*msg).type_0 = DC_MSG_TEXT;
                         if (*contact).id == 1 as libc::c_uint {
                             dc_set_group_explicitly_left(context, (*chat).grpid);
@@ -1750,8 +1743,10 @@ pub unsafe fn dc_remove_contact_from_chat(
                                 DC_CONTACT_ID_SELF as u32,
                             ));
                         }
-                        dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 5);
-                        dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, (*contact).addr);
+                        dc_param_set_int(&mut (*msg).param, Param::Cmd, 5);
+                        if !(*contact).addr.is_null() {
+                            dc_param_set(&mut (*msg).param, Param::Arg, as_str((*contact).addr));
+                        }
                         (*msg).id = dc_send_msg(context, chat_id, msg);
                         context.call_cb(
                             Event::MSGS_CHANGED,
@@ -1845,7 +1840,8 @@ pub unsafe fn dc_set_chat_name(
                 )
                 .is_ok()
                 {
-                    if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0i32) == 0i32 {
+                    if dc_param_get_int(&(*chat).param, Param::Unpromoted).unwrap_or_default() == 0
+                    {
                         (*msg).type_0 = DC_MSG_TEXT;
                         (*msg).text = to_cstring(context.stock_system_msg(
                             StockMessage::MsgGrpName,
@@ -1853,8 +1849,10 @@ pub unsafe fn dc_set_chat_name(
                             as_str(new_name),
                             DC_CONTACT_ID_SELF as u32,
                         ));
-                        dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 2);
-                        dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, (*chat).name);
+                        dc_param_set_int(&mut (*msg).param, Param::Cmd, 2);
+                        if !(*chat).name.is_null() {
+                            dc_param_set(&mut (*msg).param, Param::Arg, (*chat).name);
+                        }
                         (*msg).id = dc_send_msg(context, chat_id, msg);
                         context.call_cb(
                             Event::MSGS_CHANGED,
@@ -1908,12 +1906,17 @@ pub unsafe fn dc_set_chat_profile_image(
                     }
                 }
                 if OK_TO_CONTINUE {
-                    dc_param_set((*chat).param, DC_PARAM_PROFILE_IMAGE as i32, new_image_rel);
+                    dc_param_set(
+                        &mut (*chat).param,
+                        Param::ProfileImage,
+                        as_str(new_image_rel),
+                    );
                     if !(0 == dc_chat_update_param(chat)) {
-                        if dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0i32) == 0i32
+                        if dc_param_get_int(&(*chat).param, Param::Unpromoted).unwrap_or_default()
+                            == 0
                         {
-                            dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 3i32);
-                            dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, new_image_rel);
+                            dc_param_set_int(&mut (*msg).param, Param::Cmd, 3);
+                            dc_param_set(&mut (*msg).param, Param::Arg, new_image_rel);
                             (*msg).type_0 = DC_MSG_TEXT;
                             (*msg).text = to_cstring(context.stock_system_msg(
                                 if !new_image_rel.is_null() {
@@ -1967,7 +1970,7 @@ pub unsafe fn dc_forward_msgs(
     let created_db_entries = carray_new(16);
     let mut curr_timestamp: i64;
 
-    let original_param: *mut dc_param_t = dc_param_new();
+    let mut original_param = dc_param_new();
     dc_unarchive_chat(context, chat_id);
     if dc_chat_load_from_db(chat, chat_id) {
         curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
@@ -1997,44 +2000,36 @@ pub unsafe fn dc_forward_msgs(
             if !dc_msg_load_from_db(msg, context, src_msg_id as u32) {
                 break;
             }
-            dc_param_set_packed(original_param, (*(*msg).param).packed);
-            if (*msg).from_id != 1i32 as libc::c_uint {
-                dc_param_set_int((*msg).param, DC_PARAM_FORWARDED as i32, 1i32);
+            dc_param_set_packed(original_param, as_str((*(*msg).param).packed));
+            if (*msg).from_id != 1 {
+                dc_param_set_int(&mut (*msg).param, Param::Forwarded, 1);
             }
-            dc_param_set(
-                (*msg).param,
-                DC_PARAM_GUARANTEE_E2EE as i32,
-                0 as *const libc::c_char,
-            );
-            dc_param_set(
-                (*msg).param,
-                DC_PARAM_FORCE_PLAINTEXT as i32,
-                0 as *const libc::c_char,
-            );
-            dc_param_set((*msg).param, DC_PARAM_CMD as i32, 0 as *const libc::c_char);
+            dc_param_remove(&mut (*msg).param, Param::GuranteeE2ee);
+            dc_param_remove(&mut (*msg).param, Param::ForcePlaintext);
+            dc_param_remove(&mut (*msg).param, Param::Cmd);
+
             let new_msg_id: uint32_t;
             if (*msg).state == DC_STATE_OUT_PREPARING {
                 let fresh9 = curr_timestamp;
                 curr_timestamp = curr_timestamp + 1;
                 new_msg_id = prepare_msg_raw(context, chat, msg, fresh9);
-                let save_param: *mut dc_param_t = (*msg).param;
+                let save_param = (*msg).param.clone();
                 (*msg).param = original_param;
                 (*msg).id = src_msg_id as uint32_t;
-                let old_fwd: *mut libc::c_char = dc_param_get(
-                    (*msg).param,
-                    DC_PARAM_PREP_FORWARDS as i32,
-                    b"\x00" as *const u8 as *const libc::c_char,
-                );
-                let new_fwd: *mut libc::c_char = dc_mprintf(
-                    b"%s %d\x00" as *const u8 as *const libc::c_char,
-                    old_fwd,
-                    new_msg_id,
-                );
-                dc_param_set((*msg).param, DC_PARAM_PREP_FORWARDS as i32, new_fwd);
+
+                if let Some(old_fwd) = dc_param_get(&(*msg).param, Param::PrepForwards) {
+                    let new_fwd = format!("{} {}", old_fwd, new_msg_id);
+                    dc_param_set(&mut (*msg).param, Param::PrepForwards, new_fwd);
+                } else {
+                    dc_param_set(
+                        &mut (*msg).param,
+                        Param::PrepForwards,
+                        new_msg_id.to_string(),
+                    );
+                }
+
                 dc_msg_save_param_to_disk(msg);
-                free(new_fwd as *mut libc::c_void);
-                free(old_fwd as *mut libc::c_void);
-                (*msg).param = save_param
+                (*msg).param = save_param;
             } else {
                 (*msg).state = DC_STATE_OUT_PENDING;
                 let fresh10 = curr_timestamp;
@@ -2071,7 +2066,6 @@ pub unsafe fn dc_forward_msgs(
     dc_contact_unref(contact);
     dc_msg_unref(msg);
     dc_chat_unref(chat);
-    dc_param_unref(original_param);
 }
 
 pub unsafe fn dc_chat_get_id(chat: *const Chat) -> uint32_t {
@@ -2102,7 +2096,7 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
     }
 
     let mut ret: *mut libc::c_char = std::ptr::null_mut();
-    if (*chat).type_0 == 100 && 0 != dc_param_exists((*chat).param, DC_PARAM_SELFTALK as i32) {
+    if (*chat).type_0 == 100 && 0 != dc_param_exists(&(*chat).param, Param::Selftalk) {
         ret = to_cstring((*chat).context.stock_str(StockMessage::SelfTalkSubTitle));
     } else if (*chat).type_0 == 100 {
         let ret_raw: String = (*chat)
@@ -2155,11 +2149,8 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
     let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
-        image_rel = dc_param_get(
-            (*chat).param,
-            DC_PARAM_PROFILE_IMAGE as i32,
-            0 as *const libc::c_char,
-        );
+        image_rel =
+            to_cstring(dc_param_get(&(*chat).param, Param::ProfileImage).unwrap_or_default());
         if !image_rel.is_null() && 0 != *image_rel.offset(0isize) as libc::c_int {
             image_abs = dc_get_abs_path((*chat).context, image_rel)
         } else if (*chat).type_0 == 100i32 {
@@ -2211,9 +2202,9 @@ pub unsafe fn dc_chat_get_archived(chat: *const Chat) -> libc::c_int {
 // TODO should return bool /rtn
 pub unsafe fn dc_chat_is_unpromoted(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
-        return 0i32;
+        return 0;
     }
-    dc_param_get_int((*chat).param, DC_PARAM_UNPROMOTED as i32, 0i32)
+    dc_param_get_int(&(*chat).param, Param::Unpromoted).unwrap_or_default() as libc::c_int
 }
 
 // TODO should return bool /rtn

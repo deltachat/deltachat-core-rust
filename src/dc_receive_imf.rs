@@ -765,7 +765,6 @@ pub unsafe fn dc_receive_imf(
                                         dc_param_set_int(param, DC_PARAM_ALSO_MOVE as i32, 1);
                                     }
                                     dc_job_add(context, 120, 0, (*param).packed, 0);
-                                    dc_param_unref(param);
                                 }
                             }
                         }

@@ -1,63 +1,44 @@
-use crate::dc_tools::*;
-use crate::types::*;
-use crate::x::*;
+use std::collections::BTreeMap;
+use std::fmt;
+use std::str;
 
-/// for msgs and jobs
-pub const DC_PARAM_FILE: char = 'f'; // string
-/// for msgs
-pub const DC_PARAM_WIDTH: char = 'w'; // int
-/// for msgs
-pub const DC_PARAM_HEIGHT: char = 'h'; // int
-/// for msgs
-pub const DC_PARAM_DURATION: char = 'd'; // int
-/// for msgs
-pub const DC_PARAM_MIMETYPE: char = 'm'; // string
-/// for msgs: incoming: message is encryoted, outgoing: guarantee E2EE or the message is not send
-pub const DC_PARAM_GUARANTEE_E2EE: char = 'c'; // int (bool?)
-/// for msgs: decrypted with validation errors or without mutual set, if neither 'c' nor 'e' are preset, the messages is only transport encrypted
-pub const DC_PARAM_ERRONEOUS_E2EE: char = 'e'; // int
-/// for msgs: force unencrypted message, either DC_FP_ADD_AUTOCRYPT_HEADER (1), DC_FP_NO_AUTOCRYPT_HEADER (2) or 0
-pub const DC_PARAM_FORCE_PLAINTEXT: char = 'u'; // int (bool?)
-/// for msgs: an incoming message which requests a MDN (aka read receipt)
-pub const DC_PARAM_WANTS_MDN: char = 'r'; // int (bool?)
-/// for msgs
-pub const DC_PARAM_FORWARDED: char = 'a'; // int (bool?)
-/// for msgs
-pub const DC_PARAM_CMD: char = 'S'; // int
-/// for msgs
-pub const DC_PARAM_CMD_ARG: char = 'E'; // string
-/// for msgs
-pub const DC_PARAM_CMD_ARG2: char = 'F'; // string
-/// for msgs
-pub const DC_PARAM_CMD_ARG3: char = 'G'; // string
-/// for msgs
-pub const DC_PARAM_CMD_ARG4: char = 'H'; // string
-/// for msgs
-pub const DC_PARAM_ERROR: char = 'L'; // string
-/// for msgs in PREPARING: space-separated list of message IDs of forwarded copies
-pub const DC_PARAM_PREP_FORWARDS: char = 'P'; // string
-/// for msgs
-pub const DC_PARAM_SET_LATITUDE: char = 'l'; // float
-/// for msgs
-pub const DC_PARAM_SET_LONGITUDE: char = 'n'; // float
+use num_traits::ToPrimitive;
 
-/// for jobs
-pub const DC_PARAM_SERVER_FOLDER: char = 'Z'; // string
-/// for jobs
-pub const DC_PARAM_SERVER_UID: char = 'z'; // int
-/// for jobs
-pub const DC_PARAM_ALSO_MOVE: char = 'M'; // int (bool?)
-/// for jobs: space-separated list of message recipients
-pub const DC_PARAM_RECIPIENTS: char = 'R'; // stringap
-/// for groups
-pub const DC_PARAM_UNPROMOTED: char = 'U'; // int (bool?)
-/// for groups and contacts
-pub const DC_PARAM_PROFILE_IMAGE: char = 'i'; // string (bytes?)
-/// for chats
-pub const DC_PARAM_SELFTALK: char = 'K';
+use crate::error::{self, Result};
 
-// missing: 's', 'x', 'g'
-
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, FromPrimitive, ToPrimitive)]
+#[repr(u8)]
+pub enum Param {
+    File = 'f' as u8,
+    Width = 'w' as u8,
+    Height = 'h' as u8,
+    Duration = 'd' as u8,
+    MimeType = 'm' as u8,
+    GuranteeE2ee = 'c' as u8,
+    ErroneousE2ee = 'e' as u8,
+    ForcePlaintext = 'u' as u8,
+    WantsMdn = 'r' as u8,
+    Forwarded = 'a' as u8,
+    Cmd = 'S' as u8,
+    Arg = 'E' as u8,
+    Arg2 = 'F' as u8,
+    Arg3 = 'G' as u8,
+    Arg4 = 'H' as u8,
+    Error = 'L' as u8,
+    PrepForwards = 'P' as u8,
+    SetLatitude = 'l' as u8,
+    SetLongitude = 'n' as u8,
+    ServerFolder = 'Z' as u8,
+    ServerUid = 'z' as u8,
+    AlsoMove = 'M' as u8,
+    Recipients = 'R' as u8,
+    Unpromoted = 'U' as u8,
+    ProfileImage = 'i' as u8,
+    Selftalk = 'K' as u8,
+    Auth = 's' as u8,
+    Grpid = 'x' as u8,
+    UrlEncoded = 'g' as u8,
+}
 // values for DC_PARAM_FORCE_PLAINTEXT
 pub const DC_FP_ADD_AUTOCRYPT_HEADER: u8 = 1;
 pub const DC_FP_NO_AUTOCRYPT_HEADER: u8 = 2;
@@ -65,312 +46,109 @@ pub const DC_FP_NO_AUTOCRYPT_HEADER: u8 = 2;
 /// An object for handling key=value parameter lists; for the key, currently only
 /// a single character is allowed.
 ///
-/// The object is used eg. by Chat or dc_msg_t, for readable parameter names,
-/// these classes define some DC_PARAM_* constantats.
+/// The object is used eg. by Chat or dc_msg_t.
 ///
 /// Only for library-internal use.
-#[derive(Copy, Clone)]
-#[repr(C)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct dc_param_t {
-    pub packed: *mut libc::c_char,
+    inner: BTreeMap<Param, String>,
 }
 
-// values for DC_PARAM_FORCE_PLAINTEXT
-/* user functions */
-pub unsafe fn dc_param_exists(param: *mut dc_param_t, key: libc::c_int) -> libc::c_int {
-    let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
-    if param.is_null() || key == 0i32 {
-        return 0i32;
-    }
-    return if !find_param((*param).packed, key, &mut p2).is_null() {
-        1i32
-    } else {
-        0i32
-    };
-}
-
-unsafe extern "C" fn find_param(
-    haystack: *mut libc::c_char,
-    key: libc::c_int,
-    ret_p2: *mut *mut libc::c_char,
-) -> *mut libc::c_char {
-    let mut p1: *mut libc::c_char;
-    let mut p2: *mut libc::c_char;
-    p1 = haystack;
-    loop {
-        if p1.is_null() || *p1 as libc::c_int == 0i32 {
-            return 0 as *mut libc::c_char;
-        } else {
-            if *p1 as libc::c_int == key && *p1.offset(1isize) as libc::c_int == '=' as i32 {
-                break;
-            }
-            p1 = strchr(p1, '\n' as i32);
-            if !p1.is_null() {
-                p1 = p1.offset(1isize)
-            }
+impl fmt::Display for dc_param_t {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (key, value) in self.inner.entries() {
+            write!(f, "{}={}\n", key, value)?;
         }
+        Ok(())
     }
-    p2 = strchr(p1, '\n' as i32);
-    if p2.is_null() {
-        p2 = &mut *p1.offset(strlen(p1) as isize) as *mut libc::c_char
-    }
-    *ret_p2 = p2;
-
-    p1
 }
 
-/* the value may be an empty string, "def" is returned only if the value unset.  The result must be free()'d in any case. */
-pub unsafe fn dc_param_get(
-    param: *const dc_param_t,
-    key: libc::c_int,
-    def: *const libc::c_char,
-) -> *mut libc::c_char {
-    let mut p1: *mut libc::c_char;
-    let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
-    let bak: libc::c_char;
-    let ret: *mut libc::c_char;
-    if param.is_null() || key == 0i32 {
-        return if !def.is_null() {
-            dc_strdup(def)
-        } else {
-            0 as *mut libc::c_char
-        };
-    }
-    p1 = find_param((*param).packed, key, &mut p2);
-    if p1.is_null() {
-        return if !def.is_null() {
-            dc_strdup(def)
-        } else {
-            0 as *mut libc::c_char
-        };
-    }
-    p1 = p1.offset(2isize);
-    bak = *p2;
-    *p2 = 0i32 as libc::c_char;
-    ret = dc_strdup(p1);
-    dc_rtrim(ret);
-    *p2 = bak;
+impl str::FromStr for dc_param_t {
+    type Err = error::Error;
 
-    ret
-}
-
-pub unsafe fn dc_param_get_int(
-    param: *const dc_param_t,
-    key: libc::c_int,
-    def: int32_t,
-) -> int32_t {
-    if param.is_null() || key == 0i32 {
-        return def;
-    }
-    let s = dc_param_get(param, key, 0 as *const libc::c_char);
-    if s.is_null() {
-        return def;
-    }
-    let ret = as_str(s).parse().unwrap_or_default();
-    free(s as *mut libc::c_void);
-
-    ret
-}
-
-/**
- * Get value of a parameter.
- *
- * @memberof dc_param_t
- * @param param Parameter object to query.
- * @param key Key of the parameter to get, one of the DC_PARAM_* constants.
- * @param def Value to return if the parameter is not set.
- * @return The stored value or the default value.
- */
-pub unsafe fn dc_param_get_float(
-    param: *const dc_param_t,
-    key: libc::c_int,
-    def: libc::c_double,
-) -> libc::c_double {
-    if param.is_null() || key == 0 {
-        return def;
-    }
-
-    let str = dc_param_get(param, key, std::ptr::null());
-    if str.is_null() {
-        return def;
-    }
-
-    let ret = dc_atof(str) as libc::c_double;
-    free(str as *mut libc::c_void);
-
-    ret
-}
-
-pub unsafe fn dc_param_set(
-    mut param: *mut dc_param_t,
-    key: libc::c_int,
-    value: *const libc::c_char,
-) {
-    let mut old1: *mut libc::c_char;
-    let mut old2: *mut libc::c_char;
-    let new1: *mut libc::c_char;
-    if param.is_null() || key == 0i32 {
-        return;
-    }
-    old1 = (*param).packed;
-    old2 = 0 as *mut libc::c_char;
-    if !old1.is_null() {
-        let p1: *mut libc::c_char;
-        let mut p2: *mut libc::c_char = 0 as *mut libc::c_char;
-        p1 = find_param(old1, key, &mut p2);
-        if !p1.is_null() {
-            *p1 = 0i32 as libc::c_char;
-            old2 = p2
-        } else if value.is_null() {
-            return;
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let mut inner = BTreeMap::new();
+        for pair in s.trim().lines() {
+            let key = Param::from_u8(pair[0])?;
+            ensure_eq!(pair[1], '=', "invalid separator");
+            let value = pair[2..];
+            inner.insert(key, value.to_string());
         }
+
+        Ok(dc_param_t { inner })
     }
-    dc_rtrim(old1);
-    dc_ltrim(old2);
-    if !old1.is_null() && *old1.offset(0isize) as libc::c_int == 0i32 {
-        old1 = 0 as *mut libc::c_char
-    }
-    if !old2.is_null() && *old2.offset(0isize) as libc::c_int == 0i32 {
-        old2 = 0 as *mut libc::c_char
-    }
-    if !value.is_null() {
-        new1 = dc_mprintf(
-            b"%s%s%c=%s%s%s\x00" as *const u8 as *const libc::c_char,
-            if !old1.is_null() {
-                old1
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-            if !old1.is_null() {
-                b"\n\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-            key,
-            value,
-            if !old2.is_null() {
-                b"\n\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-            if !old2.is_null() {
-                old2
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-        )
-    } else {
-        new1 = dc_mprintf(
-            b"%s%s%s\x00" as *const u8 as *const libc::c_char,
-            if !old1.is_null() {
-                old1
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-            if !old1.is_null() && !old2.is_null() {
-                b"\n\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-            if !old2.is_null() {
-                old2
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-        )
-    }
-    free((*param).packed as *mut libc::c_void);
-    (*param).packed = new1;
 }
 
-pub unsafe fn dc_param_set_int(param: *mut dc_param_t, key: libc::c_int, value: int32_t) {
-    if param.is_null() || key == 0i32 {
-        return;
+impl dc_param_t {
+    pub fn get(&self, key: Param) -> Option<&str> {
+        self.inner.get(&key).map(|s| s.as_str())
     }
-    let value_str: *mut libc::c_char = dc_mprintf(
-        b"%i\x00" as *const u8 as *const libc::c_char,
-        value as libc::c_int,
-    );
-    if value_str.is_null() {
-        return;
+
+    pub fn exists(&self, key: Param) -> bool {
+        self.inner.contains_key(&key)
     }
-    dc_param_set(param, key, value_str);
-    free(value_str as *mut libc::c_void);
+
+    pub fn set(&self, key: Param, value: impl AsRef<str>) {
+        self.inner.insert(key, value.as_ref().to_string());
+    }
+
+    pub fn remove(&mut self, key: Param) {
+        self.inner.remove(key);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
 }
 
-/* library-private */
-pub unsafe fn dc_param_new() -> *mut dc_param_t {
-    let mut param: *mut dc_param_t;
-    param = calloc(1, ::std::mem::size_of::<dc_param_t>()) as *mut dc_param_t;
-    assert!(!param.is_null());
-    (*param).packed = calloc(1, 1) as *mut libc::c_char;
-
-    param
+pub fn dc_param_exists(param: &dc_param_t, key: Param) -> bool {
+    param.exists(key)
 }
 
-pub unsafe fn dc_param_empty(param: *mut dc_param_t) {
-    if param.is_null() {
-        return;
-    }
-    *(*param).packed.offset(0isize) = 0i32 as libc::c_char;
+pub fn dc_param_get(param: &dc_param_t, key: Param) -> Option<&str> {
+    param.get(key)
 }
 
-pub unsafe fn dc_param_unref(param: *mut dc_param_t) {
-    if param.is_null() {
-        return;
-    }
-    dc_param_empty(param);
-    free((*param).packed as *mut libc::c_void);
-    free(param as *mut libc::c_void);
+pub fn dc_param_get_int(param: &dc_param_t, key: Param) -> Option<i32> {
+    param.get(key).map(|s| s.parse().ok())
 }
 
-pub unsafe fn dc_param_set_packed(mut param: *mut dc_param_t, packed: *const libc::c_char) {
-    if param.is_null() {
-        return;
-    }
-    dc_param_empty(param);
-    if !packed.is_null() {
-        free((*param).packed as *mut libc::c_void);
-        (*param).packed = dc_strdup(packed)
-    };
+pub fn dc_param_get_float(param: &dc_param_t, key: Param) -> Option<f32> {
+    param.get(key).map(|s| s.parse().ok())
 }
 
-pub unsafe fn dc_param_set_urlencoded(mut param: *mut dc_param_t, urlencoded: *const libc::c_char) {
-    if param.is_null() {
-        return;
-    }
-    dc_param_empty(param);
-    if !urlencoded.is_null() {
-        free((*param).packed as *mut libc::c_void);
-        (*param).packed = dc_strdup(urlencoded);
-        dc_str_replace(
-            &mut (*param).packed,
-            b"&\x00" as *const u8 as *const libc::c_char,
-            b"\n\x00" as *const u8 as *const libc::c_char,
-        );
-    };
+pub fn dc_param_set(param: &mut dc_param_t, key: Param, value: impl AsRef<str>) {
+    param.set(key, value);
 }
 
-/**
- * Set parameter to a float.
- *
- * @memberof dc_param_t
- * @param param Parameter object to modify.
- * @param key Key of the parameter to modify, one of the DC_PARAM_* constants.
- * @param value Value to store for key.
- * @return None.
- */
-pub unsafe fn dc_param_set_float(param: *mut dc_param_t, key: libc::c_int, value: libc::c_double) {
-    if param.is_null() || key == 0 {
-        return;
-    }
+pub fn dc_param_remove(param: &mut dc_param_t, key: Param) {
+    param.remove(key);
+}
 
-    let value_str = dc_ftoa(value);
-    if value_str.is_null() {
-        return;
-    }
-    dc_param_set(param, key, value_str);
-    free(value_str as *mut libc::c_void);
+pub fn dc_param_set_int(param: &mut dc_param_t, key: Param, value: i32) {
+    param.set(key, format!("{}", value));
+}
+
+pub fn dc_param_set_float(param: &mut dc_param_t, key: Param, value: f32) {
+    param.set(key, format!("{}", value));
+}
+
+pub fn dc_param_new() -> dc_param_t {
+    Default::default()
+}
+
+pub fn dc_param_set_packed(param: &mut dc_param_t, packed: impl AsRef<str>) -> Result<()> {
+    *param = packed.as_ref().parse()?;
+    Ok(())
+}
+
+pub fn dc_param_set_urlencoded(param: &mut dc_param_t, urlencoded: impl AsRef<str>) -> Result<()> {
+    dc_param_set_packed(urlencoded.replace('&', '\n'))?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -380,60 +158,38 @@ mod tests {
 
     #[test]
     fn test_dc_param() {
-        unsafe {
-            let p1: *mut dc_param_t = dc_param_new();
-            dc_param_set_packed(
-                p1,
-                b"\r\n\r\na=1\nb=2\n\nc = 3 \x00" as *const u8 as *const libc::c_char,
-            );
+        let mut p1 = dc_param_new();
+        dc_param_set_packed(&mut p1, "\r\n\r\na=1\nf=2\n\nc = 3 ");
+        assert_eq!(p1.len(), 3);
 
-            assert_eq!(dc_param_get_int(p1, 'a' as i32, 0), 1);
-            assert_eq!(dc_param_get_int(p1, 'b' as i32, 0), 2);
-            assert_eq!(dc_param_get_int(p1, 'c' as i32, 0), 0);
-            assert_eq!(dc_param_exists(p1, 'c' as i32), 0);
+        assert_eq!(dc_param_get_int(&p1, Param::Forwarded), 1);
+        assert_eq!(dc_param_get_int(&p1, Param::File), 2);
+        assert_eq!(dc_param_get_int(&p1, Param::Height), None);
+        assert!(dc_param_exists(&p1, Param::Height));
 
-            dc_param_set_int(p1, 'd' as i32, 4i32);
+        dc_param_set_int(&mut p1, Param::Duration, 4);
 
-            assert_eq!(dc_param_get_int(p1, 'd' as i32, 0), 4);
+        assert_eq!(dc_param_get_int(&p1, Param::Duration), 4);
 
-            dc_param_empty(p1);
-            dc_param_set(
-                p1,
-                'a' as i32,
-                b"foo\x00" as *const u8 as *const libc::c_char,
-            );
-            dc_param_set_int(p1, 'b' as i32, 2i32);
-            dc_param_set(p1, 'c' as i32, 0 as *const libc::c_char);
-            dc_param_set_int(p1, 'd' as i32, 4i32);
+        let mut p1 = dc_param_new();
+        dc_param_set(&mut p1, Param::Forwarded, "foo");
+        dc_param_set_int(&mut p1, Param::File, 2);
+        dc_param_remove(&mut p1, Param::GuranteeE2ee);
+        dc_param_set_int(&mut p1, Param::Duration, 4);
 
-            assert_eq!(
-                CStr::from_ptr((*p1).packed as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "a=foo\nb=2\nd=4"
-            );
+        assert_eq!(p1.to_string(), "a=foo\nf=2\nd=4");
 
-            dc_param_set(p1, 'b' as i32, 0 as *const libc::c_char);
+        dc_param_remove(&mut p1, Param::File);
 
-            assert_eq!(
-                CStr::from_ptr((*p1).packed as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "a=foo\nd=4",
-            );
+        assert_eq!(p1.to_string(), "a=foo\nd=4",);
+        assert_eq!(p1.len(), 2);
 
-            dc_param_set(p1, 'a' as i32, 0 as *const libc::c_char);
-            dc_param_set(p1, 'd' as i32, 0 as *const libc::c_char);
+        dc_param_remove(&mut p1, Param::Forwarded);
+        dc_param_remove(&mut p1, Param::Duration);
 
-            assert_eq!(
-                CStr::from_ptr((*p1).packed as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "",
-            );
+        assert_eq!(p1.to_string(), "",);
 
-            dc_param_unref(p1);
-        }
+        assert!(p1.is_empty());
+        assert!(p1.len(), 0)
     }
-
 }

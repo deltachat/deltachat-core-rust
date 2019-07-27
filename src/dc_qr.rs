@@ -1,3 +1,5 @@
+use percent_encoding::percent_decode;
+
 use crate::context::Context;
 use crate::dc_chat::*;
 use crate::dc_contact::*;
@@ -54,25 +56,15 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
             if !fragment.is_null() {
                 *fragment = 0i32 as libc::c_char;
                 fragment = fragment.offset(1isize);
-                let param: *mut dc_param_t = dc_param_new();
-                dc_param_set_urlencoded(param, fragment);
-                addr = dc_param_get(param, DC_PARAM_FORWARDED as i32, 0 as *const libc::c_char);
-                if !addr.is_null() {
-                    let mut urlencoded: *mut libc::c_char = dc_param_get(
-                        param,
-                        DC_PARAM_SET_LONGITUDE as i32,
-                        0 as *const libc::c_char,
-                    );
-                    if !urlencoded.is_null() {
-                        name = dc_urldecode(urlencoded);
+                let mut param = dc_param_new();
+                dc_param_set_urlencoded(&mut param, fragment);
+                if let Some(addr) = dc_param_get(&param, Param::Forwarded) {
+                    if let Some(ref urlencoded) = dc_param_get(&param, Param::SetLongitude) {
+                        let name_r = percent_decode(urlencoded).to_string();
+                        name = to_cstring(name_r);
                         dc_normalize_name(name);
-                        free(urlencoded as *mut libc::c_void);
                     }
-                    invitenumber = dc_param_get(
-                        param,
-                        DC_PARAM_PROFILE_IMAGE as i32,
-                        0 as *const libc::c_char,
-                    );
+                    invitenumber = dc_param_get(&param, Param::ProfileImage);
                     auth = dc_param_get(param, 's' as i32, 0 as *const libc::c_char);
                     grpid = dc_param_get(param, 'x' as i32, 0 as *const libc::c_char);
                     if !grpid.is_null() {
@@ -83,7 +75,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                         }
                     }
                 }
-                dc_param_unref(param);
             }
             fingerprint = dc_normalize_fingerprint_c(payload);
             current_block = 5023038348526654800;

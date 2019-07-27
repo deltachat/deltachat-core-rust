@@ -1146,8 +1146,6 @@ fn maybe_add_from_param(
         .unwrap_or_else(|err| {
             warn!(context, 0, "sql: failed to add_from_param: {}", err);
         });
-
-    unsafe { dc_param_unref(param) };
 }
 
 #[cfg(test)]
