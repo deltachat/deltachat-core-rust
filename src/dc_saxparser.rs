@@ -492,19 +492,19 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, type_0: libc::c_char) -> *mut lib
             && (type_0 as libc::c_int == '&' as i32 || type_0 as libc::c_int == ' ' as i32)
         {
             b = 0;
-            while !s_ent[b as usize].is_null()
+            while !S_ENT[b as usize].is_null()
                 && 0 != strncmp(
                     s.offset(1isize),
-                    s_ent[b as usize],
-                    strlen(s_ent[b as usize]),
+                    S_ENT[b as usize],
+                    strlen(S_ENT[b as usize]),
                 )
             {
                 b += 2;
             }
             let fresh5 = b;
             b = b + 1;
-            if !s_ent[fresh5 as usize].is_null() {
-                c = strlen(s_ent[b as usize]) as isize;
+            if !S_ENT[fresh5 as usize].is_null() {
+                c = strlen(S_ENT[b as usize]) as isize;
                 e = strchr(s, ';' as i32);
                 if c - 1 > e.wrapping_offset_from(s) as isize {
                     d = s.wrapping_offset_from(r) as isize;
@@ -532,7 +532,7 @@ unsafe fn xml_decode(mut s: *mut libc::c_char, type_0: libc::c_char) -> *mut lib
                     e.offset(1isize) as *const libc::c_void,
                     strlen(e),
                 );
-                strncpy(s, s_ent[b as usize], c as usize);
+                strncpy(s, S_ENT[b as usize], c as usize);
             } else {
                 s = s.offset(1isize)
             }
@@ -566,7 +566,7 @@ NB: SAX = Simple API for XML */
 /* ******************************************************************************
  * Decoding text
  ******************************************************************************/
-static mut s_ent: [*const libc::c_char; 508] = [
+static mut S_ENT: [*const libc::c_char; 508] = [
     b"lt;\x00" as *const u8 as *const libc::c_char,
     b"<\x00" as *const u8 as *const libc::c_char,
     b"gt;\x00" as *const u8 as *const libc::c_char,

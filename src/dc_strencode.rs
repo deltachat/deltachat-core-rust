@@ -64,11 +64,11 @@ pub unsafe fn dc_urlencode(to_encode: *const libc::c_char) -> *mut libc::c_char 
  * URL encoding and decoding, RFC 3986
  ******************************************************************************/
 unsafe fn int_2_uppercase_hex(code: libc::c_char) -> libc::c_char {
-    static mut hex: [libc::c_char; 17] = [
+    static mut HEX: [libc::c_char; 17] = [
         48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 65, 66, 67, 68, 69, 70, 0,
     ];
 
-    hex[(code as libc::c_int & 15i32) as usize]
+    HEX[(code as libc::c_int & 15i32) as usize]
 }
 
 pub unsafe fn dc_urldecode(to_decode: *const libc::c_char) -> *mut libc::c_char {
@@ -378,7 +378,7 @@ pub unsafe fn dc_encode_modified_utf7(
                 if 0 != bitstogo {
                     let fresh8 = dst;
                     dst = dst.offset(1);
-                    *fresh8 = base64chars
+                    *fresh8 = BASE64CHARS
                         [(bitbuf << (6i32 as libc::c_uint).wrapping_sub(bitstogo) & 0x3f) as usize]
                 }
                 let fresh9 = dst;
@@ -449,7 +449,7 @@ pub unsafe fn dc_encode_modified_utf7(
                     bitstogo = bitstogo.wrapping_sub(6i32 as libc::c_uint);
                     let fresh14 = dst;
                     dst = dst.offset(1);
-                    *fresh14 = base64chars[(if 0 != bitstogo {
+                    *fresh14 = BASE64CHARS[(if 0 != bitstogo {
                         bitbuf >> bitstogo
                     } else {
                         bitbuf
@@ -465,7 +465,7 @@ pub unsafe fn dc_encode_modified_utf7(
         if 0 != bitstogo {
             let fresh15 = dst;
             dst = dst.offset(1);
-            *fresh15 = base64chars
+            *fresh15 = BASE64CHARS
                 [(bitbuf << (6i32 as libc::c_uint).wrapping_sub(bitstogo) & 0x3f) as usize]
         }
         let fresh16 = dst;
@@ -482,7 +482,7 @@ pub unsafe fn dc_encode_modified_utf7(
  ******************************************************************************/
 
 // UTF7 modified base64 alphabet
-static mut base64chars: [libc::c_char; 65] = [
+static mut BASE64CHARS: [libc::c_char; 65] = [
     65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88,
     89, 90, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114,
     115, 116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 43, 44, 0,
@@ -517,7 +517,7 @@ pub unsafe fn dc_decode_modified_utf7(
     );
     i = 0i32 as libc::c_uint;
     while (i as libc::c_ulong) < ::std::mem::size_of::<[libc::c_char; 65]>() as libc::c_ulong {
-        base64[base64chars[i as usize] as libc::c_uint as usize] = i as libc::c_uchar;
+        base64[BASE64CHARS[i as usize] as libc::c_uint as usize] = i as libc::c_uchar;
         i = i.wrapping_add(1)
     }
     while *src as libc::c_int != '\u{0}' as i32 {

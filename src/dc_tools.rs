@@ -568,7 +568,7 @@ pub unsafe fn dc_str_to_color(str: *const libc::c_char) -> libc::c_int {
     - being noticeable on a typical map
     - harmonize together while being different enough
     (therefore, we cannot just use random rgb colors :) */
-    static mut colors: [uint32_t; 16] = [
+    static mut COLORS: [uint32_t; 16] = [
         0xe56555i32 as uint32_t,
         0xf28c48i32 as uint32_t,
         0x8e85eei32 as uint32_t,
@@ -600,7 +600,7 @@ pub unsafe fn dc_str_to_color(str: *const libc::c_char) -> libc::c_int {
     ) as libc::c_int;
     free(str_lower as *mut libc::c_void);
 
-    colors[color_index as usize] as libc::c_int
+    COLORS[color_index as usize] as libc::c_int
 }
 
 /* clist tools */
@@ -754,25 +754,25 @@ unsafe fn encode_66bits_as_base64(v1: uint32_t, v2: uint32_t, fill: uint32_t) ->
     let ret: *mut libc::c_char = malloc(12) as *mut libc::c_char;
     assert!(!ret.is_null());
 
-    static mut chars: [libc::c_char; 65] = [
+    static mut CHARS: [libc::c_char; 65] = [
         65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87,
         88, 89, 90, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112,
         113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
         45, 95, 0,
     ];
-    *ret.offset(0isize) = chars[(v1 >> 26i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(1isize) = chars[(v1 >> 20i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(2isize) = chars[(v1 >> 14i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(3isize) = chars[(v1 >> 8i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(4isize) = chars[(v1 >> 2i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(5isize) = chars
+    *ret.offset(0isize) = CHARS[(v1 >> 26i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(1isize) = CHARS[(v1 >> 20i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(2isize) = CHARS[(v1 >> 14i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(3isize) = CHARS[(v1 >> 8i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(4isize) = CHARS[(v1 >> 2i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(5isize) = CHARS
         [(v1 << 4i32 & 0x30i32 as libc::c_uint | v2 >> 28i32 & 0xfi32 as libc::c_uint) as usize];
-    *ret.offset(6isize) = chars[(v2 >> 22i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(7isize) = chars[(v2 >> 16i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(8isize) = chars[(v2 >> 10i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(9isize) = chars[(v2 >> 4i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(6isize) = CHARS[(v2 >> 22i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(7isize) = CHARS[(v2 >> 16i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(8isize) = CHARS[(v2 >> 10i32 & 0x3fi32 as libc::c_uint) as usize];
+    *ret.offset(9isize) = CHARS[(v2 >> 4i32 & 0x3fi32 as libc::c_uint) as usize];
     *ret.offset(10isize) =
-        chars[(v2 << 2i32 & 0x3ci32 as libc::c_uint | fill & 0x3i32 as libc::c_uint) as usize];
+        CHARS[(v2 << 2i32 & 0x3ci32 as libc::c_uint | fill & 0x3i32 as libc::c_uint) as usize];
     *ret.offset(11isize) = 0i32 as libc::c_char;
 
     ret
