@@ -4,12 +4,12 @@ use std::fs;
 use std::time::SystemTime;
 
 use chrono::{Local, TimeZone};
-use failure::format_err;
 use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
 use crate::dc_array::*;
+use crate::error::Error;
 use crate::types::*;
 use crate::x::*;
 
@@ -1567,7 +1567,7 @@ pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
     as_str_safe(s).unwrap_or_else(|err| panic!("{}", err))
 }
 
-pub fn as_str_safe<'a>(s: *const libc::c_char) -> Result<&'a str, failure::Error> {
+pub fn as_str_safe<'a>(s: *const libc::c_char) -> Result<&'a str, Error> {
     assert!(!s.is_null(), "cannot be used on null pointers");
 
     let cstr = unsafe { CStr::from_ptr(s) };
