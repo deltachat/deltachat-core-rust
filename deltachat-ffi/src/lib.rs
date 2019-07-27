@@ -281,7 +281,7 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
     flags: libc::c_int,
     query_str: *mut libc::c_char,
     query_id: u32,
-) -> *mut dc_chatlist::dc_chatlist_t<'a> {
+) -> *mut dc_chatlist_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
 
@@ -291,7 +291,7 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
         Some(dc_tools::as_str(query_str))
     };
     let qi = if query_id == 0 { None } else { Some(query_id) };
-    match dc_chatlist::dc_get_chatlist(context, flags as usize, qs, qi) {
+    match dc_chatlist::Chatlist::try_load(context, flags as usize, qs, qi) {
         Ok(list) => Box::into_raw(Box::new(list)),
         Err(_) => std::ptr::null_mut(),
     }
@@ -1084,62 +1084,60 @@ pub unsafe fn dc_array_is_independent(
 // dc_chatlist_t
 
 #[no_mangle]
-pub type dc_chatlist_t<'a> = dc_chatlist::dc_chatlist_t<'a>;
+pub type dc_chatlist_t<'a> = dc_chatlist::Chatlist<'a>;
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist::dc_chatlist_t) {
+pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist_t) {
     assert!(!chatlist.is_null());
 
     let _list = &*chatlist;
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_get_cnt(
-    chatlist: *mut dc_chatlist::dc_chatlist_t,
-) -> libc::size_t {
+pub unsafe extern "C" fn dc_chatlist_get_cnt(chatlist: *mut dc_chatlist_t) -> libc::size_t {
     assert!(!chatlist.is_null());
 
     let list = &*chatlist;
-    dc_chatlist::dc_chatlist_get_cnt(list) as libc::size_t
+    list.len() as libc::size_t
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_chat_id(
-    chatlist: *mut dc_chatlist::dc_chatlist_t,
+    chatlist: *mut dc_chatlist_t,
     index: libc::size_t,
 ) -> u32 {
     assert!(!chatlist.is_null());
 
     let list = &*chatlist;
-    dc_chatlist::dc_chatlist_get_chat_id(list, index as usize)
+    list.get_chat_id(index as usize)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_msg_id(
-    chatlist: *mut dc_chatlist::dc_chatlist_t,
+    chatlist: *mut dc_chatlist_t,
     index: libc::size_t,
 ) -> u32 {
     assert!(!chatlist.is_null());
 
     let list = &*chatlist;
-    dc_chatlist::dc_chatlist_get_msg_id(list, index as usize)
+    list.get_msg_id(index as usize)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_summary<'a>(
-    chatlist: *mut dc_chatlist::dc_chatlist_t<'a>,
+    chatlist: *mut dc_chatlist_t<'a>,
     index: libc::size_t,
     chat: *mut dc_chat_t<'a>,
 ) -> *mut dc_lot::dc_lot_t {
     assert!(!chatlist.is_null());
 
     let list = &*chatlist;
-    dc_chatlist::dc_chatlist_get_summary(list, index as usize, chat)
+    list.get_summary(index as usize, chat)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_context(
-    chatlist: *mut dc_chatlist::dc_chatlist_t,
+    chatlist: *mut dc_chatlist_t,
 ) -> *const dc_context_t {
     assert!(!chatlist.is_null());
     let list = &*chatlist;

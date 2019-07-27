@@ -630,10 +630,10 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };
-            let chatlist = dc_get_chatlist(context, listflags, Some(arg1), None)?;
+            let chatlist = Chatlist::try_load(context, listflags, Some(arg1), None)?;
 
             let mut i: usize;
-            let cnt = dc_chatlist_get_cnt(&chatlist);
+            let cnt = chatlist.len();
             if cnt > 0 {
                 info!(
                     context, 0,
@@ -643,7 +643,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 i = cnt - 1;
 
                 while i > 0 {
-                    let chat = dc_get_chat(context, dc_chatlist_get_chat_id(&chatlist, i));
+                    let chat = dc_get_chat(context, chatlist.get_chat_id(i));
                     let temp_subtitle = dc_chat_get_subtitle(chat);
                     let temp_name = dc_chat_get_name(chat);
                     info!(
@@ -658,7 +658,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     );
                     free(temp_subtitle as *mut libc::c_void);
                     free(temp_name as *mut libc::c_void);
-                    let lot = dc_chatlist_get_summary(&chatlist, i, chat);
+                    let lot = chatlist.get_summary(i, chat);
                     let statestr = if 0 != dc_chat_get_archived(chat) {
                         " [Archived]"
                     } else {
@@ -1134,8 +1134,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             res += as_str(encrinfo);
             free(encrinfo as *mut libc::c_void);
 
-            let chatlist = dc_get_chatlist(context, 0, None, Some(contact_id))?;
-            let chatlist_cnt = dc_chatlist_get_cnt(&chatlist);
+            let chatlist = Chatlist::try_load(context, 0, None, Some(contact_id))?;
+            let chatlist_cnt = chatlist.len();
             if chatlist_cnt > 0 {
                 res += &format!(
                     "\n\n{} chats shared with Contact#{}: ",
@@ -1145,7 +1145,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     if 0 != i {
                         res += ", ";
                     }
-                    let chat = dc_get_chat(context, dc_chatlist_get_chat_id(&chatlist, i));
+                    let chat = dc_get_chat(context, chatlist.get_chat_id(i));
                     res += &format!("{}#{}", chat_prefix(chat), dc_chat_get_id(chat));
                     dc_chat_unref(chat);
                 }

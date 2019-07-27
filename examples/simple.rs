@@ -101,10 +101,10 @@ fn main() {
         dc_send_text_msg(&ctx, chat_id, msg_text.as_ptr());
 
         println!("fetching chats..");
-        let chats = dc_get_chatlist(&ctx, 0, None, None).unwrap();
+        let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();
 
-        for i in 0..dc_chatlist_get_cnt(&chats) {
-            let summary = dc_chatlist_get_summary(&chats, 0, std::ptr::null_mut());
+        for i in 0..chats.len() {
+            let summary = chats.get_summary(0, std::ptr::null_mut());
             let text1 = dc_lot_get_text1(summary);
             let text2 = dc_lot_get_text2(summary);
 
