@@ -138,14 +138,6 @@ impl dc_array_t {
     }
 }
 
-/**
- * @class dc_array_t
- *
- * An object containing a simple array.
- * This object is used in several places where functions need to return an array.
- * The items of the array are typically IDs.
- * To free an array object, use dc_array_unref().
- */
 pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
     if array.is_null() {
         return;
