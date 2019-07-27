@@ -291,7 +291,7 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
         Some(dc_tools::as_str(query_str))
     };
     let qi = if query_id == 0 { None } else { Some(query_id) };
-    match dc_chatlist::Chatlist::try_load(context, flags as usize, qs, qi) {
+    match chatlist::Chatlist::try_load(context, flags as usize, qs, qi) {
         Ok(list) => Box::into_raw(Box::new(list)),
         Err(_) => std::ptr::null_mut(),
     }
@@ -1084,7 +1084,7 @@ pub unsafe fn dc_array_is_independent(
 // dc_chatlist_t
 
 #[no_mangle]
-pub type dc_chatlist_t<'a> = dc_chatlist::Chatlist<'a>;
+pub type dc_chatlist_t<'a> = chatlist::Chatlist<'a>;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist_t) {

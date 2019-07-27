@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
+use crate::chatlist::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_array::*;
-use crate::dc_chatlist::*;
 use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;

@@ -15,11 +15,11 @@ use crate::stock::StockMessage;
 ///
 /// For a **typical chat overview**, the idea is to get the list of all chats via dc_get_chatlist()
 /// without any listflags (see below) and to implement a "virtual list" or so
-/// (the count of chats is known by dc_chatlist_get_cnt()).
+/// (the count of chats is known by chatlist.len()).
 ///
 /// Only for the items that are in view (the list may have several hundreds chats),
-/// the UI should call dc_chatlist_get_summary() then.
-/// dc_chatlist_get_summary() provides all elements needed for painting the item.
+/// the UI should call chatlist.get_summary() then.
+/// chatlist.get_summary() provides all elements needed for painting the item.
 ///
 /// On a click of such an item, the UI should change to the chat view
 /// and get all messages from this view via dc_get_chat_msgs().
@@ -51,14 +51,14 @@ impl<'a> Chatlist<'a> {
     /// Clients should not try to re-sort the list as this would be an expensive action
     /// and would result in inconsistencies between clients.
     ///
-    /// To get information about each entry, use eg. dc_chatlist_get_summary().
+    /// To get information about each entry, use eg. chatlist.get_summary().
     ///
     /// By default, the function adds some special entries to the list.
-    /// These special entries can be identified by the ID returned by dc_chatlist_get_chat_id():
+    /// These special entries can be identified by the ID returned by chatlist.get_chat_id():
     /// - DC_CHAT_ID_DEADDROP (1) - this special chat is present if there are
     ///   messages from addresses that have no relationship to the configured account.
     ///   The last of these messages is represented by DC_CHAT_ID_DEADDROP and you can retrieve details
-    ///   about it with dc_chatlist_get_msg_id(). Typically, the UI asks the user "Do you want to chat with NAME?"
+    ///   about it with chatlist.get_msg_id(). Typically, the UI asks the user "Do you want to chat with NAME?"
     ///   and offers the options "Yes" (call dc_create_chat_by_msg_id()), "Never" (call dc_block_contact())
     ///   or "Not now".
     ///   The UI can also offer a "Close" button that calls dc_marknoticed_contact() then.

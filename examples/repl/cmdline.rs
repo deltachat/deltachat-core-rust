@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
+use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
-use deltachat::dc_chatlist::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_contact::*;
 use deltachat::dc_imex::*;

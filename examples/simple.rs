@@ -5,11 +5,11 @@ use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
 
+use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::Event;
 use deltachat::context::*;
 use deltachat::dc_chat::*;
-use deltachat::dc_chatlist::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_contact::*;
 use deltachat::dc_job::{

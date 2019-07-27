@@ -29,7 +29,7 @@ pub struct dc_lot_t {
  * An object containing a set of values.
  * The meaning of the values is defined by the function returning the object.
  * Lot objects are created
- * eg. by dc_chatlist_get_summary() or dc_msg_get_summary().
+ * eg. by chatlist.get_summary() or dc_msg_get_summary().
  *
  * NB: _Lot_ is used in the meaning _heap_ here.
  */
