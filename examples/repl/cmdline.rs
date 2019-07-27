@@ -957,7 +957,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             } else {
                 bail!("Garbage sending failed, as expected.");
             }
-
         }
         "sendempty" => {
             ensure!(!sel_chat.is_null(), "No chat selected.");

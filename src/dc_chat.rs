@@ -976,6 +976,11 @@ pub unsafe fn dc_send_text_msg(
         return 0;
     }
 
+    if let Err(err) = as_str_safe(text_to_send) {
+        warn!(context, 0, "{}", err);
+        return 0;
+    }
+
     let mut msg = dc_msg_new(context, 10);
     (*msg).text = dc_strdup(text_to_send);
     let ret = dc_send_msg(context, chat_id, msg);
