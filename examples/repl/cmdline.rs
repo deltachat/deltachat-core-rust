@@ -524,7 +524,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "get-setupcodebegin" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
-            let msg_id: u32 = arg1.parse().unwrap();
+            let msg_id: u32 = arg1.parse()?;
             let msg: *mut dc_msg_t = dc_get_msg(context, msg_id);
             if dc_msg_is_setupmessage(msg) {
                 let setupcodebegin = dc_msg_get_setupcodebegin(msg);
@@ -544,7 +544,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <setup-code> expected"
             );
-            if 0 == dc_continue_key_transfer(context, arg1.parse().unwrap(), arg2_c) {
+            if 0 == dc_continue_key_transfer(context, arg1.parse()?, arg2_c) {
                 bail!("Continue key transfer failed");
             }
         }
@@ -600,7 +600,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "reset" => {
             ensure!(!arg1.is_empty(), "Argument <bits> missing: 1=jobs, 2=peerstates, 4=private keys, 8=rest but server config");
-            let bits: i32 = arg1.parse().unwrap();
+            let bits: i32 = arg1.parse()?;
             ensure!(bits < 16, "<bits> must be lower than 16.");
             ensure!(0 != dc_reset_tables(context, bits), "Reset failed");
         }
@@ -716,7 +716,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 dc_chat_unref(sel_chat);
             }
             if !arg1.is_empty() {
-                let chat_id = arg1.parse().unwrap();
+                let chat_id = arg1.parse()?;
                 println!("Selecting chat #{}", chat_id);
                 sel_chat = dc_get_chat(context, chat_id);
                 *context.cmdline_sel_chat_id.write().unwrap() = chat_id;
@@ -760,7 +760,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "createchat" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            let contact_id: libc::c_int = arg1.parse().unwrap();
+            let contact_id: libc::c_int = arg1.parse()?;
             let chat_id: libc::c_int =
                 dc_create_chat_by_contact_id(context, contact_id as uint32_t) as libc::c_int;
             if chat_id != 0 {
@@ -771,7 +771,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "createchatbymsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
-            let msg_id_0: libc::c_int = arg1.parse().unwrap();
+            let msg_id_0: libc::c_int = arg1.parse()?;
             let chat_id_0: libc::c_int =
                 dc_create_chat_by_msg_id(context, msg_id_0 as uint32_t) as libc::c_int;
             if chat_id_0 != 0 {
@@ -808,7 +808,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
-            let contact_id_0: libc::c_int = arg1.parse().unwrap();
+            let contact_id_0: libc::c_int = arg1.parse()?;
             if 0 != dc_add_contact_to_chat(
                 context,
                 dc_chat_get_id(sel_chat),
@@ -822,7 +822,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "removemember" => {
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            let contact_id_1: libc::c_int = arg1.parse().unwrap();
+            let contact_id_1: libc::c_int = arg1.parse()?;
             if 0 != dc_remove_contact_from_chat(
                 context,
                 dc_chat_get_id(sel_chat),
@@ -913,7 +913,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No timeout given.");
 
-            let seconds = arg1.parse().unwrap();
+            let seconds = arg1.parse()?;
             dc_send_locations_to_chat(context, dc_chat_get_id(sel_chat), seconds);
             println!("Locations will be sent to Chat#{} for {} seconds. Use 'setlocation <lat> <lng>' to play around.", dc_chat_get_id(sel_chat), seconds);
         }
@@ -922,8 +922,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Latitude or longitude not given."
             );
-            let latitude = arg1.parse().unwrap();
-            let longitude = arg2.parse().unwrap();
+            let latitude = arg1.parse()?;
+            let longitude = arg2.parse()?;
 
             let continue_streaming = dc_set_location(context, latitude, longitude, 0.);
             if 0 != continue_streaming {
@@ -1030,17 +1030,17 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "archive" | "unarchive" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
-            let chat_id = arg1.parse().unwrap();
+            let chat_id = arg1.parse()?;
             dc_archive_chat(context, chat_id, if arg0 == "archive" { 1 } else { 0 });
         }
         "delchat" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
-            let chat_id = arg1.parse().unwrap();
+            let chat_id = arg1.parse()?;
             dc_delete_chat(context, chat_id);
         }
         "msginfo" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
-            let id = arg1.parse().unwrap();
+            let id = arg1.parse()?;
             let res = dc_get_msg_info(context, id);
             println!("{}", as_str(res));
         }
@@ -1059,20 +1059,20 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             );
 
             let mut msg_ids = [0; 1];
-            let chat_id = arg2.parse().unwrap();
-            msg_ids[0] = arg1.parse().unwrap();
+            let chat_id = arg2.parse()?;
+            msg_ids[0] = arg1.parse()?;
             dc_forward_msgs(context, msg_ids.as_mut_ptr(), 1, chat_id);
         }
         "markseen" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut msg_ids = [0; 1];
-            msg_ids[0] = arg1.parse().unwrap();
+            msg_ids[0] = arg1.parse()?;
             dc_markseen_msgs(context, msg_ids.as_mut_ptr(), 1);
         }
         "star" | "unstar" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut msg_ids = [0; 1];
-            msg_ids[0] = arg1.parse().unwrap();
+            msg_ids[0] = arg1.parse()?;
             dc_star_msgs(
                 context,
                 msg_ids.as_mut_ptr(),
@@ -1083,7 +1083,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "delmsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let mut ids = [0; 1];
-            ids[0] = arg1.parse().unwrap();
+            ids[0] = arg1.parse()?;
             dc_delete_msgs(context, ids.as_mut_ptr(), 1);
         }
         "listcontacts" | "contacts" | "listverified" => {
@@ -1124,7 +1124,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "contactinfo" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
-            let contact_id = arg1.parse().unwrap();
+            let contact_id = arg1.parse()?;
             let contact = dc_get_contact(context, contact_id);
             let name_n_addr = dc_contact_get_name_n_addr(contact);
 
@@ -1157,7 +1157,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "delcontact" => {
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
-            if !dc_delete_contact(context, arg1.parse().unwrap()) {
+            if !dc_delete_contact(context, arg1.parse()?) {
                 bail!("Failed to delete contact");
             }
         }
@@ -1175,7 +1175,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "event" => {
             ensure!(!arg1.is_empty(), "Argument <id> missing.");
-            let event = Event::from_u32(arg1.parse().unwrap()).unwrap();
+            let event = arg1.parse()?;
+            let event = Event::from_u32(event).ok_or(format_err!("Event::from_u32({})", event))?;
             let r = context.call_cb(event, 0 as uintptr_t, 0 as uintptr_t);
             println!(
                 "Sending event {:?}({}), received value {}.",
