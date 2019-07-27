@@ -529,7 +529,7 @@ unsafe fn stress_functions(context: &Context) {
     if 0 != dc_is_configured(context) {
         let setupcode: *mut libc::c_char;
         let setupfile: *mut libc::c_char;
-        setupcode = dc_create_setup_code(context);
+        setupcode = to_cstring(dc_create_setup_code(context));
         assert!(!setupcode.is_null());
         assert_eq!(strlen(setupcode), 44);
         assert!(

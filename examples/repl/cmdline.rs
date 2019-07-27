@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::str::FromStr;
 
 use deltachat::chatlist::*;
@@ -568,13 +569,14 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             dc_imex(context, 2, context.get_blobdir(), 0 as *const libc::c_char);
         }
         "export-setup" => {
-            let setup_code: *mut libc::c_char = dc_create_setup_code(context);
+            let setup_code = dc_create_setup_code(context);
+            let setup_code_c = CString::new(setup_code.clone()).unwrap();
             let file_name: *mut libc::c_char = dc_mprintf(
                 b"%s/autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
                 context.get_blobdir(),
             );
             let file_content: *mut libc::c_char;
-            file_content = dc_render_setup_file(context, setup_code);
+            file_content = dc_render_setup_file(context, setup_code_c.as_ptr());
             if !file_content.is_null()
                 && 0 != dc_write_file(
                     context,
@@ -586,14 +588,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 println!(
                     "Setup message written to: {}\nSetup code: {}",
                     as_str(file_name),
-                    as_str(setup_code),
+                    &setup_code,
                 )
             } else {
                 bail!("");
             }
             free(file_content as *mut libc::c_void);
             free(file_name as *mut libc::c_void);
-            free(setup_code as *mut libc::c_void);
         }
         "poke" => {
             ensure!(0 != poke_spec(context, arg1_c), "Poke failed");
