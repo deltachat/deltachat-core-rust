@@ -3,6 +3,7 @@
 //!
 //! Usage:  cargo run --example repl --release -- <databasefile>
 //! All further options can be set using the set-command (type ? for help).
+#![feature(ptr_cast)]
 
 #[macro_use]
 extern crate deltachat;
@@ -290,7 +291,7 @@ const DB_COMMANDS: [&'static str; 11] = [
     "housekeeping",
 ];
 
-const CHAT_COMMANDS: [&'static str; 24] = [
+const CHAT_COMMANDS: [&'static str; 25] = [
     "listchats",
     "listarchived",
     "chat",
@@ -308,6 +309,7 @@ const CHAT_COMMANDS: [&'static str; 24] = [
     "dellocations",
     "getlocations",
     "send",
+    "send-garbage",
     "sendimage",
     "sendfile",
     "draft",
