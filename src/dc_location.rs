@@ -247,17 +247,12 @@ pub fn dc_get_locations(
                 Ok(loc)
             },
             |locations| {
-                let ret = unsafe { dc_array_new_typed(1, 500) };
+                let mut ret = dc_array_t::new_locations(500);
 
                 for location in locations {
-                    unsafe {
-                        dc_array_add_ptr(
-                            ret,
-                            Box::into_raw(Box::new(location?)) as *mut libc::c_void,
-                        )
-                    };
+                    ret.add_location(location?);
                 }
-                Ok(ret)
+                Ok(ret.as_ptr())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())
@@ -501,7 +496,7 @@ pub unsafe fn dc_kml_parse(
     } else {
         content_nullterminated = dc_null_terminate(content, content_bytes as libc::c_int);
         if !content_nullterminated.is_null() {
-            kml.locations = dc_array_new_typed(1, 100 as size_t);
+            kml.locations = dc_array_new_locations(100);
             dc_saxparser_init(
                 &mut saxparser,
                 &mut kml as *mut dc_kml_t as *mut libc::c_void,
@@ -587,10 +582,7 @@ unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
             && 0. != (*kml).curr.longitude
         {
             let location = (*kml).curr.clone();
-            dc_array_add_ptr(
-                (*kml).locations,
-                Box::into_raw(Box::new(location)) as *mut libc::c_void,
-            );
+            (*(*kml).locations).add_location(location);
         }
         (*kml).tag = 0
     };

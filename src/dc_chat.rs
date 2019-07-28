@@ -1094,14 +1094,13 @@ pub unsafe fn dc_get_draft(context: &Context, chat_id: uint32_t) -> *mut dc_msg_
     draft_msg
 }
 
-pub unsafe fn dc_get_chat_msgs(
+pub fn dc_get_chat_msgs(
     context: &Context,
     chat_id: uint32_t,
     flags: uint32_t,
     marker1before: uint32_t,
 ) -> *mut dc_array_t {
-    let ret = dc_array_new(512);
-    assert!(!ret.is_null());
+    let mut ret = dc_array_t::new(512);
 
     let mut last_day = 0;
     let cnv_to_local = dc_gm2local_offset();
@@ -1111,17 +1110,17 @@ pub unsafe fn dc_get_chat_msgs(
         for row in rows {
             let (curr_id, ts) = row?;
             if curr_id as u32 == marker1before {
-                dc_array_add_id(ret, 1);
+                ret.add_id(1);
             }
             if 0 != flags & 0x1 {
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = (curr_local_timestamp / 86400) as libc::c_int;
                 if curr_day != last_day {
-                    dc_array_add_id(ret, 9);
+                    ret.add_id(9);
                     last_day = curr_day;
                 }
             }
-            dc_array_add_id(ret, curr_id as u32);
+            ret.add_id(curr_id as u32);
         }
         Ok(())
     };
@@ -1169,11 +1168,8 @@ pub unsafe fn dc_get_chat_msgs(
     };
 
     if success.is_ok() {
-        ret
+        ret.as_ptr()
     } else {
-        if !ret.is_null() {
-            dc_array_unref(ret);
-        }
         0 as *mut dc_array_t
     }
 }
@@ -1285,11 +1281,11 @@ pub fn dc_get_chat_media(
         ],
         |row| row.get::<_, i32>(0),
         |ids| {
-            let ret = unsafe { dc_array_new(100) };
+            let mut ret = dc_array_t::new(100);
             for id in ids {
-                unsafe { dc_array_add_id(ret, id? as u32) };
+                ret.add_id(id? as u32);
             }
-            Ok(ret)
+            Ok(ret.as_ptr())
         }
     ).unwrap_or_else(|_| std::ptr::null_mut())
 }
@@ -1458,13 +1454,13 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
             params![chat_id as i32],
             |row| row.get::<_, i32>(0),
             |ids| {
-                let ret = unsafe { dc_array_new(100) };
+                let mut ret = dc_array_t::new(100);
 
                 for id in ids {
-                    unsafe { dc_array_add_id(ret, id? as u32) };
+                    ret.add_id(id? as u32);
                 }
 
-                Ok(ret)
+                Ok(ret.as_ptr())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())
@@ -2168,11 +2164,8 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
             image_abs = dc_get_abs_path((*chat).context, image_rel)
         } else if (*chat).type_0 == 100i32 {
             contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-            if (*contacts).count >= 1 {
-                contact = dc_get_contact(
-                    (*chat).context,
-                    *(*contacts).array.offset(0isize) as uint32_t,
-                );
+            if !(*contacts).is_empty() {
+                contact = dc_get_contact((*chat).context, (*contacts).get_id(0));
                 image_abs = dc_contact_get_profile_image(contact)
             }
         }
@@ -2192,11 +2185,8 @@ pub unsafe fn dc_chat_get_color(chat: *const Chat) -> uint32_t {
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
         if (*chat).type_0 == 100i32 {
             contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-            if (*contacts).count >= 1 {
-                contact = dc_get_contact(
-                    (*chat).context,
-                    *(*contacts).array.offset(0isize) as uint32_t,
-                );
+            if !(*contacts).is_empty() {
+                contact = dc_get_contact((*chat).context, (*contacts).get_id(0));
                 color = dc_str_to_color((*contact).addr) as uint32_t
             }
         } else {
