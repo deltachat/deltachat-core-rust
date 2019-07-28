@@ -1,6 +1,7 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
+use std::ffi::CString;
 
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
@@ -527,11 +528,11 @@ unsafe fn stress_functions(context: &Context) {
     );
     free(buf_1 as *mut libc::c_void);
     if 0 != dc_is_configured(context) {
-        let setupcode: *mut libc::c_char;
         let setupfile: *mut libc::c_char;
-        setupcode = dc_create_setup_code(context);
-        assert!(!setupcode.is_null());
-        assert_eq!(strlen(setupcode), 44);
+        let setupcode_c =
+            CString::new(dc_create_setup_code(context)).expect("invalid string converted");
+        assert_eq!(setupcode_c.to_bytes().len(), 44);
+        let setupcode = setupcode_c.as_ptr();
         assert!(
             0 != !(*setupcode.offset(4isize) as libc::c_int == '-' as i32
                 && *setupcode.offset(9isize) as libc::c_int == '-' as i32
@@ -596,7 +597,6 @@ unsafe fn stress_functions(context: &Context) {
         );
         free(payload as *mut libc::c_void);
         free(setupfile as *mut libc::c_void);
-        free(setupcode as *mut libc::c_void);
     }
 
     if 0 != dc_is_configured(context) {

@@ -105,7 +105,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
     if 0 == dc_alloc_ongoing(context) {
         return 0 as *mut libc::c_char;
     }
-    setup_code = dc_create_setup_code(context);
+    setup_code = to_cstring(dc_create_setup_code(context));
     if !setup_code.is_null() {
         /* this may require a keypair to be created. this may take a second ... */
         if !context
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn dc_render_setup_file(
     ret_setupfilecontent
 }
 
-pub unsafe fn dc_create_setup_code(_context: &Context) -> *mut libc::c_char {
+pub fn dc_create_setup_code(_context: &Context) -> String {
     let mut random_val: uint16_t;
     let mut rng = thread_rng();
     let mut ret = String::new();
@@ -302,7 +302,7 @@ pub unsafe fn dc_create_setup_code(_context: &Context) -> *mut libc::c_char {
         );
     }
 
-    to_cstring(ret)
+    ret
 }
 
 // TODO should return bool /rtn
