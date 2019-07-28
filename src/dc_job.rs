@@ -42,7 +42,7 @@ pub struct dc_job_t {
     pub desired_timestamp: i64,
     pub added_timestamp: i64,
     pub tries: libc::c_int,
-    pub param: Option<Params>,
+    pub param: Params,
     pub try_again: libc::c_int,
     pub pending_error: *mut libc::c_char,
 }
@@ -91,7 +91,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 desired_timestamp: row.get(5)?,
                 added_timestamp: row.get(4)?,
                 tries: row.get(6)?,
-                param: row.get::<_, String>(3)?.parse().ok(),
+                param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
                 try_again: 0,
                 pending_error: 0 as *mut libc::c_char,
             };
@@ -256,7 +256,7 @@ fn dc_job_update(context: &Context, job: &dc_job_t) -> bool {
         params![
             job.desired_timestamp,
             job.tries as i64,
-            job.param.as_ref().map(|s| s.to_string()),
+            job.param.to_string(),
             job.job_id as i32,
         ],
     )
@@ -296,16 +296,11 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     }
     match current_block {
         13109137661213826276 => {
-            filename = to_cstring(
-                job.param
-                    .as_ref()
-                    .and_then(|p| p.get(Param::File))
-                    .unwrap_or_default(),
-            );
+            filename = to_cstring(job.param.get(Param::File).unwrap_or_default());
             if strlen(filename) == 0 {
                 warn!(context, 0, "Missing file name for job {}", job.job_id,);
             } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
-                let recipients = job.param.as_ref().and_then(|p| p.get(Param::Recipients));
+                let recipients = job.param.get(Param::Recipients);
                 if recipients.is_none() {
                     warn!(context, 0, "Missing recipients for job {}", job.job_id,);
                 } else {
@@ -502,15 +497,10 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
     let current_block: u64;
     let folder = job
         .param
-        .as_ref()
-        .and_then(|p| p.get(Param::ServerFolder))
+        .get(Param::ServerFolder)
         .unwrap_or_default()
         .to_string();
-    let uid = job
-        .param
-        .as_ref()
-        .and_then(|p| p.get_int(Param::ServerUid))
-        .unwrap_or_default() as u32;
+    let uid = job.param.get_int(Param::ServerUid).unwrap_or_default() as u32;
     let mut dest_uid = 0;
     let inbox = context.inbox.read().unwrap();
 
@@ -530,12 +520,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
             if inbox.set_seen(context, &folder, uid) == 0 {
                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             }
-            if 0 != job
-                .param
-                .as_ref()
-                .and_then(|p| p.get_int(Param::AlsoMove))
-                .unwrap_or_default()
-            {
+            if 0 != job.param.get_int(Param::AlsoMove).unwrap_or_default() {
                 if context
                     .sql
                     .get_config_int(context, "folders_configured")
@@ -746,7 +731,7 @@ unsafe fn dc_add_smtp_job(
     let pathNfilename: *mut libc::c_char;
     let mut success: libc::c_int = 0i32;
     let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut param = Params::default();
+    let mut param = Params::new();
     pathNfilename = dc_get_fine_pathNfilename(
         context,
         b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
@@ -791,7 +776,7 @@ unsafe fn dc_add_smtp_job(
             } else {
                 0
             }) as libc::c_int,
-            Some(param),
+            param,
             0,
         );
         success = 1i32
@@ -805,7 +790,7 @@ pub unsafe fn dc_job_add(
     context: &Context,
     action: libc::c_int,
     foreign_id: libc::c_int,
-    param: Option<Params>,
+    param: Params,
     delay_seconds: libc::c_int,
 ) {
     let timestamp = time();
@@ -826,7 +811,7 @@ pub unsafe fn dc_job_add(
             thread,
             action,
             foreign_id,
-            param.map(|s| s.to_string()).unwrap_or_default(),
+            param.to_string(),
             (timestamp + delay_seconds as i64)
         ]
     ).ok();

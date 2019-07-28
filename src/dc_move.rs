@@ -2,6 +2,7 @@ use crate::constants::*;
 use crate::context::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
+use crate::param::Params;
 
 pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u32) {
     if context
@@ -31,7 +32,7 @@ pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u3
 
     // 1 = dc message, 2 = reply to dc message
     if 0 != (*msg).is_dc_message {
-        dc_job_add(context, 200, (*msg).id as libc::c_int, None, 0);
+        dc_job_add(context, 200, (*msg).id as libc::c_int, Params::new(), 0);
         dc_update_msg_move_state(context, (*msg).rfc724_mid, DC_MOVE_STATE_MOVING);
     }
 

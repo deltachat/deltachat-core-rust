@@ -742,7 +742,7 @@ pub unsafe fn dc_receive_imf(
                                     }
                                 }
                                 if 0 != mime_parser.is_send_by_messenger || 0 != mdn_consumed {
-                                    let mut param = Params::default();
+                                    let mut param = Params::new();
                                     param.set(Param::ServerFolder, server_folder.as_ref());
                                     param.set_int(Param::ServerUid, server_uid as i32);
                                     if 0 != mime_parser.is_send_by_messenger
@@ -753,7 +753,7 @@ pub unsafe fn dc_receive_imf(
                                     {
                                         param.set_int(Param::AlsoMove, 1);
                                     }
-                                    dc_job_add(context, 120, 0, Some(param), 0);
+                                    dc_job_add(context, 120, 0, param, 0);
                                 }
                             }
                         }
@@ -821,7 +821,7 @@ pub unsafe fn dc_receive_imf(
                         context,
                         DC_JOB_DELETE_MSG_ON_IMAP,
                         created_db_entries[0].1 as i32,
-                        None,
+                        Params::new(),
                         0,
                     );
                 }

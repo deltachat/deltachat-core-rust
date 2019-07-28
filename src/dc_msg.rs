@@ -530,7 +530,7 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
             context,
             110,
             *msg_ids.offset(i as isize) as libc::c_int,
-            None,
+            Params::new(),
             0,
         );
         i += 1
@@ -539,7 +539,7 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
     if 0 != msg_cnt {
         context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
         dc_job_kill_action(context, 105);
-        dc_job_add(context, 105, 0, None, 10);
+        dc_job_add(context, 105, 0, Params::new(), 10);
     };
 }
 
@@ -589,7 +589,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
                 dc_update_msg_state(context, id, DC_STATE_IN_SEEN);
                 info!(context, 0, "Seen message #{}.", id);
 
-                unsafe { dc_job_add(context, 130, id as i32, None, 0) };
+                unsafe { dc_job_add(context, 130, id as i32, Params::new(), 0) };
                 send_event = true;
             }
         } else if curr_state == DC_STATE_IN_FRESH {

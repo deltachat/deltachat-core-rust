@@ -1431,7 +1431,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) -> bool {
     context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
 
     dc_job_kill_action(context, 105);
-    unsafe { dc_job_add(context, 105, 0, None, 10) };
+    unsafe { dc_job_add(context, 105, 0, Params::new(), 10) };
 
     true
 }

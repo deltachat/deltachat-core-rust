@@ -136,6 +136,11 @@ impl str::FromStr for Params {
 }
 
 impl Params {
+    /// Create new empty params.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
     /// Get the value of the given key, return `None` if no value is set.
     pub fn get(&self, key: Param) -> Option<&str> {
         self.inner.get(&key).map(|s| s.as_str())
@@ -147,13 +152,15 @@ impl Params {
     }
 
     /// Set the given key to the passed in value.
-    pub fn set(&mut self, key: Param, value: impl AsRef<str>) {
+    pub fn set(&mut self, key: Param, value: impl AsRef<str>) -> &mut Self {
         self.inner.insert(key, value.as_ref().to_string());
+        self
     }
 
     /// Removes the given key, if it exists.
-    pub fn remove(&mut self, key: Param) {
+    pub fn remove(&mut self, key: Param) -> &mut Self {
         self.inner.remove(&key);
+        self
     }
 
     /// Check if there are any values in this.
@@ -177,13 +184,15 @@ impl Params {
     }
 
     /// Set the given paramter to the passed in `i32`.
-    pub fn set_int(&mut self, key: Param, value: i32) {
+    pub fn set_int(&mut self, key: Param, value: i32) -> &mut Self {
         self.set(key, format!("{}", value));
+        self
     }
 
     /// Set the given parameter to the passed in `f64` .
-    pub fn set_float(&mut self, key: Param, value: f64) {
+    pub fn set_float(&mut self, key: Param, value: f64) -> &mut Self {
         self.set(key, format!("{}", value));
+        self
     }
 }
 
@@ -204,11 +213,12 @@ mod tests {
 
         assert_eq!(p1.get_int(Param::Duration), Some(4));
 
-        let mut p1 = Params::default();
-        p1.set(Param::Forwarded, "foo");
-        p1.set_int(Param::File, 2);
-        p1.remove(Param::GuranteeE2ee);
-        p1.set_int(Param::Duration, 4);
+        let mut p1 = Params::new();
+
+        p1.set(Param::Forwarded, "foo")
+            .set_int(Param::File, 2)
+            .remove(Param::GuranteeE2ee)
+            .set_int(Param::Duration, 4);
 
         assert_eq!(p1.to_string(), "a=foo\nd=4\nf=2");
 
