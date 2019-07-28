@@ -19,7 +19,7 @@ impl dc_array_t {
         dc_array_t::Locations(Vec::with_capacity(capacity))
     }
 
-    pub fn as_ptr(self) -> *mut Self {
+    pub fn into_raw(self) -> *mut Self {
         Box::into_raw(Box::new(self))
     }
 
@@ -317,11 +317,11 @@ pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
 }
 
 pub fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
-    dc_array_t::new(initsize).as_ptr()
+    dc_array_t::new(initsize).into_raw()
 }
 
 pub fn dc_array_new_locations(initsize: size_t) -> *mut dc_array_t {
-    dc_array_t::new_locations(initsize).as_ptr()
+    dc_array_t::new_locations(initsize).into_raw()
 }
 
 pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
@@ -335,7 +335,7 @@ pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
     if array.is_null() {
         std::ptr::null_mut()
     } else {
-        (*array).clone().as_ptr()
+        (*array).clone().into_raw()
     }
 }
 

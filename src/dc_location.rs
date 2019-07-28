@@ -252,7 +252,7 @@ pub fn dc_get_locations(
                 for location in locations {
                     ret.add_location(location?);
                 }
-                Ok(ret.as_ptr())
+                Ok(ret.into_raw())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())

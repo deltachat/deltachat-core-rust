@@ -527,7 +527,7 @@ pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
                     let id = row?;
                     ret.add_id(id);
                 }
-                Ok(ret.as_ptr())
+                Ok(ret.into_raw())
             },
         )
         .unwrap()
@@ -578,7 +578,7 @@ pub fn dc_search_msgs(
         .is_ok();
 
     if success {
-        return ret.as_ptr();
+        return ret.into_raw();
     }
 
     std::ptr::null_mut()
