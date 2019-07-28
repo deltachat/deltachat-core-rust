@@ -441,9 +441,7 @@ pub unsafe fn dc_save_locations(
                 let mut newest_timestamp = 0;
                 let mut newest_location_id = 0;
 
-                for i in 0..locations.len() {
-                    let location = &locations[i];
-
+                for location in locations {
                     let exists =
                         stmt_test.exists(params![location.timestamp, contact_id as i32])?;
 
