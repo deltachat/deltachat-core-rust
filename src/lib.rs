@@ -1,7 +1,3 @@
-#![allow(
-    non_camel_case_types,
-    non_camel_case_types,
-)]
 #![feature(c_variadic, ptr_wrapping_offset_from)]
 
 #[macro_use]

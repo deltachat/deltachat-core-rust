@@ -1,3 +1,4 @@
+#![allow(non_camel_case_types)]
 //! Constants
 
 pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.3\x00";

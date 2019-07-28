@@ -12,10 +12,13 @@ pub struct dc_saxparser_t {
 }
 
 /* len is only informational, text is already null-terminated */
+#[allow(non_camel_case_types)]
 pub type dc_saxparser_text_cb_t =
     Option<unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: libc::c_int) -> ()>;
+#[allow(non_camel_case_types)]
 pub type dc_saxparser_endtag_cb_t =
     Option<unsafe fn(_: *mut libc::c_void, _: *const libc::c_char) -> ()>;
+#[allow(non_camel_case_types)]
 pub type dc_saxparser_starttag_cb_t = Option<
     unsafe fn(_: *mut libc::c_void, _: *const libc::c_char, _: *mut *mut libc::c_char) -> (),
 >;

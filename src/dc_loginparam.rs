@@ -4,6 +4,7 @@ use crate::context::Context;
 use crate::sql::Sql;
 
 #[derive(Default, Debug)]
+#[allow(non_camel_case_types)]
 pub struct dc_loginparam_t {
     pub addr: String,
     pub mail_server: String,
