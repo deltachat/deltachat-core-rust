@@ -1014,18 +1014,16 @@ pub unsafe fn dc_msg_get_setupcodebegin(msg: *const dc_msg_t) -> *mut libc::c_ch
                 || buf.is_null()
                 || buf_bytes <= 0)
             {
-                if !(0
-                    == dc_split_armored_data(
-                        buf,
-                        &mut buf_headerline,
-                        &mut buf_setupcodebegin,
-                        0 as *mut *const libc::c_char,
-                        0 as *mut *const libc::c_char,
-                    )
-                    || strcmp(
-                        buf_headerline,
-                        b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-                    ) != 0i32
+                if !(!dc_split_armored_data(
+                    buf,
+                    &mut buf_headerline,
+                    &mut buf_setupcodebegin,
+                    0 as *mut *const libc::c_char,
+                    0 as *mut *const libc::c_char,
+                ) || strcmp(
+                    buf_headerline,
+                    b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
+                ) != 0i32
                     || buf_setupcodebegin.is_null())
                 {
                     ret = dc_strdup(buf_setupcodebegin)

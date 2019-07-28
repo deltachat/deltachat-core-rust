@@ -459,15 +459,13 @@ pub unsafe fn dc_decrypt_setup_file(
 
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     fc_buf = dc_strdup(filecontent);
-    if !(0
-        == dc_split_armored_data(
-            fc_buf,
-            &mut fc_headerline,
-            0 as *mut *const libc::c_char,
-            0 as *mut *const libc::c_char,
-            &mut fc_base64,
-        )
-        || fc_headerline.is_null()
+    if !(!dc_split_armored_data(
+        fc_buf,
+        &mut fc_headerline,
+        0 as *mut *const libc::c_char,
+        0 as *mut *const libc::c_char,
+        &mut fc_base64,
+    ) || fc_headerline.is_null()
         || strcmp(
             fc_headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
@@ -1154,7 +1152,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 private_key = buf;
                 free(buf2 as *mut libc::c_void);
                 buf2 = dc_strdup(buf);
-                if 0 != dc_split_armored_data(
+                if dc_split_armored_data(
                     buf2,
                     &mut buf2_headerline,
                     0 as *mut *const libc::c_char,
