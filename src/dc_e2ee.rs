@@ -34,6 +34,7 @@ use crate::x::*;
 // to get the netto sizes, we subtract 1 mb header-overhead and the base64-overhead.
 // some defaults
 #[derive(Clone)]
+#[allow(non_camel_case_types)]
 pub struct dc_e2ee_helper_t {
     pub encryption_successfull: libc::c_int,
     pub cdata_to_free: *mut libc::c_void,

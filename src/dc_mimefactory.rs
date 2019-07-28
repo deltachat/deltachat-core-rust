@@ -26,6 +26,7 @@ use crate::x::*;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
+#[allow(non_camel_case_types)]
 pub struct dc_mimefactory_t<'a> {
     pub from_addr: *mut libc::c_char,
     pub from_displayname: *mut libc::c_char,
@@ -49,6 +50,7 @@ pub struct dc_mimefactory_t<'a> {
     pub context: &'a Context,
 }
 
+#[allow(non_camel_case_types)]
 pub type dc_mimefactory_loaded_t = libc::c_uint;
 pub const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
 pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;

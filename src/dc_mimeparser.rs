@@ -42,6 +42,7 @@ pub struct dc_mimepart_t {
  * @class dc_mimeparser_t
  */
 #[derive(Clone)]
+#[allow(non_camel_case_types)]
 pub struct dc_mimeparser_t<'a> {
     pub parts: *mut carray,
     pub mimeroot: *mut mailmime,

@@ -16,6 +16,7 @@ use crate::x::*;
 
 // location handling
 #[derive(Clone, Default)]
+#[allow(non_camel_case_types)]
 pub struct dc_location {
     pub location_id: uint32_t,
     pub latitude: libc::c_double,
@@ -47,6 +48,7 @@ impl dc_location {
 }
 
 #[derive(Clone)]
+#[allow(non_camel_case_types)]
 pub struct dc_kml_t {
     pub addr: *mut libc::c_char,
     pub locations: *mut dc_array_t,
