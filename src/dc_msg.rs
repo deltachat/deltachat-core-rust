@@ -989,11 +989,7 @@ pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> bool {
         return false;
     }
 
-    if dc_param_get_int((*msg).param, DC_PARAM_CMD as i32, 0) == 6 {
-        true
-    } else {
-        true
-    }
+    dc_param_get_int((*msg).param, DC_PARAM_CMD as i32, 0) == 6
 }
 
 pub unsafe fn dc_msg_get_setupcodebegin(msg: *const dc_msg_t) -> *mut libc::c_char {
