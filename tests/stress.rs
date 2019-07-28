@@ -840,24 +840,24 @@ fn test_dc_kml_parse() {
         assert!(!kml.addr.is_null());
         assert_eq!(as_str(kml.addr as *const libc::c_char), "user@example.org",);
 
-        let locations_ref = kml.locations.as_ref().unwrap();
+        let locations_ref = &kml.locations.as_ref().unwrap();
         assert_eq!(locations_ref.len(), 2);
 
-        assert!(locations_ref.get_latitude(0) > 53.6f64);
-        assert!(locations_ref.get_latitude(0) < 53.8f64);
-        assert!(locations_ref.get_longitude(0) > 9.3f64);
-        assert!(locations_ref.get_longitude(0) < 9.5f64);
-        assert!(locations_ref.get_accuracy(0) > 31.9f64);
-        assert!(locations_ref.get_accuracy(0) < 32.1f64);
-        assert_eq!(locations_ref.get_timestamp(0), 1551906597);
+        assert!(locations_ref[0].latitude > 53.6f64);
+        assert!(locations_ref[0].latitude < 53.8f64);
+        assert!(locations_ref[0].longitude > 9.3f64);
+        assert!(locations_ref[0].longitude < 9.5f64);
+        assert!(locations_ref[0].accuracy > 31.9f64);
+        assert!(locations_ref[0].accuracy < 32.1f64);
+        assert_eq!(locations_ref[0].timestamp, 1551906597);
 
-        assert!(locations_ref.get_latitude(1) > 63.6f64);
-        assert!(locations_ref.get_latitude(1) < 63.8f64);
-        assert!(locations_ref.get_longitude(1) > 19.3f64);
-        assert!(locations_ref.get_longitude(1) < 19.5f64);
-        assert!(locations_ref.get_accuracy(1) > 2.4f64);
-        assert!(locations_ref.get_accuracy(1) < 2.6f64);
-        assert_eq!(locations_ref.get_timestamp(1), 1544739072);
+        assert!(locations_ref[1].latitude > 63.6f64);
+        assert!(locations_ref[1].latitude < 63.8f64);
+        assert!(locations_ref[1].longitude > 19.3f64);
+        assert!(locations_ref[1].longitude < 19.5f64);
+        assert!(locations_ref[1].accuracy > 2.4f64);
+        assert!(locations_ref[1].accuracy < 2.6f64);
+        assert_eq!(locations_ref[1].timestamp, 1544739072);
 
         dc_kml_unref(&mut kml);
     }

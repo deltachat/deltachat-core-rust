@@ -51,7 +51,7 @@ impl dc_location {
 #[allow(non_camel_case_types)]
 pub struct dc_kml_t {
     pub addr: *mut libc::c_char,
-    pub locations: Option<dc_array_t>,
+    pub locations: Option<Vec<dc_location>>,
     pub tag: libc::c_int,
     pub curr: dc_location,
 }
@@ -422,7 +422,7 @@ pub unsafe fn dc_save_locations(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
-    locations_opt: &Option<dc_array_t>,
+    locations_opt: &Option<Vec<dc_location>>,
     independent: libc::c_int,
 ) -> u32 {
     if chat_id <= 9 || locations_opt.is_none() {
@@ -442,7 +442,7 @@ pub unsafe fn dc_save_locations(
                 let mut newest_location_id = 0;
 
                 for i in 0..locations.len() {
-                    let location = locations.get_location(i as size_t);
+                    let location = &locations[i];
 
                     let exists =
                         stmt_test.exists(params![location.timestamp, contact_id as i32])?;
@@ -500,7 +500,7 @@ pub unsafe fn dc_kml_parse(
     } else {
         content_nullterminated = dc_null_terminate(content, content_bytes as libc::c_int);
         if !content_nullterminated.is_null() {
-            kml.locations = Some(dc_array_t::new_locations(100));
+            kml.locations = Some(Vec::with_capacity(100));
             dc_saxparser_init(
                 &mut saxparser,
                 &mut kml as *mut dc_kml_t as *mut libc::c_void,
@@ -586,7 +586,7 @@ unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
             && 0. != (*kml).curr.longitude
         {
             let location = (*kml).curr.clone();
-            ((*kml).locations.as_mut().unwrap()).add_location(location);
+            ((*kml).locations.as_mut().unwrap()).push(location);
         }
         (*kml).tag = 0
     };
