@@ -844,7 +844,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
 
             /* add attachment part */
             if msgtype_has_file((*msg).type_0) {
-                if 0 == is_file_size_okay(msg) {
+                if !is_file_size_okay(msg) {
                     let error: *mut libc::c_char = dc_mprintf(
                         b"Message exceeds the recommended %i MB.\x00" as *const u8
                             as *const libc::c_char,
@@ -1328,13 +1328,13 @@ unsafe fn build_body_file(
  * Render
  ******************************************************************************/
 #[allow(non_snake_case)]
-unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> libc::c_int {
-    let mut file_size_okay = 1;
+unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> bool {
+    let mut file_size_okay = true;
     let pathNfilename = to_cstring((*msg).param.get(Param::File).unwrap_or_default());
     let bytes = dc_get_filebytes((*msg).context, pathNfilename);
 
     if bytes > (49 * 1024 * 1024 / 4 * 3) {
-        file_size_okay = 0;
+        file_size_okay = false;
     }
     free(pathNfilename as *mut _);
 
