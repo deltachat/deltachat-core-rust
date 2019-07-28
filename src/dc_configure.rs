@@ -570,13 +570,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                             {
                                                 param.send_pw = param.mail_pw.clone()
                                             }
-                                            if 0 == dc_exactly_one_bit_set(
+                                            if !dc_exactly_one_bit_set(
                                                 param.server_flags & (0x2 | 0x4),
                                             ) {
                                                 param.server_flags &= !(0x2 | 0x4);
                                                 param.server_flags |= 0x4
                                             }
-                                            if 0 == dc_exactly_one_bit_set(
+                                            if !dc_exactly_one_bit_set(
                                                 param.server_flags & (0x100 | 0x200 | 0x400),
                                             ) {
                                                 param.server_flags &= !(0x100 | 0x200 | 0x400);
@@ -586,7 +586,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                     0x200
                                                 }
                                             }
-                                            if 0 == dc_exactly_one_bit_set(
+                                            if !dc_exactly_one_bit_set(
                                                 param.server_flags & (0x10000 | 0x20000 | 0x40000),
                                             ) {
                                                 param.server_flags &=
