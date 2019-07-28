@@ -424,7 +424,7 @@ unsafe fn dc_mimepart_new() -> dc_mimepart_t {
         msg: std::ptr::null_mut(),
         msg_raw: std::ptr::null_mut(),
         bytes: 0,
-        param: Default::default(),
+        param: Params::new(),
     }
 }
 

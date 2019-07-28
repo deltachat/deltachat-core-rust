@@ -73,7 +73,7 @@ pub unsafe fn dc_chat_new<'a>(context: &'a Context) -> *mut Chat<'a> {
         context,
         grpid: std::ptr::null_mut(),
         blocked: 0,
-        param: Default::default(),
+        param: Params::new(),
         gossiped_timestamp: 0,
         is_sending_locations: 0,
     };
