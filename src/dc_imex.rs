@@ -490,7 +490,8 @@ pub unsafe fn dc_decrypt_setup_file(
             if let Some(plain) =
                 dc_pgp_symm_decrypt(passphrase, binary as *const libc::c_void, binary_bytes)
             {
-                payload = strdup(CString::new(plain).unwrap().as_ptr());
+                let payload_c = CString::new(plain).unwrap();
+                payload = strdup(payload_c.as_ptr());
             }
         }
     }
