@@ -290,7 +290,7 @@ unsafe fn send_handshake_msg(
         dc_param_set_int(
             &mut (*msg).param,
             Param::ForcePlaintext,
-            DC_FP_ADD_AUTOCRYPT_HEADER,
+            ForcePlaintext::AddAutocryptHeader as i32,
         );
     } else {
         dc_param_set_int(&mut (*msg).param, Param::GuranteeE2ee, 1);

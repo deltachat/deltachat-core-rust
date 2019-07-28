@@ -188,8 +188,7 @@ pub unsafe fn dc_mimefactory_load_msg(
             let command =
                 dc_param_get_int(&(*(*factory).msg).param, Param::Cmd).unwrap_or_default();
             if command == 5 {
-                let email_to_remove =
-                    dc_param_get(&(*(*factory).msg).param, Param::Arg).unwrap_or_default();
+                let email_to_remove = (*(*factory).msg).param.get(Param::Arg).unwrap_or_default();
                 let email_to_remove_c = to_cstring(email_to_remove);
 
                 let self_addr = context
@@ -574,7 +573,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 );
                 if command == 5 {
                     let email_to_remove =
-                        to_cstring(dc_param_get(&(*msg).param, Param::Arg).unwrap_or_default());
+                        to_cstring((*msg).param.get(Param::Arg).unwrap_or_default());
                     if strlen(email_to_remove) > 0 {
                         mailimf_fields_add(
                             imf_fields,
@@ -589,8 +588,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     }
                 } else if command == 4 {
                     do_gossip = 1;
-                    let email_to_add =
-                        to_cstring(dc_param_get(&(*msg).param, Param::Arg).unwrap_or_default());
+                    let email_to_add = to_cstring((*msg).param.get(Param::Arg).unwrap_or_default());
                     if strlen(email_to_add) > 0 {
                         mailimf_fields_add(
                             imf_fields,
@@ -602,7 +600,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 email_to_add,
                             ),
                         );
-                        grpimage = dc_param_get(&(*chat).param, Param::ProfileImage);
+                        grpimage = (*chat).param.get(Param::ProfileImage);
                     }
                     if 0 != dc_param_get_int(&(*msg).param, Param::Arg2).unwrap_or_default() & 0x1 {
                         info!(
@@ -620,8 +618,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         );
                     }
                 } else if command == 2 {
-                    let value_to_add =
-                        to_cstring(dc_param_get(&(*msg).param, Param::Arg).unwrap_or_default());
+                    let value_to_add = to_cstring((*msg).param.get(Param::Arg).unwrap_or_default());
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
@@ -632,7 +629,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         ),
                     );
                 } else if command == 3 {
-                    grpimage = dc_param_get(&(*msg).param, Param::Arg);
+                    grpimage = (*msg).param.get(Param::Arg);
                     if grpimage.is_none() {
                         mailimf_fields_add(
                             imf_fields,
@@ -667,7 +664,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     to_cstring((*factory).context.stock_str(StockMessage::AcSetupMsgBody));
             }
             if command == 7 {
-                let step = to_cstring(dc_param_get(&(*msg).param, Param::Arg).unwrap_or_default());
+                let step = to_cstring((*msg).param.get(Param::Arg).unwrap_or_default());
                 if strlen(step) > 0 {
                     info!(
                         (*msg).context,
@@ -682,8 +679,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             step,
                         ),
                     );
-                    let param2 =
-                        to_cstring(dc_param_get(&(*msg).param, Param::Arg2).unwrap_or_default());
+                    let param2 = to_cstring((*msg).param.get(Param::Arg2).unwrap_or_default());
                     if strlen(param2) > 0 {
                         mailimf_fields_add(
                             imf_fields,
@@ -711,8 +707,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                         );
                     }
-                    let fingerprint =
-                        to_cstring(dc_param_get(&(*msg).param, Param::Arg3).unwrap_or_default());
+                    let fingerprint = to_cstring((*msg).param.get(Param::Arg3).unwrap_or_default());
                     if strlen(fingerprint) > 0 {
                         mailimf_fields_add(
                             imf_fields,
@@ -725,7 +720,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                         );
                     }
-                    let grpid = match dc_param_get(&(*msg).param, Param::Arg4) {
+                    let grpid = match (*msg).param.get(Param::Arg4) {
                         Some(id) => to_cstring(id),
                         None => std::ptr::null_mut(),
                     };
@@ -794,7 +789,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     );
                 }
             }
-            afwd_email = dc_param_exists(&(*msg).param, Param::Forwarded) as libc::c_int;
+            afwd_email = (*msg).param.exists(Param::Forwarded) as libc::c_int;
             let mut fwdhint = 0 as *mut libc::c_char;
             if 0 != afwd_email {
                 fwdhint = dc_strdup(
@@ -881,7 +876,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         if !meta_part.is_null() {
                             mailmime_smart_add_part(message, meta_part);
                         }
-                        if dc_param_exists(&(*msg).param, Param::SetLatitude) {
+                        if (*msg).param.exists(Param::SetLatitude) {
                             let latitude = dc_param_get_float(&(*msg).param, Param::SetLatitude)
                                 .unwrap_or_default();
                             let longitude = dc_param_get_float(&(*msg).param, Param::SetLongitude)
@@ -932,7 +927,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                     mailmime_new_empty(content_type, mime_fields);
                                 mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
                                 mailmime_smart_add_part(message, kml_mime_part);
-                                if !dc_param_exists(&(*msg).param, Param::SetLatitude) {
+                                if !(*msg).param.exists(Param::SetLatitude) {
                                     // otherwise, the independent location is already filed
                                     (*factory).out_last_added_location_id = last_added_location_id;
                                 }
@@ -1158,8 +1153,8 @@ unsafe fn build_body_file(
     let mime_fields: *mut mailmime_fields;
     let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
     let content: *mut mailmime_content;
-    let pathNfilename = to_cstring(dc_param_get(&(*msg).param, Param::File).unwrap_or_default());
-    let mut mimetype = to_cstring(dc_param_get(&(*msg).param, Param::MimeType).unwrap_or_default());
+    let pathNfilename = to_cstring((*msg).param.get(Param::File).unwrap_or_default());
+    let mut mimetype = to_cstring((*msg).param.get(Param::MimeType).unwrap_or_default());
 
     let suffix = dc_get_filesuffix_lc(pathNfilename);
     let mut filename_to_send = 0 as *mut libc::c_char;
@@ -1317,7 +1312,7 @@ unsafe fn build_body_file(
 
 unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> libc::c_int {
     let mut file_size_okay = 1;
-    let pathNfilename = to_cstring(dc_param_get(&(*msg).param, Param::File).unwrap_or_default());
+    let pathNfilename = to_cstring((*msg).param.get(Param::File).unwrap_or_default());
     let bytes = dc_get_filebytes((*msg).context, pathNfilename);
 
     if bytes > (49 * 1024 * 1024 / 4 * 3) {

@@ -1133,7 +1133,7 @@ fn maybe_add_from_param(
             if let Ok(res) = row.get::<_, String>(0)?.parse() {
                 param = res;
             }
-            if let Some(file) = dc_param_get(&param, param_id) {
+            if let Some(file) = param.get(param_id) {
                 maybe_add_file(files_in_use, file);
             }
             Ok(())

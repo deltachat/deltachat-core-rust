@@ -299,16 +299,13 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
             filename = to_cstring(
                 job.param
                     .as_ref()
-                    .and_then(|p| dc_param_get(p, Param::File))
+                    .and_then(|p| p.get(Param::File))
                     .unwrap_or_default(),
             );
             if strlen(filename) == 0 {
                 warn!(context, 0, "Missing file name for job {}", job.job_id,);
             } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
-                let recipients = job
-                    .param
-                    .as_ref()
-                    .and_then(|p| dc_param_get(p, Param::Recipients));
+                let recipients = job.param.as_ref().and_then(|p| p.get(Param::Recipients));
                 if recipients.is_none() {
                     warn!(context, 0, "Missing recipients for job {}", job.job_id,);
                 } else {
@@ -506,7 +503,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
     let folder = job
         .param
         .as_ref()
-        .and_then(|p| dc_param_get(p, Param::ServerFolder))
+        .and_then(|p| p.get(Param::ServerFolder))
         .unwrap_or_default()
         .to_string();
     let uid = job
@@ -1174,12 +1171,15 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
         if msgtype_has_file((*mimefactory.msg).type_0) {
             let pathNfilename = to_cstring(
-                dc_param_get(&(*mimefactory.msg).param, Param::File).unwrap_or_default(),
+                (*mimefactory.msg)
+                    .param
+                    .get(Param::File)
+                    .unwrap_or_default(),
             );
             if strlen(pathNfilename) > 0 {
                 if ((*mimefactory.msg).type_0 == DC_MSG_IMAGE
                     || (*mimefactory.msg).type_0 == DC_MSG_GIF)
-                    && !dc_param_exists(&(*mimefactory.msg).param, Param::Width)
+                    && !(*mimefactory.msg).param.exists(Param::Width)
                 {
                     let mut buf = 0 as *mut libc::c_uchar;
                     let mut buf_bytes: size_t = 0;

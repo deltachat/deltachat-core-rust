@@ -187,7 +187,7 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                     (*chat).name = to_cstring((*chat).context.stock_str(StockMessage::StarredMsgs));
                 },
                 _ => {
-                    if dc_param_exists(unsafe { &(*chat).param }, Param::Selftalk) {
+                    if unsafe { &(*chat).param }.exists(Param::Selftalk) {
                         unsafe {
                             free((*chat).name as *mut libc::c_void);
                             (*chat).name =
@@ -396,7 +396,7 @@ unsafe fn prepare_msg_common<'a>(
     if (*msg).type_0 == DC_MSG_TEXT {
         /* the caller should check if the message text is empty */
     } else if msgtype_has_file((*msg).type_0) {
-        let pathNfilename = dc_param_get(&(*msg).param, Param::File);
+        let pathNfilename = (*msg).param.get(Param::File);
         if pathNfilename.is_none() {
             error!(
                 context,
@@ -434,7 +434,7 @@ unsafe fn prepare_msg_common<'a>(
                         dc_param_set(&mut (*msg).param, Param::MimeType, as_str(better_mime));
                     }
                     free(better_mime as *mut libc::c_void);
-                } else if !dc_param_exists(&(*msg).param, Param::MimeType) {
+                } else if !(*msg).param.exists(Param::MimeType) {
                     let mut better_mime = std::ptr::null_mut();
 
                     dc_msg_guess_msgtype_from_suffix(
@@ -681,7 +681,7 @@ unsafe fn prepare_msg_raw(
 
                 // add independent location to database
 
-                if dc_param_exists(&(*msg).param, Param::SetLatitude) {
+                if (*msg).param.exists(Param::SetLatitude) {
                     if sql::execute(
                         context,
                         &context.sql,
@@ -820,7 +820,7 @@ pub unsafe fn dc_chat_is_self_talk(chat: *const Chat) -> libc::c_int {
     if chat.is_null() || (*chat).magic != 0xc4a7c4a7u32 {
         return 0;
     }
-    dc_param_exists(&(*chat).param, Param::Selftalk) as libc::c_int
+    (*chat).param.exists(Param::Selftalk) as libc::c_int
 }
 
 /*******************************************************************************
@@ -842,8 +842,8 @@ unsafe fn last_msg_in_chat_encrypted(
     );
 
     if let Some(ref packed) = packed {
-        match packed.parse() {
-            Ok(param) => dc_param_exists(&param, Param::GuranteeE2ee) as libc::c_int,
+        match packed.parse::<Params>() {
+            Ok(param) => param.exists(Param::GuranteeE2ee) as libc::c_int,
             Err(err) => {
                 error!(context, 0, "invalid params stored: '{}', {:?}", packed, err);
                 0
@@ -920,12 +920,12 @@ pub unsafe fn dc_send_msg<'a>(
         (*msg).id as uintptr_t,
     );
 
-    if dc_param_exists(&(*msg).param, Param::SetLatitude) {
+    if (*msg).param.exists(Param::SetLatitude) {
         context.call_cb(Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF, 0);
     }
 
     if 0 == chat_id {
-        let forwards = dc_param_get(&(*msg).param, Param::PrepForwards);
+        let forwards = (*msg).param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
             let mut p = to_cstring(forwards);
             while 0 != *p {
@@ -1007,7 +1007,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                 OK_TO_CONTINUE = false;
             }
         } else if msgtype_has_file((*msg).type_0) {
-            let pathNfilename = dc_param_get(&(*msg).param, Param::File);
+            let pathNfilename = (*msg).param.get(Param::File);
             if pathNfilename.is_none() {
                 OK_TO_CONTINUE = false;
             } else if 0 != dc_msg_is_increation(msg)
@@ -2024,7 +2024,7 @@ pub unsafe fn dc_forward_msgs(
                 (*msg).param = original_param;
                 (*msg).id = src_msg_id as uint32_t;
 
-                if let Some(old_fwd) = dc_param_get(&(*msg).param, Param::PrepForwards) {
+                if let Some(old_fwd) = (*msg).param.get(Param::PrepForwards) {
                     let new_fwd = format!("{} {}", old_fwd, new_msg_id);
                     dc_param_set(&mut (*msg).param, Param::PrepForwards, new_fwd);
                 } else {
@@ -2103,7 +2103,7 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
     }
 
     let mut ret: *mut libc::c_char = std::ptr::null_mut();
-    if (*chat).type_0 == 100 && dc_param_exists(&(*chat).param, Param::Selftalk) {
+    if (*chat).type_0 == 100 && (*chat).param.exists(Param::Selftalk) {
         ret = to_cstring((*chat).context.stock_str(StockMessage::SelfTalkSubTitle));
     } else if (*chat).type_0 == 100 {
         let ret_raw: String = (*chat)
@@ -2156,8 +2156,7 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
     let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
-        image_rel =
-            to_cstring(dc_param_get(&(*chat).param, Param::ProfileImage).unwrap_or_default());
+        image_rel = to_cstring((*chat).param.get(Param::ProfileImage).unwrap_or_default());
         if !image_rel.is_null() && 0 != *image_rel.offset(0isize) as libc::c_int {
             image_abs = dc_get_abs_path((*chat).context, image_rel)
         } else if (*chat).type_0 == 100i32 {

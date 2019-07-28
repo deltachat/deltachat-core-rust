@@ -559,14 +559,14 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
             (*job)
                 .param
                 .as_ref()
-                .and_then(|p| dc_param_get(p, Param::Arg))
+                .and_then(|p| p.get(Param::Arg))
                 .unwrap_or_default(),
         );
         param2 = to_cstring(
             (*job)
                 .param
                 .as_ref()
-                .and_then(|p| dc_param_get(p, Param::Arg2))
+                .and_then(|p| p.get(Param::Arg2))
                 .unwrap_or_default(),
         );
 

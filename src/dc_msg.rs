@@ -155,7 +155,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     }
 
     ret += "\n";
-    match dc_param_get(&(*msg).param, Param::Error) {
+    match (*msg).param.get(Param::Error) {
         Some(err) => ret += &format!("Error: {}", err),
         _ => {}
     }
@@ -287,8 +287,8 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret = 0 as *mut libc::c_char;
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        if dc_param_get(&(*msg).param, Param::MimeType).is_none() {
-            if let Some(file) = dc_param_get(&(*msg).param, Param::File) {
+        if (*msg).param.get(Param::MimeType).is_none() {
+            if let Some(file) = (*msg).param.get(Param::File) {
                 let file_c = to_cstring(file);
                 dc_msg_guess_msgtype_from_suffix(file_c, 0 as *mut libc::c_int, &mut ret);
                 if ret.is_null() {
@@ -366,7 +366,7 @@ pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut file_abs = 0 as *mut libc::c_char;
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        if let Some(file_rel) = dc_param_get(&(*msg).param, Param::File) {
+        if let Some(file_rel) = (*msg).param.get(Param::File) {
             let file_rel_c = to_cstring(file_rel);
             file_abs = dc_get_abs_path((*msg).context, file_rel_c);
             free(file_rel_c as *mut _);
@@ -713,7 +713,7 @@ pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret = 0 as *mut libc::c_char;
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        if let Some(file) = dc_param_get(&(*msg).param, Param::File) {
+        if let Some(file) = (*msg).param.get(Param::File) {
             let file_c = to_cstring(file);
             ret = dc_get_filename(file_c);
             free(file_c as *mut _);
@@ -730,7 +730,7 @@ pub unsafe fn dc_msg_get_filebytes(msg: *const dc_msg_t) -> uint64_t {
     let mut ret = 0;
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        if let Some(file) = dc_param_get(&(*msg).param, Param::File) {
+        if let Some(file) = (*msg).param.get(Param::File) {
             let file_c = to_cstring(file);
             ret = dc_get_filebytes((*msg).context, file_c);
             free(file_c as *mut _);
@@ -855,8 +855,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
                 prefix = to_cstring(context.stock_str(StockMessage::AcSetupMsgSubject));
                 append_text = 0i32
             } else {
-                pathNfilename =
-                    to_cstring(dc_param_get(&param, Param::File).unwrap_or_else(|| "ErrFilename"));
+                pathNfilename = to_cstring(param.get(Param::File).unwrap_or_else(|| "ErrFilename"));
                 value = dc_get_filename(pathNfilename);
                 let label = CString::new(
                     context

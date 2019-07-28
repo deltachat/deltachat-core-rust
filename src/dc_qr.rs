@@ -56,30 +56,33 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
             if !fragment.is_null() {
                 *fragment = 0i32 as libc::c_char;
                 fragment = fragment.offset(1isize);
-                let mut param = dc_param_new();
-                dc_param_set_urlencoded(&mut param, as_str(fragment)).expect("invalid params");
-                addr = dc_param_get(&param, Param::Forwarded)
+                let param: Params = as_str(fragment).parse().expect("invalid params");
+                addr = param
+                    .get(Param::Forwarded)
                     .map(|s| to_cstring(s))
                     .unwrap_or_else(|| std::ptr::null_mut());
                 if !addr.is_null() {
-                    if let Some(ref name_enc) = dc_param_get(&param, Param::SetLongitude) {
+                    if let Some(ref name_enc) = param.get(Param::SetLongitude) {
                         let name_r = percent_decode_str(name_enc)
                             .decode_utf8()
                             .expect("invalid name");
                         name = to_cstring(name_r);
                         dc_normalize_name(name);
                     }
-                    invitenumber = dc_param_get(&param, Param::ProfileImage)
+                    invitenumber = param
+                        .get(Param::ProfileImage)
                         .map(|s| to_cstring(s))
                         .unwrap_or_else(|| std::ptr::null_mut());
-                    auth = dc_param_get(&param, Param::Auth)
+                    auth = param
+                        .get(Param::Auth)
                         .map(|s| to_cstring(s))
                         .unwrap_or_else(|| std::ptr::null_mut());
-                    grpid = dc_param_get(&param, Param::GroupId)
+                    grpid = param
+                        .get(Param::GroupId)
                         .map(|s| to_cstring(s))
                         .unwrap_or_else(|| std::ptr::null_mut());
                     if !grpid.is_null() {
-                        if let Some(grpname_enc) = dc_param_get(&param, Param::GroupName) {
+                        if let Some(grpname_enc) = param.get(Param::GroupName) {
                             let grpname_r = percent_decode_str(grpname_enc)
                                 .decode_utf8()
                                 .expect("invalid groupname");

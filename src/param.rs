@@ -2,11 +2,12 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_traits::FromPrimitive;
 
-use crate::error::{self, Result};
+use crate::error;
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+/// Available param keys.
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, FromPrimitive)]
 #[repr(u8)]
 pub enum Param {
     File = 'f' as u8,
@@ -39,14 +40,18 @@ pub enum Param {
     GroupId = 'x' as u8,
     GroupName = 'g' as u8,
 }
-// values for Param::ForcePlaintext
-pub const DC_FP_ADD_AUTOCRYPT_HEADER: i32 = 1;
-pub const DC_FP_NO_AUTOCRYPT_HEADER: i32 = 2;
 
-/// An object for handling key=value parameter lists; for the key, currently only
-/// a single character is allowed.
+/// Possible values for `Param::ForcePlaintext`.
+#[derive(PartialEq, Eq, Debug, Clone, Copy, FromPrimitive)]
+#[repr(u8)]
+pub enum ForcePlaintext {
+    AddAutocryptHeader = 1,
+    NoAutocryptHeader = 2,
+}
+
+/// An object for handling key=value parameter lists.
 ///
-/// The object is used eg. by Chat or dc_msg_t.
+/// The structure is serialized by calling `to_string()` on it.
 ///
 /// Only for library-internal use.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -60,7 +65,7 @@ impl fmt::Display for Params {
             if i > 0 {
                 write!(f, "\n")?;
             }
-            write!(f, "{}={}", key.to_u8().unwrap() as char, value)?;
+            write!(f, "{}={}", *key as u8 as char, value)?;
         }
         Ok(())
     }
@@ -100,37 +105,35 @@ impl str::FromStr for Params {
 }
 
 impl Params {
+    /// Get the value of the given key, return `None` if no value is set.
     pub fn get(&self, key: Param) -> Option<&str> {
         self.inner.get(&key).map(|s| s.as_str())
     }
 
+    /// Check if the given key is set.
     pub fn exists(&self, key: Param) -> bool {
         self.inner.contains_key(&key)
     }
 
+    /// Set the given key to the passed in value.
     pub fn set(&mut self, key: Param, value: impl AsRef<str>) {
         self.inner.insert(key, value.as_ref().to_string());
     }
 
+    /// Removes the given key, if it exists.
     pub fn remove(&mut self, key: Param) {
         self.inner.remove(&key);
     }
 
+    /// Check if there are any values in this.
     pub fn is_empty(&self) -> bool {
         self.inner.is_empty()
     }
 
+    /// Returns how many key-value pairs are set.
     pub fn len(&self) -> usize {
         self.inner.len()
     }
-}
-
-pub fn dc_param_exists(param: &Params, key: Param) -> bool {
-    param.exists(key)
-}
-
-pub fn dc_param_get(param: &Params, key: Param) -> Option<&str> {
-    param.get(key)
 }
 
 pub fn dc_param_get_int(param: &Params, key: Param) -> Option<i32> {
@@ -161,30 +164,18 @@ pub fn dc_param_new() -> Params {
     Default::default()
 }
 
-pub fn dc_param_set_packed(param: &mut Params, packed: impl AsRef<str>) -> Result<()> {
-    *param = packed.as_ref().parse()?;
-    Ok(())
-}
-
-pub fn dc_param_set_urlencoded(param: &mut Params, urlencoded: impl AsRef<str>) -> Result<()> {
-    dc_param_set_packed(param, urlencoded.as_ref().replace('&', "\n"))?;
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_dc_param() {
-        let mut p1 = dc_param_new();
-        dc_param_set_packed(&mut p1, "\r\n\r\na=1\nf=2\n\nc = 3 ").unwrap();
-        assert_eq!(p1.len(), 3);
+        let mut p1: Params = "\r\n\r\na=1\nf=2\n\nc = 3 ".parse().unwrap();
 
         assert_eq!(dc_param_get_int(&p1, Param::Forwarded), Some(1));
         assert_eq!(dc_param_get_int(&p1, Param::File), Some(2));
         assert_eq!(dc_param_get_int(&p1, Param::Height), None);
-        assert!(!dc_param_exists(&p1, Param::Height));
+        assert!(!p1.exists(Param::Height));
 
         dc_param_set_int(&mut p1, Param::Duration, 4);
 

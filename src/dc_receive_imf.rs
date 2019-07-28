@@ -1222,7 +1222,9 @@ unsafe fn create_or_lookup_group(
                                         carray_get(mime_parser.parts, i_0 as libc::c_uint)
                                             as *mut dc_mimepart_t;
                                     if (*part).type_0 == 20 {
-                                        grpimage = dc_param_get(&(*part).param, Param::File)
+                                        grpimage = (*part)
+                                            .param
+                                            .get(Param::File)
                                             .map(|s| to_cstring(s))
                                             .unwrap_or_else(|| std::ptr::null_mut());
                                         ok = 1
