@@ -4,6 +4,7 @@ set -ex
 
 export RUST_TEST_THREADS=1
 export RUST_BACKTRACE=1
+export RUSTFLAGS='--deny warnings'
 export OPT="--target=$TARGET"
 export OPT_RELEASE="--release ${OPT}"
 export OPT_FFI_RELEASE="--manifest-path=deltachat-ffi/Cargo.toml --release"
