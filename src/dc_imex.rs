@@ -5,6 +5,7 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 use rand::{thread_rng, Rng};
 
+use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_chat::*;
@@ -194,27 +195,22 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
     dc_strdup(setup_code.as_ptr())
 }
 
-pub unsafe extern "C" fn dc_render_setup_file(
+pub unsafe fn dc_render_setup_file(
     context: &Context,
     passphrase: *const libc::c_char,
 ) -> *mut libc::c_char {
-    let stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-
-    let mut passphrase_begin: [libc::c_char; 8] = [0; 8];
     let mut ret_setupfilecontent: *mut libc::c_char = 0 as *mut libc::c_char;
     if !(passphrase.is_null() || strlen(passphrase) < 2) {
-        strncpy(passphrase_begin.as_mut_ptr(), passphrase, 2);
-        passphrase_begin[2usize] = 0i32 as libc::c_char;
         /* create the payload */
         if !(0 == dc_ensure_secret_key_exists(context)) {
             let self_addr = context
                 .sql
-                .get_config(context, "configured_addr")
+                .get_config(context, Config::ConfiguredAddr)
                 .unwrap_or_default();
             let curr_private_key = Key::from_self_private(context, self_addr, &context.sql);
             let e2ee_enabled = context
                 .sql
-                .get_config_int(context, "e2ee_enabled")
+                .get_config_int(context, Config::E2eeEnabled)
                 .unwrap_or_else(|| 1);
 
             let headers = if 0 != e2ee_enabled {
@@ -230,39 +226,40 @@ pub unsafe extern "C" fn dc_render_setup_file(
                     payload_key_asc_c.as_ptr() as *const libc::c_void,
                     payload_key_asc_c.as_bytes().len(),
                 ) {
-                    let encr_string_c = CString::new(encr).unwrap();
-                    let mut encr_string = strdup(encr_string_c.as_ptr());
-
-                    let  replacement: *mut libc::c_char =
-                        dc_mprintf(b"-----BEGIN PGP MESSAGE-----\r\nPassphrase-Format: numeric9x4\r\nPassphrase-Begin: %s\x00"
-                                       as *const u8 as *const libc::c_char,
-                                   passphrase_begin.as_mut_ptr());
-                    dc_str_replace(
-                        &mut encr_string,
-                        b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-                        replacement,
+                    let replacement = format!(
+                        concat!(
+                            "-----BEGIN PGP MESSAGE-----\r\n",
+                            "Passphrase-Format: numeric9x4\r\n",
+                            "Passphrase-Begin: {}"
+                        ),
+                        &as_str(passphrase)[..2]
                     );
-                    free(replacement as *mut libc::c_void);
-                    let setup_message_title =
-                        CString::new(context.stock_str(StockMessage::AcSetupMsgSubject).as_ref())
-                            .unwrap();
-                    let setup_message_body = context.stock_str(StockMessage::AcSetupMsgBody);
-                    let msg_body_head: &str = setup_message_body.split('\r').next().unwrap();
-                    let msg_body_html = CString::new(msg_body_head.replace("\n", "<br>")).unwrap();
-                    ret_setupfilecontent =
-                        dc_mprintf(b"<!DOCTYPE html>\r\n<html>\r\n<head>\r\n<title>%s</title>\r\n</head>\r\n<body>\r\n<h1>%s</h1>\r\n<p>%s</p>\r\n<pre>\r\n%s\r\n</pre>\r\n</body>\r\n</html>\r\n\x00"
-                                   as *const u8 as *const libc::c_char,
-                                   setup_message_title.as_ptr(),
-                                   setup_message_title.as_ptr(),
-                                   msg_body_html.as_ptr(),
-                                   encr_string);
-                    free(encr_string as *mut libc::c_void);
+                    let pgp_msg = encr.replace("-----BEGIN PGP MESSAGE-----", &replacement);
+
+                    let msg_subj = context.stock_str(StockMessage::AcSetupMsgSubject);
+                    let msg_body = context.stock_str(StockMessage::AcSetupMsgBody);
+                    let msg_body_head: &str = msg_body.split('\r').next().unwrap();
+                    let msg_body_html = msg_body_head.replace("\n", "<br>");
+                    ret_setupfilecontent = to_cstring(format!(
+                        concat!(
+                            "<!DOCTYPE html>\r\n",
+                            "<html>\r\n",
+                            "  <head>\r\n",
+                            "    <title>{}</title>\r\n",
+                            "  </head>\r\n",
+                            "  <body>\r\n",
+                            "    <h1>{}</h1>\r\n",
+                            "    <p>{}</p>\r\n",
+                            "    <pre>\r\n{}\r\n</pre>\r\n",
+                            "  </body>\r\n",
+                            "</html>\r\n"
+                        ),
+                        msg_subj, msg_subj, msg_body_html, pgp_msg
+                    ));
                 }
             }
         }
     }
-    sqlite3_finalize(stmt);
-
     ret_setupfilecontent
 }
 
