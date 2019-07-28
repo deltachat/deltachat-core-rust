@@ -2,12 +2,14 @@
 
 
 import os
+import re
 
 if __name__ == "__main__":
     filestats = []
     for fn in os.listdir():
         if fn.endswith(".rs"):
             s = open(fn).read()
+            s = re.sub(r'(?m)///.*$', '', s) # remove comments
             unsafe = s.count("unsafe")
             free = s.count("free(")
             gotoblocks = s.count("current_block =")
