@@ -2,11 +2,11 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::str;
 
-use num_traits::ToPrimitive;
+use num_traits::{FromPrimitive, ToPrimitive};
 
 use crate::error::{self, Result};
 
-#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, FromPrimitive, ToPrimitive)]
+#[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
 #[repr(u8)]
 pub enum Param {
     File = 'f' as u8,
@@ -36,12 +36,12 @@ pub enum Param {
     ProfileImage = 'i' as u8,
     Selftalk = 'K' as u8,
     Auth = 's' as u8,
-    Grpid = 'x' as u8,
-    UrlEncoded = 'g' as u8,
+    GroupId = 'x' as u8,
+    GroupName = 'g' as u8,
 }
-// values for DC_PARAM_FORCE_PLAINTEXT
-pub const DC_FP_ADD_AUTOCRYPT_HEADER: u8 = 1;
-pub const DC_FP_NO_AUTOCRYPT_HEADER: u8 = 2;
+// values for Param::ForcePlaintext
+pub const DC_FP_ADD_AUTOCRYPT_HEADER: i32 = 1;
+pub const DC_FP_NO_AUTOCRYPT_HEADER: i32 = 2;
 
 /// An object for handling key=value parameter lists; for the key, currently only
 /// a single character is allowed.
@@ -56,8 +56,11 @@ pub struct dc_param_t {
 
 impl fmt::Display for dc_param_t {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (key, value) in self.inner.entries() {
-            write!(f, "{}={}\n", key, value)?;
+        for (i, (key, value)) in self.inner.iter().enumerate() {
+            if i > 0 {
+                write!(f, "\n")?;
+            }
+            write!(f, "{}={}", key.to_u8().unwrap() as char, value)?;
         }
         Ok(())
     }
@@ -69,10 +72,27 @@ impl str::FromStr for dc_param_t {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let mut inner = BTreeMap::new();
         for pair in s.trim().lines() {
-            let key = Param::from_u8(pair[0])?;
-            ensure_eq!(pair[1], '=', "invalid separator");
-            let value = pair[2..];
-            inner.insert(key, value.to_string());
+            let pair = pair.trim();
+            if pair.is_empty() {
+                continue;
+            }
+            // TODO: probably nicer using a regex
+            ensure!(pair.len() > 2, "Invalid key pair: '{}'", pair);
+            let mut split = pair.splitn(2, '=');
+            let key = split.next();
+            let value = split.next();
+
+            ensure!(key.is_some(), "Missing key");
+            ensure!(value.is_some(), "Missing value");
+
+            let key = key.unwrap().trim();
+            let value = value.unwrap().trim();
+
+            if let Some(key) = Param::from_u8(key.as_bytes()[0]) {
+                inner.insert(key, value.to_string());
+            } else {
+                bail!("Unknown key: {}", key);
+            }
         }
 
         Ok(dc_param_t { inner })
@@ -88,12 +108,12 @@ impl dc_param_t {
         self.inner.contains_key(&key)
     }
 
-    pub fn set(&self, key: Param, value: impl AsRef<str>) {
+    pub fn set(&mut self, key: Param, value: impl AsRef<str>) {
         self.inner.insert(key, value.as_ref().to_string());
     }
 
     pub fn remove(&mut self, key: Param) {
-        self.inner.remove(key);
+        self.inner.remove(&key);
     }
 
     pub fn is_empty(&self) -> bool {
@@ -114,11 +134,11 @@ pub fn dc_param_get(param: &dc_param_t, key: Param) -> Option<&str> {
 }
 
 pub fn dc_param_get_int(param: &dc_param_t, key: Param) -> Option<i32> {
-    param.get(key).map(|s| s.parse().ok())
+    param.get(key).and_then(|s| s.parse().ok())
 }
 
-pub fn dc_param_get_float(param: &dc_param_t, key: Param) -> Option<f32> {
-    param.get(key).map(|s| s.parse().ok())
+pub fn dc_param_get_float(param: &dc_param_t, key: Param) -> Option<f64> {
+    param.get(key).and_then(|s| s.parse().ok())
 }
 
 pub fn dc_param_set(param: &mut dc_param_t, key: Param, value: impl AsRef<str>) {
@@ -133,7 +153,7 @@ pub fn dc_param_set_int(param: &mut dc_param_t, key: Param, value: i32) {
     param.set(key, format!("{}", value));
 }
 
-pub fn dc_param_set_float(param: &mut dc_param_t, key: Param, value: f32) {
+pub fn dc_param_set_float(param: &mut dc_param_t, key: Param, value: f64) {
     param.set(key, format!("{}", value));
 }
 
@@ -147,29 +167,28 @@ pub fn dc_param_set_packed(param: &mut dc_param_t, packed: impl AsRef<str>) -> R
 }
 
 pub fn dc_param_set_urlencoded(param: &mut dc_param_t, urlencoded: impl AsRef<str>) -> Result<()> {
-    dc_param_set_packed(urlencoded.replace('&', '\n'))?;
+    dc_param_set_packed(param, urlencoded.as_ref().replace('&', "\n"))?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn test_dc_param() {
         let mut p1 = dc_param_new();
-        dc_param_set_packed(&mut p1, "\r\n\r\na=1\nf=2\n\nc = 3 ");
+        dc_param_set_packed(&mut p1, "\r\n\r\na=1\nf=2\n\nc = 3 ").unwrap();
         assert_eq!(p1.len(), 3);
 
-        assert_eq!(dc_param_get_int(&p1, Param::Forwarded), 1);
-        assert_eq!(dc_param_get_int(&p1, Param::File), 2);
+        assert_eq!(dc_param_get_int(&p1, Param::Forwarded), Some(1));
+        assert_eq!(dc_param_get_int(&p1, Param::File), Some(2));
         assert_eq!(dc_param_get_int(&p1, Param::Height), None);
-        assert!(dc_param_exists(&p1, Param::Height));
+        assert!(!dc_param_exists(&p1, Param::Height));
 
         dc_param_set_int(&mut p1, Param::Duration, 4);
 
-        assert_eq!(dc_param_get_int(&p1, Param::Duration), 4);
+        assert_eq!(dc_param_get_int(&p1, Param::Duration), Some(4));
 
         let mut p1 = dc_param_new();
         dc_param_set(&mut p1, Param::Forwarded, "foo");
@@ -177,7 +196,7 @@ mod tests {
         dc_param_remove(&mut p1, Param::GuranteeE2ee);
         dc_param_set_int(&mut p1, Param::Duration, 4);
 
-        assert_eq!(p1.to_string(), "a=foo\nf=2\nd=4");
+        assert_eq!(p1.to_string(), "a=foo\nd=4\nf=2");
 
         dc_param_remove(&mut p1, Param::File);
 
@@ -190,6 +209,6 @@ mod tests {
         assert_eq!(p1.to_string(), "",);
 
         assert!(p1.is_empty());
-        assert!(p1.len(), 0)
+        assert_eq!(p1.len(), 0)
     }
 }

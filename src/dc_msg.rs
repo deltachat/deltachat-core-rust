@@ -156,7 +156,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     ret += "\n";
     match dc_param_get(&(*msg).param, Param::Error) {
-        Some(err) => ret += &format!("Error: {}", p),
+        Some(err) => ret += &format!("Error: {}", err),
         _ => {}
     }
 
@@ -346,12 +346,12 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
 }
 
 pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
-    let mut file_rel: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut file_abs: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut file_abs = 0 as *mut libc::c_char;
+
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file_rel) = dc_param_get(&(*msg).param, Param::File) {
             let file_rel_c = to_cstring(file_rel);
-            file_abs = dc_get_abs_path((*msg).context, file_rel);
+            file_abs = dc_get_abs_path((*msg).context, file_rel_c);
             free(file_rel_c as *mut _);
         }
     }
@@ -397,7 +397,7 @@ pub unsafe fn dc_msg_has_location(msg: *const dc_msg_t) -> bool {
  * @return None.
  */
 pub unsafe fn dc_msg_set_location(
-    msg: *const dc_msg_t,
+    msg: *mut dc_msg_t,
     latitude: libc::c_double,
     longitude: libc::c_double,
 ) {
@@ -460,7 +460,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
                 (*msg).text = to_cstring(row.get::<_, String>(15).unwrap_or_default());
-                (*msg).param = row.get::<_, String>(16)?.parse()?;
+                (*msg).param = row.get::<_, String>(16)?.parse().unwrap_or_default();
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
                 (*msg).location_id = row.get(19)?;
@@ -503,18 +503,18 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
         dc_update_msg_chat_id(context, *msg_ids.offset(i as isize), 3i32 as uint32_t);
         dc_job_add(
             context,
-            110i32,
+            110,
             *msg_ids.offset(i as isize) as libc::c_int,
-            0 as *const libc::c_char,
-            0i32,
+            None,
+            0,
         );
         i += 1
     }
 
     if 0 != msg_cnt {
-        context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
-        dc_job_kill_action(context, 105i32);
-        dc_job_add(context, 105i32, 0i32, 0 as *const libc::c_char, 10i32);
+        context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+        dc_job_kill_action(context, 105);
+        dc_job_add(context, 105, 0, None, 10);
     };
 }
 
@@ -564,7 +564,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
                 dc_update_msg_state(context, id, DC_STATE_IN_SEEN);
                 info!(context, 0, "Seen message #{}.", id);
 
-                unsafe { dc_job_add(context, 130, id as i32, 0 as *const libc::c_char, 0) };
+                unsafe { dc_job_add(context, 130, id as i32, None, 0) };
                 send_event = true;
             }
         } else if curr_state == DC_STATE_IN_FRESH {
@@ -710,8 +710,8 @@ pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_msg_get_filebytes(msg: *const dc_msg_t) -> uint64_t {
-    let mut ret: uint64_t = 0i32 as uint64_t;
-    let mut file: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut ret = 0;
+
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file) = dc_param_get(&(*msg).param, Param::File) {
             let file_c = to_cstring(file);
@@ -760,7 +760,7 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_msg_get_summary<'a>(
-    msg: *const dc_msg_t<'a>,
+    msg: *mut dc_msg_t<'a>,
     mut chat: *const Chat<'a>,
 ) -> *mut dc_lot_t {
     let current_block: u64;
@@ -798,7 +798,7 @@ pub unsafe fn dc_msg_get_summary<'a>(
 }
 
 pub unsafe fn dc_msg_get_summarytext(
-    msg: *const dc_msg_t,
+    msg: *mut dc_msg_t,
     approx_characters: libc::c_int,
 ) -> *mut libc::c_char {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
@@ -808,7 +808,7 @@ pub unsafe fn dc_msg_get_summarytext(
     dc_msg_get_summarytext_by_raw(
         (*msg).type_0,
         (*msg).text,
-        (*msg).param,
+        &mut (*msg).param,
         approx_characters,
         (*msg).context,
     )
@@ -1089,7 +1089,7 @@ pub unsafe fn dc_msg_save_param_to_disk(msg: *mut dc_msg_t) -> bool {
         (*msg).context,
         &(*msg).context.sql,
         "UPDATE msgs SET param=? WHERE id=?;",
-        params![as_str((*(*msg).param).packed), (*msg).id as i32],
+        params![(*msg).param.to_string(), (*msg).id as i32],
     )
     .is_ok()
 }
@@ -1187,7 +1187,7 @@ pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *con
             context,
             &context.sql,
             "UPDATE msgs SET state=?, param=? WHERE id=?;",
-            params![(*msg).state, as_str((*(*msg).param).packed), msg_id as i32],
+            params![(*msg).state, (*msg).param.to_string(), msg_id as i32],
         )
         .is_ok()
         {

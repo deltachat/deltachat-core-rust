@@ -225,13 +225,7 @@ unsafe fn cb_precheck_imf(
         }
         dc_do_heuristics_moves(context, server_folder, msg_id);
         if 0 != mark_seen {
-            dc_job_add(
-                context,
-                130i32,
-                msg_id as libc::c_int,
-                0 as *const libc::c_char,
-                0i32,
-            );
+            dc_job_add(context, 130i32, msg_id as libc::c_int, None, 0i32);
         }
     }
     free(old_server_folder as *mut libc::c_void);

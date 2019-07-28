@@ -481,8 +481,8 @@ pub unsafe fn dc_receive_imf(
                                         }
                                         if 0 != mime_parser.is_system_message {
                                             dc_param_set_int(
-                                                (*part).param,
-                                                'S' as i32,
+                                                &mut (*part).param,
+                                                Param::Cmd,
                                                 mime_parser.is_system_message,
                                             );
                                         }
@@ -511,7 +511,7 @@ pub unsafe fn dc_receive_imf(
                                             } else {
                                                 String::new()
                                             },
-                                            as_str((*(*part).param).packed),
+                                            (*part).param.to_string(),
                                             (*part).bytes,
                                             hidden,
                                             if 0 != save_mime_headers {
@@ -743,17 +743,15 @@ pub unsafe fn dc_receive_imf(
                                     }
                                 }
                                 if 0 != mime_parser.is_send_by_messenger || 0 != mdn_consumed {
-                                    let param = dc_param_new();
-                                    let server_folder_c = to_cstring(server_folder.as_ref());
+                                    let mut param = dc_param_new();
                                     dc_param_set(
-                                        param,
-                                        DC_PARAM_SERVER_FOLDER as i32,
-                                        server_folder_c,
+                                        &mut param,
+                                        Param::ServerFolder,
+                                        server_folder.as_ref(),
                                     );
-                                    free(server_folder_c as *mut _);
                                     dc_param_set_int(
-                                        param,
-                                        DC_PARAM_SERVER_UID as i32,
+                                        &mut param,
+                                        Param::ServerUid,
                                         server_uid as i32,
                                     );
                                     if 0 != mime_parser.is_send_by_messenger
@@ -762,9 +760,9 @@ pub unsafe fn dc_receive_imf(
                                             .get_config_int(context, "mvbox_move")
                                             .unwrap_or_else(|| 1)
                                     {
-                                        dc_param_set_int(param, DC_PARAM_ALSO_MOVE as i32, 1);
+                                        dc_param_set_int(&mut param, Param::AlsoMove, 1);
                                     }
-                                    dc_job_add(context, 120, 0, (*param).packed, 0);
+                                    dc_job_add(context, 120, 0, Some(param), 0);
                                 }
                             }
                         }
@@ -832,7 +830,7 @@ pub unsafe fn dc_receive_imf(
                         context,
                         DC_JOB_DELETE_MSG_ON_IMAP,
                         created_db_entries[0].1 as i32,
-                        0 as *const libc::c_char,
+                        None,
                         0,
                     );
                 }
@@ -1224,18 +1222,16 @@ unsafe fn create_or_lookup_group(
                                         carray_get(mime_parser.parts, i_0 as libc::c_uint)
                                             as *mut dc_mimepart_t;
                                     if (*part).type_0 == 20 {
-                                        grpimage = dc_param_get(
-                                            (*part).param,
-                                            DC_PARAM_FILE as i32,
-                                            0 as *const libc::c_char,
-                                        );
+                                        grpimage = dc_param_get(&(*part).param, Param::File)
+                                            .map(|s| to_cstring(s))
+                                            .unwrap_or_else(|| std::ptr::null_mut());
                                         ok = 1
                                     }
                                     i_0 += 1
                                 }
                             }
                             if 0 != ok {
-                                let chat: *mut Chat = dc_chat_new(context);
+                                let chat = dc_chat_new(context);
                                 info!(
                                     context,
                                     0,
@@ -1247,11 +1243,15 @@ unsafe fn create_or_lookup_group(
                                     },
                                 );
                                 dc_chat_load_from_db(chat, chat_id);
-                                dc_param_set(
-                                    (*chat).param,
-                                    DC_PARAM_PROFILE_IMAGE as i32,
-                                    grpimage,
-                                );
+                                if grpimage.is_null() {
+                                    dc_param_remove(&mut (*chat).param, Param::ProfileImage);
+                                } else {
+                                    dc_param_set(
+                                        &mut (*chat).param,
+                                        Param::ProfileImage,
+                                        as_str(grpimage),
+                                    );
+                                }
                                 dc_chat_update_param(chat);
                                 dc_chat_unref(chat);
                                 free(grpimage as *mut libc::c_void);

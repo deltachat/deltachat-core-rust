@@ -604,7 +604,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         );
                         grpimage = dc_param_get(&(*chat).param, Param::ProfileImage);
                     }
-                    if 0 != dc_param_get_int((*msg).param, Param::Arg2).unwrap_or_default() & 0x1 {
+                    if 0 != dc_param_get_int(&(*msg).param, Param::Arg2).unwrap_or_default() & 0x1 {
                         info!(
                             (*msg).context,
                             0,
@@ -884,7 +884,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         if dc_param_exists(&(*msg).param, Param::SetLatitude) {
                             let latitude = dc_param_get_float(&(*msg).param, Param::SetLatitude)
                                 .unwrap_or_default();
-                            let longitude = dc_param_get_float((*msg).param, &Param::SetLongitude)
+                            let longitude = dc_param_get_float(&(*msg).param, Param::SetLongitude)
                                 .unwrap_or_default();
                             let kml_file =
                                 dc_get_message_kml((*msg).timestamp_sort, latitude, longitude);
@@ -1086,13 +1086,13 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
 
 unsafe fn get_subject(
     chat: *const Chat,
-    msg: *const dc_msg_t,
+    msg: *mut dc_msg_t,
     afwd_email: libc::c_int,
 ) -> *mut libc::c_char {
     let context = (*chat).context;
     let ret: *mut libc::c_char;
     let raw_subject: *mut libc::c_char =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, (*msg).param, 32, context);
+        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 32, context);
     let fwd: *const libc::c_char = if 0 != afwd_email {
         b"Fwd: \x00" as *const u8 as *const libc::c_char
     } else {

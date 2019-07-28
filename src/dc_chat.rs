@@ -138,8 +138,9 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                 unsafe { to_cstring(raw) }
             };
 
-            let packed: String = row.get(4)?;
-            c.param = packed.parse()?;
+            if let Ok(param) = row.get::<_, String>(4)?.parse() {
+                c.param = param;
+            }
 
             c.archived = row.get(5)?;
             c.blocked = row.get::<_, Option<i32>>(6)?.unwrap_or_default();
@@ -178,7 +179,7 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                     (*chat).name = to_cstring((*chat).context.stock_str(StockMessage::StarredMsgs));
                 },
                 _ => {
-                    if dc_param_exists((*chat).param, Param::Selftalk) {
+                    if dc_param_exists(unsafe { &(*chat).param }, Param::Selftalk) {
                         unsafe {
                             free((*chat).name as *mut libc::c_void);
                             (*chat).name =
@@ -387,7 +388,7 @@ unsafe fn prepare_msg_common<'a>(
     if (*msg).type_0 == DC_MSG_TEXT {
         /* the caller should check if the message text is empty */
     } else if msgtype_has_file((*msg).type_0) {
-        let pathNfilename = dc_param_get((*msg).param, Param::File);
+        let pathNfilename = dc_param_get(&(*msg).param, Param::File);
         if pathNfilename.is_none() {
             error!(
                 context,
@@ -478,7 +479,7 @@ unsafe fn prepare_msg_common<'a>(
 unsafe fn prepare_msg_raw(
     context: &Context,
     chat: *mut Chat,
-    msg: *const dc_msg_t,
+    msg: *mut dc_msg_t,
     timestamp: i64,
 ) -> uint32_t {
     let mut do_guarantee_e2ee: libc::c_int;
@@ -672,7 +673,7 @@ unsafe fn prepare_msg_raw(
 
                 // add independent location to database
 
-                if 0 != dc_param_exists(&(*msg).param, Param::SetLatitude) {
+                if dc_param_exists(&(*msg).param, Param::SetLatitude) {
                     if sql::execute(
                         context,
                         &context.sql,
@@ -684,7 +685,7 @@ unsafe fn prepare_msg_raw(
                             DC_CONTACT_ID_SELF as i32,
                             (*chat).id as i32,
                             dc_param_get_float(&(*msg).param, Param::SetLatitude)
-                                .unwrap_or_defalut(),
+                                .unwrap_or_default(),
                             dc_param_get_float(&(*msg).param, Param::SetLongitude)
                                 .unwrap_or_default(),
                         ],
@@ -718,7 +719,7 @@ unsafe fn prepare_msg_raw(
                             (*msg).type_0,
                             (*msg).state,
                             if !(*msg).text.is_null() { Some(as_str((*msg).text)) } else { None },
-                            if (*(*msg).param).packed.is_null() { None } else { Some(as_str((*(*msg).param).packed)) },
+                            (*msg).param.to_string(),
                             (*msg).hidden,
                             to_string(new_in_reply_to),
                             to_string(new_references),
@@ -851,7 +852,7 @@ pub unsafe fn dc_chat_update_param(chat: *mut Chat) -> libc::c_int {
         (*chat).context,
         &(*chat).context.sql,
         "UPDATE chats SET param=? WHERE id=?",
-        params![to_string((*(*chat).param).packed), (*chat).id as i32],
+        params![(*chat).param.to_string(), (*chat).id as i32],
     )
     .is_ok() as libc::c_int
 }
@@ -984,7 +985,6 @@ pub unsafe fn dc_set_draft(context: &Context, chat_id: uint32_t, msg: *mut dc_ms
 unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t) -> libc::c_int {
     let mut OK_TO_CONTINUE = true;
     // similar to as dc_set_draft() but does not emit an event
-    let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
     let prev_draft_msg_id: uint32_t;
     let mut sth_changed: libc::c_int = 0i32;
     prev_draft_msg_id = get_draft_msg_id(context, chat_id);
@@ -999,7 +999,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                 OK_TO_CONTINUE = false;
             }
         } else if msgtype_has_file((*msg).type_0) {
-            pathNfilename = dc_param_get(&(*msg).param, Param::File);
+            let pathNfilename = dc_param_get(&(*msg).param, Param::File);
             if pathNfilename.is_none() {
                 OK_TO_CONTINUE = false;
             } else if 0 != dc_msg_is_increation(msg)
@@ -1035,7 +1035,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                     } else {
                         ""
                     },
-                    to_string((*(*msg).param).packed),
+                    (*msg).param.to_string(),
                     1,
                 ],
             )
@@ -1045,7 +1045,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
             }
         }
     }
-    free(pathNfilename as *mut libc::c_void);
+
     sth_changed
 }
 
@@ -1417,7 +1417,7 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) -> bool {
     context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
 
     dc_job_kill_action(context, 105);
-    unsafe { dc_job_add(context, 105, 0, 0 as *const libc::c_char, 10) };
+    unsafe { dc_job_add(context, 105, 0, None, 10) };
 
     true
 }
@@ -1851,7 +1851,7 @@ pub unsafe fn dc_set_chat_name(
                         ));
                         dc_param_set_int(&mut (*msg).param, Param::Cmd, 2);
                         if !(*chat).name.is_null() {
-                            dc_param_set(&mut (*msg).param, Param::Arg, (*chat).name);
+                            dc_param_set(&mut (*msg).param, Param::Arg, as_str((*chat).name));
                         }
                         (*msg).id = dc_send_msg(context, chat_id, msg);
                         context.call_cb(
@@ -1916,7 +1916,7 @@ pub unsafe fn dc_set_chat_profile_image(
                             == 0
                         {
                             dc_param_set_int(&mut (*msg).param, Param::Cmd, 3);
-                            dc_param_set(&mut (*msg).param, Param::Arg, new_image_rel);
+                            dc_param_set(&mut (*msg).param, Param::Arg, as_str(new_image_rel));
                             (*msg).type_0 = DC_MSG_TEXT;
                             (*msg).text = to_cstring(context.stock_system_msg(
                                 if !new_image_rel.is_null() {
@@ -1970,7 +1970,6 @@ pub unsafe fn dc_forward_msgs(
     let created_db_entries = carray_new(16);
     let mut curr_timestamp: i64;
 
-    let mut original_param = dc_param_new();
     dc_unarchive_chat(context, chat_id);
     if dc_chat_load_from_db(chat, chat_id) {
         curr_timestamp = dc_create_smeared_timestamps(context, msg_cnt);
@@ -2000,7 +1999,7 @@ pub unsafe fn dc_forward_msgs(
             if !dc_msg_load_from_db(msg, context, src_msg_id as u32) {
                 break;
             }
-            dc_param_set_packed(original_param, as_str((*(*msg).param).packed));
+            let original_param = (*msg).param.clone();
             if (*msg).from_id != 1 {
                 dc_param_set_int(&mut (*msg).param, Param::Forwarded, 1);
             }
@@ -2096,7 +2095,7 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
     }
 
     let mut ret: *mut libc::c_char = std::ptr::null_mut();
-    if (*chat).type_0 == 100 && 0 != dc_param_exists(&(*chat).param, Param::Selftalk) {
+    if (*chat).type_0 == 100 && dc_param_exists(&(*chat).param, Param::Selftalk) {
         ret = to_cstring((*chat).context.stock_str(StockMessage::SelfTalkSubTitle));
     } else if (*chat).type_0 == 100 {
         let ret_raw: String = (*chat)

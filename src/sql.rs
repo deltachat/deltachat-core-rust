@@ -954,25 +954,25 @@ pub fn housekeeping(context: &Context) {
         context,
         &mut files_in_use,
         "SELECT param FROM msgs  WHERE chat_id!=3   AND type!=10;",
-        'f' as i32,
+        Param::File,
     );
     maybe_add_from_param(
         context,
         &mut files_in_use,
         "SELECT param FROM jobs;",
-        'f' as i32,
+        Param::File,
     );
     maybe_add_from_param(
         context,
         &mut files_in_use,
         "SELECT param FROM chats;",
-        'i' as i32,
+        Param::ProfileImage,
     );
     maybe_add_from_param(
         context,
         &mut files_in_use,
         "SELECT param FROM contacts;",
-        'i' as i32,
+        Param::ProfileImage,
     );
 
     context
@@ -1123,23 +1123,18 @@ fn maybe_add_from_param(
     context: &Context,
     files_in_use: &mut HashSet<String>,
     query: &str,
-    param_id: libc::c_int,
+    param_id: Param,
 ) {
-    let param = unsafe { dc_param_new() };
+    let mut param = dc_param_new();
 
     context
         .sql
         .query_row(query, NO_PARAMS, |row| {
-            unsafe {
-                let v = to_cstring(row.get::<_, String>(0)?);
-                dc_param_set_packed(param, v as *const _);
-                let file = dc_param_get(param, param_id, 0 as *const _);
-                if !file.is_null() {
-                    maybe_add_file(files_in_use, as_str(file));
-                    free(file as *mut libc::c_void);
-                }
-
-                free(v as *mut _);
+            if let Ok(res) = row.get::<_, String>(0)?.parse() {
+                param = res;
+            }
+            if let Some(file) = dc_param_get(&param, param_id) {
+                maybe_add_file(files_in_use, file);
             }
             Ok(())
         })

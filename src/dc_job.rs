@@ -42,7 +42,7 @@ pub struct dc_job_t {
     pub desired_timestamp: i64,
     pub added_timestamp: i64,
     pub tries: libc::c_int,
-    pub param: dc_param_t,
+    pub param: Option<dc_param_t>,
     pub try_again: libc::c_int,
     pub pending_error: *mut libc::c_char,
 }
@@ -91,7 +91,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 desired_timestamp: row.get(5)?,
                 added_timestamp: row.get(4)?,
                 tries: row.get(6)?,
-                param: row.get::<_, String>(3)?.parse()?,
+                param: row.get::<_, String>(3)?.parse().ok(),
                 try_again: 0,
                 pending_error: 0 as *mut libc::c_char,
             };
@@ -256,7 +256,7 @@ fn dc_job_update(context: &Context, job: &dc_job_t) -> bool {
         params![
             job.desired_timestamp,
             job.tries as i64,
-            as_str(unsafe { (*job.param).packed }),
+            job.param.as_ref().map(|s| s.to_string()),
             job.job_id as i32,
         ],
     )
@@ -296,11 +296,19 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     }
     match current_block {
         13109137661213826276 => {
-            filename = to_cstring(dc_param_get(&job.param, Param::File).unwrap_or_default());
+            filename = to_cstring(
+                job.param
+                    .as_ref()
+                    .and_then(|p| dc_param_get(p, Param::File))
+                    .unwrap_or_default(),
+            );
             if strlen(filename) == 0 {
                 warn!(context, 0, "Missing file name for job {}", job.job_id,);
             } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
-                let recipients = dc_param_get(&job.param, Param::Recipients);
+                let recipients = job
+                    .param
+                    .as_ref()
+                    .and_then(|p| dc_param_get(p, Param::Recipients));
                 if recipients.is_none() {
                     warn!(context, 0, "Missing recipients for job {}", job.job_id,);
                 } else {
@@ -495,15 +503,24 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
 
 unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_job_t) {
     let current_block: u64;
-    let folder = dc_param_get(&job.param, Param::ServerFolder).unwrap_or_default();
-    let uid = dc_param_get_int(&job.param, Param::ServerUid);
+    let folder = job
+        .param
+        .as_ref()
+        .and_then(|p| dc_param_get(p, Param::ServerFolder))
+        .unwrap_or_default()
+        .to_string();
+    let uid = job
+        .param
+        .as_ref()
+        .and_then(|p| dc_param_get_int(p, Param::ServerUid))
+        .unwrap_or_default() as u32;
     let mut dest_uid = 0;
     let inbox = context.inbox.read().unwrap();
 
     if !inbox.is_connected() {
         connect_to_inbox(context, &inbox);
         if !inbox.is_connected() {
-            dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+            dc_job_try_again_later(job, 3, 0 as *const libc::c_char);
             current_block = 2670689566614003383;
         } else {
             current_block = 11006700562992250127;
@@ -513,10 +530,15 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
     }
     match current_block {
         11006700562992250127 => {
-            if inbox.set_seen(context, folder, uid) as libc::c_uint == 0i32 as libc::c_uint {
+            if inbox.set_seen(context, &folder, uid) == 0 {
                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
             }
-            if 0 != dc_param_get_int(&job.param, Param::AlsoMove).unwrap_or_default() {
+            if 0 != job
+                .param
+                .as_ref()
+                .and_then(|p| dc_param_get_int(p, Param::AlsoMove))
+                .unwrap_or_default()
+            {
                 if context
                     .sql
                     .get_config_int(context, "folders_configured")
@@ -537,7 +559,6 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
         }
         _ => {}
     }
-    free(folder as *mut libc::c_void);
 }
 
 unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_job_t) {
@@ -773,10 +794,10 @@ unsafe fn dc_add_smtp_job(
             {
                 (*(*mimefactory).msg).id
             } else {
-                0i32 as libc::c_uint
+                0
             }) as libc::c_int,
-            (*param).packed,
-            0i32,
+            Some(param),
+            0,
         );
         success = 1i32
     }
@@ -789,7 +810,7 @@ pub unsafe fn dc_job_add(
     context: &Context,
     action: libc::c_int,
     foreign_id: libc::c_int,
-    param: dc_param_t,
+    param: Option<dc_param_t>,
     delay_seconds: libc::c_int,
 ) {
     let timestamp = time();
@@ -810,7 +831,7 @@ pub unsafe fn dc_job_add(
             thread,
             action,
             foreign_id,
-            param.to_string(),
+            param.map(|s| s.to_string()).unwrap_or_default(),
             (timestamp + delay_seconds as i64)
         ]
     ).ok();
@@ -1162,8 +1183,8 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 {
                     let mut buf = 0 as *mut libc::c_uchar;
                     let mut buf_bytes: size_t = 0;
-                    let mut w: uint32_t = 0;
-                    let mut h: uint32_t = 0;
+                    let mut w = 0;
+                    let mut h = 0;
                     dc_param_set_int(&mut (*mimefactory.msg).param, Param::Width, 0);
                     dc_param_set_int(&mut (*mimefactory.msg).param, Param::Height, 0);
                     if 0 != dc_read_file(
@@ -1178,8 +1199,12 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                             &mut w,
                             &mut h,
                         ) {
-                            dc_param_set_int(&mut (*mimefactory.msg).param, Param::Width, w);
-                            dc_param_set_int(&mut (*mimefactory.msg).param, Param::Height, h);
+                            dc_param_set_int(&mut (*mimefactory.msg).param, Param::Width, w as i32);
+                            dc_param_set_int(
+                                &mut (*mimefactory.msg).param,
+                                Param::Height,
+                                h as i32,
+                            );
                         }
                     }
                     free(buf as *mut libc::c_void);

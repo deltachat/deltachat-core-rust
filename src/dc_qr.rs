@@ -1,4 +1,4 @@
-use percent_encoding::percent_decode;
+use percent_encoding::percent_decode_str;
 
 use crate::context::Context;
 use crate::dc_chat::*;
@@ -57,21 +57,33 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 *fragment = 0i32 as libc::c_char;
                 fragment = fragment.offset(1isize);
                 let mut param = dc_param_new();
-                dc_param_set_urlencoded(&mut param, fragment);
-                if let Some(addr) = dc_param_get(&param, Param::Forwarded) {
-                    if let Some(ref urlencoded) = dc_param_get(&param, Param::SetLongitude) {
-                        let name_r = percent_decode(urlencoded).to_string();
+                dc_param_set_urlencoded(&mut param, as_str(fragment)).expect("invalid params");
+                addr = dc_param_get(&param, Param::Forwarded)
+                    .map(|s| to_cstring(s))
+                    .unwrap_or_else(|| std::ptr::null_mut());
+                if !addr.is_null() {
+                    if let Some(ref name_enc) = dc_param_get(&param, Param::SetLongitude) {
+                        let name_r = percent_decode_str(name_enc)
+                            .decode_utf8()
+                            .expect("invalid name");
                         name = to_cstring(name_r);
                         dc_normalize_name(name);
                     }
-                    invitenumber = dc_param_get(&param, Param::ProfileImage);
-                    auth = dc_param_get(param, 's' as i32, 0 as *const libc::c_char);
-                    grpid = dc_param_get(param, 'x' as i32, 0 as *const libc::c_char);
+                    invitenumber = dc_param_get(&param, Param::ProfileImage)
+                        .map(|s| to_cstring(s))
+                        .unwrap_or_else(|| std::ptr::null_mut());
+                    auth = dc_param_get(&param, Param::Auth)
+                        .map(|s| to_cstring(s))
+                        .unwrap_or_else(|| std::ptr::null_mut());
+                    grpid = dc_param_get(&param, Param::GroupId)
+                        .map(|s| to_cstring(s))
+                        .unwrap_or_else(|| std::ptr::null_mut());
                     if !grpid.is_null() {
-                        urlencoded = dc_param_get(param, 'g' as i32, 0 as *const libc::c_char);
-                        if !urlencoded.is_null() {
-                            grpname = dc_urldecode(urlencoded);
-                            free(urlencoded as *mut libc::c_void);
+                        if let Some(grpname_enc) = dc_param_get(&param, Param::GroupName) {
+                            let grpname_r = percent_decode_str(grpname_enc)
+                                .decode_utf8()
+                                .expect("invalid groupname");
+                            grpname = to_cstring(grpname_r);
                         }
                     }
                 }

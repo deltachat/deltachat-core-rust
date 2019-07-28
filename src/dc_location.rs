@@ -126,7 +126,7 @@ pub unsafe fn dc_send_locations_to_chat(
                     context,
                     5007i32,
                     chat_id as libc::c_int,
-                    0 as *const libc::c_char,
+                    None,
                     seconds + 1i32,
                 );
             }
@@ -140,7 +140,7 @@ pub unsafe fn dc_send_locations_to_chat(
  ******************************************************************************/
 unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: libc::c_int) {
     if 0 != flags & 0x1 || !dc_job_action_exists(context, 5005) {
-        dc_job_add(context, 5005, 0, 0 as *const libc::c_char, 60);
+        dc_job_add(context, 5005, 0, None, 60);
     };
 }
 

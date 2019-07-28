@@ -125,7 +125,7 @@ pub unsafe fn dc_lot_get_timestamp(lot: *const dc_lot_t) -> i64 {
 /* in practice, the user additionally cuts the string himself pixel-accurate */
 pub unsafe fn dc_lot_fill(
     mut lot: *mut dc_lot_t,
-    msg: *const dc_msg_t,
+    msg: *mut dc_msg_t,
     chat: *const Chat,
     contact: *const dc_contact_t,
     context: &Context,
@@ -161,7 +161,7 @@ pub unsafe fn dc_lot_fill(
         }
     }
     (*lot).text2 =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, (*msg).param, 160i32, context);
+        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 160, context);
     (*lot).timestamp = dc_msg_get_timestamp(msg);
     (*lot).state = (*msg).state;
 }

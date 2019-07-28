@@ -42,7 +42,7 @@ pub unsafe fn dc_imex(
     }
 
     dc_job_kill_action(context, 910);
-    dc_job_add(context, 910, 0, (*param).packed, 0);
+    dc_job_add(context, 910, 0, Some(param), 0);
 }
 
 /// Returns the filename of the backup if found, nullptr otherwise.
@@ -550,9 +550,25 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
 
     if !(0 == dc_alloc_ongoing(context)) {
         ongoing_allocated_here = 1;
-        what = dc_param_get_int(&(*job).param, Param::Cmd).unwrap_or_default();
-        param1 = to_cstring(dc_param_get(&(*job).param, Param::Arg).unwrap_or_default());
-        param2 = to_cstring(dc_param_get(&(*job).param, Param::Arg2).unwrap_or_default());
+        what = (*job)
+            .param
+            .as_ref()
+            .and_then(|p| dc_param_get_int(p, Param::Cmd))
+            .unwrap_or_default();
+        param1 = to_cstring(
+            (*job)
+                .param
+                .as_ref()
+                .and_then(|p| dc_param_get(p, Param::Arg))
+                .unwrap_or_default(),
+        );
+        param2 = to_cstring(
+            (*job)
+                .param
+                .as_ref()
+                .and_then(|p| dc_param_get(p, Param::Arg2))
+                .unwrap_or_default(),
+        );
 
         if strlen(param1) == 0 {
             error!(context, 0, "No Import/export dir/file given.",);
