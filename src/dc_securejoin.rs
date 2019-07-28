@@ -1,7 +1,7 @@
 use std::ffi::CString;
 
 use mmime::mailimf_types::*;
-use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
 use crate::constants::*;
@@ -14,12 +14,12 @@ use crate::dc_e2ee::*;
 use crate::dc_lot::*;
 use crate::dc_mimeparser::*;
 use crate::dc_msg::*;
-use crate::dc_param::*;
 use crate::dc_qr::*;
 use crate::dc_strencode::*;
 use crate::dc_token::*;
 use crate::dc_tools::*;
 use crate::key::*;
+use crate::param::*;
 use crate::peerstate::*;
 use crate::stock::StockMessage;
 use crate::types::*;
@@ -87,8 +87,8 @@ pub unsafe fn dc_get_securejoin_qr(
         return cleanup(fingerprint, chat, group_name, group_name_urlencoded);
     }
 
-    let self_addr_urlencoded = utf8_percent_encode(&self_addr, DEFAULT_ENCODE_SET).to_string();
-    let self_name_urlencoded = utf8_percent_encode(&self_name, DEFAULT_ENCODE_SET).to_string();
+    let self_addr_urlencoded = utf8_percent_encode(&self_addr, NON_ALPHANUMERIC).to_string();
+    let self_name_urlencoded = utf8_percent_encode(&self_name, NON_ALPHANUMERIC).to_string();
 
     qr = if 0 != group_chat_id {
         chat = dc_get_chat(context, group_chat_id);
@@ -268,24 +268,31 @@ unsafe fn send_handshake_msg(
         b"Secure-Join: %s\x00" as *const u8 as *const libc::c_char,
         step,
     );
-    (*msg).hidden = 1i32;
-    dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 7);
-    dc_param_set((*msg).param, DC_PARAM_CMD_ARG as i32, step);
+    (*msg).hidden = 1;
+    (*msg).param.set_int(Param::Cmd, 7);
+    if step.is_null() {
+        (*msg).param.remove(Param::Arg);
+    } else {
+        (*msg).param.set(Param::Arg, as_str(step));
+    }
     if !param2.is_null() {
-        dc_param_set((*msg).param, DC_PARAM_CMD_ARG2 as i32, param2);
+        (*msg).param.set(Param::Arg2, as_str(param2));
     }
     if !fingerprint.is_null() {
-        dc_param_set((*msg).param, DC_PARAM_CMD_ARG3 as i32, fingerprint);
+        (*msg).param.set(Param::Arg3, as_str(fingerprint));
     }
     if !grpid.is_null() {
-        dc_param_set((*msg).param, DC_PARAM_CMD_ARG4 as i32, grpid);
+        (*msg).param.set(Param::Arg4, as_str(grpid));
     }
     if strcmp(step, b"vg-request\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(step, b"vc-request\x00" as *const u8 as *const libc::c_char) == 0i32
     {
-        dc_param_set_int((*msg).param, DC_PARAM_FORCE_PLAINTEXT as i32, 1);
+        (*msg).param.set_int(
+            Param::ForcePlaintext,
+            ForcePlaintext::AddAutocryptHeader as i32,
+        );
     } else {
-        dc_param_set_int((*msg).param, DC_PARAM_GUARANTEE_E2EE as i32, 1);
+        (*msg).param.set_int(Param::GuranteeE2ee, 1);
     }
     dc_send_msg(context, contact_chat_id, msg);
     dc_msg_unref(msg);

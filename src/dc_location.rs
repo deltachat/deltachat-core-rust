@@ -6,9 +6,9 @@ use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
-use crate::dc_param::*;
 use crate::dc_saxparser::*;
 use crate::dc_tools::*;
+use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
@@ -105,7 +105,7 @@ pub unsafe fn dc_send_locations_to_chat(
                     "",
                     0,
                 ));
-                dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 8);
+                (*msg).param.set_int(Param::Cmd, 8);
                 dc_send_msg(context, chat_id, msg);
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str = CString::new(context.stock_system_msg(
@@ -128,7 +128,7 @@ pub unsafe fn dc_send_locations_to_chat(
                     context,
                     5007i32,
                     chat_id as libc::c_int,
-                    0 as *const libc::c_char,
+                    Params::new(),
                     seconds + 1i32,
                 );
             }
@@ -143,7 +143,7 @@ pub unsafe fn dc_send_locations_to_chat(
 #[allow(non_snake_case)]
 unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: libc::c_int) {
     if 0 != flags & 0x1 || !dc_job_action_exists(context, 5005) {
-        dc_job_add(context, 5005, 0, 0 as *const libc::c_char, 60);
+        dc_job_add(context, 5005, 0, Params::new(), 60);
     };
 }
 
@@ -709,7 +709,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                             // and dc_set_location() is typically called periodically, this is ok)
                             let mut msg = dc_msg_new(context, 10);
                             (*msg).hidden = 1;
-                            dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 9);
+                            (*msg).param.set_int(Param::Cmd, 9);
                             dc_send_msg(context, chat_id as u32, msg);
                             dc_msg_unref(msg);
                         }

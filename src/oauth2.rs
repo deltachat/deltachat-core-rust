@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::Deserialize;
 
 use crate::context::Context;
@@ -321,7 +321,7 @@ fn is_expired(context: &Context) -> bool {
 }
 
 fn replace_in_uri(uri: impl AsRef<str>, key: impl AsRef<str>, value: impl AsRef<str>) -> String {
-    let value_urlencoded = utf8_percent_encode(value.as_ref(), DEFAULT_ENCODE_SET).to_string();
+    let value_urlencoded = utf8_percent_encode(value.as_ref(), NON_ALPHANUMERIC).to_string();
     uri.as_ref().replace(key.as_ref(), &value_urlencoded)
 }
 
@@ -344,7 +344,7 @@ mod tests {
     fn test_replace_in_uri() {
         assert_eq!(
             replace_in_uri("helloworld", "world", "a-b c"),
-            "helloa-b%20c"
+            "helloa%2Db%20c"
         );
     }
 

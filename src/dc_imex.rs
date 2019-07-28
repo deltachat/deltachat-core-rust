@@ -12,9 +12,9 @@ use crate::dc_configure::*;
 use crate::dc_e2ee::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
-use crate::dc_param::*;
 use crate::dc_tools::*;
 use crate::key::*;
+use crate::param::*;
 use crate::pgp::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
@@ -32,13 +32,17 @@ pub unsafe fn dc_imex(
     param1: *const libc::c_char,
     param2: *const libc::c_char,
 ) {
-    let param: *mut dc_param_t = dc_param_new();
-    dc_param_set_int(param, DC_PARAM_CMD as i32, what);
-    dc_param_set(param, DC_PARAM_CMD_ARG as i32, param1);
-    dc_param_set(param, DC_PARAM_CMD_ARG2 as i32, param2);
-    dc_job_kill_action(context, 910i32);
-    dc_job_add(context, 910i32, 0i32, (*param).packed, 0i32);
-    dc_param_unref(param);
+    let mut param = Params::new();
+    param.set_int(Param::Cmd, what as i32);
+    if !param1.is_null() {
+        param.set(Param::Arg, as_str(param1));
+    }
+    if !param2.is_null() {
+        param.set(Param::Arg2, as_str(param2));
+    }
+
+    dc_job_kill_action(context, 910);
+    dc_job_add(context, 910, 0, param, 0);
 }
 
 /// Returns the filename of the backup if found, nullptr otherwise.
@@ -142,15 +146,14 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                         if !(chat_id == 0i32 as libc::c_uint) {
                             msg = dc_msg_new_untyped(context);
                             (*msg).type_0 = DC_MSG_FILE;
-                            dc_param_set((*msg).param, DC_PARAM_FILE as i32, setup_file_name);
-                            dc_param_set(
-                                (*msg).param,
-                                DC_PARAM_MIMETYPE as i32,
-                                b"application/autocrypt-setup\x00" as *const u8
-                                    as *const libc::c_char,
-                            );
-                            dc_param_set_int((*msg).param, DC_PARAM_CMD as i32, 6);
-                            dc_param_set_int((*msg).param, DC_PARAM_FORCE_PLAINTEXT as i32, 2);
+                            (*msg).param.set(Param::File, as_str(setup_file_name));
+
+                            (*msg)
+                                .param
+                                .set(Param::MimeType, "application/autocrypt-setup");
+                            (*msg).param.set_int(Param::Cmd, 6);
+                            (*msg).param.set_int(Param::ForcePlaintext, 2);
+
                             if !context
                                 .running_state
                                 .clone()
@@ -539,33 +542,27 @@ pub unsafe fn dc_normalize_setup_code(
 #[allow(non_snake_case)]
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
     let mut current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut ongoing_allocated_here: libc::c_int = 0i32;
+    let mut success: libc::c_int = 0;
+    let mut ongoing_allocated_here: libc::c_int = 0;
     let what: libc::c_int;
-    let mut param1: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut param2: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut param1 = 0 as *mut libc::c_char;
+    let mut param2 = 0 as *mut libc::c_char;
+
     if !(0 == dc_alloc_ongoing(context)) {
-        ongoing_allocated_here = 1i32;
-        what = dc_param_get_int((*job).param, DC_PARAM_CMD as i32, 0);
-        param1 = dc_param_get(
-            (*job).param,
-            DC_PARAM_CMD_ARG as i32,
-            0 as *const libc::c_char,
-        );
-        param2 = dc_param_get(
-            (*job).param,
-            DC_PARAM_CMD_ARG2 as i32,
-            0 as *const libc::c_char,
-        );
-        if param1.is_null() {
+        ongoing_allocated_here = 1;
+        what = (*job).param.get_int(Param::Cmd).unwrap_or_default();
+        param1 = to_cstring((*job).param.get(Param::Arg).unwrap_or_default());
+        param2 = to_cstring((*job).param.get(Param::Arg2).unwrap_or_default());
+
+        if strlen(param1) == 0 {
             error!(context, 0, "No Import/export dir/file given.",);
         } else {
             info!(context, 0, "Import/export process started.",);
-            context.call_cb(Event::IMEX_PROGRESS, 10i32 as uintptr_t, 0i32 as uintptr_t);
+            context.call_cb(Event::IMEX_PROGRESS, 10 as uintptr_t, 0 as uintptr_t);
             if !context.sql.is_open() {
                 error!(context, 0, "Import/export: Database not opened.",);
             } else {
-                if what == 1i32 || what == 11i32 {
+                if what == 1 || what == 11 {
                     /* before we export anything, make sure the private key exists */
                     if 0 == dc_ensure_secret_key_exists(context) {
                         error!(
@@ -620,7 +617,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                                 3568988166330621280 => {}
                                 _ => {
                                     info!(context, 0, "Import/export completed.",);
-                                    success = 1i32
+                                    success = 1
                                 }
                             }
                         }
@@ -660,7 +657,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                                 3568988166330621280 => {}
                                 _ => {
                                     info!(context, 0, "Import/export completed.",);
-                                    success = 1i32
+                                    success = 1
                                 }
                             }
                         }
@@ -700,7 +697,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                                 3568988166330621280 => {}
                                 _ => {
                                     info!(context, 0, "Import/export completed.",);
-                                    success = 1i32
+                                    success = 1
                                 }
                             }
                         }
@@ -740,7 +737,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                                 3568988166330621280 => {}
                                 _ => {
                                     info!(context, 0, "Import/export completed.",);
-                                    success = 1i32
+                                    success = 1
                                 }
                             }
                         }
@@ -758,8 +755,8 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
     }
     context.call_cb(
         Event::IMEX_PROGRESS,
-        (if 0 != success { 1000i32 } else { 0i32 }) as uintptr_t,
-        0i32 as uintptr_t,
+        (if 0 != success { 1000 } else { 0 }) as uintptr_t,
+        0 as uintptr_t,
     );
 }
 

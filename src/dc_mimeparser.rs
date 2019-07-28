@@ -15,10 +15,10 @@ use crate::context::Context;
 use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
-use crate::dc_param::*;
 use crate::dc_simplify::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::param::*;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
@@ -26,7 +26,7 @@ use crate::x::*;
 /* Parse MIME body; this is the text part of an IMF, see https://tools.ietf.org/html/rfc5322
 dc_mimeparser_t has no deep dependencies to Context or to the database
 (Context is used for logging only). */
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 pub struct dc_mimepart_t {
     pub type_0: libc::c_int,
@@ -35,7 +35,7 @@ pub struct dc_mimepart_t {
     pub msg: *mut libc::c_char,
     pub msg_raw: *mut libc::c_char,
     pub bytes: libc::c_int,
-    pub param: *mut dc_param_t,
+    pub param: Params,
 }
 
 /* *
@@ -105,10 +105,9 @@ pub unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
         let cnt: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
         i = 0i32;
         while i < cnt {
-            let part: *mut dc_mimepart_t =
-                carray_get((*mimeparser).parts, i as libc::c_uint) as *mut dc_mimepart_t;
+            let part = carray_get((*mimeparser).parts, i as libc::c_uint) as *mut dc_mimepart_t;
             if !part.is_null() {
-                dc_mimepart_unref(part);
+                dc_mimepart_unref(*Box::from_raw(part));
             }
             i += 1
         }
@@ -146,16 +145,11 @@ pub unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     (*mimeparser).message_kml = None;
 }
 
-unsafe fn dc_mimepart_unref(mut mimepart: *mut dc_mimepart_t) {
-    if mimepart.is_null() {
-        return;
-    }
-    free((*mimepart).msg as *mut libc::c_void);
-    (*mimepart).msg = 0 as *mut libc::c_char;
-    free((*mimepart).msg_raw as *mut libc::c_void);
-    (*mimepart).msg_raw = 0 as *mut libc::c_char;
-    dc_param_unref((*mimepart).param);
-    free(mimepart as *mut libc::c_void);
+unsafe fn dc_mimepart_unref(mut mimepart: dc_mimepart_t) {
+    free(mimepart.msg as *mut libc::c_void);
+    mimepart.msg = 0 as *mut libc::c_char;
+    free(mimepart.msg_raw as *mut libc::c_void);
+    mimepart.msg_raw = 0 as *mut libc::c_char;
 }
 
 pub unsafe fn dc_mimeparser_parse(
@@ -209,10 +203,10 @@ pub unsafe fn dc_mimeparser_parse(
                 (*mimeparser).is_system_message = 6i32;
                 i = 0i32;
                 while (i as libc::c_uint) < carray_count((*mimeparser).parts) {
-                    let part_0: *mut dc_mimepart_t =
+                    let part_0 =
                         carray_get((*mimeparser).parts, i as libc::c_uint) as *mut dc_mimepart_t;
                     if (*part_0).int_mimetype != 111i32 {
-                        dc_mimepart_unref(part_0);
+                        dc_mimepart_unref(*Box::from_raw(part_0));
                         carray_delete_slow((*mimeparser).parts, i as libc::c_uint);
                         i -= 1
                     }
@@ -253,10 +247,8 @@ pub unsafe fn dc_mimeparser_parse(
             && 0 != S_GENERATE_COMPOUND_MSGS
             && carray_count((*mimeparser).parts) == 2i32 as libc::c_uint
         {
-            let mut textpart_0: *mut dc_mimepart_t =
-                carray_get((*mimeparser).parts, 0i32 as libc::c_uint) as *mut dc_mimepart_t;
-            let mut filepart: *mut dc_mimepart_t =
-                carray_get((*mimeparser).parts, 1i32 as libc::c_uint) as *mut dc_mimepart_t;
+            let mut textpart_0 = carray_get((*mimeparser).parts, 0) as *mut dc_mimepart_t;
+            let mut filepart = carray_get((*mimeparser).parts, 1) as *mut dc_mimepart_t;
             if (*textpart_0).type_0 == 10i32
                 && ((*filepart).type_0 == 20i32
                     || (*filepart).type_0 == 21i32
@@ -269,7 +261,7 @@ pub unsafe fn dc_mimeparser_parse(
                 free((*filepart).msg as *mut libc::c_void);
                 (*filepart).msg = (*textpart_0).msg;
                 (*textpart_0).msg = 0 as *mut libc::c_char;
-                dc_mimepart_unref(textpart_0);
+                dc_mimepart_unref(*Box::from_raw(textpart_0));
                 carray_delete_slow((*mimeparser).parts, 0i32 as libc::c_uint);
             }
         }
@@ -326,9 +318,9 @@ pub unsafe fn dc_mimeparser_parse(
             let icnt_0: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
             i_1 = 0i32;
             while i_1 < icnt_0 {
-                let part_2: *mut dc_mimepart_t =
+                let part_2 =
                     carray_get((*mimeparser).parts, i_1 as libc::c_uint) as *mut dc_mimepart_t;
-                dc_param_set_int((*part_2).param, DC_PARAM_FORWARDED as i32, 1);
+                (*part_2).param.set_int(Param::Forwarded, 1);
                 i_1 += 1
             }
         }
@@ -346,14 +338,14 @@ pub unsafe fn dc_mimeparser_parse(
                 }
             }
             if (*part_3).type_0 == 40i32 || (*part_3).type_0 == 41i32 || (*part_3).type_0 == 50i32 {
-                let field_0: *const mailimf_optional_field = dc_mimeparser_lookup_optional_field(
+                let field_0 = dc_mimeparser_lookup_optional_field(
                     mimeparser,
                     b"Chat-Duration\x00" as *const u8 as *const libc::c_char,
                 );
                 if !field_0.is_null() {
                     let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
                     if duration_ms > 0i32 && duration_ms < 24i32 * 60i32 * 60i32 * 1000i32 {
-                        dc_param_set_int((*part_3).param, DC_PARAM_DURATION as i32, duration_ms);
+                        (*part_3).param.set_int(Param::Duration, duration_ms);
                     }
                 }
             }
@@ -390,11 +382,7 @@ pub unsafe fn dc_mimeparser_parse(
                                     let part_4: *mut dc_mimepart_t =
                                         dc_mimeparser_get_last_nonmeta(mimeparser);
                                     if !part_4.is_null() {
-                                        dc_param_set_int(
-                                            (*part_4).param,
-                                            DC_PARAM_WANTS_MDN as i32,
-                                            1,
-                                        );
+                                        (*part_4).param.set_int(Param::WantsMdn, 1);
                                     }
                                 }
                                 free(from_addr as *mut libc::c_void);
@@ -411,16 +399,16 @@ pub unsafe fn dc_mimeparser_parse(
     if dc_mimeparser_get_last_nonmeta(mimeparser).is_null()
         && carray_count((*mimeparser).reports) == 0i32 as libc::c_uint
     {
-        let mut part_5: *mut dc_mimepart_t = dc_mimepart_new();
-        (*part_5).type_0 = 10i32;
+        let mut part_5 = dc_mimepart_new();
+        part_5.type_0 = 10i32;
         if !(*mimeparser).subject.is_null() && 0 == (*mimeparser).is_send_by_messenger {
-            (*part_5).msg = dc_strdup((*mimeparser).subject)
+            part_5.msg = dc_strdup((*mimeparser).subject)
         } else {
-            (*part_5).msg = dc_strdup(b"\x00" as *const u8 as *const libc::c_char)
+            part_5.msg = dc_strdup(b"\x00" as *const u8 as *const libc::c_char)
         }
         carray_add(
             (*mimeparser).parts,
-            part_5 as *mut libc::c_void,
+            Box::into_raw(Box::new(part_5)) as *mut libc::c_void,
             0 as *mut libc::c_uint,
         );
     };
@@ -429,13 +417,16 @@ pub unsafe fn dc_mimeparser_parse(
 /*******************************************************************************
  * a MIME part
  ******************************************************************************/
-unsafe fn dc_mimepart_new() -> *mut dc_mimepart_t {
-    let mut mimepart: *mut dc_mimepart_t;
-    mimepart = calloc(1, ::std::mem::size_of::<dc_mimepart_t>()) as *mut dc_mimepart_t;
-    assert!(!mimepart.is_null());
-    (*mimepart).type_0 = 0i32;
-    (*mimepart).param = dc_param_new();
-    mimepart
+unsafe fn dc_mimepart_new() -> dc_mimepart_t {
+    dc_mimepart_t {
+        type_0: 0,
+        is_meta: 0,
+        int_mimetype: 0,
+        msg: std::ptr::null_mut(),
+        msg_raw: std::ptr::null_mut(),
+        bytes: 0,
+        param: Params::new(),
+    }
 }
 
 pub unsafe fn dc_mimeparser_get_last_nonmeta(mimeparser: &dc_mimeparser_t) -> *mut dc_mimepart_t {
@@ -666,8 +657,8 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                     }
                 }
                 40 => {
-                    let mut part: *mut dc_mimepart_t = dc_mimepart_new();
-                    (*part).type_0 = 10i32;
+                    let mut part = dc_mimepart_new();
+                    part.type_0 = 10i32;
                     let msg_body = CString::new(
                         (*mimeparser)
                             .context
@@ -675,14 +666,14 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                             .as_ref(),
                     )
                     .unwrap();
-                    (*part).msg = dc_mprintf(
+                    part.msg = dc_mprintf(
                         b"[%s]\x00" as *const u8 as *const libc::c_char,
                         msg_body.as_ptr(),
                     );
-                    (*part).msg_raw = dc_strdup((*part).msg);
+                    part.msg_raw = dc_strdup(part.msg);
                     carray_add(
                         (*mimeparser).parts,
-                        part as *mut libc::c_void,
+                        Box::into_raw(Box::new(part)) as *mut libc::c_void,
                         0 as *mut libc::c_uint,
                     );
                     any_part_added = 1i32;
@@ -1145,7 +1136,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     mime: *mut mailmime,
 ) -> libc::c_int {
     let mut current_block: u64;
-    let mut part: *mut dc_mimepart_t = 0 as *mut dc_mimepart_t;
     let old_part_count: libc::c_int = carray_count(mimeparser.parts) as libc::c_int;
     let mime_type: libc::c_int;
     let mime_data: *mut mailmime_data;
@@ -1241,14 +1231,13 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 if !simplified_txt.is_null()
                                     && 0 != *simplified_txt.offset(0isize) as libc::c_int
                                 {
-                                    part = dc_mimepart_new();
-                                    (*part).type_0 = 10i32;
-                                    (*part).int_mimetype = mime_type;
-                                    (*part).msg = simplified_txt;
-                                    (*part).msg_raw =
+                                    let mut part = dc_mimepart_new();
+                                    part.type_0 = 10i32;
+                                    part.int_mimetype = mime_type;
+                                    part.msg = simplified_txt;
+                                    part.msg_raw =
                                         strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
                                     do_add_single_part(mimeparser, part);
-                                    part = 0 as *mut dc_mimepart_t
                                 } else {
                                     free(simplified_txt as *mut libc::c_void);
                                 }
@@ -1440,7 +1429,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     }
     free(file_suffix as *mut libc::c_void);
     free(desired_filename as *mut libc::c_void);
-    dc_mimepart_unref(part);
     free(raw_mime as *mut libc::c_void);
     return if carray_count((*mimeparser).parts) > old_part_count as libc::c_uint {
         1i32
@@ -1459,7 +1447,6 @@ unsafe fn do_add_single_file_part(
     decoded_data_bytes: size_t,
     desired_filename: *const libc::c_char,
 ) {
-    let mut part: *mut dc_mimepart_t = 0 as *mut dc_mimepart_t;
     let pathNfilename: *mut libc::c_char;
     /* create a free file name to use */
     pathNfilename = dc_get_fine_pathNfilename(
@@ -1476,42 +1463,40 @@ unsafe fn do_add_single_file_part(
             decoded_data_bytes,
         ) == 0i32)
         {
-            part = dc_mimepart_new();
-            (*part).type_0 = msg_type;
-            (*part).int_mimetype = mime_type;
-            (*part).bytes = decoded_data_bytes as libc::c_int;
-            dc_param_set((*part).param, DC_PARAM_FILE as i32, pathNfilename);
-            dc_param_set((*part).param, DC_PARAM_MIMETYPE as i32, raw_mime);
-            if mime_type == 80i32 {
-                let mut w: uint32_t = 0i32 as uint32_t;
-                let mut h: uint32_t = 0i32 as uint32_t;
+            let mut part = dc_mimepart_new();
+            part.type_0 = msg_type;
+            part.int_mimetype = mime_type;
+            part.bytes = decoded_data_bytes as libc::c_int;
+            part.param.set(Param::File, as_str(pathNfilename));
+            part.param.set(Param::MimeType, as_str(raw_mime));
+            if mime_type == 80 {
+                let mut w = 0;
+                let mut h = 0;
                 if 0 != dc_get_filemeta(
                     decoded_data as *const libc::c_void,
                     decoded_data_bytes,
                     &mut w,
                     &mut h,
                 ) {
-                    dc_param_set_int((*part).param, DC_PARAM_WIDTH as i32, w as int32_t);
-                    dc_param_set_int((*part).param, DC_PARAM_HEIGHT as i32, h as int32_t);
+                    part.param.set_int(Param::Width, w as i32);
+                    part.param.set_int(Param::Height, h as i32);
                 }
             }
             do_add_single_part(parser, part);
-            part = 0 as *mut dc_mimepart_t
         }
     }
     free(pathNfilename as *mut libc::c_void);
-    dc_mimepart_unref(part);
 }
 
-unsafe fn do_add_single_part(parser: &dc_mimeparser_t, part: *mut dc_mimepart_t) {
+unsafe fn do_add_single_part(parser: &dc_mimeparser_t, mut part: dc_mimepart_t) {
     if 0 != (*parser).e2ee_helper.encrypted && (*parser).e2ee_helper.signatures.len() > 0 {
-        dc_param_set_int((*part).param, DC_PARAM_GUARANTEE_E2EE as i32, 1);
+        part.param.set_int(Param::GuranteeE2ee, 1);
     } else if 0 != (*parser).e2ee_helper.encrypted {
-        dc_param_set_int((*part).param, DC_PARAM_ERRONEOUS_E2EE as i32, 0x2);
+        part.param.set_int(Param::ErroneousE2ee, 0x2);
     }
     carray_add(
         (*parser).parts,
-        part as *mut libc::c_void,
+        Box::into_raw(Box::new(part)) as *mut libc::c_void,
         0 as *mut libc::c_uint,
     );
 }
@@ -1816,7 +1801,7 @@ pub unsafe fn dc_mimeparser_repl_msg_by_error(
     while (i as libc::c_uint) < carray_count((*mimeparser).parts) {
         part = carray_get((*mimeparser).parts, i as libc::c_uint) as *mut dc_mimepart_t;
         if !part.is_null() {
-            dc_mimepart_unref(part);
+            dc_mimepart_unref(*Box::from_raw(part));
         }
         i += 1
     }

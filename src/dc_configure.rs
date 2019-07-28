@@ -1,4 +1,4 @@
-use percent_encoding::{utf8_percent_encode, DEFAULT_ENCODE_SET};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::constants::Event;
 use crate::context::Context;
@@ -9,6 +9,7 @@ use crate::dc_saxparser::*;
 use crate::dc_tools::*;
 use crate::imap::*;
 use crate::oauth2::*;
+use crate::param::Params;
 use crate::types::*;
 use crate::x::*;
 
@@ -60,9 +61,10 @@ pub unsafe fn dc_configure(context: &Context) {
         );
         return;
     }
-    dc_job_kill_action(context, 900i32);
-    dc_job_add(context, 900i32, 0i32, 0 as *const libc::c_char, 0i32);
+    dc_job_kill_action(context, 900);
+    dc_job_add(context, 900, 0, Params::new(), 0);
 }
+
 pub unsafe fn dc_has_ongoing(context: &Context) -> libc::c_int {
     let s_a = context.running_state.clone();
     let s = s_a.read().unwrap();
@@ -208,8 +210,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                 let parsed = parsed.unwrap();
                                 let param_domain = parsed.host();
                                 let param_addr_urlencoded =
-                                    utf8_percent_encode(&param.addr, DEFAULT_ENCODE_SET)
-                                        .to_string();
+                                    utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 
                                 if !s.shall_stop_ongoing {
                                     context.call_cb(

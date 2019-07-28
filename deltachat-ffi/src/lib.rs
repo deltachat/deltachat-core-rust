@@ -1322,9 +1322,9 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg::dc_msg_t) -> l
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_summary(
-    msg: *mut dc_msg::dc_msg_t,
-    chat: *mut dc_chat_t,
+pub unsafe extern "C" fn dc_msg_get_summary<'a>(
+    msg: *mut dc_msg::dc_msg_t<'a>,
+    chat: *mut dc_chat_t<'a>,
 ) -> *mut dc_lot::dc_lot_t {
     dc_msg::dc_msg_get_summary(msg, chat)
 }
