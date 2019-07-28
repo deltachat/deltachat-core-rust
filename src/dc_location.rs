@@ -51,7 +51,7 @@ impl dc_location {
 #[allow(non_camel_case_types)]
 pub struct dc_kml_t {
     pub addr: *mut libc::c_char,
-    pub locations: *mut dc_array_t,
+    pub locations: Option<dc_array_t>,
     pub tag: libc::c_int,
     pub curr: dc_location,
 }
@@ -60,7 +60,7 @@ impl dc_kml_t {
     pub fn new() -> Self {
         dc_kml_t {
             addr: std::ptr::null_mut(),
-            locations: std::ptr::null_mut(),
+            locations: None,
             tag: 0,
             curr: dc_location::new(),
         }
@@ -422,13 +422,14 @@ pub unsafe fn dc_save_locations(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
-    locations: *const dc_array_t,
+    locations_opt: &Option<dc_array_t>,
     independent: libc::c_int,
 ) -> u32 {
-    if chat_id <= 9 || locations.is_null() {
+    if chat_id <= 9 || locations_opt.is_none() {
         return 0;
     }
 
+    let locations = locations_opt.as_ref().unwrap();
     context
         .sql
         .prepare2(
@@ -440,31 +441,31 @@ pub unsafe fn dc_save_locations(
                 let mut newest_timestamp = 0;
                 let mut newest_location_id = 0;
 
-                for i in 0..dc_array_get_cnt(locations) {
-                    let location = dc_array_get_ptr(locations, i as size_t) as *mut dc_location;
+                for i in 0..locations.len() {
+                    let location = locations.get_location(i as size_t);
 
                     let exists =
-                        stmt_test.exists(params![(*location).timestamp, contact_id as i32])?;
+                        stmt_test.exists(params![location.timestamp, contact_id as i32])?;
 
                     if 0 != independent || !exists {
                         stmt_insert.execute(params![
-                            (*location).timestamp,
+                            location.timestamp,
                             contact_id as i32,
                             chat_id as i32,
-                            (*location).latitude,
-                            (*location).longitude,
-                            (*location).accuracy,
+                            location.latitude,
+                            location.longitude,
+                            location.accuracy,
                             independent,
                         ])?;
 
-                        if (*location).timestamp > newest_timestamp {
-                            newest_timestamp = (*location).timestamp;
+                        if location.timestamp > newest_timestamp {
+                            newest_timestamp = location.timestamp;
                             newest_location_id = sql::get_rowid2_with_conn(
                                 context,
                                 conn,
                                 "locations",
                                 "timestamp",
-                                (*location).timestamp,
+                                location.timestamp,
                                 "from_id",
                                 contact_id as i32,
                             );
@@ -499,7 +500,7 @@ pub unsafe fn dc_kml_parse(
     } else {
         content_nullterminated = dc_null_terminate(content, content_bytes as libc::c_int);
         if !content_nullterminated.is_null() {
-            kml.locations = dc_array_new_locations(100);
+            kml.locations = Some(dc_array_t::new_locations(100));
             dc_saxparser_init(
                 &mut saxparser,
                 &mut kml as *mut dc_kml_t as *mut libc::c_void,
@@ -585,7 +586,7 @@ unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
             && 0. != (*kml).curr.longitude
         {
             let location = (*kml).curr.clone();
-            (*(*kml).locations).add_location(location);
+            ((*kml).locations.as_mut().unwrap()).add_location(location);
         }
         (*kml).tag = 0
     };
@@ -636,11 +637,7 @@ unsafe fn kml_starttag_cb(
     };
 }
 
-pub unsafe fn dc_kml_unref(kml: *mut dc_kml_t) {
-    if kml.is_null() {
-        return;
-    }
-    dc_array_unref((*kml).locations);
+pub unsafe fn dc_kml_unref(kml: &mut dc_kml_t) {
     free((*kml).addr as *mut libc::c_void);
 }
 
