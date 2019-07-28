@@ -64,13 +64,21 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &Context, msg_id: uint32_t) -> u
 }
 
 pub unsafe fn dc_chat_new<'a>(context: &'a Context) -> *mut Chat<'a> {
-    let mut chat: *mut Chat;
-    chat = calloc(1, ::std::mem::size_of::<Chat>()) as *mut Chat;
-    (*chat).magic = 0xc4a7c4a7u32;
-    (*chat).context = context;
-    (*chat).type_0 = 0i32;
-    (*chat).param = Default::default();
-    chat
+    let chat = Chat {
+        magic: 0xc4a7c4a7,
+        id: 0,
+        type_0: 0,
+        name: std::ptr::null_mut(),
+        archived: 0,
+        context,
+        grpid: std::ptr::null_mut(),
+        blocked: 0,
+        param: Default::default(),
+        gossiped_timestamp: 0,
+        is_sending_locations: 0,
+    };
+
+    Box::into_raw(Box::new(chat))
 }
 
 pub unsafe fn dc_chat_unref(mut chat: *mut Chat) {
@@ -78,8 +86,8 @@ pub unsafe fn dc_chat_unref(mut chat: *mut Chat) {
         return;
     }
     dc_chat_empty(chat);
-    (*chat).magic = 0i32 as uint32_t;
-    free(chat as *mut libc::c_void);
+    (*chat).magic = 0;
+    Box::from_raw(chat);
 }
 
 pub unsafe fn dc_chat_empty(mut chat: *mut Chat) {

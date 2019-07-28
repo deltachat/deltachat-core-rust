@@ -229,16 +229,33 @@ pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> 
 // approx. max. length returned by dc_msg_get_text()
 // approx. max. length returned by dc_get_msg_info()
 pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: libc::c_int) -> *mut dc_msg_t<'a> {
-    let mut msg: *mut dc_msg_t;
-    msg = calloc(1, ::std::mem::size_of::<dc_msg_t>()) as *mut dc_msg_t;
-    assert!(!msg.is_null());
-    (*msg).context = context;
-    (*msg).magic = 0x11561156i32 as uint32_t;
-    (*msg).type_0 = viewtype;
-    (*msg).state = 0;
-    (*msg).param = Default::default();
+    let msg = dc_msg_t {
+        magic: 0x11561156,
+        id: 0,
+        from_id: 0,
+        to_id: 0,
+        chat_id: 0,
+        move_state: 0,
+        type_0: viewtype,
+        state: 0,
+        hidden: 0,
+        timestamp_sort: 0,
+        timestamp_sent: 0,
+        timestamp_rcvd: 0,
+        text: std::ptr::null_mut(),
+        context,
+        rfc724_mid: std::ptr::null_mut(),
+        in_reply_to: std::ptr::null_mut(),
+        server_folder: std::ptr::null_mut(),
+        server_uid: 0,
+        is_dc_message: 0,
+        starred: 0,
+        chat_blocked: 0,
+        location_id: 0,
+        param: Default::default(),
+    };
 
-    msg
+    Box::into_raw(Box::new(msg))
 }
 
 pub unsafe fn dc_msg_unref(mut msg: *mut dc_msg_t) {
@@ -247,7 +264,7 @@ pub unsafe fn dc_msg_unref(mut msg: *mut dc_msg_t) {
     }
     dc_msg_empty(msg);
     (*msg).magic = 0i32 as uint32_t;
-    free(msg as *mut libc::c_void);
+    Box::from_raw(msg);
 }
 
 pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
