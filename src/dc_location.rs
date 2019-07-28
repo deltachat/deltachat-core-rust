@@ -250,12 +250,12 @@ pub fn dc_get_locations(
                 Ok(loc)
             },
             |locations| {
-                let mut ret = dc_array_t::new_locations(500);
+                let mut ret = Vec::new();
 
                 for location in locations {
-                    ret.add_location(location?);
+                    ret.push(location?);
                 }
-                Ok(ret.into_raw())
+                Ok(dc_array_t::from(ret).into_raw())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())
