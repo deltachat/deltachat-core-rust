@@ -606,7 +606,7 @@ pub fn dc_get_contacts(
         ret.add_id(1);
     }
 
-    ret.as_ptr()
+    ret.into_raw()
 }
 
 pub fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
@@ -635,7 +635,7 @@ pub fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
                     ret.add_id(id? as u32);
                 }
 
-                Ok(ret.as_ptr())
+                Ok(ret.into_raw())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())

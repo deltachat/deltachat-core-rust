@@ -1168,7 +1168,7 @@ pub fn dc_get_chat_msgs(
     };
 
     if success.is_ok() {
-        ret.as_ptr()
+        ret.into_raw()
     } else {
         0 as *mut dc_array_t
     }
@@ -1285,7 +1285,7 @@ pub fn dc_get_chat_media(
             for id in ids {
                 ret.add_id(id? as u32);
             }
-            Ok(ret.as_ptr())
+            Ok(ret.into_raw())
         }
     ).unwrap_or_else(|_| std::ptr::null_mut())
 }
@@ -1460,7 +1460,7 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
                     ret.add_id(id? as u32);
                 }
 
-                Ok(ret.as_ptr())
+                Ok(ret.into_raw())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())
