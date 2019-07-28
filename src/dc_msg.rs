@@ -7,8 +7,8 @@ use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
-use crate::dc_param::*;
 use crate::dc_tools::*;
+use crate::param::*;
 use crate::pgp::*;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -41,7 +41,7 @@ pub struct dc_msg_t<'a> {
     pub starred: libc::c_int,
     pub chat_blocked: libc::c_int,
     pub location_id: uint32_t,
-    pub param: dc_param_t,
+    pub param: Params,
 }
 
 // handle messages
@@ -818,7 +818,7 @@ pub unsafe fn dc_msg_get_summarytext(
 pub unsafe fn dc_msg_get_summarytext_by_raw(
     type_0: libc::c_int,
     text: *const libc::c_char,
-    param: &mut dc_param_t,
+    param: &mut Params,
     approx_characters: libc::c_int,
     context: &Context,
 ) -> *mut libc::c_char {

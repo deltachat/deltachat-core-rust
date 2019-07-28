@@ -15,10 +15,10 @@ use crate::dc_location::*;
 use crate::dc_loginparam::*;
 use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
-use crate::dc_param::*;
 use crate::dc_tools::*;
 use crate::imap::*;
 use crate::keyhistory::*;
+use crate::param::*;
 use crate::sql;
 use crate::types::*;
 use crate::x::*;
@@ -42,7 +42,7 @@ pub struct dc_job_t {
     pub desired_timestamp: i64,
     pub added_timestamp: i64,
     pub tries: libc::c_int,
-    pub param: Option<dc_param_t>,
+    pub param: Option<Params>,
     pub try_again: libc::c_int,
     pub pending_error: *mut libc::c_char,
 }
@@ -810,7 +810,7 @@ pub unsafe fn dc_job_add(
     context: &Context,
     action: libc::c_int,
     foreign_id: libc::c_int,
-    param: Option<dc_param_t>,
+    param: Option<Params>,
     delay_seconds: libc::c_int,
 ) {
     let timestamp = time();

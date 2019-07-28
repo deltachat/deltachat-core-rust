@@ -7,8 +7,8 @@ use crate::dc_array::*;
 use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
-use crate::dc_param::*;
 use crate::dc_tools::*;
+use crate::param::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
 use crate::types::*;
@@ -32,7 +32,7 @@ pub struct Chat<'a> {
     pub context: &'a Context,
     pub grpid: *mut libc::c_char,
     blocked: libc::c_int,
-    pub param: dc_param_t,
+    pub param: Params,
     pub gossiped_timestamp: i64,
     is_sending_locations: libc::c_int,
 }

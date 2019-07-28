@@ -15,10 +15,10 @@ use crate::context::Context;
 use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
-use crate::dc_param::*;
 use crate::dc_simplify::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::param::*;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
@@ -35,7 +35,7 @@ pub struct dc_mimepart_t {
     pub msg: *mut libc::c_char,
     pub msg_raw: *mut libc::c_char,
     pub bytes: libc::c_int,
-    pub param: dc_param_t,
+    pub param: Params,
 }
 
 /* *

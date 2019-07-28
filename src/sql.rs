@@ -6,9 +6,9 @@ use thread_local_object::ThreadLocal;
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_param::*;
 use crate::dc_tools::*;
 use crate::error::{Error, Result};
+use crate::param::*;
 use crate::peerstate::*;
 use crate::x::*;
 

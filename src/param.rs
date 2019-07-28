@@ -50,11 +50,11 @@ pub const DC_FP_NO_AUTOCRYPT_HEADER: i32 = 2;
 ///
 /// Only for library-internal use.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct dc_param_t {
+pub struct Params {
     inner: BTreeMap<Param, String>,
 }
 
-impl fmt::Display for dc_param_t {
+impl fmt::Display for Params {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, (key, value)) in self.inner.iter().enumerate() {
             if i > 0 {
@@ -66,7 +66,7 @@ impl fmt::Display for dc_param_t {
     }
 }
 
-impl str::FromStr for dc_param_t {
+impl str::FromStr for Params {
     type Err = error::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
@@ -95,11 +95,11 @@ impl str::FromStr for dc_param_t {
             }
         }
 
-        Ok(dc_param_t { inner })
+        Ok(Params { inner })
     }
 }
 
-impl dc_param_t {
+impl Params {
     pub fn get(&self, key: Param) -> Option<&str> {
         self.inner.get(&key).map(|s| s.as_str())
     }
@@ -125,48 +125,48 @@ impl dc_param_t {
     }
 }
 
-pub fn dc_param_exists(param: &dc_param_t, key: Param) -> bool {
+pub fn dc_param_exists(param: &Params, key: Param) -> bool {
     param.exists(key)
 }
 
-pub fn dc_param_get(param: &dc_param_t, key: Param) -> Option<&str> {
+pub fn dc_param_get(param: &Params, key: Param) -> Option<&str> {
     param.get(key)
 }
 
-pub fn dc_param_get_int(param: &dc_param_t, key: Param) -> Option<i32> {
+pub fn dc_param_get_int(param: &Params, key: Param) -> Option<i32> {
     param.get(key).and_then(|s| s.parse().ok())
 }
 
-pub fn dc_param_get_float(param: &dc_param_t, key: Param) -> Option<f64> {
+pub fn dc_param_get_float(param: &Params, key: Param) -> Option<f64> {
     param.get(key).and_then(|s| s.parse().ok())
 }
 
-pub fn dc_param_set(param: &mut dc_param_t, key: Param, value: impl AsRef<str>) {
+pub fn dc_param_set(param: &mut Params, key: Param, value: impl AsRef<str>) {
     param.set(key, value);
 }
 
-pub fn dc_param_remove(param: &mut dc_param_t, key: Param) {
+pub fn dc_param_remove(param: &mut Params, key: Param) {
     param.remove(key);
 }
 
-pub fn dc_param_set_int(param: &mut dc_param_t, key: Param, value: i32) {
+pub fn dc_param_set_int(param: &mut Params, key: Param, value: i32) {
     param.set(key, format!("{}", value));
 }
 
-pub fn dc_param_set_float(param: &mut dc_param_t, key: Param, value: f64) {
+pub fn dc_param_set_float(param: &mut Params, key: Param, value: f64) {
     param.set(key, format!("{}", value));
 }
 
-pub fn dc_param_new() -> dc_param_t {
+pub fn dc_param_new() -> Params {
     Default::default()
 }
 
-pub fn dc_param_set_packed(param: &mut dc_param_t, packed: impl AsRef<str>) -> Result<()> {
+pub fn dc_param_set_packed(param: &mut Params, packed: impl AsRef<str>) -> Result<()> {
     *param = packed.as_ref().parse()?;
     Ok(())
 }
 
-pub fn dc_param_set_urlencoded(param: &mut dc_param_t, urlencoded: impl AsRef<str>) -> Result<()> {
+pub fn dc_param_set_urlencoded(param: &mut Params, urlencoded: impl AsRef<str>) -> Result<()> {
     dc_param_set_packed(param, urlencoded.as_ref().replace('&', "\n"))?;
     Ok(())
 }
