@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime};
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
-use crate::dc_tools::{as_str, to_cstring};
+use crate::dc_tools::to_cstring;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
 use crate::x::free;
@@ -705,26 +705,16 @@ impl Imap {
 
     fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {
         let key = format!("imap.mailbox.{}", folder.as_ref());
-        let val1 = unsafe {
-            let key_c = to_cstring(key);
-            let val = (self.get_config)(context, key_c, 0 as *const libc::c_char);
-            free(key_c as *mut _);
-            val
-        };
-        if val1.is_null() {
-            return (0, 0);
+        if let Some(entry) = (self.get_config)(context, &key) {
+            // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
+            let mut parts = entry.split(':');
+            (
+                parts.next().unwrap().parse().unwrap_or_else(|_| 0),
+                parts.next().unwrap().parse().unwrap_or_else(|_| 0),
+            )
+        } else {
+            (0, 0)
         }
-        let entry = as_str(val1);
-
-        if entry.is_empty() {
-            return (0, 0);
-        }
-        // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
-        let mut parts = entry.split(':');
-        (
-            parts.next().unwrap().parse().unwrap_or_else(|_| 0),
-            parts.next().unwrap().parse().unwrap_or_else(|_| 0),
-        )
     }
 
     fn fetch_from_single_folder<S: AsRef<str>>(&self, context: &Context, folder: S) -> usize {
