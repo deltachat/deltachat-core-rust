@@ -20,8 +20,8 @@ no references to Context and other "larger" classes here. */
 // for carray etc.
 /* ** library-private **********************************************************/
 /* math tools */
-pub unsafe fn dc_exactly_one_bit_set(v: libc::c_int) -> libc::c_int {
-    return (0 != v && 0 == v & v - 1i32) as libc::c_int;
+pub fn dc_exactly_one_bit_set(v: libc::c_int) -> bool {
+    0 != v && 0 == v & v - 1i32
 }
 
 /* string tools */
