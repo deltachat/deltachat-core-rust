@@ -112,7 +112,6 @@ pub unsafe fn dc_mimefactory_load_msg(
     msg_id: uint32_t,
 ) -> libc::c_int {
     if factory.is_null() || msg_id <= 9 || !(*factory).msg.is_null() {
-        info!((*factory).context, 0, "mimefactory: null");
         return 0;
     }
 
@@ -127,12 +126,9 @@ pub unsafe fn dc_mimefactory_load_msg(
     if dc_msg_load_from_db((*factory).msg, context, msg_id)
         && dc_chat_load_from_db((*factory).chat, (*(*factory).msg).chat_id)
     {
-        info!(context, 0, "mimefactory: loaded msg and chat",);
         load_from(factory);
         (*factory).req_mdn = 0;
         if 0 != dc_chat_is_self_talk((*factory).chat) {
-            info!(context, 0, "mimefactory: selftalk");
-
             clist_insert_after(
                 (*factory).recipients_names,
                 (*(*factory).recipients_names).last,
@@ -144,7 +140,6 @@ pub unsafe fn dc_mimefactory_load_msg(
                 dc_strdup((*factory).from_addr) as *mut libc::c_void,
             );
         } else {
-            info!(context, 0, "mimefactory: query map");
             context
                 .sql
                 .query_map(
@@ -159,7 +154,6 @@ pub unsafe fn dc_mimefactory_load_msg(
                         Ok((authname, addr))
                     },
                     |rows| {
-                        info!(context, 0, "mimefactory: processing rows");
                         for row in rows {
                             let (authname, addr) = row?;
                             let addr_c = to_cstring(addr);
@@ -189,6 +183,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 .param
                 .get_int(Param::Cmd)
                 .unwrap_or_default();
+
             if command == 5 {
                 let email_to_remove = (*(*factory).msg).param.get(Param::Arg).unwrap_or_default();
                 let email_to_remove_c = to_cstring(email_to_remove);
@@ -225,8 +220,6 @@ pub unsafe fn dc_mimefactory_load_msg(
                 (*factory).req_mdn = 1
             }
         }
-        info!(context, 0, "mimefactory: loading in reply to");
-
         let row = context.sql.query_row(
             "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
             params![(*(*factory).msg).id as i32],
@@ -557,6 +550,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             {
                 do_gossip = 1
             }
+
             /* build header etc. */
             let command = (*msg).param.get_int(Param::Cmd).unwrap_or_default();
             if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
@@ -765,6 +759,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 }
                 dc_msg_unref(meta);
             }
+
             if (*msg).type_0 == DC_MSG_VOICE
                 || (*msg).type_0 == DC_MSG_AUDIO
                 || (*msg).type_0 == DC_MSG_VIDEO
@@ -800,6 +795,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         as *const u8 as *const libc::c_char,
                 )
             }
+
             let mut final_text: *const libc::c_char = 0 as *const libc::c_char;
             if !placeholdertext.is_null() {
                 final_text = placeholdertext
@@ -843,6 +839,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             parts += 1;
             free(fwdhint as *mut libc::c_void);
             free(placeholdertext as *mut libc::c_void);
+
             /* add attachment part */
             if msgtype_has_file((*msg).type_0) {
                 if 0 == is_file_size_okay(msg) {
@@ -1004,6 +1001,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             );
             current_block = 11328123142868406523;
         }
+
         match current_block {
             11328123142868406523 => {}
             _ => {
@@ -1162,14 +1160,22 @@ unsafe fn build_body_file(
     let mime_fields: *mut mailmime_fields;
     let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
     let content: *mut mailmime_content;
-    let pathNfilename = to_cstring((*msg).param.get(Param::File).unwrap_or_default());
-    let mut mimetype = to_cstring((*msg).param.get(Param::MimeType).unwrap_or_default());
+    let pathNfilename = (*msg)
+        .param
+        .get(Param::File)
+        .map(|s| to_cstring(s))
+        .unwrap_or_else(|| std::ptr::null_mut());
+    let mut mimetype = (*msg)
+        .param
+        .get(Param::MimeType)
+        .map(|s| to_cstring(s))
+        .unwrap_or_else(|| std::ptr::null_mut());
 
     let suffix = dc_get_filesuffix_lc(pathNfilename);
     let mut filename_to_send = 0 as *mut libc::c_char;
     let mut filename_encoded = 0 as *mut libc::c_char;
 
-    if strlen(pathNfilename) > 0 {
+    if !pathNfilename.is_null() {
         if (*msg).type_0 == DC_MSG_VOICE {
             let ts = chrono::Utc.timestamp((*msg).timestamp_sort as i64, 0);
 
@@ -1209,7 +1215,7 @@ unsafe fn build_body_file(
         } else {
             filename_to_send = dc_get_filename(pathNfilename)
         }
-        if strlen(mimetype) > 0 {
+        if mimetype.is_null() {
             if suffix.is_null() {
                 mimetype =
                     dc_strdup(b"application/octet-stream\x00" as *const u8 as *const libc::c_char)

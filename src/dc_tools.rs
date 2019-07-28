@@ -1381,11 +1381,6 @@ pub unsafe fn dc_is_blobdir_path(context: &Context, path: *const libc::c_char) -
         || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0;
 }
 
-pub fn dc_is_blobdir_path_r(context: &Context, path: impl AsRef<str>) -> bool {
-    path.as_ref().starts_with(as_str(context.get_blobdir()))
-        || path.as_ref().starts_with("$BLOBDIR")
-}
-
 pub unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) {
     if path.is_null() || (*path).is_null() {
         return;

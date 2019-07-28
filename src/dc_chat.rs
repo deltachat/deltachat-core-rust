@@ -102,7 +102,7 @@ pub unsafe fn dc_chat_empty(mut chat: *mut Chat) {
     (*chat).grpid = 0 as *mut libc::c_char;
     (*chat).blocked = 0i32;
     (*chat).gossiped_timestamp = 0;
-    (*chat).param = Default::default();
+    (*chat).param = Params::new();
 }
 
 pub unsafe fn dc_unblock_chat(context: &Context, chat_id: uint32_t) {
@@ -146,14 +146,12 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                 unsafe { to_cstring(raw) }
             };
 
-            if let Ok(param) = row.get::<_, String>(4)?.parse() {
-                c.param = param;
-            }
-
+            c.param = row.get::<_, String>(4)?.parse().unwrap_or_default();
             c.archived = row.get(5)?;
             c.blocked = row.get::<_, Option<i32>>(6)?.unwrap_or_default();
             c.gossiped_timestamp = row.get(7)?;
             c.is_sending_locations = row.get(8)?;
+
             Ok(())
         },
     );
@@ -396,8 +394,12 @@ unsafe fn prepare_msg_common<'a>(
     if (*msg).type_0 == DC_MSG_TEXT {
         /* the caller should check if the message text is empty */
     } else if msgtype_has_file((*msg).type_0) {
-        let pathNfilename = (*msg).param.get(Param::File);
-        if pathNfilename.is_none() {
+        let mut pathNfilename = (*msg)
+            .param
+            .get(Param::File)
+            .map(|s| to_cstring(s))
+            .unwrap_or_else(|| std::ptr::null_mut());
+        if pathNfilename.is_null() {
             error!(
                 context,
                 0,
@@ -406,58 +408,51 @@ unsafe fn prepare_msg_common<'a>(
             );
             OK_TO_CONTINUE = false;
         } else if (*msg).state == DC_STATE_OUT_PREPARING
-            && !dc_is_blobdir_path_r(context, pathNfilename.as_ref().unwrap())
+            && !dc_is_blobdir_path(context, pathNfilename)
         {
             error!(context, 0, "Files must be created in the blob-directory.",);
             OK_TO_CONTINUE = false;
+        } else if !dc_make_rel_and_copy(context, &mut pathNfilename) {
+            OK_TO_CONTINUE = false;
         } else {
-            let mut pathNfilename = to_cstring(pathNfilename.unwrap());
-            if !dc_make_rel_and_copy(context, &mut pathNfilename) {
-                OK_TO_CONTINUE = false;
-            } else {
-                (*msg).param.set(Param::File, as_str(pathNfilename));
-                if (*msg).type_0 == DC_MSG_FILE || (*msg).type_0 == DC_MSG_IMAGE {
-                    /* Correct the type, take care not to correct already very special formats as GIF or VOICE.
-                    Typical conversions:
-                    - from FILE to AUDIO/VIDEO/IMAGE
-                    - from FILE/IMAGE to GIF */
-                    let mut better_type = 0;
-                    let mut better_mime = std::ptr::null_mut();
+            (*msg).param.set(Param::File, as_str(pathNfilename));
+            if (*msg).type_0 == DC_MSG_FILE || (*msg).type_0 == DC_MSG_IMAGE {
+                /* Correct the type, take care not to correct already very special formats as GIF or VOICE.
+                Typical conversions:
+                - from FILE to AUDIO/VIDEO/IMAGE
+                - from FILE/IMAGE to GIF */
+                let mut better_type = 0;
+                let mut better_mime = std::ptr::null_mut();
 
-                    dc_msg_guess_msgtype_from_suffix(
-                        pathNfilename,
-                        &mut better_type,
-                        &mut better_mime,
-                    );
-                    if 0 != better_type && !better_mime.is_null() {
-                        (*msg).type_0 = better_type;
-                        (*msg).param.set(Param::MimeType, as_str(better_mime));
-                    }
-                    free(better_mime as *mut libc::c_void);
-                } else if !(*msg).param.exists(Param::MimeType) {
-                    let mut better_mime = std::ptr::null_mut();
-
-                    dc_msg_guess_msgtype_from_suffix(
-                        pathNfilename,
-                        0 as *mut libc::c_int,
-                        &mut better_mime,
-                    );
-
-                    if !better_mime.is_null() {
-                        (*msg).param.set(Param::MimeType, as_str(better_mime));
-                    }
-                    free(better_mime as *mut _);
+                dc_msg_guess_msgtype_from_suffix(pathNfilename, &mut better_type, &mut better_mime);
+                if 0 != better_type && !better_mime.is_null() {
+                    (*msg).type_0 = better_type;
+                    (*msg).param.set(Param::MimeType, as_str(better_mime));
                 }
-                info!(
-                    context,
-                    0,
-                    "Attaching \"{}\" for message type #{}.",
-                    as_str(pathNfilename),
-                    (*msg).type_0
+                free(better_mime as *mut libc::c_void);
+            } else if !(*msg).param.exists(Param::MimeType) {
+                let mut better_mime = std::ptr::null_mut();
+
+                dc_msg_guess_msgtype_from_suffix(
+                    pathNfilename,
+                    0 as *mut libc::c_int,
+                    &mut better_mime,
                 );
 
-                free(pathNfilename as *mut _);
+                if !better_mime.is_null() {
+                    (*msg).param.set(Param::MimeType, as_str(better_mime));
+                }
+                free(better_mime as *mut _);
             }
+            info!(
+                context,
+                0,
+                "Attaching \"{}\" for message type #{}.",
+                as_str(pathNfilename),
+                (*msg).type_0
+            );
+
+            free(pathNfilename as *mut _);
         }
     } else {
         error!(
@@ -933,23 +928,21 @@ pub unsafe fn dc_send_msg<'a>(
     if 0 == chat_id {
         let forwards = (*msg).param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
-            let mut p = to_cstring(forwards);
-            while 0 != *p {
-                let id = strtol(p, &mut p, 10) as int32_t;
+            for forward in forwards.split(' ') {
+                let id: i32 = forward.parse().unwrap_or_default();
                 if 0 == id {
                     // avoid hanging if user tampers with db
                     break;
                 } else {
-                    let copy = dc_get_msg(context, id as uint32_t);
+                    let copy = dc_get_msg(context, id as u32);
                     if !copy.is_null() {
-                        dc_send_msg(context, 0 as uint32_t, copy);
+                        dc_send_msg(context, 0, copy);
                     }
                     dc_msg_unref(copy);
                 }
             }
             (*msg).param.remove(Param::PrepForwards);
             dc_msg_save_param_to_disk(msg);
-            free(p as *mut _);
         }
     }
 
@@ -1013,22 +1006,22 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                 OK_TO_CONTINUE = false;
             }
         } else if msgtype_has_file((*msg).type_0) {
-            let pathNfilename = (*msg).param.get(Param::File);
-            if pathNfilename.is_none() {
+            let mut pathNfilename = (*msg)
+                .param
+                .get(Param::File)
+                .map(|s| to_cstring(s))
+                .unwrap_or_else(|| std::ptr::null_mut());
+            if pathNfilename.is_null() {
                 OK_TO_CONTINUE = false;
-            } else if 0 != dc_msg_is_increation(msg)
-                && !dc_is_blobdir_path_r(context, pathNfilename.as_ref().unwrap())
+            } else if 0 != dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, pathNfilename)
             {
                 OK_TO_CONTINUE = false;
+            } else if !dc_make_rel_and_copy(context, &mut pathNfilename) {
+                OK_TO_CONTINUE = false;
             } else {
-                let mut pathNfilename = to_cstring(pathNfilename.unwrap());
-                if !dc_make_rel_and_copy(context, &mut pathNfilename) {
-                    OK_TO_CONTINUE = false;
-                } else {
-                    (*msg).param.set(Param::File, as_str(pathNfilename));
-                }
-                free(pathNfilename as *mut _);
+                (*msg).param.set(Param::File, as_str(pathNfilename));
             }
+            free(pathNfilename as *mut _);
         } else {
             OK_TO_CONTINUE = false;
         }

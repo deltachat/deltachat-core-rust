@@ -1183,7 +1183,6 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                             &mut h,
                         ) {
                             (*mimefactory.msg).param.set_int(Param::Width, w as i32);
-
                             (*mimefactory.msg).param.set_int(Param::Height, h as i32);
                         }
                     }

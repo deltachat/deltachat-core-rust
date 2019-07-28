@@ -260,7 +260,7 @@ pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: libc::c_int) -> *mu
         starred: 0,
         chat_blocked: 0,
         location_id: 0,
-        param: Default::default(),
+        param: Params::new(),
     };
 
     Box::into_raw(Box::new(msg))
@@ -287,7 +287,7 @@ pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
     (*msg).in_reply_to = 0 as *mut libc::c_char;
     free((*msg).server_folder as *mut libc::c_void);
     (*msg).server_folder = 0 as *mut libc::c_char;
-    (*msg).param = Default::default();
+    (*msg).param = Params::new();
     (*msg).hidden = 0i32;
 }
 
@@ -295,25 +295,30 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret = 0 as *mut libc::c_char;
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
-        if (*msg).param.get(Param::MimeType).is_none() {
-            if let Some(file) = (*msg).param.get(Param::File) {
-                let file_c = to_cstring(file);
-                dc_msg_guess_msgtype_from_suffix(file_c, 0 as *mut libc::c_int, &mut ret);
-                if ret.is_null() {
-                    ret = dc_strdup(
-                        b"application/octet-stream\x00" as *const u8 as *const libc::c_char,
-                    )
+        match (*msg).param.get(Param::MimeType) {
+            Some(m) => {
+                ret = to_cstring(m);
+            }
+            None => {
+                if let Some(file) = (*msg).param.get(Param::File) {
+                    let file_c = to_cstring(file);
+                    dc_msg_guess_msgtype_from_suffix(file_c, 0 as *mut libc::c_int, &mut ret);
+                    if ret.is_null() {
+                        ret = dc_strdup(
+                            b"application/octet-stream\x00" as *const u8 as *const libc::c_char,
+                        )
+                    }
+                    free(file_c as *mut _);
                 }
-                free(file_c as *mut _);
             }
         }
     }
 
     if !ret.is_null() {
-        ret
-    } else {
-        dc_strdup(0 as *const libc::c_char)
+        return ret;
     }
+
+    dc_strdup(0 as *const libc::c_char)
 }
 
 pub unsafe fn dc_msg_guess_msgtype_from_suffix(
