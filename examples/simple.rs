@@ -5,11 +5,11 @@ use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
 
+use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::Event;
 use deltachat::context::*;
 use deltachat::dc_chat::*;
-use deltachat::dc_chatlist::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_contact::*;
 use deltachat::dc_job::{
@@ -101,10 +101,10 @@ fn main() {
         dc_send_text_msg(&ctx, chat_id, msg_text.as_ptr());
 
         println!("fetching chats..");
-        let chats = dc_get_chatlist(&ctx, 0, std::ptr::null(), 0);
+        let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();
 
-        for i in 0..dc_chatlist_get_cnt(chats) {
-            let summary = dc_chatlist_get_summary(chats, 0, std::ptr::null_mut());
+        for i in 0..chats.len() {
+            let summary = chats.get_summary(0, std::ptr::null_mut());
             let text1 = dc_lot_get_text1(summary);
             let text2 = dc_lot_get_text2(summary);
 
@@ -121,7 +121,6 @@ fn main() {
             println!("chat: {} - {:?} - {:?}", i, text1_s, text2_s,);
             dc_lot_unref(summary);
         }
-        dc_chatlist_unref(chats);
 
         thread::sleep(duration);
 

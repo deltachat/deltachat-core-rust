@@ -1,6 +1,5 @@
 use std::ffi::CString;
 
-use failure::format_err;
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
@@ -864,7 +863,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
             }
 
             if !loop_success {
-                return Err(format_err!("fail").into());
+                return Err(format_err!("fail"));
             }
             Ok(())
         },

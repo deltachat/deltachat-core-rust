@@ -19,12 +19,14 @@ extern crate rusqlite;
 
 #[macro_use]
 mod log;
+#[macro_use]
+pub mod error;
 
 pub mod aheader;
+pub mod chatlist;
 pub mod config;
 pub mod constants;
 pub mod context;
-pub mod error;
 pub mod imap;
 pub mod key;
 pub mod keyhistory;
@@ -40,7 +42,6 @@ pub mod x;
 
 pub mod dc_array;
 pub mod dc_chat;
-pub mod dc_chatlist;
 pub mod dc_configure;
 pub mod dc_contact;
 pub mod dc_dehtml;
