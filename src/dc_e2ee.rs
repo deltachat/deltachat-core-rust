@@ -54,6 +54,7 @@ impl Default for dc_e2ee_helper_t {
     }
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_e2ee_encrypt(
     context: &Context,
     recipients_addr: *const clist,

@@ -240,6 +240,7 @@ fn dc_job_delete(context: &Context, job: &dc_job_t) -> bool {
 /* ******************************************************************************
  * Tools
  ******************************************************************************/
+#[allow(non_snake_case)]
 unsafe fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
     // results in ~3 weeks for the last backoff timespan
     let mut N = 2_i32.pow((c_tries - 1) as u32);
@@ -279,6 +280,8 @@ unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: libc::c_int) {
         }
     }
 }
+
+#[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -409,6 +412,7 @@ pub unsafe fn dc_job_try_again_later(
     job.pending_error = dc_strdup_keep_null(pending_error);
 }
 
+#[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
     let mut current_block: u64;
     let msg = dc_msg_new_untyped(context);
@@ -505,6 +509,7 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
     ret_connected
 }
 
+#[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_job_t) {
     let current_block: u64;
     let folder: *mut libc::c_char = dc_param_get(
@@ -557,6 +562,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
     free(folder as *mut libc::c_void);
 }
 
+#[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_job_t) {
     let mut current_block: u64;
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
@@ -741,6 +747,7 @@ unsafe fn dc_send_mdn(context: &Context, msg_id: uint32_t) {
  * @param mimefactory An instance of dc_mimefactory_t with a loaded and rendered message or MDN
  * @return 1=success, 0=error
  */
+#[allow(non_snake_case)]
 unsafe fn dc_add_smtp_job(
     context: &Context,
     action: libc::c_int,
@@ -863,6 +870,7 @@ pub unsafe fn dc_interrupt_imap_idle(context: &Context) {
     context.inbox.read().unwrap().interrupt_idle();
 }
 
+#[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut delete_from_server: libc::c_int = 1i32;
@@ -1141,6 +1149,7 @@ pub fn dc_job_action_exists(context: &Context, action: libc::c_int) -> bool {
 }
 
 /* special case for DC_JOB_SEND_MSG_TO_SMTP */
+#[allow(non_snake_case)]
 pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
     let mut success = 0;
     let mut mimefactory = dc_mimefactory_t {

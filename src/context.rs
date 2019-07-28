@@ -533,6 +533,7 @@ pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
         .unwrap()
 }
 
+#[allow(non_snake_case)]
 pub fn dc_search_msgs(
     context: &Context,
     chat_id: uint32_t,

@@ -1448,6 +1448,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     };
 }
 
+#[allow(non_snake_case)]
 unsafe fn do_add_single_file_part(
     parser: &dc_mimeparser_t,
     msg_type: libc::c_int,
@@ -1755,6 +1756,7 @@ pub unsafe fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<
 /* ******************************************************************************
  * low-level-tools for getting a list of all recipients
  ******************************************************************************/
+#[allow(non_snake_case)]
 unsafe fn mailimf_get_recipients__add_addr(
     recipients: &mut HashSet<String>,
     mb: *mut mailimf_mailbox,

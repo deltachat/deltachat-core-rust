@@ -536,6 +536,7 @@ pub unsafe fn dc_normalize_setup_code(
     to_cstring(out)
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
     let mut current_block: u64;
     let mut success: libc::c_int = 0i32;
@@ -767,6 +768,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
  ******************************************************************************/
 
 // TODO should return bool /rtn
+#[allow(non_snake_case)]
 unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> libc::c_int {
     info!(
         context,
@@ -885,6 +887,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
 // TODO should return bool /rtn
+#[allow(non_snake_case)]
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0;

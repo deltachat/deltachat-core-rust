@@ -380,6 +380,7 @@ pub fn msgtype_has_file(msgtype: i32) -> bool {
     }
 }
 
+#[allow(non_snake_case)]
 unsafe fn prepare_msg_common<'a>(
     context: &'a Context,
     chat_id: uint32_t,
@@ -468,6 +469,7 @@ unsafe fn prepare_msg_common<'a>(
     (*msg).id
 }
 
+#[allow(non_snake_case)]
 unsafe fn prepare_msg_raw(
     context: &Context,
     chat: *mut Chat,
@@ -997,6 +999,7 @@ pub unsafe fn dc_set_draft(context: &Context, chat_id: uint32_t, msg: *mut dc_ms
 }
 
 // TODO should return bool /rtn
+#[allow(non_snake_case)]
 unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t) -> libc::c_int {
     let mut OK_TO_CONTINUE = true;
     // similar to as dc_set_draft() but does not emit an event
@@ -1554,6 +1557,7 @@ pub unsafe fn dc_add_contact_to_chat(
 }
 
 // TODO should return bool /rtn
+#[allow(non_snake_case)]
 pub unsafe fn dc_add_contact_to_chat_ex(
     context: &Context,
     chat_id: u32,
@@ -1880,6 +1884,7 @@ pub unsafe fn dc_set_chat_name(
 }
 
 // TODO should return bool /rtn
+#[allow(non_snake_case)]
 pub unsafe fn dc_set_chat_profile_image(
     context: &Context,
     chat_id: uint32_t,
