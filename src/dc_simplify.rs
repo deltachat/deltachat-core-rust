@@ -61,6 +61,7 @@ impl dc_simplify_t {
     /**
      * Simplify Plain Text
      */
+    #[allow(non_snake_case)]
     unsafe fn simplify_plain_text(
         &mut self,
         buf_terminated: *const libc::c_char,

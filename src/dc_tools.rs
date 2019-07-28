@@ -359,6 +359,7 @@ pub fn dc_truncate_str(buf: &str, approx_chars: usize) -> Cow<str> {
     }
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_truncate_n_unwrap_str(
     buf: *mut libc::c_char,
     approx_characters: libc::c_int,
@@ -902,6 +903,7 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut 
 }
 
 /* file tools */
+#[allow(non_snake_case)]
 pub unsafe fn dc_ensure_no_slash(pathNfilename: *mut libc::c_char) {
     let path_len = strlen(pathNfilename);
     if path_len > 0 {
@@ -934,6 +936,7 @@ pub unsafe fn dc_validate_filename(filename: *mut libc::c_char) {
     }
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_get_filename(pathNfilename: *const libc::c_char) -> *mut libc::c_char {
     let mut p: *const libc::c_char = strrchr(pathNfilename, '/' as i32);
     if p.is_null() {
@@ -948,6 +951,7 @@ pub unsafe fn dc_get_filename(pathNfilename: *const libc::c_char) -> *mut libc::
 }
 
 // the case of the suffix is preserved
+#[allow(non_snake_case)]
 pub unsafe fn dc_split_filename(
     pathNfilename: *const libc::c_char,
     ret_basename: *mut *mut libc::c_char,
@@ -980,6 +984,7 @@ pub unsafe fn dc_split_filename(
 }
 
 // the returned suffix is lower-case
+#[allow(non_snake_case)]
 pub unsafe fn dc_get_filesuffix_lc(pathNfilename: *const libc::c_char) -> *mut libc::c_char {
     if !pathNfilename.is_null() {
         let mut p: *const libc::c_char = strrchr(pathNfilename, '.' as i32);
@@ -1075,6 +1080,7 @@ pub unsafe fn dc_get_filemeta(
     0
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_get_abs_path(
     context: &Context,
     pathNfilename: *const libc::c_char,
@@ -1104,6 +1110,7 @@ pub unsafe fn dc_get_abs_path(
     pathNfilename_abs
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_file_exist(context: &Context, pathNfilename: *const libc::c_char) -> libc::c_int {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     if pathNfilename_abs.is_null() {
@@ -1119,6 +1126,7 @@ pub unsafe fn dc_file_exist(context: &Context, pathNfilename: *const libc::c_cha
     exist as libc::c_int
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_get_filebytes(context: &Context, pathNfilename: *const libc::c_char) -> uint64_t {
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
     if pathNfilename_abs.is_null() {
@@ -1139,6 +1147,7 @@ pub unsafe fn dc_get_filebytes(context: &Context, pathNfilename: *const libc::c_
     filebytes as uint64_t
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_delete_file(context: &Context, pathNfilename: *const libc::c_char) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
     let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
@@ -1170,6 +1179,7 @@ pub unsafe fn dc_delete_file(context: &Context, pathNfilename: *const libc::c_ch
     success
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_copy_file(
     context: &Context,
     src: *const libc::c_char,
@@ -1201,6 +1211,7 @@ pub unsafe fn dc_copy_file(
     success
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_create_folder(
     context: &Context,
     pathNfilename: *const libc::c_char,
@@ -1232,6 +1243,7 @@ pub unsafe fn dc_create_folder(
     success
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_write_file(
     context: &Context,
     pathNfilename: *const libc::c_char,
@@ -1243,6 +1255,7 @@ pub unsafe fn dc_write_file(
     dc_write_file_safe(context, as_str(pathNfilename), bytes) as libc::c_int
 }
 
+#[allow(non_snake_case)]
 pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
     let pathNfilename_abs = unsafe {
         let n = to_cstring(pathNfilename.as_ref());
@@ -1273,6 +1286,7 @@ pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf
     success
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_read_file(
     context: &Context,
     pathNfilename: *const libc::c_char,
@@ -1292,6 +1306,7 @@ pub unsafe fn dc_read_file(
     }
 }
 
+#[allow(non_snake_case)]
 pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
     let pathNfilename_abs = unsafe {
         let n = to_cstring(pathNfilename.as_ref());
@@ -1323,6 +1338,7 @@ pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> O
     res
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_get_fine_pathNfilename(
     context: &Context,
     pathNfolder: *const libc::c_char,

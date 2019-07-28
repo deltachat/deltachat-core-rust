@@ -138,6 +138,7 @@ pub unsafe fn dc_send_locations_to_chat(
 /*******************************************************************************
  * job to send locations out to all chats that want them
  ******************************************************************************/
+#[allow(non_snake_case)]
 unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: libc::c_int) {
     if 0 != flags & 0x1 || !dc_job_action_exists(context, 5005) {
         dc_job_add(context, 5005, 0, 0 as *const libc::c_char, 60);
@@ -641,6 +642,7 @@ pub unsafe fn dc_kml_unref(kml: *mut dc_kml_t) {
     free((*kml).addr as *mut libc::c_void);
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mut dc_job_t) {
     let now = time();
     let mut continue_streaming: libc::c_int = 1;
@@ -721,6 +723,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
     }
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut dc_job_t) {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;

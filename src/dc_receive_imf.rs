@@ -917,6 +917,7 @@ which tries to create or find out the chat_id by:
 
 So when the function returns, the caller has the group id matching the current
 state of the group. */
+#[allow(non_snake_case)]
 unsafe fn create_or_lookup_group(
     context: &Context,
     mime_parser: &mut dc_mimeparser_t,
@@ -1540,6 +1541,7 @@ fn hex_hash(s: impl AsRef<str>) -> *const libc::c_char {
     unsafe { to_cstring(result_hex) as *const _ }
 }
 
+#[allow(non_snake_case)]
 unsafe fn search_chat_ids_by_contact_ids(
     context: &Context,
     unsorted_contact_ids: *const dc_array_t,

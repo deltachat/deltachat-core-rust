@@ -300,6 +300,7 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
     };
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_msg_guess_msgtype_from_suffix(
     pathNfilename: *const libc::c_char,
     mut ret_msgtype: *mut libc::c_int,
@@ -708,6 +709,7 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
     to_cstring(res)
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -831,6 +833,7 @@ pub unsafe fn dc_msg_get_summarytext(
 }
 
 /* the returned value must be free()'d */
+#[allow(non_snake_case)]
 pub unsafe fn dc_msg_get_summarytext_by_raw(
     type_0: libc::c_int,
     text: *const libc::c_char,

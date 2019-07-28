@@ -1182,6 +1182,7 @@ unsafe fn build_body_text(text: *mut libc::c_char) -> *mut mailmime {
     message_part
 }
 
+#[allow(non_snake_case)]
 unsafe fn build_body_file(
     msg: *const dc_msg_t,
     mut base_name: *const libc::c_char,
@@ -1350,7 +1351,7 @@ unsafe fn build_body_file(
 /*******************************************************************************
  * Render
  ******************************************************************************/
-
+#[allow(non_snake_case)]
 unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> libc::c_int {
     let mut file_size_okay: libc::c_int = 1;
     let pathNfilename: *mut libc::c_char =

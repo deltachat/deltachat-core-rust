@@ -454,6 +454,7 @@ pub fn dc_add_or_lookup_contact(
     row_id
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_add_address_book(context: &Context, adr_book: *const libc::c_char) -> libc::c_int {
     let mut lines: *mut carray = 0 as *mut carray;
     let mut i: size_t;
@@ -526,6 +527,7 @@ pub unsafe fn dc_normalize_name(full_name: *mut libc::c_char) {
     };
 }
 
+#[allow(non_snake_case)]
 pub fn dc_get_contacts(
     context: &Context,
     listflags: u32,
