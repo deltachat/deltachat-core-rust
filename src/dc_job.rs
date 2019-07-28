@@ -509,7 +509,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
     let uid = job
         .param
         .as_ref()
-        .and_then(|p| dc_param_get_int(p, Param::ServerUid))
+        .and_then(|p| p.get_int(Param::ServerUid))
         .unwrap_or_default() as u32;
     let mut dest_uid = 0;
     let inbox = context.inbox.read().unwrap();
@@ -533,7 +533,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
             if 0 != job
                 .param
                 .as_ref()
-                .and_then(|p| dc_param_get_int(p, Param::AlsoMove))
+                .and_then(|p| p.get_int(Param::AlsoMove))
                 .unwrap_or_default()
             {
                 if context
@@ -587,8 +587,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
                             }
                             _ => {
-                                if 0 != dc_param_get_int(&(*msg).param, Param::WantsMdn)
-                                    .unwrap_or_default()
+                                if 0 != (*msg).param.get_int(Param::WantsMdn).unwrap_or_default()
                                     && 0 != context
                                         .sql
                                         .get_config_int(context, "mdns_enabled")
@@ -642,8 +641,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
                             }
                             _ => {
-                                if 0 != dc_param_get_int(&(*msg).param, Param::WantsMdn)
-                                    .unwrap_or_default()
+                                if 0 != (*msg).param.get_int(Param::WantsMdn).unwrap_or_default()
                                     && 0 != context
                                         .sql
                                         .get_config_int(context, "mdns_enabled")
@@ -748,7 +746,7 @@ unsafe fn dc_add_smtp_job(
     let pathNfilename: *mut libc::c_char;
     let mut success: libc::c_int = 0i32;
     let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut param = dc_param_new();
+    let mut param = Params::default();
     pathNfilename = dc_get_fine_pathNfilename(
         context,
         b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
@@ -781,8 +779,8 @@ unsafe fn dc_add_smtp_job(
             (*mimefactory).recipients_addr,
             b"\x1e\x00" as *const u8 as *const libc::c_char,
         );
-        dc_param_set(&mut param, Param::File, as_str(pathNfilename));
-        dc_param_set(&mut param, Param::File, as_str(recipients));
+        param.set(Param::File, as_str(pathNfilename));
+        param.set(Param::File, as_str(recipients));
         dc_job_add(
             context,
             action,
@@ -1185,8 +1183,8 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                     let mut buf_bytes: size_t = 0;
                     let mut w = 0;
                     let mut h = 0;
-                    dc_param_set_int(&mut (*mimefactory.msg).param, Param::Width, 0);
-                    dc_param_set_int(&mut (*mimefactory.msg).param, Param::Height, 0);
+                    (*mimefactory.msg).param.set_int(Param::Width, 0);
+                    (*mimefactory.msg).param.set_int(Param::Height, 0);
                     if 0 != dc_read_file(
                         context,
                         pathNfilename,
@@ -1199,12 +1197,9 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                             &mut w,
                             &mut h,
                         ) {
-                            dc_param_set_int(&mut (*mimefactory.msg).param, Param::Width, w as i32);
-                            dc_param_set_int(
-                                &mut (*mimefactory.msg).param,
-                                Param::Height,
-                                h as i32,
-                            );
+                            (*mimefactory.msg).param.set_int(Param::Width, w as i32);
+
+                            (*mimefactory.msg).param.set_int(Param::Height, h as i32);
                         }
                     }
                     free(buf as *mut libc::c_void);
@@ -1217,7 +1212,10 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         if 0 == dc_mimefactory_render(&mut mimefactory) {
             dc_set_msg_failed(context, msg_id, mimefactory.error);
         } else if 0
-            != dc_param_get_int(&(*mimefactory.msg).param, Param::GuranteeE2ee).unwrap_or_default()
+            != (*mimefactory.msg)
+                .param
+                .get_int(Param::GuranteeE2ee)
+                .unwrap_or_default()
             && 0 == mimefactory.out_encrypted
         {
             warn!(
@@ -1225,7 +1223,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 0,
                 "e2e encryption unavailable {} - {:?}",
                 msg_id,
-                dc_param_get_int(&(*mimefactory.msg).param, Param::GuranteeE2ee),
+                (*mimefactory.msg).param.get_int(Param::GuranteeE2ee),
             );
             dc_set_msg_failed(
                 context,
@@ -1263,11 +1261,13 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 }
             }
             if 0 != mimefactory.out_encrypted
-                && dc_param_get_int(&(*mimefactory.msg).param, Param::GuranteeE2ee)
+                && (*mimefactory.msg)
+                    .param
+                    .get_int(Param::GuranteeE2ee)
                     .unwrap_or_default()
                     == 0
             {
-                dc_param_set_int(&mut (*mimefactory.msg).param, Param::GuranteeE2ee, 1);
+                (*mimefactory.msg).param.set_int(Param::GuranteeE2ee, 1);
                 dc_msg_save_param_to_disk(mimefactory.msg);
             }
             dc_add_to_keyhistory(

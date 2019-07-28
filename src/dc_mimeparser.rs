@@ -317,9 +317,9 @@ pub unsafe fn dc_mimeparser_parse(
             let icnt_0: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
             i_1 = 0i32;
             while i_1 < icnt_0 {
-                let part_2: *mut dc_mimepart_t =
+                let part_2 =
                     carray_get((*mimeparser).parts, i_1 as libc::c_uint) as *mut dc_mimepart_t;
-                dc_param_set_int(&mut (*part_2).param, Param::Forwarded, 1);
+                (*part_2).param.set_int(Param::Forwarded, 1);
                 i_1 += 1
             }
         }
@@ -337,14 +337,14 @@ pub unsafe fn dc_mimeparser_parse(
                 }
             }
             if (*part_3).type_0 == 40i32 || (*part_3).type_0 == 41i32 || (*part_3).type_0 == 50i32 {
-                let field_0: *const mailimf_optional_field = dc_mimeparser_lookup_optional_field(
+                let field_0 = dc_mimeparser_lookup_optional_field(
                     mimeparser,
                     b"Chat-Duration\x00" as *const u8 as *const libc::c_char,
                 );
                 if !field_0.is_null() {
                     let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
                     if duration_ms > 0i32 && duration_ms < 24i32 * 60i32 * 60i32 * 1000i32 {
-                        dc_param_set_int(&mut (*part_3).param, Param::Duration, duration_ms);
+                        (*part_3).param.set_int(Param::Duration, duration_ms);
                     }
                 }
             }
@@ -381,7 +381,7 @@ pub unsafe fn dc_mimeparser_parse(
                                     let part_4: *mut dc_mimepart_t =
                                         dc_mimeparser_get_last_nonmeta(mimeparser);
                                     if !part_4.is_null() {
-                                        dc_param_set_int(&mut (*part_4).param, Param::WantsMdn, 1);
+                                        (*part_4).param.set_int(Param::WantsMdn, 1);
                                     }
                                 }
                                 free(from_addr as *mut libc::c_void);
@@ -1465,8 +1465,8 @@ unsafe fn do_add_single_file_part(
             part.type_0 = msg_type;
             part.int_mimetype = mime_type;
             part.bytes = decoded_data_bytes as libc::c_int;
-            dc_param_set(&mut part.param, Param::File, as_str(pathNfilename));
-            dc_param_set(&mut part.param, Param::MimeType, as_str(raw_mime));
+            part.param.set(Param::File, as_str(pathNfilename));
+            part.param.set(Param::MimeType, as_str(raw_mime));
             if mime_type == 80 {
                 let mut w = 0;
                 let mut h = 0;
@@ -1476,8 +1476,8 @@ unsafe fn do_add_single_file_part(
                     &mut w,
                     &mut h,
                 ) {
-                    dc_param_set_int(&mut part.param, Param::Width, w as i32);
-                    dc_param_set_int(&mut part.param, Param::Height, h as i32);
+                    part.param.set_int(Param::Width, w as i32);
+                    part.param.set_int(Param::Height, h as i32);
                 }
             }
             do_add_single_part(parser, part);
@@ -1488,9 +1488,9 @@ unsafe fn do_add_single_file_part(
 
 unsafe fn do_add_single_part(parser: &dc_mimeparser_t, mut part: dc_mimepart_t) {
     if 0 != (*parser).e2ee_helper.encrypted && (*parser).e2ee_helper.signatures.len() > 0 {
-        dc_param_set_int(&mut part.param, Param::GuranteeE2ee, 1);
+        part.param.set_int(Param::GuranteeE2ee, 1);
     } else if 0 != (*parser).e2ee_helper.encrypted {
-        dc_param_set_int(&mut part.param, Param::ErroneousE2ee, 0x2);
+        part.param.set_int(Param::ErroneousE2ee, 0x2);
     }
     carray_add(
         (*parser).parts,

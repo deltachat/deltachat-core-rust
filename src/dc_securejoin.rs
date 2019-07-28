@@ -269,31 +269,30 @@ unsafe fn send_handshake_msg(
         step,
     );
     (*msg).hidden = 1;
-    dc_param_set_int(&mut (*msg).param, Param::Cmd, 7);
+    (*msg).param.set_int(Param::Cmd, 7);
     if step.is_null() {
-        dc_param_remove(&mut (*msg).param, Param::Arg);
+        (*msg).param.remove(Param::Arg);
     } else {
-        dc_param_set(&mut (*msg).param, Param::Arg, as_str(step));
+        (*msg).param.set(Param::Arg, as_str(step));
     }
     if !param2.is_null() {
-        dc_param_set(&mut (*msg).param, Param::Arg2, as_str(param2));
+        (*msg).param.set(Param::Arg2, as_str(param2));
     }
     if !fingerprint.is_null() {
-        dc_param_set(&mut (*msg).param, Param::Arg3, as_str(fingerprint));
+        (*msg).param.set(Param::Arg3, as_str(fingerprint));
     }
     if !grpid.is_null() {
-        dc_param_set(&mut (*msg).param, Param::Arg4, as_str(grpid));
+        (*msg).param.set(Param::Arg4, as_str(grpid));
     }
     if strcmp(step, b"vg-request\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(step, b"vc-request\x00" as *const u8 as *const libc::c_char) == 0i32
     {
-        dc_param_set_int(
-            &mut (*msg).param,
+        (*msg).param.set_int(
             Param::ForcePlaintext,
             ForcePlaintext::AddAutocryptHeader as i32,
         );
     } else {
-        dc_param_set_int(&mut (*msg).param, Param::GuranteeE2ee, 1);
+        (*msg).param.set_int(Param::GuranteeE2ee, 1);
     }
     dc_send_msg(context, contact_chat_id, msg);
     dc_msg_unref(msg);

@@ -103,7 +103,7 @@ pub unsafe fn dc_send_locations_to_chat(
                     "",
                     0,
                 ));
-                dc_param_set_int(&mut (*msg).param, Param::Cmd, 8);
+                (*msg).param.set_int(Param::Cmd, 8);
                 dc_send_msg(context, chat_id, msg);
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str = CString::new(context.stock_system_msg(
@@ -705,7 +705,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                             // and dc_set_location() is typically called periodically, this is ok)
                             let mut msg = dc_msg_new(context, 10);
                             (*msg).hidden = 1;
-                            dc_param_set_int(&mut (*msg).param, Param::Cmd, 9);
+                            (*msg).param.set_int(Param::Cmd, 9);
                             dc_send_msg(context, chat_id as u32, msg);
                             dc_msg_unref(msg);
                         }

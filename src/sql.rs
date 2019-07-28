@@ -1125,14 +1125,10 @@ fn maybe_add_from_param(
     query: &str,
     param_id: Param,
 ) {
-    let mut param = dc_param_new();
-
     context
         .sql
         .query_row(query, NO_PARAMS, |row| {
-            if let Ok(res) = row.get::<_, String>(0)?.parse() {
-                param = res;
-            }
+            let param: Params = row.get::<_, String>(0)?.parse().unwrap_or_default();
             if let Some(file) = param.get(param_id) {
                 maybe_add_file(files_in_use, file);
             }

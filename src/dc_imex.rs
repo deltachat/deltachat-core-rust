@@ -32,13 +32,13 @@ pub unsafe fn dc_imex(
     param1: *const libc::c_char,
     param2: *const libc::c_char,
 ) {
-    let mut param = dc_param_new();
-    dc_param_set_int(&mut param, Param::Cmd, what as i32);
+    let mut param = Params::default();
+    param.set_int(Param::Cmd, what as i32);
     if !param1.is_null() {
-        dc_param_set(&mut param, Param::Arg, as_str(param1));
+        param.set(Param::Arg, as_str(param1));
     }
     if !param2.is_null() {
-        dc_param_set(&mut param, Param::Arg2, as_str(param2));
+        param.set(Param::Arg2, as_str(param2));
     }
 
     dc_job_kill_action(context, 910);
@@ -146,14 +146,13 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                         if !(chat_id == 0i32 as libc::c_uint) {
                             msg = dc_msg_new_untyped(context);
                             (*msg).type_0 = DC_MSG_FILE;
-                            dc_param_set(&mut (*msg).param, Param::File, as_str(setup_file_name));
-                            dc_param_set(
-                                &mut (*msg).param,
-                                Param::MimeType,
-                                "application/autocrypt-setup",
-                            );
-                            dc_param_set_int(&mut (*msg).param, Param::Cmd, 6);
-                            dc_param_set_int(&mut (*msg).param, Param::ForcePlaintext, 2);
+                            (*msg).param.set(Param::File, as_str(setup_file_name));
+
+                            (*msg)
+                                .param
+                                .set(Param::MimeType, "application/autocrypt-setup");
+                            (*msg).param.set_int(Param::Cmd, 6);
+                            (*msg).param.set_int(Param::ForcePlaintext, 2);
 
                             if !context
                                 .running_state
@@ -553,7 +552,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
         what = (*job)
             .param
             .as_ref()
-            .and_then(|p| dc_param_get_int(p, Param::Cmd))
+            .and_then(|p| p.get_int(Param::Cmd))
             .unwrap_or_default();
         param1 = to_cstring(
             (*job)

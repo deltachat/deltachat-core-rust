@@ -144,13 +144,21 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += ", Location sent";
     }
 
-    let e2ee_errors = dc_param_get_int(&(*msg).param, Param::ErroneousE2ee).unwrap_or_default();
+    let e2ee_errors = (*msg)
+        .param
+        .get_int(Param::ErroneousE2ee)
+        .unwrap_or_default();
 
     if 0 != e2ee_errors {
         if 0 != e2ee_errors & 0x2 {
             ret += ", Encrypted, no valid signature";
         }
-    } else if 0 != dc_param_get_int(&(*msg).param, Param::GuranteeE2ee).unwrap_or_default() {
+    } else if 0
+        != (*msg)
+            .param
+            .get_int(Param::GuranteeE2ee)
+            .unwrap_or_default()
+    {
         ret += ", Encrypted";
     }
 
@@ -186,12 +194,12 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += &format!("Mimetype: {}\n", as_str(p));
         free(p as *mut libc::c_void);
     }
-    let w = dc_param_get_int(&(*msg).param, Param::Width).unwrap_or_default();
-    let h = dc_param_get_int(&(*msg).param, Param::Height).unwrap_or_default();
+    let w = (*msg).param.get_int(Param::Width).unwrap_or_default();
+    let h = (*msg).param.get_int(Param::Height).unwrap_or_default();
     if w != 0 || h != 0 {
         ret += &format!("Dimension: {} x {}\n", w, h,);
     }
-    let duration = dc_param_get_int(&(*msg).param, Param::Duration).unwrap_or_default();
+    let duration = (*msg).param.get_int(Param::Duration).unwrap_or_default();
     if duration != 0 {
         ret += &format!("Duration: {} ms\n", duration,);
     }
@@ -425,8 +433,8 @@ pub unsafe fn dc_msg_set_location(
         return;
     }
 
-    dc_param_set_float(&mut (*msg).param, Param::SetLatitude, latitude);
-    dc_param_set_float(&mut (*msg).param, Param::SetLongitude, longitude);
+    (*msg).param.set_float(Param::SetLatitude, latitude);
+    (*msg).param.set_float(Param::SetLongitude, longitude);
 }
 
 pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> i64 {
@@ -745,7 +753,7 @@ pub unsafe fn dc_msg_get_width(msg: *const dc_msg_t) -> libc::c_int {
         return 0;
     }
 
-    dc_param_get_int(&(*msg).param, Param::Width).unwrap_or_default()
+    (*msg).param.get_int(Param::Width).unwrap_or_default()
 }
 
 pub unsafe fn dc_msg_get_height(msg: *const dc_msg_t) -> libc::c_int {
@@ -753,7 +761,7 @@ pub unsafe fn dc_msg_get_height(msg: *const dc_msg_t) -> libc::c_int {
         return 0;
     }
 
-    dc_param_get_int(&(*msg).param, Param::Height).unwrap_or_default()
+    (*msg).param.get_int(Param::Height).unwrap_or_default()
 }
 
 pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> libc::c_int {
@@ -761,7 +769,7 @@ pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> libc::c_int {
         return 0;
     }
 
-    dc_param_get_int(&(*msg).param, Param::Duration).unwrap_or_default()
+    (*msg).param.get_int(Param::Duration).unwrap_or_default()
 }
 
 // TODO should return bool /rtn
@@ -769,7 +777,12 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156 as libc::c_uint {
         return 0;
     }
-    if dc_param_get_int(&(*msg).param, Param::GuranteeE2ee).unwrap_or_default() != 0 {
+    if (*msg)
+        .param
+        .get_int(Param::GuranteeE2ee)
+        .unwrap_or_default()
+        != 0
+    {
         return 1;
     }
 
@@ -851,7 +864,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
         50 => prefix = to_cstring(context.stock_str(StockMessage::Video)),
         41 => prefix = to_cstring(context.stock_str(StockMessage::VoiceMessage)),
         40 | 60 => {
-            if dc_param_get_int(&param, Param::Cmd) == Some(6) {
+            if param.get_int(Param::Cmd) == Some(6) {
                 prefix = to_cstring(context.stock_str(StockMessage::AcSetupMsgSubject));
                 append_text = 0i32
             } else {
@@ -875,7 +888,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
             }
         }
         _ => {
-            if dc_param_get_int(&param, Param::Cmd) == Some(9) {
+            if param.get_int(Param::Cmd) == Some(9) {
                 prefix = to_cstring(context.stock_str(StockMessage::Location));
                 append_text = 0;
             }
@@ -942,7 +955,7 @@ pub unsafe fn dc_msg_is_forwarded(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0;
     }
-    if 0 != dc_param_get_int(&(*msg).param, Param::Forwarded).unwrap_or_default() {
+    if 0 != (*msg).param.get_int(Param::Forwarded).unwrap_or_default() {
         1
     } else {
         0
@@ -954,7 +967,7 @@ pub unsafe fn dc_msg_is_info(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return 0;
     }
-    let cmd = dc_param_get_int(&(*msg).param, Param::Cmd).unwrap_or_default();
+    let cmd = (*msg).param.get_int(Param::Cmd).unwrap_or_default();
     if (*msg).from_id == 2i32 as libc::c_uint
         || (*msg).to_id == 2i32 as libc::c_uint
         || 0 != cmd && cmd != 6i32
@@ -986,7 +999,7 @@ pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> bool {
         return false;
     }
 
-    dc_param_get_int(&(*msg).param, Param::Cmd) == Some(6)
+    (*msg).param.get_int(Param::Cmd) == Some(6)
 }
 
 pub unsafe fn dc_msg_get_setupcodebegin(msg: *const dc_msg_t) -> *mut libc::c_char {
@@ -1056,10 +1069,10 @@ pub unsafe fn dc_msg_set_file(
         return;
     }
     if !file.is_null() {
-        dc_param_set(&mut (*msg).param, Param::File, as_str(file));
+        (*msg).param.set(Param::File, as_str(file));
     }
     if !filemime.is_null() {
-        dc_param_set(&mut (*msg).param, Param::MimeType, as_str(filemime));
+        (*msg).param.set(Param::MimeType, as_str(filemime));
     }
 }
 
@@ -1067,15 +1080,15 @@ pub unsafe fn dc_msg_set_dimension(msg: *mut dc_msg_t, width: libc::c_int, heigh
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    dc_param_set_int(&mut (*msg).param, Param::Width, width);
-    dc_param_set_int(&mut (*msg).param, Param::Height, height);
+    (*msg).param.set_int(Param::Width, width);
+    (*msg).param.set_int(Param::Height, height);
 }
 
 pub unsafe fn dc_msg_set_duration(msg: *mut dc_msg_t, duration: libc::c_int) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    dc_param_set_int(&mut (*msg).param, Param::Duration, duration);
+    (*msg).param.set_int(Param::Duration, duration);
 }
 
 pub unsafe fn dc_msg_latefiling_mediasize(
@@ -1086,11 +1099,11 @@ pub unsafe fn dc_msg_latefiling_mediasize(
 ) {
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if width > 0 && height > 0 {
-            dc_param_set_int(&mut (*msg).param, Param::Width, width);
-            dc_param_set_int(&mut (*msg).param, Param::Height, height);
+            (*msg).param.set_int(Param::Width, width);
+            (*msg).param.set_int(Param::Height, height);
         }
         if duration > 0 {
-            dc_param_set_int(&mut (*msg).param, Param::Duration, duration);
+            (*msg).param.set_int(Param::Duration, duration);
         }
         dc_msg_save_param_to_disk(msg);
     };
@@ -1195,7 +1208,7 @@ pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *con
             (*msg).state = DC_STATE_OUT_FAILED;
         }
         if !error.is_null() {
-            dc_param_set(&mut (*msg).param, Param::Error, as_str(error));
+            (*msg).param.set(Param::Error, as_str(error));
             error!(context, 0, "{}", as_str(error),);
         }
 

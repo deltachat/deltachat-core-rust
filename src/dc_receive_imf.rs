@@ -480,9 +480,8 @@ pub unsafe fn dc_receive_imf(
                                             )
                                         }
                                         if 0 != mime_parser.is_system_message {
-                                            dc_param_set_int(
-                                                &mut (*part).param,
-                                                Param::Cmd,
+
+                                             (*part).param.set_int(                                                Param::Cmd,
                                                 mime_parser.is_system_message,
                                             );
                                         }
@@ -743,24 +742,16 @@ pub unsafe fn dc_receive_imf(
                                     }
                                 }
                                 if 0 != mime_parser.is_send_by_messenger || 0 != mdn_consumed {
-                                    let mut param = dc_param_new();
-                                    dc_param_set(
-                                        &mut param,
-                                        Param::ServerFolder,
-                                        server_folder.as_ref(),
-                                    );
-                                    dc_param_set_int(
-                                        &mut param,
-                                        Param::ServerUid,
-                                        server_uid as i32,
-                                    );
+                                    let mut param = Params::default();
+                                    param.set(Param::ServerFolder, server_folder.as_ref());
+                                    param.set_int(Param::ServerUid, server_uid as i32);
                                     if 0 != mime_parser.is_send_by_messenger
                                         && 0 != context
                                             .sql
                                             .get_config_int(context, "mvbox_move")
                                             .unwrap_or_else(|| 1)
                                     {
-                                        dc_param_set_int(&mut param, Param::AlsoMove, 1);
+                                        param.set_int(Param::AlsoMove, 1);
                                     }
                                     dc_job_add(context, 120, 0, Some(param), 0);
                                 }
@@ -1246,13 +1237,9 @@ unsafe fn create_or_lookup_group(
                                 );
                                 dc_chat_load_from_db(chat, chat_id);
                                 if grpimage.is_null() {
-                                    dc_param_remove(&mut (*chat).param, Param::ProfileImage);
+                                    (*chat).param.remove(Param::ProfileImage);
                                 } else {
-                                    dc_param_set(
-                                        &mut (*chat).param,
-                                        Param::ProfileImage,
-                                        as_str(grpimage),
-                                    );
+                                    (*chat).param.set(Param::ProfileImage, as_str(grpimage));
                                 }
                                 dc_chat_update_param(chat);
                                 dc_chat_unref(chat);

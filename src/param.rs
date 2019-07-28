@@ -10,34 +10,65 @@ use crate::error;
 #[derive(PartialEq, Eq, Debug, Clone, Copy, Hash, PartialOrd, Ord, FromPrimitive)]
 #[repr(u8)]
 pub enum Param {
+    /// For messages and jobs
     File = 'f' as u8,
+    /// For Messages
     Width = 'w' as u8,
+    /// For Messages
     Height = 'h' as u8,
+    /// For Messages
     Duration = 'd' as u8,
+    /// For Messages
     MimeType = 'm' as u8,
+    /// For Messages: message is encryoted, outgoing: guarantee E2EE or the message is not send
     GuranteeE2ee = 'c' as u8,
+    /// For Messages: decrypted with validation errors or without mutual set, if neither
+    /// 'c' nor 'e' are preset, the messages is only transport encrypted.
     ErroneousE2ee = 'e' as u8,
+    /// For Messages: force unencrypted message, either `ForcePlaintext::AddAutocryptHeader` (1),
+    /// `ForcePlaintext::NoAutocryptHeader` (2) or 0.
     ForcePlaintext = 'u' as u8,
+    /// For Messages
     WantsMdn = 'r' as u8,
+    /// For Messages
     Forwarded = 'a' as u8,
+    /// For Messages
     Cmd = 'S' as u8,
+    /// For Messages
     Arg = 'E' as u8,
+    /// For Messages
     Arg2 = 'F' as u8,
+    /// For Messages
     Arg3 = 'G' as u8,
+    /// For Messages
     Arg4 = 'H' as u8,
+    /// For Messages
     Error = 'L' as u8,
+    /// For Messages: space-separated list of messaged IDs of forwarded copies.
     PrepForwards = 'P' as u8,
+    /// For Jobs
     SetLatitude = 'l' as u8,
+    /// For Jobs
     SetLongitude = 'n' as u8,
+    /// For Jobs
     ServerFolder = 'Z' as u8,
+    /// For Jobs
     ServerUid = 'z' as u8,
+    /// For Jobs
     AlsoMove = 'M' as u8,
+    /// For Jobs: space-separated list of message recipients
     Recipients = 'R' as u8,
+    // For Groups
     Unpromoted = 'U' as u8,
+    // For Groups and Contacts
     ProfileImage = 'i' as u8,
+    // For Chats
     Selftalk = 'K' as u8,
+    // For QR
     Auth = 's' as u8,
+    // For QR
     GroupId = 'x' as u8,
+    // For QR
     GroupName = 'g' as u8,
 }
 
@@ -134,34 +165,26 @@ impl Params {
     pub fn len(&self) -> usize {
         self.inner.len()
     }
-}
 
-pub fn dc_param_get_int(param: &Params, key: Param) -> Option<i32> {
-    param.get(key).and_then(|s| s.parse().ok())
-}
+    /// Get the given parameter and parse as `i32`.
+    pub fn get_int(&self, key: Param) -> Option<i32> {
+        self.get(key).and_then(|s| s.parse().ok())
+    }
 
-pub fn dc_param_get_float(param: &Params, key: Param) -> Option<f64> {
-    param.get(key).and_then(|s| s.parse().ok())
-}
+    /// Get the given parameter and parse as `f64`.
+    pub fn get_float(&self, key: Param) -> Option<f64> {
+        self.get(key).and_then(|s| s.parse().ok())
+    }
 
-pub fn dc_param_set(param: &mut Params, key: Param, value: impl AsRef<str>) {
-    param.set(key, value);
-}
+    /// Set the given paramter to the passed in `i32`.
+    pub fn set_int(&mut self, key: Param, value: i32) {
+        self.set(key, format!("{}", value));
+    }
 
-pub fn dc_param_remove(param: &mut Params, key: Param) {
-    param.remove(key);
-}
-
-pub fn dc_param_set_int(param: &mut Params, key: Param, value: i32) {
-    param.set(key, format!("{}", value));
-}
-
-pub fn dc_param_set_float(param: &mut Params, key: Param, value: f64) {
-    param.set(key, format!("{}", value));
-}
-
-pub fn dc_param_new() -> Params {
-    Default::default()
+    /// Set the given parameter to the passed in `f64` .
+    pub fn set_float(&mut self, key: Param, value: f64) {
+        self.set(key, format!("{}", value));
+    }
 }
 
 #[cfg(test)]
@@ -172,30 +195,30 @@ mod tests {
     fn test_dc_param() {
         let mut p1: Params = "\r\n\r\na=1\nf=2\n\nc = 3 ".parse().unwrap();
 
-        assert_eq!(dc_param_get_int(&p1, Param::Forwarded), Some(1));
-        assert_eq!(dc_param_get_int(&p1, Param::File), Some(2));
-        assert_eq!(dc_param_get_int(&p1, Param::Height), None);
+        assert_eq!(p1.get_int(Param::Forwarded), Some(1));
+        assert_eq!(p1.get_int(Param::File), Some(2));
+        assert_eq!(p1.get_int(Param::Height), None);
         assert!(!p1.exists(Param::Height));
 
-        dc_param_set_int(&mut p1, Param::Duration, 4);
+        p1.set_int(Param::Duration, 4);
 
-        assert_eq!(dc_param_get_int(&p1, Param::Duration), Some(4));
+        assert_eq!(p1.get_int(Param::Duration), Some(4));
 
-        let mut p1 = dc_param_new();
-        dc_param_set(&mut p1, Param::Forwarded, "foo");
-        dc_param_set_int(&mut p1, Param::File, 2);
-        dc_param_remove(&mut p1, Param::GuranteeE2ee);
-        dc_param_set_int(&mut p1, Param::Duration, 4);
+        let mut p1 = Params::default();
+        p1.set(Param::Forwarded, "foo");
+        p1.set_int(Param::File, 2);
+        p1.remove(Param::GuranteeE2ee);
+        p1.set_int(Param::Duration, 4);
 
         assert_eq!(p1.to_string(), "a=foo\nd=4\nf=2");
 
-        dc_param_remove(&mut p1, Param::File);
+        p1.remove(Param::File);
 
         assert_eq!(p1.to_string(), "a=foo\nd=4",);
         assert_eq!(p1.len(), 2);
 
-        dc_param_remove(&mut p1, Param::Forwarded);
-        dc_param_remove(&mut p1, Param::Duration);
+        p1.remove(Param::Forwarded);
+        p1.remove(Param::Duration);
 
         assert_eq!(p1.to_string(), "",);
 

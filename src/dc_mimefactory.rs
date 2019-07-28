@@ -185,8 +185,10 @@ pub unsafe fn dc_mimefactory_load_msg(
                 )
                 .unwrap();
 
-            let command =
-                dc_param_get_int(&(*(*factory).msg).param, Param::Cmd).unwrap_or_default();
+            let command = (*(*factory).msg)
+                .param
+                .get_int(Param::Cmd)
+                .unwrap_or_default();
             if command == 5 {
                 let email_to_remove = (*(*factory).msg).param.get(Param::Arg).unwrap_or_default();
                 let email_to_remove_c = to_cstring(email_to_remove);
@@ -539,12 +541,15 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 e2ee_guaranteed = 1;
                 min_verified = 2
             } else {
-                force_plaintext = dc_param_get_int(&(*(*factory).msg).param, Param::ForcePlaintext)
+                force_plaintext = (*(*factory).msg)
+                    .param
+                    .get_int(Param::ForcePlaintext)
                     .unwrap_or_default();
                 if force_plaintext == 0 {
-                    e2ee_guaranteed =
-                        dc_param_get_int(&(*(*factory).msg).param, Param::GuranteeE2ee)
-                            .unwrap_or_default()
+                    e2ee_guaranteed = (*(*factory).msg)
+                        .param
+                        .get_int(Param::GuranteeE2ee)
+                        .unwrap_or_default()
                 }
             }
             if (*chat).gossiped_timestamp == 0
@@ -553,7 +558,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 do_gossip = 1
             }
             /* build header etc. */
-            let command = dc_param_get_int(&(*msg).param, Param::Cmd).unwrap_or_default();
+            let command = (*msg).param.get_int(Param::Cmd).unwrap_or_default();
             if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
                 || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
             {
@@ -602,7 +607,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         );
                         grpimage = (*chat).param.get(Param::ProfileImage);
                     }
-                    if 0 != dc_param_get_int(&(*msg).param, Param::Arg2).unwrap_or_default() & 0x1 {
+                    if 0 != (*msg).param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
                         info!(
                             (*msg).context,
                             0,
@@ -741,8 +746,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             if let Some(grpimage) = grpimage {
                 let mut meta = dc_msg_new_untyped((*factory).context);
                 (*meta).type_0 = DC_MSG_IMAGE as libc::c_int;
-
-                dc_param_set(&mut (*meta).param, Param::File, grpimage);
+                (*meta).param.set(Param::File, grpimage);
 
                 let mut filename_as_sent = 0 as *mut libc::c_char;
                 meta_part = build_body_file(
@@ -774,8 +778,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         ),
                     );
                 }
-                let duration_ms =
-                    dc_param_get_int(&(*msg).param, Param::Duration).unwrap_or_default();
+                let duration_ms = (*msg).param.get_int(Param::Duration).unwrap_or_default();
                 if duration_ms > 0 {
                     mailimf_fields_add(
                         imf_fields,
@@ -877,9 +880,13 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             mailmime_smart_add_part(message, meta_part);
                         }
                         if (*msg).param.exists(Param::SetLatitude) {
-                            let latitude = dc_param_get_float(&(*msg).param, Param::SetLatitude)
+                            let latitude = (*msg)
+                                .param
+                                .get_float(Param::SetLatitude)
                                 .unwrap_or_default();
-                            let longitude = dc_param_get_float(&(*msg).param, Param::SetLongitude)
+                            let longitude = (*msg)
+                                .param
+                                .get_float(Param::SetLongitude)
                                 .unwrap_or_default();
                             let kml_file =
                                 dc_get_message_kml((*msg).timestamp_sort, latitude, longitude);
@@ -955,7 +962,9 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             mailmime_add_part(message, multipart);
             let p1: *mut libc::c_char;
             let p2: *mut libc::c_char;
-            if 0 != dc_param_get_int(&(*(*factory).msg).param, Param::GuranteeE2ee)
+            if 0 != (*(*factory).msg)
+                .param
+                .get_int(Param::GuranteeE2ee)
                 .unwrap_or_default()
             {
                 p1 = to_cstring((*factory).context.stock_str(StockMessage::EncryptedMsg));
@@ -1086,14 +1095,14 @@ unsafe fn get_subject(
 ) -> *mut libc::c_char {
     let context = (*chat).context;
     let ret: *mut libc::c_char;
-    let raw_subject: *mut libc::c_char =
+    let raw_subject =
         dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 32, context);
-    let fwd: *const libc::c_char = if 0 != afwd_email {
+    let fwd = if 0 != afwd_email {
         b"Fwd: \x00" as *const u8 as *const libc::c_char
     } else {
         b"\x00" as *const u8 as *const libc::c_char
     };
-    if dc_param_get_int(&(*msg).param, Param::Cmd).unwrap_or_default() == 6 {
+    if (*msg).param.get_int(Param::Cmd).unwrap_or_default() == 6 {
         ret = to_cstring(context.stock_str(StockMessage::AcSetupMsgSubject))
     } else if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
         || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
