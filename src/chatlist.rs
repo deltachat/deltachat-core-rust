@@ -155,7 +155,7 @@ impl<'a> Chatlist<'a> {
             let query = query.trim().to_string();
             ensure!(!query.is_empty(), "missing query");
 
-            let strLikeCmd = format!("%{}%", query);
+            let str_like_cmd = format!("%{}%", query);
             context.sql.query_map(
                 "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
                  ON c.id=m.chat_id        \
@@ -164,7 +164,7 @@ impl<'a> Chatlist<'a> {
                  AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
                  AND c.blocked=0 AND c.name LIKE ?  \
                  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                params![strLikeCmd],
+                params![str_like_cmd],
                 process_row,
                 process_rows,
             )?
