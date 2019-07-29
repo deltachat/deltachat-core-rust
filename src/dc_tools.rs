@@ -264,7 +264,7 @@ pub unsafe fn dc_unify_lineends(buf: *mut libc::c_char) {
 
 /* replace bad UTF-8 characters by sequences of `_` (to avoid problems in filenames, we do not use eg. `?`) the function is useful if strings are unexpectingly encoded eg. as ISO-8859-1 */
 pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
-    let current_block: u64;
+    let mut OK_TO_CONTINUE = true;
     if buf.is_null() {
         return;
     }
@@ -280,7 +280,6 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
     ix = p1len;
     's_36: loop {
         if !(i < ix) {
-            current_block = 13550086250199790493;
             break;
         }
         c = *p1.offset(i as isize) as libc::c_int;
@@ -293,7 +292,7 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
             && *p1.offset((i + 1i32) as isize) as libc::c_int & 0xa0i32 == 0xa0i32
         {
             /* U+d800 to U+dfff */
-            current_block = 2775201239069267972;
+            OK_TO_CONTINUE = false;
             break;
         } else if c & 0xf0i32 == 0xe0i32 {
             n = 2i32
@@ -302,7 +301,7 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
         } else {
             //else if ((c & 0xFC) == 0xF8)                          { n=4; }        /* 111110bb - not valid in https://tools.ietf.org/html/rfc3629 */
             //else if ((c & 0xFE) == 0xFC)                          { n=5; }        /* 1111110b - not valid in https://tools.ietf.org/html/rfc3629 */
-            current_block = 2775201239069267972;
+            OK_TO_CONTINUE = false;
             break;
         }
         j = 0i32;
@@ -310,16 +309,14 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
             /* n bytes matching 10bbbbbb follow ? */
             i += 1;
             if i == ix || *p1.offset(i as isize) as libc::c_int & 0xc0i32 != 0x80i32 {
-                current_block = 2775201239069267972;
+                OK_TO_CONTINUE = false;
                 break 's_36;
             }
             j += 1
         }
         i += 1
     }
-    match current_block {
-        13550086250199790493 => return,
-        _ => {
+    if OK_TO_CONTINUE == false {
             while 0 != *p1 {
                 if *p1 as libc::c_int > 0x7fi32 {
                     *p1 = '_' as i32 as libc::c_uchar
@@ -327,8 +324,7 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
                 p1 = p1.offset(1isize)
             }
             return;
-        }
-    };
+    }
 }
 
 pub unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
