@@ -399,12 +399,7 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     unsafe { dc_cmdline_skip_auth() };
 
     if args.len() == 2 {
-        if 0 == unsafe {
-            let a = to_cstring(&args[1]);
-            let res = dc_open(&mut context, a, 0 as *const _);
-            free(a as *mut _);
-            res
-        } {
+        if unsafe { !dc_open(&mut context, &args[1], None) } {
             println!("Error: Cannot open {}.", args[0],);
         }
     } else if args.len() != 1 {

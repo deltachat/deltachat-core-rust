@@ -503,10 +503,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "open" => {
             ensure!(!arg1.is_empty(), "Argument <file> missing");
             dc_close(context);
-            ensure!(
-                0 != dc_open(context, arg1_c, 0 as *const libc::c_char),
-                "Open failed"
-            );
+            ensure!(dc_open(context, arg1, None), "Open failed");
         }
         "close" => {
             dc_close(context);
