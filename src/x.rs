@@ -37,14 +37,6 @@ pub fn strndup(s: *const libc::c_char, n: libc::c_ulong) -> *mut libc::c_char {
 
 extern "C" {
     pub fn clock() -> libc::clock_t;
-    pub fn qsort(
-        __base: *mut libc::c_void,
-        __nel: size_t,
-        __width: size_t,
-        __compar: Option<
-            unsafe extern "C" fn(_: *const libc::c_void, _: *const libc::c_void) -> libc::c_int,
-        >,
-    );
 
     // -- DC Methods
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
