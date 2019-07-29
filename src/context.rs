@@ -249,16 +249,8 @@ unsafe fn cb_set_config(context: &Context, key: *const libc::c_char, value: *con
  *
  * @private @memberof Context
  */
-unsafe fn cb_get_config(
-    context: &Context,
-    key: *const libc::c_char,
-    def: *const libc::c_char,
-) -> *mut libc::c_char {
-    let res = context
-        .sql
-        .get_config(context, as_str(key))
-        .unwrap_or_else(|| to_string(def));
-    to_cstring(res)
+fn cb_get_config(context: &Context, key: &str) -> Option<String> {
+    context.sql.get_config(context, key)
 }
 
 pub unsafe fn dc_context_unref(context: &mut Context) {
