@@ -9,7 +9,10 @@
 
 #[macro_use]
 extern crate human_panic;
+extern crate num_traits;
 
+use num_traits::{FromPrimitive, ToPrimitive};
+use std::ptr;
 use std::str::FromStr;
 
 use deltachat::*;
@@ -458,6 +461,14 @@ pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
     dc_chat::dc_marknoticed_all_chats(context);
 }
 
+fn from_prim<S, T>(s: S) -> Option<T>
+where
+    T: FromPrimitive,
+    S: Into<i64>,
+{
+    FromPrimitive::from_i64(s.into())
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_chat_media(
     context: *mut dc_context_t,
@@ -469,7 +480,15 @@ pub unsafe extern "C" fn dc_get_chat_media(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_chat_media(context, chat_id, msg_type, or_msg_type2, or_msg_type3)
+    if let (Some(msg_type), Some(or_msg_type2), Some(or_msg_type3)) = (
+        from_prim(msg_type),
+        from_prim(or_msg_type2),
+        from_prim(or_msg_type3),
+    ) {
+        dc_chat::dc_get_chat_media(context, chat_id, msg_type, or_msg_type2, or_msg_type3)
+    } else {
+        ptr::null_mut()
+    }
 }
 
 #[no_mangle]
@@ -484,7 +503,15 @@ pub unsafe extern "C" fn dc_get_next_media(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_next_media(context, msg_id, dir, msg_type, or_msg_type2, or_msg_type3)
+    if let (Some(msg_type), Some(or_msg_type2), Some(or_msg_type3)) = (
+        from_prim(msg_type),
+        from_prim(or_msg_type2),
+        from_prim(or_msg_type3),
+    ) {
+        dc_chat::dc_get_next_media(context, msg_id, dir, msg_type, or_msg_type2, or_msg_type3)
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
@@ -1236,8 +1263,11 @@ pub unsafe extern "C" fn dc_msg_new<'a>(
 ) -> *mut dc_msg::dc_msg_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
-
-    dc_msg::dc_msg_new(context, viewtype)
+    if let Some(viewtype) = from_prim(viewtype) {
+        dc_msg::dc_msg_new(context, viewtype)
+    } else {
+        ptr::null_mut()
+    }
 }
 
 #[no_mangle]
@@ -1268,6 +1298,8 @@ pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg::dc_msg_t) -> u32 {
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_viewtype(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
     dc_msg::dc_msg_get_viewtype(msg)
+        .to_i64()
+        .expect("impossible: Viewtype -> i64 conversion failed") as libc::c_int
 }
 
 #[no_mangle]

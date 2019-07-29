@@ -1184,8 +1184,8 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                     .unwrap_or_default(),
             );
             if strlen(pathNfilename) > 0 {
-                if ((*mimefactory.msg).type_0 == DC_MSG_IMAGE
-                    || (*mimefactory.msg).type_0 == DC_MSG_GIF)
+                if ((*mimefactory.msg).type_0 == Viewtype::Image
+                    || (*mimefactory.msg).type_0 == Viewtype::Gif)
                     && !(*mimefactory.msg).param.exists(Param::Width)
                 {
                     let mut buf = 0 as *mut libc::c_uchar;

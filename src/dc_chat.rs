@@ -371,14 +371,14 @@ pub unsafe fn dc_prepare_msg<'a>(
     return msg_id;
 }
 
-pub fn msgtype_has_file(msgtype: i32) -> bool {
+pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
     match msgtype {
-        DC_MSG_IMAGE => true,
-        DC_MSG_GIF => true,
-        DC_MSG_AUDIO => true,
-        DC_MSG_VOICE => true,
-        DC_MSG_VIDEO => true,
-        DC_MSG_FILE => true,
+        Viewtype::Image => true,
+        Viewtype::Gif => true,
+        Viewtype::Audio => true,
+        Viewtype::Voice => true,
+        Viewtype::Video => true,
+        Viewtype::File => true,
         _ => false,
     }
 }
@@ -392,7 +392,7 @@ unsafe fn prepare_msg_common<'a>(
     let mut OK_TO_CONTINUE = true;
     (*msg).id = 0i32 as uint32_t;
     (*msg).context = context;
-    if (*msg).type_0 == DC_MSG_TEXT {
+    if (*msg).type_0 == Viewtype::Text {
         /* the caller should check if the message text is empty */
     } else if msgtype_has_file((*msg).type_0) {
         let mut pathNfilename = (*msg)
@@ -417,16 +417,16 @@ unsafe fn prepare_msg_common<'a>(
             OK_TO_CONTINUE = false;
         } else {
             (*msg).param.set(Param::File, as_str(pathNfilename));
-            if (*msg).type_0 == DC_MSG_FILE || (*msg).type_0 == DC_MSG_IMAGE {
+            if (*msg).type_0 == Viewtype::File || (*msg).type_0 == Viewtype::Image {
                 /* Correct the type, take care not to correct already very special formats as GIF or VOICE.
                 Typical conversions:
                 - from FILE to AUDIO/VIDEO/IMAGE
                 - from FILE/IMAGE to GIF */
-                let mut better_type = 0;
+                let mut better_type = Viewtype::Unknown;
                 let mut better_mime = std::ptr::null_mut();
 
                 dc_msg_guess_msgtype_from_suffix(pathNfilename, &mut better_type, &mut better_mime);
-                if 0 != better_type && !better_mime.is_null() {
+                if Viewtype::Unknown != better_type && !better_mime.is_null() {
                     (*msg).type_0 = better_type;
                     (*msg).param.set(Param::MimeType, as_str(better_mime));
                 }
@@ -436,7 +436,7 @@ unsafe fn prepare_msg_common<'a>(
 
                 dc_msg_guess_msgtype_from_suffix(
                     pathNfilename,
-                    0 as *mut libc::c_int,
+                    0 as *mut Viewtype,
                     &mut better_mime,
                 );
 
@@ -974,7 +974,7 @@ pub unsafe fn dc_send_text_msg(
         return 0;
     }
 
-    let mut msg = dc_msg_new(context, 10);
+    let mut msg = dc_msg_new(context, Viewtype::Text);
     (*msg).text = dc_strdup(text_to_send);
     let ret = dc_send_msg(context, chat_id, msg);
     dc_msg_unref(msg);
@@ -1004,7 +1004,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
     }
     // save new draft
     if !msg.is_null() {
-        if (*msg).type_0 == DC_MSG_TEXT {
+        if (*msg).type_0 == Viewtype::Text {
             if (*msg).text.is_null() || *(*msg).text.offset(0isize) as libc::c_int == 0i32 {
                 OK_TO_CONTINUE = false;
             }
@@ -1258,20 +1258,20 @@ pub fn dc_marknoticed_all_chats(context: &Context) -> bool {
 pub fn dc_get_chat_media(
     context: &Context,
     chat_id: uint32_t,
-    msg_type: libc::c_int,
-    msg_type2: libc::c_int,
-    msg_type3: libc::c_int,
+    msg_type: Viewtype,
+    msg_type2: Viewtype,
+    msg_type3: Viewtype,
 ) -> *mut dc_array_t {
     context.sql.query_map(
         "SELECT id FROM msgs WHERE chat_id=? AND (type=? OR type=? OR type=?) ORDER BY timestamp, id;",
         params![
             chat_id as i32,
             msg_type,
-            if msg_type2 > 0 {
+            if msg_type2 != Viewtype::Unknown {
                 msg_type2
             } else {
                 msg_type
-            }, if msg_type3 > 0 {
+            }, if msg_type3 != Viewtype::Unknown {
                 msg_type3
             } else {
                 msg_type
@@ -1292,9 +1292,9 @@ pub unsafe fn dc_get_next_media(
     context: &Context,
     curr_msg_id: uint32_t,
     dir: libc::c_int,
-    msg_type: libc::c_int,
-    msg_type2: libc::c_int,
-    msg_type3: libc::c_int,
+    msg_type: Viewtype,
+    msg_type2: Viewtype,
+    msg_type3: Viewtype,
 ) -> uint32_t {
     let mut ret_msg_id: uint32_t = 0i32 as uint32_t;
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
@@ -1306,7 +1306,7 @@ pub unsafe fn dc_get_next_media(
         list = dc_get_chat_media(
             context,
             (*msg).chat_id,
-            if msg_type > 0i32 {
+            if msg_type != Viewtype::Unknown {
                 msg_type
             } else {
                 (*msg).type_0
@@ -1510,7 +1510,7 @@ pub unsafe fn dc_create_group_chat(
         chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid);
         if chat_id != 0 {
             if 0 != dc_add_to_chat_contacts_table(context, chat_id, 1) {
-                let draft_msg = dc_msg_new(context, 10);
+                let draft_msg = dc_msg_new(context, Viewtype::Text);
                 dc_msg_set_text(draft_msg, draft_txt.as_ptr());
                 set_draft_raw(context, chat_id, draft_msg);
                 dc_msg_unref(draft_msg);
@@ -1619,7 +1619,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     }
                     if OK_TO_CONTINUE {
                         if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                            (*msg).type_0 = DC_MSG_TEXT;
+                            (*msg).type_0 = Viewtype::Text;
                             (*msg).text = to_cstring(context.stock_system_msg(
                                 StockMessage::MsgAddMember,
                                 as_str((*contact).addr),
@@ -1730,7 +1730,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if !contact.is_null() {
                     if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                        (*msg).type_0 = DC_MSG_TEXT;
+                        (*msg).type_0 = Viewtype::Text;
                         if (*contact).id == 1 as libc::c_uint {
                             dc_set_group_explicitly_left(context, (*chat).grpid);
                             (*msg).text = to_cstring(context.stock_system_msg(
@@ -1845,7 +1845,7 @@ pub unsafe fn dc_set_chat_name(
                 .is_ok()
                 {
                     if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                        (*msg).type_0 = DC_MSG_TEXT;
+                        (*msg).type_0 = Viewtype::Text;
                         (*msg).text = to_cstring(context.stock_system_msg(
                             StockMessage::MsgGrpName,
                             as_str((*chat).name),
@@ -1917,7 +1917,7 @@ pub unsafe fn dc_set_chat_profile_image(
                         if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                             (*msg).param.set_int(Param::Cmd, 3);
                             (*msg).param.set(Param::Arg, as_str(new_image_rel));
-                            (*msg).type_0 = DC_MSG_TEXT;
+                            (*msg).type_0 = Viewtype::Text;
                             (*msg).text = to_cstring(context.stock_system_msg(
                                 if !new_image_rel.is_null() {
                                     StockMessage::MsgGrpImgChanged
@@ -2287,7 +2287,7 @@ pub fn dc_add_device_msg(context: &Context, chat_id: uint32_t, text: *const libc
             2,
             2,
             unsafe {dc_create_smeared_timestamp(context)},
-            DC_MSG_TEXT,
+            Viewtype::Text,
             DC_STATE_IN_NOTICED,
             as_str(text),
             as_str(rfc724_mid),

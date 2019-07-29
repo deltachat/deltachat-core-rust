@@ -507,6 +507,7 @@ dependencies = [
  "deltachat 1.0.0-alpha.3",
  "human-panic 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.60 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-traits 0.2.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
