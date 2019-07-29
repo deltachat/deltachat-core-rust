@@ -746,26 +746,18 @@ pub fn dc_create_id() -> String {
 ///    base64: 64 bit, 6 bits/character, length = 64/6 = 11 characters (plus 2 additional bits)
 /// Only the lower 2 bits of `fill` are used.
 fn encode_66bits_as_base64(v1: u32, v2: u32, fill: u32) -> String {
-    static CHARS: [u8; 65] = [
-        65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87,
-        88, 89, 90, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112,
-        113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
-        45, 95, 0,
-    ];
-    let ret = vec![
-        CHARS[((v1 >> 26) & 0x3f) as usize],
-        CHARS[((v1 >> 20) & 0x3f) as usize],
-        CHARS[((v1 >> 14) & 0x3f) as usize],
-        CHARS[((v1 >> 8) & 0x3f) as usize],
-        CHARS[((v1 >> 2) & 0x3f) as usize],
-        CHARS[(((v1 << 4) & 0x30) | ((v2 >> 28) & 0x0f)) as usize],
-        CHARS[((v2 >> 22) & 0x3f) as usize],
-        CHARS[((v2 >> 16) & 0x3f) as usize],
-        CHARS[((v2 >> 10) & 0x3f) as usize],
-        CHARS[((v2 >> 4) & 0x3f) as usize],
-        CHARS[(((v2 << 2) & 0x3c) | (fill & 0x03)) as usize],
-    ];
-    String::from_utf8(ret).unwrap()
+    use byteorder::{BigEndian, WriteBytesExt};
+
+    let mut wrapped_writer = Vec::new();
+    {
+        let mut enc = base64::write::EncoderWriter::new(&mut wrapped_writer, base64::URL_SAFE);
+        enc.write_u32::<BigEndian>(v1).unwrap();
+        enc.write_u32::<BigEndian>(v2).unwrap();
+        enc.write_u8(((fill & 0x3) as u8) << 6).unwrap();
+        enc.finish().unwrap();
+    }
+    assert_eq!(wrapped_writer.pop(), Some('A' as u8)); // Remove last "A"
+    String::from_utf8(wrapped_writer).unwrap()
 }
 
 pub unsafe fn dc_create_incoming_rfc724_mid(
