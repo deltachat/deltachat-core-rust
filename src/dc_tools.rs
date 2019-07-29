@@ -263,6 +263,7 @@ pub unsafe fn dc_unify_lineends(buf: *mut libc::c_char) {
 }
 
 /* replace bad UTF-8 characters by sequences of `_` (to avoid problems in filenames, we do not use eg. `?`) the function is useful if strings are unexpectingly encoded eg. as ISO-8859-1 */
+#[allow(non_snake_case)]
 pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
     let mut OK_TO_CONTINUE = true;
     if buf.is_null() {
