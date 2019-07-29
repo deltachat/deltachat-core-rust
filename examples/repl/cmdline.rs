@@ -229,7 +229,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
         DC_STATE_OUT_FAILED => " !!",
         _ => "",
     };
-    let temp2: *mut libc::c_char = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
+    let temp2 = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
     let msgtext: *mut libc::c_char = dc_msg_get_text(msg);
     info!(
         context,
@@ -266,10 +266,9 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
             ""
         },
         statestr,
-        as_str(temp2),
+        &temp2,
     );
     free(msgtext as *mut libc::c_void);
-    free(temp2 as *mut libc::c_void);
     free(contact_name as *mut libc::c_void);
     dc_contact_unref(contact);
 }
@@ -682,7 +681,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         if !text1.is_null() { ": " } else { "" },
                         to_string(text2),
                         statestr,
-                        as_str(timestr),
+                        &timestr,
                         if 0 != dc_chat_is_sending_locations(chat) {
                             "📍"
                         } else {
@@ -691,7 +690,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     );
                     free(text1 as *mut libc::c_void);
                     free(text2 as *mut libc::c_void);
-                    free(timestr as *mut libc::c_void);
                     dc_lot_unref(lot);
                     dc_chat_unref(chat);
                     info!(
@@ -886,7 +884,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     0,
                     "Loc#{}: {}: lat={} lng={} acc={} Chat#{} Contact#{} Msg#{} {}",
                     dc_array_get_id(loc, j as size_t),
-                    as_str(timestr_0),
+                    &timestr_0,
                     dc_array_get_latitude(loc, j as size_t),
                     dc_array_get_longitude(loc, j as size_t),
                     dc_array_get_accuracy(loc, j as size_t),
@@ -899,7 +897,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         "-"
                     },
                 );
-                free(timestr_0 as *mut libc::c_void);
                 free(marker as *mut libc::c_void);
                 j += 1
             }
