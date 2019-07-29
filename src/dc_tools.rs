@@ -720,7 +720,7 @@ pub unsafe fn dc_create_smeared_timestamps(context: &Context, count: libc::c_int
 }
 
 /* Message-ID tools */
-pub unsafe fn dc_create_id() -> *mut libc::c_char {
+pub fn dc_create_id() -> String {
     /* generate an id. the generated ID should be as short and as unique as possible:
     - short, because it may also used as part of Message-ID headers or in QR codes
     - unique as two IDs generated on two devices should not be the same. However, collisions are not world-wide but only by the few contacts.
@@ -738,39 +738,34 @@ pub unsafe fn dc_create_id() -> *mut libc::c_char {
     encode_66bits_as_base64(buf[0usize], buf[1usize], buf[2usize])
 }
 
-/* ******************************************************************************
- * generate Message-IDs
- ******************************************************************************/
-unsafe fn encode_66bits_as_base64(v1: uint32_t, v2: uint32_t, fill: uint32_t) -> *mut libc::c_char {
-    /* encode 66 bits as a base64 string. This is useful for ID generating with short strings as
-    we save 5 character in each id compared to 64 bit hex encoding, for a typical group ID, these are 10 characters (grpid+msgid):
-    hex:    64 bit, 4 bits/character, length = 64/4 = 16 characters
-    base64: 64 bit, 6 bits/character, length = 64/6 = 11 characters (plus 2 additional bits) */
-    let ret: *mut libc::c_char = malloc(12) as *mut libc::c_char;
-    assert!(!ret.is_null());
-
-    static mut CHARS: [libc::c_char; 65] = [
+/// Encode 66 bits as a base64 string.
+/// This is useful for ID generating with short strings as we save 5 character
+/// in each id compared to 64 bit hex encoding. For a typical group ID, these
+/// are 10 characters (grpid+msgid):
+///    hex:    64 bit, 4 bits/character, length = 64/4 = 16 characters
+///    base64: 64 bit, 6 bits/character, length = 64/6 = 11 characters (plus 2 additional bits)
+/// Only the lower 2 bits of `fill` are used.
+fn encode_66bits_as_base64(v1: u32, v2: u32, fill: u32) -> String {
+    static CHARS: [u8; 65] = [
         65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87,
         88, 89, 90, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112,
         113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
         45, 95, 0,
     ];
-    *ret.offset(0isize) = CHARS[(v1 >> 26i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(1isize) = CHARS[(v1 >> 20i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(2isize) = CHARS[(v1 >> 14i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(3isize) = CHARS[(v1 >> 8i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(4isize) = CHARS[(v1 >> 2i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(5isize) = CHARS
-        [(v1 << 4i32 & 0x30i32 as libc::c_uint | v2 >> 28i32 & 0xfi32 as libc::c_uint) as usize];
-    *ret.offset(6isize) = CHARS[(v2 >> 22i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(7isize) = CHARS[(v2 >> 16i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(8isize) = CHARS[(v2 >> 10i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(9isize) = CHARS[(v2 >> 4i32 & 0x3fi32 as libc::c_uint) as usize];
-    *ret.offset(10isize) =
-        CHARS[(v2 << 2i32 & 0x3ci32 as libc::c_uint | fill & 0x3i32 as libc::c_uint) as usize];
-    *ret.offset(11isize) = 0i32 as libc::c_char;
-
-    ret
+    let ret = vec![
+        CHARS[((v1 >> 26) & 0x3f) as usize],
+        CHARS[((v1 >> 20) & 0x3f) as usize],
+        CHARS[((v1 >> 14) & 0x3f) as usize],
+        CHARS[((v1 >> 8) & 0x3f) as usize],
+        CHARS[((v1 >> 2) & 0x3f) as usize],
+        CHARS[(((v1 << 4) & 0x30) | ((v2 >> 28) & 0x0f)) as usize],
+        CHARS[((v2 >> 22) & 0x3f) as usize],
+        CHARS[((v2 >> 16) & 0x3f) as usize],
+        CHARS[((v2 >> 10) & 0x3f) as usize],
+        CHARS[((v2 >> 4) & 0x3f) as usize],
+        CHARS[(((v2 << 2) & 0x3c) | (fill & 0x03)) as usize],
+    ];
+    String::from_utf8(ret).unwrap()
 }
 
 pub unsafe fn dc_create_incoming_rfc724_mid(
@@ -810,7 +805,7 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     - the message ID should be globally unique
     - do not add a counter or any private data as as this may give unneeded information to the receiver	*/
     let mut rand1: *mut libc::c_char = 0 as *mut libc::c_char;
-    let rand2: *mut libc::c_char = dc_create_id();
+    let rand2: *mut libc::c_char = to_cstring(dc_create_id());
     let ret: *mut libc::c_char;
     let mut at_hostname: *const libc::c_char = strchr(from_addr, '@' as i32);
     if at_hostname.is_null() {
@@ -824,7 +819,7 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
             at_hostname,
         )
     } else {
-        rand1 = dc_create_id();
+        rand1 = to_cstring(dc_create_id());
         ret = dc_mprintf(
             b"Mr.%s.%s%s\x00" as *const u8 as *const libc::c_char,
             rand1,
@@ -1981,11 +1976,28 @@ mod tests {
 
     #[test]
     fn test_dc_create_id() {
-        unsafe {
-            let buf = dc_create_id();
-            assert_eq!(strlen(buf), 11);
-            free(buf as *mut libc::c_void);
-        }
+        let buf = dc_create_id();
+        assert_eq!(buf.len(), 11);
+    }
+
+    #[test]
+    fn test_encode_66bits_as_base64() {
+        assert_eq!(
+            encode_66bits_as_base64(0x01234567, 0x89abcdef, 0),
+            "ASNFZ4mrze8"
+        );
+        assert_eq!(
+            encode_66bits_as_base64(0x01234567, 0x89abcdef, 1),
+            "ASNFZ4mrze9"
+        );
+        assert_eq!(
+            encode_66bits_as_base64(0x01234567, 0x89abcdef, 2),
+            "ASNFZ4mrze-"
+        );
+        assert_eq!(
+            encode_66bits_as_base64(0x01234567, 0x89abcdef, 3),
+            "ASNFZ4mrze_"
+        );
     }
 
     #[test]

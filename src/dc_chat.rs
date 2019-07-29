@@ -1494,7 +1494,7 @@ pub unsafe fn dc_create_group_chat(
     let draft_txt =
         CString::new(context.stock_string_repl_str(StockMessage::NewGroupDraft, as_str(chat_name)))
             .unwrap();
-    let grpid = as_str(dc_create_id());
+    let grpid = dc_create_id();
     if sql::execute(
         context,
         &context.sql,
