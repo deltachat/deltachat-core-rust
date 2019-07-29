@@ -796,11 +796,12 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
     0
 }
 
+#[allow(non_snake_case)]
 pub unsafe fn dc_msg_get_summary<'a>(
     msg: *mut dc_msg_t<'a>,
     mut chat: *const Chat<'a>,
 ) -> *mut dc_lot_t {
-    let current_block: u64;
+    let mut OK_TO_CONTINUE = true;
     let ret: *mut dc_lot_t = dc_lot_new();
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
@@ -808,24 +809,20 @@ pub unsafe fn dc_msg_get_summary<'a>(
         if chat.is_null() {
             chat_to_delete = dc_get_chat((*msg).context, (*msg).chat_id);
             if chat_to_delete.is_null() {
-                current_block = 15204159476013091401;
             } else {
                 chat = chat_to_delete;
-                current_block = 7815301370352969686;
+                OK_TO_CONTINUE = false;
             }
         } else {
-            current_block = 7815301370352969686;
+            OK_TO_CONTINUE = false;
         }
-        match current_block {
-            15204159476013091401 => {}
-            _ => {
+        if OK_TO_CONTINUE == false {
                 if (*msg).from_id != 1 as libc::c_uint
                     && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
                 {
                     contact = dc_get_contact((*chat).context, (*msg).from_id)
                 }
                 dc_lot_fill(ret, msg, chat, contact, (*msg).context);
-            }
         }
     }
     dc_contact_unref(contact);
