@@ -459,18 +459,18 @@ pub unsafe fn dc_decrypt_setup_file(
 
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     fc_buf = dc_strdup(filecontent);
-    if !(!dc_split_armored_data(
+    if dc_split_armored_data(
         fc_buf,
         &mut fc_headerline,
         0 as *mut *const libc::c_char,
         0 as *mut *const libc::c_char,
         &mut fc_base64,
-    ) || fc_headerline.is_null()
-        || strcmp(
+    ) && !fc_headerline.is_null()
+        && strcmp(
             fc_headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) != 0i32
-        || fc_base64.is_null())
+        ) == 0
+        && !fc_base64.is_null()
     {
         /* convert base64 to binary */
         /*must be freed using mmap_string_unref()*/
