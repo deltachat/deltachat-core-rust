@@ -669,13 +669,7 @@ pub unsafe fn dc_timestamp_from_date(date_time: *mut mailimf_date_time) -> i64 {
  * date/time tools
  ******************************************************************************/
 
-/* the return value must be free()'d */
-pub unsafe fn dc_timestamp_to_str(wanted: i64) -> *mut libc::c_char {
-    let res = dc_timestamp_to_str_safe(wanted);
-    to_cstring(res)
-}
-
-pub fn dc_timestamp_to_str_safe(wanted: i64) -> String {
+pub fn dc_timestamp_to_str(wanted: i64) -> String {
     let ts = chrono::Utc.timestamp(wanted, 0);
     ts.format("%Y.%m.%d %H:%M:%S").to_string()
 }

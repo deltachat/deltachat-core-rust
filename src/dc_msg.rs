@@ -70,7 +70,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     let rawtxt = rawtxt.unwrap();
     let rawtxt = dc_truncate_str(rawtxt.trim(), 100000);
 
-    let fts = dc_timestamp_to_str_safe(dc_msg_get_timestamp(msg));
+    let fts = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
     ret += &format!("Sent: {}", fts);
 
     p = dc_contact_get_name_n_addr(contact_from);
@@ -79,13 +79,12 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     ret += "\n";
 
     if (*msg).from_id != 1 as libc::c_uint {
-        p = dc_timestamp_to_str(if 0 != (*msg).timestamp_rcvd {
+        let s = dc_timestamp_to_str(if 0 != (*msg).timestamp_rcvd {
             (*msg).timestamp_rcvd
         } else {
             (*msg).timestamp_sort
         });
-        ret += &format!("Received: {}", as_str(p));
-        free(p as *mut libc::c_void);
+        ret += &format!("Received: {}", &s);
         ret += "\n";
     }
 
@@ -109,7 +108,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
             |rows| {
                 for row in rows {
                     let (contact_id, ts) = row?;
-                    let fts = dc_timestamp_to_str_safe(ts);
+                    let fts = dc_timestamp_to_str(ts);
                     ret += &format!("Read: {}", fts);
 
                     let contact = dc_contact_new(context);
