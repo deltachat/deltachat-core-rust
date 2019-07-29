@@ -310,32 +310,26 @@ pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
     context.userdata as *mut _
 }
 
-pub unsafe fn dc_open(
-    context: &Context,
-    dbfile: *const libc::c_char,
-    blobdir: *const libc::c_char,
-) -> libc::c_int {
-    let mut success = 0;
+pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) -> bool {
+    let mut success = false;
     if 0 != dc_is_open(context) {
-        return 0;
+        return false;
     }
-    if !dbfile.is_null() {
-        *context.dbfile.write().unwrap() = dc_strdup(dbfile);
-        if !blobdir.is_null() && 0 != *blobdir.offset(0isize) as libc::c_int {
-            let dir = dc_strdup(blobdir);
-            dc_ensure_no_slash(dir);
-            *context.blobdir.write().unwrap() = dir;
-        } else {
-            let dir = dc_mprintf(b"%s-blobs\x00" as *const u8 as *const libc::c_char, dbfile);
-            dc_create_folder(context, dir);
-            *context.blobdir.write().unwrap() = dir;
-        }
-        // Create/open sqlite database, this may already use the blobdir
-        if context.sql.open(context, as_path(dbfile), 0) {
-            success = 1i32
-        }
+    *context.dbfile.write().unwrap() = to_cstring(dbfile);
+    if blobdir.is_some() && blobdir.unwrap().len() > 0 {
+        let dir = to_cstring(dc_ensure_no_slash_safe(blobdir.unwrap()));
+        *context.blobdir.write().unwrap() = dir;
+    } else {
+        let dir = to_cstring(dbfile.to_string() + "-blobs");
+        dc_create_folder(context, dir);
+        *context.blobdir.write().unwrap() = dir;
     }
-    if 0 == success {
+    // Create/open sqlite database, this may already use the blobdir
+    let dbfile_path = std::path::Path::new(dbfile);
+    if context.sql.open(context, dbfile_path, 0) {
+        success = true
+    }
+    if !success {
         dc_close(context);
     }
     success

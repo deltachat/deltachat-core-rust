@@ -76,11 +76,11 @@ fn main() {
         });
 
         let dir = tempdir().unwrap();
-        let dbfile = CString::new(dir.path().join("db.sqlite").to_str().unwrap()).unwrap();
+        let dbfile = dir.path().join("db.sqlite");
 
         println!("opening database {:?}", dbfile);
 
-        assert_eq!(dc_open(&ctx, dbfile.as_ptr(), std::ptr::null()), 1);
+        assert!(dc_open(&ctx, dbfile.to_str().unwrap(), None));
 
         println!("configuring");
         let args = std::env::args().collect::<Vec<String>>();

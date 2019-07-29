@@ -817,14 +817,12 @@ struct TestContext {
 unsafe fn create_test_context() -> TestContext {
     let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
     let dir = tempdir().unwrap();
-    let dbfile = to_cstring(dir.path().join("db.sqlite").to_str().unwrap());
-    assert_eq!(
-        dc_open(&mut ctx, dbfile, std::ptr::null()),
-        1,
+    let dbfile = dir.path().join("db.sqlite");
+    assert!(
+        dc_open(&mut ctx, dbfile.to_str().unwrap(), None),
         "Failed to open {}",
-        as_str(dbfile as *const libc::c_char)
+        dbfile.to_str().unwrap()
     );
-    free(dbfile as *mut _);
     TestContext { ctx: ctx, dir: dir }
 }
 
@@ -1006,9 +1004,7 @@ fn test_wrong_db() {
         let dbfile = dir.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
 
-        let dbfile_c = to_cstring(dbfile.to_str().unwrap());
-        let res = dc_open(&mut ctx, dbfile_c, std::ptr::null());
-        free(dbfile_c as *mut _);
-        assert_eq!(res, 0);
+        let res = dc_open(&mut ctx, dbfile.to_str().unwrap(), None);
+        assert!(!res);
     }
 }

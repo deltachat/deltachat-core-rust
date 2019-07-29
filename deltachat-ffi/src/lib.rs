@@ -56,9 +56,16 @@ pub unsafe extern "C" fn dc_open(
     blobdir: *mut libc::c_char,
 ) -> libc::c_int {
     assert!(!context.is_null());
+    assert!(!dbfile.is_null());
     let context = &mut *context;
 
-    context::dc_open(context, dbfile, blobdir)
+    let dbfile_str = dc_tools::as_str(dbfile);
+    let blobdir_str = if blobdir.is_null() {
+        None
+    } else {
+        Some(dc_tools::as_str(blobdir))
+    };
+    context::dc_open(context, dbfile_str, blobdir_str) as libc::c_int
 }
 
 #[no_mangle]
