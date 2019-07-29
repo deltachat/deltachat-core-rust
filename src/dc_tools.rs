@@ -317,13 +317,13 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
         i += 1
     }
     if OK_TO_CONTINUE == false {
-            while 0 != *p1 {
-                if *p1 as libc::c_int > 0x7fi32 {
-                    *p1 = '_' as i32 as libc::c_uchar
-                }
-                p1 = p1.offset(1isize)
+        while 0 != *p1 {
+            if *p1 as libc::c_int > 0x7fi32 {
+                *p1 = '_' as i32 as libc::c_uchar
             }
-            return;
+            p1 = p1.offset(1isize)
+        }
+        return;
     }
 }
 
