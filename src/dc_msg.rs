@@ -817,12 +817,12 @@ pub unsafe fn dc_msg_get_summary<'a>(
             OK_TO_CONTINUE = false;
         }
         if OK_TO_CONTINUE == false {
-                if (*msg).from_id != 1 as libc::c_uint
-                    && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
-                {
-                    contact = dc_get_contact((*chat).context, (*msg).from_id)
-                }
-                dc_lot_fill(ret, msg, chat, contact, (*msg).context);
+            if (*msg).from_id != 1 as libc::c_uint
+                && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
+            {
+                contact = dc_get_contact((*chat).context, (*msg).from_id)
+            }
+            dc_lot_fill(ret, msg, chat, contact, (*msg).context);
         }
     }
     dc_contact_unref(contact);
