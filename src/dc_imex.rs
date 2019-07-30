@@ -105,80 +105,79 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
         return std::ptr::null_mut();
     }
     let setup_code = CString::new(dc_create_setup_code(context)).unwrap();
-        /* this may require a keypair to be created. this may take a second ... */
-        if !context
-            .running_state
-            .clone()
-            .read()
-            .unwrap()
-            .shall_stop_ongoing
-        {
-            setup_file_content = dc_render_setup_file(context, setup_code.as_ptr());
-            if !setup_file_content.is_null() {
-                /* encrypting may also take a while ... */
-                if !context
-                    .running_state
-                    .clone()
-                    .read()
-                    .unwrap()
-                    .shall_stop_ongoing
-                {
-                    setup_file_name = dc_get_fine_pathNfilename(
+    /* this may require a keypair to be created. this may take a second ... */
+    if !context
+        .running_state
+        .clone()
+        .read()
+        .unwrap()
+        .shall_stop_ongoing
+    {
+        setup_file_content = dc_render_setup_file(context, setup_code.as_ptr());
+        if !setup_file_content.is_null() {
+            /* encrypting may also take a while ... */
+            if !context
+                .running_state
+                .clone()
+                .read()
+                .unwrap()
+                .shall_stop_ongoing
+            {
+                setup_file_name = dc_get_fine_pathNfilename(
+                    context,
+                    b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
+                    b"autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
+                );
+                if !(setup_file_name.is_null()
+                    || 0 == dc_write_file(
                         context,
-                        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-                        b"autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
-                    );
-                    if !(setup_file_name.is_null()
-                        || 0 == dc_write_file(
-                            context,
-                            setup_file_name,
-                            setup_file_content as *const libc::c_void,
-                            strlen(setup_file_content),
-                        ))
-                    {
-                        let chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
-                        if !(chat_id == 0i32 as libc::c_uint) {
-                            msg = dc_msg_new_untyped(context);
-                            (*msg).type_0 = DC_MSG_FILE;
-                            (*msg).param.set(Param::File, as_str(setup_file_name));
+                        setup_file_name,
+                        setup_file_content as *const libc::c_void,
+                        strlen(setup_file_content),
+                    ))
+                {
+                    let chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
+                    if !(chat_id == 0i32 as libc::c_uint) {
+                        msg = dc_msg_new_untyped(context);
+                        (*msg).type_0 = DC_MSG_FILE;
+                        (*msg).param.set(Param::File, as_str(setup_file_name));
 
-                            (*msg)
-                                .param
-                                .set(Param::MimeType, "application/autocrypt-setup");
-                            (*msg).param.set_int(Param::Cmd, 6);
-                            (*msg).param.set_int(Param::ForcePlaintext, 2);
+                        (*msg)
+                            .param
+                            .set(Param::MimeType, "application/autocrypt-setup");
+                        (*msg).param.set_int(Param::Cmd, 6);
+                        (*msg).param.set_int(Param::ForcePlaintext, 2);
 
-                            if !context
-                                .running_state
-                                .clone()
-                                .read()
-                                .unwrap()
-                                .shall_stop_ongoing
-                            {
-                                let msg_id = dc_send_msg(context, chat_id, msg);
-                                if msg_id != 0 {
-                                    dc_msg_unref(msg);
-                                    msg = 0 as *mut dc_msg_t;
-                                    info!(context, 0, "Wait for setup message being sent ...",);
-                                    loop {
-                                        if context
-                                            .running_state
-                                            .clone()
-                                            .read()
-                                            .unwrap()
-                                            .shall_stop_ongoing
-                                        {
-                                            break;
-                                        }
-                                        std::thread::sleep(std::time::Duration::from_secs(1));
-                                        msg = dc_get_msg(context, msg_id);
-                                        if 0 != dc_msg_is_sent(msg) {
-                                            info!(context, 0, "... setup message sent.",);
-                                            break;
-                                        }
-                                        dc_msg_unref(msg);
-                                        msg = 0 as *mut dc_msg_t
+                        if !context
+                            .running_state
+                            .clone()
+                            .read()
+                            .unwrap()
+                            .shall_stop_ongoing
+                        {
+                            let msg_id = dc_send_msg(context, chat_id, msg);
+                            if msg_id != 0 {
+                                dc_msg_unref(msg);
+                                msg = 0 as *mut dc_msg_t;
+                                info!(context, 0, "Wait for setup message being sent ...",);
+                                loop {
+                                    if context
+                                        .running_state
+                                        .clone()
+                                        .read()
+                                        .unwrap()
+                                        .shall_stop_ongoing
+                                    {
+                                        break;
                                     }
+                                    std::thread::sleep(std::time::Duration::from_secs(1));
+                                    msg = dc_get_msg(context, msg_id);
+                                    if 0 != dc_msg_is_sent(msg) {
+                                        info!(context, 0, "... setup message sent.",);
+                                        break;
+                                    }
+                                    dc_msg_unref(msg);
+                                    msg = 0 as *mut dc_msg_t
                                 }
                             }
                         }
@@ -186,6 +185,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                 }
             }
         }
+    }
     free(setup_file_name as *mut libc::c_void);
     free(setup_file_content as *mut libc::c_void);
     dc_msg_unref(msg);
