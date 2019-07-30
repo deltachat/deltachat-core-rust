@@ -273,7 +273,6 @@ unsafe fn stress_functions(context: &Context) {
     assert!(res.contains(" configured_send_port "));
     assert!(res.contains(" configured_server_flags "));
 
-    let mut ok: libc::c_int;
     let mut buf_0: *mut libc::c_char;
     let mut headerline: *const libc::c_char = 0 as *const libc::c_char;
     let mut setupcodebegin: *const libc::c_char = 0 as *const libc::c_char;
@@ -283,14 +282,14 @@ unsafe fn stress_functions(context: &Context) {
         b"-----BEGIN PGP MESSAGE-----\nNoVal:\n\ndata\n-----END PGP MESSAGE-----\x00" as *const u8
             as *const libc::c_char,
     );
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -308,7 +307,7 @@ unsafe fn stress_functions(context: &Context) {
     buf_0 =
         strdup(b"-----BEGIN PGP MESSAGE-----\n\ndat1\n-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n\ndat2\n-----END PGP MESSAGE-----\x00"
                    as *const u8 as *const libc::c_char);
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
@@ -316,7 +315,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
 
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -335,7 +334,7 @@ unsafe fn stress_functions(context: &Context) {
         b"foo \n -----BEGIN PGP MESSAGE----- \n base64-123 \n  -----END PGP MESSAGE-----\x00"
             as *const u8 as *const libc::c_char,
     );
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
@@ -343,7 +342,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
 
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -360,7 +359,7 @@ unsafe fn stress_functions(context: &Context) {
     free(buf_0 as *mut libc::c_void);
 
     buf_0 = strdup(b"foo-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char);
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
@@ -368,19 +367,19 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
 
-    assert_eq!(ok, 0);
+    assert!(!ok);
     free(buf_0 as *mut libc::c_void);
     buf_0 =
         strdup(b"foo \n -----BEGIN PGP MESSAGE-----\n  Passphrase-BeGIN  :  23 \n  \n base64-567 \r\n abc \n  -----END PGP MESSAGE-----\n\n\n\x00"
                    as *const u8 as *const libc::c_char);
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -407,14 +406,14 @@ unsafe fn stress_functions(context: &Context) {
     buf_0 =
         strdup(b"-----BEGIN PGP PRIVATE KEY BLOCK-----\n Autocrypt-Prefer-Encrypt :  mutual \n\nbase64\n-----END PGP PRIVATE KEY BLOCK-----\x00"
                    as *const u8 as *const libc::c_char);
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         0 as *mut *const libc::c_char,
         &mut preferencrypt,
         &mut base64,
     );
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -470,16 +469,13 @@ unsafe fn stress_functions(context: &Context) {
     let mut setupcodebegin_0: *const libc::c_char = 0 as *const libc::c_char;
     let mut preferencrypt_0: *const libc::c_char = 0 as *const libc::c_char;
     buf_1 = strdup(S_EM_SETUPFILE);
-    assert_ne!(
-        0,
-        dc_split_armored_data(
-            buf_1,
-            &mut headerline_0,
-            &mut setupcodebegin_0,
-            &mut preferencrypt_0,
-            0 as *mut *const libc::c_char,
-        )
-    );
+    assert!(dc_split_armored_data(
+        buf_1,
+        &mut headerline_0,
+        &mut setupcodebegin_0,
+        &mut preferencrypt_0,
+        0 as *mut *const libc::c_char,
+    ));
     assert!(!headerline_0.is_null());
     assert_eq!(
         0,
@@ -499,16 +495,13 @@ unsafe fn stress_functions(context: &Context) {
     free(buf_1 as *mut libc::c_void);
     buf_1 = dc_decrypt_setup_file(context, S_EM_SETUPCODE, S_EM_SETUPFILE);
     assert!(!buf_1.is_null());
-    assert_ne!(
-        0,
-        dc_split_armored_data(
-            buf_1,
-            &mut headerline_0,
-            &mut setupcodebegin_0,
-            &mut preferencrypt_0,
-            0 as *mut *const libc::c_char,
-        )
-    );
+    assert!(dc_split_armored_data(
+        buf_1,
+        &mut headerline_0,
+        &mut setupcodebegin_0,
+        &mut preferencrypt_0,
+        0 as *mut *const libc::c_char,
+    ));
     assert!(!headerline_0.is_null());
     assert_eq!(
         strcmp(
@@ -549,16 +542,13 @@ unsafe fn stress_functions(context: &Context) {
         let buf_2: *mut libc::c_char = dc_strdup(setupfile);
         let mut headerline_1: *const libc::c_char = 0 as *const libc::c_char;
         let mut setupcodebegin_1: *const libc::c_char = 0 as *const libc::c_char;
-        assert_eq!(
-            0,
-            dc_split_armored_data(
-                buf_2,
-                &mut headerline_1,
-                &mut setupcodebegin_1,
-                0 as *mut *const libc::c_char,
-                0 as *mut *const libc::c_char,
-            )
-        );
+        assert!(!dc_split_armored_data(
+            buf_2,
+            &mut headerline_1,
+            &mut setupcodebegin_1,
+            0 as *mut *const libc::c_char,
+            0 as *mut *const libc::c_char,
+        ));
         assert!(!headerline_1.is_null());
         assert_eq!(
             strcmp(
@@ -577,16 +567,13 @@ unsafe fn stress_functions(context: &Context) {
         let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
         payload = dc_decrypt_setup_file(context, setupcode, setupfile);
         assert!(payload.is_null());
-        assert_eq!(
-            0,
-            dc_split_armored_data(
-                payload,
-                &mut headerline_2,
-                0 as *mut *const libc::c_char,
-                0 as *mut *const libc::c_char,
-                0 as *mut *const libc::c_char,
-            )
-        );
+        assert!(!dc_split_armored_data(
+            payload,
+            &mut headerline_2,
+            0 as *mut *const libc::c_char,
+            0 as *mut *const libc::c_char,
+            0 as *mut *const libc::c_char,
+        ));
         assert!(!headerline_2.is_null());
         assert_eq!(
             strcmp(
