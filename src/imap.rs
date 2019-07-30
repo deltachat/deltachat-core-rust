@@ -914,13 +914,7 @@ impl Imap {
         let key = format!("imap.mailbox.{}", folder.as_ref());
         let val = format!("{}:{}", uidvalidity, lastseenuid);
 
-        unsafe {
-            let key_c = to_cstring(key);
-            let val_c = to_cstring(val);
-            (self.set_config)(context, key_c, val_c);
-            free(key_c as *mut _);
-            free(val_c as *mut _);
-        };
+        (self.set_config)(context, &key, Some(&val));
     }
 
     fn fetch_single_msg<S: AsRef<str>>(

@@ -34,8 +34,7 @@ the online state. */
 
 pub type dc_precheck_imf_t =
     unsafe fn(_: &Context, _: *const libc::c_char, _: &str, _: u32) -> libc::c_int;
-pub type dc_set_config_t =
-    unsafe fn(_: &Context, _: *const libc::c_char, _: *const libc::c_char) -> ();
+pub type dc_set_config_t = fn(_: &Context, _: &str, _: Option<&str>) -> ();
 pub type dc_get_config_t = fn(_: &Context, _: &str) -> Option<String>;
 
 pub type sqlite_int64 = i64;

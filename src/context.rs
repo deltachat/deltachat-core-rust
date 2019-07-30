@@ -233,13 +233,8 @@ unsafe fn cb_precheck_imf(
     return rfc724_mid_exists;
 }
 
-unsafe fn cb_set_config(context: &Context, key: *const libc::c_char, value: *const libc::c_char) {
-    let v = if value.is_null() {
-        None
-    } else {
-        Some(as_str(value))
-    };
-    context.sql.set_config(context, as_str(key), v).ok();
+fn cb_set_config(context: &Context, key: &str, value: Option<&str>) {
+    context.sql.set_config(context, key, value).ok();
 }
 
 /* *
