@@ -393,7 +393,7 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     let mut context = dc_context_new(
         Some(receive_event),
         0 as *mut libc::c_void,
-        b"CLI\x00" as *const u8 as *const libc::c_char,
+        Some("CLI".into()),
     );
 
     unsafe { dc_cmdline_skip_auth() };

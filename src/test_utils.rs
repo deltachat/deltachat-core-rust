@@ -24,7 +24,7 @@ pub struct TestContext {
 /// [Context]: crate::context::Context
 pub fn test_context(cb: Option<dc_callback_t>) -> TestContext {
     unsafe {
-        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
+        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), None);
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         assert!(

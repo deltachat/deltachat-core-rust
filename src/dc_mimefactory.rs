@@ -477,26 +477,26 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             references_list,
             0 as *mut libc::c_char,
         );
+
+        let os_name = &(*factory).context.os_name;
+        let os_part = os_name
+            .as_ref()
+            .map(|s| format!("/{}", s))
+            .unwrap_or_default();
+        let os_part = CString::new(os_part).expect("String -> CString conversion failed");
+
         mailimf_fields_add(
             imf_fields,
             mailimf_field_new_custom(
                 strdup(b"X-Mailer\x00" as *const u8 as *const libc::c_char),
                 dc_mprintf(
-                    b"Delta Chat Core %s%s%s\x00" as *const u8 as *const libc::c_char,
+                    b"Delta Chat Core %s%s\x00" as *const u8 as *const libc::c_char,
                     DC_VERSION_STR as *const u8 as *const libc::c_char,
-                    if !(*(*factory).context).os_name.is_null() {
-                        b"/\x00" as *const u8 as *const libc::c_char
-                    } else {
-                        b"\x00" as *const u8 as *const libc::c_char
-                    },
-                    if !(*(*factory).context).os_name.is_null() {
-                        (*(*factory).context).os_name
-                    } else {
-                        b"\x00" as *const u8 as *const libc::c_char
-                    },
+                    os_part.as_ptr(),
                 ),
             ),
         );
+
         mailimf_fields_add(
             imf_fields,
             mailimf_field_new_custom(

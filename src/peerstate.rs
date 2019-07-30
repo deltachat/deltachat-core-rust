@@ -517,7 +517,7 @@ mod tests {
     }
 
     unsafe fn create_test_context() -> TestContext {
-        let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
+        let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), None);
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         assert!(
