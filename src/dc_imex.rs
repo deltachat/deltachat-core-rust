@@ -98,19 +98,13 @@ pub unsafe fn dc_imex_has_backup(
 }
 
 pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
-    let current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut setup_code: *mut libc::c_char;
     let mut setup_file_content: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut setup_file_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let chat_id: uint32_t;
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
-    let msg_id: uint32_t;
-    if 0 == dc_alloc_ongoing(context) {
-        return 0 as *mut libc::c_char;
+    if dc_alloc_ongoing(context) == 0 {
+        return std::ptr::null_mut();
     }
-    setup_code = to_cstring(dc_create_setup_code(context));
-    if !setup_code.is_null() {
+    let setup_code = CString::new(dc_create_setup_code(context)).unwrap();
         /* this may require a keypair to be created. this may take a second ... */
         if !context
             .running_state
@@ -119,7 +113,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
             .unwrap()
             .shall_stop_ongoing
         {
-            setup_file_content = dc_render_setup_file(context, setup_code);
+            setup_file_content = dc_render_setup_file(context, setup_code.as_ptr());
             if !setup_file_content.is_null() {
                 /* encrypting may also take a while ... */
                 if !context
@@ -142,7 +136,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                             strlen(setup_file_content),
                         ))
                     {
-                        chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
+                        let chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
                         if !(chat_id == 0i32 as libc::c_uint) {
                             msg = dc_msg_new_untyped(context);
                             (*msg).type_0 = DC_MSG_FILE;
@@ -161,8 +155,8 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                 .unwrap()
                                 .shall_stop_ongoing
                             {
-                                msg_id = dc_send_msg(context, chat_id, msg);
-                                if !(msg_id == 0i32 as libc::c_uint) {
+                                let msg_id = dc_send_msg(context, chat_id, msg);
+                                if msg_id != 0 {
                                     dc_msg_unref(msg);
                                     msg = 0 as *mut dc_msg_t;
                                     info!(context, 0, "Wait for setup message being sent ...",);
@@ -174,24 +168,16 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                             .unwrap()
                                             .shall_stop_ongoing
                                         {
-                                            current_block = 6116957410927263949;
                                             break;
                                         }
                                         std::thread::sleep(std::time::Duration::from_secs(1));
                                         msg = dc_get_msg(context, msg_id);
                                         if 0 != dc_msg_is_sent(msg) {
-                                            current_block = 6450636197030046351;
+                                            info!(context, 0, "... setup message sent.",);
                                             break;
                                         }
                                         dc_msg_unref(msg);
                                         msg = 0 as *mut dc_msg_t
-                                    }
-                                    match current_block {
-                                        6116957410927263949 => {}
-                                        _ => {
-                                            info!(context, 0, "... setup message sent.",);
-                                            success = 1;
-                                        }
                                     }
                                 }
                             }
@@ -200,17 +186,12 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                 }
             }
         }
-    }
-    if 0 == success {
-        free(setup_code as *mut libc::c_void);
-        setup_code = 0 as *mut libc::c_char
-    }
     free(setup_file_name as *mut libc::c_void);
     free(setup_file_content as *mut libc::c_void);
     dc_msg_unref(msg);
     dc_free_ongoing(context);
 
-    setup_code
+    dc_strdup(setup_code.as_ptr())
 }
 
 pub unsafe extern "C" fn dc_render_setup_file(
