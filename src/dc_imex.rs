@@ -242,16 +242,16 @@ pub unsafe extern "C" fn dc_render_setup_file(
                 None
             };
 
-            if let Some(payload_key_asc) = curr_private_key.map(|k| k.to_asc_c(headers)) {
+            if let Some(payload_key_asc) = curr_private_key.map(|k| k.to_asc(headers)) {
+                let payload_key_asc_c = CString::new(payload_key_asc).unwrap();
                 if let Some(encr) = dc_pgp_symm_encrypt(
                     passphrase,
-                    payload_key_asc as *const libc::c_void,
-                    strlen(payload_key_asc),
+                    payload_key_asc_c.as_ptr() as *const libc::c_void,
+                    payload_key_asc_c.as_bytes().len(),
                 ) {
                     let encr_string_c = CString::new(encr).unwrap();
                     let mut encr_string = strdup(encr_string_c.as_ptr());
 
-                    free(payload_key_asc as *mut libc::c_void);
                     let  replacement: *mut libc::c_char =
                         dc_mprintf(b"-----BEGIN PGP MESSAGE-----\r\nPassphrase-Format: numeric9x4\r\nPassphrase-Begin: %s\x00"
                                        as *const u8 as *const libc::c_char,
