@@ -949,12 +949,11 @@ pub unsafe fn dc_msg_is_sent(msg: *const dc_msg_t) -> libc::c_int {
     }
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_msg_is_starred(msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_is_starred(msg: *const dc_msg_t) -> bool {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32;
+        return false;
     }
-    return if 0 != (*msg).starred { 1i32 } else { 0i32 };
+    0 != (*msg).starred
 }
 
 // TODO should return bool /rtn

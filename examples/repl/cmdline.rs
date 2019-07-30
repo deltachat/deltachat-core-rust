@@ -246,11 +246,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
         as_str(contact_name),
         contact_id,
         as_str(msgtext),
-        if 0 != dc_msg_is_starred(msg) {
-            "★"
-        } else {
-            ""
-        },
+        if dc_msg_is_starred(msg) { "★" } else { "" },
         if dc_msg_get_from_id(msg) == 1 as libc::c_uint {
             ""
         } else if dc_msg_get_state(msg) == DC_STATE_IN_SEEN {
