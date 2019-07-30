@@ -1,5 +1,3 @@
-use crate::types::*;
-
 pub use libc::{
     calloc, exit, free, malloc, memcmp, memcpy, memmove, memset, realloc, strcat, strchr, strcmp,
     strcpy, strcspn, strlen, strncmp, strncpy, strrchr, strspn, strstr, strtol, system,

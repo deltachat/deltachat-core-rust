@@ -4,6 +4,7 @@ use crate::types::*;
 
 /* * the structure behind dc_array_t */
 #[derive(Clone)]
+#[allow(non_camel_case_types)]
 pub enum dc_array_t {
     Locations(Vec<dc_location>),
     Uint(Vec<uintptr_t>),
