@@ -3,7 +3,6 @@
 use num_traits::{FromPrimitive, ToPrimitive};
 use rusqlite as sql;
 use rusqlite::types::*;
-use std::fmt;
 
 pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.3\x00";
 
@@ -147,7 +146,7 @@ pub const DC_LP_IMAP_SOCKET_FLAGS: usize =
 pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
     (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
 #[repr(i32)]
 pub enum Viewtype {
     Unknown = 0,
@@ -192,6 +191,16 @@ pub enum Viewtype {
     File = 60,
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn derive_display_works_as_expected() {
+        assert_eq!(format!("{}", Viewtype::Audio), "Audio");
+    }
+}
+
 impl ToSql for Viewtype {
     fn to_sql(&self) -> sql::Result<ToSqlOutput> {
         let num: i64 = self
@@ -206,17 +215,6 @@ impl FromSql for Viewtype {
     fn column_result(col: ValueRef) -> FromSqlResult<Self> {
         let inner = FromSql::column_result(col)?;
         FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
-    }
-}
-
-impl fmt::Display for Viewtype {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            self.to_i64()
-                .expect("impossible: Viewtype -> i64 conversion failed")
-        )
     }
 }
 

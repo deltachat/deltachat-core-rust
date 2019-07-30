@@ -179,15 +179,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     if (*msg).type_0 != Viewtype::Text {
         ret += "Type: ";
-        match (*msg).type_0 {
-            Viewtype::Audio => ret += "Audio",
-            Viewtype::File => ret += "File",
-            Viewtype::Gif => ret += "GIF",
-            Viewtype::Image => ret += "Image",
-            Viewtype::Video => ret += "Video",
-            Viewtype::Voice => ret += "Voice",
-            _ => ret += &format!("{}", (*msg).type_0),
-        }
+        ret += &format!("{}", (*msg).type_0);
         ret += "\n";
         p = dc_msg_get_filemime(msg);
         ret += &format!("Mimetype: {}\n", as_str(p));
