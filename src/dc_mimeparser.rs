@@ -55,7 +55,7 @@ pub struct dc_mimeparser_t<'a> {
     pub e2ee_helper: dc_e2ee_helper_t,
     pub is_forwarded: libc::c_int,
     pub context: &'a Context,
-    pub reports: *mut carray,
+    pub reports: Vec<*mut mailmime>,
     pub is_system_message: libc::c_int,
     pub location_kml: Option<dc_kml_t>,
     pub message_kml: Option<dc_kml_t>,
@@ -82,7 +82,7 @@ pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
         e2ee_helper: Default::default(),
         is_forwarded: 0,
         context,
-        reports: carray_new(16i32 as libc::c_uint),
+        reports: Vec::new(),
         is_system_message: 0,
         location_kml: None,
         message_kml: None,
@@ -93,9 +93,6 @@ pub unsafe fn dc_mimeparser_unref(mimeparser: &mut dc_mimeparser_t) {
     dc_mimeparser_empty(mimeparser);
     if !(*mimeparser).parts.is_null() {
         carray_free((*mimeparser).parts);
-    }
-    if !(*mimeparser).reports.is_null() {
-        carray_free((*mimeparser).reports);
     }
 }
 
@@ -128,9 +125,7 @@ pub unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
         (*mimeparser).mimeroot = 0 as *mut mailmime
     }
     (*mimeparser).is_forwarded = 0i32;
-    if !(*mimeparser).reports.is_null() {
-        carray_set_size((*mimeparser).reports, 0i32 as libc::c_uint);
-    }
+    (*mimeparser).reports.clear();
     (*mimeparser).decrypting_failed = 0i32;
     dc_e2ee_thanks(&mut (*mimeparser).e2ee_helper);
 
@@ -396,9 +391,7 @@ pub unsafe fn dc_mimeparser_parse(
         }
     }
     /* Cleanup - and try to create at least an empty part if there are no parts yet */
-    if dc_mimeparser_get_last_nonmeta(mimeparser).is_null()
-        && carray_count((*mimeparser).reports) == 0i32 as libc::c_uint
-    {
+    if dc_mimeparser_get_last_nonmeta(mimeparser).is_null() && (*mimeparser).reports.is_empty() {
         let mut part_5 = dc_mimepart_new();
         part_5.type_0 = 10i32;
         if !(*mimeparser).subject.is_null() && 0 == (*mimeparser).is_send_by_messenger {
@@ -705,11 +698,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                                 b"disposition-notification\x00" as *const u8 as *const libc::c_char,
                             ) == 0i32
                         {
-                            carray_add(
-                                (*mimeparser).reports,
-                                mime as *mut libc::c_void,
-                                0 as *mut libc::c_uint,
-                            );
+                            (*mimeparser).reports.push(mime);
                         } else {
                             any_part_added = dc_mimeparser_parse_mime_recursive(
                                 mimeparser,
