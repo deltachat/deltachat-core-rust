@@ -764,7 +764,7 @@ pub unsafe fn dc_receive_imf(
                             context,
                             chat_id,
                             from_id,
-                            mime_parser.message_kml.unwrap().locations,
+                            &mime_parser.message_kml.unwrap().locations,
                             1,
                         );
                         if 0 != newest_location_id && 0 == hidden {
@@ -790,7 +790,7 @@ pub unsafe fn dc_receive_imf(
                                 context,
                                 chat_id,
                                 from_id,
-                                mime_parser.location_kml.as_ref().unwrap().locations,
+                                &mime_parser.location_kml.as_ref().unwrap().locations,
                                 0,
                             );
                             if newest_location_id != 0 && hidden == 0 && !location_id_written {

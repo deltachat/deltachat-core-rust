@@ -130,12 +130,12 @@ pub unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     dc_e2ee_thanks(&mut (*mimeparser).e2ee_helper);
 
     if let Some(location_kml) = (*mimeparser).location_kml.as_mut() {
-        dc_kml_unref(location_kml as *mut dc_kml_t);
+        dc_kml_unref(location_kml);
     }
     (*mimeparser).location_kml = None;
 
     if let Some(message_kml) = (*mimeparser).message_kml.as_mut() {
-        dc_kml_unref(message_kml as *mut dc_kml_t);
+        dc_kml_unref(message_kml);
     }
     (*mimeparser).message_kml = None;
 }

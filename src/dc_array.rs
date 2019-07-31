@@ -147,6 +147,12 @@ impl dc_array_t {
     }
 }
 
+impl From<Vec<dc_location>> for dc_array_t {
+    fn from(array: Vec<dc_location>) -> Self {
+        dc_array_t::Locations(array)
+    }
+}
+
 pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
     if array.is_null() {
         return;
