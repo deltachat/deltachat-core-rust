@@ -137,14 +137,8 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
 
             c.id = row.get(0)?;
             c.type_0 = row.get(1)?;
-            c.name = {
-                let raw: String = row.get(2)?;
-                unsafe { to_cstring(raw) }
-            };
-            c.grpid = {
-                let raw: String = row.get(3)?;
-                unsafe { to_cstring(raw) }
-            };
+            c.name = unsafe { row.get::<_, String>(2)?.strdup() };
+            c.grpid = unsafe { row.get::<_, String>(3)?.strdup() };
 
             c.param = row.get::<_, String>(4)?.parse().unwrap_or_default();
             c.archived = row.get(5)?;
@@ -172,24 +166,27 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
             match c.id {
                 1 => unsafe {
                     free((*chat).name as *mut libc::c_void);
-                    (*chat).name = to_cstring((*chat).context.stock_str(StockMessage::DeadDrop));
+                    (*chat).name = (*chat).context.stock_str(StockMessage::DeadDrop).strdup();
                 },
                 6 => unsafe {
                     free((*chat).name as *mut libc::c_void);
                     let tempname = (*chat).context.stock_str(StockMessage::ArchivedChats);
                     let cnt = dc_get_archived_cnt((*chat).context);
-                    (*chat).name = to_cstring(format!("{} ({})", tempname, cnt));
+                    (*chat).name = format!("{} ({})", tempname, cnt).strdup();
                 },
                 5 => unsafe {
                     free((*chat).name as *mut libc::c_void);
-                    (*chat).name = to_cstring((*chat).context.stock_str(StockMessage::StarredMsgs));
+                    (*chat).name = (*chat)
+                        .context
+                        .stock_str(StockMessage::StarredMsgs)
+                        .strdup();
                 },
                 _ => {
                     if unsafe { &(*chat).param }.exists(Param::Selftalk) {
                         unsafe {
                             free((*chat).name as *mut libc::c_void);
                             (*chat).name =
-                                to_cstring((*chat).context.stock_str(StockMessage::SelfMsg));
+                                (*chat).context.stock_str(StockMessage::SelfMsg).strdup();
                         }
                     }
                 }
@@ -398,7 +395,7 @@ unsafe fn prepare_msg_common<'a>(
         let mut pathNfilename = (*msg)
             .param
             .get(Param::File)
-            .map(|s| to_cstring(s))
+            .map(|s| s.strdup())
             .unwrap_or_else(|| std::ptr::null_mut());
         if pathNfilename.is_null() {
             error!(
@@ -516,16 +513,15 @@ unsafe fn prepare_msg_raw(
         if from.is_none() {
             error!(context, 0, "Cannot send message, not configured.",);
         } else {
-            let from_c = to_cstring(from.unwrap());
+            let from_c = CString::yolo(from.unwrap());
             new_rfc724_mid = dc_create_outgoing_rfc724_mid(
                 if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
                     (*chat).grpid
                 } else {
                     0 as *mut libc::c_char
                 },
-                from_c,
+                from_c.as_ptr(),
             );
-            free(from_c as *mut _);
 
             if (*chat).type_0 == DC_CHAT_TYPE_SINGLE {
                 if let Some(id) = context.sql.query_row_col(
@@ -789,9 +785,9 @@ unsafe fn get_parent_mime_headers(
                  FROM msgs WHERE chat_id=? AND from_id!=?);",
                 params![(*chat).id as i32, 1],
                 |row| {
-                    *parent_rfc724_mid = to_cstring(row.get::<_, String>(0)?);
-                    *parent_in_reply_to = to_cstring(row.get::<_, String>(1)?);
-                    *parent_references = to_cstring(row.get::<_, String>(2)?);
+                    *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
+                    *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
+                    *parent_references = row.get::<_, String>(2)?.strdup();
                     Ok(())
                 },
             )
@@ -807,9 +803,9 @@ unsafe fn get_parent_mime_headers(
                      FROM msgs WHERE chat_id=? AND from_id==?);",
                     params![(*chat).id as i32, 1],
                     |row| {
-                        *parent_rfc724_mid = to_cstring(row.get::<_, String>(0)?);
-                        *parent_in_reply_to = to_cstring(row.get::<_, String>(1)?);
-                        *parent_references = to_cstring(row.get::<_, String>(2)?);
+                        *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
+                        *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
+                        *parent_references = row.get::<_, String>(2)?.strdup();
                         Ok(())
                     },
                 )
@@ -1012,7 +1008,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
             let mut pathNfilename = (*msg)
                 .param
                 .get(Param::File)
-                .map(|s| to_cstring(s))
+                .map(|s| s.strdup())
                 .unwrap_or_else(|| std::ptr::null_mut());
             if pathNfilename.is_null() {
                 OK_TO_CONTINUE = false;
@@ -1620,12 +1616,14 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     if OK_TO_CONTINUE {
                         if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                             (*msg).type_0 = Viewtype::Text;
-                            (*msg).text = to_cstring(context.stock_system_msg(
-                                StockMessage::MsgAddMember,
-                                as_str((*contact).addr),
-                                "",
-                                DC_CONTACT_ID_SELF as uint32_t,
-                            ));
+                            (*msg).text = context
+                                .stock_system_msg(
+                                    StockMessage::MsgAddMember,
+                                    as_str((*contact).addr),
+                                    "",
+                                    DC_CONTACT_ID_SELF as uint32_t,
+                                )
+                                .strdup();
                             (*msg).param.set_int(Param::Cmd, 4);
                             if !(*contact).addr.is_null() {
                                 (*msg).param.set(Param::Arg, as_str((*contact).addr));
@@ -1733,19 +1731,23 @@ pub unsafe fn dc_remove_contact_from_chat(
                         (*msg).type_0 = Viewtype::Text;
                         if (*contact).id == 1 as libc::c_uint {
                             dc_set_group_explicitly_left(context, (*chat).grpid);
-                            (*msg).text = to_cstring(context.stock_system_msg(
-                                StockMessage::MsgGroupLeft,
-                                "",
-                                "",
-                                DC_CONTACT_ID_SELF as u32,
-                            ));
+                            (*msg).text = context
+                                .stock_system_msg(
+                                    StockMessage::MsgGroupLeft,
+                                    "",
+                                    "",
+                                    DC_CONTACT_ID_SELF as u32,
+                                )
+                                .strdup();
                         } else {
-                            (*msg).text = to_cstring(context.stock_system_msg(
-                                StockMessage::MsgDelMember,
-                                as_str((*contact).addr),
-                                "",
-                                DC_CONTACT_ID_SELF as u32,
-                            ));
+                            (*msg).text = context
+                                .stock_system_msg(
+                                    StockMessage::MsgDelMember,
+                                    as_str((*contact).addr),
+                                    "",
+                                    DC_CONTACT_ID_SELF as u32,
+                                )
+                                .strdup();
                         }
                         (*msg).param.set_int(Param::Cmd, 5);
                         if !(*contact).addr.is_null() {
@@ -1846,12 +1848,14 @@ pub unsafe fn dc_set_chat_name(
                 {
                     if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                         (*msg).type_0 = Viewtype::Text;
-                        (*msg).text = to_cstring(context.stock_system_msg(
-                            StockMessage::MsgGrpName,
-                            as_str((*chat).name),
-                            as_str(new_name),
-                            DC_CONTACT_ID_SELF as u32,
-                        ));
+                        (*msg).text = context
+                            .stock_system_msg(
+                                StockMessage::MsgGrpName,
+                                as_str((*chat).name),
+                                as_str(new_name),
+                                DC_CONTACT_ID_SELF as u32,
+                            )
+                            .strdup();
                         (*msg).param.set_int(Param::Cmd, 2);
                         if !(*chat).name.is_null() {
                             (*msg).param.set(Param::Arg, as_str((*chat).name));
@@ -1918,16 +1922,18 @@ pub unsafe fn dc_set_chat_profile_image(
                             (*msg).param.set_int(Param::Cmd, 3);
                             (*msg).param.set(Param::Arg, as_str(new_image_rel));
                             (*msg).type_0 = Viewtype::Text;
-                            (*msg).text = to_cstring(context.stock_system_msg(
-                                if !new_image_rel.is_null() {
-                                    StockMessage::MsgGrpImgChanged
-                                } else {
-                                    StockMessage::MsgGrpImgDeleted
-                                },
-                                "",
-                                "",
-                                DC_CONTACT_ID_SELF as uint32_t,
-                            ));
+                            (*msg).text = context
+                                .stock_system_msg(
+                                    if !new_image_rel.is_null() {
+                                        StockMessage::MsgGrpImgChanged
+                                    } else {
+                                        StockMessage::MsgGrpImgDeleted
+                                    },
+                                    "",
+                                    "",
+                                    DC_CONTACT_ID_SELF as uint32_t,
+                                )
+                                .strdup();
                             (*msg).id = dc_send_msg(context, chat_id, msg);
                             context.call_cb(
                                 Event::MSGS_CHANGED,
@@ -2094,7 +2100,10 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
 
     let mut ret: *mut libc::c_char = std::ptr::null_mut();
     if (*chat).type_0 == 100 && (*chat).param.exists(Param::Selftalk) {
-        ret = to_cstring((*chat).context.stock_str(StockMessage::SelfTalkSubTitle));
+        ret = (*chat)
+            .context
+            .stock_str(StockMessage::SelfTalkSubTitle)
+            .strdup();
     } else if (*chat).type_0 == 100 {
         let ret_raw: String = (*chat)
             .context
@@ -2108,17 +2117,16 @@ pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
                 0,
             )
             .unwrap_or_else(|| "Err".into());
-        ret = to_cstring(ret_raw);
+        ret = ret_raw.strdup();
     } else if (*chat).type_0 == 120 || (*chat).type_0 == 130 {
         if (*chat).id == 1 {
-            ret = to_cstring((*chat).context.stock_str(StockMessage::DeadDrop));
+            ret = (*chat).context.stock_str(StockMessage::DeadDrop).strdup();
         } else {
             let cnt = dc_get_chat_contact_cnt((*chat).context, (*chat).id);
-            ret = to_cstring(
-                (*chat)
-                    .context
-                    .stock_string_repl_int(StockMessage::Member, cnt),
-            );
+            ret = (*chat)
+                .context
+                .stock_string_repl_int(StockMessage::Member, cnt)
+                .strdup();
         }
     }
     return if !ret.is_null() {
@@ -2146,7 +2154,11 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
     let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     if !(chat.is_null() || (*chat).magic != 0xc4a7c4a7u32) {
-        image_rel = to_cstring((*chat).param.get(Param::ProfileImage).unwrap_or_default());
+        image_rel = (*chat)
+            .param
+            .get(Param::ProfileImage)
+            .unwrap_or_default()
+            .strdup();
         if !image_rel.is_null() && 0 != *image_rel.offset(0isize) as libc::c_int {
             image_abs = dc_get_abs_path((*chat).context, image_rel)
         } else if (*chat).type_0 == 100i32 {

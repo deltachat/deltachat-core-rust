@@ -10,7 +10,6 @@ use crate::dc_tools::*;
 use crate::error::{Error, Result};
 use crate::param::*;
 use crate::peerstate::*;
-use crate::x::*;
 
 const DC_OPEN_READONLY: usize = 0x01;
 
@@ -1049,9 +1048,8 @@ pub fn housekeeping(context: &Context) {
                     entry.file_name()
                 );
                 unsafe {
-                    let path = to_cstring(entry.path().to_str().unwrap());
-                    dc_delete_file(context, path);
-                    free(path as *mut _);
+                    let path = entry.path().to_c_string().unwrap();
+                    dc_delete_file(context, path.as_ptr());
                 }
             }
         }

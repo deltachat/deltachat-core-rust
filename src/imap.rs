@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::net;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, SystemTime};
@@ -5,10 +6,9 @@ use std::time::{Duration, SystemTime};
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
-use crate::dc_tools::to_cstring;
+use crate::dc_tools::CStringExt;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
-use crate::x::free;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
 pub const DC_REGENERATE: usize = 0x01;
@@ -843,10 +843,8 @@ impl Imap {
                     .expect("missing message id");
 
                 if 0 == unsafe {
-                    let message_id_c = to_cstring(message_id);
-                    let res = (self.precheck_imf)(context, message_id_c, folder.as_ref(), cur_uid);
-                    free(message_id_c as *mut _);
-                    res
+                    let message_id_c = CString::yolo(message_id);
+                    (self.precheck_imf)(context, message_id_c.as_ptr(), folder.as_ref(), cur_uid)
                 } {
                     // check passed, go fetch the rest
                     if self.fetch_single_msg(context, &folder, cur_uid) == 0 {

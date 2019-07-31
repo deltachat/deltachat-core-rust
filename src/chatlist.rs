@@ -256,7 +256,7 @@ impl<'a> Chatlist<'a> {
 
         let mut ret = dc_lot_new();
         if index >= self.ids.len() {
-            (*ret).text2 = to_cstring("ErrBadChatlistIndex");
+            (*ret).text2 = "ErrBadChatlistIndex".strdup();
             return ret;
         }
 
@@ -267,7 +267,7 @@ impl<'a> Chatlist<'a> {
             chat = dc_chat_new(self.context);
             let chat_to_delete = chat;
             if !dc_chat_load_from_db(chat, self.ids[index].0) {
-                (*ret).text2 = to_cstring("ErrCannotReadChat");
+                (*ret).text2 = "ErrCannotReadChat".strdup();
                 dc_chat_unref(chat_to_delete);
 
                 return ret;
@@ -293,7 +293,7 @@ impl<'a> Chatlist<'a> {
         if (*chat).id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
             (*ret).text2 = dc_strdup(0 as *const libc::c_char)
         } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_SELF as u32 {
-            (*ret).text2 = to_cstring(self.context.stock_str(StockMessage::NoMessages));
+            (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
         } else {
             dc_lot_fill(ret, lastmsg, chat, lastcontact, self.context);
         }

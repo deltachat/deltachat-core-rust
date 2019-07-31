@@ -158,13 +158,13 @@ pub unsafe fn dc_mimefactory_load_msg(
                     |rows| {
                         for row in rows {
                             let (authname, addr) = row?;
-                            let addr_c = to_cstring(addr);
+                            let addr_c = addr.strdup();
                             if clist_search_string_nocase((*factory).recipients_addr, addr_c) == 0 {
                                 clist_insert_after(
                                     (*factory).recipients_names,
                                     (*(*factory).recipients_names).last,
                                     if !authname.is_empty() {
-                                        to_cstring(authname)
+                                        authname.strdup()
                                     } else {
                                         std::ptr::null_mut()
                                     } as *mut libc::c_void,
@@ -188,7 +188,7 @@ pub unsafe fn dc_mimefactory_load_msg(
 
             if command == 5 {
                 let email_to_remove = (*(*factory).msg).param.get(Param::Arg).unwrap_or_default();
-                let email_to_remove_c = to_cstring(email_to_remove);
+                let email_to_remove_c = email_to_remove.strdup();
 
                 let self_addr = context
                     .sql
@@ -234,8 +234,8 @@ pub unsafe fn dc_mimefactory_load_msg(
         );
         match row {
             Ok((in_reply_to, references)) => {
-                (*factory).in_reply_to = to_cstring(in_reply_to);
-                (*factory).references = to_cstring(references);
+                (*factory).in_reply_to = in_reply_to.strdup();
+                (*factory).references = references.strdup();
             }
             Err(err) => {
                 error!(
@@ -259,27 +259,28 @@ pub unsafe fn dc_mimefactory_load_msg(
 
 unsafe fn load_from(mut factory: *mut dc_mimefactory_t) {
     let context = (*factory).context;
-    (*factory).from_addr = to_cstring(
-        context
-            .sql
-            .get_config(context, "configured_addr")
-            .unwrap_or_default(),
-    );
+    (*factory).from_addr = context
+        .sql
+        .get_config(context, "configured_addr")
+        .unwrap_or_default()
+        .strdup();
 
-    (*factory).from_displayname = to_cstring(
-        context
-            .sql
-            .get_config(context, "displayname")
-            .unwrap_or_default(),
-    );
-    (*factory).selfstatus = to_cstring(
-        context
-            .sql
-            .get_config(context, "selfstatus")
-            .unwrap_or_default(),
-    );
+    (*factory).from_displayname = context
+        .sql
+        .get_config(context, "displayname")
+        .unwrap_or_default()
+        .strdup();
+
+    (*factory).selfstatus = context
+        .sql
+        .get_config(context, "selfstatus")
+        .unwrap_or_default()
+        .strdup();
     if (*factory).selfstatus.is_null() {
-        (*factory).selfstatus = to_cstring((*factory).context.stock_str(StockMessage::StatusLine));
+        (*factory).selfstatus = (*factory)
+            .context
+            .stock_str(StockMessage::StatusLine)
+            .strdup();
     };
 }
 
@@ -573,8 +574,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     ),
                 );
                 if command == 5 {
-                    let email_to_remove =
-                        to_cstring((*msg).param.get(Param::Arg).unwrap_or_default());
+                    let email_to_remove = (*msg).param.get(Param::Arg).unwrap_or_default().strdup();
                     if strlen(email_to_remove) > 0 {
                         mailimf_fields_add(
                             imf_fields,
@@ -589,7 +589,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     }
                 } else if command == 4 {
                     do_gossip = 1;
-                    let email_to_add = to_cstring((*msg).param.get(Param::Arg).unwrap_or_default());
+                    let email_to_add = (*msg).param.get(Param::Arg).unwrap_or_default().strdup();
                     if strlen(email_to_add) > 0 {
                         mailimf_fields_add(
                             imf_fields,
@@ -619,7 +619,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         );
                     }
                 } else if command == 2 {
-                    let value_to_add = to_cstring((*msg).param.get(Param::Arg).unwrap_or_default());
+                    let value_to_add = (*msg).param.get(Param::Arg).unwrap_or_default().strdup();
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
@@ -661,11 +661,13 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         strdup(b"v1\x00" as *const u8 as *const libc::c_char),
                     ),
                 );
-                placeholdertext =
-                    to_cstring((*factory).context.stock_str(StockMessage::AcSetupMsgBody));
+                placeholdertext = (*factory)
+                    .context
+                    .stock_str(StockMessage::AcSetupMsgBody)
+                    .strdup();
             }
             if command == 7 {
-                let step = to_cstring((*msg).param.get(Param::Arg).unwrap_or_default());
+                let step = (*msg).param.get(Param::Arg).unwrap_or_default().strdup();
                 if strlen(step) > 0 {
                     info!(
                         (*msg).context,
@@ -680,7 +682,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             step,
                         ),
                     );
-                    let param2 = to_cstring((*msg).param.get(Param::Arg2).unwrap_or_default());
+                    let param2 = (*msg).param.get(Param::Arg2).unwrap_or_default().strdup();
                     if strlen(param2) > 0 {
                         mailimf_fields_add(
                             imf_fields,
@@ -708,7 +710,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                             ),
                         );
                     }
-                    let fingerprint = to_cstring((*msg).param.get(Param::Arg3).unwrap_or_default());
+                    let fingerprint = (*msg).param.get(Param::Arg3).unwrap_or_default().strdup();
                     if strlen(fingerprint) > 0 {
                         mailimf_fields_add(
                             imf_fields,
@@ -722,7 +724,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         );
                     }
                     let grpid = match (*msg).param.get(Param::Arg4) {
-                        Some(id) => to_cstring(id),
+                        Some(id) => id.strdup(),
                         None => std::ptr::null_mut(),
                     };
                     if !grpid.is_null() {
@@ -958,25 +960,23 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 ) as *mut libc::c_void,
             );
             mailmime_add_part(message, multipart);
-            let p1: *mut libc::c_char;
-            let p2: *mut libc::c_char;
-            if 0 != (*(*factory).msg)
-                .param
-                .get_int(Param::GuranteeE2ee)
-                .unwrap_or_default()
+            let p1 = if 0
+                != (*(*factory).msg)
+                    .param
+                    .get_int(Param::GuranteeE2ee)
+                    .unwrap_or_default()
             {
-                p1 = to_cstring((*factory).context.stock_str(StockMessage::EncryptedMsg));
-            } else {
-                p1 = dc_msg_get_summarytext((*factory).msg, 32)
-            }
-            p2 = to_cstring(
                 (*factory)
                     .context
-                    .stock_string_repl_str(StockMessage::ReadRcptMailBody, as_str(p1)),
-            );
-            message_text = dc_mprintf(b"%s\r\n\x00" as *const u8 as *const libc::c_char, p2);
-            free(p1 as *mut libc::c_void);
-            free(p2 as *mut libc::c_void);
+                    .stock_str(StockMessage::EncryptedMsg)
+                    .into_owned()
+            } else {
+                to_string(dc_msg_get_summarytext((*factory).msg, 32))
+            };
+            let p2 = (*factory)
+                .context
+                .stock_string_repl_str(StockMessage::ReadRcptMailBody, p1);
+            message_text = format!("{}\r\n", p2).strdup();
             let human_mime_part: *mut mailmime = build_body_text(message_text);
             mailmime_add_part(multipart, human_mime_part);
             message_text2 =
@@ -1102,7 +1102,7 @@ unsafe fn get_subject(
         b"\x00" as *const u8 as *const libc::c_char
     };
     if (*msg).param.get_int(Param::Cmd).unwrap_or_default() == 6 {
-        ret = to_cstring(context.stock_str(StockMessage::AcSetupMsgSubject))
+        ret = context.stock_str(StockMessage::AcSetupMsgSubject).strdup()
     } else if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
         || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
     {
@@ -1165,12 +1165,12 @@ unsafe fn build_body_file(
     let pathNfilename = (*msg)
         .param
         .get(Param::File)
-        .map(|s| to_cstring(s))
+        .map(|s| s.strdup())
         .unwrap_or_else(|| std::ptr::null_mut());
     let mut mimetype = (*msg)
         .param
         .get(Param::MimeType)
-        .map(|s| to_cstring(s))
+        .map(|s| s.strdup())
         .unwrap_or_else(|| std::ptr::null_mut());
 
     let suffix = dc_get_filesuffix_lc(pathNfilename);
@@ -1189,7 +1189,7 @@ unsafe fn build_body_file(
             let res = ts
                 .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
                 .to_string();
-            filename_to_send = to_cstring(res);
+            filename_to_send = res.strdup();
         } else if (*msg).type_0 == Viewtype::Audio {
             filename_to_send = dc_get_filename(pathNfilename)
         } else if (*msg).type_0 == Viewtype::Image || (*msg).type_0 == Viewtype::Gif {
@@ -1329,7 +1329,7 @@ unsafe fn build_body_file(
 #[allow(non_snake_case)]
 unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> bool {
     let mut file_size_okay = true;
-    let pathNfilename = to_cstring((*msg).param.get(Param::File).unwrap_or_default());
+    let pathNfilename = (*msg).param.get(Param::File).unwrap_or_default().strdup();
     let bytes = dc_get_filebytes((*msg).context, pathNfilename);
 
     if bytes > (49 * 1024 * 1024 / 4 * 3) {

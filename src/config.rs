@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
@@ -72,10 +74,8 @@ impl Context {
                 let rel_path = self.sql.get_config(self, key);
                 rel_path.map(|p| {
                     let v = unsafe {
-                        let n = to_cstring(p);
-                        let res = dc_get_abs_path(self, n);
-                        free(n as *mut libc::c_void);
-                        res
+                        let n = CString::yolo(p);
+                        dc_get_abs_path(self, n.as_ptr())
                     };
                     let r = to_string(v);
                     unsafe { free(v as *mut _) };

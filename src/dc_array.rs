@@ -271,7 +271,7 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
 
     if let dc_array_t::Locations(v) = &*array {
         if let Some(s) = &v[index].marker {
-            to_cstring(s)
+            s.strdup()
         } else {
             std::ptr::null_mut()
         }
@@ -375,7 +375,7 @@ pub unsafe fn dc_array_get_string(
                     res + sep + &n.to_string()
                 }
             });
-        to_cstring(res)
+        res.strdup()
     } else {
         panic!("Attempt to get string from array of other type");
     }

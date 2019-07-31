@@ -1210,7 +1210,7 @@ unsafe fn create_or_lookup_group(
                                         grpimage = (*part)
                                             .param
                                             .get(Param::File)
-                                            .map(|s| to_cstring(s))
+                                            .map(|s| s.strdup())
                                             .unwrap_or_else(|| std::ptr::null_mut());
                                         ok = 1
                                     }
@@ -1407,10 +1407,12 @@ unsafe fn create_or_lookup_adhoc_group(
                             {
                                 grpname = dc_strdup(mime_parser.subject)
                             } else {
-                                grpname = to_cstring(context.stock_string_repl_int(
-                                    StockMessage::Member,
-                                    dc_array_get_cnt(member_ids) as libc::c_int,
-                                ));
+                                grpname = context
+                                    .stock_string_repl_int(
+                                        StockMessage::Member,
+                                        dc_array_get_cnt(member_ids) as libc::c_int,
+                                    )
+                                    .strdup();
                             }
                             chat_id =
                                 create_group_record(context, grpid, grpname, create_blocked, 0);
@@ -1519,7 +1521,7 @@ fn hex_hash(s: impl AsRef<str>) -> *const libc::c_char {
     let bytes = s.as_ref().as_bytes();
     let result = Sha256::digest(bytes);
     let result_hex = hex::encode(&result[..8]);
-    unsafe { to_cstring(result_hex) as *const _ }
+    unsafe { result_hex.strdup() as *const _ }
 }
 
 #[allow(non_snake_case)]
@@ -1604,7 +1606,7 @@ unsafe fn check_verified_properties(
     let contact = dc_contact_new(context);
 
     let verify_fail = |reason: String| {
-        *failure_reason = to_cstring(format!("{}. See \"Info\" for details.", reason));
+        *failure_reason = format!("{}. See \"Info\" for details.", reason).strdup();
         warn!(context, 0, "{}", reason);
     };
 
@@ -1714,7 +1716,7 @@ unsafe fn set_better_msg<T: AsRef<str>>(mime_parser: &dc_mimeparser_t, better_ms
             carray_get(mime_parser.parts, 0 as libc::c_uint) as *mut dc_mimepart_t;
         if (*part).type_0 == 10 {
             free((*part).msg as *mut libc::c_void);
-            (*part).msg = to_cstring(msg);
+            (*part).msg = msg.strdup();
         }
     };
 }

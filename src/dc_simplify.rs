@@ -229,7 +229,7 @@ impl dc_simplify_t {
         }
         dc_free_splitted_lines(lines);
 
-        to_cstring(ret)
+        ret.strdup()
     }
 }
 

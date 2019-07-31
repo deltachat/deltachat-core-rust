@@ -53,7 +53,7 @@ pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char 
     dc_saxparser_parse(&mut saxparser, buf_terminated);
     free(dehtml.last_href as *mut libc::c_void);
 
-    to_cstring(dehtml.strbuilder)
+    dehtml.strbuilder.strdup()
 }
 
 unsafe fn dehtml_text_cb(

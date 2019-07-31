@@ -59,34 +59,34 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 let param: Params = as_str(fragment).parse().expect("invalid params");
                 addr = param
                     .get(Param::Forwarded)
-                    .map(|s| to_cstring(s))
+                    .map(|s| s.strdup())
                     .unwrap_or_else(|| std::ptr::null_mut());
                 if !addr.is_null() {
                     if let Some(ref name_enc) = param.get(Param::SetLongitude) {
                         let name_r = percent_decode_str(name_enc)
                             .decode_utf8()
                             .expect("invalid name");
-                        name = to_cstring(name_r);
+                        name = name_r.strdup();
                         dc_normalize_name(name);
                     }
                     invitenumber = param
                         .get(Param::ProfileImage)
-                        .map(|s| to_cstring(s))
+                        .map(|s| s.strdup())
                         .unwrap_or_else(|| std::ptr::null_mut());
                     auth = param
                         .get(Param::Auth)
-                        .map(|s| to_cstring(s))
+                        .map(|s| s.strdup())
                         .unwrap_or_else(|| std::ptr::null_mut());
                     grpid = param
                         .get(Param::GroupId)
-                        .map(|s| to_cstring(s))
+                        .map(|s| s.strdup())
                         .unwrap_or_else(|| std::ptr::null_mut());
                     if !grpid.is_null() {
                         if let Some(grpname_enc) = param.get(Param::GroupName) {
                             let grpname_r = percent_decode_str(grpname_enc)
                                 .decode_utf8()
                                 .expect("invalid groupname");
-                            grpname = to_cstring(grpname_r);
+                            grpname = grpname_r.strdup();
                         }
                     }
                 }
@@ -253,7 +253,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                         if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
                                             let addr_ptr = if let Some(ref addr) = peerstate.addr {
-                                                to_cstring(addr)
+                                                addr.strdup()
                                             } else {
                                                 std::ptr::null()
                                             };
