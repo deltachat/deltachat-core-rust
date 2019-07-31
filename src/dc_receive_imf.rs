@@ -51,8 +51,6 @@ pub unsafe fn dc_receive_imf(
     let mut add_delete_job: libc::c_int = 0;
     let mut insert_msg_id: uint32_t = 0 as uint32_t;
 
-    let mut i: size_t;
-    let mut icnt: size_t;
     /* Message-ID from the header */
     let mut rfc724_mid = 0 as *mut libc::c_char;
     let mut sort_timestamp = 0;
@@ -437,7 +435,7 @@ pub unsafe fn dc_receive_imf(
                                 )
                             }
                         }
-                        icnt = carray_count(mime_parser.parts) as size_t;
+                        let icnt = carray_count(mime_parser.parts) as size_t;
 
                         context.sql.prepare(
                             "INSERT INTO msgs \
@@ -588,17 +586,13 @@ pub unsafe fn dc_receive_imf(
         match current_block {
             16282941964262048061 => {}
             _ => {
-                if carray_count(mime_parser.reports) > 0 as libc::c_uint {
+                if !mime_parser.reports.is_empty() {
                     let mdns_enabled = context
                         .sql
                         .get_config_int(context, "mdns_enabled")
                         .unwrap_or_else(|| 1);
-                    icnt = carray_count(mime_parser.reports) as size_t;
-                    i = 0 as size_t;
-                    while i < icnt {
+                    for report_root in mime_parser.reports {
                         let mut mdn_consumed: libc::c_int = 0;
-                        let report_root: *mut mailmime =
-                            carray_get(mime_parser.reports, i as libc::c_uint) as *mut mailmime;
                         let report_type: *mut mailmime_parameter = mailmime_find_ct_parameter(
                             report_root,
                             b"report-type\x00" as *const u8 as *const libc::c_char,
@@ -757,7 +751,6 @@ pub unsafe fn dc_receive_imf(
                                 }
                             }
                         }
-                        i = i.wrapping_add(1)
                     }
                 }
                 if !mime_parser.message_kml.is_none() && chat_id > 9 as libc::c_uint {
