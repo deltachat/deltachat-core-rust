@@ -1361,7 +1361,7 @@ pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg::dc_msg_t) -> libc::c_i
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_starred(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
-    dc_msg::dc_msg_is_starred(msg)
+    dc_msg::dc_msg_is_starred(msg).into()
 }
 
 #[no_mangle]
