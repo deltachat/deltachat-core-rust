@@ -1554,7 +1554,7 @@ unsafe fn search_chat_ids_by_contact_ids(
             i += 1
         }
         if !(dc_array_get_cnt(contact_ids) == 0) {
-            dc_array_sort_ids(contact_ids);
+            (*contact_ids).sort_ids();
             contact_ids_str =
                 dc_array_get_string(contact_ids, b",\x00" as *const u8 as *const libc::c_char);
 
