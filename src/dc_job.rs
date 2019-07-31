@@ -251,7 +251,7 @@ fn dc_job_delete(context: &Context, job: &dc_job_t) -> bool {
  * Tools
  ******************************************************************************/
 #[allow(non_snake_case)]
-unsafe fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
+fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
     // results in ~3 weeks for the last backoff timespan
     let mut N = 2_i32.pow((c_tries - 1) as u32);
     N = N * 60;
