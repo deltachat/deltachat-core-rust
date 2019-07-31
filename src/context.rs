@@ -35,7 +35,7 @@ pub struct Context {
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
     pub cb: Option<dc_callback_t>,
-    pub os_name: *mut libc::c_char,
+    pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
     pub bob: Arc<RwLock<BobStatus>>,
     pub last_smeared_timestamp: Arc<RwLock<i64>>,
@@ -116,7 +116,7 @@ pub struct SmtpState {
 pub fn dc_context_new(
     cb: Option<dc_callback_t>,
     userdata: *mut libc::c_void,
-    os_name: *const libc::c_char,
+    os_name: Option<String>,
 ) -> Context {
     Context {
         blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
@@ -131,7 +131,7 @@ pub fn dc_context_new(
         })),
         userdata,
         cb,
-        os_name: unsafe { dc_strdup_keep_null(os_name) },
+        os_name: os_name,
         running_state: Arc::new(RwLock::new(Default::default())),
         sql: Sql::new(),
         smtp: Arc::new(Mutex::new(Smtp::new())),
@@ -162,6 +162,16 @@ pub fn dc_context_new(
         ))),
         probe_imap_network: Arc::new(RwLock::new(0)),
         perform_inbox_jobs_needed: Arc::new(RwLock::new(0)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn no_crashes_on_context_deref() {
+        let mut ctx = dc_context_new(None, std::ptr::null_mut(), Some("Test OS".into()));
+        unsafe { dc_context_unref(&mut ctx) };
     }
 }
 
@@ -252,8 +262,6 @@ pub unsafe fn dc_context_unref(context: &mut Context) {
     if 0 != dc_is_open(context) {
         dc_close(context);
     }
-
-    free(context.os_name as *mut libc::c_void);
 }
 
 pub unsafe fn dc_close(context: &Context) {

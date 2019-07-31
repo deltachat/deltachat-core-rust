@@ -264,7 +264,7 @@ mod tests {
 
     #[test]
     fn test_stock_str() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), std::ptr::null_mut());
+        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
         assert_eq!(ctx.stock_str(StockMessage::NoMessages), "No messages.");
     }
 
@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_stock_string_repl_str() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), std::ptr::null_mut());
+        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
         // uses %1$s substitution
         assert_eq!(
             ctx.stock_string_repl_str(StockMessage::Member, "42"),
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_stock_string_repl_int() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), std::ptr::null_mut());
+        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
         assert_eq!(
             ctx.stock_string_repl_int(StockMessage::Member, 42),
             "42 member(s)"
@@ -310,7 +310,7 @@ mod tests {
 
     #[test]
     fn test_stock_string_repl_str2() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), std::ptr::null_mut());
+        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
         assert_eq!(
             ctx.stock_string_repl_str2(StockMessage::ServerResponse, "foo", "bar"),
             "Response from foo: bar"
@@ -319,7 +319,7 @@ mod tests {
 
     #[test]
     fn test_stock_system_msg_simple() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), std::ptr::null_mut());
+        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
         assert_eq!(
             ctx.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0),
             "Location streaming enabled."
@@ -328,7 +328,7 @@ mod tests {
 
     #[test]
     fn test_stock_system_msg_add_member_by_me() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), std::ptr::null_mut());
+        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
         assert_eq!(
             ctx.stock_system_msg(
                 StockMessage::MsgAddMember,

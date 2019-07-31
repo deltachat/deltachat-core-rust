@@ -30,7 +30,13 @@ pub unsafe extern "C" fn dc_context_new(
 ) -> *mut dc_context_t {
     setup_panic!();
 
+    let os_name = if os_name.is_null() {
+        None
+    } else {
+        Some(dc_tools::to_string_lossy(os_name))
+    };
     let ctx = context::dc_context_new(cb, userdata, os_name);
+
     Box::into_raw(Box::new(ctx))
 }
 
@@ -38,7 +44,8 @@ pub unsafe extern "C" fn dc_context_new(
 pub unsafe extern "C" fn dc_context_unref(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &mut *context;
-    context::dc_context_unref(context)
+    context::dc_context_unref(context);
+    Box::from_raw(context);
 }
 
 #[no_mangle]
