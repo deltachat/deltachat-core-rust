@@ -7,10 +7,9 @@ macro_rules! info {
         #[allow(unused_unsafe)]
         unsafe {
             let formatted = format!($msg, $($args),*);
-            let formatted_c =  $crate::dc_tools::to_cstring(formatted);
+            let formatted_c =  std::ffi::CString::new(formatted).unwrap();
             $ctx.call_cb($crate::constants::Event::INFO, $data1 as libc::uintptr_t,
-                     formatted_c as libc::uintptr_t);
-            libc::free(formatted_c as *mut libc::c_void);
+                     formatted_c.as_ptr() as libc::uintptr_t);
     }};
 }
 
@@ -23,10 +22,9 @@ macro_rules! warn {
         #[allow(unused_unsafe)]
         unsafe {
             let formatted = format!($msg, $($args),*);
-            let formatted_c = $crate::dc_tools::to_cstring(formatted);
+            let formatted_c = std::ffi::CString::new(formatted).unwrap();
             $ctx.call_cb($crate::constants::Event::WARNING, $data1 as libc::uintptr_t,
-                         formatted_c as libc::uintptr_t);
-            libc::free(formatted_c as *mut libc::c_void) ;
+                         formatted_c.as_ptr() as libc::uintptr_t);
         }};
 }
 
@@ -39,10 +37,9 @@ macro_rules! error {
         #[allow(unused_unsafe)]
         unsafe {
         let formatted = format!($msg, $($args),*);
-        let formatted_c = $crate::dc_tools::to_cstring(formatted);
+        let formatted_c = std::ffi::CString::new(formatted).unwrap();
         $ctx.call_cb($crate::constants::Event::ERROR, $data1 as libc::uintptr_t,
-                     formatted_c as libc::uintptr_t);
-        libc::free(formatted_c as *mut libc::c_void);
+                     formatted_c.as_ptr() as libc::uintptr_t);
     }};
 }
 
@@ -55,9 +52,8 @@ macro_rules! log_event {
         #[allow(unused_unsafe)]
         unsafe {
             let formatted = format!($msg, $($args),*);
-            let formatted_c = $crate::dc_tools::to_cstring(formatted);
+            let formatted_c = std::ffi::CString::new(formatted).unwrap();
             $ctx.call_cb($event, $data1 as libc::uintptr_t,
-                         formatted_c as libc::uintptr_t);
-            libc::free(formatted_c as *mut libc::c_void);
+                         formatted_c.as_ptr() as libc::uintptr_t);
     }};
 }

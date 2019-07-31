@@ -1312,9 +1312,8 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                         }
                         if !filename_parts.is_empty() {
                             free(desired_filename as *mut libc::c_void);
-                            let parts_c = to_cstring(filename_parts);
-                            desired_filename = dc_decode_ext_header(parts_c);
-                            free(parts_c as *mut _);
+                            let parts_c = CString::yolo(filename_parts);
+                            desired_filename = dc_decode_ext_header(parts_c.as_ptr());
                         }
                         if desired_filename.is_null() {
                             let param = mailmime_find_ct_parameter(

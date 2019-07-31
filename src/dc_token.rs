@@ -42,7 +42,7 @@ pub fn dc_token_lookup(
             params![namespc as i32, foreign_id as i32],
             0,
         )
-        .map(|s| unsafe { to_cstring(s) })
+        .map(|s| unsafe { s.strdup() })
         .unwrap_or_else(|| std::ptr::null_mut())
 }
 

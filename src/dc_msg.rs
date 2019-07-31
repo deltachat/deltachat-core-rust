@@ -65,7 +65,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += &format!("Cannot load message #{}.", msg_id as usize);
         dc_msg_unref(msg);
         dc_contact_unref(contact_from);
-        return to_cstring(ret);
+        return ret.strdup();
     }
     let rawtxt = rawtxt.unwrap();
     let rawtxt = dc_truncate_str(rawtxt.trim(), 100000);
@@ -92,7 +92,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         // device-internal message, no further details needed
         dc_msg_unref(msg);
         dc_contact_unref(contact_from);
-        return to_cstring(ret);
+        return ret.strdup();
     }
 
     context
@@ -210,7 +210,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     dc_msg_unref(msg);
     dc_contact_unref(contact_from);
-    to_cstring(ret)
+    ret.strdup()
 }
 
 pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> {
@@ -288,18 +288,17 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         match (*msg).param.get(Param::MimeType) {
             Some(m) => {
-                ret = to_cstring(m);
+                ret = m.strdup();
             }
             None => {
                 if let Some(file) = (*msg).param.get(Param::File) {
-                    let file_c = to_cstring(file);
-                    dc_msg_guess_msgtype_from_suffix(file_c, 0 as *mut Viewtype, &mut ret);
+                    let file_c = CString::yolo(file);
+                    dc_msg_guess_msgtype_from_suffix(file_c.as_ptr(), 0 as *mut Viewtype, &mut ret);
                     if ret.is_null() {
                         ret = dc_strdup(
                             b"application/octet-stream\x00" as *const u8 as *const libc::c_char,
                         )
                     }
-                    free(file_c as *mut _);
                 }
             }
         }
@@ -372,9 +371,8 @@ pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file_rel) = (*msg).param.get(Param::File) {
-            let file_rel_c = to_cstring(file_rel);
-            file_abs = dc_get_abs_path((*msg).context, file_rel_c);
-            free(file_rel_c as *mut _);
+            let file_rel_c = CString::yolo(file_rel);
+            file_abs = dc_get_abs_path((*msg).context, file_rel_c.as_ptr());
         }
     }
     if !file_abs.is_null() {
@@ -464,12 +462,12 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 dc_msg_empty(msg);
 
                 (*msg).id = row.get::<_, i32>(0)? as u32;
-                (*msg).rfc724_mid = to_cstring(row.get::<_, String>(1)?);
+                (*msg).rfc724_mid = row.get::<_, String>(1)?.strdup();
                 (*msg).in_reply_to = match row.get::<_, Option<String>>(2)? {
-                    Some(s) => to_cstring(s),
+                    Some(s) => s.strdup(),
                     None => std::ptr::null_mut(),
                 };
-                (*msg).server_folder = to_cstring(row.get::<_, String>(3)?);
+                (*msg).server_folder = row.get::<_, String>(3)?.strdup();
                 (*msg).server_uid = row.get(4)?;
                 (*msg).move_state = row.get(5)?;
                 (*msg).chat_id = row.get(6)?;
@@ -481,7 +479,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                (*msg).text = to_cstring(row.get::<_, String>(15).unwrap_or_default());
+                (*msg).text = row.get::<_, String>(15).unwrap_or_default().strdup();
                 (*msg).param = row.get::<_, String>(16)?.parse().unwrap_or_default();
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
@@ -507,10 +505,8 @@ pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut l
     );
 
     if let Some(headers) = headers {
-        let h = to_cstring(headers);
-        let res = dc_strdup_keep_null(h);
-        free(h as *mut _);
-        res
+        let h = CString::yolo(headers);
+        dc_strdup_keep_null(h.as_ptr())
     } else {
         std::ptr::null_mut()
     }
@@ -711,7 +707,7 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
     }
 
     let res = dc_truncate_str(as_str((*msg).text), 30000);
-    to_cstring(res)
+    res.strdup()
 }
 
 #[allow(non_snake_case)]
@@ -720,9 +716,8 @@ pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file) = (*msg).param.get(Param::File) {
-            let file_c = to_cstring(file);
-            ret = dc_get_filename(file_c);
-            free(file_c as *mut _);
+            let file_c = CString::yolo(file);
+            ret = dc_get_filename(file_c.as_ptr());
         }
     }
     if !ret.is_null() {
@@ -737,9 +732,8 @@ pub unsafe fn dc_msg_get_filebytes(msg: *const dc_msg_t) -> uint64_t {
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file) = (*msg).param.get(Param::File) {
-            let file_c = to_cstring(file);
-            ret = dc_get_filebytes((*msg).context, file_c);
-            free(file_c as *mut _);
+            let file_c = CString::yolo(file);
+            ret = dc_get_filebytes((*msg).context, file_c.as_ptr());
         }
     }
 
@@ -858,16 +852,19 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut append_text: libc::c_int = 1i32;
     match type_0 {
-        Viewtype::Image => prefix = to_cstring(context.stock_str(StockMessage::Image)),
-        Viewtype::Gif => prefix = to_cstring(context.stock_str(StockMessage::Gif)),
-        Viewtype::Video => prefix = to_cstring(context.stock_str(StockMessage::Video)),
-        Viewtype::Voice => prefix = to_cstring(context.stock_str(StockMessage::VoiceMessage)),
+        Viewtype::Image => prefix = context.stock_str(StockMessage::Image).strdup(),
+        Viewtype::Gif => prefix = context.stock_str(StockMessage::Gif).strdup(),
+        Viewtype::Video => prefix = context.stock_str(StockMessage::Video).strdup(),
+        Viewtype::Voice => prefix = context.stock_str(StockMessage::VoiceMessage).strdup(),
         Viewtype::Audio | Viewtype::File => {
             if param.get_int(Param::Cmd) == Some(6) {
-                prefix = to_cstring(context.stock_str(StockMessage::AcSetupMsgSubject));
+                prefix = context.stock_str(StockMessage::AcSetupMsgSubject).strdup();
                 append_text = 0i32
             } else {
-                pathNfilename = to_cstring(param.get(Param::File).unwrap_or_else(|| "ErrFilename"));
+                pathNfilename = param
+                    .get(Param::File)
+                    .unwrap_or_else(|| "ErrFilename")
+                    .strdup();
                 value = dc_get_filename(pathNfilename);
                 let label = CString::new(
                     context
@@ -888,7 +885,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
         }
         _ => {
             if param.get_int(Param::Cmd) == Some(9) {
-                prefix = to_cstring(context.stock_str(StockMessage::Location));
+                prefix = context.stock_str(StockMessage::Location).strdup();
                 append_text = 0;
             }
         }
@@ -1387,7 +1384,7 @@ pub fn dc_rfc724_mid_exists(
         &[as_str(rfc724_mid)],
         |row| {
             if !ret_server_folder.is_null() {
-                unsafe { *ret_server_folder = to_cstring(row.get::<_, String>(0)?) };
+                unsafe { *ret_server_folder = row.get::<_, String>(0)?.strdup() };
             }
             if !ret_server_uid.is_null() {
                 unsafe { *ret_server_uid = row.get(1)? };

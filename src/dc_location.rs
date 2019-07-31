@@ -100,12 +100,9 @@ pub unsafe fn dc_send_locations_to_chat(
         {
             if 0 != seconds && !is_sending_locations_before {
                 msg = dc_msg_new(context, Viewtype::Text);
-                (*msg).text = to_cstring(context.stock_system_msg(
-                    StockMessage::MsgLocationEnabled,
-                    "",
-                    "",
-                    0,
-                ));
+                (*msg).text = context
+                    .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0)
+                    .strdup();
                 (*msg).param.set_int(Param::Cmd, 8);
                 dc_send_msg(context, chat_id, msg);
             } else if 0 == seconds && is_sending_locations_before {
@@ -351,7 +348,7 @@ pub fn dc_get_location_kml(
     }
 
     if 0 != success {
-        unsafe { to_cstring(ret) }
+        unsafe { ret.strdup() }
     } else {
         std::ptr::null_mut()
     }
@@ -365,7 +362,7 @@ unsafe fn get_kml_timestamp(utc: i64) -> *mut libc::c_char {
     let res = chrono::NaiveDateTime::from_timestamp(utc, 0)
         .format("%Y-%m-%dT%H:%M:%SZ")
         .to_string();
-    to_cstring(res)
+    res.strdup()
 }
 
 pub unsafe fn dc_get_message_kml(

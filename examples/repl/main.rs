@@ -481,7 +481,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
     let arg1_c = if arg1.is_empty() {
         std::ptr::null()
     } else {
-        to_cstring(arg1)
+        arg1.strdup()
     };
 
     match arg0 {

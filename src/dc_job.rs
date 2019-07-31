@@ -314,7 +314,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     }
     match current_block {
         13109137661213826276 => {
-            filename = to_cstring(job.param.get(Param::File).unwrap_or_default());
+            filename = job.param.get(Param::File).unwrap_or_default().strdup();
             if strlen(filename) == 0 {
                 warn!(context, 0, "Missing file name for job {}", job.job_id,);
             } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
@@ -1177,12 +1177,11 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
     } else {
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
         if msgtype_has_file((*mimefactory.msg).type_0) {
-            let pathNfilename = to_cstring(
-                (*mimefactory.msg)
-                    .param
-                    .get(Param::File)
-                    .unwrap_or_default(),
-            );
+            let pathNfilename = (*mimefactory.msg)
+                .param
+                .get(Param::File)
+                .unwrap_or_default()
+                .strdup();
             if strlen(pathNfilename) > 0 {
                 if ((*mimefactory.msg).type_0 == Viewtype::Image
                     || (*mimefactory.msg).type_0 == Viewtype::Gif)

@@ -147,7 +147,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         } else {
             current_block = 7149356873433890176;
         }
-        real_spec = to_cstring(rs.unwrap_or_default());
+        real_spec = rs.unwrap_or_default().strdup();
     }
     match current_block {
         8522321847195001863 => {}
@@ -184,11 +184,10 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                         if name.ends_with(".eml") {
                             let path_plus_name = format!("{}/{}", as_str(real_spec), name);
                             info!(context, 0, "Import: {}", path_plus_name);
-                            let path_plus_name_c = to_cstring(path_plus_name);
-                            if 0 != dc_poke_eml_file(context, path_plus_name_c) {
+                            let path_plus_name_c = CString::yolo(path_plus_name);
+                            if 0 != dc_poke_eml_file(context, path_plus_name_c.as_ptr()) {
                                 read_cnt += 1
                             }
-                            free(path_plus_name_c as *mut _);
                         }
                     }
                     current_block = 1622411330066726685;
@@ -386,13 +385,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
     let arg1_c = if arg1.is_empty() {
         std::ptr::null()
     } else {
-        to_cstring(arg1) as *const _
+        arg1.strdup() as *const _
     };
     let arg2 = args.next().unwrap_or_default();
     let arg2_c = if arg2.is_empty() {
         std::ptr::null()
     } else {
-        to_cstring(arg2) as *const _
+        arg2.strdup() as *const _
     };
 
     match arg0 {
@@ -928,13 +927,11 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No message text given.");
 
-            let msg = to_cstring(format!("{} {}", arg1, arg2));
+            let msg = CString::yolo(format!("{} {}", arg1, arg2));
 
-            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg) {
+            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg.as_ptr()) {
                 println!("Message sent.");
-                free(msg as *mut _);
             } else {
-                free(msg as *mut _);
                 bail!("Sending failed.");
             }
         }

@@ -483,7 +483,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         fingerprint_str,
     );
 
-    to_cstring(res)
+    res.strdup()
 }
 
 pub unsafe fn dc_get_version_str() -> *mut libc::c_char {

@@ -178,14 +178,13 @@ pub unsafe fn dc_trim(buf: *mut libc::c_char) {
 
 /* the result must be free()'d */
 pub unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
-    to_cstring(to_string(in_0).to_lowercase())
+    to_string(in_0).to_lowercase().strdup()
 }
 
 pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
-    let raw = to_cstring(to_string(in_0).to_lowercase());
-    assert_eq!(strlen(in_0), strlen(raw));
-    memcpy(in_0 as *mut _, raw as *const _, strlen(in_0));
-    free(raw as *mut _);
+    let raw = CString::yolo(to_string(in_0).to_lowercase());
+    assert_eq!(strlen(in_0), strlen(raw.as_ptr()));
+    memcpy(in_0 as *mut _, raw.as_ptr() as *const _, strlen(in_0));
 }
 
 pub unsafe fn dc_str_contains(
@@ -233,7 +232,7 @@ pub unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut li
 
     let buf = std::slice::from_raw_parts(buf, bytes);
     let raw = hex::encode_upper(buf);
-    to_cstring(raw)
+    raw.strdup()
 }
 
 /* remove all \r characters from string */
@@ -527,7 +526,7 @@ pub unsafe fn dc_str_from_clist(
         }
     }
 
-    to_cstring(res)
+    res.strdup()
 }
 
 pub unsafe fn dc_str_to_clist(
@@ -1236,10 +1235,8 @@ pub unsafe fn dc_write_file(
 #[allow(non_snake_case)]
 pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
     let pathNfilename_abs = unsafe {
-        let n = to_cstring(pathNfilename.as_ref());
-        let res = dc_get_abs_path(context, n);
-        free(n as *mut _);
-        res
+        let n = CString::yolo(pathNfilename.as_ref());
+        dc_get_abs_path(context, n.as_ptr())
     };
     if pathNfilename_abs.is_null() {
         return false;
@@ -1287,10 +1284,8 @@ pub unsafe fn dc_read_file(
 #[allow(non_snake_case)]
 pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
     let pathNfilename_abs = unsafe {
-        let n = to_cstring(pathNfilename.as_ref());
-        let p = dc_get_abs_path(context, n);
-        free(n as *mut _);
-        p
+        let n = CString::yolo(pathNfilename.as_ref());
+        dc_get_abs_path(context, n.as_ptr())
     };
 
     if pathNfilename_abs.is_null() {
@@ -1520,6 +1515,51 @@ fn os_str_to_c_string_unicode(
             std::ffi::NulError { .. } => CStringError::InteriorNullByte,
         }),
         None => Err(CStringError::NotUnicode),
+    }
+}
+
+/// Convenience methods/associated functions for working with [CString]
+///
+/// This is helps transitioning from unsafe code.
+pub trait CStringExt {
+    /// Create a new [CString], yolo style
+    ///
+    /// This unwrap the result, panicking when there are embedded NULL
+    /// bytes.
+    fn yolo<T: Into<Vec<u8>>>(t: T) -> CString {
+        CString::new(t).expect("String contains null byte, can not be CString")
+    }
+}
+
+impl CStringExt for CString {}
+
+/// Convenience methods to make transitioning from raw C strings easier.
+///
+/// To interact with (legacy) C APIs we often need to convert from
+/// Rust strings to raw C strings.  This can be clumsy to do correctly
+/// and the compiler sometimes allows it in an unsafe way.  These
+/// methods make it more succinct and help you get it right.
+pub trait StrExt {
+    /// Allocate a new raw C `*char` version of this string.
+    ///
+    /// This allocates a new raw C string which must be freed using
+    /// `free`.  It takes care of some common pitfalls with using
+    /// [CString::as_ptr].
+    ///
+    /// [CString::as_ptr]: std::ffi::CString::as_ptr
+    ///
+    /// # Panics
+    ///
+    /// This function will panic when the original string contains an
+    /// interior null byte as this can not be represented in raw C
+    /// strings.
+    unsafe fn strdup(&self) -> *mut libc::c_char;
+}
+
+impl<T: AsRef<str>> StrExt for T {
+    unsafe fn strdup(&self) -> *mut libc::c_char {
+        let tmp = CString::yolo(self.as_ref());
+        dc_strdup(tmp.as_ptr())
     }
 }
 
@@ -2084,5 +2124,30 @@ mod tests {
         let some_path = CString::new("/some/path").unwrap();
         let ptr = some_path.as_ptr();
         assert_eq!(as_path_unicode(ptr), std::ffi::OsString::from("/some/path"));
+    }
+
+    #[test]
+    fn test_cstring_yolo() {
+        assert_eq!(CString::new("hello").unwrap(), CString::yolo("hello"));
+    }
+
+    #[test]
+    fn test_strdup_str() {
+        unsafe {
+            let s = "hello".strdup();
+            let cmp = strcmp(s, b"hello\x00" as *const u8 as *const libc::c_char);
+            free(s as *mut libc::c_void);
+            assert_eq!(cmp, 0);
+        }
+    }
+
+    #[test]
+    fn test_strdup_string() {
+        unsafe {
+            let s = String::from("hello").strdup();
+            let cmp = strcmp(s, b"hello\x00" as *const u8 as *const libc::c_char);
+            free(s as *mut libc::c_void);
+            assert_eq!(cmp, 0);
+        }
     }
 }

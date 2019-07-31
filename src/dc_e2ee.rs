@@ -177,16 +177,12 @@ pub unsafe fn dc_e2ee_encrypt(
                                     let p = peerstates[i as usize]
                                         .render_gossip_header(min_verified as usize);
 
-                                    if p.is_some() {
-                                        let header = to_cstring(p.unwrap());
+                                    if let Some(header) = p {
                                         mailimf_fields_add(
                                             imffields_encrypted,
                                             mailimf_field_new_custom(
-                                                strdup(
-                                                    b"Autocrypt-Gossip\x00" as *const u8
-                                                        as *const libc::c_char,
-                                                ),
-                                                header,
+                                                "Autocrypt-Gossip".strdup(),
+                                                header.strdup(),
                                             ),
                                         );
                                     }
@@ -296,7 +292,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 sign_key.as_ref(),
                             ) {
                                 let ctext_bytes = ctext_v.len();
-                                let ctext = to_cstring(ctext_v);
+                                let ctext = ctext_v.strdup();
                                 (*helper).cdata_to_free = ctext as *mut _;
 
                                 /* create MIME-structure that will contain the encrypted text */
@@ -354,13 +350,11 @@ pub unsafe fn dc_e2ee_encrypt(
                         14181132614457621749 => {}
                         _ => {
                             let aheader = Aheader::new(addr, public_key, prefer_encrypt);
-                            let rendered = to_cstring(aheader.to_string());
-
                             mailimf_fields_add(
                                 imffields_unprotected,
                                 mailimf_field_new_custom(
-                                    strdup(b"Autocrypt\x00" as *const u8 as *const libc::c_char),
-                                    rendered,
+                                    "Autocrypt".strdup(),
+                                    aheader.to_string().strdup(),
                                 ),
                             );
                         }

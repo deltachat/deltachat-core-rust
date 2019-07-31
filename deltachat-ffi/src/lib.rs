@@ -15,6 +15,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use std::ptr;
 use std::str::FromStr;
 
+use deltachat::dc_tools::StrExt;
 use deltachat::*;
 
 // TODO: constants
@@ -126,10 +127,7 @@ pub unsafe extern "C" fn dc_get_config(
     let context = &*context;
 
     match config::Config::from_str(dc_tools::as_str(key)) {
-        Ok(key) => {
-            let value = context.get_config(key).unwrap_or_default();
-            dc_tools::to_cstring(value)
-        }
+        Ok(key) => context.get_config(key).unwrap_or_default().strdup(),
         Err(_) => std::ptr::null_mut(),
     }
 }
@@ -154,7 +152,7 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
     let addr = dc_tools::to_string(addr);
     let redirect = dc_tools::to_string(redirect);
     match oauth2::dc_get_oauth2_url(context, addr, redirect) {
-        Some(res) => dc_tools::to_cstring(res),
+        Some(res) => res.strdup(),
         None => std::ptr::null_mut(),
     }
 }

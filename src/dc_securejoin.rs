@@ -40,7 +40,7 @@ pub unsafe fn dc_get_securejoin_qr(
     let mut chat = 0 as *mut Chat;
     let mut group_name = 0 as *mut libc::c_char;
     let mut group_name_urlencoded = 0 as *mut libc::c_char;
-    let mut qr = None;
+    let mut qr: Option<String> = None;
 
     dc_ensure_secret_key_exists(context);
     invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id);
@@ -64,7 +64,7 @@ pub unsafe fn dc_get_securejoin_qr(
         free(group_name_urlencoded as *mut libc::c_void);
 
         if let Some(qr) = qr {
-            to_cstring(qr)
+            qr.strdup()
         } else {
             std::ptr::null_mut()
         }
