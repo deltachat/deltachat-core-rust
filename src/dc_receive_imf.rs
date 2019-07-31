@@ -138,7 +138,7 @@ pub unsafe fn dc_receive_imf(
                 );
             }
         }
-        if !dc_mimeparser_get_last_nonmeta(&mime_parser).is_null() {
+        if dc_mimeparser_get_last_nonmeta(&mut mime_parser).is_some() {
             field = dc_mimeparser_lookup_field(&mime_parser, "Cc");
             if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_CC as libc::c_int {
                 let fld_cc: *mut mailimf_cc = (*field).fld_data.fld_cc;
@@ -435,7 +435,7 @@ pub unsafe fn dc_receive_imf(
                                 )
                             }
                         }
-                        let icnt = carray_count(mime_parser.parts) as size_t;
+                        let icnt = mime_parser.parts.len();
 
                         context.sql.prepare(
                             "INSERT INTO msgs \
@@ -450,23 +450,23 @@ pub unsafe fn dc_receive_imf(
                                         current_block = 2756754640271984560;
                                         break;
                                     }
-                                    let part = carray_get(mime_parser.parts, i as libc::c_uint) as *mut dc_mimepart_t;
-                                    if !(0 != (*part).is_meta) {
+                                    let part = &mut mime_parser.parts[i];
+                                    if part.is_meta == 0 {
                                         if !mime_parser.location_kml.is_none()
                                             && icnt == 1
-                                            && !(*part).msg.is_null()
+                                            && !part.msg.is_null()
                                             && (strcmp(
-                                                (*part).msg,
+                                                part.msg,
                                                 b"-location-\x00" as *const u8 as *const libc::c_char,
                                             ) == 0
-                                                || *(*part).msg.offset(0isize) as libc::c_int == 0)
+                                                || *part.msg.offset(0isize) as libc::c_int == 0)
                                         {
                                             hidden = 1;
                                             if state == 10 {
                                                 state = 13
                                             }
                                         }
-                                        if (*part).type_0 == 10 {
+                                        if part.type_0 == 10 {
                                             txt_raw = dc_mprintf(
                                                 b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
                                                 if !mime_parser.subject.is_null() {
@@ -474,12 +474,12 @@ pub unsafe fn dc_receive_imf(
                                                 } else {
                                                     b"\x00" as *const u8 as *const libc::c_char
                                                 },
-                                                (*part).msg_raw,
+                                                part.msg_raw,
                                             )
                                         }
                                         if 0 != mime_parser.is_system_message {
 
-                                             (*part).param.set_int(                                                Param::Cmd,
+                                             part.param.set_int(                                                Param::Cmd,
                                                 mime_parser.is_system_message,
                                             );
                                         }
@@ -494,11 +494,11 @@ pub unsafe fn dc_receive_imf(
                                             sort_timestamp,
                                             sent_timestamp,
                                             rcvd_timestamp,
-                                            (*part).type_0,
+                                            part.type_0,
                                             state,
                                             msgrmsg,
-                                            if !(*part).msg.is_null() {
-                                                as_str((*part).msg)
+                                            if !part.msg.is_null() {
+                                                as_str(part.msg)
                                             } else {
                                                 ""
                                             },
@@ -508,8 +508,8 @@ pub unsafe fn dc_receive_imf(
                                             } else {
                                                 String::new()
                                             },
-                                            (*part).param.to_string(),
-                                            (*part).bytes,
+                                            part.param.to_string(),
+                                            part.bytes,
                                             hidden,
                                             if 0 != save_mime_headers {
                                                 let body_string = std::str::from_utf8(std::slice::from_raw_parts(imf_raw_not_terminated as *const u8, imf_raw_bytes)).unwrap();
@@ -1201,20 +1201,15 @@ unsafe fn create_or_lookup_group(
                             {
                                 ok = 1
                             } else {
-                                let mut i_0: libc::c_int = 0;
-                                while (i_0 as libc::c_uint) < carray_count(mime_parser.parts) {
-                                    let part: *mut dc_mimepart_t =
-                                        carray_get(mime_parser.parts, i_0 as libc::c_uint)
-                                            as *mut dc_mimepart_t;
-                                    if (*part).type_0 == 20 {
-                                        grpimage = (*part)
+                                for part in &mut mime_parser.parts {
+                                    if part.type_0 == 20 {
+                                        grpimage = part
                                             .param
                                             .get(Param::File)
                                             .map(|s| s.strdup())
                                             .unwrap_or_else(|| std::ptr::null_mut());
                                         ok = 1
                                     }
-                                    i_0 += 1
                                 }
                             }
                             if 0 != ok {
@@ -1709,14 +1704,13 @@ unsafe fn check_verified_properties(
     1
 }
 
-unsafe fn set_better_msg<T: AsRef<str>>(mime_parser: &dc_mimeparser_t, better_msg: T) {
+unsafe fn set_better_msg<T: AsRef<str>>(mime_parser: &mut dc_mimeparser_t, better_msg: T) {
     let msg = better_msg.as_ref();
-    if !(msg.len() > 0) && carray_count((*mime_parser).parts) > 0 {
-        let mut part: *mut dc_mimepart_t =
-            carray_get(mime_parser.parts, 0 as libc::c_uint) as *mut dc_mimepart_t;
+    if !(msg.len() > 0) && !mime_parser.parts.is_empty() {
+        let part = &mut mime_parser.parts[0];
         if (*part).type_0 == 10 {
-            free((*part).msg as *mut libc::c_void);
-            (*part).msg = msg.strdup();
+            free(part.msg as *mut libc::c_void);
+            part.msg = msg.strdup();
         }
     };
 }
