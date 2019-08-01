@@ -417,47 +417,30 @@ unsafe fn dc_utf8_strnlen(s: *const libc::c_char, n: size_t) -> size_t {
 }
 
 /* split string into lines*/
-pub unsafe fn dc_split_into_lines(buf_terminated: *const libc::c_char) -> *mut carray {
-    let lines: *mut carray = carray_new(1024i32 as libc::c_uint);
+pub unsafe fn dc_split_into_lines(buf_terminated: *const libc::c_char) -> Vec<*mut libc::c_char> {
+    let mut lines = Vec::new();
     let mut line_chars = 0;
     let mut p1: *const libc::c_char = buf_terminated;
     let mut line_start: *const libc::c_char = p1;
-    let mut l_indx: libc::c_uint = 0i32 as libc::c_uint;
     while 0 != *p1 {
         if *p1 as libc::c_int == '\n' as i32 {
-            carray_add(
-                lines,
-                strndup(line_start, line_chars) as *mut libc::c_void,
-                &mut l_indx,
-            );
+            lines.push(strndup(line_start, line_chars));
             p1 = p1.offset(1isize);
             line_start = p1;
             line_chars = 0;
         } else {
             p1 = p1.offset(1isize);
-            line_chars = line_chars.wrapping_add(1)
+            line_chars += 1;
         }
     }
-    carray_add(
-        lines,
-        strndup(line_start, line_chars) as *mut libc::c_void,
-        &mut l_indx,
-    );
-
+    lines.push(strndup(line_start, line_chars));
     lines
 }
 
-pub unsafe fn dc_free_splitted_lines(lines: *mut carray) {
-    if !lines.is_null() {
-        let mut i: libc::c_int;
-        let cnt: libc::c_int = carray_count(lines) as libc::c_int;
-        i = 0i32;
-        while i < cnt {
-            free(carray_get(lines, i as libc::c_uint));
-            i += 1
-        }
-        carray_free(lines);
-    };
+pub unsafe fn dc_free_splitted_lines(lines: Vec<*mut libc::c_char>) {
+    for s in lines {
+        free(s as *mut libc::c_void);
+    }
 }
 
 /* insert a break every n characters, the return must be free()'d */

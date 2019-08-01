@@ -152,11 +152,8 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 strlen(b"BEGIN:VCARD\x00" as *const u8 as *const libc::c_char),
             ) == 0i32
             {
-                let lines: *mut carray = dc_split_into_lines(qr);
-                let mut i: libc::c_int = 0i32;
-                while (i as libc::c_uint) < carray_count(lines) {
-                    let key: *mut libc::c_char =
-                        carray_get(lines, i as libc::c_uint) as *mut libc::c_char;
+                let lines = dc_split_into_lines(qr);
+                for &key in &lines {
                     dc_trim(key);
                     let mut value: *mut libc::c_char = strchr(key, ':' as i32);
                     if !value.is_null() {
@@ -192,7 +189,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                             dc_normalize_name(name);
                         }
                     }
-                    i += 1
                 }
                 dc_free_splitted_lines(lines);
             }
