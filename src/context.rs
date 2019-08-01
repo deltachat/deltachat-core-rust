@@ -109,7 +109,7 @@ pub struct SmtpState {
     pub suspended: i32,
     pub doing_jobs: i32,
     pub perform_jobs_needed: i32,
-    pub probe_network: i32,
+    pub probe_network: bool,
 }
 
 // create/open/config/information

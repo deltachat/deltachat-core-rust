@@ -1042,7 +1042,7 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
         let mut state = lock.lock().unwrap();
 
         let probe_smtp_network = state.probe_network;
-        state.probe_network = 0;
+        state.probe_network = false;
         state.perform_jobs_needed = 0;
 
         if 0 != state.suspended {
@@ -1050,7 +1050,7 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
             return;
         }
         state.doing_jobs = 1;
-        probe_smtp_network != 0
+        probe_smtp_network
     };
 
     info!(context, 0, "SMTP-jobs started...",);
@@ -1123,7 +1123,7 @@ pub unsafe fn dc_maybe_network(context: &Context) {
     {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
-        state.probe_network = 1;
+        state.probe_network = true;
 
         *context.probe_imap_network.write().unwrap() = true;
     }
