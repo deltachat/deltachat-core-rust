@@ -561,30 +561,17 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "export-setup" => {
             let setup_code = dc_create_setup_code(context);
-            let setup_code_c = CString::new(setup_code.clone()).unwrap();
             let file_name: *mut libc::c_char = dc_mprintf(
                 b"%s/autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
                 context.get_blobdir(),
             );
-            let file_content: *mut libc::c_char;
-            file_content = dc_render_setup_file(context, setup_code_c.as_ptr());
-            if !file_content.is_null()
-                && 0 != dc_write_file(
-                    context,
-                    file_name,
-                    file_content as *const libc::c_void,
-                    strlen(file_content),
-                )
-            {
-                println!(
-                    "Setup message written to: {}\nSetup code: {}",
-                    as_str(file_name),
-                    &setup_code,
-                )
-            } else {
-                bail!("");
-            }
-            free(file_content as *mut libc::c_void);
+            let file_content = dc_render_setup_file(context, &setup_code)?;
+            std::fs::write(as_str(file_name), file_content)?;
+            println!(
+                "Setup message written to: {}\nSetup code: {}",
+                as_str(file_name),
+                &setup_code,
+            );
             free(file_name as *mut libc::c_void);
         }
         "poke" => {

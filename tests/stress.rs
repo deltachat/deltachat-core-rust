@@ -521,51 +521,13 @@ unsafe fn stress_functions(context: &Context) {
     );
     free(buf_1 as *mut libc::c_void);
     if 0 != dc_is_configured(context) {
-        let setupfile: *mut libc::c_char;
-        let setupcode_c =
-            CString::new(dc_create_setup_code(context)).expect("invalid string converted");
-        assert_eq!(setupcode_c.to_bytes().len(), 44);
-        let setupcode = setupcode_c.as_ptr();
-        assert!(
-            0 != !(*setupcode.offset(4isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(9isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(14isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(19isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(24isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(29isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(34isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(39isize) as libc::c_int == '-' as i32)
-                as usize
-        );
-        setupfile = dc_render_setup_file(context, setupcode);
-        assert!(!setupfile.is_null());
-        let buf_2: *mut libc::c_char = dc_strdup(setupfile);
-        let mut headerline_1: *const libc::c_char = 0 as *const libc::c_char;
-        let mut setupcodebegin_1: *const libc::c_char = 0 as *const libc::c_char;
-        assert!(!dc_split_armored_data(
-            buf_2,
-            &mut headerline_1,
-            &mut setupcodebegin_1,
-            0 as *mut *const libc::c_char,
-            0 as *mut *const libc::c_char,
-        ));
-        assert!(!headerline_1.is_null());
-        assert_eq!(
-            strcmp(
-                headerline_1,
-                b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-            ),
-            0
-        );
-        assert!(
-            !(!setupcodebegin_1.is_null()
-                && strlen(setupcodebegin_1) == 2
-                && strncmp(setupcodebegin_1, setupcode, 2) == 0i32)
-        );
-        free(buf_2 as *mut libc::c_void);
+        let setupcode = dc_create_setup_code(context);
+        let setupcode_c = CString::yolo(setupcode.clone());
+        let setupfile = dc_render_setup_file(context, &setupcode).unwrap();
+        let setupfile_c = CString::yolo(setupfile);
         let payload: *mut libc::c_char;
         let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
-        payload = dc_decrypt_setup_file(context, setupcode, setupfile);
+        payload = dc_decrypt_setup_file(context, setupcode_c.as_ptr(), setupfile_c.as_ptr());
         assert!(payload.is_null());
         assert!(!dc_split_armored_data(
             payload,
@@ -583,7 +545,6 @@ unsafe fn stress_functions(context: &Context) {
             0
         );
         free(payload as *mut libc::c_void);
-        free(setupfile as *mut libc::c_void);
     }
 
     if 0 != dc_is_configured(context) {

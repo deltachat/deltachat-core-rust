@@ -14,6 +14,7 @@ use crate::dc_e2ee::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
+use crate::error::*;
 use crate::key::*;
 use crate::param::*;
 use crate::pgp::*;
@@ -99,13 +100,12 @@ pub unsafe fn dc_imex_has_backup(
 }
 
 pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
-    let mut setup_file_content: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut setup_file_name: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     if dc_alloc_ongoing(context) == 0 {
         return std::ptr::null_mut();
     }
-    let setup_code = CString::new(dc_create_setup_code(context)).unwrap();
+    let setup_code = dc_create_setup_code(context);
     /* this may require a keypair to be created. this may take a second ... */
     if !context
         .running_state
@@ -114,8 +114,8 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
         .unwrap()
         .shall_stop_ongoing
     {
-        setup_file_content = dc_render_setup_file(context, setup_code.as_ptr());
-        if !setup_file_content.is_null() {
+        if let Ok(setup_file_content) = dc_render_setup_file(context, &setup_code) {
+            let setup_file_content_c = CString::yolo(setup_file_content.as_str());
             /* encrypting may also take a while ... */
             if !context
                 .running_state
@@ -133,8 +133,8 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                     || 0 == dc_write_file(
                         context,
                         setup_file_name,
-                        setup_file_content as *const libc::c_void,
-                        strlen(setup_file_content),
+                        setup_file_content_c.as_ptr() as *const libc::c_void,
+                        setup_file_content_c.as_bytes().len(),
                     ))
                 {
                     let chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
@@ -188,79 +188,78 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
         }
     }
     free(setup_file_name as *mut libc::c_void);
-    free(setup_file_content as *mut libc::c_void);
     dc_msg_unref(msg);
     dc_free_ongoing(context);
 
-    dc_strdup(setup_code.as_ptr())
+    setup_code.strdup()
 }
 
-pub unsafe fn dc_render_setup_file(
-    context: &Context,
-    passphrase: *const libc::c_char,
-) -> *mut libc::c_char {
-    let mut ret_setupfilecontent: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(passphrase.is_null() || strlen(passphrase) < 2) {
-        /* create the payload */
-        if !(0 == dc_ensure_secret_key_exists(context)) {
-            let self_addr = context
-                .sql
-                .get_config(context, Config::ConfiguredAddr)
-                .unwrap_or_default();
-            let curr_private_key = Key::from_self_private(context, self_addr, &context.sql);
-            let e2ee_enabled = context
-                .sql
-                .get_config_int(context, Config::E2eeEnabled)
-                .unwrap_or_else(|| 1);
-
-            let headers = if 0 != e2ee_enabled {
-                Some(("Autocrypt-Prefer-Encrypt", "mutual"))
-            } else {
-                None
-            };
-
-            if let Some(payload_key_asc) = curr_private_key.map(|k| k.to_asc(headers)) {
-                let payload_key_asc_c = CString::new(payload_key_asc).unwrap();
-                if let Some(encr) = dc_pgp_symm_encrypt(
-                    passphrase,
-                    payload_key_asc_c.as_ptr() as *const libc::c_void,
-                    payload_key_asc_c.as_bytes().len(),
-                ) {
-                    let replacement = format!(
-                        concat!(
-                            "-----BEGIN PGP MESSAGE-----\r\n",
-                            "Passphrase-Format: numeric9x4\r\n",
-                            "Passphrase-Begin: {}"
-                        ),
-                        &as_str(passphrase)[..2]
-                    );
-                    let pgp_msg = encr.replace("-----BEGIN PGP MESSAGE-----", &replacement);
-
-                    let msg_subj = context.stock_str(StockMessage::AcSetupMsgSubject);
-                    let msg_body = context.stock_str(StockMessage::AcSetupMsgBody);
-                    let msg_body_head: &str = msg_body.split('\r').next().unwrap();
-                    let msg_body_html = msg_body_head.replace("\n", "<br>");
-                    ret_setupfilecontent = to_cstring(format!(
-                        concat!(
-                            "<!DOCTYPE html>\r\n",
-                            "<html>\r\n",
-                            "  <head>\r\n",
-                            "    <title>{}</title>\r\n",
-                            "  </head>\r\n",
-                            "  <body>\r\n",
-                            "    <h1>{}</h1>\r\n",
-                            "    <p>{}</p>\r\n",
-                            "    <pre>\r\n{}\r\n</pre>\r\n",
-                            "  </body>\r\n",
-                            "</html>\r\n"
-                        ),
-                        msg_subj, msg_subj, msg_body_html, pgp_msg
-                    ));
-                }
-            }
-        }
+pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<String> {
+    ensure!(
+        passphrase.len() >= 2,
+        "Passphrase must be at least 2 chars long."
+    );
+    unsafe {
+        ensure!(
+            !(dc_ensure_secret_key_exists(context) == 0),
+            "No secret key available."
+        );
     }
-    ret_setupfilecontent
+    let self_addr = context
+        .get_config(Config::ConfiguredAddr)
+        .ok_or(format_err!("Failed to get self address."))?;
+    let private_key = Key::from_self_private(context, self_addr, &context.sql)
+        .ok_or(format_err!("Failed to get private key."))?;
+    let ac_headers = match context
+        .sql
+        .get_config_int(context, Config::E2eeEnabled)
+        .unwrap_or(1)
+    {
+        0 => None,
+        _ => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
+    };
+    let private_key_asc = private_key.to_asc(ac_headers);
+    let encr = {
+        let private_key_asc_c = CString::yolo(private_key_asc);
+        let passphrase_c = CString::yolo(passphrase);
+        dc_pgp_symm_encrypt(
+            passphrase_c.as_ptr(),
+            private_key_asc_c.as_ptr() as *const libc::c_void,
+            private_key_asc_c.as_bytes().len(),
+        )
+        .ok_or(format_err!("Failed to encrypt private key."))?
+    };
+    let replacement = format!(
+        concat!(
+            "-----BEGIN PGP MESSAGE-----\r\n",
+            "Passphrase-Format: numeric9x4\r\n",
+            "Passphrase-Begin: {}"
+        ),
+        &passphrase[..2]
+    );
+    let pgp_msg = encr.replace("-----BEGIN PGP MESSAGE-----", &replacement);
+
+    let msg_subj = context.stock_str(StockMessage::AcSetupMsgSubject);
+    let msg_body = context.stock_str(StockMessage::AcSetupMsgBody);
+    // let msg_body_head: &str = msg_body.split('\r').next().unwrap();
+    // let msg_body_html = msg_body_head.replace("\n", "<br>");
+    let msg_body_html = msg_body.replace("\n", "<br>");
+    Ok(format!(
+        concat!(
+            "<!DOCTYPE html>\r\n",
+            "<html>\r\n",
+            "  <head>\r\n",
+            "    <title>{}</title>\r\n",
+            "  </head>\r\n",
+            "  <body>\r\n",
+            "    <h1>{}</h1>\r\n",
+            "    <p>{}</p>\r\n",
+            "    <pre>\r\n{}\r\n</pre>\r\n",
+            "  </body>\r\n",
+            "</html>\r\n"
+        ),
+        msg_subj, msg_subj, msg_body_html, pgp_msg
+    ))
 }
 
 pub fn dc_create_setup_code(_context: &Context) -> String {
@@ -1427,12 +1426,7 @@ mod tests {
         let t = test_context(Some(logging_cb));
 
         create_alice_keypair(&t.ctx); // Trick things to think we're configured.
-        let msg = unsafe {
-            to_string(dc_render_setup_file(
-                &t.ctx,
-                b"hello\x00" as *const u8 as *const libc::c_char,
-            ))
-        };
+        let msg = dc_render_setup_file(&t.ctx, "hello").unwrap();
         println!("{}", &msg);
         // Check some substrings, indicating things got substituted.
         // In particular note the mixing of `\r\n` and `\n` depending
@@ -1445,5 +1439,20 @@ mod tests {
         assert!(msg.contains("Passphrase-Begin: he\n"));
         assert!(msg.contains("==\n"));
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
+    }
+
+    #[test]
+    fn test_create_setup_code() {
+        let t = dummy_context();
+        let setupcode = dc_create_setup_code(&t.ctx);
+        assert_eq!(setupcode.len(), 44);
+        assert_eq!(setupcode.chars().nth(4).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(9).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(14).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(19).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(24).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(29).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(34).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(39).unwrap(), '-');
     }
 }
