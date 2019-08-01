@@ -963,7 +963,14 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty() && !arg2.is_empty(), "No file given.");
 
-            let msg_0 = dc_msg_new(context, if arg0 == "sendimage" { 20 } else { 60 });
+            let msg_0 = dc_msg_new(
+                context,
+                if arg0 == "sendimage" {
+                    Viewtype::Image
+                } else {
+                    Viewtype::File
+                },
+            );
             dc_msg_set_file(msg_0, arg1_c, 0 as *const libc::c_char);
             dc_msg_set_text(msg_0, arg2_c);
             dc_send_msg(context, dc_chat_get_id(sel_chat), msg_0);
@@ -990,7 +997,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
 
             if !arg1.is_empty() {
-                let draft_0 = dc_msg_new(context, 10);
+                let draft_0 = dc_msg_new(context, Viewtype::Text);
                 dc_msg_set_text(draft_0, arg1_c);
                 dc_set_draft(context, dc_chat_get_id(sel_chat), draft_0);
                 dc_msg_unref(draft_0);
@@ -1003,7 +1010,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "listmedia" => {
             ensure!(!sel_chat.is_null(), "No chat selected.");
 
-            let images = dc_get_chat_media(context, dc_chat_get_id(sel_chat), 20, 21, 50);
+            let images = dc_get_chat_media(
+                context,
+                dc_chat_get_id(sel_chat),
+                Viewtype::Image,
+                Viewtype::Gif,
+                Viewtype::Video,
+            );
             let icnt: libc::c_int = dc_array_get_cnt(images) as libc::c_int;
             println!("{} images or videos: ", icnt);
             for i in 0..icnt {

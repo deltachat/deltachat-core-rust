@@ -25,7 +25,7 @@ pub struct dc_msg_t<'a> {
     pub to_id: uint32_t,
     pub chat_id: uint32_t,
     pub move_state: dc_move_state_t,
-    pub type_0: libc::c_int,
+    pub type_0: Viewtype,
     pub state: libc::c_int,
     pub hidden: libc::c_int,
     pub timestamp_sort: i64,
@@ -177,17 +177,9 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     }
     free(p as *mut libc::c_void);
 
-    if (*msg).type_0 != DC_MSG_TEXT {
+    if (*msg).type_0 != Viewtype::Text {
         ret += "Type: ";
-        match (*msg).type_0 {
-            DC_MSG_AUDIO => ret += "Audio",
-            DC_MSG_FILE => ret += "File",
-            DC_MSG_GIF => ret += "GIF",
-            DC_MSG_IMAGE => ret += "Image",
-            DC_MSG_VIDEO => ret += "Video",
-            DC_MSG_VOICE => ret += "Voice",
-            _ => ret += &format!("{}", (*msg).type_0),
-        }
+        ret += &format!("{}", (*msg).type_0);
         ret += "\n";
         p = dc_msg_get_filemime(msg);
         ret += &format!("Mimetype: {}\n", as_str(p));
@@ -222,7 +214,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 }
 
 pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> {
-    dc_msg_new(context, 0i32)
+    dc_msg_new(context, Viewtype::Unknown)
 }
 
 /* *
@@ -235,7 +227,7 @@ pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> 
 // to check if a mail was sent, use dc_msg_is_sent()
 // approx. max. length returned by dc_msg_get_text()
 // approx. max. length returned by dc_get_msg_info()
-pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: libc::c_int) -> *mut dc_msg_t<'a> {
+pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> *mut dc_msg_t<'a> {
     let msg = dc_msg_t {
         magic: 0x11561156,
         id: 0,
@@ -301,7 +293,7 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
             None => {
                 if let Some(file) = (*msg).param.get(Param::File) {
                     let file_c = to_cstring(file);
-                    dc_msg_guess_msgtype_from_suffix(file_c, 0 as *mut libc::c_int, &mut ret);
+                    dc_msg_guess_msgtype_from_suffix(file_c, 0 as *mut Viewtype, &mut ret);
                     if ret.is_null() {
                         ret = dc_strdup(
                             b"application/octet-stream\x00" as *const u8 as *const libc::c_char,
@@ -323,11 +315,11 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
 #[allow(non_snake_case)]
 pub unsafe fn dc_msg_guess_msgtype_from_suffix(
     pathNfilename: *const libc::c_char,
-    mut ret_msgtype: *mut libc::c_int,
+    mut ret_msgtype: *mut Viewtype,
     mut ret_mime: *mut *mut libc::c_char,
 ) {
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut dummy_msgtype: libc::c_int = 0;
+    let mut dummy_msgtype = Viewtype::Unknown;
     let mut dummy_buf: *mut libc::c_char = 0 as *mut libc::c_char;
     if !pathNfilename.is_null() {
         if ret_msgtype.is_null() {
@@ -336,37 +328,37 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
         if ret_mime.is_null() {
             ret_mime = &mut dummy_buf
         }
-        *ret_msgtype = 0;
+        *ret_msgtype = Viewtype::Unknown;
         *ret_mime = 0 as *mut libc::c_char;
         suffix = dc_get_filesuffix_lc(pathNfilename);
         if !suffix.is_null() {
             if strcmp(suffix, b"mp3\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_AUDIO;
+                *ret_msgtype = Viewtype::Audio;
                 *ret_mime = dc_strdup(b"audio/mpeg\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"aac\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_AUDIO;
+                *ret_msgtype = Viewtype::Audio;
                 *ret_mime = dc_strdup(b"audio/aac\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"mp4\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_VIDEO;
+                *ret_msgtype = Viewtype::Video;
                 *ret_mime = dc_strdup(b"video/mp4\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                *ret_msgtype = DC_MSG_IMAGE;
+                *ret_msgtype = Viewtype::Image;
                 *ret_mime = dc_strdup(b"image/jpeg\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_IMAGE;
+                *ret_msgtype = Viewtype::Image;
                 *ret_mime = dc_strdup(b"image/png\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"webp\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_IMAGE;
+                *ret_msgtype = Viewtype::Image;
                 *ret_mime = dc_strdup(b"image/webp\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_GIF;
+                *ret_msgtype = Viewtype::Gif;
                 *ret_mime = dc_strdup(b"image/gif\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"vcf\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(suffix, b"vcard\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                *ret_msgtype = DC_MSG_FILE;
+                *ret_msgtype = Viewtype::File;
                 *ret_mime = dc_strdup(b"text/vcard\x00" as *const u8 as *const libc::c_char)
             }
         }
@@ -681,9 +673,9 @@ pub unsafe fn dc_msg_get_chat_id(msg: *const dc_msg_t) -> uint32_t {
     };
 }
 
-pub unsafe fn dc_msg_get_viewtype(msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_viewtype(msg: *const dc_msg_t) -> Viewtype {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32;
+        return Viewtype::Unknown;
     }
 
     (*msg).type_0
@@ -853,7 +845,7 @@ pub unsafe fn dc_msg_get_summarytext(
 /* the returned value must be free()'d */
 #[allow(non_snake_case)]
 pub unsafe fn dc_msg_get_summarytext_by_raw(
-    type_0: libc::c_int,
+    type_0: Viewtype,
     text: *const libc::c_char,
     param: &mut Params,
     approx_characters: libc::c_int,
@@ -866,11 +858,11 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut append_text: libc::c_int = 1i32;
     match type_0 {
-        20 => prefix = to_cstring(context.stock_str(StockMessage::Image)),
-        21 => prefix = to_cstring(context.stock_str(StockMessage::Gif)),
-        50 => prefix = to_cstring(context.stock_str(StockMessage::Video)),
-        41 => prefix = to_cstring(context.stock_str(StockMessage::VoiceMessage)),
-        40 | 60 => {
+        Viewtype::Image => prefix = to_cstring(context.stock_str(StockMessage::Image)),
+        Viewtype::Gif => prefix = to_cstring(context.stock_str(StockMessage::Gif)),
+        Viewtype::Video => prefix = to_cstring(context.stock_str(StockMessage::Video)),
+        Viewtype::Voice => prefix = to_cstring(context.stock_str(StockMessage::VoiceMessage)),
+        Viewtype::Audio | Viewtype::File => {
             if param.get_int(Param::Cmd) == Some(6) {
                 prefix = to_cstring(context.stock_str(StockMessage::AcSetupMsgSubject));
                 append_text = 0i32
@@ -879,7 +871,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
                 value = dc_get_filename(pathNfilename);
                 let label = CString::new(
                     context
-                        .stock_str(if type_0 == DC_MSG_AUDIO {
+                        .stock_str(if type_0 == Viewtype::Audio {
                             StockMessage::Audio
                         } else {
                             StockMessage::File
@@ -1000,7 +992,7 @@ pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
 pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> bool {
     if msg.is_null()
         || (*msg).magic != 0x11561156i32 as libc::c_uint
-        || (*msg).type_0 != DC_MSG_FILE as libc::c_int
+        || (*msg).type_0 != Viewtype::File
     {
         return false;
     }
@@ -1442,7 +1434,7 @@ mod tests {
     #[test]
     fn test_dc_msg_guess_msgtype_from_suffix() {
         unsafe {
-            let mut type_0: libc::c_int = 0;
+            let mut type_0 = Viewtype::Unknown;
             let mut mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
 
             dc_msg_guess_msgtype_from_suffix(
@@ -1450,7 +1442,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
+            assert_eq!(type_0, Viewtype::Audio);
             assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/mpeg");
             free(mime_0 as *mut libc::c_void);
 
@@ -1459,7 +1451,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
+            assert_eq!(type_0, Viewtype::Audio);
             assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/aac");
             free(mime_0 as *mut libc::c_void);
 
@@ -1468,7 +1460,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_VIDEO as libc::c_int);
+            assert_eq!(type_0, Viewtype::Video);
             assert_eq!(as_str(mime_0 as *const libc::c_char), "video/mp4");
             free(mime_0 as *mut libc::c_void);
 
@@ -1477,7 +1469,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(type_0, Viewtype::Image);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1491,7 +1483,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(type_0, Viewtype::Image);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1505,7 +1497,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(type_0, Viewtype::Image);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1519,7 +1511,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(type_0, Viewtype::Image);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1533,7 +1525,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_GIF as libc::c_int);
+            assert_eq!(type_0, Viewtype::Gif);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1547,7 +1539,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_FILE as libc::c_int);
+            assert_eq!(type_0, Viewtype::File);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()

@@ -1,6 +1,7 @@
 use std::ffi::CString;
 
 use crate::constants::Event;
+use crate::constants::*;
 use crate::context::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
@@ -98,7 +99,7 @@ pub unsafe fn dc_send_locations_to_chat(
         .is_ok()
         {
             if 0 != seconds && !is_sending_locations_before {
-                msg = dc_msg_new(context, 10i32);
+                msg = dc_msg_new(context, Viewtype::Text);
                 (*msg).text = to_cstring(context.stock_system_msg(
                     StockMessage::MsgLocationEnabled,
                     "",
@@ -702,7 +703,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                             // the easiest way to determine this, is to check for an empty message queue.
                             // (might not be 100%, however, as positions are sent combined later
                             // and dc_set_location() is typically called periodically, this is ok)
-                            let mut msg = dc_msg_new(context, 10);
+                            let mut msg = dc_msg_new(context, Viewtype::Text);
                             (*msg).hidden = 1;
                             (*msg).param.set_int(Param::Cmd, 9);
                             dc_send_msg(context, chat_id as u32, msg);

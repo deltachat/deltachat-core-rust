@@ -8,6 +8,9 @@ extern crate num_derive;
 extern crate smallvec;
 #[macro_use]
 extern crate rusqlite;
+extern crate strum;
+#[macro_use]
+extern crate strum_macros;
 
 #[macro_use]
 mod log;

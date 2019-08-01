@@ -738,10 +738,9 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     }
                 }
             }
-
             if let Some(grpimage) = grpimage {
                 let mut meta = dc_msg_new_untyped((*factory).context);
-                (*meta).type_0 = DC_MSG_IMAGE as libc::c_int;
+                (*meta).type_0 = Viewtype::Image;
                 (*meta).param.set(Param::File, grpimage);
 
                 let mut filename_as_sent = 0 as *mut libc::c_char;
@@ -762,11 +761,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 dc_msg_unref(meta);
             }
 
-            if (*msg).type_0 == DC_MSG_VOICE
-                || (*msg).type_0 == DC_MSG_AUDIO
-                || (*msg).type_0 == DC_MSG_VIDEO
+            if (*msg).type_0 == Viewtype::Voice
+                || (*msg).type_0 == Viewtype::Audio
+                || (*msg).type_0 == Viewtype::Video
             {
-                if (*msg).type_0 == DC_MSG_VOICE {
+                if (*msg).type_0 == Viewtype::Voice {
                     mailimf_fields_add(
                         imf_fields,
                         mailimf_field_new_custom(
@@ -1179,7 +1178,7 @@ unsafe fn build_body_file(
     let mut filename_encoded = 0 as *mut libc::c_char;
 
     if !pathNfilename.is_null() {
-        if (*msg).type_0 == DC_MSG_VOICE {
+        if (*msg).type_0 == Viewtype::Voice {
             let ts = chrono::Utc.timestamp((*msg).timestamp_sort as i64, 0);
 
             let suffix = if !suffix.is_null() {
@@ -1191,9 +1190,9 @@ unsafe fn build_body_file(
                 .format(&format!("voice-message_%Y-%m-%d_%H-%M-%S.{}", suffix))
                 .to_string();
             filename_to_send = to_cstring(res);
-        } else if (*msg).type_0 == DC_MSG_AUDIO {
+        } else if (*msg).type_0 == Viewtype::Audio {
             filename_to_send = dc_get_filename(pathNfilename)
-        } else if (*msg).type_0 == DC_MSG_IMAGE || (*msg).type_0 == DC_MSG_GIF {
+        } else if (*msg).type_0 == Viewtype::Image || (*msg).type_0 == Viewtype::Gif {
             if base_name.is_null() {
                 base_name = b"image\x00" as *const u8 as *const libc::c_char
             }
@@ -1206,7 +1205,7 @@ unsafe fn build_body_file(
                     b"dat\x00" as *const u8 as *const libc::c_char
                 },
             )
-        } else if (*msg).type_0 == DC_MSG_VIDEO {
+        } else if (*msg).type_0 == Viewtype::Video {
             filename_to_send = dc_mprintf(
                 b"video.%s\x00" as *const u8 as *const libc::c_char,
                 if !suffix.is_null() {
