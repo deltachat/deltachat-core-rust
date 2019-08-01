@@ -28,7 +28,7 @@ pub struct Context {
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<i32>>,
-    pub probe_imap_network: Arc<RwLock<i32>>,
+    pub probe_imap_network: Arc<RwLock<bool>>,
     pub sentbox_thread: Arc<RwLock<dc_jobthread_t>>,
     pub mvbox_thread: Arc<RwLock<dc_jobthread_t>>,
     pub smtp: Arc<Mutex<Smtp>>,
@@ -160,7 +160,7 @@ pub fn dc_context_new(
                 cb_receive_imf,
             ),
         ))),
-        probe_imap_network: Arc::new(RwLock::new(0)),
+        probe_imap_network: Arc::new(RwLock::new(false)),
         perform_inbox_jobs_needed: Arc::new(RwLock::new(0)),
     }
 }

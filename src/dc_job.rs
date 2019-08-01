@@ -54,15 +54,15 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
     info!(context, 0, "dc_perform_imap_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
-    *context.probe_imap_network.write().unwrap() = 0;
+    *context.probe_imap_network.write().unwrap() = false;
     *context.perform_inbox_jobs_needed.write().unwrap() = 0;
 
     dc_job_perform(context, DC_IMAP_THREAD, probe_imap_network);
     info!(context, 0, "dc_perform_imap_jobs ended.",);
 }
 
-unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
-    let query = if probe_network == 0 {
+unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: bool) {
+    let query = if !probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
         "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
@@ -77,7 +77,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
 
     let params_no_probe = params![thread as i64, time()];
     let params_probe = params![thread as i64];
-    let params: &[&dyn rusqlite::ToSql] = if probe_network == 0 {
+    let params: &[&dyn rusqlite::ToSql] = if !probe_network {
         params_no_probe
     } else {
         params_probe
@@ -225,7 +225,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 }
                 dc_job_delete(context, &mut job);
             }
-            if 0 == probe_network {
+            if !probe_network {
                 continue;
             }
             // on dc_maybe_network() we stop trying here;
@@ -1050,7 +1050,7 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
             return;
         }
         state.doing_jobs = 1;
-        probe_smtp_network
+        probe_smtp_network != 0
     };
 
     info!(context, 0, "SMTP-jobs started...",);
@@ -1125,7 +1125,7 @@ pub unsafe fn dc_maybe_network(context: &Context) {
         let mut state = lock.lock().unwrap();
         state.probe_network = 1;
 
-        *context.probe_imap_network.write().unwrap() = 1;
+        *context.probe_imap_network.write().unwrap() = true;
     }
 
     dc_interrupt_smtp_idle(context);
