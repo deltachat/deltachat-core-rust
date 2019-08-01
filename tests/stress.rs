@@ -881,7 +881,7 @@ fn test_dc_mimeparser_with_context() {
             b"Chat-Version\x00" as *const u8 as *const libc::c_char,
         );
         assert_eq!(as_str((*of).fld_value as *const libc::c_char), "1.0",);
-        assert_eq!(carray_count(mimeparser.parts), 1);
+        assert_eq!(mimeparser.parts.len(), 1);
 
         dc_mimeparser_unref(&mut mimeparser);
     }
