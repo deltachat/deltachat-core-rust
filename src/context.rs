@@ -27,7 +27,7 @@ pub struct Context {
     pub blobdir: Arc<RwLock<*mut libc::c_char>>,
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
-    pub perform_inbox_jobs_needed: Arc<RwLock<i32>>,
+    pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
     pub probe_imap_network: Arc<RwLock<bool>>,
     pub sentbox_thread: Arc<RwLock<dc_jobthread_t>>,
     pub mvbox_thread: Arc<RwLock<dc_jobthread_t>>,
@@ -161,7 +161,7 @@ pub fn dc_context_new(
             ),
         ))),
         probe_imap_network: Arc::new(RwLock::new(false)),
-        perform_inbox_jobs_needed: Arc::new(RwLock::new(0)),
+        perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
     }
 }
 

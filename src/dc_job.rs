@@ -55,7 +55,7 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
     *context.probe_imap_network.write().unwrap() = false;
-    *context.perform_inbox_jobs_needed.write().unwrap() = 0;
+    *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
     dc_job_perform(context, DC_IMAP_THREAD, probe_imap_network);
     info!(context, 0, "dc_perform_imap_jobs ended.",);
@@ -859,7 +859,7 @@ pub unsafe fn dc_interrupt_smtp_idle(context: &Context) {
 pub unsafe fn dc_interrupt_imap_idle(context: &Context) {
     info!(context, 0, "Interrupting IMAP-IDLE...",);
 
-    *context.perform_inbox_jobs_needed.write().unwrap() = 1;
+    *context.perform_inbox_jobs_needed.write().unwrap() = true;
     context.inbox.read().unwrap().interrupt_idle();
 }
 
@@ -967,7 +967,7 @@ pub fn dc_perform_imap_idle(context: &Context) {
 
     connect_to_inbox(context, &inbox);
 
-    if 0 != *context.perform_inbox_jobs_needed.clone().read().unwrap() {
+    if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         info!(
             context,
             0, "INBOX-IDLE will not be started because of waiting jobs."
