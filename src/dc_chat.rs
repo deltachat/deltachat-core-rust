@@ -1973,7 +1973,7 @@ pub unsafe fn dc_forward_msgs(
     let msg = dc_msg_new_untyped(context);
     let chat = dc_chat_new(context);
     let contact = dc_contact_new(context);
-    let created_db_entries = carray_new(16);
+    let mut created_db_entries = Vec::new();
     let mut curr_timestamp: i64;
 
     dc_unarchive_chat(context, chat_id);
@@ -2040,31 +2040,17 @@ pub unsafe fn dc_forward_msgs(
                 new_msg_id = prepare_msg_raw(context, chat, msg, fresh10);
                 dc_job_send_msg(context, new_msg_id);
             }
-            carray_add(
-                created_db_entries,
-                chat_id as uintptr_t as *mut libc::c_void,
-                0 as *mut libc::c_uint,
-            );
-            carray_add(
-                created_db_entries,
-                new_msg_id as uintptr_t as *mut libc::c_void,
-                0 as *mut libc::c_uint,
-            );
+            created_db_entries.push(chat_id);
+            created_db_entries.push(new_msg_id);
         }
     }
 
-    if !created_db_entries.is_null() {
-        let mut i = 0u32;
-        let icnt = carray_count(created_db_entries);
-        while i < icnt {
-            context.call_cb(
-                Event::MSGS_CHANGED,
-                carray_get(created_db_entries, i) as uintptr_t,
-                carray_get(created_db_entries, i.wrapping_add(1)) as uintptr_t,
-            );
-            i = i.wrapping_add(2);
-        }
-        carray_free(created_db_entries);
+    for i in (0..created_db_entries.len()).step_by(2) {
+        context.call_cb(
+            Event::MSGS_CHANGED,
+            created_db_entries[i] as uintptr_t,
+            created_db_entries[i + 1] as uintptr_t,
+        );
     }
     dc_contact_unref(contact);
     dc_msg_unref(msg);
