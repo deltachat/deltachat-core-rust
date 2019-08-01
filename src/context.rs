@@ -106,7 +106,7 @@ impl Default for BobStatus {
 #[derive(Default, Debug)]
 pub struct SmtpState {
     pub idle: bool,
-    pub suspended: i32,
+    pub suspended: bool,
     pub doing_jobs: i32,
     pub perform_jobs_needed: i32,
     pub probe_network: bool,

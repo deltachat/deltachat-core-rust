@@ -136,7 +136,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             dc_job_kill_action(context, job.action);
             dc_jobthread_suspend(context, &context.sentbox_thread.clone().read().unwrap(), 1);
             dc_jobthread_suspend(context, &context.mvbox_thread.clone().read().unwrap(), 1);
-            dc_suspend_smtp_thread(context, 1);
+            dc_suspend_smtp_thread(context, true);
         }
 
         let mut tries = 0;
@@ -174,7 +174,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 &mut context.mvbox_thread.clone().read().unwrap(),
                 0,
             );
-            dc_suspend_smtp_thread(context, 0);
+            dc_suspend_smtp_thread(context, false);
             break;
         } else if job.try_again == 2 {
             // just try over next loop unconditionally, the ui typically interrupts idle when the file (video) is ready
@@ -279,9 +279,9 @@ fn dc_job_update(context: &Context, job: &dc_job_t) -> bool {
     .is_ok()
 }
 
-unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: libc::c_int) {
+unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: bool) {
     context.smtp_state.0.lock().unwrap().suspended = suspend;
-    if 0 != suspend {
+    if suspend {
         loop {
             if context.smtp_state.0.lock().unwrap().doing_jobs == 0 {
                 return;
@@ -1045,7 +1045,7 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
         state.probe_network = false;
         state.perform_jobs_needed = 0;
 
-        if 0 != state.suspended {
+        if state.suspended {
             info!(context, 0, "SMTP-jobs suspended.",);
             return;
         }
