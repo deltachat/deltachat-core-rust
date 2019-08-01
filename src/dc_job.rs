@@ -283,7 +283,7 @@ unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: bool) {
     context.smtp_state.0.lock().unwrap().suspended = suspend;
     if suspend {
         loop {
-            if context.smtp_state.0.lock().unwrap().doing_jobs == 0 {
+            if !context.smtp_state.0.lock().unwrap().doing_jobs {
                 return;
             }
             std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
@@ -1049,7 +1049,7 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
             info!(context, 0, "SMTP-jobs suspended.",);
             return;
         }
-        state.doing_jobs = 1;
+        state.doing_jobs = true;
         probe_smtp_network
     };
 
@@ -1061,7 +1061,7 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
 
-        state.doing_jobs = 0;
+        state.doing_jobs = false;
     }
 }
 
