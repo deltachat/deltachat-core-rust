@@ -54,15 +54,15 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
     info!(context, 0, "dc_perform_imap_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
-    *context.probe_imap_network.write().unwrap() = 0;
-    *context.perform_inbox_jobs_needed.write().unwrap() = 0;
+    *context.probe_imap_network.write().unwrap() = false;
+    *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
     dc_job_perform(context, DC_IMAP_THREAD, probe_imap_network);
     info!(context, 0, "dc_perform_imap_jobs ended.",);
 }
 
-unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
-    let query = if probe_network == 0 {
+unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: bool) {
+    let query = if !probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
         "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
@@ -77,7 +77,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
 
     let params_no_probe = params![thread as i64, time()];
     let params_probe = params![thread as i64];
-    let params: &[&dyn rusqlite::ToSql] = if probe_network == 0 {
+    let params: &[&dyn rusqlite::ToSql] = if !probe_network {
         params_no_probe
     } else {
         params_probe
@@ -136,7 +136,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             dc_job_kill_action(context, job.action);
             dc_jobthread_suspend(context, &context.sentbox_thread.clone().read().unwrap(), 1);
             dc_jobthread_suspend(context, &context.mvbox_thread.clone().read().unwrap(), 1);
-            dc_suspend_smtp_thread(context, 1);
+            dc_suspend_smtp_thread(context, true);
         }
 
         let mut tries = 0;
@@ -174,7 +174,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 &mut context.mvbox_thread.clone().read().unwrap(),
                 0,
             );
-            dc_suspend_smtp_thread(context, 0);
+            dc_suspend_smtp_thread(context, false);
             break;
         } else if job.try_again == 2 {
             // just try over next loop unconditionally, the ui typically interrupts idle when the file (video) is ready
@@ -225,7 +225,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 }
                 dc_job_delete(context, &mut job);
             }
-            if 0 == probe_network {
+            if !probe_network {
                 continue;
             }
             // on dc_maybe_network() we stop trying here;
@@ -279,11 +279,11 @@ fn dc_job_update(context: &Context, job: &dc_job_t) -> bool {
     .is_ok()
 }
 
-unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: libc::c_int) {
+unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: bool) {
     context.smtp_state.0.lock().unwrap().suspended = suspend;
-    if 0 != suspend {
+    if suspend {
         loop {
-            if context.smtp_state.0.lock().unwrap().doing_jobs == 0 {
+            if !context.smtp_state.0.lock().unwrap().doing_jobs {
                 return;
             }
             std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
@@ -859,7 +859,7 @@ pub unsafe fn dc_interrupt_smtp_idle(context: &Context) {
 pub unsafe fn dc_interrupt_imap_idle(context: &Context) {
     info!(context, 0, "Interrupting IMAP-IDLE...",);
 
-    *context.perform_inbox_jobs_needed.write().unwrap() = 1;
+    *context.perform_inbox_jobs_needed.write().unwrap() = true;
     context.inbox.read().unwrap().interrupt_idle();
 }
 
@@ -967,7 +967,7 @@ pub fn dc_perform_imap_idle(context: &Context) {
 
     connect_to_inbox(context, &inbox);
 
-    if 0 != *context.perform_inbox_jobs_needed.clone().read().unwrap() {
+    if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         info!(
             context,
             0, "INBOX-IDLE will not be started because of waiting jobs."
@@ -1042,14 +1042,14 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
         let mut state = lock.lock().unwrap();
 
         let probe_smtp_network = state.probe_network;
-        state.probe_network = 0;
+        state.probe_network = false;
         state.perform_jobs_needed = 0;
 
-        if 0 != state.suspended {
+        if state.suspended {
             info!(context, 0, "SMTP-jobs suspended.",);
             return;
         }
-        state.doing_jobs = 1;
+        state.doing_jobs = true;
         probe_smtp_network
     };
 
@@ -1061,7 +1061,7 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
 
-        state.doing_jobs = 0;
+        state.doing_jobs = false;
     }
 }
 
@@ -1123,9 +1123,9 @@ pub unsafe fn dc_maybe_network(context: &Context) {
     {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
-        state.probe_network = 1;
+        state.probe_network = true;
 
-        *context.probe_imap_network.write().unwrap() = 1;
+        *context.probe_imap_network.write().unwrap() = true;
     }
 
     dc_interrupt_smtp_idle(context);
