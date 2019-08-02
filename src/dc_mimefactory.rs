@@ -24,7 +24,7 @@ use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
-#[derive(Copy, Clone)]
+#[derive(Clone)]
 #[repr(C)]
 #[allow(non_camel_case_types)]
 pub struct dc_mimefactory_t<'a> {
@@ -36,7 +36,7 @@ pub struct dc_mimefactory_t<'a> {
     pub timestamp: i64,
     pub rfc724_mid: *mut libc::c_char,
     pub loaded: dc_mimefactory_loaded_t,
-    pub msg: *mut dc_msg_t<'a>,
+    pub msg: dc_msg_t<'a>,
     pub chat: *mut Chat<'a>,
     pub increation: libc::c_int,
     pub in_reply_to: *mut libc::c_char,
@@ -66,6 +66,7 @@ pub unsafe fn dc_mimefactory_init<'a>(factory: *mut dc_mimefactory_t<'a>, contex
         ::std::mem::size_of::<dc_mimefactory_t>(),
     );
     (*factory).context = context;
+    (*factory).msg = dc_msg_new(context, Viewtype::Unknown);
 }
 
 pub unsafe fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
@@ -90,8 +91,7 @@ pub unsafe fn dc_mimefactory_empty(mut factory: *mut dc_mimefactory_t) {
         clist_free((*factory).recipients_addr);
         (*factory).recipients_addr = 0 as *mut clist
     }
-    dc_msg_unref((*factory).msg);
-    (*factory).msg = 0 as *mut dc_msg_t;
+    dc_msg_empty(&mut (*factory).msg);
     dc_chat_unref((*factory).chat);
     (*factory).chat = 0 as *mut Chat;
     free((*factory).in_reply_to as *mut libc::c_void);
@@ -113,7 +113,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     mut factory: *mut dc_mimefactory_t,
     msg_id: uint32_t,
 ) -> libc::c_int {
-    if factory.is_null() || msg_id <= 9 || !(*factory).msg.is_null() {
+    if factory.is_null() || msg_id <= 9 {
         return 0;
     }
 
@@ -125,8 +125,8 @@ pub unsafe fn dc_mimefactory_load_msg(
     (*factory).recipients_addr = clist_new();
     (*factory).msg = dc_msg_new_untyped(context);
     (*factory).chat = dc_chat_new(context);
-    if dc_msg_load_from_db((*factory).msg, context, msg_id)
-        && dc_chat_load_from_db((*factory).chat, (*(*factory).msg).chat_id)
+    if dc_msg_load_from_db(&mut (*factory).msg, context, msg_id)
+        && dc_chat_load_from_db((*factory).chat, (*factory).msg.chat_id)
     {
         load_from(factory);
         (*factory).req_mdn = 0;
@@ -149,7 +149,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                      FROM chats_contacts cc  \
                      LEFT JOIN contacts c ON cc.contact_id=c.id  \
                      WHERE cc.chat_id=? AND cc.contact_id>9;",
-                    params![(*(*factory).msg).chat_id as i32],
+                    params![(*factory).msg.chat_id as i32],
                     |row| {
                         let authname: String = row.get(0)?;
                         let addr: String = row.get(1)?;
@@ -181,13 +181,10 @@ pub unsafe fn dc_mimefactory_load_msg(
                 )
                 .unwrap();
 
-            let command = (*(*factory).msg)
-                .param
-                .get_int(Param::Cmd)
-                .unwrap_or_default();
+            let command = (*factory).msg.param.get_int(Param::Cmd).unwrap_or_default();
 
             if command == 5 {
-                let email_to_remove = (*(*factory).msg).param.get(Param::Arg).unwrap_or_default();
+                let email_to_remove = (*factory).msg.param.get(Param::Arg).unwrap_or_default();
                 let email_to_remove_c = email_to_remove.strdup();
 
                 let self_addr = context
@@ -224,7 +221,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         }
         let row = context.sql.query_row(
             "SELECT mime_in_reply_to, mime_references FROM msgs WHERE id=?",
-            params![(*(*factory).msg).id as i32],
+            params![(*factory).msg.id as i32],
             |row| {
                 let in_reply_to: String = row.get(0)?;
                 let references: String = row.get(1)?;
@@ -247,11 +244,11 @@ pub unsafe fn dc_mimefactory_load_msg(
 
         success = 1;
         (*factory).loaded = DC_MF_MSG_LOADED;
-        (*factory).timestamp = (*(*factory).msg).timestamp_sort;
-        (*factory).rfc724_mid = dc_strdup((*(*factory).msg).rfc724_mid)
+        (*factory).timestamp = (*factory).msg.timestamp_sort;
+        (*factory).rfc724_mid = dc_strdup((*factory).msg.rfc724_mid)
     }
     if 0 != success {
-        (*factory).increation = dc_msg_is_increation((*factory).msg)
+        (*factory).increation = dc_msg_is_increation(&(*factory).msg)
     }
 
     success
@@ -306,16 +303,12 @@ pub unsafe fn dc_mimefactory_load_mdn(
     {
         // MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ...
         contact = dc_contact_new((*factory).context);
-        if !(!dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
-            || !dc_contact_load_from_db(
-                contact,
-                &(*factory).context.sql,
-                (*(*factory).msg).from_id,
-            ))
+        if !(!dc_msg_load_from_db(&mut (*factory).msg, (*factory).context, msg_id)
+            || !dc_contact_load_from_db(contact, &(*factory).context.sql, (*factory).msg.from_id))
         {
-            if !(0 != (*contact).blocked || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
+            if !(0 != (*contact).blocked || (*factory).msg.chat_id <= 9 as libc::c_uint) {
                 // Do not send MDNs trash etc.; chats.blocked is already checked by the caller in dc_markseen_msgs()
-                if !((*(*factory).msg).from_id <= 9 as libc::c_uint) {
+                if !((*factory).msg.from_id <= 9 as libc::c_uint) {
                     clist_insert_after(
                         (*factory).recipients_names,
                         (*(*factory).recipients_names).last,
@@ -522,7 +515,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             /* Render a normal message
              *********************************************************************/
             let chat: *mut Chat = (*factory).chat;
-            let msg: *mut dc_msg_t = (*factory).msg;
+            let msg = &(*factory).msg;
             let mut meta_part: *mut mailmime = 0 as *mut mailmime;
             let mut placeholdertext: *mut libc::c_char = 0 as *mut libc::c_char;
             if (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int {
@@ -537,12 +530,14 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 e2ee_guaranteed = 1;
                 min_verified = 2
             } else {
-                force_plaintext = (*(*factory).msg)
+                force_plaintext = (*factory)
+                    .msg
                     .param
                     .get_int(Param::ForcePlaintext)
                     .unwrap_or_default();
                 if force_plaintext == 0 {
-                    e2ee_guaranteed = (*(*factory).msg)
+                    e2ee_guaranteed = (*factory)
+                        .msg
                         .param
                         .get_int(Param::GuranteeE2ee)
                         .unwrap_or_default()
@@ -742,12 +737,12 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             }
             if let Some(grpimage) = grpimage {
                 let mut meta = dc_msg_new_untyped((*factory).context);
-                (*meta).type_0 = Viewtype::Image;
-                (*meta).param.set(Param::File, grpimage);
+                meta.type_0 = Viewtype::Image;
+                meta.param.set(Param::File, grpimage);
 
                 let mut filename_as_sent = 0 as *mut libc::c_char;
                 meta_part = build_body_file(
-                    meta,
+                    &meta,
                     b"group-image\x00" as *const u8 as *const libc::c_char,
                     &mut filename_as_sent,
                 );
@@ -760,7 +755,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         ),
                     );
                 }
-                dc_msg_unref(meta);
             }
 
             if (*msg).type_0 == Viewtype::Voice
@@ -961,7 +955,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             );
             mailmime_add_part(message, multipart);
             let p1 = if 0
-                != (*(*factory).msg)
+                != (*factory)
+                    .msg
                     .param
                     .get_int(Param::GuranteeE2ee)
                     .unwrap_or_default()
@@ -971,7 +966,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     .stock_str(StockMessage::EncryptedMsg)
                     .into_owned()
             } else {
-                to_string(dc_msg_get_summarytext((*factory).msg, 32))
+                to_string(dc_msg_get_summarytext(&mut (*factory).msg, 32))
             };
             let p2 = (*factory)
                 .context
@@ -984,7 +979,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                as *const u8 as *const libc::c_char,
                            DC_VERSION_STR as *const u8 as *const libc::c_char,
                            (*factory).from_addr, (*factory).from_addr,
-                           (*(*factory).msg).rfc724_mid);
+                           (*factory).msg.rfc724_mid);
             let content_type_0: *mut mailmime_content = mailmime_content_new_with_str(
                 b"message/disposition-notification\x00" as *const u8 as *const libc::c_char,
             );
@@ -1021,7 +1016,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         e.as_ptr(),
                     );
                 } else {
-                    subject_str = get_subject((*factory).chat, (*factory).msg, afwd_email)
+                    subject_str = get_subject((*factory).chat, &mut (*factory).msg, afwd_email)
                 }
                 subject = mailimf_subject_new(dc_encode_header_words(subject_str));
                 mailimf_fields_add(
@@ -1089,13 +1084,13 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
 
 unsafe fn get_subject(
     chat: *const Chat,
-    msg: *mut dc_msg_t,
+    msg: &mut dc_msg_t,
     afwd_email: libc::c_int,
 ) -> *mut libc::c_char {
     let context = (*chat).context;
     let ret: *mut libc::c_char;
     let raw_subject =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 32, context);
+        dc_msg_get_summarytext_by_raw(msg.type_0, msg.text, &mut (*msg).param, 32, context);
     let fwd = if 0 != afwd_email {
         b"Fwd: \x00" as *const u8 as *const libc::c_char
     } else {
@@ -1154,7 +1149,7 @@ unsafe fn build_body_text(text: *mut libc::c_char) -> *mut mailmime {
 
 #[allow(non_snake_case)]
 unsafe fn build_body_file(
-    msg: *const dc_msg_t,
+    msg: &dc_msg_t,
     mut base_name: *const libc::c_char,
     ret_file_name_as_sent: *mut *mut libc::c_char,
 ) -> *mut mailmime {
@@ -1162,12 +1157,12 @@ unsafe fn build_body_file(
     let mime_fields: *mut mailmime_fields;
     let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
     let content: *mut mailmime_content;
-    let pathNfilename = (*msg)
+    let pathNfilename = msg
         .param
         .get(Param::File)
         .map(|s| s.strdup())
         .unwrap_or_else(|| std::ptr::null_mut());
-    let mut mimetype = (*msg)
+    let mut mimetype = msg
         .param
         .get(Param::MimeType)
         .map(|s| s.strdup())
@@ -1178,8 +1173,8 @@ unsafe fn build_body_file(
     let mut filename_encoded = 0 as *mut libc::c_char;
 
     if !pathNfilename.is_null() {
-        if (*msg).type_0 == Viewtype::Voice {
-            let ts = chrono::Utc.timestamp((*msg).timestamp_sort as i64, 0);
+        if msg.type_0 == Viewtype::Voice {
+            let ts = chrono::Utc.timestamp(msg.timestamp_sort as i64, 0);
 
             let suffix = if !suffix.is_null() {
                 to_string(suffix)
@@ -1192,7 +1187,7 @@ unsafe fn build_body_file(
             filename_to_send = res.strdup();
         } else if (*msg).type_0 == Viewtype::Audio {
             filename_to_send = dc_get_filename(pathNfilename)
-        } else if (*msg).type_0 == Viewtype::Image || (*msg).type_0 == Viewtype::Gif {
+        } else if msg.type_0 == Viewtype::Image || msg.type_0 == Viewtype::Gif {
             if base_name.is_null() {
                 base_name = b"image\x00" as *const u8 as *const libc::c_char
             }
@@ -1205,7 +1200,7 @@ unsafe fn build_body_file(
                     b"dat\x00" as *const u8 as *const libc::c_char
                 },
             )
-        } else if (*msg).type_0 == Viewtype::Video {
+        } else if msg.type_0 == Viewtype::Video {
             filename_to_send = dc_mprintf(
                 b"video.%s\x00" as *const u8 as *const libc::c_char,
                 if !suffix.is_null() {
@@ -1308,7 +1303,7 @@ unsafe fn build_body_file(
                 ) as *mut libc::c_void,
             );
             mime_sub = mailmime_new_empty(content, mime_fields);
-            mailmime_set_body_file(mime_sub, dc_get_abs_path((*msg).context, pathNfilename));
+            mailmime_set_body_file(mime_sub, dc_get_abs_path(msg.context, pathNfilename));
             if !ret_file_name_as_sent.is_null() {
                 *ret_file_name_as_sent = dc_strdup(filename_to_send)
             }
@@ -1327,7 +1322,7 @@ unsafe fn build_body_file(
  * Render
  ******************************************************************************/
 #[allow(non_snake_case)]
-unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> bool {
+unsafe fn is_file_size_okay(msg: &dc_msg_t) -> bool {
     let mut file_size_okay = true;
     let pathNfilename = (*msg).param.get(Param::File).unwrap_or_default().strdup();
     let bytes = dc_get_filebytes((*msg).context, pathNfilename);

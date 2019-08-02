@@ -125,18 +125,18 @@ pub unsafe fn dc_lot_get_timestamp(lot: *const dc_lot_t) -> i64 {
 /* in practice, the user additionally cuts the string himself pixel-accurate */
 pub unsafe fn dc_lot_fill(
     mut lot: *mut dc_lot_t,
-    msg: *mut dc_msg_t,
+    msg: &mut dc_msg_t,
     chat: *const Chat,
     contact: *const dc_contact_t,
     context: &Context,
 ) {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint || msg.is_null() {
+    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
         return;
     }
     if (*msg).state == 19i32 {
         (*lot).text1 = context.stock_str(StockMessage::Draft).strdup();
         (*lot).text1_meaning = 1i32
-    } else if (*msg).from_id == 1i32 as libc::c_uint {
+    } else if msg.from_id == 1i32 as libc::c_uint {
         if 0 != dc_msg_is_info(msg) || 0 != dc_chat_is_self_talk(chat) {
             (*lot).text1 = 0 as *mut libc::c_char;
             (*lot).text1_meaning = 0i32
@@ -161,7 +161,7 @@ pub unsafe fn dc_lot_fill(
         }
     }
     (*lot).text2 =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 160, context);
+        dc_msg_get_summarytext_by_raw(msg.type_0, msg.text, &mut msg.param, 160, context);
     (*lot).timestamp = dc_msg_get_timestamp(msg);
-    (*lot).state = (*msg).state;
+    (*lot).state = msg.state;
 }

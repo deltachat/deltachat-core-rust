@@ -217,7 +217,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     success
 }
 
-unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t) {
+unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &mut dc_msg_t) {
     let contact: *mut dc_contact_t = dc_get_contact(context, dc_msg_get_from_id(msg));
     let contact_name: *mut libc::c_char = dc_contact_get_name(contact);
     let contact_id: libc::c_int = dc_contact_get_id(contact) as libc::c_int;
@@ -289,9 +289,9 @@ unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
                 );
                 lines_out += 1
             }
-            let msg = dc_get_msg(context, msg_id);
-            log_msg(context, "Msg", msg);
-            dc_msg_unref(msg);
+            if let Some(ref mut msg) = dc_get_msg(context, msg_id) {
+                log_msg(context, "Msg", msg);
+            }
         }
     }
     if lines_out > 0 {
@@ -517,19 +517,21 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "get-setupcodebegin" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing.");
             let msg_id: u32 = arg1.parse()?;
-            let msg: *mut dc_msg_t = dc_get_msg(context, msg_id);
-            if dc_msg_is_setupmessage(msg) {
-                let setupcodebegin = dc_msg_get_setupcodebegin(msg);
-                println!(
-                    "The setup code for setup message Msg#{} starts with: {}",
-                    msg_id,
-                    as_str(setupcodebegin),
-                );
-                free(setupcodebegin as *mut libc::c_void);
+            if let Some(msg) = dc_get_msg(context, msg_id) {
+                if dc_msg_is_setupmessage(&msg) {
+                    let setupcodebegin = dc_msg_get_setupcodebegin(&msg);
+                    println!(
+                        "The setup code for setup message Msg#{} starts with: {}",
+                        msg_id,
+                        as_str(setupcodebegin),
+                    );
+                    free(setupcodebegin as *mut libc::c_void);
+                } else {
+                    bail!("Msg#{} is no setup message.", msg_id,);
+                }
             } else {
-                bail!("Msg#{} is no setup message.", msg_id,);
+                bail!("Msg#{} not found.", msg_id,);
             }
-            dc_msg_unref(msg);
         }
         "continue-key-transfer" => {
             ensure!(
@@ -736,10 +738,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 log_msglist(context, msglist);
                 dc_array_unref(msglist);
             }
-            let draft = dc_get_draft(context, dc_chat_get_id(sel_chat));
-            if !draft.is_null() {
+            if let Some(ref mut draft) = dc_get_draft(context, dc_chat_get_id(sel_chat)) {
                 log_msg(context, "Draft", draft);
-                dc_msg_unref(draft);
             }
             println!(
                 "{} messages.",
@@ -960,7 +960,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty() && !arg2.is_empty(), "No file given.");
 
-            let msg_0 = dc_msg_new(
+            let mut msg_0 = dc_msg_new(
                 context,
                 if arg0 == "sendimage" {
                     Viewtype::Image
@@ -968,10 +968,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     Viewtype::File
                 },
             );
-            dc_msg_set_file(msg_0, arg1_c, 0 as *const libc::c_char);
-            dc_msg_set_text(msg_0, arg2_c);
-            dc_send_msg(context, dc_chat_get_id(sel_chat), msg_0);
-            dc_msg_unref(msg_0);
+            dc_msg_set_file(&mut msg_0, arg1_c, 0 as *const libc::c_char);
+            dc_msg_set_text(&mut msg_0, arg2_c);
+            dc_send_msg(context, dc_chat_get_id(sel_chat), &mut msg_0);
         }
         "listmsgs" => {
             ensure!(!arg1.is_empty(), "Argument <query> missing.");
@@ -994,13 +993,12 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
 
             if !arg1.is_empty() {
-                let draft_0 = dc_msg_new(context, Viewtype::Text);
-                dc_msg_set_text(draft_0, arg1_c);
-                dc_set_draft(context, dc_chat_get_id(sel_chat), draft_0);
-                dc_msg_unref(draft_0);
+                let mut draft_0 = dc_msg_new(context, Viewtype::Text);
+                dc_msg_set_text(&mut draft_0, arg1_c);
+                dc_set_draft(context, dc_chat_get_id(sel_chat), Some(&mut draft_0));
                 println!("Draft saved.");
             } else {
-                dc_set_draft(context, dc_chat_get_id(sel_chat), 0 as *mut dc_msg_t);
+                dc_set_draft(context, dc_chat_get_id(sel_chat), None);
                 println!("Draft deleted.");
             }
         }

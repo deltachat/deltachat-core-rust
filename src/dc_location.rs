@@ -75,7 +75,6 @@ pub unsafe fn dc_send_locations_to_chat(
     seconds: libc::c_int,
 ) {
     let now = time();
-    let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let is_sending_locations_before: bool;
     if !(seconds < 0i32 || chat_id <= 9i32 as libc::c_uint) {
         is_sending_locations_before = dc_is_sending_locations_to_chat(context, chat_id);
@@ -99,12 +98,12 @@ pub unsafe fn dc_send_locations_to_chat(
         .is_ok()
         {
             if 0 != seconds && !is_sending_locations_before {
-                msg = dc_msg_new(context, Viewtype::Text);
-                (*msg).text = context
+                let mut msg = dc_msg_new(context, Viewtype::Text);
+                msg.text = context
                     .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0)
                     .strdup();
-                (*msg).param.set_int(Param::Cmd, 8);
-                dc_send_msg(context, chat_id, msg);
+                msg.param.set_int(Param::Cmd, 8);
+                dc_send_msg(context, chat_id, &mut msg);
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str = CString::new(context.stock_system_msg(
                     StockMessage::MsgLocationDisabled,
@@ -132,7 +131,6 @@ pub unsafe fn dc_send_locations_to_chat(
             }
         }
     }
-    dc_msg_unref(msg);
 }
 
 /*******************************************************************************
@@ -701,10 +699,9 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                             // (might not be 100%, however, as positions are sent combined later
                             // and dc_set_location() is typically called periodically, this is ok)
                             let mut msg = dc_msg_new(context, Viewtype::Text);
-                            (*msg).hidden = 1;
-                            (*msg).param.set_int(Param::Cmd, 9);
-                            dc_send_msg(context, chat_id as u32, msg);
-                            dc_msg_unref(msg);
+                            msg.hidden = 1;
+                            msg.param.set_int(Param::Cmd, 9);
+                            dc_send_msg(context, chat_id as u32, &mut msg);
                         }
                         Ok(())
                     },

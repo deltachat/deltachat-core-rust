@@ -262,40 +262,39 @@ unsafe fn send_handshake_msg(
     fingerprint: *const libc::c_char,
     grpid: *const libc::c_char,
 ) {
-    let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    (*msg).type_0 = Viewtype::Text;
-    (*msg).text = dc_mprintf(
+    let mut msg = dc_msg_new_untyped(context);
+    msg.type_0 = Viewtype::Text;
+    msg.text = dc_mprintf(
         b"Secure-Join: %s\x00" as *const u8 as *const libc::c_char,
         step,
     );
-    (*msg).hidden = 1;
-    (*msg).param.set_int(Param::Cmd, 7);
+    msg.hidden = 1;
+    msg.param.set_int(Param::Cmd, 7);
     if step.is_null() {
-        (*msg).param.remove(Param::Arg);
+        msg.param.remove(Param::Arg);
     } else {
-        (*msg).param.set(Param::Arg, as_str(step));
+        msg.param.set(Param::Arg, as_str(step));
     }
     if !param2.is_null() {
-        (*msg).param.set(Param::Arg2, as_str(param2));
+        msg.param.set(Param::Arg2, as_str(param2));
     }
     if !fingerprint.is_null() {
-        (*msg).param.set(Param::Arg3, as_str(fingerprint));
+        msg.param.set(Param::Arg3, as_str(fingerprint));
     }
     if !grpid.is_null() {
-        (*msg).param.set(Param::Arg4, as_str(grpid));
+        msg.param.set(Param::Arg4, as_str(grpid));
     }
     if strcmp(step, b"vg-request\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(step, b"vc-request\x00" as *const u8 as *const libc::c_char) == 0i32
     {
-        (*msg).param.set_int(
+        msg.param.set_int(
             Param::ForcePlaintext,
             ForcePlaintext::AddAutocryptHeader as i32,
         );
     } else {
-        (*msg).param.set_int(Param::GuranteeE2ee, 1);
+        msg.param.set_int(Param::GuranteeE2ee, 1);
     }
-    dc_send_msg(context, contact_chat_id, msg);
-    dc_msg_unref(msg);
+    dc_send_msg(context, contact_chat_id, &mut msg);
 }
 
 unsafe fn chat_id_2_contact_id(context: &Context, contact_chat_id: uint32_t) -> uint32_t {

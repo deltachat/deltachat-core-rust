@@ -418,7 +418,7 @@ pub unsafe fn dc_job_try_again_later(
 #[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
     let mut current_block: u64;
-    let msg = dc_msg_new_untyped(context);
+    let mut msg = dc_msg_new_untyped(context);
     let mut dest_uid: uint32_t = 0i32 as uint32_t;
 
     let inbox = context.inbox.read().unwrap();
@@ -436,7 +436,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
     }
     match current_block {
         2473556513754201174 => {
-            if dc_msg_load_from_db(msg, context, job.foreign_id) {
+            if dc_msg_load_from_db(&mut msg, context, job.foreign_id) {
                 if context
                     .sql
                     .get_config_int(context, "folders_configured")
@@ -448,12 +448,12 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                 let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
 
                 if let Some(dest_folder) = dest_folder {
-                    let server_folder = as_str((*msg).server_folder);
+                    let server_folder = as_str(msg.server_folder);
 
                     match inbox.mv(
                         context,
                         server_folder,
-                        (*msg).server_uid,
+                        msg.server_uid,
                         &dest_folder,
                         &mut dest_uid,
                     ) as libc::c_uint
@@ -464,7 +464,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                                 12072121998757195963 => {
                                     dc_update_server_uid(
                                         context,
-                                        (*msg).rfc724_mid,
+                                        msg.rfc724_mid,
                                         &dest_folder,
                                         dest_uid,
                                     );
@@ -480,7 +480,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                                 12072121998757195963 => {
                                     dc_update_server_uid(
                                         context,
-                                        (*msg).rfc724_mid,
+                                        msg.rfc724_mid,
                                         &dest_folder,
                                         dest_uid,
                                     );
@@ -497,8 +497,6 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
         }
         _ => {}
     }
-
-    dc_msg_unref(msg);
 }
 
 /* ******************************************************************************
@@ -566,7 +564,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
 #[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_job_t) {
     let mut current_block: u64;
-    let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
+    let mut msg = dc_msg_new_untyped(context);
     let inbox = context.inbox.read().unwrap();
 
     if !inbox.is_connected() {
@@ -582,9 +580,9 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
     }
     match current_block {
         15240798224410183470 => {
-            if dc_msg_load_from_db(msg, context, job.foreign_id) {
-                let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
-                match inbox.set_seen(context, server_folder, (*msg).server_uid) as libc::c_uint {
+            if dc_msg_load_from_db(&mut msg, context, job.foreign_id) {
+                let server_folder = CStr::from_ptr(msg.server_folder).to_str().unwrap();
+                match inbox.set_seen(context, server_folder, msg.server_uid) as libc::c_uint {
                     0 => {}
                     1 => {
                         current_block = 12392248546350854223;
@@ -593,22 +591,22 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
                             }
                             _ => {
-                                if 0 != (*msg).param.get_int(Param::WantsMdn).unwrap_or_default()
+                                if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
                                     && 0 != context
                                         .sql
                                         .get_config_int(context, "mdns_enabled")
                                         .unwrap_or_else(|| 1)
                                 {
                                     let folder =
-                                        CStr::from_ptr((*msg).server_folder).to_str().unwrap();
-                                    match inbox.set_mdnsent(context, folder, (*msg).server_uid)
+                                        CStr::from_ptr(msg.server_folder).to_str().unwrap();
+                                    match inbox.set_mdnsent(context, folder, msg.server_uid)
                                         as libc::c_uint
                                     {
                                         1 => {
                                             current_block = 4016212065805849280;
                                             match current_block {
                                                 6186957421461061791 => {
-                                                    dc_send_mdn(context, (*msg).id);
+                                                    dc_send_mdn(context, msg.id);
                                                 }
                                                 _ => {
                                                     dc_job_try_again_later(
@@ -623,7 +621,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                                             current_block = 6186957421461061791;
                                             match current_block {
                                                 6186957421461061791 => {
-                                                    dc_send_mdn(context, (*msg).id);
+                                                    dc_send_mdn(context, msg.id);
                                                 }
                                                 _ => {
                                                     dc_job_try_again_later(
@@ -647,23 +645,23 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                                 dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
                             }
                             _ => {
-                                if 0 != (*msg).param.get_int(Param::WantsMdn).unwrap_or_default()
+                                if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
                                     && 0 != context
                                         .sql
                                         .get_config_int(context, "mdns_enabled")
                                         .unwrap_or_else(|| 1)
                                 {
                                     let folder =
-                                        CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                                        CStr::from_ptr(msg.server_folder).to_str().unwrap();
 
-                                    match inbox.set_mdnsent(context, folder, (*msg).server_uid)
+                                    match inbox.set_mdnsent(context, folder, msg.server_uid)
                                         as libc::c_uint
                                     {
                                         1 => {
                                             current_block = 4016212065805849280;
                                             match current_block {
                                                 6186957421461061791 => {
-                                                    dc_send_mdn(context, (*msg).id);
+                                                    dc_send_mdn(context, msg.id);
                                                 }
                                                 _ => {
                                                     dc_job_try_again_later(
@@ -678,7 +676,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                                             current_block = 6186957421461061791;
                                             match current_block {
                                                 6186957421461061791 => {
-                                                    dc_send_mdn(context, (*msg).id);
+                                                    dc_send_mdn(context, msg.id);
                                                 }
                                                 _ => {
                                                     dc_job_try_again_later(
@@ -700,7 +698,6 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
         }
         _ => {}
     }
-    dc_msg_unref(msg);
 }
 unsafe fn dc_send_mdn(context: &Context, msg_id: uint32_t) {
     let mut mimefactory: dc_mimefactory_t = dc_mimefactory_t {
@@ -712,7 +709,7 @@ unsafe fn dc_send_mdn(context: &Context, msg_id: uint32_t) {
         timestamp: 0,
         rfc724_mid: 0 as *mut libc::c_char,
         loaded: DC_MF_NOTHING_LOADED,
-        msg: 0 as *mut dc_msg_t,
+        msg: dc_msg_new(context, Viewtype::Unknown),
         chat: 0 as *mut Chat,
         increation: 0,
         in_reply_to: 0 as *mut libc::c_char,
@@ -794,7 +791,7 @@ unsafe fn dc_add_smtp_job(
             (if (*mimefactory).loaded as libc::c_uint
                 == DC_MF_MSG_LOADED as libc::c_int as libc::c_uint
             {
-                (*(*mimefactory).msg).id
+                (*mimefactory).msg.id
             } else {
                 0
             }) as libc::c_int,
@@ -867,15 +864,15 @@ pub unsafe fn dc_interrupt_imap_idle(context: &Context) {
 unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_job_t) {
     let mut current_block: u64;
     let mut delete_from_server: libc::c_int = 1i32;
-    let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
+    let mut msg = dc_msg_new_untyped(context);
     let inbox = context.inbox.read().unwrap();
 
-    if !(!dc_msg_load_from_db(msg, context, job.foreign_id)
-        || (*msg).rfc724_mid.is_null()
-        || *(*msg).rfc724_mid.offset(0isize) as libc::c_int == 0i32)
+    if !(!dc_msg_load_from_db(&mut msg, context, job.foreign_id)
+        || msg.rfc724_mid.is_null()
+        || *msg.rfc724_mid.offset(0isize) as libc::c_int == 0i32)
     {
         /* eg. device messages have no Message-ID */
-        if dc_rfc724_mid_cnt(context, (*msg).rfc724_mid) != 1i32 {
+        if dc_rfc724_mid_cnt(context, msg.rfc724_mid) != 1i32 {
             info!(
                 context,
                 0, "The message is deleted from the server when all parts are deleted.",
@@ -898,9 +895,9 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_jo
             match current_block {
                 8913536887710889399 => {}
                 _ => {
-                    let mid = CStr::from_ptr((*msg).rfc724_mid).to_str().unwrap();
-                    let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
-                    if 0 == inbox.delete_msg(context, mid, server_folder, &mut (*msg).server_uid) {
+                    let mid = CStr::from_ptr(msg.rfc724_mid).to_str().unwrap();
+                    let server_folder = CStr::from_ptr(msg.server_folder).to_str().unwrap();
+                    if 0 == inbox.delete_msg(context, mid, server_folder, &mut msg.server_uid) {
                         dc_job_try_again_later(job, -1i32, 0 as *const libc::c_char);
                         current_block = 8913536887710889399;
                     } else {
@@ -914,11 +911,10 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_jo
         match current_block {
             8913536887710889399 => {}
             _ => {
-                dc_delete_msg_from_db(context, (*msg).id);
+                dc_delete_msg_from_db(context, msg.id);
             }
         }
     }
-    dc_msg_unref(msg);
 }
 
 /* delete all pending jobs with the given action */
@@ -1154,7 +1150,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         timestamp: 0,
         rfc724_mid: 0 as *mut libc::c_char,
         loaded: DC_MF_NOTHING_LOADED,
-        msg: 0 as *mut dc_msg_t,
+        msg: dc_msg_new(context, Viewtype::Unknown),
         chat: 0 as *mut Chat,
         increation: 0,
         in_reply_to: 0 as *mut libc::c_char,
@@ -1176,23 +1172,24 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         );
     } else {
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
-        if msgtype_has_file((*mimefactory.msg).type_0) {
-            let pathNfilename = (*mimefactory.msg)
+        if msgtype_has_file(mimefactory.msg.type_0) {
+            let pathNfilename = mimefactory
+                .msg
                 .param
                 .get(Param::File)
                 .unwrap_or_default()
                 .strdup();
             if strlen(pathNfilename) > 0 {
-                if ((*mimefactory.msg).type_0 == Viewtype::Image
-                    || (*mimefactory.msg).type_0 == Viewtype::Gif)
-                    && !(*mimefactory.msg).param.exists(Param::Width)
+                if (mimefactory.msg.type_0 == Viewtype::Image
+                    || mimefactory.msg.type_0 == Viewtype::Gif)
+                    && !mimefactory.msg.param.exists(Param::Width)
                 {
                     let mut buf = 0 as *mut libc::c_uchar;
                     let mut buf_bytes: size_t = 0;
                     let mut w = 0;
                     let mut h = 0;
-                    (*mimefactory.msg).param.set_int(Param::Width, 0);
-                    (*mimefactory.msg).param.set_int(Param::Height, 0);
+                    mimefactory.msg.param.set_int(Param::Width, 0);
+                    mimefactory.msg.param.set_int(Param::Height, 0);
                     if 0 != dc_read_file(
                         context,
                         pathNfilename,
@@ -1205,12 +1202,12 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                             &mut w,
                             &mut h,
                         ) {
-                            (*mimefactory.msg).param.set_int(Param::Width, w as i32);
-                            (*mimefactory.msg).param.set_int(Param::Height, h as i32);
+                            mimefactory.msg.param.set_int(Param::Width, w as i32);
+                            mimefactory.msg.param.set_int(Param::Height, h as i32);
                         }
                     }
                     free(buf as *mut libc::c_void);
-                    dc_msg_save_param_to_disk(mimefactory.msg);
+                    dc_msg_save_param_to_disk(&mut mimefactory.msg);
                 }
             }
             free(pathNfilename as *mut libc::c_void);
@@ -1219,7 +1216,8 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         if 0 == dc_mimefactory_render(&mut mimefactory) {
             dc_set_msg_failed(context, msg_id, mimefactory.error);
         } else if 0
-            != (*mimefactory.msg)
+            != mimefactory
+                .msg
                 .param
                 .get_int(Param::GuranteeE2ee)
                 .unwrap_or_default()
@@ -1230,7 +1228,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 0,
                 "e2e encryption unavailable {} - {:?}",
                 msg_id,
-                (*mimefactory.msg).param.get_int(Param::GuranteeE2ee),
+                mimefactory.msg.param.get_int(Param::GuranteeE2ee),
             );
             dc_set_msg_failed(
                 context,
@@ -1255,27 +1253,28 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 );
             }
             if 0 != mimefactory.out_gossiped {
-                dc_set_gossiped_timestamp(context, (*mimefactory.msg).chat_id, time());
+                dc_set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
-                dc_set_kml_sent_timestamp(context, (*mimefactory.msg).chat_id, time());
-                if 0 == (*mimefactory.msg).hidden {
+                dc_set_kml_sent_timestamp(context, mimefactory.msg.chat_id, time());
+                if 0 == mimefactory.msg.hidden {
                     dc_set_msg_location_id(
                         context,
-                        (*mimefactory.msg).id,
+                        mimefactory.msg.id,
                         mimefactory.out_last_added_location_id,
                     );
                 }
             }
             if 0 != mimefactory.out_encrypted
-                && (*mimefactory.msg)
+                && mimefactory
+                    .msg
                     .param
                     .get_int(Param::GuranteeE2ee)
                     .unwrap_or_default()
                     == 0
             {
-                (*mimefactory.msg).param.set_int(Param::GuranteeE2ee, 1);
-                dc_msg_save_param_to_disk(mimefactory.msg);
+                mimefactory.msg.param.set_int(Param::GuranteeE2ee, 1);
+                dc_msg_save_param_to_disk(&mut mimefactory.msg);
             }
             dc_add_to_keyhistory(
                 context,

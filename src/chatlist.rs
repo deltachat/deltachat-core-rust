@@ -274,31 +274,36 @@ impl<'a> Chatlist<'a> {
             }
         }
 
-        let lastmsg = if 0 != lastmsg_id {
-            let lastmsg = dc_msg_new_untyped(self.context);
-            dc_msg_load_from_db(lastmsg, self.context, lastmsg_id);
+        let mut lastmsg = if 0 != lastmsg_id {
+            let mut lastmsg = dc_msg_new_untyped(self.context);
+            dc_msg_load_from_db(&mut lastmsg, self.context, lastmsg_id);
 
-            if (*lastmsg).from_id != 1 as libc::c_uint
+            if lastmsg.from_id != 1 as libc::c_uint
                 && ((*chat).type_0 == DC_CHAT_TYPE_GROUP
                     || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP)
             {
                 lastcontact = dc_contact_new(self.context);
-                dc_contact_load_from_db(lastcontact, &self.context.sql, (*lastmsg).from_id);
+                dc_contact_load_from_db(lastcontact, &self.context.sql, lastmsg.from_id);
             }
-            lastmsg
+            Some(lastmsg)
         } else {
-            std::ptr::null_mut()
+            None
         };
 
         if (*chat).id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
             (*ret).text2 = dc_strdup(0 as *const libc::c_char)
-        } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_SELF as u32 {
-            (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
         } else {
-            dc_lot_fill(ret, lastmsg, chat, lastcontact, self.context);
+            match lastmsg {
+                None => {
+                    (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
+                }
+                Some(ref msg) if msg.from_id == DC_CONTACT_ID_SELF as u32 => {
+                    (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
+                }
+                Some(ref mut lastmsg) => dc_lot_fill(ret, lastmsg, chat, lastcontact, self.context),
+            }
         }
 
-        dc_msg_unref(lastmsg);
         dc_contact_unref(lastcontact);
 
         ret

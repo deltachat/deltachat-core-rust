@@ -350,6 +350,7 @@ pub unsafe extern "C" fn dc_prepare_msg(
 ) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
+    let msg = &mut *msg;
 
     dc_chat::dc_prepare_msg(context, chat_id, msg)
 }
@@ -362,6 +363,7 @@ pub unsafe extern "C" fn dc_send_msg(
 ) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
+    let msg = &mut *msg;
 
     dc_chat::dc_send_msg(context, chat_id, msg)
 }
@@ -386,8 +388,17 @@ pub unsafe extern "C" fn dc_set_draft(
 ) {
     assert!(!context.is_null());
     let context = &*context;
+    let msg = if msg.is_null() { None } else { Some(&mut *msg) };
 
     dc_chat::dc_set_draft(context, chat_id, msg)
+}
+
+unsafe fn option_to_raw<'a, T>(x: Option<T>) -> *mut T {
+    if let Some(y) = x {
+        Box::into_raw(Box::new(y))
+    } else {
+        ptr::null_mut()
+    }
 }
 
 #[no_mangle]
@@ -398,7 +409,7 @@ pub unsafe extern "C" fn dc_get_draft<'a>(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_draft(context, chat_id)
+    option_to_raw(dc_chat::dc_get_draft(context, chat_id))
 }
 
 #[no_mangle]
@@ -727,7 +738,7 @@ pub unsafe extern "C" fn dc_get_msg<'a>(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_msg::dc_get_msg(context, msg_id)
+    option_to_raw(dc_msg::dc_get_msg(context, msg_id))
 }
 
 #[no_mangle]
@@ -1262,7 +1273,7 @@ pub unsafe extern "C" fn dc_msg_new<'a>(
     assert!(!context.is_null());
     let context = &*context;
     if let Some(viewtype) = from_prim(viewtype) {
-        dc_msg::dc_msg_new(context, viewtype)
+        Box::into_raw(Box::new(dc_msg::dc_msg_new(context, viewtype)))
     } else {
         ptr::null_mut()
     }
@@ -1270,11 +1281,12 @@ pub unsafe extern "C" fn dc_msg_new<'a>(
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_unref(msg: *mut dc_msg::dc_msg_t) {
-    dc_msg::dc_msg_unref(msg)
+    Box::from_raw(msg);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_empty(msg: *mut dc_msg::dc_msg_t) {
+    let msg = &mut *msg;
     dc_msg::dc_msg_empty(msg)
 }
 
@@ -1307,61 +1319,73 @@ pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg::dc_msg_t) -> libc::c
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
+    let msg = &*msg;
     dc_msg::dc_msg_get_timestamp(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_received_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
+    let msg = &*msg;
     dc_msg::dc_msg_get_received_timestamp(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
+    let msg = &*msg;
     dc_msg::dc_msg_get_sort_timestamp(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    let msg = &*msg;
     dc_msg::dc_msg_get_text(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    let msg = &*msg;
     dc_msg::dc_msg_get_file(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    let msg = &*msg;
     dc_msg::dc_msg_get_filename(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+    let msg = &*msg;
     dc_msg::dc_msg_get_filemime(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg::dc_msg_t) -> u64 {
+    let msg = &*msg;
     dc_msg::dc_msg_get_filebytes(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_width(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_get_width(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_height(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_get_height(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_duration(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_get_duration(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_get_showpadlock(msg)
 }
 
@@ -1370,6 +1394,7 @@ pub unsafe extern "C" fn dc_msg_get_summary<'a>(
     msg: *mut dc_msg::dc_msg_t<'a>,
     chat: *mut dc_chat_t<'a>,
 ) -> *mut dc_lot::dc_lot_t {
+    let msg = &mut *msg;
     dc_msg::dc_msg_get_summary(msg, chat)
 }
 
@@ -1378,46 +1403,55 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
     msg: *mut dc_msg::dc_msg_t,
     approx_characters: libc::c_int,
 ) -> *mut libc::c_char {
+    let msg = &mut *msg;
     dc_msg::dc_msg_get_summarytext(msg, approx_characters)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_has_deviating_timestamp(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_has_location(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_has_location(msg) as libc::c_int
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_is_sent(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_starred(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_is_starred(msg).into()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_forwarded(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_is_forwarded(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_info(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_is_info(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_is_increation(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+    let msg = &*msg;
     dc_msg::dc_msg_is_setupmessage(msg) as libc::c_int
 }
 
@@ -1425,11 +1459,13 @@ pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg::dc_msg_t) -> l
 pub unsafe extern "C" fn dc_msg_get_setupcodebegin(
     msg: *mut dc_msg::dc_msg_t,
 ) -> *mut libc::c_char {
+    let msg = &*msg;
     dc_msg::dc_msg_get_setupcodebegin(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg::dc_msg_t, text: *mut libc::c_char) {
+    let msg = &mut *msg;
     dc_msg::dc_msg_set_text(msg, text)
 }
 
@@ -1439,6 +1475,7 @@ pub unsafe extern "C" fn dc_msg_set_file(
     file: *mut libc::c_char,
     filemime: *mut libc::c_char,
 ) {
+    let msg = &mut *msg;
     dc_msg::dc_msg_set_file(msg, file, filemime)
 }
 
@@ -1448,11 +1485,13 @@ pub unsafe extern "C" fn dc_msg_set_dimension(
     width: libc::c_int,
     height: libc::c_int,
 ) {
+    let msg = &mut *msg;
     dc_msg::dc_msg_set_dimension(msg, width, height)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_duration(msg: *mut dc_msg::dc_msg_t, duration: libc::c_int) {
+    let msg = &mut *msg;
     dc_msg::dc_msg_set_duration(msg, duration)
 }
 
@@ -1462,6 +1501,7 @@ pub unsafe extern "C" fn dc_msg_set_location(
     latitude: libc::c_double,
     longitude: libc::c_double,
 ) {
+    let msg = &mut *msg;
     dc_msg::dc_msg_set_location(msg, latitude, longitude)
 }
 
@@ -1472,6 +1512,7 @@ pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
     height: libc::c_int,
     duration: libc::c_int,
 ) {
+    let msg = &mut *msg;
     dc_msg::dc_msg_latefiling_mediasize(msg, width, height, duration)
 }
 
