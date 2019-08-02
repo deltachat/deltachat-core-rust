@@ -455,38 +455,29 @@ pub fn dc_add_or_lookup_contact(
 
 #[allow(non_snake_case)]
 pub unsafe fn dc_add_address_book(context: &Context, adr_book: *const libc::c_char) -> libc::c_int {
-    let mut lines: *mut carray = 0 as *mut carray;
-    let mut i: size_t;
-    let iCnt: size_t;
     let mut sth_modified: libc::c_int = 0i32;
     let mut modify_cnt: libc::c_int = 0i32;
     if !(adr_book.is_null()) {
-        lines = dc_split_into_lines(adr_book);
-        if !lines.is_null() {
-            iCnt = carray_count(lines) as size_t;
-            i = 0i32 as size_t;
-            while i.wrapping_add(1) < iCnt {
-                let name: *mut libc::c_char =
-                    carray_get(lines, i as libc::c_uint) as *mut libc::c_char;
-                let addr: *mut libc::c_char =
-                    carray_get(lines, i.wrapping_add(1) as libc::c_uint) as *mut libc::c_char;
-                dc_normalize_name(name);
-                dc_add_or_lookup_contact(context, name, addr, 0x80000i32, &mut sth_modified);
-                if 0 != sth_modified {
-                    modify_cnt += 1
-                }
-                i = (i as libc::c_ulong).wrapping_add(2i32 as libc::c_ulong) as size_t as size_t
-            }
-            if 0 != modify_cnt {
-                context.call_cb(
-                    Event::CONTACTS_CHANGED,
-                    0i32 as uintptr_t,
-                    0i32 as uintptr_t,
-                );
+        let lines = dc_split_into_lines(adr_book);
+
+        for chunk in lines.chunks(2) {
+            let name: *mut libc::c_char = chunk[0];
+            let addr: *mut libc::c_char = chunk[1];
+            dc_normalize_name(name);
+            dc_add_or_lookup_contact(context, name, addr, 0x80000i32, &mut sth_modified);
+            if 0 != sth_modified {
+                modify_cnt += 1
             }
         }
+        if 0 != modify_cnt {
+            context.call_cb(
+                Event::CONTACTS_CHANGED,
+                0i32 as uintptr_t,
+                0i32 as uintptr_t,
+            );
+        }
+        dc_free_splitted_lines(lines);
     }
-    dc_free_splitted_lines(lines);
 
     modify_cnt
 }
