@@ -241,9 +241,7 @@ pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<Strin
 
     let msg_subj = context.stock_str(StockMessage::AcSetupMsgSubject);
     let msg_body = context.stock_str(StockMessage::AcSetupMsgBody);
-    // let msg_body_head: &str = msg_body.split('\r').next().unwrap();
-    // let msg_body_html = msg_body_head.replace("\n", "<br>");
-    let msg_body_html = msg_body.replace("\n", "<br>");
+    let msg_body_html = msg_body.replace("\r", "").replace("\n", "<br>");
     Ok(format!(
         concat!(
             "<!DOCTYPE html>\r\n",
@@ -1289,6 +1287,8 @@ mod tests {
 
     use std::ffi::CStr;
 
+    use num_traits::ToPrimitive;
+
     use crate::config::Config;
     use crate::key;
     use crate::test_utils::*;
@@ -1439,6 +1439,28 @@ mod tests {
         assert!(msg.contains("Passphrase-Begin: he\n"));
         assert!(msg.contains("==\n"));
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
+    }
+
+    unsafe extern "C" fn ac_setup_msg_cb(
+        ctx: &Context,
+        evt: Event,
+        d1: uintptr_t,
+        d2: uintptr_t,
+    ) -> uintptr_t {
+        if evt == Event::GET_STRING && d1 == StockMessage::AcSetupMsgBody.to_usize().unwrap() {
+            "hello\r\nthere".strdup() as usize
+        } else {
+            logging_cb(ctx, evt, d1, d2)
+        }
+    }
+
+    #[test]
+    fn test_render_setup_file_newline_replace() {
+        let t = test_context(Some(ac_setup_msg_cb));
+        create_alice_keypair(&t.ctx);
+        let msg = dc_render_setup_file(&t.ctx, "pw").unwrap();
+        println!("{}", &msg);
+        assert!(msg.contains("<p>hello<br>there</p>"));
     }
 
     #[test]
