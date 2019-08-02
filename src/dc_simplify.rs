@@ -20,6 +20,9 @@ impl dc_simplify_t {
         }
     }
 
+    /// Simplify and normalise text: Remove quotes, signatures, unnecessary
+    /// lineends etc.
+    /// The data returned from simplify() must be free()'d when no longer used.
     pub unsafe fn simplify(
         &mut self,
         in_unterminated: *const libc::c_char,
@@ -231,22 +234,6 @@ impl dc_simplify_t {
 
         ret.strdup()
     }
-}
-
-/* Simplify and normalise text: Remove quotes, signatures, unnecessary
-lineends etc.
-The data returned from Simplify() must be free()'d when no longer used, private */
-pub unsafe fn dc_simplify_simplify(
-    simplify: *mut dc_simplify_t,
-    in_unterminated: *const libc::c_char,
-    in_bytes: libc::c_int,
-    is_html: libc::c_int,
-    is_msgrmsg: libc::c_int,
-) -> *mut libc::c_char {
-    if simplify.is_null() || in_unterminated.is_null() || in_bytes <= 0i32 {
-        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
-    }
-    (*simplify).simplify(in_unterminated, in_bytes, is_html, is_msgrmsg)
 }
 
 /**
