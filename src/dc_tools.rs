@@ -17,7 +17,6 @@ const ELLIPSE: &'static str = "[...]";
 
 /* Some tools and enhancements to the used libraries, there should be
 no references to Context and other "larger" classes here. */
-// for carray etc.
 /* ** library-private **********************************************************/
 /* math tools */
 pub fn dc_exactly_one_bit_set(v: libc::c_int) -> bool {

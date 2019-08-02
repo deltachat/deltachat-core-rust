@@ -2,7 +2,6 @@
 use crate::constants::Event;
 use crate::context::Context;
 
-pub use mmime::carray::*;
 pub use mmime::clist::*;
 pub use rusqlite::ffi::*;
 
