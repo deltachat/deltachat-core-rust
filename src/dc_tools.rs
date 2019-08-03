@@ -821,9 +821,9 @@ pub fn dc_extract_grpid_from_rfc724_mid_r(mid: String) -> Option<String> {
     None
 }
 
-pub fn dc_extract_grpid_from_rfc724_mid(mid: *const libc::c_char) -> *mut libc::c_char {
+pub unsafe fn dc_extract_grpid_from_rfc724_mid(mid: *const libc::c_char) -> *mut libc::c_char {
     if let Some(grpid) = dc_extract_grpid_from_rfc724_mid_r(to_string(mid)) {
-        return unsafe { to_cstring(grpid) };
+        return to_cstring(grpid);
     }
     0 as *mut libc::c_char
 }
@@ -832,14 +832,14 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut 
     if !list.is_null() {
         let mut cur: *mut clistiter = (*list).first;
         while !cur.is_null() {
-            let mid: *const libc::c_char = (if !cur.is_null() {
-                (*cur).data
+            let mid = if !cur.is_null() {
+                to_string((*cur).data as *const libc::c_char)
             } else {
-                0 as *mut libc::c_void
-            }) as *const libc::c_char;
-            let grpid = dc_extract_grpid_from_rfc724_mid_r(to_string(mid));
-            if !grpid.is_none() {
-                return to_cstring(grpid.unwrap());
+                "".to_string()
+            };
+            
+            if let Some(grpid) = dc_extract_grpid_from_rfc724_mid_r(mid) {
+                return to_cstring(grpid);
             }
             cur = if !cur.is_null() {
                 (*cur).next
@@ -2119,7 +2119,7 @@ mod tests {
     }
 
     #[test]
-    fn test_dto_cstringto_cstringc_extract_grpid_from_rfc724_mid() {
+    fn test_dc_extract_grpid_from_rfc724_mid() {
         unsafe {
             // Should return 0 if we pass invalid mid
             let str = b"foobar\x00" as *const u8 as *const libc::c_char;
