@@ -52,7 +52,7 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &Context, msg_id: uint32_t) -> u
             dc_unblock_chat(context, (*chat).id);
             send_event = 1i32
         }
-        dc_scaleup_contact_origin(context, (*msg).from_id, 0x800i32);
+        dc_scaleup_contact_origin(context, (*msg).from_id, Origin::CreateChat);
     }
 
     dc_msg_unref(msg);
@@ -222,7 +222,7 @@ pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32
         if 0 != chat_id {
             send_event = 1;
         }
-        dc_scaleup_contact_origin(context, contact_id, 0x800i32);
+        dc_scaleup_contact_origin(context, contact_id, Origin::CreateChat);
     }
     if 0 != send_event {
         context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);

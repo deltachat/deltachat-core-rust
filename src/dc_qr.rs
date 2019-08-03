@@ -257,7 +257,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                                 context,
                                                 0 as *const libc::c_char,
                                                 addr_ptr,
-                                                0x80i32,
+                                                Origin::UnhandledQrScan,
                                                 0 as *mut libc::c_int,
                                             );
                                             free(addr_ptr as *mut _);
@@ -290,7 +290,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                             context,
                                             name,
                                             addr,
-                                            0x80i32,
+                                            Origin::UnhandledQrScan,
                                             0 as *mut libc::c_int,
                                         );
                                         (*qr_parsed).fingerprint = dc_strdup(fingerprint);
@@ -303,7 +303,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                         context,
                                         name,
                                         addr,
-                                        0x80i32,
+                                        Origin::UnhandledQrScan,
                                         0 as *mut libc::c_int,
                                     )
                                 } else if strstr(

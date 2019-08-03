@@ -38,7 +38,7 @@ pub unsafe fn dc_receive_imf(
     let mut current_block: u64;
     /* the function returns the number of created messages in the database */
     let mut incoming: libc::c_int = 1;
-    let mut incoming_origin: libc::c_int = 0;
+    let mut incoming_origin = Origin::Unknown;
     let mut to_self: libc::c_int = 0;
     let mut from_id: uint32_t = 0 as uint32_t;
     let mut from_id_blocked: libc::c_int = 0;
@@ -103,7 +103,7 @@ pub unsafe fn dc_receive_imf(
                 dc_add_or_lookup_contacts_by_mailbox_list(
                     context,
                     (*fld_from).frm_mb_list,
-                    0x10,
+                    Origin::IncomingUnknownFrom,
                     from_list,
                     &mut check_self,
                 );
@@ -127,11 +127,11 @@ pub unsafe fn dc_receive_imf(
                     context,
                     (*fld_to).to_addr_list,
                     if 0 == incoming {
-                        0x4000
-                    } else if incoming_origin >= 0x100 {
-                        0x400
+                        Origin::OutgoingTo
+                    } else if incoming_origin.is_verified() {
+                        Origin::IncomingTo
                     } else {
-                        0x40
+                        Origin::IncomingUnknownTo
                     },
                     to_ids,
                     &mut to_self,
@@ -147,11 +147,11 @@ pub unsafe fn dc_receive_imf(
                         context,
                         (*fld_cc).cc_addr_list,
                         if 0 == incoming {
-                            0x2000
-                        } else if incoming_origin >= 0x100 {
-                            0x200
+                            Origin::OutgoingCc
+                        } else if incoming_origin.is_verified() {
+                            Origin::IncomingCc
                         } else {
-                            0x20
+                            Origin::IncomingUnknownCc
                         },
                         to_ids,
                         0 as *mut libc::c_int,
@@ -253,7 +253,7 @@ pub unsafe fn dc_receive_imf(
                             if chat_id == 0 as libc::c_uint {
                                 let create_blocked: libc::c_int = if 0 != test_normal_chat_id
                                     && test_normal_chat_id_blocked == 0
-                                    || incoming_origin >= 0x7fffffff
+                                    || incoming_origin.is_start_new_chat()
                                 {
                                     0
                                 } else {
@@ -285,7 +285,7 @@ pub unsafe fn dc_receive_imf(
                             }
                             if chat_id == 0 as libc::c_uint {
                                 let create_blocked_0: libc::c_int =
-                                    if incoming_origin >= 0x7fffffff || from_id == to_id {
+                                    if incoming_origin.is_start_new_chat() || from_id == to_id {
                                         0
                                     } else {
                                         2
@@ -309,16 +309,20 @@ pub unsafe fn dc_receive_imf(
                                     } else if 0
                                         != dc_is_reply_to_known_message(context, &mime_parser)
                                     {
-                                        dc_scaleup_contact_origin(context, from_id, 0x100);
+                                        dc_scaleup_contact_origin(
+                                            context,
+                                            from_id,
+                                            Origin::IncomingReplyTo,
+                                        );
                                         info!(
                                             context,
                                             0,
                                             "Message is a reply to a known message, mark sender as known.",
                                         );
-                                        incoming_origin = if incoming_origin > 0x100 {
+                                        incoming_origin = if incoming_origin.is_verified() {
                                             incoming_origin
                                         } else {
-                                            0x100
+                                            Origin::IncomingReplyTo
                                         }
                                     }
                                 }
@@ -327,8 +331,8 @@ pub unsafe fn dc_receive_imf(
                                 chat_id = 3 as uint32_t
                             }
                             if 0 != chat_id_blocked && state == 10 {
-                                if incoming_origin < 0x100 && msgrmsg == 0 {
-                                    state = 13
+                                if !incoming_origin.is_verified() && msgrmsg == 0 {
+                                    state = 13;
                                 }
                             }
                         } else {
@@ -1881,7 +1885,7 @@ fn is_msgrmsg_rfc724_mid(context: &Context, rfc724_mid: *const libc::c_char) -> 
 unsafe fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     adr_list: *const mailimf_address_list,
-    origin: libc::c_int,
+    origin: Origin,
     ids: *mut dc_array_t,
     check_self: *mut libc::c_int,
 ) {
@@ -1931,7 +1935,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
 unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
     context: &Context,
     mb_list: *const mailimf_mailbox_list,
-    origin: libc::c_int,
+    origin: Origin,
     ids: *mut dc_array_t,
     check_self: *mut libc::c_int,
 ) {
@@ -1969,7 +1973,7 @@ unsafe fn add_or_lookup_contact_by_addr(
     context: &Context,
     display_name_enc: *const libc::c_char,
     addr_spec: *const libc::c_char,
-    origin: libc::c_int,
+    origin: Origin,
     ids: *mut dc_array_t,
     mut check_self: *mut libc::c_int,
 ) {

@@ -1,5 +1,9 @@
 use std::ffi::CString;
 
+use num_traits::{FromPrimitive, ToPrimitive};
+use rusqlite;
+use rusqlite::types::*;
+
 use crate::aheader::EncryptPreference;
 use crate::config;
 use crate::constants::*;
@@ -25,7 +29,81 @@ pub struct Contact<'a> {
     pub authname: *mut libc::c_char,
     pub addr: *mut libc::c_char,
     pub blocked: libc::c_int,
-    pub origin: libc::c_int,
+    /// The origin/source of the contact.
+    pub origin: Origin,
+}
+
+/// Possible origins of a contact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum Origin {
+    Unknown = 0,
+    /// From: of incoming messages of unknown sender
+    IncomingUnknownFrom = 0x10,
+    /// Cc: of incoming messages of unknown sender
+    IncomingUnknownCc = 0x20,
+    /// To: of incoming messages of unknown sender
+    IncomingUnknownTo = 0x40,
+    /// address scanned but not verified
+    UnhandledQrScan = 0x80,
+    /// Reply-To: of incoming message of known sender
+    IncomingReplyTo = 0x100,
+    /// Cc: of incoming message of known sender
+    IncomingCc = 0x200,
+    /// additional To:'s of incoming message of known sender
+    IncomingTo = 0x400,
+    /// a chat was manually created for this user, but no message yet sent
+    CreateChat = 0x800,
+    /// message sent by us
+    OutgoingBcc = 0x1000,
+    /// message sent by us
+    OutgoingCc = 0x2000,
+    /// message sent by us
+    OutgoingTo = 0x4000,
+    /// internal use
+    Internal = 0x40000,
+    /// address is in our address book
+    AdressBook = 0x80000,
+    /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
+    SecurejoinInvited = 0x1000000,
+    /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
+    SecurejoinJoined = 0x2000000,
+    /// contact added mannually by dc_create_contact(), this should be the largets origin as otherwise the user cannot modify the names
+    ManuallyCreated = 0x4000000,
+}
+
+impl ToSql for Origin {
+    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput> {
+        let num: i64 = self
+            .to_i64()
+            .expect("impossible: Origin -> i64 conversion failed");
+
+        Ok(ToSqlOutput::Owned(Value::Integer(num)))
+    }
+}
+
+impl FromSql for Origin {
+    fn column_result(col: ValueRef) -> FromSqlResult<Self> {
+        let inner = FromSql::column_result(col)?;
+        FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
+    }
+}
+
+impl Origin {
+    /// Contacts that start a new "normal" chat, defaults to off.
+    pub fn is_start_new_chat(self) -> bool {
+        self as i32 >= 0x7FFFFFFF
+    }
+
+    /// Contacts that are verified and known not to be spam.
+    pub fn is_verified(self) -> bool {
+        self as i32 >= 0x100
+    }
+
+    /// Contacts that are shown in the contact list.
+    pub fn include_in_contactlist(self) -> bool {
+        self as i32 >= 0x100
+    }
 }
 
 impl<'a> Contact<'a> {
@@ -52,7 +130,7 @@ impl<'a> Contact<'a> {
             authname: std::ptr::null_mut(),
             addr: std::ptr::null_mut(),
             blocked: 0,
-            origin: 0,
+            origin: Origin::Unknown,
         }
     }
 
@@ -223,7 +301,13 @@ pub unsafe fn dc_create_contact(
     let mut sth_modified: libc::c_int = 0i32;
     let blocked: bool;
     if !(addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32) {
-        contact_id = dc_add_or_lookup_contact(context, name, addr, 0x4000000i32, &mut sth_modified);
+        contact_id = dc_add_or_lookup_contact(
+            context,
+            name,
+            addr,
+            Origin::ManuallyCreated,
+            &mut sth_modified,
+        );
         blocked = dc_is_contact_blocked(context, contact_id);
         context.call_cb(
             Event::CONTACTS_CHANGED,
@@ -297,7 +381,7 @@ pub fn dc_add_or_lookup_contact(
     context: &Context,
     name: *const libc::c_char,
     addr__: *const libc::c_char,
-    origin: libc::c_int,
+    origin: Origin,
     mut sth_modified: *mut libc::c_int,
 ) -> uint32_t {
     let mut dummy = 0;
@@ -307,7 +391,7 @@ pub fn dc_add_or_lookup_contact(
     }
     unsafe { *sth_modified = 0 };
 
-    if addr__.is_null() || origin <= 0 {
+    if addr__.is_null() || origin == Origin::Unknown {
         return 0;
     }
 
@@ -361,14 +445,17 @@ pub fn dc_add_or_lookup_contact(
             } else {
                 update_name = true;
             }
-            if origin == 0x10 && !name.is_null() && as_str(name) != row_authname {
+            if origin == Origin::IncomingUnknownFrom
+                && !name.is_null()
+                && as_str(name) != row_authname
+            {
                 update_authname = true;
             }
             Ok((row_id, row_name, row_addr, row_origin, row_authname))
         },
     ) {
         row_id = id;
-        if origin >= row_origin && addr != row_addr {
+        if origin as i32 >= row_origin as i32 && addr != row_addr {
             update_addr = true;
         }
         if update_name || update_authname || update_addr || origin > row_origin {
@@ -440,7 +527,7 @@ pub unsafe fn dc_add_address_book(context: &Context, adr_book: *const libc::c_ch
             let name: *mut libc::c_char = chunk[0];
             let addr: *mut libc::c_char = chunk[1];
             dc_normalize_name(name);
-            dc_add_or_lookup_contact(context, name, addr, 0x80000i32, &mut sth_modified);
+            dc_add_or_lookup_contact(context, name, addr, Origin::AdressBook, &mut sth_modified);
             if 0 != sth_modified {
                 modify_cnt += 1
             }
@@ -967,8 +1054,8 @@ pub unsafe fn dc_get_contact_origin(
     context: &Context,
     contact_id: uint32_t,
     mut ret_blocked: *mut libc::c_int,
-) -> libc::c_int {
-    let mut ret = 0;
+) -> Origin {
+    let mut ret = Origin::Unknown;
     let mut dummy = 0;
     if ret_blocked.is_null() {
         ret_blocked = &mut dummy
@@ -1001,7 +1088,7 @@ pub fn dc_real_contact_exists(context: &Context, contact_id: u32) -> bool {
         .unwrap_or_default()
 }
 
-pub fn dc_scaleup_contact_origin(context: &Context, contact_id: u32, origin: libc::c_int) -> bool {
+pub fn dc_scaleup_contact_origin(context: &Context, contact_id: u32, origin: Origin) -> bool {
     context
         .sql
         .execute(

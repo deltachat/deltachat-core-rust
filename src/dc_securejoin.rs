@@ -568,7 +568,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         );
                         current_block = 4378276786830486580;
                     } else {
-                        dc_scaleup_contact_origin(context, contact_id, 0x1000000i32);
+                        dc_scaleup_contact_origin(context, contact_id, Origin::SecurejoinInvited);
                         info!(context, 0, "Auth verified.",);
                         secure_connection_established(context, contact_chat_id);
                         context.call_cb(
@@ -695,7 +695,11 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                     );
                                     current_block = 4378276786830486580;
                                 } else {
-                                    dc_scaleup_contact_origin(context, contact_id, 0x2000000i32);
+                                    dc_scaleup_contact_origin(
+                                        context,
+                                        contact_id,
+                                        Origin::SecurejoinJoined,
+                                    );
                                     context.call_cb(
                                         Event::CONTACTS_CHANGED,
                                         0i32 as uintptr_t,
