@@ -28,7 +28,8 @@ pub struct Contact<'a> {
     pub name: *mut libc::c_char,
     pub authname: *mut libc::c_char,
     pub addr: *mut libc::c_char,
-    pub blocked: libc::c_int,
+    /// Blocked state. Use dc_contact_is_blocked() to access this field.
+    blocked: bool,
     /// The origin/source of the contact.
     pub origin: Origin,
 }
@@ -129,7 +130,7 @@ impl<'a> Contact<'a> {
             name: std::ptr::null_mut(),
             authname: std::ptr::null_mut(),
             addr: std::ptr::null_mut(),
-            blocked: 0,
+            blocked: false,
             origin: Origin::Unknown,
         }
     }
@@ -181,12 +182,32 @@ impl<'a> Contact<'a> {
                     name: unsafe { row.get::<_, String>(0)?.strdup() },
                     authname: unsafe { row.get::<_, String>(4)?.strdup() },
                     addr: unsafe { row.get::<_, String>(1)?.strdup() },
-                    blocked: row.get::<_, Option<i32>>(3)?.unwrap_or_default(),
+                    blocked: row.get::<_, Option<i32>>(3)?.unwrap_or_default() != 0,
                     origin: row.get(2)?,
                 };
                 Ok(contact)
             }
         )
+    }
+
+    /// Returns `true` if this contact is blocked.
+    pub fn is_blocked(&self) -> bool {
+        self.blocked
+    }
+
+    /// Check if a contact is blocked.
+    pub fn is_blocked_load(context: &'a Context, id: u32) -> bool {
+        Self::load_from_db(context, &context.sql, id)
+            .map(|contact| contact.blocked)
+            .unwrap_or_default()
+    }
+
+    pub fn block(context: &Context, id: u32) {
+        set_block_contact(context, id, true);
+    }
+
+    pub fn unblock(context: &Context, id: u32) {
+        set_block_contact(context, id, false);
     }
 }
 
@@ -308,7 +329,7 @@ pub unsafe fn dc_create_contact(
             Origin::ManuallyCreated,
             &mut sth_modified,
         );
-        blocked = dc_is_contact_blocked(context, contact_id);
+        blocked = Contact::is_blocked_load(context, contact_id);
         context.call_cb(
             Event::CONTACTS_CHANGED,
             (if sth_modified == 2i32 {
@@ -319,14 +340,14 @@ pub unsafe fn dc_create_contact(
             0i32 as uintptr_t,
         );
         if blocked {
-            dc_block_contact(context, contact_id, 0i32);
+            Contact::unblock(context, contact_id);
         }
     }
 
     contact_id
 }
 
-pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_blocking: libc::c_int) {
+fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     if contact_id <= 9 {
         return;
     }
@@ -337,7 +358,7 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
                 context,
                 &context.sql,
                 "UPDATE contacts SET blocked=? WHERE id=?;",
-                params![new_blocking, contact_id as i32],
+                params![new_blocking as i32, contact_id as i32],
             )
             .is_ok()
             {
@@ -362,18 +383,6 @@ pub unsafe fn dc_block_contact(context: &Context, contact_id: uint32_t, new_bloc
             }
         }
     }
-}
-
-pub fn dc_is_contact_blocked(context: &Context, contact_id: uint32_t) -> bool {
-    let mut is_blocked = false;
-
-    if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
-        if 0 != contact.blocked {
-            is_blocked = true
-        }
-    }
-
-    is_blocked
 }
 
 /*can be NULL*/
@@ -935,10 +944,6 @@ pub unsafe fn dc_contact_get_color(contact: &Contact) -> uint32_t {
     dc_str_to_color(contact.addr) as uint32_t
 }
 
-pub unsafe fn dc_contact_is_blocked(contact: &Contact) -> libc::c_int {
-    contact.blocked
-}
-
 /// Check if a contact was verified. E.g. by a secure-join QR code scan
 /// and if the key has not changed since this verification.
 ///
@@ -1064,7 +1069,7 @@ pub unsafe fn dc_get_contact_origin(
 
     if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
         /* we could optimize this by loading only the needed fields */
-        if 0 != contact.blocked {
+        if contact.blocked {
             *ret_blocked = 1;
         } else {
             ret = contact.origin;

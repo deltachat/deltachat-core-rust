@@ -357,12 +357,13 @@ pub unsafe fn dc_receive_imf(
                                     }
                                 }
                                 if chat_id == 0 as libc::c_uint && 0 != allow_creation {
-                                    let create_blocked_1: libc::c_int =
-                                        if 0 != msgrmsg && !dc_is_contact_blocked(context, to_id) {
-                                            0
-                                        } else {
-                                            2
-                                        };
+                                    let create_blocked_1: libc::c_int = if 0 != msgrmsg
+                                        && !Contact::is_blocked_load(context, to_id)
+                                    {
+                                        0
+                                    } else {
+                                        2
+                                    };
                                     dc_create_or_lookup_nchat_by_contact_id(
                                         context,
                                         to_id,

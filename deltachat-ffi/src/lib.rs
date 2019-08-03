@@ -827,7 +827,11 @@ pub unsafe extern "C" fn dc_block_contact(
     assert!(!context.is_null());
     let context = &*context;
 
-    contact::dc_block_contact(context, contact_id, block)
+    if block == 0 {
+        contact::Contact::unblock(context, contact_id);
+    } else {
+        contact::Contact::block(context, contact_id);
+    }
 }
 
 #[no_mangle]
@@ -1721,7 +1725,7 @@ pub unsafe extern "C" fn dc_contact_is_blocked(contact: *mut dc_contact_t) -> li
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_is_blocked(contact)
+    contact.is_blocked() as libc::c_int
 }
 
 #[no_mangle]

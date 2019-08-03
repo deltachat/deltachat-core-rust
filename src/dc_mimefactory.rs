@@ -314,7 +314,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
             &(*factory).context.sql,
             (*(*factory).msg).from_id,
         ) {
-            if !(0 != contact.blocked || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
+            if !(contact.is_blocked() || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
                 // Do not send MDNs trash etc.; chats.blocked is already checked by the caller in dc_markseen_msgs()
                 if !((*(*factory).msg).from_id <= 9 as libc::c_uint) {
                     clist_insert_after(
