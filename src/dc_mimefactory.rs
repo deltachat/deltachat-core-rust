@@ -9,6 +9,7 @@ use mmime::mailmime_types_helper::*;
 use mmime::mailmime_write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
+use std::ptr;
 
 use crate::constants::*;
 use crate::context::Context;
@@ -799,12 +800,17 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 )
             }
 
-            let mut final_text: *const libc::c_char = 0 as *const libc::c_char;
-            if !placeholdertext.is_null() {
-                final_text = placeholdertext
-            } else if !(*msg).text.is_null() && 0 != *(*msg).text.offset(0isize) as libc::c_int {
-                final_text = (*msg).text
-            }
+            let final_text = {
+                if !placeholdertext.is_null() {
+                    to_string(placeholdertext)
+                } else if let Some(ref text) = (*msg).text {
+                    text.clone()
+                } else {
+                    "".into()
+                }
+            };
+            let final_text = CString::yolo(final_text);
+
             let footer: *mut libc::c_char = (*factory).selfstatus;
             message_text = dc_mprintf(
                 b"%s%s%s%s%s\x00" as *const u8 as *const libc::c_char,
@@ -813,12 +819,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 } else {
                     b"\x00" as *const u8 as *const libc::c_char
                 },
-                if !final_text.is_null() {
-                    final_text
-                } else {
-                    b"\x00" as *const u8 as *const libc::c_char
-                },
-                if !final_text.is_null()
+                final_text.as_ptr(),
+                if final_text != CString::yolo("")
                     && !footer.is_null()
                     && 0 != *footer.offset(0isize) as libc::c_int
                 {
@@ -1094,8 +1096,17 @@ unsafe fn get_subject(
 ) -> *mut libc::c_char {
     let context = (*chat).context;
     let ret: *mut libc::c_char;
-    let raw_subject =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 32, context);
+
+    let raw_subject = {
+        let msgtext_c = (*msg)
+            .text
+            .as_ref()
+            .map(|s| CString::yolo(String::as_str(s)));
+        let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
+
+        dc_msg_get_summarytext_by_raw((*msg).type_0, msgtext_ptr, &mut (*msg).param, 32, context)
+    };
+
     let fwd = if 0 != afwd_email {
         b"Fwd: \x00" as *const u8 as *const libc::c_char
     } else {

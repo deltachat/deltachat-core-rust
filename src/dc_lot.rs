@@ -6,6 +6,8 @@ use crate::dc_tools::*;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
+use std::ffi::CString;
+use std::ptr;
 
 /* * Structure behind dc_lot_t */
 #[derive(Copy, Clone)]
@@ -160,8 +162,16 @@ pub unsafe fn dc_lot_fill(
             (*lot).text1_meaning = 2i32
         }
     }
+
+    let msgtext_c = (*msg)
+        .text
+        .as_ref()
+        .map(|s| CString::yolo(String::as_str(s)));
+    let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
+
     (*lot).text2 =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 160, context);
+        dc_msg_get_summarytext_by_raw((*msg).type_0, msgtext_ptr, &mut (*msg).param, 160, context);
+
     (*lot).timestamp = dc_msg_get_timestamp(msg);
     (*lot).state = (*msg).state;
 }
