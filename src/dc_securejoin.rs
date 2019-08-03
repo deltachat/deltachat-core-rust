@@ -45,12 +45,12 @@ pub unsafe fn dc_get_securejoin_qr(
     dc_ensure_secret_key_exists(context);
     invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id);
     if invitenumber.is_null() {
-        invitenumber = to_cstring(dc_create_id());
+        invitenumber = dc_create_id().strdup();
         dc_token_save(context, DC_TOKEN_INVITENUMBER, group_chat_id, invitenumber);
     }
     auth = dc_token_lookup(context, DC_TOKEN_AUTH, group_chat_id);
     if auth.is_null() {
-        auth = to_cstring(dc_create_id());
+        auth = dc_create_id().strdup();
         dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, auth);
     }
     let self_addr = context.sql.get_config(context, "configured_addr");

@@ -775,7 +775,7 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     - the message ID should be globally unique
     - do not add a counter or any private data as as this may give unneeded information to the receiver	*/
     let mut rand1: *mut libc::c_char = 0 as *mut libc::c_char;
-    let rand2: *mut libc::c_char = to_cstring(dc_create_id());
+    let rand2: *mut libc::c_char = dc_create_id().strdup();
     let ret: *mut libc::c_char;
     let mut at_hostname: *const libc::c_char = strchr(from_addr, '@' as i32);
     if at_hostname.is_null() {
@@ -789,7 +789,7 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
             at_hostname,
         )
     } else {
-        rand1 = to_cstring(dc_create_id());
+        rand1 = dc_create_id().strdup();
         ret = dc_mprintf(
             b"Mr.%s.%s%s\x00" as *const u8 as *const libc::c_char,
             rand1,
@@ -1543,12 +1543,6 @@ impl<T: AsRef<str>> StrExt for T {
         let tmp = CString::yolo(self.as_ref());
         dc_strdup(tmp.as_ptr())
     }
-}
-
-/// Needs to free the result after use!
-pub unsafe fn to_cstring<S: AsRef<str>>(s: S) -> *mut libc::c_char {
-    let cstr = CString::new(s.as_ref()).expect("invalid string converted");
-    dc_strdup(cstr.as_ref().as_ptr())
 }
 
 pub fn to_string(s: *const libc::c_char) -> String {
