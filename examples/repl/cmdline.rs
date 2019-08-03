@@ -4,11 +4,11 @@ use std::str::FromStr;
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::*;
+use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_contact::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_job::*;
 use deltachat::dc_location::*;
@@ -218,9 +218,10 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
 }
 
 unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t) {
-    let contact: *mut dc_contact_t = dc_get_contact(context, dc_msg_get_from_id(msg));
-    let contact_name: *mut libc::c_char = dc_contact_get_name(contact);
-    let contact_id: libc::c_int = dc_contact_get_id(contact) as libc::c_int;
+    let contact = dc_get_contact(context, dc_msg_get_from_id(msg)).expect("invalid contact");
+    let contact_name = dc_contact_get_name(&contact);
+    let contact_id = dc_contact_get_id(&contact) as libc::c_int;
+
     let statestr = match dc_msg_get_state(msg) {
         DC_STATE_OUT_PENDING => " o",
         DC_STATE_OUT_DELIVERED => " √",
@@ -229,7 +230,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
         _ => "",
     };
     let temp2 = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
-    let msgtext: *mut libc::c_char = dc_msg_get_text(msg);
+    let msgtext = dc_msg_get_text(msg);
     info!(
         context,
         0,
@@ -265,7 +266,6 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
     );
     free(msgtext as *mut libc::c_void);
     free(contact_name as *mut libc::c_void);
-    dc_contact_unref(contact);
 }
 
 unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
@@ -303,7 +303,6 @@ unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
 }
 
 unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
-    let mut contact: *mut dc_contact_t;
     if !dc_array_search_id(contacts, 1 as uint32_t, 0 as *mut size_t) {
         dc_array_add_id(contacts, 1 as uint32_t);
     }
@@ -312,11 +311,10 @@ unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
         let contact_id = dc_array_get_id(contacts, i as size_t);
         let line;
         let mut line2 = "".to_string();
-        contact = dc_get_contact(context, contact_id);
-        if !contact.is_null() {
-            let name: *mut libc::c_char = dc_contact_get_name(contact);
-            let addr: *mut libc::c_char = dc_contact_get_addr(contact);
-            let verified_state: libc::c_int = dc_contact_is_verified(contact);
+        if let Ok(contact) = dc_get_contact(context, contact_id) {
+            let name: *mut libc::c_char = dc_contact_get_name(&contact);
+            let addr: *mut libc::c_char = dc_contact_get_addr(&contact);
+            let verified_state: libc::c_int = dc_contact_is_verified(&contact);
             let verified_str = if 0 != verified_state {
                 if verified_state == 2 {
                     " √√"
@@ -347,7 +345,7 @@ unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
                     peerstate.as_ref().unwrap().prefer_encrypt
                 );
             }
-            dc_contact_unref(contact);
+
             free(name as *mut libc::c_void);
             free(addr as *mut libc::c_void);
             info!(context, 0, "Contact#{}: {}{}", contact_id, line, line2);
@@ -1098,12 +1096,11 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
             let contact_id = arg1.parse()?;
-            let contact = dc_get_contact(context, contact_id);
-            let name_n_addr = dc_contact_get_name_n_addr(contact);
+            let contact = dc_get_contact(context, contact_id)?;
+            let name_n_addr = dc_contact_get_name_n_addr(&contact);
 
             let mut res = format!("Contact info for: {}:\n\n", as_str(name_n_addr),);
             free(name_n_addr as *mut libc::c_void);
-            dc_contact_unref(contact);
 
             let encrinfo = dc_get_contact_encrinfo(context, contact_id);
             res += as_str(encrinfo);

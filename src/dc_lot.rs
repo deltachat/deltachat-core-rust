@@ -1,6 +1,6 @@
+use crate::contact::*;
 use crate::context::Context;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::stock::StockMessage;
@@ -129,7 +129,7 @@ pub unsafe fn dc_lot_fill(
     mut lot: *mut dc_lot_t,
     msg: *mut dc_msg_t,
     chat: *const Chat,
-    contact: *const dc_contact_t,
+    contact: Option<&Contact>,
     context: &Context,
 ) {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint || msg.is_null() {
@@ -150,16 +150,24 @@ pub unsafe fn dc_lot_fill(
         (*lot).text1 = 0 as *mut libc::c_char;
         (*lot).text1_meaning = 0i32
     } else if (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32 {
-        if 0 != dc_msg_is_info(msg) || contact.is_null() {
+        if 0 != dc_msg_is_info(msg) || contact.is_none() {
             (*lot).text1 = 0 as *mut libc::c_char;
             (*lot).text1_meaning = 0i32
         } else {
             if !chat.is_null() && (*chat).id == 1i32 as libc::c_uint {
-                (*lot).text1 = dc_contact_get_display_name(contact)
+                if let Some(contact) = contact {
+                    (*lot).text1 = dc_contact_get_display_name(contact);
+                } else {
+                    (*lot).text1 = std::ptr::null_mut();
+                }
             } else {
-                (*lot).text1 = dc_contact_get_first_name(contact)
+                if let Some(contact) = contact {
+                    (*lot).text1 = dc_contact_get_first_name(contact);
+                } else {
+                    (*lot).text1 = std::ptr::null_mut();
+                }
             }
-            (*lot).text1_meaning = 2i32
+            (*lot).text1_meaning = 2i32;
         }
     }
 

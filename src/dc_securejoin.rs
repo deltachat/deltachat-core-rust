@@ -5,11 +5,11 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
 use crate::constants::*;
+use crate::contact::*;
 use crate::context::Context;
 use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
-use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_lot::*;
 use crate::dc_mimeparser::*;
@@ -315,30 +315,26 @@ unsafe fn fingerprint_equals_sender(
         return 0;
     }
     let mut fingerprint_equal: libc::c_int = 0i32;
-    let contacts: *mut dc_array_t = dc_get_chat_contacts(context, contact_chat_id);
-    let contact: *mut dc_contact_t = dc_contact_new(context);
+    let contacts = dc_get_chat_contacts(context, contact_chat_id);
 
     if !(dc_array_get_cnt(contacts) != 1) {
-        if !dc_contact_load_from_db(
-            contact,
-            &context.sql,
-            dc_array_get_id(contacts, 0i32 as size_t),
-        ) {
+        if let Ok(contact) =
+            Contact::load_from_db(context, &context.sql, dc_array_get_id(contacts, 0))
+        {
+            if let Some(peerstate) =
+                Peerstate::from_addr(context, &context.sql, as_str(contact.addr))
+            {
+                let fingerprint_normalized = dc_normalize_fingerprint(as_str(fingerprint));
+                if peerstate.public_key_fingerprint.is_some()
+                    && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
+                {
+                    fingerprint_equal = 1;
+                }
+            }
+        } else {
             return 0;
         }
-
-        if let Some(peerstate) =
-            Peerstate::from_addr(context, &context.sql, as_str((*contact).addr))
-        {
-            let fingerprint_normalized = dc_normalize_fingerprint(as_str(fingerprint));
-            if peerstate.public_key_fingerprint.is_some()
-                && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
-            {
-                fingerprint_equal = 1;
-            }
-        }
     }
-    dc_contact_unref(contact);
     dc_array_unref(contacts);
 
     fingerprint_equal
@@ -360,7 +356,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut contact_chat_id_blocked: libc::c_int = 0i32;
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_int = 0i32;
-    let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
+
     if !(contact_id <= 9i32 as libc::c_uint) {
         step = lookup_field(mimeparser, "Secure-Join");
         if !step.is_null() {
@@ -756,22 +752,26 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 ====              Alice - the inviter side              ====
                 ====  Step 8 in "Out-of-band verified groups" protocol  ====
                 ============================================================ */
-                contact = dc_get_contact(context, contact_id);
-                if contact.is_null() || 0 == dc_contact_is_verified(contact) {
+                if let Ok(contact) = dc_get_contact(context, contact_id) {
+                    if 0 == dc_contact_is_verified(&contact) {
+                        warn!(context, 0, "vg-member-added-received invalid.",);
+                        current_block = 4378276786830486580;
+                    } else {
+                        context.call_cb(
+                            Event::SECUREJOIN_INVITER_PROGRESS,
+                            contact_id as uintptr_t,
+                            800i32 as uintptr_t,
+                        );
+                        context.call_cb(
+                            Event::SECUREJOIN_INVITER_PROGRESS,
+                            contact_id as uintptr_t,
+                            1000i32 as uintptr_t,
+                        );
+                        current_block = 10256747982273457880;
+                    }
+                } else {
                     warn!(context, 0, "vg-member-added-received invalid.",);
                     current_block = 4378276786830486580;
-                } else {
-                    context.call_cb(
-                        Event::SECUREJOIN_INVITER_PROGRESS,
-                        contact_id as uintptr_t,
-                        800i32 as uintptr_t,
-                    );
-                    context.call_cb(
-                        Event::SECUREJOIN_INVITER_PROGRESS,
-                        contact_id as uintptr_t,
-                        1000i32 as uintptr_t,
-                    );
-                    current_block = 10256747982273457880;
                 }
             } else {
                 current_block = 10256747982273457880;
@@ -786,7 +786,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
             }
         }
     }
-    dc_contact_unref(contact);
+
     free(scanned_fingerprint_of_alice as *mut libc::c_void);
     free(auth as *mut libc::c_void);
     free(own_fingerprint as *mut libc::c_void);
@@ -802,11 +802,11 @@ unsafe fn end_bobs_joining(context: &Context, status: libc::c_int) {
 
 unsafe fn secure_connection_established(context: &Context, contact_chat_id: uint32_t) {
     let contact_id: uint32_t = chat_id_2_contact_id(context, contact_chat_id);
-    let contact: *mut dc_contact_t = dc_get_contact(context, contact_id);
+    let contact = dc_get_contact(context, contact_id);
     let msg = CString::new(context.stock_string_repl_str(
         StockMessage::ContactVerified,
-        if !contact.is_null() {
-            as_str((*contact).addr)
+        if let Ok(contact) = contact {
+            as_str(contact.addr)
         } else {
             "?"
         },
@@ -818,7 +818,6 @@ unsafe fn secure_connection_established(context: &Context, contact_chat_id: uint
         contact_chat_id as uintptr_t,
         0i32 as uintptr_t,
     );
-    dc_contact_unref(contact);
 }
 
 unsafe fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> *const libc::c_char {
@@ -847,8 +846,8 @@ unsafe fn could_not_establish_secure_connection(
     let contact = dc_get_contact(context, contact_id);
     let msg = context.stock_string_repl_str(
         StockMessage::ContactNotVerified,
-        if !contact.is_null() {
-            as_str((*contact).addr)
+        if let Ok(contact) = contact {
+            as_str(contact.addr)
         } else {
             "?"
         },
@@ -856,7 +855,6 @@ unsafe fn could_not_establish_secure_connection(
     let msg_c = CString::new(msg.as_str()).unwrap();
     dc_add_device_msg(context, contact_chat_id, msg_c.as_ptr());
     error!(context, 0, "{} ({})", msg, as_str(details));
-    dc_contact_unref(contact);
 }
 
 unsafe fn mark_peer_as_verified(

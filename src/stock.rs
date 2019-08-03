@@ -5,8 +5,8 @@ use strum::EnumProperty;
 use strum_macros::EnumProperty;
 
 use crate::constants::Event;
+use crate::contact::*;
 use crate::context::Context;
-use crate::dc_contact::*;
 use crate::dc_tools::*;
 use libc::free;
 
@@ -204,10 +204,11 @@ impl Context {
                 let param1_c = CString::new(param1.as_ref()).unwrap();
                 let contact_id = dc_lookup_contact_id_by_addr(self, param1_c.as_ptr());
                 if contact_id != 0 {
-                    let contact = dc_get_contact(self, contact_id);
-                    let displayname = dc_contact_get_name_n_addr(contact);
+                    let displayname = dc_get_contact(self, contact_id)
+                        .map(|contact| dc_contact_get_name_n_addr(&contact))
+                        .unwrap_or_else(|_| std::ptr::null_mut());
+
                     let ret = to_string(displayname);
-                    free(contact as *mut libc::c_void);
                     free(displayname as *mut libc::c_void);
                     ret
                 } else {
@@ -223,14 +224,15 @@ impl Context {
             0 => action,
             1 => self.stock_string_repl_str(StockMessage::MsgActionByMe, action1), // DC_CONTACT_ID_SELF
             _ => unsafe {
-                let contact = dc_get_contact(self, from_id);
-                let displayname = dc_contact_get_display_name(contact);
+                let displayname = dc_get_contact(self, from_id)
+                    .map(|contact| dc_contact_get_name_n_addr(&contact))
+                    .unwrap_or_else(|_| std::ptr::null_mut());
+
                 let ret = self.stock_string_repl_str2(
                     StockMessage::MsgActionByUser,
                     action1,
                     as_str(displayname),
                 );
-                free(contact as *mut libc::c_void);
                 free(displayname as *mut libc::c_void);
                 ret
             },
@@ -382,7 +384,7 @@ mod tests {
                 "",
                 contact_id,
             ),
-            "Member Alice (alice@example.com) added by Bob."
+            "Member Alice (alice@example.com) added by Bob (bob@example.com)."
         )
     }
 
@@ -417,7 +419,7 @@ mod tests {
                 "Other chat",
                 contact_id
             ),
-            "Group name changed from \"Some chat\" to \"Other chat\" by Alice."
+            "Group name changed from \"Some chat\" to \"Other chat\" by Alice (alice@example.com)."
         )
     }
 }

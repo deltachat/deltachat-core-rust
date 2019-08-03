@@ -8,10 +8,10 @@ use mmime::other::*;
 use sha2::{Digest, Sha256};
 
 use crate::constants::*;
+use crate::contact::*;
 use crate::context::Context;
 use crate::dc_array::*;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_location::*;
 use crate::dc_mimeparser::*;
@@ -777,28 +777,35 @@ pub unsafe fn dc_receive_imf(
                     if !mime_parser.location_kml.is_none()
                         && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
                     {
-                        let contact = dc_get_contact(context, from_id);
-                        if !mime_parser.location_kml.as_ref().unwrap().addr.is_null()
-                            && !contact.is_null()
-                            && !(*contact).addr.is_null()
-                            && strcasecmp(
-                                (*contact).addr,
-                                mime_parser.location_kml.as_ref().unwrap().addr,
-                            ) == 0
-                        {
-                            let newest_location_id = dc_save_locations(
-                                context,
-                                chat_id,
-                                from_id,
-                                &mime_parser.location_kml.as_ref().unwrap().locations,
-                                0,
-                            );
-                            if newest_location_id != 0 && hidden == 0 && !location_id_written {
-                                dc_set_msg_location_id(context, insert_msg_id, newest_location_id);
+                        if !mime_parser.location_kml.as_ref().unwrap().addr.is_null() {
+                            if let Ok(contact) = dc_get_contact(context, from_id) {
+                                if !contact.addr.is_null()
+                                    && strcasecmp(
+                                        contact.addr,
+                                        mime_parser.location_kml.as_ref().unwrap().addr,
+                                    ) == 0
+                                {
+                                    let newest_location_id = dc_save_locations(
+                                        context,
+                                        chat_id,
+                                        from_id,
+                                        &mime_parser.location_kml.as_ref().unwrap().locations,
+                                        0,
+                                    );
+                                    if newest_location_id != 0
+                                        && hidden == 0
+                                        && !location_id_written
+                                    {
+                                        dc_set_msg_location_id(
+                                            context,
+                                            insert_msg_id,
+                                            newest_location_id,
+                                        );
+                                    }
+                                    send_event = true;
+                                }
                             }
-                            send_event = true;
                         }
-                        dc_contact_unref(contact);
                     }
                     if send_event {
                         context.call_cb(
@@ -1604,26 +1611,21 @@ unsafe fn check_verified_properties(
     to_ids: *const dc_array_t,
     failure_reason: *mut *mut libc::c_char,
 ) -> libc::c_int {
-    let contact = dc_contact_new(context);
-
     let verify_fail = |reason: String| {
         *failure_reason = format!("{}. See \"Info\" for details.", reason).strdup();
         warn!(context, 0, "{}", reason);
     };
 
-    let cleanup = || {
-        dc_contact_unref(contact);
+    let contact = match Contact::load_from_db(context, &context.sql, from_id) {
+        Ok(contact) => contact,
+        Err(_err) => {
+            verify_fail("Internal Error; cannot load contact".into());
+            return 0;
+        }
     };
-
-    if !dc_contact_load_from_db(contact, &context.sql, from_id) {
-        verify_fail("Internal Error; cannot load contact".into());
-        cleanup();
-        return 0;
-    }
 
     if 0 == mimeparser.e2ee_helper.encrypted {
         verify_fail("This message is not encrypted".into());
-        cleanup();
         return 0;
     }
 
@@ -1632,18 +1634,16 @@ unsafe fn check_verified_properties(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != 1 {
-        let peerstate = Peerstate::from_addr(context, &context.sql, as_str((*contact).addr));
+        let peerstate = Peerstate::from_addr(context, &context.sql, as_str(contact.addr));
 
-        if peerstate.is_none() || dc_contact_is_verified_ex(contact, peerstate.as_ref()) != 2 {
+        if peerstate.is_none() || dc_contact_is_verified_ex(&contact, peerstate.as_ref()) != 2 {
             verify_fail("The sender of this message is not verified.".into());
-            cleanup();
             return 0;
         }
 
         if let Some(peerstate) = peerstate {
             if !peerstate.has_verified_key(&mimeparser.e2ee_helper.signatures) {
                 verify_fail("The message was sent with non-verified encryption.".into());
-                cleanup();
                 return 0;
             }
         }
@@ -1665,7 +1665,6 @@ unsafe fn check_verified_properties(
     );
 
     if rows.is_err() {
-        cleanup();
         return 0;
     }
     for (to_addr, mut is_verified) in rows.unwrap().into_iter() {
@@ -1686,7 +1685,7 @@ unsafe fn check_verified_properties(
                     context,
                     0,
                     "{} has verfied {}.",
-                    as_str((*contact).addr),
+                    as_str(contact.addr),
                     to_addr,
                 );
                 let fp = peerstate.gossip_key_fingerprint.clone();
@@ -1702,7 +1701,6 @@ unsafe fn check_verified_properties(
                 "{} is not a member of this verified group",
                 to_addr
             ));
-            cleanup();
             return 0;
         }
     }

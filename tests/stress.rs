@@ -8,11 +8,11 @@ use tempfile::{tempdir, TempDir};
 
 use deltachat::config;
 use deltachat::constants::*;
+use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_contact::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_location::*;
 use deltachat::dc_lot::*;

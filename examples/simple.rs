@@ -8,10 +8,10 @@ use tempfile::tempdir;
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::Event;
+use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_contact::*;
 use deltachat::dc_job::{
     dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs, dc_perform_smtp_idle,
     dc_perform_smtp_jobs,

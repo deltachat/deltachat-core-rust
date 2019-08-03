@@ -11,8 +11,8 @@ use mmime::mailmime_types::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
+use crate::contact::*;
 use crate::context::Context;
-use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_simplify::*;
