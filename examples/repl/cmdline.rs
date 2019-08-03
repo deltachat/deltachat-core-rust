@@ -1091,7 +1091,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
             let mut res = format!("Contact info for: {}:\n\n", name_n_addr);
 
-            res += &Contact::get_encrinfo(context, contact_id);
+            res += &Contact::get_encrinfo(context, contact_id)?;
 
             let chatlist = Chatlist::try_load(context, 0, None, Some(contact_id))?;
             let chatlist_cnt = chatlist.len();

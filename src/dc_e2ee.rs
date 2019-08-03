@@ -16,10 +16,12 @@ use mmime::mmapstring::*;
 use mmime::{mailmime_substitute, MAILIMF_NO_ERROR, MAIL_NO_ERROR};
 
 use crate::aheader::*;
+use crate::config::Config;
 use crate::context::Context;
 use crate::dc_mimeparser::*;
 use crate::dc_securejoin::*;
 use crate::dc_tools::*;
+use crate::error::*;
 use crate::key::*;
 use crate::keyring::*;
 use crate::peerstate::*;
@@ -1045,32 +1047,52 @@ pub unsafe fn dc_e2ee_thanks(helper: &mut dc_e2ee_helper_t) {
     helper.cdata_to_free = 0 as *mut libc::c_void;
 }
 
-/* makes sure, the private key exists, needed only for exporting keys and the case no message was sent before */
-// TODO should return bool /rtn
-pub unsafe fn dc_ensure_secret_key_exists(context: &Context) -> libc::c_int {
-    /* normally, the key is generated as soon as the first mail is send
-    (this is to gain some extra-random-seed by the message content and the timespan between program start and message sending) */
-    let mut success: libc::c_int = 0i32;
-
-    let self_addr = context.sql.get_config(context, "configured_addr");
-    if self_addr.is_none() {
-        warn!(
-            context,
-            0, "Cannot ensure secret key if context is not configured.",
-        );
-    } else if load_or_generate_self_public_key(context, self_addr.unwrap(), 0 as *mut mailmime)
-        .is_some()
-    {
-        /*no random text data for seeding available*/
-        success = 1;
+/// Ensures a private key exists for the configured user.
+///
+/// Normally the private key is generated when the first message is
+/// sent (allowing the use of some extra random seed from the message
+/// content) but in a few locations there are no such guarantees,
+/// e.g. when exporting keys, and calling this function ensures a
+/// private key will be present.
+///
+/// If this succeeds you are also guaranteed that the
+/// [Config::ConfiguredAddr] is configured, this address is returned.
+pub fn dc_ensure_secret_key_exists(context: &Context) -> Result<String> {
+    let self_addr = context
+        .get_config(Config::ConfiguredAddr)
+        .ok_or(format_err!(concat!(
+            "Failed to get self address, ",
+            "cannot ensure secret key if not configured."
+        )))?;
+    unsafe {
+        load_or_generate_self_public_key(context, &self_addr, 0 as *mut mailmime)
+            .ok_or(format_err!("Failed to generate private key."))?;
     }
-
-    success
+    Ok(self_addr)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use crate::test_utils::*;
+
+    mod ensure_secret_key_exists {
+        use super::*;
+
+        #[test]
+        fn test_prexisting() {
+            let t = dummy_context();
+            let test_addr = configure_alice_keypair(&t.ctx);
+            assert_eq!(dc_ensure_secret_key_exists(&t.ctx).unwrap(), test_addr);
+        }
+
+        #[test]
+        fn test_not_configured() {
+            let t = dummy_context();
+            assert!(dc_ensure_secret_key_exists(&t.ctx).is_err());
+        }
+    }
 
     #[test]
     fn test_mailmime_parse() {

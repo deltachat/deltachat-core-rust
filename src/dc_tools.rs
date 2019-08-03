@@ -1453,9 +1453,9 @@ pub trait StrExt {
     ///
     /// This allocates a new raw C string which must be freed using
     /// `free`.  It takes care of some common pitfalls with using
-    /// [CString::as_ptr].
+    /// [CString.as_ptr].
     ///
-    /// [CString::as_ptr]: std::ffi::CString::as_ptr
+    /// [CString.as_ptr]: std::ffi::CString.as_ptr
     ///
     /// # Panics
     ///

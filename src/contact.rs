@@ -584,7 +584,12 @@ impl<'a> Contact<'a> {
             .unwrap_or_else(|_| std::ptr::null_mut())
     }
 
-    pub fn get_encrinfo(context: &Context, contact_id: u32) -> String {
+    /// Returns a textual summary of the encryption state for the contact.
+    ///
+    /// This function returns a string explaining the encryption state
+    /// of the contact and if the connection is encrypted the
+    /// fingerprints of the keys involved.
+    pub fn get_encrinfo(context: &Context, contact_id: u32) -> Result<String> {
         let mut ret = String::new();
 
         if let Ok(contact) = Contact::load_from_db(context, contact_id) {
@@ -603,7 +608,7 @@ impl<'a> Contact<'a> {
                     });
                 ret += &p;
                 if self_key.is_none() {
-                    unsafe { dc_ensure_secret_key_exists(context) };
+                    dc_ensure_secret_key_exists(context)?;
                     self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
                 }
                 let p = context.stock_str(StockMessage::FingerPrints);
@@ -646,7 +651,7 @@ impl<'a> Contact<'a> {
             }
         }
 
-        ret
+        Ok(ret)
     }
 
     /// Delete a contact. The contact is deleted from the local device. It may happen that this is not

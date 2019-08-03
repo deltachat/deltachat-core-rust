@@ -861,7 +861,12 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
     assert!(!context.is_null());
     let context = &*context;
 
-    Contact::get_encrinfo(context, contact_id).strdup()
+    Contact::get_encrinfo(context, contact_id)
+        .map(|s| s.strdup())
+        .unwrap_or_else(|e| {
+            error!(context, 0, "{}", e);
+            std::ptr::null_mut()
+        })
 }
 
 #[no_mangle]
