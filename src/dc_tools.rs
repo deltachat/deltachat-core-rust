@@ -830,7 +830,7 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut 
             } else {
                 "".to_string()
             };
-            
+
             if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(mid) {
                 return to_cstring(grpid);
             }
