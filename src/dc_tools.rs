@@ -805,7 +805,7 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
 
 pub fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
     /* extract our group ID from Message-IDs as `Gr.12345678901.morerandom@domain.de`; "12345678901" is the wanted ID in this example. */
-    if !(mid.len() > 8 && mid.starts_with("Gr.")) {
+    if mid.len() < 9 || !mid.starts_with("Gr.") {
         return None;
     }
 
@@ -2132,7 +2132,7 @@ mod tests {
         // Should return extracted grpid for grpid with length of 11
         let str = "Gr.12345678901.morerandom@domain.de";
         let grpid = dc_extract_grpid_from_rfc724_mid(str);
-        assert_eq!(grpid, Some("12345678901".to_string()));
+        assert_eq!(grpid, Some("12345678901"));
 
         // Should return extracted grpid for grpid with length of 11
         let str = "Gr.1234567890123456.morerandom@domain.de";
