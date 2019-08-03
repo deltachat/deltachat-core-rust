@@ -803,38 +803,29 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     ret
 }
 
-pub unsafe fn dc_extract_grpid_from_rfc724_mid(mid: *const libc::c_char) -> *mut libc::c_char {
+pub fn dc_extract_grpid_from_rfc724_mid_r(mid: String) -> Option<String> {
     /* extract our group ID from Message-IDs as `Gr.12345678901.morerandom@domain.de`; "12345678901" is the wanted ID in this example. */
-    let mut success: libc::c_int = 0i32;
-    let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
-    let p1: *mut libc::c_char;
-    let grpid_len: libc::c_int;
-    if !(mid.is_null()
-        || strlen(mid) < 8
-        || *mid.offset(0isize) as libc::c_int != 'G' as i32
-        || *mid.offset(1isize) as libc::c_int != 'r' as i32
-        || *mid.offset(2isize) as libc::c_int != '.' as i32)
-    {
-        grpid = dc_strdup(&*mid.offset(3isize));
-        p1 = strchr(grpid, '.' as i32);
-        if !p1.is_null() {
-            *p1 = 0i32 as libc::c_char;
-            grpid_len = strlen(grpid) as libc::c_int;
-            if !(grpid_len != 11i32 && grpid_len != 16i32) {
-                /* strict length comparison, the 'Gr.' magic is weak enough */
-                success = 1i32
+    if !(mid.len() > 8 && mid.starts_with("Gr.")) {
+        return None;
+    }
+
+    if let Some(mid_without_offset) = mid.get(3..) {
+        if let Some(grpid_len) = mid_without_offset.find('.') {
+            /* strict length comparison, the 'Gr.' magic is weak enough */
+            if grpid_len == 11 || grpid_len == 16 {
+                return Some(mid_without_offset.get(0..grpid_len).unwrap().to_string());
             }
         }
     }
-    if success == 0i32 {
-        free(grpid as *mut libc::c_void);
-        grpid = 0 as *mut libc::c_char
+
+    None
+}
+
+pub fn dc_extract_grpid_from_rfc724_mid(mid: *const libc::c_char) -> *mut libc::c_char {
+    if let Some(grpid) = dc_extract_grpid_from_rfc724_mid_r(to_string(mid)) {
+        return unsafe { to_cstring(grpid) };
     }
-    return if 0 != success {
-        grpid
-    } else {
-        0 as *mut libc::c_char
-    };
+    0 as *mut libc::c_char
 }
 
 pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut libc::c_char {
@@ -846,9 +837,9 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut 
             } else {
                 0 as *mut libc::c_void
             }) as *const libc::c_char;
-            let grpid: *mut libc::c_char = dc_extract_grpid_from_rfc724_mid(mid);
-            if !grpid.is_null() {
-                return grpid;
+            let grpid = dc_extract_grpid_from_rfc724_mid_r(to_string(mid));
+            if !grpid.is_none() {
+                return to_cstring(grpid.unwrap());
             }
             cur = if !cur.is_null() {
                 (*cur).next
@@ -2126,4 +2117,36 @@ mod tests {
             assert_eq!(cmp, 0);
         }
     }
+
+    #[test]
+    fn test_dto_cstringto_cstringc_extract_grpid_from_rfc724_mid() {
+        unsafe {
+            // Should return 0 if we pass invalid mid
+            let str = b"foobar\x00" as *const u8 as *const libc::c_char;
+            let grpid: *mut libc::c_char = dc_extract_grpid_from_rfc724_mid(str);
+            assert_eq!(grpid, 0 as *mut libc::c_char);
+            free(grpid as *mut libc::c_void);
+
+            // Should return 0 if grpid has a length which is not 11 or 16
+            let str = b"Gr.12345678.morerandom@domain.de\x00" as *const u8 as *const libc::c_char;
+            let grpid: *mut libc::c_char = dc_extract_grpid_from_rfc724_mid(str);
+            assert_eq!(grpid, 0 as *mut libc::c_char);
+            free(grpid as *mut libc::c_void);
+
+            // Should return extracted grpid for grpid with length of 11
+            let str =
+                b"Gr.12345678901.morerandom@domain.de\x00" as *const u8 as *const libc::c_char;
+            let grpid: *mut libc::c_char = dc_extract_grpid_from_rfc724_mid(str);
+            assert_eq!(to_string(grpid), "12345678901");
+            free(grpid as *mut libc::c_void);
+
+            // Should return extracted grpid for grpid with length of 11
+            let str =
+                b"Gr.1234567890123456.morerandom@domain.de\x00" as *const u8 as *const libc::c_char;
+            let grpid: *mut libc::c_char = dc_extract_grpid_from_rfc724_mid(str);
+            assert_eq!(to_string(grpid), "1234567890123456");
+            free(grpid as *mut libc::c_void);
+        }
+    }
+
 }
