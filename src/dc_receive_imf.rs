@@ -949,7 +949,7 @@ unsafe fn create_or_lookup_group(
             let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
             if !fld_message_id.is_null() {
                 if let Some(_grpid) =
-                    dc_extract_grpid_from_rfc724_mid(to_string((*fld_message_id).mid_value))
+                    dc_extract_grpid_from_rfc724_mid(as_str((*fld_message_id).mid_value))
                 {
                     grpid = to_cstring(_grpid);
                 } else {
