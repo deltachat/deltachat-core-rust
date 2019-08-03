@@ -264,10 +264,7 @@ unsafe fn send_handshake_msg(
 ) {
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     (*msg).type_0 = Viewtype::Text;
-    (*msg).text = dc_mprintf(
-        b"Secure-Join: %s\x00" as *const u8 as *const libc::c_char,
-        step,
-    );
+    (*msg).text = Some(format!("Secure-Join: {}", to_string(step)));
     (*msg).hidden = 1;
     (*msg).param.set_int(Param::Cmd, 7);
     if step.is_null() {

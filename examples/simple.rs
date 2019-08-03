@@ -97,8 +97,7 @@ fn main() {
         println!("sending a message");
         let contact_id = dc_create_contact(&ctx, std::ptr::null(), email.as_ptr());
         let chat_id = dc_create_chat_by_contact_id(&ctx, contact_id);
-        let msg_text = CString::new("Hi, here is my first message!").unwrap();
-        dc_send_text_msg(&ctx, chat_id, msg_text.as_ptr());
+        dc_send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into());
 
         println!("fetching chats..");
         let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();

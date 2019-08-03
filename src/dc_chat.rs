@@ -725,7 +725,7 @@ unsafe fn prepare_msg_raw(
                             timestamp,
                             (*msg).type_0,
                             (*msg).state,
-                            if !(*msg).text.is_null() { Some(as_str((*msg).text)) } else { None },
+                            (*msg).text,
                             (*msg).param.to_string(),
                             (*msg).hidden,
                             to_string(new_in_reply_to),
@@ -950,7 +950,7 @@ pub unsafe fn dc_send_msg<'a>(
 pub unsafe fn dc_send_text_msg(
     context: &Context,
     chat_id: uint32_t,
-    text_to_send: *const libc::c_char,
+    text_to_send: String,
 ) -> uint32_t {
     if chat_id <= 9 {
         warn!(
@@ -960,18 +960,8 @@ pub unsafe fn dc_send_text_msg(
         return 0;
     }
 
-    if text_to_send.is_null() {
-        warn!(context, 0, "dc_send_text_msg: text_to_send is emtpy");
-        return 0;
-    }
-
-    if let Err(err) = as_str_safe(text_to_send) {
-        warn!(context, 0, "{}", err);
-        return 0;
-    }
-
     let mut msg = dc_msg_new(context, Viewtype::Text);
-    (*msg).text = dc_strdup(text_to_send);
+    (*msg).text = Some(text_to_send);
     let ret = dc_send_msg(context, chat_id, msg);
     dc_msg_unref(msg);
     ret
@@ -1001,9 +991,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
     // save new draft
     if !msg.is_null() {
         if (*msg).type_0 == Viewtype::Text {
-            if (*msg).text.is_null() || *(*msg).text.offset(0isize) as libc::c_int == 0i32 {
-                OK_TO_CONTINUE = false;
-            }
+            OK_TO_CONTINUE = (*msg).text.as_ref().map_or(false, |s| !s.is_empty());
         } else if msgtype_has_file((*msg).type_0) {
             let mut pathNfilename = (*msg)
                 .param
@@ -1036,11 +1024,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                     time(),
                     (*msg).type_0,
                     DC_STATE_OUT_DRAFT,
-                    if !(*msg).text.is_null() {
-                        as_str((*msg).text)
-                    } else {
-                        ""
-                    },
+                    (*msg).text.deref().unwrap_or(""),
                     (*msg).param.to_string(),
                     1,
                 ],
@@ -1616,14 +1600,12 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     if OK_TO_CONTINUE {
                         if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                             (*msg).type_0 = Viewtype::Text;
-                            (*msg).text = context
-                                .stock_system_msg(
-                                    StockMessage::MsgAddMember,
-                                    as_str((*contact).addr),
-                                    "",
-                                    DC_CONTACT_ID_SELF as uint32_t,
-                                )
-                                .strdup();
+                            (*msg).text = Some(context.stock_system_msg(
+                                StockMessage::MsgAddMember,
+                                as_str((*contact).addr),
+                                "",
+                                DC_CONTACT_ID_SELF as uint32_t,
+                            ));
                             (*msg).param.set_int(Param::Cmd, 4);
                             if !(*contact).addr.is_null() {
                                 (*msg).param.set(Param::Arg, as_str((*contact).addr));
@@ -1731,23 +1713,19 @@ pub unsafe fn dc_remove_contact_from_chat(
                         (*msg).type_0 = Viewtype::Text;
                         if (*contact).id == 1 as libc::c_uint {
                             dc_set_group_explicitly_left(context, (*chat).grpid);
-                            (*msg).text = context
-                                .stock_system_msg(
-                                    StockMessage::MsgGroupLeft,
-                                    "",
-                                    "",
-                                    DC_CONTACT_ID_SELF as u32,
-                                )
-                                .strdup();
+                            (*msg).text = Some(context.stock_system_msg(
+                                StockMessage::MsgGroupLeft,
+                                "",
+                                "",
+                                DC_CONTACT_ID_SELF as u32,
+                            ));
                         } else {
-                            (*msg).text = context
-                                .stock_system_msg(
-                                    StockMessage::MsgDelMember,
-                                    as_str((*contact).addr),
-                                    "",
-                                    DC_CONTACT_ID_SELF as u32,
-                                )
-                                .strdup();
+                            (*msg).text = Some(context.stock_system_msg(
+                                StockMessage::MsgDelMember,
+                                as_str((*contact).addr),
+                                "",
+                                DC_CONTACT_ID_SELF as u32,
+                            ));
                         }
                         (*msg).param.set_int(Param::Cmd, 5);
                         if !(*contact).addr.is_null() {
@@ -1848,14 +1826,12 @@ pub unsafe fn dc_set_chat_name(
                 {
                     if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                         (*msg).type_0 = Viewtype::Text;
-                        (*msg).text = context
-                            .stock_system_msg(
-                                StockMessage::MsgGrpName,
-                                as_str((*chat).name),
-                                as_str(new_name),
-                                DC_CONTACT_ID_SELF as u32,
-                            )
-                            .strdup();
+                        (*msg).text = Some(context.stock_system_msg(
+                            StockMessage::MsgGrpName,
+                            as_str((*chat).name),
+                            as_str(new_name),
+                            DC_CONTACT_ID_SELF as u32,
+                        ));
                         (*msg).param.set_int(Param::Cmd, 2);
                         if !(*chat).name.is_null() {
                             (*msg).param.set(Param::Arg, as_str((*chat).name));
@@ -1922,18 +1898,16 @@ pub unsafe fn dc_set_chat_profile_image(
                             (*msg).param.set_int(Param::Cmd, 3);
                             (*msg).param.set(Param::Arg, as_str(new_image_rel));
                             (*msg).type_0 = Viewtype::Text;
-                            (*msg).text = context
-                                .stock_system_msg(
-                                    if !new_image_rel.is_null() {
-                                        StockMessage::MsgGrpImgChanged
-                                    } else {
-                                        StockMessage::MsgGrpImgDeleted
-                                    },
-                                    "",
-                                    "",
-                                    DC_CONTACT_ID_SELF as uint32_t,
-                                )
-                                .strdup();
+                            (*msg).text = Some(context.stock_system_msg(
+                                if !new_image_rel.is_null() {
+                                    StockMessage::MsgGrpImgChanged
+                                } else {
+                                    StockMessage::MsgGrpImgDeleted
+                                },
+                                "",
+                                "",
+                                DC_CONTACT_ID_SELF as uint32_t,
+                            ));
                             (*msg).id = dc_send_msg(context, chat_id, msg);
                             context.call_cb(
                                 Event::MSGS_CHANGED,

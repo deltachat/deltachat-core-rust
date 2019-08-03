@@ -14,6 +14,7 @@ use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
+use std::ptr;
 
 /* * the structure behind dc_msg_t */
 #[derive(Clone)]
@@ -31,7 +32,7 @@ pub struct dc_msg_t<'a> {
     pub timestamp_sort: i64,
     pub timestamp_sent: i64,
     pub timestamp_rcvd: i64,
-    pub text: *mut libc::c_char,
+    pub text: Option<String>,
     pub context: &'a Context,
     pub rfc724_mid: *mut libc::c_char,
     pub in_reply_to: *mut libc::c_char,
@@ -241,7 +242,7 @@ pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> *mut d
         timestamp_sort: 0,
         timestamp_sent: 0,
         timestamp_rcvd: 0,
-        text: std::ptr::null_mut(),
+        text: None,
         context,
         rfc724_mid: std::ptr::null_mut(),
         in_reply_to: std::ptr::null_mut(),
@@ -270,8 +271,6 @@ pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    free((*msg).text as *mut libc::c_void);
-    (*msg).text = 0 as *mut libc::c_char;
     free((*msg).rfc724_mid as *mut libc::c_void);
     (*msg).rfc724_mid = 0 as *mut libc::c_char;
     free((*msg).in_reply_to as *mut libc::c_void);
@@ -479,19 +478,25 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                (*msg).text = row.get::<_, String>(15).unwrap_or_default().strdup();
+                (*msg).text = row.get::<_, Option<String>>(15)?;
                 (*msg).param = row.get::<_, String>(16)?.parse().unwrap_or_default();
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
                 (*msg).location_id = row.get(19)?;
                 (*msg).chat_blocked = row.get::<_, Option<i32>>(20)?.unwrap_or_default();
                 if (*msg).chat_blocked == 2 {
-                    dc_truncate_n_unwrap_str((*msg).text, 256, 0);
-                }
-            }
+                    if let Some(ref text) = (*msg).text {
+                        let ptr = text.strdup();
+
+                        dc_truncate_n_unwrap_str(ptr, 256, 0);
+
+                        (*msg).text = Some(to_string(ptr));
+                        free(ptr.cast());
+                    }
+                };
             Ok(())
-        }
-    );
+            }
+        });
 
     res.is_ok()
 }
@@ -705,9 +710,11 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
-
-    let res = dc_truncate_str(as_str((*msg).text), 30000);
-    res.strdup()
+    if let Some(ref text) = (*msg).text {
+        dc_truncate_str(text, 30000).strdup()
+    } else {
+        ptr::null_mut()
+    }
 }
 
 #[allow(non_snake_case)]
@@ -827,9 +834,15 @@ pub unsafe fn dc_msg_get_summarytext(
         return dc_strdup(0 as *const libc::c_char);
     }
 
+    let msgtext_c = (*msg)
+        .text
+        .as_ref()
+        .map(|s| CString::yolo(String::as_str(s)));
+    let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
+
     dc_msg_get_summarytext_by_raw(
         (*msg).type_0,
-        (*msg).text,
+        msgtext_ptr,
         &mut (*msg).param,
         approx_characters,
         (*msg).context,
@@ -1049,8 +1062,11 @@ pub unsafe fn dc_msg_set_text(mut msg: *mut dc_msg_t, text: *const libc::c_char)
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    free((*msg).text as *mut libc::c_void);
-    (*msg).text = dc_strdup(text);
+    (*msg).text = if text.is_null() {
+        None
+    } else {
+        Some(to_string(text))
+    };
 }
 
 pub unsafe fn dc_msg_set_file(

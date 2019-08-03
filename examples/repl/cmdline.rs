@@ -914,30 +914,17 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No message text given.");
 
-            let msg = CString::yolo(format!("{} {}", arg1, arg2));
+            let msg = format!("{} {}", arg1, arg2);
 
-            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg.as_ptr()) {
+            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg) {
                 println!("Message sent.");
             } else {
                 bail!("Sending failed.");
             }
         }
-        "send-garbage" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
-            let msg = b"\xff\x00"; // NUL-terminated C-string, that is malformed utf-8
-            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg.as_ptr().cast()) {
-                println!("Malformed utf-8 succesfully send. Not nice.");
-            } else {
-                bail!("Garbage sending failed, as expected.");
-            }
-        }
         "sendempty" => {
             ensure!(!sel_chat.is_null(), "No chat selected.");
-            if 0 != dc_send_text_msg(
-                context,
-                dc_chat_get_id(sel_chat),
-                b"\x00" as *const u8 as *const libc::c_char,
-            ) {
+            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), "".into()) {
                 println!("Message sent.");
             } else {
                 bail!("Sending failed.");

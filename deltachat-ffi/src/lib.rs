@@ -374,6 +374,7 @@ pub unsafe extern "C" fn dc_send_text_msg(
 ) -> u32 {
     assert!(!context.is_null());
     let context = &*context;
+    let text_to_send = dc_tools::to_string_lossy(text_to_send);
 
     dc_chat::dc_send_text_msg(context, chat_id, text_to_send)
 }
