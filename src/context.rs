@@ -310,12 +310,12 @@ pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) ->
     if 0 != dc_is_open(context) {
         return false;
     }
-    *context.dbfile.write().unwrap() = to_cstring(dbfile);
+    *context.dbfile.write().unwrap() = dbfile.strdup();
     if blobdir.is_some() && blobdir.unwrap().len() > 0 {
-        let dir = to_cstring(dc_ensure_no_slash_safe(blobdir.unwrap()));
+        let dir = dc_ensure_no_slash_safe(blobdir.unwrap()).strdup();
         *context.blobdir.write().unwrap() = dir;
     } else {
-        let dir = to_cstring(dbfile.to_string() + "-blobs");
+        let dir = (dbfile.to_string() + "-blobs").strdup();
         dc_create_folder(context, dir);
         *context.blobdir.write().unwrap() = dir;
     }
