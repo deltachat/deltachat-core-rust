@@ -796,12 +796,11 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
     0
 }
 
-#[allow(non_snake_case)]
 pub unsafe fn dc_msg_get_summary<'a>(
     msg: *mut dc_msg_t<'a>,
     mut chat: *const Chat<'a>,
 ) -> *mut dc_lot_t {
-    let mut OK_TO_CONTINUE = true;
+    let mut success = true;
     let ret: *mut dc_lot_t = dc_lot_new();
     let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
@@ -811,12 +810,12 @@ pub unsafe fn dc_msg_get_summary<'a>(
             if chat_to_delete.is_null() {
             } else {
                 chat = chat_to_delete;
-                OK_TO_CONTINUE = false;
+                success = false;
             }
         } else {
-            OK_TO_CONTINUE = false;
+            success = false;
         }
-        if OK_TO_CONTINUE == false {
+        if success == false {
             if (*msg).from_id != 1 as libc::c_uint
                 && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
             {
