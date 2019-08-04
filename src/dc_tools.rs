@@ -832,7 +832,7 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut 
             };
 
             if let Some(grpid) = dc_extract_grpid_from_rfc724_mid(mid) {
-                return to_cstring(grpid);
+                return grpid.strdup();
             }
             cur = if !cur.is_null() {
                 (*cur).next
@@ -2113,24 +2113,24 @@ mod tests {
 
     #[test]
     fn test_dc_extract_grpid_from_rfc724_mid() {
-        // Should return 0 if we pass invalid mid
-        let str = "foobar";
-        let grpid = dc_extract_grpid_from_rfc724_mid(str);
+        // Should return None if we pass invalid mid
+        let mid = "foobar";
+        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, None);
 
-        // Should return 0 if grpid has a length which is not 11 or 16
-        let str = "Gr.12345678.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(str);
+        // Should return None if grpid has a length which is not 11 or 16
+        let mid = "Gr.12345678.morerandom@domain.de";
+        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, None);
 
         // Should return extracted grpid for grpid with length of 11
-        let str = "Gr.12345678901.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(str);
+        let mid = "Gr.12345678901.morerandom@domain.de";
+        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("12345678901"));
 
         // Should return extracted grpid for grpid with length of 11
-        let str = "Gr.1234567890123456.morerandom@domain.de";
-        let grpid = dc_extract_grpid_from_rfc724_mid(str);
+        let mid = "Gr.1234567890123456.morerandom@domain.de";
+        let grpid = dc_extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("1234567890123456"));
     }
 
