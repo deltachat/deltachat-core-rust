@@ -1024,7 +1024,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: uint32_t, msg: *mut dc_msg_t
                     time(),
                     (*msg).type_0,
                     DC_STATE_OUT_DRAFT,
-                    (*msg).text.deref().unwrap_or(""),
+                    (*msg).text.as_ref().map(String::as_str).unwrap_or(""),
                     (*msg).param.to_string(),
                     1,
                 ],

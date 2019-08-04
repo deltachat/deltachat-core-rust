@@ -1,4 +1,4 @@
-#![feature(c_variadic, ptr_wrapping_offset_from, ptr_cast, inner_deref)]
+#![feature(c_variadic, ptr_wrapping_offset_from, ptr_cast)]
 
 #[macro_use]
 extern crate failure_derive;
