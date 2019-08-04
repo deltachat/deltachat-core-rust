@@ -20,6 +20,7 @@ class Message(object):
         self._dc_context = account._dc_context
         assert isinstance(self._dc_context, ffi.CData)
         assert isinstance(dc_msg, ffi.CData)
+        assert dc_msg != ffi.NULL
         self._dc_msg = dc_msg
         self.id = lib.dc_msg_get_id(dc_msg)
         assert self.id is not None and self.id >= 0, repr(self.id)
