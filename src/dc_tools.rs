@@ -803,8 +803,10 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     ret
 }
 
+
+/// Extract our group ID from Message-IDs as `Gr.12345678901.morerandom@domain.de`
+/// `12345678901` is the wanted ID in this example.
 pub fn dc_extract_grpid_from_rfc724_mid(mid: &str) -> Option<&str> {
-    /* extract our group ID from Message-IDs as `Gr.12345678901.morerandom@domain.de`; "12345678901" is the wanted ID in this example. */
     if mid.len() < 9 || !mid.starts_with("Gr.") {
         return None;
     }
