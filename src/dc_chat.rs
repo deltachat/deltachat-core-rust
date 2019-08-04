@@ -782,9 +782,9 @@ unsafe fn get_parent_mime_headers(
             .sql
             .query_row(
                 "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                 FROM msgs WHERE chat_id=? AND timestamp=(SELECT max(timestamp) \
-                 FROM msgs WHERE chat_id=? AND from_id!=?);",
-                params![(*chat).id as i32, (*chat).id as i32, DC_CONTACT_ID_SELF as i32],
+                 FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT max(timestamp) \
+                 FROM msgs WHERE chat_id=?1 AND from_id!=?2);",
+                params![(*chat).id as i32, DC_CONTACT_ID_SELF as i32],
                 |row| {
                     *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
                     *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
@@ -800,9 +800,9 @@ unsafe fn get_parent_mime_headers(
                 .sql
                 .query_row(
                     "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                     FROM msgs WHERE chat_id=? AND timestamp=(SELECT min(timestamp) \
-                     FROM msgs WHERE chat_id=? AND from_id==?);",
-                    params![(*chat).id as i32, (*chat).id as i32, DC_CONTACT_ID_SELF as i32],
+                     FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT min(timestamp) \
+                     FROM msgs WHERE chat_id=?1 AND from_id==?2);",
+                    params![(*chat).id as i32, DC_CONTACT_ID_SELF as i32],
                     |row| {
                         *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
                         *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
