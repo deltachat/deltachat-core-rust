@@ -1426,6 +1426,7 @@ pub fn dc_update_server_uid(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils as test;
     use std::ffi::CStr;
 
     #[test]
@@ -1544,6 +1545,38 @@ mod tests {
                 "text/vcard"
             );
             free(mime_0 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    pub fn test_prepare_message_and_send() {
+        use crate::config::Config;
+
+        unsafe {
+            let d = test::dummy_context();
+            let ctx = &d.ctx;
+
+            let contact = dc_create_contact(
+                ctx,
+                b"\x00".as_ptr().cast(),
+                b"dest@example.com\x00".as_ptr().cast(),
+            );
+            assert!(contact != 0);
+
+            let res = ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"));
+            assert!(res.is_ok());
+
+            let chat = dc_create_chat_by_contact_id(ctx, contact);
+            assert!(chat != 0);
+
+            let msg = dc_msg_new(ctx, Viewtype::Text);
+            assert!(!msg.is_null());
+
+            let msg_id = dc_prepare_msg(ctx, chat, msg);
+            assert!(msg_id != 0);
+
+            let msg2 = dc_get_msg(ctx, msg_id);
+            assert!(!msg2.is_null());
         }
     }
 }
