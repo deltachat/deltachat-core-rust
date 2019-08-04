@@ -776,6 +776,7 @@ unsafe fn get_parent_mime_headers(
         || parent_in_reply_to.is_null()
         || parent_references.is_null())
     {
+        // prefer a last message that isn't from us
         success = (*chat)
             .context
             .sql
