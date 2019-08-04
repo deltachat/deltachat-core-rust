@@ -114,7 +114,8 @@ pub unsafe fn dc_receive_imf(
                     }
                 } else if dc_array_get_cnt(from_list) >= 1 {
                     from_id = dc_array_get_id(from_list, 0 as size_t);
-                    incoming_origin = dc_get_contact_origin(context, from_id, &mut from_id_blocked)
+                    incoming_origin =
+                        Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
                 }
                 dc_array_unref(from_list);
             }
@@ -309,7 +310,7 @@ pub unsafe fn dc_receive_imf(
                                     } else if 0
                                         != dc_is_reply_to_known_message(context, &mime_parser)
                                     {
-                                        dc_scaleup_contact_origin(
+                                        Contact::scaleup_origin_by_id(
                                             context,
                                             from_id,
                                             Origin::IncomingReplyTo,
@@ -783,12 +784,11 @@ pub unsafe fn dc_receive_imf(
                         && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint
                     {
                         if !mime_parser.location_kml.as_ref().unwrap().addr.is_null() {
-                            if let Ok(contact) = dc_get_contact(context, from_id) {
-                                if !contact.addr.is_null()
-                                    && strcasecmp(
-                                        contact.addr,
-                                        mime_parser.location_kml.as_ref().unwrap().addr,
-                                    ) == 0
+                            if let Ok(contact) = Contact::get_by_id(context, from_id) {
+                                if !contact.get_addr().is_empty()
+                                    && contact.get_addr().to_lowercase()
+                                        == as_str(mime_parser.location_kml.as_ref().unwrap().addr)
+                                            .to_lowercase()
                                 {
                                     let newest_location_id = dc_save_locations(
                                         context,
@@ -1026,9 +1026,8 @@ unsafe fn create_or_lookup_group(
             if !optional_field.is_null() {
                 X_MrRemoveFromGrp = (*optional_field).fld_value;
                 mime_parser.is_system_message = 5;
-                let left_group: libc::c_int =
-                    (dc_lookup_contact_id_by_addr(context, X_MrRemoveFromGrp)
-                        == from_id as libc::c_uint) as libc::c_int;
+                let left_group = (Contact::lookup_id_by_addr(context, as_str(X_MrRemoveFromGrp))
+                    == from_id as u32) as libc::c_int;
                 better_msg = context.stock_system_msg(
                     if 0 != left_group {
                         StockMessage::MsgGroupLeft
@@ -1137,7 +1136,7 @@ unsafe fn create_or_lookup_group(
                 && !grpname.is_null()
                 && X_MrRemoveFromGrp.is_null()
                 && (0 == group_explicitly_left
-                    || !X_MrAddToGrp.is_null() && dc_addr_cmp(&self_addr, as_str(X_MrAddToGrp)))
+                    || !X_MrAddToGrp.is_null() && addr_cmp(&self_addr, as_str(X_MrAddToGrp)))
             {
                 /*otherwise, a pending "quit" message may pop up*/
                 /*re-create explicitly left groups only if ourself is re-added*/
@@ -1267,17 +1266,20 @@ unsafe fn create_or_lookup_group(
                                 params![chat_id as i32],
                             )
                             .ok();
-                            if skip.is_null() || !dc_addr_cmp(&self_addr, as_str(skip)) {
+                            if skip.is_null() || !addr_cmp(&self_addr, as_str(skip)) {
                                 dc_add_to_chat_contacts_table(context, chat_id, 1);
                             }
                             if from_id > 9 {
-                                if !dc_addr_equals_contact(context, &self_addr, from_id as u32)
-                                    && (skip.is_null()
-                                        || !dc_addr_equals_contact(
-                                            context,
-                                            to_string(skip),
-                                            from_id as u32,
-                                        ))
+                                if !Contact::addr_equals_contact(
+                                    context,
+                                    &self_addr,
+                                    from_id as u32,
+                                ) && (skip.is_null()
+                                    || !Contact::addr_equals_contact(
+                                        context,
+                                        to_string(skip),
+                                        from_id as u32,
+                                    ))
                                 {
                                     dc_add_to_chat_contacts_table(
                                         context,
@@ -1289,9 +1291,13 @@ unsafe fn create_or_lookup_group(
                             i = 0;
                             while i < to_ids_cnt {
                                 let to_id = dc_array_get_id(to_ids, i as size_t);
-                                if !dc_addr_equals_contact(context, &self_addr, to_id)
+                                if !Contact::addr_equals_contact(context, &self_addr, to_id)
                                     && (skip.is_null()
-                                        || !dc_addr_equals_contact(context, to_string(skip), to_id))
+                                        || !Contact::addr_equals_contact(
+                                            context,
+                                            to_string(skip),
+                                            to_id,
+                                        ))
                                 {
                                     dc_add_to_chat_contacts_table(context, chat_id, to_id);
                                 }
@@ -1639,9 +1645,11 @@ unsafe fn check_verified_properties(
     // this check is skipped for SELF as there is no proper SELF-peerstate
     // and results in group-splits otherwise.
     if from_id != 1 {
-        let peerstate = Peerstate::from_addr(context, &context.sql, as_str(contact.addr));
+        let peerstate = Peerstate::from_addr(context, &context.sql, contact.get_addr());
 
-        if peerstate.is_none() || dc_contact_is_verified_ex(&contact, peerstate.as_ref()) != 2 {
+        if peerstate.is_none()
+            || contact.is_verified_ex(peerstate.as_ref()) != VerifiedStatus::BidirectVerified
+        {
             verify_fail("The sender of this message is not verified.".into());
             return 0;
         }
@@ -1690,7 +1698,7 @@ unsafe fn check_verified_properties(
                     context,
                     0,
                     "{} has verfied {}.",
-                    as_str(contact.addr),
+                    contact.get_addr(),
                     to_addr,
                 );
                 let fp = peerstate.gossip_key_fingerprint.clone();
@@ -1992,7 +2000,7 @@ unsafe fn add_or_lookup_contact_by_addr(
         .get_config(context, "configured_addr")
         .unwrap_or_default();
 
-    if dc_addr_cmp(self_addr, as_str(addr_spec)) {
+    if addr_cmp(self_addr, as_str(addr_spec)) {
         *check_self = 1;
     }
 
@@ -2000,20 +2008,15 @@ unsafe fn add_or_lookup_contact_by_addr(
         return;
     }
     /* add addr_spec if missing, update otherwise */
-    let mut display_name_dec = 0 as *mut libc::c_char;
+    let mut display_name_dec = "".to_string();
     if !display_name_enc.is_null() {
-        display_name_dec = dc_decode_header_words(display_name_enc);
-        dc_normalize_name(display_name_dec);
+        let tmp = as_str(dc_decode_header_words(display_name_enc));
+        display_name_dec = normalize_name(&tmp);
     }
     /*can be NULL*/
-    let row_id = dc_add_or_lookup_contact(
-        context,
-        display_name_dec,
-        addr_spec,
-        origin,
-        0 as *mut libc::c_int,
-    );
-    free(display_name_dec as *mut libc::c_void);
+    let row_id = Contact::add_or_lookup(context, display_name_dec, as_str(addr_spec), origin)
+        .map(|(id, _)| id)
+        .unwrap_or_default();
     if 0 != row_id {
         if !dc_array_search_id(ids, row_id, 0 as *mut size_t) {
             dc_array_add_id(ids, row_id);

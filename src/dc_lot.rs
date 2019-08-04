@@ -156,13 +156,13 @@ pub unsafe fn dc_lot_fill(
         } else {
             if !chat.is_null() && (*chat).id == 1i32 as libc::c_uint {
                 if let Some(contact) = contact {
-                    (*lot).text1 = dc_contact_get_display_name(contact);
+                    (*lot).text1 = contact.get_display_name().strdup();
                 } else {
                     (*lot).text1 = std::ptr::null_mut();
                 }
             } else {
                 if let Some(contact) = contact {
-                    (*lot).text1 = dc_contact_get_first_name(contact);
+                    (*lot).text1 = contact.get_first_name().strdup();
                 } else {
                     (*lot).text1 = std::ptr::null_mut();
                 }

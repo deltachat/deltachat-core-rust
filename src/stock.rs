@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::ffi::CString;
 
 use strum::EnumProperty;
 use strum_macros::EnumProperty;
@@ -200,42 +199,30 @@ impl Context {
         from_id: u32,
     ) -> String {
         let insert1 = if id == StockMessage::MsgAddMember || id == StockMessage::MsgDelMember {
-            unsafe {
-                let param1_c = CString::new(param1.as_ref()).unwrap();
-                let contact_id = dc_lookup_contact_id_by_addr(self, param1_c.as_ptr());
-                if contact_id != 0 {
-                    let displayname = dc_get_contact(self, contact_id)
-                        .map(|contact| dc_contact_get_name_n_addr(&contact))
-                        .unwrap_or_else(|_| std::ptr::null_mut());
-
-                    let ret = to_string(displayname);
-                    free(displayname as *mut libc::c_void);
-                    ret
-                } else {
-                    param1.as_ref().to_string()
-                }
+            let contact_id = Contact::lookup_id_by_addr(self, param1.as_ref());
+            if contact_id != 0 {
+                Contact::get_by_id(self, contact_id)
+                    .map(|contact| contact.get_name_n_addr())
+                    .unwrap_or_default()
+            } else {
+                param1.as_ref().to_string()
             }
         } else {
             param1.as_ref().to_string()
         };
+
         let action = self.stock_string_repl_str2(id, insert1, param2.as_ref().to_string());
         let action1 = action.trim_end_matches('.');
         match from_id {
             0 => action,
             1 => self.stock_string_repl_str(StockMessage::MsgActionByMe, action1), // DC_CONTACT_ID_SELF
-            _ => unsafe {
-                let displayname = dc_get_contact(self, from_id)
-                    .map(|contact| dc_contact_get_name_n_addr(&contact))
-                    .unwrap_or_else(|_| std::ptr::null_mut());
+            _ => {
+                let displayname = Contact::get_by_id(self, from_id)
+                    .map(|contact| contact.get_name_n_addr())
+                    .unwrap_or_default();
 
-                let ret = self.stock_string_repl_str2(
-                    StockMessage::MsgActionByUser,
-                    action1,
-                    as_str(displayname),
-                );
-                free(displayname as *mut libc::c_void);
-                ret
-            },
+                self.stock_string_repl_str2(StockMessage::MsgActionByUser, action1, &displayname)
+            }
         }
     }
 }
@@ -345,11 +332,7 @@ mod tests {
     #[test]
     fn test_stock_system_msg_add_member_by_me_with_displayname() {
         let t = dummy_context();
-        unsafe {
-            let name = CString::new("Alice").unwrap();
-            let addr = CString::new("alice@example.com").unwrap();
-            assert!(dc_create_contact(&t.ctx, name.as_ptr(), addr.as_ptr()) > 0);
-        }
+        assert!(Contact::create(&t.ctx, "Alice", "alice@example.com").unwrap() > 0);
         assert_eq!(
             t.ctx.stock_system_msg(
                 StockMessage::MsgAddMember,
@@ -358,22 +341,18 @@ mod tests {
                 DC_CONTACT_ID_SELF as u32
             ),
             "Member Alice (alice@example.com) added by me."
-        )
+        );
     }
 
     #[test]
     fn test_stock_system_msg_add_member_by_other_with_displayname() {
         let t = dummy_context();
-        let contact_id = unsafe {
-            let name = CString::new("Alice").unwrap();
-            let addr = CString::new("alice@example.com").unwrap();
+        let contact_id = {
             assert!(
-                dc_create_contact(&t.ctx, name.as_ptr(), addr.as_ptr()) > 0,
+                Contact::create(&t.ctx, "Alice", "alice@example.com").unwrap() > 0,
                 "Failed to create contact Alice"
             );
-            let name = CString::new("Bob").unwrap();
-            let addr = CString::new("bob@example.com").unwrap();
-            let id = dc_create_contact(&t.ctx, name.as_ptr(), addr.as_ptr());
+            let id = Contact::create(&t.ctx, "Bob", "bob@example.com").unwrap();
             assert!(id > 0, "Failed to create contact Bob");
             id
         };
@@ -385,7 +364,7 @@ mod tests {
                 contact_id,
             ),
             "Member Alice (alice@example.com) added by Bob (bob@example.com)."
-        )
+        );
     }
 
     #[test]
@@ -405,20 +384,12 @@ mod tests {
     #[test]
     fn test_stock_system_msg_grp_name_other() {
         let t = dummy_context();
-        let contact_id = unsafe {
-            let name = CString::new("Alice").unwrap();
-            let addr = CString::new("alice@example.com").unwrap();
-            let id = dc_create_contact(&t.ctx, name.as_ptr(), addr.as_ptr());
-            assert!(id > 0, "Failed to create contact Alice");
-            id
-        };
+        let id = Contact::create(&t.ctx, "Alice", "alice@example.com").unwrap();
+        assert!(id > 0, "Failed to create contact Alice");
+
         assert_eq!(
-            t.ctx.stock_system_msg(
-                StockMessage::MsgGrpName,
-                "Some chat",
-                "Other chat",
-                contact_id
-            ),
+            t.ctx
+                .stock_system_msg(StockMessage::MsgGrpName, "Some chat", "Other chat", id,),
             "Group name changed from \"Some chat\" to \"Other chat\" by Alice (alice@example.com)."
         )
     }

@@ -52,7 +52,7 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &Context, msg_id: uint32_t) -> u
             dc_unblock_chat(context, (*chat).id);
             send_event = 1i32
         }
-        dc_scaleup_contact_origin(context, (*msg).from_id, Origin::CreateChat);
+        Contact::scaleup_origin_by_id(context, (*msg).from_id, Origin::CreateChat);
     }
 
     dc_msg_unref(msg);
@@ -206,7 +206,8 @@ pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32
             dc_unblock_chat(context, chat_id);
             send_event = 1i32
         }
-    } else if !dc_real_contact_exists(context, contact_id) && contact_id != 1i32 as libc::c_uint {
+    } else if !Contact::real_exists_by_id(context, contact_id) && contact_id != 1i32 as libc::c_uint
+    {
         warn!(
             context,
             0, "Cannot create chat, contact {} does not exist.", contact_id as libc::c_int,
@@ -222,7 +223,7 @@ pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32
         if 0 != chat_id {
             send_event = 1;
         }
-        dc_scaleup_contact_origin(context, contact_id, Origin::CreateChat);
+        Contact::scaleup_origin_by_id(context, contact_id, Origin::CreateChat);
     }
     if 0 != send_event {
         context.call_cb(Event::MSGS_CHANGED, 0i32 as uintptr_t, 0i32 as uintptr_t);
@@ -239,7 +240,6 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
 ) {
     let mut chat_id = 0;
     let mut chat_blocked = 0;
-    let chat_name: *mut libc::c_char;
 
     if !ret_chat_id.is_null() {
         *ret_chat_id = 0;
@@ -264,11 +264,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
         return;
     }
     if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
-        chat_name = if !contact.name.is_null() && 0 != *contact.name.offset(0isize) as libc::c_int {
-            contact.name
-        } else {
-            contact.addr
-        };
+        let chat_name = contact.get_display_name();
 
         if sql::execute(
             context,
@@ -276,10 +272,10 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
             format!(
                 "INSERT INTO chats (type, name, param, blocked, grpid) VALUES({}, '{}', '{}', {}, '{}')",
                 100,
-                as_str(chat_name),
+                chat_name,
                 if contact_id == 1 { "K=1" } else { "" },
                 create_blocked,
-                as_str(contact.addr),
+                contact.get_addr(),
             ),
             params![],
         ).is_ok() {
@@ -288,7 +284,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
                 &context.sql,
                 "chats",
                 "grpid",
-                as_str(contact.addr),
+                contact.get_addr(),
             );
 
             sql::execute(
@@ -1538,7 +1534,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
 ) -> libc::c_int {
     let mut OK_TO_CONTINUE = true;
     let mut success: libc::c_int = 0;
-    let contact = dc_get_contact(context, contact_id);
+    let contact = Contact::get_by_id(context, contact_id);
     let chat: *mut Chat = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
 
@@ -1548,7 +1544,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
 
         /*this also makes sure, not contacts are added to special or normal chats*/
         if !(0 == real_group_exists(context, chat_id)
-            || !dc_real_contact_exists(context, contact_id) && contact_id != 1 as libc::c_uint
+            || !Contact::real_exists_by_id(context, contact_id) && contact_id != 1 as libc::c_uint
             || !dc_chat_load_from_db(chat, chat_id))
         {
             if !(dc_is_contact_in_chat(context, chat_id, 1 as uint32_t) == 1) {
@@ -1570,7 +1566,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     .sql
                     .get_config(context, "configured_addr")
                     .unwrap_or_default();
-                if as_str(contact.addr) != &self_addr {
+                if contact.get_addr() != &self_addr {
                     // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
                     // if SELF is not in the group, members cannot be added at all.
 
@@ -1582,7 +1578,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                     } else {
                         // else continue and send status mail
                         if (*chat).type_0 == 130 {
-                            if dc_contact_is_verified(&contact) != 2 {
+                            if contact.is_verified() != VerifiedStatus::BidirectVerified {
                                 error!(
                                     context, 0,
                                     "Only bidirectional verified contacts can be added to verified groups."
@@ -1601,14 +1597,12 @@ pub unsafe fn dc_add_contact_to_chat_ex(
                             (*msg).type_0 = Viewtype::Text;
                             (*msg).text = Some(context.stock_system_msg(
                                 StockMessage::MsgAddMember,
-                                as_str(contact.addr),
+                                contact.get_addr(),
                                 "",
                                 DC_CONTACT_ID_SELF as uint32_t,
                             ));
                             (*msg).param.set_int(Param::Cmd, 4);
-                            if !contact.addr.is_null() {
-                                (*msg).param.set(Param::Arg, as_str(contact.addr));
-                            }
+                            (*msg).param.set(Param::Arg, contact.get_addr());
                             (*msg).param.set_int(Param::Arg2, flags);
                             (*msg).id = dc_send_msg(context, chat_id, msg);
                             context.call_cb(
@@ -1705,7 +1699,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                 );
             } else {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-                if let Ok(contact) = dc_get_contact(context, contact_id) {
+                if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                     if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                         (*msg).type_0 = Viewtype::Text;
                         if contact.id == 1 as libc::c_uint {
@@ -1719,15 +1713,13 @@ pub unsafe fn dc_remove_contact_from_chat(
                         } else {
                             (*msg).text = Some(context.stock_system_msg(
                                 StockMessage::MsgDelMember,
-                                as_str(contact.addr),
+                                contact.get_addr(),
                                 "",
                                 DC_CONTACT_ID_SELF as u32,
                             ));
                         }
                         (*msg).param.set_int(Param::Cmd, 5);
-                        if !contact.addr.is_null() {
-                            (*msg).param.set(Param::Arg, as_str(contact.addr));
-                        }
+                        (*msg).param.set(Param::Arg, contact.get_addr());
                         (*msg).id = dc_send_msg(context, chat_id, msg);
                         context.call_cb(
                             Event::MSGS_CHANGED,
@@ -2118,8 +2110,10 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
         } else if (*chat).type_0 == 100i32 {
             contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
             if !(*contacts).is_empty() {
-                if let Ok(contact) = dc_get_contact((*chat).context, (*contacts).get_id(0)) {
-                    image_abs = dc_contact_get_profile_image(&contact)
+                if let Ok(contact) = Contact::get_by_id((*chat).context, (*contacts).get_id(0)) {
+                    if let Some(img) = contact.get_profile_image() {
+                        image_abs = img.strdup();
+                    }
                 }
             }
         }
@@ -2139,8 +2133,8 @@ pub unsafe fn dc_chat_get_color(chat: *const Chat) -> uint32_t {
         if (*chat).type_0 == 100i32 {
             contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
             if !(*contacts).is_empty() {
-                if let Ok(contact) = dc_get_contact((*chat).context, (*contacts).get_id(0)) {
-                    color = dc_str_to_color(contact.addr) as uint32_t;
+                if let Ok(contact) = Contact::get_by_id((*chat).context, (*contacts).get_id(0)) {
+                    color = contact.get_color();
                 }
             }
         } else {

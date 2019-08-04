@@ -1,5 +1,4 @@
-use std::ffi::CString;
-
+use itertools::Itertools;
 use num_traits::{FromPrimitive, ToPrimitive};
 use rusqlite;
 use rusqlite::types::*;
@@ -18,17 +17,43 @@ use crate::peerstate::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
 use crate::types::*;
-use crate::x::*;
 
 const DC_GCL_VERIFIED_ONLY: u32 = 0x01;
 
+/// Contacts with at least this origin value are shown in the contact list.
+const DC_ORIGIN_MIN_CONTACT_LIST: i32 = 0x100;
+
+/// An object representing a single contact in memory.
+/// The contact object is not updated.
+/// If you want an update, you have to recreate the object.
+///
+/// The library makes sure
+/// only to use names _authorized_ by the contact in `To:` or `Cc:`.
+/// _Given-names _as "Daddy" or "Honey" are not used there.
+/// For this purpose, internally, two names are tracked -
+/// authorized-name and given-name.
+/// By default, these names are equal, but functions working with contact names
 pub struct Contact<'a> {
     context: &'a Context,
+    /// The contact ID.
+    ///
+    /// Special message IDs:
+    /// - DC_CONTACT_ID_SELF (1) - this is the owner of the account with the email-address set by
+    ///   `dc_set_config` using "addr".
+    ///
+    /// Normal contact IDs are larger than these special ones (larger than DC_CONTACT_ID_LAST_SPECIAL).
     pub id: u32,
-    pub name: *mut libc::c_char,
-    pub authname: *mut libc::c_char,
-    pub addr: *mut libc::c_char,
-    /// Blocked state. Use dc_contact_is_blocked() to access this field.
+    /// Contact name. It is recommended to use `Contact::get_name`,
+    /// `Contact::get_display_name` or `Contact::get_name_n_addr` to access this field.
+    /// May be empty, initially set to `authname`.
+    name: String,
+    /// Name authorized by the contact himself. Only this name may be spread to others,
+    /// e.g. in To:-lists. May be empty. It is recommended to use `Contact::get_name`,
+    /// `Contact::get_display_name` or `Contact::get_name_n_addr` to access this field.
+    authname: String,
+    /// E-Mail-Address of the contact. It is recommended to use `Contact::get_addr`` to access this field.
+    addr: String,
+    /// Blocked state. Use dc_contact_is_blocked to access this field.
     blocked: bool,
     /// The origin/source of the contact.
     pub origin: Origin,
@@ -103,38 +128,29 @@ impl Origin {
 
     /// Contacts that are shown in the contact list.
     pub fn include_in_contactlist(self) -> bool {
-        self as i32 >= 0x100
+        self as i32 >= DC_ORIGIN_MIN_CONTACT_LIST
     }
 }
 
-impl<'a> Contact<'a> {
-    /// An object representing a single contact in memory.
-    /// The contact object is not updated.
-    /// If you want an update, you have to recreate the object.
-    ///
-    /// The library makes sure
-    /// only to use names _authorized_ by the contact in `To:` or `Cc:`.
-    /// _Given-names _as "Daddy" or "Honey" are not used there.
-    /// For this purpose, internally, two names are tracked -
-    /// authorized-name and given-name.
-    /// By default, these names are equal,
-    /// but functions working with contact names
-    /// (eg. dc_contact_get_name(), dc_contact_get_display_name(),
-    /// dc_contact_get_name_n_addr(), dc_contact_get_first_name(),
-    /// dc_create_contact() or dc_add_address_book())
-    /// only affect the given-name.
-    pub fn new(context: &'a Context) -> Contact<'a> {
-        Contact {
-            context,
-            id: 0,
-            name: std::ptr::null_mut(),
-            authname: std::ptr::null_mut(),
-            addr: std::ptr::null_mut(),
-            blocked: false,
-            origin: Origin::Unknown,
-        }
-    }
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum Modifier {
+    None,
+    Modified,
+    Created,
+}
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[repr(u8)]
+pub enum VerifiedStatus {
+    /// Contact is not verified.
+    Unverified = 0,
+    // TODO: is this a thing?
+    Verified = 1,
+    /// SELF and contact have verified their fingerprints in both directions; in the UI typically checkmarks are shown.
+    BidirectVerified = 2,
+}
+
+impl<'a> Contact<'a> {
     /// From: of incoming messages of unknown sender
     /// Cc: of incoming messages of unknown sender
     /// To: of incoming messages of unknown sender
@@ -156,17 +172,17 @@ impl<'a> Contact<'a> {
     /// contacts with at least this origin value start a new "normal" chat, defaults to off
     pub fn load_from_db(context: &'a Context, sql: &Sql, contact_id: u32) -> Result<Self> {
         if contact_id == 1 {
-            let mut contact = Self::new(context);
-
-            contact.id = contact_id;
-            contact.name = unsafe { contact.context.stock_str(StockMessage::SelfMsg).strdup() };
-            contact.addr = unsafe {
-                contact
-                    .context
+            let contact = Contact {
+                context,
+                id: contact_id,
+                name: context.stock_str(StockMessage::SelfMsg).into(),
+                authname: "".into(),
+                addr: context
                     .sql
-                    .get_config(contact.context, "configured_addr")
-                    .unwrap_or_default()
-                    .strdup()
+                    .get_config(context, "configured_addr")
+                    .unwrap_or_default(),
+                blocked: false,
+                origin: Origin::Unknown,
             };
 
             return Ok(contact);
@@ -179,9 +195,9 @@ impl<'a> Contact<'a> {
                 let contact = Self {
                     context,
                     id: contact_id,
-                    name: unsafe { row.get::<_, String>(0)?.strdup() },
-                    authname: unsafe { row.get::<_, String>(4)?.strdup() },
-                    addr: unsafe { row.get::<_, String>(1)?.strdup() },
+                    name: row.get::<_, String>(0)?,
+                    authname: row.get::<_, String>(4)?,
+                    addr: row.get::<_, String>(1)?,
                     blocked: row.get::<_, Option<i32>>(3)?.unwrap_or_default() != 0,
                     origin: row.get(2)?,
                 };
@@ -202,108 +218,742 @@ impl<'a> Contact<'a> {
             .unwrap_or_default()
     }
 
+    /// Block the given contact.
     pub fn block(context: &Context, id: u32) {
         set_block_contact(context, id, true);
     }
 
+    /// Unblock the given contact.
     pub fn unblock(context: &Context, id: u32) {
         set_block_contact(context, id, false);
     }
-}
 
-impl<'a> Drop for Contact<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            free(self.name as *mut _);
-            free(self.authname as *mut _);
-            free(self.addr as *mut _);
+    /// Add a single contact as a result of an _explicit_ user action.
+    ///
+    /// We assume, the contact name, if any, is entered by the user and is used "as is" therefore,
+    /// normalize() is _not_ called for the name. If the contact is blocked, it is unblocked.
+    ///
+    /// To add a number of contacts, see `dc_add_address_book()` which is much faster for adding
+    /// a bunch of addresses.
+    ///
+    /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
+    pub fn create(context: &Context, name: impl AsRef<str>, addr: impl AsRef<str>) -> Result<u32> {
+        ensure!(
+            !addr.as_ref().is_empty(),
+            "Cannot create contact with empty address"
+        );
+
+        let (contact_id, sth_modified) =
+            Contact::add_or_lookup(context, name, addr, Origin::ManuallyCreated)?;
+        let blocked = Contact::is_blocked_load(context, contact_id);
+        context.call_cb(
+            Event::CONTACTS_CHANGED,
+            (if sth_modified == Modifier::Created {
+                contact_id
+            } else {
+                0
+            }) as uintptr_t,
+            0 as uintptr_t,
+        );
+        if blocked {
+            Contact::unblock(context, contact_id);
+        }
+
+        Ok(contact_id)
+    }
+
+    /// Mark all messages sent by the given contact
+    /// as _noticed_.  See also dc_marknoticed_chat() and dc_markseen_msgs()
+    ///
+    /// Calling this function usually results in the event `#DC_EVENT_MSGS_CHANGED`.
+    pub fn mark_noticed(context: &Context, id: u32) {
+        if sql::execute(
+            context,
+            &context.sql,
+            "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
+            params![DC_STATE_IN_NOTICED, id as i32, DC_STATE_IN_FRESH],
+        )
+        .is_ok()
+        {
+            context.call_cb(Event::MSGS_CHANGED, 0, 0);
         }
     }
+
+    /// Check if an e-mail address belongs to a known and unblocked contact.
+    /// Known and unblocked contacts will be returned by `dc_get_contacts()`.
+    ///
+    /// To validate an e-mail address independently of the contact database
+    /// use `dc_may_be_valid_addr()`.
+    pub fn lookup_id_by_addr(context: &Context, addr: impl AsRef<str>) -> u32 {
+        if addr.as_ref().is_empty() {
+            return 0;
+        }
+
+        let addr_normalized = addr_normalize(addr.as_ref());
+        let addr_self = context
+            .sql
+            .get_config(context, "configured_addr")
+            .unwrap_or_default();
+
+        if addr_normalized == addr_self {
+            return 1;
+        }
+
+        context.sql.query_row_col(
+            context,
+            "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
+            params![
+                addr_normalized,
+                DC_CONTACT_ID_LAST_SPECIAL as i32,
+                DC_ORIGIN_MIN_CONTACT_LIST,
+            ],
+            0
+        ).unwrap_or_default()
+    }
+
+    /// Lookup a contact and create it if it does not exist yet.
+    ///
+    /// Returns the contact_id and a `Modifier` value indicating if a modification occured.
+    pub fn add_or_lookup(
+        context: &Context,
+        name: impl AsRef<str>,
+        addr: impl AsRef<str>,
+        origin: Origin,
+    ) -> Result<(u32, Modifier)> {
+        let mut sth_modified = Modifier::None;
+
+        ensure!(
+            !addr.as_ref().is_empty(),
+            "Can not add_or_lookup empty address"
+        );
+        ensure!(origin != Origin::Unknown, "Missing valid origin");
+
+        let addr = addr_normalize(addr.as_ref());
+        let addr_self = context
+            .sql
+            .get_config(context, "configured_addr")
+            .unwrap_or_default();
+
+        if addr == addr_self {
+            return Ok((1, sth_modified));
+        }
+
+        if !may_be_valid_addr(&addr) {
+            warn!(
+                context,
+                0,
+                "Bad address \"{}\" for contact \"{}\".",
+                addr,
+                if !name.as_ref().is_empty() {
+                    name.as_ref()
+                } else {
+                    "<unset>"
+                },
+            );
+            bail!("Bad address supplied");
+        }
+
+        let mut update_addr = false;
+        let mut update_name = false;
+        let mut update_authname = false;
+        let mut row_id = 0;
+
+        if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.query_row(
+            "SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;",
+            params![addr],
+            |row| {
+                let row_id = row.get(0)?;
+                let row_name: String = row.get(1)?;
+                let row_addr: String = row.get(2)?;
+                let row_origin = row.get(3)?;
+                let row_authname: String = row.get(4)?;
+
+                if !name.as_ref().is_empty() && !row_name.is_empty() {
+                    if origin >= row_origin && name.as_ref() != row_name {
+                        update_name = true;
+                    }
+                } else {
+                    update_name = true;
+                }
+                if origin == Origin::IncomingUnknownFrom && name.as_ref() != row_authname {
+                    update_authname = true;
+                }
+                Ok((row_id, row_name, row_addr, row_origin, row_authname))
+            },
+        ) {
+            row_id = id;
+            if origin as i32 >= row_origin as i32 && addr != row_addr {
+                update_addr = true;
+            }
+            if update_name || update_authname || update_addr || origin > row_origin {
+                sql::execute(
+                    context,
+                    &context.sql,
+                    "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
+                    params![
+                        if update_name {
+                            name.as_ref()
+                        } else {
+                            &row_name
+                        },
+                        if update_addr { addr } else { &row_addr },
+                        if origin > row_origin {
+                            origin
+                        } else {
+                            row_origin
+                        },
+                        if update_authname {
+                            name.as_ref()
+                        } else {
+                            &row_authname
+                        },
+                        row_id
+                    ],
+                )
+                .ok();
+
+                if update_name {
+                    sql::execute(
+                    context,
+                    &context.sql,
+                    "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
+                    params![name.as_ref(), 100, row_id]
+                ).ok();
+                }
+                sth_modified = Modifier::Modified;
+            }
+        } else {
+            if sql::execute(
+                context,
+                &context.sql,
+                "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
+                params![name.as_ref(), addr, origin,],
+            )
+            .is_ok()
+            {
+                row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
+                sth_modified = Modifier::Created;
+            } else {
+                error!(context, 0, "Cannot add contact.");
+            }
+        }
+
+        Ok((row_id, sth_modified))
+    }
+
+    /// Add a number of contacts.
+    ///
+    /// Typically used to add the whole address book from the OS. As names here are typically not
+    /// well formatted, we call `normalize()` for each name given.
+    ///
+    /// No email-address is added twice.
+    /// Trying to add email-addresses that are already in the contact list,
+    /// results in updating the name unless the name was changed manually by the user.
+    /// If any email-address or any name is really updated,
+    /// the event `DC_EVENT_CONTACTS_CHANGED` is sent.
+    ///
+    /// To add a single contact entered by the user, you should prefer `Contact::create`,
+    /// however, for adding a bunch of addresses, this function is _much_ faster.
+    ///
+    /// The `adr_book` is a multiline string in the format `Name one\nAddress one\nName two\nAddress two`.
+    ///
+    /// Returns the number of modified contacts.
+    pub fn add_address_book(context: &Context, adr_book: impl AsRef<str>) -> Result<usize> {
+        let mut modify_cnt = 0;
+
+        for chunk in &adr_book.as_ref().lines().chunks(2) {
+            let chunk = chunk.collect::<Vec<_>>();
+            if chunk.len() < 2 {
+                break;
+            }
+            let name = chunk[0];
+            let addr = chunk[1];
+            let name = normalize_name(name);
+            let (_, modified) = Contact::add_or_lookup(context, name, addr, Origin::AdressBook)?;
+            if modified != Modifier::None {
+                modify_cnt += 1
+            }
+        }
+        if modify_cnt > 0 {
+            context.call_cb(Event::CONTACTS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
+        }
+
+        Ok(modify_cnt)
+    }
+
+    /// Returns known and unblocked contacts.
+    ///
+    /// To get information about a single contact, see dc_get_contact().
+    ///
+    /// `listflags` is a combination of flags:
+    /// - if the flag DC_GCL_ADD_SELF is set, SELF is added to the list unless filtered by other parameters
+    /// - if the flag DC_GCL_VERIFIED_ONLY is set, only verified contacts are returned.
+    ///   if DC_GCL_VERIFIED_ONLY is not set, verified and unverified contacts are returned.
+    /// `query` is a string to filter the list.
+    pub fn get_all(
+        context: &Context,
+        listflags: u32,
+        query: Option<impl AsRef<str>>,
+    ) -> Result<*mut dc_array_t> {
+        let self_addr = context
+            .sql
+            .get_config(context, "configured_addr")
+            .unwrap_or_default();
+
+        let mut add_self = false;
+        let mut ret = dc_array_t::new(100);
+
+        if (listflags & DC_GCL_VERIFIED_ONLY) > 0 || query.is_some() {
+            let s3str_like_cmd = format!(
+                "%{}%",
+                query
+                    .as_ref()
+                    .map(|s| s.as_ref().to_string())
+                    .unwrap_or_default()
+            );
+            context.sql.query_map(
+                "SELECT c.id FROM contacts c \
+                 LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
+                 WHERE c.addr!=?1 \
+                 AND c.id>?2 \
+                 AND c.origin>=?3 \
+                 AND c.blocked=0 \
+                 AND (c.name LIKE ?4 OR c.addr LIKE ?5) \
+                 AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)  \
+                 ORDER BY LOWER(c.name||c.addr),c.id;",
+                params![
+                    self_addr,
+                    DC_CONTACT_ID_LAST_SPECIAL as i32,
+                    0x100,
+                    &s3str_like_cmd,
+                    &s3str_like_cmd,
+                    if 0 != listflags & 0x1 { 0 } else { 1 },
+                ],
+                |row| row.get::<_, i32>(0),
+                |ids| {
+                    for id in ids {
+                        ret.add_id(id? as u32);
+                    }
+                    Ok(())
+                },
+            )?;
+
+            let self_name = context
+                .sql
+                .get_config(context, "displayname")
+                .unwrap_or_default();
+
+            let self_name2 = context.stock_str(StockMessage::SelfMsg);
+
+            if let Some(query) = query {
+                if self_addr.contains(query.as_ref())
+                    || self_name.contains(query.as_ref())
+                    || self_name2.contains(query.as_ref())
+                {
+                    add_self = true;
+                }
+            } else {
+                add_self = true;
+            }
+        } else {
+            add_self = true;
+
+            context.sql.query_map(
+                "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;",
+                params![self_addr, DC_CONTACT_ID_LAST_SPECIAL as i32, 0x100],
+                |row| row.get::<_, i32>(0),
+                |ids| {
+                    for id in ids {
+                        ret.add_id(id? as u32);
+                    }
+                    Ok(())
+                }
+            )?;
+        }
+
+        if 0 != listflags & DC_GCL_ADD_SELF as u32 && add_self {
+            ret.add_id(DC_CONTACT_ID_SELF as u32);
+        }
+
+        Ok(ret.into_raw())
+    }
+
+    pub fn get_blocked_cnt(context: &Context) -> usize {
+        context
+            .sql
+            .query_row_col::<_, isize>(
+                context,
+                "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
+                params![DC_CONTACT_ID_LAST_SPECIAL as i32],
+                0,
+            )
+            .unwrap_or_default() as usize
+    }
+
+    /// Get blocked contacts.
+    pub fn get_all_blocked(context: &Context) -> *mut dc_array_t {
+        context
+            .sql
+            .query_map(
+                "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
+                params![DC_CONTACT_ID_LAST_SPECIAL as i32],
+                |row| row.get::<_, i32>(0),
+                |ids| {
+                    let mut ret = dc_array_t::new(100);
+
+                    for id in ids {
+                        ret.add_id(id? as u32);
+                    }
+
+                    Ok(ret.into_raw())
+                },
+            )
+            .unwrap_or_else(|_| std::ptr::null_mut())
+    }
+
+    pub fn get_encrinfo(context: &Context, contact_id: u32) -> String {
+        let mut ret = String::new();
+
+        if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
+            let peerstate = Peerstate::from_addr(context, &context.sql, &contact.addr);
+            let loginparam = dc_loginparam_read(context, &context.sql, "configured_");
+
+            let mut self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
+
+            if peerstate.is_some() && peerstate.as_ref().and_then(|p| p.peek_key(0)).is_some() {
+                let peerstate = peerstate.as_ref().unwrap();
+                let p =
+                    context.stock_str(if peerstate.prefer_encrypt == EncryptPreference::Mutual {
+                        StockMessage::E2ePreferred
+                    } else {
+                        StockMessage::E2eAvailable
+                    });
+                ret += &p;
+                if self_key.is_none() {
+                    unsafe { dc_ensure_secret_key_exists(context) };
+                    self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
+                }
+                let p = context.stock_str(StockMessage::FingerPrints);
+                ret += &format!(" {}:", p);
+
+                let fingerprint_self = self_key
+                    .map(|k| k.formatted_fingerprint())
+                    .unwrap_or_default();
+                let fingerprint_other_verified = peerstate
+                    .peek_key(2)
+                    .map(|k| k.formatted_fingerprint())
+                    .unwrap_or_default();
+                let fingerprint_other_unverified = peerstate
+                    .peek_key(0)
+                    .map(|k| k.formatted_fingerprint())
+                    .unwrap_or_default();
+                if peerstate.addr.is_some() && &loginparam.addr < peerstate.addr.as_ref().unwrap() {
+                    cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
+                    cat_fingerprint(
+                        &mut ret,
+                        peerstate.addr.as_ref().unwrap(),
+                        &fingerprint_other_verified,
+                        &fingerprint_other_unverified,
+                    );
+                } else {
+                    cat_fingerprint(
+                        &mut ret,
+                        peerstate.addr.as_ref().unwrap(),
+                        &fingerprint_other_verified,
+                        &fingerprint_other_unverified,
+                    );
+                    cat_fingerprint(&mut ret, &loginparam.addr, &fingerprint_self, "");
+                }
+            } else if 0 == loginparam.server_flags & DC_LP_IMAP_SOCKET_PLAIN as i32
+                && 0 == loginparam.server_flags & DC_LP_SMTP_SOCKET_PLAIN as i32
+            {
+                ret += &context.stock_str(StockMessage::EncrTransp);
+            } else {
+                ret += &context.stock_str(StockMessage::EncrNone);
+            }
+        }
+
+        ret
+    }
+
+    /// Delete a contact. The contact is deleted from the local device. It may happen that this is not
+    /// possible as the contact is in use. In this case, the contact can be blocked.
+    ///
+    /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
+    pub fn delete(context: &Context, contact_id: u32) -> Result<()> {
+        ensure!(
+            contact_id > DC_CONTACT_ID_LAST_SPECIAL as u32,
+            "Can not delete special contact"
+        );
+
+        let count_contacts: i32 = context
+            .sql
+            .query_row_col(
+                context,
+                "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
+                params![contact_id as i32],
+                0,
+            )
+            .unwrap_or_default();
+
+        let count_msgs: i32 = if count_contacts > 0 {
+            context
+                .sql
+                .query_row_col(
+                    context,
+                    "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
+                    params![contact_id as i32, contact_id as i32],
+                    0,
+                )
+                .unwrap_or_default()
+        } else {
+            0
+        };
+
+        if count_msgs == 0 {
+            match sql::execute(
+                context,
+                &context.sql,
+                "DELETE FROM contacts WHERE id=?;",
+                params![contact_id as i32],
+            ) {
+                Ok(_) => {
+                    context.call_cb(Event::CONTACTS_CHANGED, 0, 0);
+                    return Ok(());
+                }
+                Err(err) => {
+                    error!(context, 0, "delete_contact {} failed ({})", contact_id, err);
+                    return Err(err);
+                }
+            }
+        }
+
+        info!(
+            context,
+            0, "could not delete contact {}, there are {} messages with it", contact_id, count_msgs
+        );
+        bail!("Could not delete contact with messages in it");
+    }
+
+    /// Get a single contact object.  For a list, see eg. dc_get_contacts().
+    ///
+    /// For contact DC_CONTACT_ID_SELF (1), the function returns sth.
+    /// like "Me" in the selected language and the email address
+    /// defined by dc_set_config().
+    pub fn get_by_id(context: &Context, contact_id: u32) -> Result<Contact> {
+        Contact::load_from_db(context, &context.sql, contact_id)
+    }
+
+    /// Get the ID of the contact.
+    pub fn get_id(&self) -> u32 {
+        self.id
+    }
+
+    /// Get email address. The email address is always set for a contact.
+    pub fn get_addr(&self) -> &str {
+        &self.addr
+    }
+
+    pub fn get_authname(&self) -> &str {
+        &self.authname
+    }
+
+    /// Get the contact name. This is the name as defined by the contact himself or
+    /// modified by the user.  May be an empty string.
+    ///
+    /// This name is typically used in a form where the user can edit the name of a contact.
+    /// To get a fine name to display in lists etc., use `Contact::get_display_name` or `Contact::get_name_n_addr`.
+    pub fn get_name(&self) -> &str {
+        &self.name
+    }
+
+    /// Get display name. This is the name as defined by the contact himself,
+    /// modified by the user or, if both are unset, the email address.
+    ///
+    /// This name is typically used in lists.
+    /// To get the name editable in a formular, use `Contact::get_name`.
+    pub fn get_display_name(&self) -> &str {
+        if !self.name.is_empty() {
+            return &self.name;
+        }
+        &self.addr
+    }
+
+    /// Get a summary of name and address.
+    ///
+    /// The returned string is either "Name (email@domain.com)" or just
+    /// "email@domain.com" if the name is unset.
+    ///
+    /// The summary is typically used when asking the user something about the contact.
+    /// The attached email address makes the question unique, eg. "Chat with Alan Miller (am@uniquedomain.com)?"
+    pub fn get_name_n_addr(&self) -> String {
+        if !self.name.is_empty() {
+            return format!("{} ({})", self.name, self.addr);
+        }
+        (&self.addr).into()
+    }
+
+    /// Get the part of the name before the first space. In most languages, this seems to be
+    /// the prename. If there is no space, the full display name is returned.
+    /// If the display name is not set, the e-mail address is returned.
+    pub fn get_first_name(&self) -> &str {
+        if !self.name.is_empty() {
+            return get_first_name(&self.name);
+        }
+        &self.addr
+    }
+
+    /// Get the contact's profile image.
+    /// This is the image set by each remote user on their own
+    /// using dc_set_config(context, "selfavatar", image).
+    pub fn get_profile_image(&self) -> Option<String> {
+        if self.id == DC_CONTACT_ID_SELF as u32 {
+            return self.context.get_config(config::Config::Selfavatar);
+        }
+        // TODO: else get image_abs from contact param
+        None
+    }
+
+    /// Get a color for the contact.
+    /// The color is calculated from the contact's email address
+    /// and can be used for an fallback avatar with white initials
+    /// as well as for headlines in bubbles of group chats.
+    pub fn get_color(&self) -> u32 {
+        dc_str_to_color_safe(&self.addr)
+    }
+
+    /// Check if a contact was verified. E.g. by a secure-join QR code scan
+    /// and if the key has not changed since this verification.
+    ///
+    /// The UI may draw a checkbox or something like that beside verified contacts.
+    ///
+    pub fn is_verified(&self) -> VerifiedStatus {
+        self.is_verified_ex(None)
+    }
+
+    /// Same as `Contact::is_verified` but allows speeding up things
+    /// by adding the peerstate belonging to the contact.
+    /// If you do not have the peerstate available, it is loaded automatically.
+    pub fn is_verified_ex(&self, peerstate: Option<&Peerstate<'a>>) -> VerifiedStatus {
+        // We're always sort of secured-verified as we could verify the key on this device any time with the key
+        // on this device
+        if self.id == DC_CONTACT_ID_SELF as u32 {
+            return VerifiedStatus::BidirectVerified;
+        }
+
+        if let Some(peerstate) = peerstate {
+            if peerstate.verified_key().is_some() {
+                return VerifiedStatus::BidirectVerified;
+            }
+        }
+
+        let peerstate = Peerstate::from_addr(self.context, &self.context.sql, &self.addr);
+        if let Some(ps) = peerstate {
+            if ps.verified_key().is_some() {
+                return VerifiedStatus::BidirectVerified;
+            }
+        }
+
+        VerifiedStatus::Unverified
+    }
+
+    pub fn addr_equals_contact(context: &Context, addr: impl AsRef<str>, contact_id: u32) -> bool {
+        if addr.as_ref().is_empty() {
+            return false;
+        }
+
+        if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
+            if !contact.addr.is_empty() {
+                let normalized_addr = addr_normalize(addr.as_ref());
+                if &contact.addr == &normalized_addr {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
+    pub fn get_real_cnt(context: &Context) -> usize {
+        if !context.sql.is_open() {
+            return 0;
+        }
+
+        context
+            .sql
+            .query_row_col::<_, isize>(
+                context,
+                "SELECT COUNT(*) FROM contacts WHERE id>?;",
+                params![DC_CONTACT_ID_LAST_SPECIAL as i32],
+                0,
+            )
+            .unwrap_or_default() as usize
+    }
+
+    pub fn get_origin_by_id(context: &Context, contact_id: u32, ret_blocked: &mut i32) -> Origin {
+        let mut ret = Origin::Unknown;
+        *ret_blocked = 0;
+
+        if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
+            /* we could optimize this by loading only the needed fields */
+            if contact.blocked {
+                *ret_blocked = 1;
+            } else {
+                ret = contact.origin;
+            }
+        }
+
+        ret
+    }
+
+    pub fn real_exists_by_id(context: &Context, contact_id: u32) -> bool {
+        if !context.sql.is_open() || contact_id <= 9 {
+            return false;
+        }
+
+        context
+            .sql
+            .exists(
+                "SELECT id FROM contacts WHERE id=?;",
+                params![contact_id as i32],
+            )
+            .unwrap_or_default()
+    }
+
+    pub fn scaleup_origin_by_id(context: &Context, contact_id: u32, origin: Origin) -> bool {
+        context
+            .sql
+            .execute(
+                "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
+                params![origin, contact_id as i32, origin],
+            )
+            .is_ok()
+    }
 }
 
-pub fn dc_marknoticed_contact(context: &Context, contact_id: u32) {
-    if sql::execute(
-        context,
-        &context.sql,
-        "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
-        params![DC_STATE_IN_NOTICED, contact_id as i32, DC_STATE_IN_FRESH],
-    )
-    .is_ok()
-    {
-        context.call_cb(Event::MSGS_CHANGED, 0, 0);
-    }
+pub fn get_first_name<'a>(full_name: &'a str) -> &'a str {
+    full_name.splitn(2, ' ').next().unwrap_or_default()
 }
 
 /// Returns false if addr is an invalid address, otherwise true.
-pub unsafe fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
-    if addr.is_null() {
+pub fn may_be_valid_addr(addr: &str) -> bool {
+    if addr.is_empty() {
         return false;
     }
-    let at: *const libc::c_char = strchr(addr, '@' as i32);
-    if at.is_null() || at.wrapping_offset_from(addr) < 1 {
+
+    let at = addr.find('@').unwrap_or_default();
+    if at < 1 {
         return false;
     }
-    let dot: *const libc::c_char = strchr(at, '.' as i32);
-    if dot.is_null()
-        || dot.wrapping_offset_from(at) < 2
-        || *dot.offset(1isize) as libc::c_int == 0i32
-        || *dot.offset(2isize) as libc::c_int == 0i32
-    {
+    let dot = addr.find('.').unwrap_or_default();
+    if dot < 1 || dot > addr.len() - 3 || dot < at + 2 {
         return false;
     }
 
     true
 }
 
-pub unsafe fn dc_lookup_contact_id_by_addr(
-    context: &Context,
-    addr: *const libc::c_char,
-) -> uint32_t {
-    if addr.is_null() || *addr.offset(0) as libc::c_int == 0 {
-        return 0;
-    }
-
-    let addr_normalized_c = dc_addr_normalize(addr);
-    let addr_normalized = as_str(addr_normalized_c);
-    let addr_self = context
-        .sql
-        .get_config(context, "configured_addr")
-        .unwrap_or_default();
-
-    let contact_id = if addr_normalized == addr_self {
-        1
-    } else {
-        context.sql.query_row_col(
-            context,
-            "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
-            params![addr_normalized, 9, 0x100],
-            0
-        ).unwrap_or_default()
-    };
-    free(addr_normalized_c as *mut libc::c_void);
-
-    contact_id
-}
-
-pub unsafe fn dc_addr_normalize(addr: *const libc::c_char) -> *mut libc::c_char {
-    let mut addr_normalized: *mut libc::c_char = dc_strdup(addr);
-    dc_trim(addr_normalized);
-    if strncmp(
-        addr_normalized,
-        b"mailto:\x00" as *const u8 as *const libc::c_char,
-        7,
-    ) == 0i32
-    {
-        let old: *mut libc::c_char = addr_normalized;
-        addr_normalized = dc_strdup(&mut *old.offset(7isize));
-        free(old as *mut libc::c_void);
-        dc_trim(addr_normalized);
-    }
-
-    addr_normalized
-}
-
-pub fn dc_addr_normalize_safe(addr: &str) -> &str {
+pub fn addr_normalize(addr: &str) -> &str {
     let norm = addr.trim();
 
     if norm.starts_with("mailto:") {
@@ -311,40 +961,6 @@ pub fn dc_addr_normalize_safe(addr: &str) -> &str {
     }
 
     norm
-}
-
-pub unsafe fn dc_create_contact(
-    context: &Context,
-    name: *const libc::c_char,
-    addr: *const libc::c_char,
-) -> uint32_t {
-    let mut contact_id: uint32_t = 0i32 as uint32_t;
-    let mut sth_modified: libc::c_int = 0i32;
-    let blocked: bool;
-    if !(addr.is_null() || *addr.offset(0isize) as libc::c_int == 0i32) {
-        contact_id = dc_add_or_lookup_contact(
-            context,
-            name,
-            addr,
-            Origin::ManuallyCreated,
-            &mut sth_modified,
-        );
-        blocked = Contact::is_blocked_load(context, contact_id);
-        context.call_cb(
-            Event::CONTACTS_CHANGED,
-            (if sth_modified == 2i32 {
-                contact_id
-            } else {
-                0i32 as libc::c_uint
-            }) as uintptr_t,
-            0i32 as uintptr_t,
-        );
-        if blocked {
-            Contact::unblock(context, contact_id);
-        }
-    }
-
-    contact_id
 }
 
 fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
@@ -373,7 +989,7 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
                     "UPDATE chats SET blocked=? WHERE type=? AND id IN (SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
                     params![new_blocking, 100, contact_id as i32],
                 ).is_ok() {
-                    dc_marknoticed_contact(context, contact_id);
+                    Contact::mark_noticed(context, contact_id);
                     context.call_cb(
                         Event::CONTACTS_CHANGED,
                         0,
@@ -385,722 +1001,85 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
     }
 }
 
-/*can be NULL*/
-pub fn dc_add_or_lookup_contact(
-    context: &Context,
-    name: *const libc::c_char,
-    addr__: *const libc::c_char,
-    origin: Origin,
-    mut sth_modified: *mut libc::c_int,
-) -> uint32_t {
-    let mut dummy = 0;
-
-    if sth_modified.is_null() {
-        sth_modified = &mut dummy;
-    }
-    unsafe { *sth_modified = 0 };
-
-    if addr__.is_null() || origin == Origin::Unknown {
-        return 0;
+/// Normalize a name.
+///
+/// - Remove quotes (come from some bad MUA implementations)
+/// - Convert names as "Petersen, Björn" to "Björn Petersen"
+/// - Trims the resulting string
+///
+/// Typically, this function is not needed as it is called implicitly by `Contact::add_address_book`.
+pub fn normalize_name(full_name: impl AsRef<str>) -> String {
+    let mut full_name = full_name.as_ref().trim();
+    if full_name.is_empty() {
+        return full_name.into();
     }
 
-    let addr_c = unsafe { dc_addr_normalize(addr__) };
-    let addr = as_str(addr_c);
-    let addr_self = context
-        .sql
-        .get_config(context, "configured_addr")
-        .unwrap_or_default();
-
-    if addr == addr_self {
-        return 1;
-    }
-
-    if !unsafe { dc_may_be_valid_addr(addr_c) } {
-        warn!(
-            context,
-            0,
-            "Bad address \"{}\" for contact \"{}\".",
-            addr,
-            if !name.is_null() {
-                as_str(name)
-            } else {
-                "<unset>"
-            },
-        );
-        return 0;
-    }
-
-    let mut update_addr = false;
-    let mut update_name = false;
-    let mut update_authname = false;
-    let mut row_id = 0;
-
-    if let Ok((id, row_name, row_addr, row_origin, row_authname)) = context.sql.query_row(
-        "SELECT id, name, addr, origin, authname FROM contacts WHERE addr=? COLLATE NOCASE;",
-        params![addr],
-        |row| {
-            let row_id = row.get(0)?;
-            let row_name: String = row.get(1)?;
-            let row_addr: String = row.get(2)?;
-            let row_origin = row.get(3)?;
-            let row_authname: String = row.get(4)?;
-
-            if !name.is_null() && 0 != unsafe { *name.offset(0) as libc::c_int } {
-                if !row_name.is_empty() {
-                    if origin >= row_origin && as_str(name) != row_name {
-                        update_name = true;
-                    }
-                }
-            } else {
-                update_name = true;
-            }
-            if origin == Origin::IncomingUnknownFrom
-                && !name.is_null()
-                && as_str(name) != row_authname
-            {
-                update_authname = true;
-            }
-            Ok((row_id, row_name, row_addr, row_origin, row_authname))
-        },
-    ) {
-        row_id = id;
-        if origin as i32 >= row_origin as i32 && addr != row_addr {
-            update_addr = true;
-        }
-        if update_name || update_authname || update_addr || origin > row_origin {
-            sql::execute(
-                context,
-                &context.sql,
-                "UPDATE contacts SET name=?, addr=?, origin=?, authname=? WHERE id=?;",
-                params![
-                    if update_name {
-                        to_string(name)
-                    } else {
-                        row_name
-                    },
-                    if update_addr { addr } else { &row_addr },
-                    if origin > row_origin {
-                        origin
-                    } else {
-                        row_origin
-                    },
-                    if update_authname {
-                        to_string(name)
-                    } else {
-                        row_authname
-                    },
-                    row_id
-                ],
-            )
-            .ok();
-
-            if update_name {
-                sql::execute(
-                    context,
-                    &context.sql,
-                    "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    params![to_string(name), 100, row_id]
-                ).ok();
-            }
-            unsafe { *sth_modified = 1 };
-        }
-    } else {
-        if sql::execute(
-            context,
-            &context.sql,
-            "INSERT INTO contacts (name, addr, origin) VALUES(?, ?, ?);",
-            params![to_string(name), addr, origin,],
-        )
-        .is_ok()
+    let len = full_name.len();
+    if len > 0 {
+        let firstchar = full_name.as_bytes()[0];
+        let lastchar = full_name.as_bytes()[len - 1];
+        if firstchar == '\'' as u8 && lastchar == '\'' as u8
+            || firstchar == '\"' as u8 && lastchar == '\"' as u8
+            || firstchar == '<' as u8 && lastchar == '>' as u8
         {
-            row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
-            unsafe { *sth_modified = 2 };
-        } else {
-            error!(context, 0, "Cannot add contact.");
+            full_name = &full_name[1..len - 1];
         }
     }
 
-    unsafe { free(addr_c as *mut libc::c_void) };
+    if let Some(p1) = full_name.find(',') {
+        let (last_name, first_name) = full_name.split_at(p1);
 
-    row_id
-}
+        let last_name = last_name.trim();
+        let first_name = (&first_name[1..]).trim();
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_add_address_book(context: &Context, adr_book: *const libc::c_char) -> libc::c_int {
-    let mut sth_modified: libc::c_int = 0i32;
-    let mut modify_cnt: libc::c_int = 0i32;
-    if !(adr_book.is_null()) {
-        let lines = dc_split_into_lines(adr_book);
-
-        for chunk in lines.chunks(2) {
-            let name: *mut libc::c_char = chunk[0];
-            let addr: *mut libc::c_char = chunk[1];
-            dc_normalize_name(name);
-            dc_add_or_lookup_contact(context, name, addr, Origin::AdressBook, &mut sth_modified);
-            if 0 != sth_modified {
-                modify_cnt += 1
-            }
-        }
-        if 0 != modify_cnt {
-            context.call_cb(
-                Event::CONTACTS_CHANGED,
-                0i32 as uintptr_t,
-                0i32 as uintptr_t,
-            );
-        }
-        dc_free_splitted_lines(lines);
+        return format!("{} {}", first_name, last_name);
     }
 
-    modify_cnt
+    full_name.trim().into()
 }
 
-// Working with names
-pub unsafe fn dc_normalize_name(full_name: *mut libc::c_char) {
-    if full_name.is_null() {
-        return;
-    }
-    dc_trim(full_name);
-    let len: libc::c_int = strlen(full_name) as libc::c_int;
-    if len > 0i32 {
-        let firstchar: libc::c_char = *full_name.offset(0isize);
-        let lastchar: libc::c_char = *full_name.offset((len - 1i32) as isize);
-        if firstchar as libc::c_int == '\'' as i32 && lastchar as libc::c_int == '\'' as i32
-            || firstchar as libc::c_int == '\"' as i32 && lastchar as libc::c_int == '\"' as i32
-            || firstchar as libc::c_int == '<' as i32 && lastchar as libc::c_int == '>' as i32
-        {
-            *full_name.offset(0isize) = ' ' as i32 as libc::c_char;
-            *full_name.offset((len - 1i32) as isize) = ' ' as i32 as libc::c_char
-        }
-    }
-    let p1: *mut libc::c_char = strchr(full_name, ',' as i32);
-    if !p1.is_null() {
-        *p1 = 0i32 as libc::c_char;
-        let last_name: *mut libc::c_char = dc_strdup(full_name);
-        let first_name: *mut libc::c_char = dc_strdup(p1.offset(1isize));
-        dc_trim(last_name);
-        dc_trim(first_name);
-        strcpy(full_name, first_name);
-        strcat(full_name, b" \x00" as *const u8 as *const libc::c_char);
-        strcat(full_name, last_name);
-        free(last_name as *mut libc::c_void);
-        free(first_name as *mut libc::c_void);
-    } else {
-        dc_trim(full_name);
-    };
-}
-
-#[allow(non_snake_case)]
-pub fn dc_get_contacts(
-    context: &Context,
-    listflags: u32,
-    query: *const libc::c_char,
-) -> *mut dc_array_t {
-    let self_addr = context
-        .sql
-        .get_config(context, "configured_addr")
-        .unwrap_or_default();
-
-    let mut add_self = false;
-    let mut ret = dc_array_t::new(100);
-
-    if (listflags & DC_GCL_VERIFIED_ONLY) > 0 || !query.is_null() {
-        let s3strLikeCmd = format!("%{}%", if !query.is_null() { as_str(query) } else { "" });
-        eprintln!("query '{}'", &s3strLikeCmd);
-        context
-            .sql
-            .query_map(
-                "SELECT c.id FROM contacts c \
-                 LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-                 WHERE c.addr!=?1 \
-                 AND c.id>?2 \
-                 AND c.origin>=?3 \
-                 AND c.blocked=0 \
-                 AND (c.name LIKE ?4 OR c.addr LIKE ?5) \
-                 AND (1=?6 OR LENGTH(ps.verified_key_fingerprint)!=0)  \
-                 ORDER BY LOWER(c.name||c.addr),c.id;",
-                params![
-                    self_addr,
-                    9,
-                    0x100,
-                    &s3strLikeCmd,
-                    &s3strLikeCmd,
-                    if 0 != listflags & 0x1 { 0 } else { 1 },
-                ],
-                |row| row.get::<_, i32>(0),
-                |ids| {
-                    for id in ids {
-                        ret.add_id(id? as u32);
-                    }
-                    Ok(())
-                },
-            )
-            .unwrap(); // TODO: Better error handling
-
-        let self_name = context
-            .sql
-            .get_config(context, "displayname")
-            .unwrap_or_default();
-
-        let self_name2 = CString::new(context.stock_str(StockMessage::SelfMsg).as_ref()).unwrap();
-
-        if query.is_null()
-            || self_addr.contains(as_str(query))
-            || self_name.contains(as_str(query))
-            || 0 != unsafe { dc_str_contains(self_name2.as_ptr(), query) }
-        {
-            add_self = true;
-        }
-    } else {
-        add_self = true;
-
-        context.sql.query_map(
-            "SELECT id FROM contacts WHERE addr!=?1 AND id>?2 AND origin>=?3 AND blocked=0 ORDER BY LOWER(name||addr),id;",
-            params![self_addr, 9, 0x100],
-            |row| row.get::<_, i32>(0),
-            |ids| {
-                for id in ids {
-                    ret.add_id(id? as u32);
-                }
-                Ok(())
-            }
-        ).unwrap(); // TODO: better error handling
-    }
-
-    if 0 != listflags & 0x2 && add_self {
-        ret.add_id(1);
-    }
-
-    ret.into_raw()
-}
-
-pub fn dc_get_blocked_cnt(context: &Context) -> libc::c_int {
-    context
-        .sql
-        .query_row_col(
-            context,
-            "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
-            params![9],
-            0,
-        )
-        .unwrap_or_default()
-}
-
-pub fn dc_get_blocked_contacts(context: &Context) -> *mut dc_array_t {
-    context
-        .sql
-        .query_map(
-            "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
-            params![9],
-            |row| row.get::<_, i32>(0),
-            |ids| {
-                let mut ret = dc_array_t::new(100);
-
-                for id in ids {
-                    ret.add_id(id? as u32);
-                }
-
-                Ok(ret.into_raw())
-            },
-        )
-        .unwrap_or_else(|_| std::ptr::null_mut())
-}
-
-pub unsafe fn dc_get_contact_encrinfo(
-    context: &Context,
-    contact_id: uint32_t,
-) -> *mut libc::c_char {
-    let mut ret = String::new();
-
-    let mut fingerprint_self = 0 as *mut libc::c_char;
-    let mut fingerprint_other_verified = 0 as *mut libc::c_char;
-    let mut fingerprint_other_unverified = 0 as *mut libc::c_char;
-
-    if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
-        let peerstate = Peerstate::from_addr(context, &context.sql, as_str(contact.addr));
-        let loginparam = dc_loginparam_read(context, &context.sql, "configured_");
-
-        let mut self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
-
-        if peerstate.is_some() && peerstate.as_ref().and_then(|p| p.peek_key(0)).is_some() {
-            let peerstate = peerstate.as_ref().unwrap();
-            let p = context.stock_str(if peerstate.prefer_encrypt == EncryptPreference::Mutual {
-                StockMessage::E2ePreferred
-            } else {
-                StockMessage::E2eAvailable
-            });
-            ret += &p;
-            if self_key.is_none() {
-                dc_ensure_secret_key_exists(context);
-                self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
-            }
-            let p = context.stock_str(StockMessage::FingerPrints);
-            ret += &format!(" {}:", p);
-
-            fingerprint_self = self_key
-                .map(|k| k.formatted_fingerprint_c())
-                .unwrap_or(std::ptr::null_mut());
-            fingerprint_other_verified = peerstate
-                .peek_key(2)
-                .map(|k| k.formatted_fingerprint_c())
-                .unwrap_or(std::ptr::null_mut());
-            fingerprint_other_unverified = peerstate
-                .peek_key(0)
-                .map(|k| k.formatted_fingerprint_c())
-                .unwrap_or(std::ptr::null_mut());
-            if peerstate.addr.is_some() && &loginparam.addr < peerstate.addr.as_ref().unwrap() {
-                cat_fingerprint(
-                    &mut ret,
-                    &loginparam.addr,
-                    fingerprint_self,
-                    0 as *const libc::c_char,
-                );
-                cat_fingerprint(
-                    &mut ret,
-                    peerstate.addr.as_ref().unwrap(),
-                    fingerprint_other_verified,
-                    fingerprint_other_unverified,
-                );
-            } else {
-                cat_fingerprint(
-                    &mut ret,
-                    peerstate.addr.as_ref().unwrap(),
-                    fingerprint_other_verified,
-                    fingerprint_other_unverified,
-                );
-                cat_fingerprint(
-                    &mut ret,
-                    &loginparam.addr,
-                    fingerprint_self,
-                    0 as *const libc::c_char,
-                );
-            }
-        } else if 0 == loginparam.server_flags & 0x400 && 0 == loginparam.server_flags & 0x40000 {
-            ret += &context.stock_str(StockMessage::EncrTransp);
-        } else {
-            ret += &context.stock_str(StockMessage::EncrNone);
-        }
-    }
-
-    free(fingerprint_self as *mut libc::c_void);
-    free(fingerprint_other_verified as *mut libc::c_void);
-    free(fingerprint_other_unverified as *mut libc::c_void);
-
-    ret.strdup()
-}
-
-unsafe fn cat_fingerprint(
+fn cat_fingerprint(
     ret: &mut String,
     addr: impl AsRef<str>,
-    fingerprint_verified: *const libc::c_char,
-    fingerprint_unverified: *const libc::c_char,
+    fingerprint_verified: impl AsRef<str>,
+    fingerprint_unverified: impl AsRef<str>,
 ) {
     *ret += &format!(
         "\n\n{}:\n{}",
         addr.as_ref(),
-        if !fingerprint_verified.is_null()
-            && 0 != *fingerprint_verified.offset(0isize) as libc::c_int
-        {
-            as_str(fingerprint_verified)
+        if !fingerprint_verified.as_ref().is_empty() {
+            fingerprint_verified.as_ref()
         } else {
-            as_str(fingerprint_unverified)
+            fingerprint_unverified.as_ref()
         },
     );
-    if !fingerprint_verified.is_null()
-        && 0 != *fingerprint_verified.offset(0isize) as libc::c_int
-        && !fingerprint_unverified.is_null()
-        && 0 != *fingerprint_unverified.offset(0isize) as libc::c_int
-        && strcmp(fingerprint_verified, fingerprint_unverified) != 0
+    if !fingerprint_verified.as_ref().is_empty()
+        && !fingerprint_unverified.as_ref().is_empty()
+        && fingerprint_verified.as_ref() != fingerprint_unverified.as_ref()
     {
         *ret += &format!(
             "\n\n{} (alternative):\n{}",
             addr.as_ref(),
-            as_str(fingerprint_unverified)
+            fingerprint_unverified.as_ref()
         );
     }
 }
 
-pub fn dc_delete_contact(context: &Context, contact_id: u32) -> bool {
-    if contact_id <= 9 {
-        return false;
-    }
-
-    let count_contacts: i32 = context
-        .sql
-        .query_row_col(
-            context,
-            "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
-            params![contact_id as i32],
-            0,
-        )
-        .unwrap_or_default();
-
-    let count_msgs: i32 = if count_contacts > 0 {
-        context
-            .sql
-            .query_row_col(
-                context,
-                "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
-                params![contact_id as i32, contact_id as i32],
-                0,
-            )
-            .unwrap_or_default()
-    } else {
-        0
-    };
-
-    if count_msgs == 0 {
-        if sql::execute(
-            context,
-            &context.sql,
-            "DELETE FROM contacts WHERE id=?;",
-            params![contact_id as i32],
-        )
-        .is_ok()
-        {
-            context.call_cb(Event::CONTACTS_CHANGED, 0, 0);
-            true
-        } else {
-            error!(context, 0, "delete_contact {} failed", contact_id);
-            false
-        }
-    } else {
-        info!(
-            context,
-            0, "could not delete contact {}, there are {} messages with it", contact_id, count_msgs
-        );
-        false
-    }
-}
-
-pub fn dc_get_contact(context: &Context, contact_id: uint32_t) -> Result<Contact> {
-    Contact::load_from_db(context, &context.sql, contact_id)
-}
-
-pub fn dc_contact_get_id(contact: &Contact) -> u32 {
-    contact.id
-}
-
-pub unsafe fn dc_contact_get_addr(contact: &Contact) -> *mut libc::c_char {
-    dc_strdup(contact.addr)
-}
-
-pub unsafe fn dc_contact_get_name(contact: &Contact) -> *mut libc::c_char {
-    dc_strdup(contact.name)
-}
-
-pub unsafe fn dc_contact_get_display_name(contact: &Contact) -> *mut libc::c_char {
-    if !contact.name.is_null() && 0 != *contact.name.offset(0) as libc::c_int {
-        return dc_strdup(contact.name);
-    }
-    dc_strdup(contact.addr)
-}
-
-pub unsafe fn dc_contact_get_name_n_addr(contact: &Contact) -> *mut libc::c_char {
-    if !contact.name.is_null() && 0 != *contact.name.offset(0) as libc::c_int {
-        return dc_mprintf(
-            b"%s (%s)\x00" as *const u8 as *const libc::c_char,
-            contact.name,
-            contact.addr,
-        );
-    }
-    dc_strdup(contact.addr)
-}
-
-pub unsafe fn dc_contact_get_first_name(contact: &Contact) -> *mut libc::c_char {
-    if !contact.name.is_null() && 0 != *contact.name.offset(0isize) as libc::c_int {
-        return dc_get_first_name(contact.name);
-    }
-    dc_strdup(contact.addr)
-}
-
-pub unsafe fn dc_get_first_name(full_name: *const libc::c_char) -> *mut libc::c_char {
-    let mut first_name = dc_strdup(full_name);
-    let p1 = strchr(first_name, ' ' as i32);
-
-    if !p1.is_null() {
-        *p1 = 0i32 as libc::c_char;
-        dc_rtrim(first_name);
-        if *first_name.offset(0isize) as libc::c_int == 0i32 {
-            free(first_name as *mut libc::c_void);
-            first_name = dc_strdup(full_name)
-        }
-    }
-    first_name
-}
-
-pub fn dc_contact_get_profile_image(contact: &Contact) -> *mut libc::c_char {
-    let mut image_abs = std::ptr::null_mut();
-
-    if contact.id == 1 {
-        if let Some(avatar) = contact.context.get_config(config::Config::Selfavatar) {
-            image_abs = unsafe { avatar.strdup() };
-        }
-    }
-    // TODO: else get image_abs from contact param
-    image_abs
-}
-
-pub unsafe fn dc_contact_get_color(contact: &Contact) -> uint32_t {
-    dc_str_to_color(contact.addr) as uint32_t
-}
-
-/// Check if a contact was verified. E.g. by a secure-join QR code scan
-/// and if the key has not changed since this verification.
-///
-/// The UI may draw a checkbox or something like that beside verified contacts.
-///
-/// Returns
-///   - 0: contact is not verified.
-///   -  2: SELF and contact have verified their fingerprints in both directions; in the UI typically checkmarks are shown.
-pub unsafe fn dc_contact_is_verified(contact: &Contact) -> libc::c_int {
-    dc_contact_is_verified_ex(contact, None)
-}
-
-/// Same as dc_contact_is_verified() but allows speeding up things
-/// by adding the peerstate belonging to the contact.
-/// If you do not have the peerstate available, it is loaded automatically.
-pub fn dc_contact_is_verified_ex<'a>(
-    contact: &Contact<'a>,
-    peerstate: Option<&Peerstate<'a>>,
-) -> libc::c_int {
-    // we're always sort of secured-verified as we could verify the key on this device any time with the key
-    // on this device
-    if contact.id == 1 {
-        return 2;
-    }
-
-    if let Some(peerstate) = peerstate {
-        if peerstate.verified_key().is_some() {
-            2
-        } else {
-            0
-        }
-    } else {
-        let peerstate =
-            Peerstate::from_addr(contact.context, &contact.context.sql, as_str(contact.addr));
-
-        let res = if let Some(ps) = peerstate {
-            if ps.verified_key().is_some() {
-                2
-            } else {
-                0
-            }
-        } else {
-            0
-        };
-
-        res
-    }
-}
-
-// Working with e-mail-addresses
-pub fn dc_addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
-    let norm1 = dc_addr_normalize_safe(addr1.as_ref());
-    let norm2 = dc_addr_normalize_safe(addr2.as_ref());
+pub fn addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
+    let norm1 = addr_normalize(addr1.as_ref());
+    let norm2 = addr_normalize(addr2.as_ref());
 
     norm1 == norm2
 }
 
-pub fn dc_addr_equals_self(context: &Context, addr: *const libc::c_char) -> libc::c_int {
-    let mut ret = 0;
-
-    if !addr.is_null() {
-        let normalized_addr = unsafe { dc_addr_normalize(addr) };
+pub fn addr_equals_self(context: &Context, addr: impl AsRef<str>) -> bool {
+    if !addr.as_ref().is_empty() {
+        let normalized_addr = addr_normalize(addr.as_ref());
         if let Some(self_addr) = context.sql.get_config(context, "configured_addr") {
-            ret = (as_str(normalized_addr) == self_addr) as libc::c_int;
-        }
-        unsafe { free(normalized_addr as *mut libc::c_void) };
-    }
-
-    ret
-}
-
-pub unsafe fn dc_addr_equals_contact(
-    context: &Context,
-    addr: impl AsRef<str>,
-    contact_id: u32,
-) -> bool {
-    if addr.as_ref().is_empty() {
-        return false;
-    }
-
-    let mut addr_are_equal = false;
-
-    if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
-        if !contact.addr.is_null() {
-            let normalized_addr = dc_addr_normalize_safe(addr.as_ref());
-            if as_str(contact.addr) == normalized_addr {
-                addr_are_equal = true;
-            }
+            return normalized_addr == self_addr;
         }
     }
-
-    addr_are_equal
-}
-
-// Context functions to work with contacts
-pub fn dc_get_real_contact_cnt(context: &Context) -> usize {
-    if !context.sql.is_open() {
-        return 0;
-    }
-
-    context
-        .sql
-        .query_row_col::<_, isize>(
-            context,
-            "SELECT COUNT(*) FROM contacts WHERE id>?;",
-            params![9],
-            0,
-        )
-        .unwrap_or_default() as usize
-}
-
-pub unsafe fn dc_get_contact_origin(
-    context: &Context,
-    contact_id: uint32_t,
-    mut ret_blocked: *mut libc::c_int,
-) -> Origin {
-    let mut ret = Origin::Unknown;
-    let mut dummy = 0;
-    if ret_blocked.is_null() {
-        ret_blocked = &mut dummy
-    }
-    *ret_blocked = 0;
-
-    if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
-        /* we could optimize this by loading only the needed fields */
-        if contact.blocked {
-            *ret_blocked = 1;
-        } else {
-            ret = contact.origin;
-        }
-    }
-
-    ret
-}
-
-pub fn dc_real_contact_exists(context: &Context, contact_id: u32) -> bool {
-    if !context.sql.is_open() || contact_id <= 9 {
-        return false;
-    }
-
-    context
-        .sql
-        .exists(
-            "SELECT id FROM contacts WHERE id=?;",
-            params![contact_id as i32],
-        )
-        .unwrap_or_default()
-}
-
-pub fn dc_scaleup_contact_origin(context: &Context, contact_id: u32, origin: Origin) -> bool {
-    context
-        .sql
-        .execute(
-            "UPDATE contacts SET origin=? WHERE id=? AND origin<?;",
-            params![origin, contact_id as i32, origin],
-        )
-        .is_ok()
+    false
 }
 
 #[cfg(test)]
@@ -1108,53 +1087,34 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_dc_may_be_valid_addr() {
-        unsafe {
-            assert_eq!(dc_may_be_valid_addr(0 as *const libc::c_char), false);
-            assert_eq!(
-                dc_may_be_valid_addr(b"\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"user@domain.tld\x00" as *const u8 as *const libc::c_char),
-                true
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"uuu\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"dd.tt\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"tt.dd@uu\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@d\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@d.\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@d.t\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@d.tt\x00" as *const u8 as *const libc::c_char),
-                true
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@.tt\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"@d.tt\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-        }
+    fn test_may_be_valid_addr() {
+        assert_eq!(may_be_valid_addr(""), false);
+        assert_eq!(may_be_valid_addr("user@domain.tld"), true);
+        assert_eq!(may_be_valid_addr("uuu"), false);
+        assert_eq!(may_be_valid_addr("dd.tt"), false);
+        assert_eq!(may_be_valid_addr("tt.dd@uu"), false);
+        assert_eq!(may_be_valid_addr("u@d"), false);
+        assert_eq!(may_be_valid_addr("u@d."), false);
+        assert_eq!(may_be_valid_addr("u@d.t"), false);
+        assert_eq!(may_be_valid_addr("u@d.tt"), true);
+        assert_eq!(may_be_valid_addr("u@.tt"), false);
+        assert_eq!(may_be_valid_addr("@d.tt"), false);
+    }
+
+    #[test]
+    fn test_normalize_name() {
+        assert_eq!(&normalize_name("Doe, John"), "John Doe");
+        assert_eq!(&normalize_name(" hello world   "), "hello world");
+    }
+
+    #[test]
+    fn test_normalize_addr() {
+        assert_eq!(addr_normalize("mailto:john@doe.com"), "john@doe.com");
+        assert_eq!(addr_normalize("  hello@world.com   "), "hello@world.com");
+    }
+
+    #[test]
+    fn test_get_first_name() {
+        assert_eq!(get_first_name("John Doe"), "John");
     }
 }

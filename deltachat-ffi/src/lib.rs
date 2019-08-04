@@ -14,7 +14,8 @@ extern crate num_traits;
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::str::FromStr;
 
-use deltachat::dc_tools::StrExt;
+use deltachat::contact::Contact;
+use deltachat::dc_tools::{as_str, StrExt};
 use deltachat::*;
 
 // TODO: constants
@@ -701,7 +702,7 @@ pub unsafe extern "C" fn dc_marknoticed_contact(context: *mut dc_context_t, cont
     assert!(!context.is_null());
     let context = &*context;
 
-    contact::dc_marknoticed_contact(context, contact_id)
+    Contact::mark_noticed(context, contact_id)
 }
 
 #[no_mangle]
@@ -748,7 +749,7 @@ pub unsafe extern "C" fn dc_get_msg<'a>(
 #[no_mangle]
 pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *mut libc::c_char) -> libc::c_int {
     assert!(!addr.is_null());
-    contact::dc_may_be_valid_addr(addr) as libc::c_int
+    contact::may_be_valid_addr(as_str(addr)) as libc::c_int
 }
 
 #[no_mangle]
@@ -760,7 +761,7 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     assert!(!addr.is_null());
     let context = &*context;
 
-    contact::dc_lookup_contact_id_by_addr(context, addr)
+    Contact::lookup_id_by_addr(context, as_str(addr))
 }
 
 #[no_mangle]
@@ -771,9 +772,15 @@ pub unsafe extern "C" fn dc_create_contact(
 ) -> u32 {
     assert!(!context.is_null());
     assert!(!addr.is_null());
+
     let context = &*context;
 
-    contact::dc_create_contact(context, name, addr)
+    let name = if name.is_null() { "" } else { as_str(name) };
+
+    match Contact::create(context, name, as_str(addr)) {
+        Ok(id) => id,
+        Err(_) => 0,
+    }
 }
 
 #[no_mangle]
@@ -785,7 +792,10 @@ pub unsafe extern "C" fn dc_add_address_book(
     assert!(!addr_book.is_null());
     let context = &*context;
 
-    contact::dc_add_address_book(context, addr_book)
+    match Contact::add_address_book(context, as_str(addr_book)) {
+        Ok(cnt) => cnt as libc::c_int,
+        Err(_) => 0,
+    }
 }
 
 #[no_mangle]
@@ -797,7 +807,16 @@ pub unsafe extern "C" fn dc_get_contacts(
     assert!(!context.is_null());
     let context = &*context;
 
-    contact::dc_get_contacts(context, flags, query)
+    let query = if query.is_null() {
+        None
+    } else {
+        Some(as_str(query))
+    };
+
+    match Contact::get_all(context, flags, query) {
+        Ok(contacts) => contacts,
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -805,7 +824,7 @@ pub unsafe extern "C" fn dc_get_blocked_cnt(context: *mut dc_context_t) -> libc:
     assert!(!context.is_null());
     let context = &*context;
 
-    contact::dc_get_blocked_cnt(context)
+    Contact::get_blocked_cnt(context) as libc::c_int
 }
 
 #[no_mangle]
@@ -815,7 +834,7 @@ pub unsafe extern "C" fn dc_get_blocked_contacts(
     assert!(!context.is_null());
     let context = &*context;
 
-    contact::dc_get_blocked_contacts(context)
+    Contact::get_all_blocked(context)
 }
 
 #[no_mangle]
@@ -828,9 +847,9 @@ pub unsafe extern "C" fn dc_block_contact(
     let context = &*context;
 
     if block == 0 {
-        contact::Contact::unblock(context, contact_id);
+        Contact::unblock(context, contact_id);
     } else {
-        contact::Contact::block(context, contact_id);
+        Contact::block(context, contact_id);
     }
 }
 
@@ -842,7 +861,7 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
     assert!(!context.is_null());
     let context = &*context;
 
-    contact::dc_get_contact_encrinfo(context, contact_id)
+    Contact::get_encrinfo(context, contact_id).strdup()
 }
 
 #[no_mangle]
@@ -853,7 +872,10 @@ pub unsafe extern "C" fn dc_delete_contact(
     assert!(!context.is_null());
     let context = &*context;
 
-    contact::dc_delete_contact(context, contact_id) as libc::c_int
+    match Contact::delete(context, contact_id) {
+        Ok(_) => 1,
+        Err(_) => 0,
+    }
 }
 
 #[no_mangle]
@@ -864,7 +886,7 @@ pub unsafe extern "C" fn dc_get_contact<'a>(
     assert!(!context.is_null());
     let context = &*context;
 
-    contact::dc_get_contact(context, contact_id)
+    Contact::get_by_id(context, contact_id)
         .map(|contact| Box::into_raw(Box::new(contact)))
         .unwrap_or_else(|_| std::ptr::null_mut())
 }
@@ -1653,7 +1675,7 @@ pub unsafe extern "C" fn dc_contact_get_id(contact: *mut dc_contact_t) -> u32 {
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_get_id(contact)
+    contact.get_id()
 }
 
 #[no_mangle]
@@ -1661,7 +1683,7 @@ pub unsafe extern "C" fn dc_contact_get_addr(contact: *mut dc_contact_t) -> *mut
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_get_addr(contact)
+    contact.get_addr().strdup()
 }
 
 #[no_mangle]
@@ -1669,7 +1691,7 @@ pub unsafe extern "C" fn dc_contact_get_name(contact: *mut dc_contact_t) -> *mut
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_get_name(contact)
+    contact.get_name().strdup()
 }
 
 #[no_mangle]
@@ -1679,7 +1701,7 @@ pub unsafe extern "C" fn dc_contact_get_display_name(
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_get_display_name(contact)
+    contact.get_display_name().strdup()
 }
 
 #[no_mangle]
@@ -1689,7 +1711,7 @@ pub unsafe extern "C" fn dc_contact_get_name_n_addr(
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_get_name_n_addr(contact)
+    contact.get_name_n_addr().strdup()
 }
 
 #[no_mangle]
@@ -1699,7 +1721,7 @@ pub unsafe extern "C" fn dc_contact_get_first_name(
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_get_first_name(contact)
+    contact.get_first_name().strdup()
 }
 
 #[no_mangle]
@@ -1709,7 +1731,10 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_get_profile_image(contact)
+    contact
+        .get_profile_image()
+        .map(|s| s.strdup())
+        .unwrap_or_else(|| std::ptr::null_mut())
 }
 
 #[no_mangle]
@@ -1717,7 +1742,7 @@ pub unsafe extern "C" fn dc_contact_get_color(contact: *mut dc_contact_t) -> u32
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_get_color(contact)
+    contact.get_color()
 }
 
 #[no_mangle]
@@ -1733,7 +1758,7 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
     assert!(!contact.is_null());
     let contact = &*contact;
 
-    contact::dc_contact_is_verified(contact)
+    contact.is_verified() as libc::c_int
 }
 
 // dc_lot_t

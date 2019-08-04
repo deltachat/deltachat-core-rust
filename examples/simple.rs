@@ -93,9 +93,9 @@ fn main() {
 
         thread::sleep(duration);
 
-        let email = CString::new("dignifiedquire@gmail.com").unwrap();
         println!("sending a message");
-        let contact_id = dc_create_contact(&ctx, std::ptr::null(), email.as_ptr());
+        let contact_id =
+            Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com").unwrap();
         let chat_id = dc_create_chat_by_contact_id(&ctx, contact_id);
         dc_send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into());
 

@@ -422,7 +422,7 @@ pub unsafe fn mailimf_find_first_addr(mb_list: *const mailimf_mailbox_list) -> *
             0 as *mut libc::c_void
         }) as *mut mailimf_mailbox;
         if !mb.is_null() && !(*mb).mb_addr_spec.is_null() {
-            return dc_addr_normalize((*mb).mb_addr_spec);
+            return addr_normalize(as_str((*mb).mb_addr_spec)).strdup();
         }
         cur = if !cur.is_null() {
             (*cur).next
@@ -1565,7 +1565,7 @@ pub unsafe fn dc_mimeparser_sender_equals_recipient(mimeparser: &dc_mimeparser_t
     let fld: *const mailimf_field;
     let mut fld_from: *const mailimf_from = 0 as *const mailimf_from;
     let mb: *mut mailimf_mailbox;
-    let mut from_addr_norm: *mut libc::c_char = 0 as *mut libc::c_char;
+
     if !(*mimeparser).header_root.is_null() {
         /* get From: and check there is exactly one sender */
         fld = mailimf_find_field(mimeparser.header_root, MAILIMF_FIELD_FROM as libc::c_int);
@@ -1584,17 +1584,16 @@ pub unsafe fn dc_mimeparser_sender_equals_recipient(mimeparser: &dc_mimeparser_t
                 0 as *mut libc::c_void
             }) as *mut mailimf_mailbox;
             if !mb.is_null() {
-                from_addr_norm = dc_addr_normalize((*mb).mb_addr_spec);
+                let from_addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
                 let recipients = mailimf_get_recipients(mimeparser.header_root);
                 if recipients.len() == 1 {
-                    if recipients.contains(as_str(from_addr_norm)) {
+                    if recipients.contains(from_addr_norm) {
                         sender_equals_recipient = 1i32;
                     }
                 }
             }
         }
     }
-    free(from_addr_norm as *mut libc::c_void);
 
     sender_equals_recipient
 }
@@ -1691,15 +1690,15 @@ pub unsafe fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<
 /* ******************************************************************************
  * low-level-tools for getting a list of all recipients
  ******************************************************************************/
+
 #[allow(non_snake_case)]
 unsafe fn mailimf_get_recipients__add_addr(
     recipients: &mut HashSet<String>,
     mb: *mut mailimf_mailbox,
 ) {
     if !mb.is_null() {
-        let addr_norm: *mut libc::c_char = dc_addr_normalize((*mb).mb_addr_spec);
-        recipients.insert(to_string(addr_norm));
-        free(addr_norm as *mut libc::c_void);
+        let addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
+        recipients.insert(addr_norm.into());
     };
 }
 

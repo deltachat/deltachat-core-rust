@@ -71,12 +71,11 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     let fts = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
     ret += &format!("Sent: {}", fts);
 
-    p = Contact::load_from_db(context, &context.sql, (*msg).from_id)
-        .map(|contact| dc_contact_get_name_n_addr(&contact))
-        .unwrap_or_else(|_| std::ptr::null_mut());
+    let name = Contact::load_from_db(context, &context.sql, (*msg).from_id)
+        .map(|contact| contact.get_name_n_addr())
+        .unwrap_or_default();
 
-    ret += &format!(" by {}", to_string(p));
-    free(p as *mut libc::c_void);
+    ret += &format!(" by {}", name);
     ret += "\n";
 
     if (*msg).from_id != 1 as libc::c_uint {
@@ -111,13 +110,11 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
                     let fts = dc_timestamp_to_str(ts);
                     ret += &format!("Read: {}", fts);
 
-                    p = Contact::load_from_db(context, &context.sql, contact_id as u32)
-                        .map(|contact| dc_contact_get_name_n_addr(&contact))
-                        .unwrap_or_else(|_| std::ptr::null_mut());
+                    let name = Contact::load_from_db(context, &context.sql, contact_id as u32)
+                        .map(|contact| contact.get_name_n_addr())
+                        .unwrap_or_default();
 
-                    ret += &format!(" by {}", as_str(p));
-                    free(p as *mut libc::c_void);
-
+                    ret += &format!(" by {}", name);
                     ret += "\n";
                 }
                 Ok(())
@@ -811,7 +808,7 @@ pub unsafe fn dc_msg_get_summary<'a>(
                 let contact = if (*msg).from_id != 1 as libc::c_uint
                     && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
                 {
-                    dc_get_contact((*chat).context, (*msg).from_id).ok()
+                    Contact::get_by_id((*chat).context, (*msg).from_id).ok()
                 } else {
                     None
                 };

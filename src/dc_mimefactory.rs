@@ -320,10 +320,8 @@ pub unsafe fn dc_mimefactory_load_mdn(
                     clist_insert_after(
                         (*factory).recipients_names,
                         (*(*factory).recipients_names).last,
-                        (if !contact.authname.is_null()
-                            && 0 != *contact.authname.offset(0isize) as libc::c_int
-                        {
-                            dc_strdup(contact.authname)
+                        (if !contact.get_authname().is_empty() {
+                            contact.get_authname().strdup()
                         } else {
                             0 as *mut libc::c_char
                         }) as *mut libc::c_void,
@@ -331,7 +329,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
                     clist_insert_after(
                         (*factory).recipients_addr,
                         (*(*factory).recipients_addr).last,
-                        dc_strdup(contact.addr) as *mut libc::c_void,
+                        contact.get_addr().strdup() as *mut libc::c_void,
                     );
                     load_from(factory);
                     (*factory).timestamp = dc_create_smeared_timestamp((*factory).context);

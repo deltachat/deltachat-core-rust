@@ -346,7 +346,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let chats = dc_get_chat_cnt(context) as usize;
     let real_msgs = dc_get_real_msg_cnt(context) as usize;
     let deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as usize;
-    let contacts = dc_get_real_contact_cnt(context) as usize;
+    let contacts = Contact::get_real_cnt(context) as usize;
     let is_configured = context
         .sql
         .get_config_int(context, "configured")
