@@ -948,10 +948,10 @@ unsafe fn create_or_lookup_group(
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_MESSAGE_ID as libc::c_int {
             let fld_message_id: *mut mailimf_message_id = (*field).fld_data.fld_message_id;
             if !fld_message_id.is_null() {
-                if let Some(_grpid) =
+                if let Some(extracted_grpid) =
                     dc_extract_grpid_from_rfc724_mid(as_str((*fld_message_id).mid_value))
                 {
-                    grpid = to_cstring(_grpid);
+                    grpid = extracted_grpid.strdup();
                 } else {
                     grpid = 0 as *mut libc::c_char;
                 }
