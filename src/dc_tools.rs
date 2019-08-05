@@ -812,6 +812,7 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
 /// # Examples
 ///
 /// ```
+/// use deltachat::dc_tools::dc_extract_grpid_from_rfc724_mid;
 /// let mid = "Gr.12345678901.morerandom@domain.de";
 /// let grpid = dc_extract_grpid_from_rfc724_mid(mid);
 /// assert_eq!(grpid, Some("12345678901"));
