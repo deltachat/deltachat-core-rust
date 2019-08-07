@@ -13,6 +13,9 @@ extern crate num_traits;
 
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::ptr;
+
+extern crate deltachat_provider_overview;
+
 use std::str::FromStr;
 
 use deltachat::dc_tools::StrExt;
@@ -1612,4 +1615,11 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
     }
 
     Some(dc_tools::as_str(s))
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_provider_info_from_email(email: *const libc::c_char) {
+    let option = deltachat_provider_overview::get_provider_info(
+        deltachat_provider_overview::get_domain_from_email(dc_tools::as_str(email))
+    );
 }
