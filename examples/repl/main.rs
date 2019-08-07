@@ -291,7 +291,7 @@ const DB_COMMANDS: [&'static str; 11] = [
     "housekeeping",
 ];
 
-const CHAT_COMMANDS: [&'static str; 25] = [
+const CHAT_COMMANDS: [&'static str; 24] = [
     "listchats",
     "listarchived",
     "chat",
@@ -309,7 +309,6 @@ const CHAT_COMMANDS: [&'static str; 25] = [
     "dellocations",
     "getlocations",
     "send",
-    "send-garbage",
     "sendimage",
     "sendfile",
     "draft",

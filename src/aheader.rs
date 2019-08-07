@@ -6,7 +6,7 @@ use std::{fmt, str};
 use mmime::mailimf_types::*;
 
 use crate::constants::*;
-use crate::dc_contact::*;
+use crate::contact::*;
 use crate::dc_tools::as_str;
 use crate::key::*;
 
@@ -94,7 +94,7 @@ impl Aheader {
 
                     match Self::from_str(value) {
                         Ok(test) => {
-                            if dc_addr_cmp(&test.addr, as_str(wanted_from)) {
+                            if addr_cmp(&test.addr, as_str(wanted_from)) {
                                 if fine_header.is_none() {
                                     fine_header = Some(test);
                                 } else {

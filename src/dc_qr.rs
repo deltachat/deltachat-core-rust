@@ -1,8 +1,8 @@
 use percent_encoding::percent_decode_str;
 
+use crate::contact::*;
 use crate::context::Context;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_lot::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
@@ -66,8 +66,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                         let name_r = percent_decode_str(name_enc)
                             .decode_utf8()
                             .expect("invalid name");
-                        name = name_r.strdup();
-                        dc_normalize_name(name);
+                        name = normalize_name(name_r).strdup();
                     }
                     invitenumber = param
                         .get(Param::ProfileImage)
@@ -182,7 +181,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                 b";\x00" as *const u8 as *const libc::c_char,
                                 b",\x00" as *const u8 as *const libc::c_char,
                             );
-                            dc_normalize_name(name);
+                            name = normalize_name(as_str(name)).strdup();
                         }
                     }
                 }
@@ -194,13 +193,14 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
             ---------------------- */
             if !addr.is_null() {
                 /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
-                let mut temp: *mut libc::c_char = dc_urldecode(addr);
-                free(addr as *mut libc::c_void);
-                addr = temp;
-                temp = dc_addr_normalize(addr);
-                free(addr as *mut libc::c_void);
-                addr = temp;
-                if !dc_may_be_valid_addr(addr) {
+                    /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
+                    let mut temp: *mut libc::c_char = dc_urldecode(addr);
+                    free(addr as *mut libc::c_void);
+                    addr = temp;
+                    temp = addr_normalize(as_str(addr)).strdup();
+                    free(addr as *mut libc::c_void);
+                    addr = temp;
+                    if !may_be_valid_addr(as_str(addr))
                     (*qr_parsed).state = 400i32;
                     (*qr_parsed).text1 =
                         dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
@@ -260,6 +260,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                 (*qr_parsed).text2 = dc_strdup(grpid)
                             } else {
                                 (*qr_parsed).state = 200i32
+
                             }
                             (*qr_parsed).id = dc_add_or_lookup_contact(
                                 context,
