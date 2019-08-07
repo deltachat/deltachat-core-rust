@@ -732,7 +732,11 @@ pub unsafe extern "C" fn dc_get_msg<'a>(
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_may_be_valid_addr(addr: *mut libc::c_char) -> libc::c_int {
-    dc_contact::dc_may_be_valid_addr(addr) as libc::c_int
+    if addr.is_null() {
+        return 0;
+    }
+
+    dc_contact::dc_may_be_valid_addr(&dc_tools::to_string(addr)) as libc::c_int
 }
 
 #[no_mangle]

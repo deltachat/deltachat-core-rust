@@ -207,7 +207,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                     temp = dc_addr_normalize(addr);
                     free(addr as *mut libc::c_void);
                     addr = temp;
-                    if !dc_may_be_valid_addr(addr) {
+                    if !dc_may_be_valid_addr(&to_string(addr)) {
                         (*qr_parsed).state = 400i32;
                         (*qr_parsed).text1 = dc_strdup(
                             b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char,

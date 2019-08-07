@@ -44,9 +44,7 @@ pub fn dc_marknoticed_contact(context: &Context, contact_id: u32) {
 }
 
 /// Returns false if addr is an invalid address, otherwise true.
-pub unsafe fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
-    let s = to_string(addr);
-
+pub fn dc_may_be_valid_addr(s: &str) -> bool {
     // Regexp: /.+@.+\..{2,}/
     if let (Some(at), Some(dot)) = (s.find('@'), s.rfind('.')) {
         at > 0 && dot > 2 && dot + 2 < s.len()
@@ -337,7 +335,7 @@ pub fn dc_add_or_lookup_contact(
         return 1;
     }
 
-    if !unsafe { dc_may_be_valid_addr(addr_c) } {
+    if !dc_may_be_valid_addr(&addr) {
         warn!(
             context,
             0,
@@ -1077,52 +1075,16 @@ mod tests {
 
     #[test]
     fn test_dc_may_be_valid_addr() {
-        unsafe {
-            assert_eq!(dc_may_be_valid_addr(0 as *const libc::c_char), false);
-            assert_eq!(
-                dc_may_be_valid_addr(b"\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"user@domain.tld\x00" as *const u8 as *const libc::c_char),
-                true
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"uuu\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"dd.tt\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"tt.dd@uu\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@d\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@d.\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@d.t\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@d.tt\x00" as *const u8 as *const libc::c_char),
-                true
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"u@.tt\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-            assert_eq!(
-                dc_may_be_valid_addr(b"@d.tt\x00" as *const u8 as *const libc::c_char),
-                false
-            );
-        }
+        assert_eq!(dc_may_be_valid_addr(""), false);
+        assert_eq!(dc_may_be_valid_addr("user@domain.tld"), true);
+        assert_eq!(dc_may_be_valid_addr("uuu"), false);
+        assert_eq!(dc_may_be_valid_addr("dd.tt"), false);
+        assert_eq!(dc_may_be_valid_addr("tt.dd@uu"), false);
+        assert_eq!(dc_may_be_valid_addr("u@d"), false);
+        assert_eq!(dc_may_be_valid_addr("u@d."), false);
+        assert_eq!(dc_may_be_valid_addr("u@d.t"), false);
+        assert_eq!(dc_may_be_valid_addr("u@d.tt"), true);
+        assert_eq!(dc_may_be_valid_addr("u@.tt"), false);
+        assert_eq!(dc_may_be_valid_addr("@d.tt"), false);
     }
 }
