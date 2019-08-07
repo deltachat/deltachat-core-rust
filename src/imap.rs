@@ -991,6 +991,13 @@ impl Imap {
 
             if !is_deleted && msg.body().is_some() {
                 let body = msg.body().unwrap();
+                info!(
+                    context,
+                    0,
+                    "received message {}",
+                    String::from_utf8_lossy(body)
+                );
+
                 unsafe {
                     (self.receive_imf)(
                         context,
