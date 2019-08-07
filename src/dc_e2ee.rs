@@ -812,7 +812,7 @@ unsafe fn decrypt_recursive(
 }
 
 unsafe fn decrypt_part(
-    _context: &Context,
+    context: &Context,
     mime: *mut mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
@@ -908,6 +908,13 @@ unsafe fn decrypt_part(
                 ) {
                     let plain_bytes = plain.len();
                     let plain_buf = plain.as_ptr() as *const libc::c_char;
+
+                    info!(
+                        context,
+                        0,
+                        "decrypted message: '{}'",
+                        String::from_utf8_lossy(&plain)
+                    );
 
                     let mut index: size_t = 0i32 as size_t;
                     let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;
