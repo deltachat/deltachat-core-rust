@@ -66,7 +66,7 @@ pub unsafe fn dc_e2ee_encrypt(
     mut in_out_message: *mut mailmime,
     helper: &mut dc_e2ee_helper_t,
 ) {
-    let mut current_block: u64 = 0;
+    let mut ok_to_continue = true;
     let mut col: libc::c_int = 0i32;
     let mut do_encrypt: libc::c_int = 0i32;
     /*just a pointer into mailmime structure, must not be freed*/
@@ -283,7 +283,7 @@ pub unsafe fn dc_e2ee_encrypt(
                         );
                         mailmime_write_mem(plain, &mut col, message_to_encrypt);
                         if (*plain).str_0.is_null() || (*plain).len <= 0 {
-                            current_block = 14181132614457621749;
+                            ok_to_continue = false;
                         } else {
                             if let Some(ctext_v) = dc_pgp_pk_encrypt(
                                 (*plain).str_0 as *const libc::c_void,
@@ -340,24 +340,18 @@ pub unsafe fn dc_e2ee_encrypt(
                                 (*encrypted_part).mm_parent = in_out_message;
                                 mailmime_free(message_to_encrypt);
                                 (*helper).encryption_successfull = 1i32;
-                                current_block = 13824533195664196414;
                             }
                         }
-                    } else {
-                        current_block = 13824533195664196414;
                     }
-                    match current_block {
-                        14181132614457621749 => {}
-                        _ => {
-                            let aheader = Aheader::new(addr, public_key, prefer_encrypt);
-                            mailimf_fields_add(
-                                imffields_unprotected,
-                                mailimf_field_new_custom(
-                                    "Autocrypt".strdup(),
-                                    aheader.to_string().strdup(),
-                                ),
-                            );
-                        }
+                    if ok_to_continue {
+                        let aheader = Aheader::new(addr, public_key, prefer_encrypt);
+                        mailimf_fields_add(
+                            imffields_unprotected,
+                            mailimf_field_new_custom(
+                                "Autocrypt".strdup(),
+                                aheader.to_string().strdup(),
+                            ),
+                        );
                     }
                 }
             }
@@ -378,7 +372,7 @@ unsafe fn new_data_part(
     default_content_type: *mut libc::c_char,
     default_encoding: libc::c_int,
 ) -> *mut mailmime {
-    let mut current_block: u64;
+    let mut ok_to_continue = true;
     //char basename_buf[PATH_MAX];
     let mut encoding: *mut mailmime_mechanism;
     let content: *mut mailmime_content;
@@ -398,7 +392,7 @@ unsafe fn new_data_part(
     }
     content = mailmime_content_new_with_str(content_type_str);
     if content.is_null() {
-        current_block = 16266721588079097885;
+        ok_to_continue = false;
     } else {
         do_encoding = 1i32;
         if (*(*content).ct_type).tp_type == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int {
@@ -426,54 +420,44 @@ unsafe fn new_data_part(
             }
             encoding = mailmime_mechanism_new(encoding_type, 0 as *mut libc::c_char);
             if encoding.is_null() {
-                current_block = 16266721588079097885;
-            } else {
-                current_block = 11057878835866523405;
+                ok_to_continue = false;
             }
-        } else {
-            current_block = 11057878835866523405;
         }
-        match current_block {
-            16266721588079097885 => {}
-            _ => {
-                mime_fields = mailmime_fields_new_with_data(
-                    encoding,
-                    0 as *mut libc::c_char,
-                    0 as *mut libc::c_char,
-                    0 as *mut mailmime_disposition,
-                    0 as *mut mailmime_language,
-                );
-                if mime_fields.is_null() {
-                    current_block = 16266721588079097885;
+        if ok_to_continue {
+            mime_fields = mailmime_fields_new_with_data(
+                encoding,
+                0 as *mut libc::c_char,
+                0 as *mut libc::c_char,
+                0 as *mut mailmime_disposition,
+                0 as *mut mailmime_language,
+            );
+            if mime_fields.is_null() {
+                ok_to_continue = false;
+            } else {
+                mime = mailmime_new_empty(content, mime_fields);
+                if mime.is_null() {
+                    mailmime_fields_free(mime_fields);
+                    mailmime_content_free(content);
                 } else {
-                    mime = mailmime_new_empty(content, mime_fields);
-                    if mime.is_null() {
-                        mailmime_fields_free(mime_fields);
-                        mailmime_content_free(content);
-                    } else {
-                        if !data.is_null()
-                            && data_bytes > 0
-                            && (*mime).mm_type == MAILMIME_SINGLE as libc::c_int
-                        {
-                            mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes);
-                        }
-                        return mime;
+                    if !data.is_null()
+                        && data_bytes > 0
+                        && (*mime).mm_type == MAILMIME_SINGLE as libc::c_int
+                    {
+                        mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes);
                     }
-                    current_block = 13668317689588454213;
+                    return mime;
                 }
             }
         }
     }
-    match current_block {
-        16266721588079097885 => {
-            if !encoding.is_null() {
-                mailmime_mechanism_free(encoding);
-            }
-            if !content.is_null() {
-                mailmime_content_free(content);
-            }
+
+    if ok_to_continue == false {
+        if !encoding.is_null() {
+            mailmime_mechanism_free(encoding);
         }
-        _ => {}
+        if !content.is_null() {
+            mailmime_content_free(content);
+        }
     }
     return 0 as *mut mailmime;
 }
@@ -835,7 +819,7 @@ unsafe fn decrypt_part(
     ret_valid_signatures: &mut HashSet<String>,
     ret_decrypted_mime: *mut *mut mailmime,
 ) -> libc::c_int {
-    let current_block: u64;
+    let mut ok_to_continue = true;
     let mime_data: *mut mailmime_data;
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
     /* mmap_string_unref()'d if set */
@@ -883,9 +867,7 @@ unsafe fn decrypt_part(
             decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
             if decoded_data.is_null() || decoded_data_bytes <= 0 {
                 /* no error - but no data */
-                current_block = 2554982661806928548;
-            } else {
-                current_block = 4488286894823169796;
+                ok_to_continue = false;
             }
         } else {
             let r: libc::c_int;
@@ -902,52 +884,47 @@ unsafe fn decrypt_part(
                 || transfer_decoding_buffer.is_null()
                 || decoded_data_bytes <= 0
             {
-                current_block = 2554982661806928548;
+                ok_to_continue = false;
             } else {
                 decoded_data = transfer_decoding_buffer;
-                current_block = 4488286894823169796;
             }
         }
-        match current_block {
-            2554982661806928548 => {}
-            _ => {
-                /* encrypted, decoded data in decoded_data now ... */
-                if !(0 == has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int))
-                {
-                    let add_signatures = if ret_valid_signatures.is_empty() {
-                        Some(ret_valid_signatures)
-                    } else {
-                        None
-                    };
+        if ok_to_continue {
+            /* encrypted, decoded data in decoded_data now ... */
+            if !(0 == has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int)) {
+                let add_signatures = if ret_valid_signatures.is_empty() {
+                    Some(ret_valid_signatures)
+                } else {
+                    None
+                };
 
-                    /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
-                    if let Some(plain) = dc_pgp_pk_decrypt(
-                        decoded_data as *const libc::c_void,
-                        decoded_data_bytes,
-                        &private_keyring,
-                        &public_keyring_for_validate,
-                        add_signatures,
-                    ) {
-                        let plain_bytes = plain.len();
-                        let plain_buf = plain.as_ptr() as *const libc::c_char;
+                /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
+                if let Some(plain) = dc_pgp_pk_decrypt(
+                    decoded_data as *const libc::c_void,
+                    decoded_data_bytes,
+                    &private_keyring,
+                    &public_keyring_for_validate,
+                    add_signatures,
+                ) {
+                    let plain_bytes = plain.len();
+                    let plain_buf = plain.as_ptr() as *const libc::c_char;
 
-                        let mut index: size_t = 0i32 as size_t;
-                        let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;
-                        if mailmime_parse(
-                            plain_buf as *const _,
-                            plain_bytes,
-                            &mut index,
-                            &mut decrypted_mime,
-                        ) != MAIL_NO_ERROR as libc::c_int
-                            || decrypted_mime.is_null()
-                        {
-                            if !decrypted_mime.is_null() {
-                                mailmime_free(decrypted_mime);
-                            }
-                        } else {
-                            *ret_decrypted_mime = decrypted_mime;
-                            sth_decrypted = 1i32
+                    let mut index: size_t = 0i32 as size_t;
+                    let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;
+                    if mailmime_parse(
+                        plain_buf as *const _,
+                        plain_bytes,
+                        &mut index,
+                        &mut decrypted_mime,
+                    ) != MAIL_NO_ERROR as libc::c_int
+                        || decrypted_mime.is_null()
+                    {
+                        if !decrypted_mime.is_null() {
+                            mailmime_free(decrypted_mime);
                         }
+                    } else {
+                        *ret_decrypted_mime = decrypted_mime;
+                        sth_decrypted = 1i32
                     }
                 }
             }
