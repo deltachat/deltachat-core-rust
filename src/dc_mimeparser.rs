@@ -1175,6 +1175,16 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 ) != 0 as *mut libc::c_void
                                     as *mut mailimf_optional_field)
                                     as libc::c_int;
+
+                                info!(
+                                    mimeparser.context,
+                                    0,
+                                    "Simplifying text: \n---\n{}\n--\n",
+                                    String::from_utf8_lossy(std::slice::from_raw_parts(
+                                        decoded_data as *const u8,
+                                        decoded_data_bytes as usize
+                                    ))
+                                );
                                 let simplified_txt: *mut libc::c_char =
                                     simplifier.unwrap().simplify(
                                         decoded_data,
@@ -1185,6 +1195,16 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 if !simplified_txt.is_null()
                                     && 0 != *simplified_txt.offset(0isize) as libc::c_int
                                 {
+                                    info!(
+                                        mimeparser.context,
+                                        0,
+                                        "Simpliifed text: \n---\n{}\n--\n",
+                                        String::from_utf8_lossy(std::slice::from_raw_parts(
+                                            decoded_data as *const u8,
+                                            decoded_data_bytes as usize
+                                        ))
+                                    );
+
                                     let mut part = dc_mimepart_new();
                                     part.type_0 = 10i32;
                                     part.int_mimetype = mime_type;
