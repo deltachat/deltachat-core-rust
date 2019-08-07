@@ -353,7 +353,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
 // TODO should return bool /rtn
 pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc::c_int {
     let subject: *mut mailimf_subject;
-    let mut current_block: u64;
+    let mut ok_to_continue = true;
     let imf_fields: *mut mailimf_fields;
     let mut message: *mut mailmime = 0 as *mut mailmime;
     let mut message_text: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -853,7 +853,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     );
                     set_error(factory, error);
                     free(error as *mut libc::c_void);
-                    current_block = 11328123142868406523;
+                    ok_to_continue = false;
                 } else {
                     let file_part: *mut mailmime =
                         build_body_file(msg, 0 as *const libc::c_char, 0 as *mut *mut libc::c_char);
@@ -861,20 +861,16 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         mailmime_smart_add_part(message, file_part);
                         parts += 1
                     }
-                    current_block = 13000670339742628194;
                 }
-            } else {
-                current_block = 13000670339742628194;
             }
-            match current_block {
-                11328123142868406523 => {}
-                _ => {
+            // ok_to_continue = false = 11328123142868406523
+            if ok_to_continue {
                     if parts == 0 {
                         set_error(
                             factory,
                             b"Empty message.\x00" as *const u8 as *const libc::c_char,
                         );
-                        current_block = 11328123142868406523;
+                        ok_to_continue = false;
                     } else {
                         if !meta_part.is_null() {
                             mailmime_smart_add_part(message, meta_part);
@@ -940,9 +936,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                                 }
                             }
                         }
-                        current_block = 9952640327414195044;
                     }
-                }
             }
         } else if (*factory).loaded as libc::c_uint
             == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
@@ -994,18 +988,15 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             mailmime_set_body_text(mach_mime_part, message_text2, strlen(message_text2));
             mailmime_add_part(multipart, mach_mime_part);
             force_plaintext = 2;
-            current_block = 9952640327414195044;
         } else {
             set_error(
                 factory,
                 b"No message loaded.\x00" as *const u8 as *const libc::c_char,
             );
-            current_block = 11328123142868406523;
+            ok_to_continue = false;
         }
 
-        match current_block {
-            11328123142868406523 => {}
-            _ => {
+        if ok_to_continue {
                 if (*factory).loaded as libc::c_uint
                     == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
                 {
@@ -1073,7 +1064,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 (*factory).out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
                 mailmime_write_mem((*factory).out, &mut col, message);
                 success = 1
-            }
         }
     }
     if !message.is_null() {
