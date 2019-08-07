@@ -343,16 +343,16 @@ pub unsafe fn dc_e2ee_encrypt(
                             }
                         }
                     }
-					// ok_to_continue = false = 14181132614457621749
+                    // ok_to_continue = false = 14181132614457621749
                     if ok_to_continue {
-                            let aheader = Aheader::new(addr, public_key, prefer_encrypt);
-                            mailimf_fields_add(
-                                imffields_unprotected,
-                                mailimf_field_new_custom(
-                                    "Autocrypt".strdup(),
-                                    aheader.to_string().strdup(),
-                                ),
-                            );
+                        let aheader = Aheader::new(addr, public_key, prefer_encrypt);
+                        mailimf_fields_add(
+                            imffields_unprotected,
+                            mailimf_field_new_custom(
+                                "Autocrypt".strdup(),
+                                aheader.to_string().strdup(),
+                            ),
+                        );
                     }
                 }
             }
