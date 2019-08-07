@@ -80,7 +80,7 @@ pub unsafe fn dc_saxparser_set_text_handler(
 }
 
 pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *const libc::c_char) {
-	let mut is_valid = false;
+    let mut is_valid = false;
     let mut bak: libc::c_char;
     let buf_start: *mut libc::c_char;
     let mut last_text_start: *mut libc::c_char;
@@ -99,7 +99,7 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
     p = buf_start;
     loop {
         if !(0 != *p) {
-			is_valid = true;
+            is_valid = true;
             break;
         }
         if *p as libc::c_int == '<' as i32 {
@@ -333,13 +333,13 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
             p = p.offset(1isize)
         }
     }
-	if is_valid {
-            call_text_cb(
-                saxparser,
-                last_text_start,
-                p.wrapping_offset_from(last_text_start) as size_t,
-                '&' as i32 as libc::c_char,
-            );
+    if is_valid {
+        call_text_cb(
+            saxparser,
+            last_text_start,
+            p.wrapping_offset_from(last_text_start) as size_t,
+            '&' as i32 as libc::c_char,
+        );
     }
     do_free_attr(attr.as_mut_ptr(), free_attr.as_mut_ptr());
     free(buf_start as *mut libc::c_void);
