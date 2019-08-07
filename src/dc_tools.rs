@@ -539,32 +539,32 @@ pub unsafe fn dc_str_to_clist(
     list
 }
 
+/* the colors must fulfill some criterions as:
+- contrast to black and to white
+- work as a text-color
+- being noticeable on a typical map
+- harmonize together while being different enough
+(therefore, we cannot just use random rgb colors :) */
+const COLORS: [u32; 16] = [
+    0xe56555, 0xf28c48, 0x8e85ee, 0x76c84d, 0x5bb6cc, 0x549cdd, 0xd25c99, 0xb37800, 0xf23030,
+    0x39b249, 0xbb243b, 0x964078, 0x66874f, 0x308ab9, 0x127ed0, 0xbe450c,
+];
+
+pub fn dc_str_to_color_safe(s: impl AsRef<str>) -> u32 {
+    let str_lower = s.as_ref().to_lowercase();
+    let mut checksum = 0;
+    let bytes = str_lower.as_bytes();
+    for i in 0..str_lower.len() {
+        checksum += (i + 1) * bytes[i] as usize;
+        checksum %= 0xffffff;
+    }
+    let color_index = checksum % COLORS.len();
+
+    COLORS[color_index]
+}
+
 pub unsafe fn dc_str_to_color(str: *const libc::c_char) -> libc::c_int {
     let str_lower: *mut libc::c_char = dc_strlower(str);
-    /* the colors must fulfill some criterions as:
-    - contrast to black and to white
-    - work as a text-color
-    - being noticeable on a typical map
-    - harmonize together while being different enough
-    (therefore, we cannot just use random rgb colors :) */
-    static mut COLORS: [uint32_t; 16] = [
-        0xe56555i32 as uint32_t,
-        0xf28c48i32 as uint32_t,
-        0x8e85eei32 as uint32_t,
-        0x76c84di32 as uint32_t,
-        0x5bb6cci32 as uint32_t,
-        0x549cddi32 as uint32_t,
-        0xd25c99i32 as uint32_t,
-        0xb37800i32 as uint32_t,
-        0xf23030i32 as uint32_t,
-        0x39b249i32 as uint32_t,
-        0xbb243bi32 as uint32_t,
-        0x964078i32 as uint32_t,
-        0x66874fi32 as uint32_t,
-        0x308ab9i32 as uint32_t,
-        0x127ed0i32 as uint32_t,
-        0xbe450ci32 as uint32_t,
-    ];
     let mut checksum: libc::c_int = 0i32;
     let str_len: libc::c_int = strlen(str_lower) as libc::c_int;
     let mut i: libc::c_int = 0i32;

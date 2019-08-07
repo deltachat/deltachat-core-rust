@@ -12,9 +12,9 @@ use mmime::other::*;
 use std::ptr;
 
 use crate::constants::*;
+use crate::contact::*;
 use crate::context::Context;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_msg::*;
@@ -294,7 +294,6 @@ pub unsafe fn dc_mimefactory_load_mdn(
     }
 
     let mut success = 0;
-    let mut contact = 0 as *mut dc_contact_t;
 
     (*factory).recipients_names = clist_new();
     (*factory).recipients_addr = clist_new();
@@ -306,24 +305,19 @@ pub unsafe fn dc_mimefactory_load_mdn(
         .unwrap_or_else(|| 1)
     {
         // MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ...
-        contact = dc_contact_new((*factory).context);
-        if !(!dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
-            || !dc_contact_load_from_db(
-                contact,
-                &(*factory).context.sql,
-                (*(*factory).msg).from_id,
-            ))
-        {
-            if !(0 != (*contact).blocked || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
+        if !dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id) {
+            return success;
+        }
+
+        if let Ok(contact) = Contact::load_from_db((*factory).context, (*(*factory).msg).from_id) {
+            if !(contact.is_blocked() || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
                 // Do not send MDNs trash etc.; chats.blocked is already checked by the caller in dc_markseen_msgs()
                 if !((*(*factory).msg).from_id <= 9 as libc::c_uint) {
                     clist_insert_after(
                         (*factory).recipients_names,
                         (*(*factory).recipients_names).last,
-                        (if !(*contact).authname.is_null()
-                            && 0 != *(*contact).authname.offset(0isize) as libc::c_int
-                        {
-                            dc_strdup((*contact).authname)
+                        (if !contact.get_authname().is_empty() {
+                            contact.get_authname().strdup()
                         } else {
                             0 as *mut libc::c_char
                         }) as *mut libc::c_void,
@@ -331,7 +325,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
                     clist_insert_after(
                         (*factory).recipients_addr,
                         (*(*factory).recipients_addr).last,
-                        dc_strdup((*contact).addr) as *mut libc::c_void,
+                        contact.get_addr().strdup() as *mut libc::c_void,
                     );
                     load_from(factory);
                     (*factory).timestamp = dc_create_smeared_timestamp((*factory).context);
@@ -345,8 +339,6 @@ pub unsafe fn dc_mimefactory_load_mdn(
             }
         }
     }
-
-    dc_contact_unref(contact);
 
     success
 }

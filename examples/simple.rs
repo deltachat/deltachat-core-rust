@@ -1,6 +1,6 @@
 extern crate deltachat;
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
@@ -8,10 +8,10 @@ use tempfile::tempdir;
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::Event;
+use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_contact::*;
 use deltachat::dc_job::{
     dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs, dc_perform_smtp_idle,
     dc_perform_smtp_jobs,
@@ -93,9 +93,9 @@ fn main() {
 
         thread::sleep(duration);
 
-        let email = CString::new("dignifiedquire@gmail.com").unwrap();
         println!("sending a message");
-        let contact_id = dc_create_contact(&ctx, std::ptr::null(), email.as_ptr());
+        let contact_id =
+            Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com").unwrap();
         let chat_id = dc_create_chat_by_contact_id(&ctx, contact_id);
         dc_send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into());
 

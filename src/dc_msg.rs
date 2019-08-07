@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
 use crate::constants::*;
+use crate::contact::*;
 use crate::context::*;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
@@ -48,12 +48,10 @@ pub struct dc_msg_t<'a> {
 // handle messages
 pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char {
     let msg = dc_msg_new_untyped(context);
-    let contact_from = dc_contact_new(context);
     let mut p: *mut libc::c_char;
     let mut ret = String::new();
 
     dc_msg_load_from_db(msg, context, msg_id);
-    dc_contact_load_from_db(contact_from, &context.sql, (*msg).from_id);
 
     let rawtxt: Option<String> = context.sql.query_row_col(
         context,
@@ -65,7 +63,6 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     if rawtxt.is_none() {
         ret += &format!("Cannot load message #{}.", msg_id as usize);
         dc_msg_unref(msg);
-        dc_contact_unref(contact_from);
         return ret.strdup();
     }
     let rawtxt = rawtxt.unwrap();
@@ -74,12 +71,14 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     let fts = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
     ret += &format!("Sent: {}", fts);
 
-    p = dc_contact_get_name_n_addr(contact_from);
-    ret += &format!(" by {}", to_string(p));
-    free(p as *mut libc::c_void);
+    let name = Contact::load_from_db(context, (*msg).from_id)
+        .map(|contact| contact.get_name_n_addr())
+        .unwrap_or_default();
+
+    ret += &format!(" by {}", name);
     ret += "\n";
 
-    if (*msg).from_id != 1 as libc::c_uint {
+    if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint {
         let s = dc_timestamp_to_str(if 0 != (*msg).timestamp_rcvd {
             (*msg).timestamp_rcvd
         } else {
@@ -92,7 +91,6 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     if (*msg).from_id == 2 || (*msg).to_id == 2 {
         // device-internal message, no further details needed
         dc_msg_unref(msg);
-        dc_contact_unref(contact_from);
         return ret.strdup();
     }
 
@@ -112,14 +110,11 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
                     let fts = dc_timestamp_to_str(ts);
                     ret += &format!("Read: {}", fts);
 
-                    let contact = dc_contact_new(context);
-                    dc_contact_load_from_db(contact, &context.sql, contact_id as u32);
+                    let name = Contact::load_from_db(context, contact_id as u32)
+                        .map(|contact| contact.get_name_n_addr())
+                        .unwrap_or_default();
 
-                    p = dc_contact_get_name_n_addr(contact);
-                    ret += &format!(" by {}", as_str(p));
-                    free(p as *mut libc::c_void);
-                    dc_contact_unref(contact);
-
+                    ret += &format!(" by {}", name);
                     ret += "\n";
                 }
                 Ok(())
@@ -210,7 +205,6 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     }
 
     dc_msg_unref(msg);
-    dc_contact_unref(contact_from);
     ret.strdup()
 }
 
@@ -794,8 +788,8 @@ pub unsafe fn dc_msg_get_summary<'a>(
 ) -> *mut dc_lot_t {
     let current_block: u64;
     let ret: *mut dc_lot_t = dc_lot_new();
-    let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
+
     if !(msg.is_null() || (*msg).magic != 0x11561156 as libc::c_uint) {
         if chat.is_null() {
             chat_to_delete = dc_get_chat((*msg).context, (*msg).chat_id);
@@ -811,16 +805,19 @@ pub unsafe fn dc_msg_get_summary<'a>(
         match current_block {
             15204159476013091401 => {}
             _ => {
-                if (*msg).from_id != 1 as libc::c_uint
+                let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
                     && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
                 {
-                    contact = dc_get_contact((*chat).context, (*msg).from_id)
-                }
-                dc_lot_fill(ret, msg, chat, contact, (*msg).context);
+                    Contact::get_by_id((*chat).context, (*msg).from_id).ok()
+                } else {
+                    None
+                };
+
+                dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
             }
         }
     }
-    dc_contact_unref(contact);
+
     dc_chat_unref(chat_to_delete);
 
     ret
@@ -1572,12 +1569,8 @@ mod tests {
             let d = test::dummy_context();
             let ctx = &d.ctx;
 
-            let contact = dc_create_contact(
-                ctx,
-                b"\x00".as_ptr().cast(),
-                b"dest@example.com\x00".as_ptr().cast(),
-            );
-            assert!(contact != 0);
+            let contact =
+                Contact::create(ctx, "", "dest@example.com").expect("failed to create contact");
 
             let res = ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"));
             assert!(res.is_ok());

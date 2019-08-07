@@ -8,11 +8,11 @@ use tempfile::{tempdir, TempDir};
 
 use deltachat::config;
 use deltachat::constants::*;
+use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_contact::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_location::*;
 use deltachat::dc_lot::*;
@@ -890,22 +890,18 @@ fn test_stress_tests() {
 fn test_get_contacts() {
     unsafe {
         let context = create_test_context();
-        let name = CString::yolo("some2");
-        let contacts = dc_get_contacts(&context.ctx, 0, name.as_ptr());
+        let contacts = Contact::get_all(&context.ctx, 0, Some("some2")).unwrap();
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
 
-        let name = CString::yolo("bob");
-        let email = CString::yolo("bob@mail.de");
-        let id = dc_create_contact(&context.ctx, name.as_ptr(), email.as_ptr());
+        let id = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
         assert_ne!(id, 0);
 
-        let contacts = dc_get_contacts(&context.ctx, 0, name.as_ptr());
+        let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).unwrap();
         assert_eq!(dc_array_get_cnt(contacts), 1);
         dc_array_unref(contacts);
 
-        let name2 = CString::yolo("alice");
-        let contacts = dc_get_contacts(&context.ctx, 0, name2.as_ptr());
+        let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
     }
@@ -915,10 +911,7 @@ fn test_get_contacts() {
 fn test_chat() {
     unsafe {
         let context = create_test_context();
-        let name = CString::yolo("bob");
-        let email = CString::yolo("bob@mail.de");
-
-        let contact1 = dc_create_contact(&context.ctx, name.as_ptr(), email.as_ptr());
+        let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
         assert_ne!(contact1, 0);
 
         let chat_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
