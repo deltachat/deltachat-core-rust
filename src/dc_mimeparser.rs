@@ -1182,7 +1182,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     "Simplifying text: \n---\n{}\n--\n",
                                     String::from_utf8_lossy(std::slice::from_raw_parts(
                                         decoded_data as *const u8,
-                                        decoded_data_bytes as usize
+                                        decoded_data_bytes as usize - 1,
                                     ))
                                 );
                                 let simplified_txt: *mut libc::c_char =
@@ -1201,7 +1201,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         "Simpliifed text: \n---\n{}\n--\n",
                                         String::from_utf8_lossy(std::slice::from_raw_parts(
                                             decoded_data as *const u8,
-                                            decoded_data_bytes as usize
+                                            decoded_data_bytes as usize - 1,
                                         ))
                                     );
 
