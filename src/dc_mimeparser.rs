@@ -247,11 +247,19 @@ pub unsafe fn dc_mimeparser_parse(
             }
 
             if need_drop {
-                free(mimeparser.parts[1].msg as *mut libc::c_void);
-                let mut textpart = mimeparser.parts.swap_remove(0);
-                mimeparser.parts[1].msg = textpart.msg;
-                textpart.msg = 0 as *mut libc::c_char;
-                dc_mimepart_unref(textpart);
+                let mut filepart = mimeparser.parts.swap_remove(1);
+
+                // clear old one
+                free(filepart.msg as *mut libc::c_void);
+
+                // insert new one
+                filepart.msg = mimeparser.parts[0].msg;
+
+                // clear old one out
+                let old = std::mem::replace(&mut mimeparser.parts[0], filepart);
+
+                // unref old one
+                dc_mimepart_unref(old);
             }
         }
         if !mimeparser.subject.is_null() {
