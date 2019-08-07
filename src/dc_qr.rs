@@ -23,7 +23,7 @@ use crate::x::*;
 // text1=URL
 // text1=error string
 pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc_lot_t {
-    let mut current_block: u64;
+    let mut okToContinue = true;
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     // must be normalized, if set
     let mut addr: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -92,7 +92,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 }
             }
             fingerprint = dc_normalize_fingerprint_c(payload);
-            current_block = 5023038348526654800;
+
         } else if strncasecmp(
             qr,
             b"mailto:\x00" as *const u8 as *const libc::c_char,
@@ -107,7 +107,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 *query = 0i32 as libc::c_char
             }
             addr = dc_strdup(payload);
-            current_block = 5023038348526654800;
+
         } else if strncasecmp(
             qr,
             b"SMTP:\x00" as *const u8 as *const libc::c_char,
@@ -122,7 +122,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 *colon = 0i32 as libc::c_char
             }
             addr = dc_strdup(payload);
-            current_block = 5023038348526654800;
+
         } else if strncasecmp(
             qr,
             b"MATMSG:\x00" as *const u8 as *const libc::c_char,
@@ -138,12 +138,12 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 if !semicolon.is_null() {
                     *semicolon = 0i32 as libc::c_char
                 }
-                current_block = 5023038348526654800;
+
             } else {
                 (*qr_parsed).state = 400i32;
                 (*qr_parsed).text1 =
                     dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
-                current_block = 16562876845594826114;
+                okToContinue = false;
             }
         } else {
             if strncasecmp(
@@ -192,11 +192,9 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 }
                 dc_free_splitted_lines(lines);
             }
-            current_block = 5023038348526654800;
+
         }
-        match current_block {
-            16562876845594826114 => {}
-            _ => {
+        if okToContinue {
                 /* check the parameters
                 ---------------------- */
                 if !addr.is_null() {
@@ -212,16 +210,14 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                         (*qr_parsed).text1 = dc_strdup(
                             b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char,
                         );
-                        current_block = 16562876845594826114;
+                        okToContinue = false;
                     } else {
-                        current_block = 14116432890150942211;
+
                     }
                 } else {
-                    current_block = 14116432890150942211;
+
                 }
-                match current_block {
-                    16562876845594826114 => {}
-                    _ => {
+                if okToContinue {
                         if !fingerprint.is_null() {
                             if strlen(fingerprint) != 40 {
                                 (*qr_parsed).state = 400i32;
@@ -229,16 +225,14 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                     b"Bad fingerprint length in QR code.\x00" as *const u8
                                         as *const libc::c_char,
                                 );
-                                current_block = 16562876845594826114;
+                                okToContinue = false;
                             } else {
-                                current_block = 5409161009579131794;
+
                             }
                         } else {
-                            current_block = 5409161009579131794;
+
                         }
-                        match current_block {
-                            16562876845594826114 => {}
-                            _ => {
+                        if okToContinue {
                                 if !fingerprint.is_null() {
                                     let peerstate = Peerstate::from_fingerprint(
                                         context,
@@ -324,11 +318,11 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                 if !device_msg.is_null() {
                                     dc_add_device_msg(context, chat_id, device_msg);
                                 }
-                            }
+
                         }
-                    }
+
                 }
-            }
+
         }
     }
     free(addr as *mut libc::c_void);
