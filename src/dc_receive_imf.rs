@@ -910,7 +910,7 @@ unsafe fn create_or_lookup_group(
     ret_chat_id_blocked: *mut libc::c_int,
 ) {
     let group_explicitly_left: libc::c_int;
-    let mut current_block: u64;
+    let mut ok_to_continue = true;
     let mut chat_id: uint32_t = 0 as uint32_t;
     let mut chat_id_blocked: libc::c_int = 0;
     let mut chat_id_verified: libc::c_int = 0;
@@ -985,21 +985,13 @@ unsafe fn create_or_lookup_group(
                         &mut chat_id,
                         &mut chat_id_blocked,
                     );
-                    current_block = 281803052766328415;
-                } else {
-                    current_block = 18435049525520518667;
+                    ok_to_continue = false;
                 }
-            } else {
-                current_block = 18435049525520518667;
             }
-        } else {
-            current_block = 18435049525520518667;
         }
-    } else {
-        current_block = 18435049525520518667;
     }
-    match current_block {
-        18435049525520518667 => {
+    // ok_to_continue = true = 18435049525520518667;
+    if ok_to_continue {
             optional_field = dc_mimeparser_lookup_optional_field(
                 mime_parser,
                 b"Chat-Group-Name\x00" as *const u8 as *const libc::c_char,
@@ -1143,7 +1135,7 @@ unsafe fn create_or_lookup_group(
                     }
                 }
                 if 0 == allow_creation {
-                    current_block = 281803052766328415;
+                    ok_to_continue = false;
                 } else {
                     chat_id = create_group_record(
                         context,
@@ -1154,14 +1146,10 @@ unsafe fn create_or_lookup_group(
                     );
                     chat_id_blocked = create_blocked;
                     recreate_member_list = 1;
-                    current_block = 200744462051969938;
                 }
-            } else {
-                current_block = 200744462051969938;
             }
-            match current_block {
-                281803052766328415 => {}
-                _ => {
+            // ok_to_continue = false = 281803052766328415
+            if ok_to_continue {
                     /* again, check chat_id */
                     if chat_id <= 9 as libc::c_uint {
                         chat_id = 0 as uint32_t;
@@ -1316,10 +1304,7 @@ unsafe fn create_or_lookup_group(
                             }
                         }
                     }
-                }
-            }
         }
-        _ => {}
     }
     free(grpid as *mut libc::c_void);
     free(grpname as *mut libc::c_void);
@@ -1331,6 +1316,7 @@ unsafe fn create_or_lookup_group(
         *ret_chat_id_blocked = if 0 != chat_id { chat_id_blocked } else { 0 }
     };
 }
+
 /* ******************************************************************************
  * Handle groups for received messages
  ******************************************************************************/
