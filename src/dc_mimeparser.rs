@@ -255,7 +255,10 @@ pub unsafe fn dc_mimeparser_parse(
                 // insert new one
                 filepart.msg = mimeparser.parts[0].msg;
 
-                // clear old one out
+                // forget the one we use now
+                mimeparser.parts[0].msg = std::ptr::null_mut();
+
+                // swap new with old
                 let old = std::mem::replace(&mut mimeparser.parts[0], filepart);
 
                 // unref old one
