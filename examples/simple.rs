@@ -1,6 +1,6 @@
 extern crate deltachat;
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;

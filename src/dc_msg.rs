@@ -1569,12 +1569,8 @@ mod tests {
             let d = test::dummy_context();
             let ctx = &d.ctx;
 
-            let contact = dc_create_contact(
-                ctx,
-                b"\x00".as_ptr().cast(),
-                b"dest@example.com\x00".as_ptr().cast(),
-            );
-            assert!(contact != 0);
+            let contact =
+                Contact::create(ctx, "", "dest@example.com").expect("failed to create contact");
 
             let res = ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"));
             assert!(res.is_ok());
