@@ -1150,6 +1150,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 } else {
                                     decoded_data_bytes = res.len();
                                     decoded_data = res.as_ptr() as *const libc::c_char;
+                                    std::mem::forget(res);
                                     current_block = 17788412896529399552;
                                 }
                             } else {
@@ -1182,7 +1183,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     "Simplifying text: \n---\n{}\n--\n",
                                     String::from_utf8_lossy(std::slice::from_raw_parts(
                                         decoded_data as *const u8,
-                                        decoded_data_bytes as usize - 1,
+                                        decoded_data_bytes as usize,
                                     ))
                                 );
                                 let simplified_txt: *mut libc::c_char =
@@ -1201,7 +1202,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         "Simpliifed text: \n---\n{}\n--\n",
                                         String::from_utf8_lossy(std::slice::from_raw_parts(
                                             decoded_data as *const u8,
-                                            decoded_data_bytes as usize - 1,
+                                            decoded_data_bytes as usize,
                                         ))
                                     );
 
