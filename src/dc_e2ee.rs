@@ -835,7 +835,7 @@ unsafe fn decrypt_part(
     ret_valid_signatures: &mut HashSet<String>,
     ret_decrypted_mime: *mut *mut mailmime,
 ) -> libc::c_int {
-    let current_block: u64;
+    let ok_to_continue = true;
     let mime_data: *mut mailmime_data;
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
     /* mmap_string_unref()'d if set */
@@ -883,9 +883,7 @@ unsafe fn decrypt_part(
             decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
             if decoded_data.is_null() || decoded_data_bytes <= 0 {
                 /* no error - but no data */
-                current_block = 2554982661806928548;
-            } else {
-                current_block = 4488286894823169796;
+                ok_to_continue = false;
             }
         } else {
             let r: libc::c_int;
@@ -902,15 +900,12 @@ unsafe fn decrypt_part(
                 || transfer_decoding_buffer.is_null()
                 || decoded_data_bytes <= 0
             {
-                current_block = 2554982661806928548;
+                ok_to_continue = false;
             } else {
                 decoded_data = transfer_decoding_buffer;
-                current_block = 4488286894823169796;
             }
         }
-        match current_block {
-            2554982661806928548 => {}
-            _ => {
+        if ok_to_continue {
                 /* encrypted, decoded data in decoded_data now ... */
                 if !(0 == has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int))
                 {
@@ -950,7 +945,6 @@ unsafe fn decrypt_part(
                         }
                     }
                 }
-            }
         }
     }
     //mailmime_substitute(mime, new_mime);
