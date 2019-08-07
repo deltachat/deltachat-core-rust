@@ -1344,7 +1344,7 @@ unsafe fn create_or_lookup_adhoc_group(
     ret_chat_id: *mut uint32_t,
     ret_chat_id_blocked: *mut libc::c_int,
 ) {
-    let current_block: u64;
+    let mut ok_to_continue = true;
     /* if we're here, no grpid was found, check there is an existing ad-hoc
     group matching the to-list or if we can create one */
     let mut member_ids: *mut dc_array_t = 0 as *mut dc_array_t;
@@ -1386,16 +1386,10 @@ unsafe fn create_or_lookup_adhoc_group(
                     chat_id = id as u32;
                     chat_id_blocked = id_blocked;
                     /* success, chat found */
-                    current_block = 11334989263469503965;
-                } else {
-                    current_block = 11194104282611034094;
+                    ok_to_continue = false;
                 }
-            } else {
-                current_block = 11194104282611034094;
             }
-            match current_block {
-                11334989263469503965 => {}
-                _ => {
+            if ok_to_continue {
                     if !(0 == allow_creation) {
                         /* we do not check if the message is a reply to another group, this may result in
                         chats with unclear member list. instead we create a new group in the following lines ... */
@@ -1434,7 +1428,6 @@ unsafe fn create_or_lookup_adhoc_group(
                             );
                         }
                     }
-                }
             }
         }
     }
