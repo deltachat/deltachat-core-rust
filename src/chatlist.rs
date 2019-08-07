@@ -282,8 +282,7 @@ impl<'a> Chatlist<'a> {
                 && ((*chat).type_0 == DC_CHAT_TYPE_GROUP
                     || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP)
             {
-                lastcontact =
-                    Contact::load_from_db(self.context, &self.context.sql, (*lastmsg).from_id).ok();
+                lastcontact = Contact::load_from_db(self.context, (*lastmsg).from_id).ok();
             }
             lastmsg
         } else {

@@ -71,14 +71,14 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     let fts = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
     ret += &format!("Sent: {}", fts);
 
-    let name = Contact::load_from_db(context, &context.sql, (*msg).from_id)
+    let name = Contact::load_from_db(context, (*msg).from_id)
         .map(|contact| contact.get_name_n_addr())
         .unwrap_or_default();
 
     ret += &format!(" by {}", name);
     ret += "\n";
 
-    if (*msg).from_id != 1 as libc::c_uint {
+    if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint {
         let s = dc_timestamp_to_str(if 0 != (*msg).timestamp_rcvd {
             (*msg).timestamp_rcvd
         } else {
@@ -110,7 +110,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
                     let fts = dc_timestamp_to_str(ts);
                     ret += &format!("Read: {}", fts);
 
-                    let name = Contact::load_from_db(context, &context.sql, contact_id as u32)
+                    let name = Contact::load_from_db(context, contact_id as u32)
                         .map(|contact| contact.get_name_n_addr())
                         .unwrap_or_default();
 
@@ -805,7 +805,7 @@ pub unsafe fn dc_msg_get_summary<'a>(
         match current_block {
             15204159476013091401 => {}
             _ => {
-                let contact = if (*msg).from_id != 1 as libc::c_uint
+                let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
                     && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
                 {
                     Contact::get_by_id((*chat).context, (*msg).from_id).ok()

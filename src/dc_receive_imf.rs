@@ -1627,7 +1627,7 @@ unsafe fn check_verified_properties(
         warn!(context, 0, "{}", reason);
     };
 
-    let contact = match Contact::load_from_db(context, &context.sql, from_id) {
+    let contact = match Contact::load_from_db(context, from_id) {
         Ok(contact) => contact,
         Err(_err) => {
             verify_fail("Internal Error; cannot load contact".into());

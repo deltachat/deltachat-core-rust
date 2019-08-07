@@ -206,7 +206,8 @@ pub unsafe fn dc_create_chat_by_contact_id(context: &Context, contact_id: uint32
             dc_unblock_chat(context, chat_id);
             send_event = 1i32
         }
-    } else if !Contact::real_exists_by_id(context, contact_id) && contact_id != 1i32 as libc::c_uint
+    } else if !Contact::real_exists_by_id(context, contact_id)
+        && contact_id != DC_CONTACT_ID_SELF as u32
     {
         warn!(
             context,
@@ -263,7 +264,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
         }
         return;
     }
-    if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
+    if let Ok(contact) = Contact::load_from_db(context, contact_id) {
         let chat_name = contact.get_display_name();
 
         if sql::execute(
@@ -273,7 +274,7 @@ pub unsafe fn dc_create_or_lookup_nchat_by_contact_id(
                 "INSERT INTO chats (type, name, param, blocked, grpid) VALUES({}, '{}', '{}', {}, '{}')",
                 100,
                 chat_name,
-                if contact_id == 1 { "K=1" } else { "" },
+                if contact_id == DC_CONTACT_ID_SELF as u32 { "K=1" } else { "" },
                 create_blocked,
                 contact.get_addr(),
             ),
@@ -1544,7 +1545,8 @@ pub unsafe fn dc_add_contact_to_chat_ex(
 
         /*this also makes sure, not contacts are added to special or normal chats*/
         if !(0 == real_group_exists(context, chat_id)
-            || !Contact::real_exists_by_id(context, contact_id) && contact_id != 1 as libc::c_uint
+            || !Contact::real_exists_by_id(context, contact_id)
+                && contact_id != DC_CONTACT_ID_SELF as u32
             || !dc_chat_load_from_db(chat, chat_id))
         {
             if !(dc_is_contact_in_chat(context, chat_id, 1 as uint32_t) == 1) {
@@ -1685,7 +1687,7 @@ pub unsafe fn dc_remove_contact_from_chat(
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
 
     if !(chat_id <= 9 as libc::c_uint
-        || contact_id <= 9 as libc::c_uint && contact_id != 1 as libc::c_uint)
+        || contact_id <= 9 as libc::c_uint && contact_id != DC_CONTACT_ID_SELF as u32)
     {
         /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
         /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
@@ -1702,7 +1704,7 @@ pub unsafe fn dc_remove_contact_from_chat(
                 if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                     if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                         (*msg).type_0 = Viewtype::Text;
-                        if contact.id == 1 as libc::c_uint {
+                        if contact.id == DC_CONTACT_ID_SELF as u32 {
                             dc_set_group_explicitly_left(context, (*chat).grpid);
                             (*msg).text = Some(context.stock_system_msg(
                                 StockMessage::MsgGroupLeft,
@@ -1967,7 +1969,7 @@ pub unsafe fn dc_forward_msgs(
                 break;
             }
             let original_param = (*msg).param.clone();
-            if (*msg).from_id != 1 {
+            if (*msg).from_id != DC_CONTACT_ID_SELF as u32 {
                 (*msg).param.set_int(Param::Forwarded, 1);
             }
             (*msg).param.remove(Param::GuranteeE2ee);

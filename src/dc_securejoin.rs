@@ -318,9 +318,7 @@ unsafe fn fingerprint_equals_sender(
     let contacts = dc_get_chat_contacts(context, contact_chat_id);
 
     if !(dc_array_get_cnt(contacts) != 1) {
-        if let Ok(contact) =
-            Contact::load_from_db(context, &context.sql, dc_array_get_id(contacts, 0))
-        {
+        if let Ok(contact) = Contact::load_from_db(context, dc_array_get_id(contacts, 0)) {
             if let Some(peerstate) = Peerstate::from_addr(context, &context.sql, contact.get_addr())
             {
                 let fingerprint_normalized = dc_normalize_fingerprint(as_str(fingerprint));

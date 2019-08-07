@@ -4,7 +4,7 @@ use rusqlite;
 use rusqlite::types::*;
 
 use crate::aheader::EncryptPreference;
-use crate::config;
+use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_array::*;
@@ -14,7 +14,7 @@ use crate::dc_tools::*;
 use crate::error::Result;
 use crate::key::*;
 use crate::peerstate::*;
-use crate::sql::{self, Sql};
+use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 
@@ -151,35 +151,15 @@ pub enum VerifiedStatus {
 }
 
 impl<'a> Contact<'a> {
-    /// From: of incoming messages of unknown sender
-    /// Cc: of incoming messages of unknown sender
-    /// To: of incoming messages of unknown sender
-    /// address scanned but not verified
-    /// Reply-To: of incoming message of known sender
-    /// Cc: of incoming message of known sender
-    /// additional To:'s of incoming message of known sender
-    /// a chat was manually created for this user, but no message yet sent
-    /// message sent by us
-    /// message sent by us
-    /// message sent by us
-    /// internal use
-    /// address is in our address book
-    /// set on Alice's side for contacts like Bob that have scanned the QR code offered by her. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
-    /// set on Bob's side for contacts scanned and verified from a QR code. Only means the contact has once been established using the "securejoin" procedure in the past, getting the current key verification status requires calling dc_contact_is_verified() !
-    /// contact added manually by dc_create_contact(), this should be the largets origin as otherwise the user cannot modify the names
-    /// contacts with at least this origin value are shown in the contact list
-    /// contacts with at least this origin value are verified and known not to be spam
-    /// contacts with at least this origin value start a new "normal" chat, defaults to off
-    pub fn load_from_db(context: &'a Context, sql: &Sql, contact_id: u32) -> Result<Self> {
-        if contact_id == 1 {
+    pub fn load_from_db(context: &'a Context, contact_id: u32) -> Result<Self> {
+        if contact_id == DC_CONTACT_ID_SELF as u32 {
             let contact = Contact {
                 context,
                 id: contact_id,
                 name: context.stock_str(StockMessage::SelfMsg).into(),
                 authname: "".into(),
                 addr: context
-                    .sql
-                    .get_config(context, "configured_addr")
+                    .get_config(Config::ConfiguredAddr)
                     .unwrap_or_default(),
                 blocked: false,
                 origin: Origin::Unknown,
@@ -188,7 +168,7 @@ impl<'a> Contact<'a> {
             return Ok(contact);
         }
 
-        sql.query_row(
+        context.sql.query_row(
             "SELECT c.name, c.addr, c.origin, c.blocked, c.authname  FROM contacts c  WHERE c.id=?;",
             params![contact_id as i32],
             |row| {
@@ -213,7 +193,7 @@ impl<'a> Contact<'a> {
 
     /// Check if a contact is blocked.
     pub fn is_blocked_load(context: &'a Context, id: u32) -> bool {
-        Self::load_from_db(context, &context.sql, id)
+        Self::load_from_db(context, id)
             .map(|contact| contact.blocked)
             .unwrap_or_default()
     }
@@ -291,8 +271,7 @@ impl<'a> Contact<'a> {
 
         let addr_normalized = addr_normalize(addr.as_ref());
         let addr_self = context
-            .sql
-            .get_config(context, "configured_addr")
+            .get_config(Config::ConfiguredAddr)
             .unwrap_or_default();
 
         if addr_normalized == addr_self {
@@ -330,8 +309,7 @@ impl<'a> Contact<'a> {
 
         let addr = addr_normalize(addr.as_ref());
         let addr_self = context
-            .sql
-            .get_config(context, "configured_addr")
+            .get_config(Config::ConfiguredAddr)
             .unwrap_or_default();
 
         if addr == addr_self {
@@ -496,8 +474,7 @@ impl<'a> Contact<'a> {
         query: Option<impl AsRef<str>>,
     ) -> Result<*mut dc_array_t> {
         let self_addr = context
-            .sql
-            .get_config(context, "configured_addr")
+            .get_config(Config::ConfiguredAddr)
             .unwrap_or_default();
 
         let mut add_self = false;
@@ -538,11 +515,7 @@ impl<'a> Contact<'a> {
                 },
             )?;
 
-            let self_name = context
-                .sql
-                .get_config(context, "displayname")
-                .unwrap_or_default();
-
+            let self_name = context.get_config(Config::Displayname).unwrap_or_default();
             let self_name2 = context.stock_str(StockMessage::SelfMsg);
 
             if let Some(query) = query {
@@ -614,7 +587,7 @@ impl<'a> Contact<'a> {
     pub fn get_encrinfo(context: &Context, contact_id: u32) -> String {
         let mut ret = String::new();
 
-        if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
+        if let Ok(contact) = Contact::load_from_db(context, contact_id) {
             let peerstate = Peerstate::from_addr(context, &context.sql, &contact.addr);
             let loginparam = dc_loginparam_read(context, &context.sql, "configured_");
 
@@ -741,7 +714,7 @@ impl<'a> Contact<'a> {
     /// like "Me" in the selected language and the email address
     /// defined by dc_set_config().
     pub fn get_by_id(context: &Context, contact_id: u32) -> Result<Contact> {
-        Contact::load_from_db(context, &context.sql, contact_id)
+        Contact::load_from_db(context, contact_id)
     }
 
     /// Get the ID of the contact.
@@ -808,7 +781,7 @@ impl<'a> Contact<'a> {
     /// using dc_set_config(context, "selfavatar", image).
     pub fn get_profile_image(&self) -> Option<String> {
         if self.id == DC_CONTACT_ID_SELF as u32 {
-            return self.context.get_config(config::Config::Selfavatar);
+            return self.context.get_config(Config::Selfavatar);
         }
         // TODO: else get image_abs from contact param
         None
@@ -862,7 +835,7 @@ impl<'a> Contact<'a> {
             return false;
         }
 
-        if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
+        if let Ok(contact) = Contact::load_from_db(context, contact_id) {
             if !contact.addr.is_empty() {
                 let normalized_addr = addr_normalize(addr.as_ref());
                 if &contact.addr == &normalized_addr {
@@ -894,7 +867,7 @@ impl<'a> Contact<'a> {
         let mut ret = Origin::Unknown;
         *ret_blocked = 0;
 
-        if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
+        if let Ok(contact) = Contact::load_from_db(context, contact_id) {
             /* we could optimize this by loading only the needed fields */
             if contact.blocked {
                 *ret_blocked = 1;
@@ -968,7 +941,7 @@ fn set_block_contact(context: &Context, contact_id: u32, new_blocking: bool) {
         return;
     }
 
-    if let Ok(contact) = Contact::load_from_db(context, &context.sql, contact_id) {
+    if let Ok(contact) = Contact::load_from_db(context, contact_id) {
         if contact.blocked != new_blocking {
             if sql::execute(
                 context,
@@ -1075,7 +1048,7 @@ pub fn addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
 pub fn addr_equals_self(context: &Context, addr: impl AsRef<str>) -> bool {
     if !addr.as_ref().is_empty() {
         let normalized_addr = addr_normalize(addr.as_ref());
-        if let Some(self_addr) = context.sql.get_config(context, "configured_addr") {
+        if let Some(self_addr) = context.get_config(Config::ConfiguredAddr) {
             return normalized_addr == self_addr;
         }
     }

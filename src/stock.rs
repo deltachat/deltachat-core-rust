@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn test_stock_system_msg_add_member_by_me_with_displayname() {
         let t = dummy_context();
-        assert!(Contact::create(&t.ctx, "Alice", "alice@example.com").unwrap() > 0);
+        Contact::create(&t.ctx, "Alice", "alice@example.com").expect("failed to create contact");
         assert_eq!(
             t.ctx.stock_system_msg(
                 StockMessage::MsgAddMember,
@@ -348,12 +348,10 @@ mod tests {
     fn test_stock_system_msg_add_member_by_other_with_displayname() {
         let t = dummy_context();
         let contact_id = {
-            assert!(
-                Contact::create(&t.ctx, "Alice", "alice@example.com").unwrap() > 0,
-                "Failed to create contact Alice"
-            );
-            let id = Contact::create(&t.ctx, "Bob", "bob@example.com").unwrap();
-            assert!(id > 0, "Failed to create contact Bob");
+            Contact::create(&t.ctx, "Alice", "alice@example.com")
+                .expect("Failed to create contact Alice");
+            let id =
+                Contact::create(&t.ctx, "Bob", "bob@example.com").expect("failed to create bob");
             id
         };
         assert_eq!(
@@ -384,8 +382,8 @@ mod tests {
     #[test]
     fn test_stock_system_msg_grp_name_other() {
         let t = dummy_context();
-        let id = Contact::create(&t.ctx, "Alice", "alice@example.com").unwrap();
-        assert!(id > 0, "Failed to create contact Alice");
+        let id = Contact::create(&t.ctx, "Alice", "alice@example.com")
+            .expect("failed to create contact");
 
         assert_eq!(
             t.ctx

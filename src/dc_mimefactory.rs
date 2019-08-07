@@ -309,11 +309,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
             return success;
         }
 
-        if let Ok(contact) = Contact::load_from_db(
-            (*factory).context,
-            &(*factory).context.sql,
-            (*(*factory).msg).from_id,
-        ) {
+        if let Ok(contact) = Contact::load_from_db((*factory).context, (*(*factory).msg).from_id) {
             if !(contact.is_blocked() || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
                 // Do not send MDNs trash etc.; chats.blocked is already checked by the caller in dc_markseen_msgs()
                 if !((*(*factory).msg).from_id <= 9 as libc::c_uint) {
