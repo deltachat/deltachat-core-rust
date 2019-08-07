@@ -129,82 +129,82 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
     }
     loop {
         if !ok_to_continue {
-                if !mmapstr.is_null() {
-                    mmap_string_free(mmapstr);
-                }
-                break;
+            if !mmapstr.is_null() {
+                mmap_string_free(mmapstr);
+            }
+            break;
         } else {
-                if *cur as libc::c_int != '\u{0}' as i32 {
-                    let begin: *const libc::c_char;
-                    let mut end: *const libc::c_char;
-                    let mut do_quote: bool;
-                    let mut quote_words: libc::c_int;
-                    begin = cur;
-                    end = begin;
-                    quote_words = 0i32;
-                    do_quote = true;
-                    while *cur as libc::c_int != '\u{0}' as i32 {
-                        get_word(cur, &mut cur, &mut do_quote);
-                        if !do_quote {
-                            break;
-                        }
-                        quote_words = 1i32;
-                        end = cur;
-                        if *cur as libc::c_int != '\u{0}' as i32 {
-                            cur = cur.offset(1isize)
-                        }
+            if *cur as libc::c_int != '\u{0}' as i32 {
+                let begin: *const libc::c_char;
+                let mut end: *const libc::c_char;
+                let mut do_quote: bool;
+                let mut quote_words: libc::c_int;
+                begin = cur;
+                end = begin;
+                quote_words = 0i32;
+                do_quote = true;
+                while *cur as libc::c_int != '\u{0}' as i32 {
+                    get_word(cur, &mut cur, &mut do_quote);
+                    if !do_quote {
+                        break;
                     }
-                    if 0 != quote_words {
-                        if !quote_word(
-                            b"utf-8\x00" as *const u8 as *const libc::c_char,
-                            mmapstr,
-                            begin,
-                            end.wrapping_offset_from(begin) as size_t,
-                        ) {
+                    quote_words = 1i32;
+                    end = cur;
+                    if *cur as libc::c_int != '\u{0}' as i32 {
+                        cur = cur.offset(1isize)
+                    }
+                }
+                if 0 != quote_words {
+                    if !quote_word(
+                        b"utf-8\x00" as *const u8 as *const libc::c_char,
+                        mmapstr,
+                        begin,
+                        end.wrapping_offset_from(begin) as size_t,
+                    ) {
+                        ok_to_continue = false;
+                        continue;
+                    }
+                    if *end as libc::c_int == ' ' as i32 || *end as libc::c_int == '\t' as i32 {
+                        if mmap_string_append_c(mmapstr, *end).is_null() {
                             ok_to_continue = false;
                             continue;
                         }
-                        if *end as libc::c_int == ' ' as i32 || *end as libc::c_int == '\t' as i32 {
-                            if mmap_string_append_c(mmapstr, *end).is_null() {
-                                ok_to_continue = false;
-                                continue;
-                            }
-                            end = end.offset(1isize)
+                        end = end.offset(1isize)
+                    }
+                    if *end as libc::c_int != '\u{0}' as i32 {
+                        if mmap_string_append_len(
+                            mmapstr,
+                            end,
+                            cur.wrapping_offset_from(end) as size_t,
+                        )
+                        .is_null()
+                        {
+                            ok_to_continue = false;
+                            continue;
                         }
-                        if *end as libc::c_int != '\u{0}' as i32 {
-                            if mmap_string_append_len(
-                                mmapstr,
-                                end,
-                                cur.wrapping_offset_from(end) as size_t,
-                            )
-                            .is_null()
-                            {
-                                ok_to_continue = false;
-                                continue;
-                            }
-                        }
-                    } else if mmap_string_append_len(
-                        mmapstr,
-                        begin,
-                        cur.wrapping_offset_from(begin) as size_t,
-                    )
-                    .is_null()
-                    {
-                        ok_to_continue = false;
-                        continue;
                     }
-                    if !(*cur as libc::c_int == ' ' as i32 || *cur as libc::c_int == '\t' as i32) {
-                        continue;
-                    }
-                    if mmap_string_append_c(mmapstr, *cur).is_null() {
-                        ok_to_continue = false;
-                        continue;
-                    }
-                    cur = cur.offset(1isize);
-                } else {
-                    ret_str = strdup((*mmapstr).str_0);
+                } else if mmap_string_append_len(
+                    mmapstr,
+                    begin,
+                    cur.wrapping_offset_from(begin) as size_t,
+                )
+                .is_null()
+                {
                     ok_to_continue = false;
+                    continue;
                 }
+                if !(*cur as libc::c_int == ' ' as i32 || *cur as libc::c_int == '\t' as i32) {
+                    continue;
+                }
+                if mmap_string_append_c(mmapstr, *cur).is_null() {
+                    ok_to_continue = false;
+                    continue;
+                }
+                cur = cur.offset(1isize);
+            } else {
+                ret_str = strdup((*mmapstr).str_0);
+                ok_to_continue = false;
+            }
         }
     }
 
