@@ -66,7 +66,7 @@ pub unsafe fn dc_e2ee_encrypt(
     mut in_out_message: *mut mailmime,
     helper: &mut dc_e2ee_helper_t,
 ) {
-    let mut current_block: u64 = 0;
+    let mut ok_to_continue = true;
     let mut col: libc::c_int = 0i32;
     let mut do_encrypt: libc::c_int = 0i32;
     /*just a pointer into mailmime structure, must not be freed*/
@@ -283,7 +283,7 @@ pub unsafe fn dc_e2ee_encrypt(
                         );
                         mailmime_write_mem(plain, &mut col, message_to_encrypt);
                         if (*plain).str_0.is_null() || (*plain).len <= 0 {
-                            current_block = 14181132614457621749;
+                            ok_to_continue = false;
                         } else {
                             if let Some(ctext_v) = dc_pgp_pk_encrypt(
                                 (*plain).str_0 as *const libc::c_void,
@@ -340,15 +340,11 @@ pub unsafe fn dc_e2ee_encrypt(
                                 (*encrypted_part).mm_parent = in_out_message;
                                 mailmime_free(message_to_encrypt);
                                 (*helper).encryption_successfull = 1i32;
-                                current_block = 13824533195664196414;
                             }
                         }
-                    } else {
-                        current_block = 13824533195664196414;
                     }
-                    match current_block {
-                        14181132614457621749 => {}
-                        _ => {
+					// ok_to_continue = false = 14181132614457621749
+                    if ok_to_continue {
                             let aheader = Aheader::new(addr, public_key, prefer_encrypt);
                             mailimf_fields_add(
                                 imffields_unprotected,
@@ -357,7 +353,6 @@ pub unsafe fn dc_e2ee_encrypt(
                                     aheader.to_string().strdup(),
                                 ),
                             );
-                        }
                     }
                 }
             }
