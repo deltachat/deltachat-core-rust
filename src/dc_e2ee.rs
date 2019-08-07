@@ -293,7 +293,7 @@ pub unsafe fn dc_e2ee_encrypt(
                             ) {
                                 let ctext_bytes = ctext_v.len();
                                 let ctext = ctext_v.strdup();
-                                (*helper).cdata_to_free = ctext as *mut _;
+                                helper.cdata_to_free = ctext as *mut _;
 
                                 /* create MIME-structure that will contain the encrypted text */
                                 let mut encrypted_part: *mut mailmime = new_data_part(
@@ -339,7 +339,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 (*in_out_message).mm_data.mm_message.mm_msg_mime = encrypted_part;
                                 (*encrypted_part).mm_parent = in_out_message;
                                 mailmime_free(message_to_encrypt);
-                                (*helper).encryption_successfull = 1i32;
+                                helper.encryption_successfull = 1i32;
                             }
                         }
                     }
@@ -933,6 +933,7 @@ unsafe fn decrypt_part(
                         *ret_decrypted_mime = decrypted_mime;
                         sth_decrypted = 1i32
                     }
+                    std::mem::forget(plain);
                 }
             }
         }
@@ -1061,4 +1062,70 @@ pub unsafe fn dc_ensure_secret_key_exists(context: &Context) -> libc::c_int {
     }
 
     success
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_mailmime_parse() {
+        let plain = b"Chat-Disposition-Notification-To: holger@deltachat.de
+Chat-Group-ID: CovhGgau8M-
+Chat-Group-Name: Delta Chat Dev
+Subject: =?utf-8?Q?Chat=3A?= Delta Chat =?utf-8?Q?Dev=3A?= sidenote for
+ =?utf-8?Q?all=3A?= rust core master ...
+Content-Type: text/plain; charset=\"utf-8\"; protected-headers=\"v1\"
+Content-Transfer-Encoding: quoted-printable
+
+sidenote for all: rust core master is broken currently ... so dont recomm=
+end to try to run with desktop or ios unless you are ready to hunt bugs
+
+-- =20
+Sent with my Delta Chat Messenger: https://delta.chat";
+        let plain_bytes = plain.len();
+        let plain_buf = plain.as_ptr() as *const libc::c_char;
+
+        let mut index = 0;
+        let mut decrypted_mime = std::ptr::null_mut();
+
+        let res = unsafe {
+            mailmime_parse(
+                plain_buf as *const _,
+                plain_bytes,
+                &mut index,
+                &mut decrypted_mime,
+            )
+        };
+        unsafe {
+            let msg1 = (*decrypted_mime).mm_data.mm_message.mm_msg_mime;
+            let mut decoded_data = 0 as *const libc::c_char;
+            let mut decoded_data_bytes = 0;
+            let mut transfer_decoding_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
+
+            assert_eq!(
+                mailmime_transfer_decode(
+                    msg1,
+                    &mut decoded_data,
+                    &mut decoded_data_bytes,
+                    &mut transfer_decoding_buffer,
+                ),
+                1
+            );
+            println!(
+                "{:?}",
+                String::from_utf8_lossy(std::slice::from_raw_parts(
+                    decoded_data as *const u8,
+                    decoded_data_bytes as usize,
+                ))
+            );
+
+            free(decoded_data as *mut _);
+        }
+
+        assert_eq!(res, 0);
+        assert!(!decrypted_mime.is_null());
+
+        unsafe { free(decrypted_mime as *mut _) };
+    }
 }
