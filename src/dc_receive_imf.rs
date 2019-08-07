@@ -172,7 +172,6 @@ pub unsafe fn dc_receive_imf(
                     ok_to_continue = false;
                 }
             }
-            // ok_to_continue = false = 16282941964262048061
             if ok_to_continue {
                 /* check, if the mail is already in our database - if so, just update the folder/uid (if the mail was moved around) and finish.
                 (we may get a mail twice eg. if it is moved between folders. make sure, this check is done eg. before securejoin-processing) */
@@ -535,7 +534,6 @@ pub unsafe fn dc_receive_imf(
                                 Ok(())
                             }
                         ).unwrap(); // TODO: better error handling
-                                    // ok_to_continue = false = 16282941964262048061
                     if ok_to_continue {
                         info!(
                             context,
@@ -561,7 +559,6 @@ pub unsafe fn dc_receive_imf(
                 sent_timestamp = time()
             }
         }
-        // ok_to_continue = false = 16282941964262048061
         if ok_to_continue {
             if !mime_parser.reports.is_empty() {
                 let mdns_enabled = context
@@ -957,7 +954,6 @@ unsafe fn create_or_lookup_group(
             }
         }
     }
-    // ok_to_continue = true = 18435049525520518667;
     if ok_to_continue {
         optional_field = dc_mimeparser_lookup_optional_field(
             mime_parser,
@@ -1106,7 +1102,6 @@ unsafe fn create_or_lookup_group(
                 recreate_member_list = 1;
             }
         }
-        // ok_to_continue = false = 281803052766328415
         if ok_to_continue {
             /* again, check chat_id */
             if chat_id <= 9 as libc::c_uint {
