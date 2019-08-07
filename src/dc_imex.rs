@@ -508,7 +508,7 @@ pub unsafe fn dc_normalize_setup_code(
 
 #[allow(non_snake_case)]
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
-    let mut ok_to_continue1 = true;
+    let mut ok_to_continue = true;
     let mut success: libc::c_int = 0;
     let mut ongoing_allocated_here: libc::c_int = 0;
     let what: libc::c_int;
@@ -536,37 +536,33 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             0,
                             "Import/export: Cannot create private key or private key not available.",
                         );
-                        ok_to_continue1 = false;
+                        ok_to_continue = false;
                     } else {
                         dc_create_folder(context, &param1_s);
                     }
                 }
-                if ok_to_continue1 {
+                if ok_to_continue {
                     match what {
                         1 => {
-                            if 0 == export_self_keys(context, param1.as_ptr()) {
-                            } else {
+                            if 0 != export_self_keys(context, param1.as_ptr()) {
                                 info!(context, 0, "Import/export completed.",);
                                 success = 1
                             }
                         }
                         2 => {
-                            if 0 == import_self_keys(context, param1.as_ptr()) {
-                            } else {
+                            if 0 != import_self_keys(context, param1.as_ptr()) {
                                 info!(context, 0, "Import/export completed.",);
                                 success = 1
                             }
                         }
                         11 => {
-                            if 0 == export_backup(context, param1.as_ptr()) {
-                            } else {
+                            if 0 != export_backup(context, param1.as_ptr()) {
                                 info!(context, 0, "Import/export completed.",);
                                 success = 1
                             }
                         }
                         12 => {
-                            if 0 == import_backup(context, param1.as_ptr()) {
-                            } else {
+                            if 0 != import_backup(context, param1.as_ptr()) {
                                 info!(context, 0, "Import/export completed.",);
                                 success = 1
                             }
