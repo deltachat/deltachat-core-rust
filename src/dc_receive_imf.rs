@@ -35,7 +35,7 @@ pub unsafe fn dc_receive_imf(
     server_uid: uint32_t,
     flags: uint32_t,
 ) {
-    let mut current_block: u64;
+    let mut ok_to_continue = true;
     /* the function returns the number of created messages in the database */
     let mut incoming: libc::c_int = 1;
     let mut incoming_origin: libc::c_int = 0;
@@ -169,16 +169,11 @@ pub unsafe fn dc_receive_imf(
                 rfc724_mid = dc_create_incoming_rfc724_mid(sent_timestamp, from_id, to_ids);
                 if rfc724_mid.is_null() {
                     info!(context, 0, "Cannot create Message-ID.",);
-                    current_block = 16282941964262048061;
-                } else {
-                    current_block = 777662472977924419;
+                    ok_to_continue = false;
                 }
-            } else {
-                current_block = 777662472977924419;
             }
-            match current_block {
-                16282941964262048061 => {}
-                _ => {
+            // ok_to_continue = false = 16282941964262048061
+            if ok_to_continue {
                     /* check, if the mail is already in our database - if so, just update the folder/uid (if the mail was moved around) and finish.
                     (we may get a mail twice eg. if it is moved between folders. make sure, this check is done eg. before securejoin-processing) */
                     let mut old_server_folder: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -201,7 +196,7 @@ pub unsafe fn dc_receive_imf(
                         }
                         free(old_server_folder as *mut libc::c_void);
                         info!(context, 0, "Message already in DB.");
-                        current_block = 16282941964262048061;
+                        ok_to_continue = false;
                     } else {
                         msgrmsg = mime_parser.is_send_by_messenger;
                         if msgrmsg == 0
@@ -447,7 +442,6 @@ pub unsafe fn dc_receive_imf(
                                 let mut i = 0;
                                 loop {
                                     if !(i < icnt) {
-                                        current_block = 2756754640271984560;
                                         break;
                                     }
                                     let part = &mut mime_parser.parts[i];
@@ -525,7 +519,7 @@ pub unsafe fn dc_receive_imf(
                                         if res.is_err() {
                                             info!(context, 0, "Cannot write DB.",);
                                             /* i/o error - there is nothing more we can do - in other cases, we try to write at least an empty record */
-                                            current_block = 16282941964262048061;
+                                            ok_to_continue = false;
                                             break;
                                         } else {
                                             free(txt_raw as *mut libc::c_void);
@@ -545,9 +539,8 @@ pub unsafe fn dc_receive_imf(
                                 Ok(())
                             }
                         ).unwrap(); // TODO: better error handling
-                        match current_block {
-                            16282941964262048061 => {}
-                            _ => {
+                        // ok_to_continue = false = 16282941964262048061
+                        if ok_to_continue {
                                 info!(
                                     context,
                                     0,
@@ -571,21 +564,16 @@ pub unsafe fn dc_receive_imf(
                                     server_folder.as_ref(),
                                     insert_msg_id,
                                 );
-                                current_block = 18330534242458572360;
-                            }
                         }
                     }
-                }
             }
         } else {
             if sent_timestamp > time() {
                 sent_timestamp = time()
             }
-            current_block = 18330534242458572360;
         }
-        match current_block {
-            16282941964262048061 => {}
-            _ => {
+        // ok_to_continue = false = 16282941964262048061
+        if ok_to_continue {
                 if !mime_parser.reports.is_empty() {
                     let mdns_enabled = context
                         .sql
@@ -818,7 +806,6 @@ pub unsafe fn dc_receive_imf(
                         0,
                     );
                 }
-            }
         }
     }
 
@@ -846,7 +833,6 @@ pub unsafe fn dc_receive_imf(
 
     free(txt_raw as *mut libc::c_void);
 }
-
 /* ******************************************************************************
  * Misc. Tools
  ******************************************************************************/
