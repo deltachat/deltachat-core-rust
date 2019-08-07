@@ -378,7 +378,7 @@ unsafe fn new_data_part(
     default_content_type: *mut libc::c_char,
     default_encoding: libc::c_int,
 ) -> *mut mailmime {
-	let mut ok_to_continue = true;
+    let mut ok_to_continue = true;
     //char basename_buf[PATH_MAX];
     let mut encoding: *mut mailmime_mechanism;
     let content: *mut mailmime_content;
@@ -398,7 +398,7 @@ unsafe fn new_data_part(
     }
     content = mailmime_content_new_with_str(content_type_str);
     if content.is_null() {
-		ok_to_continue = false;
+        ok_to_continue = false;
     } else {
         do_encoding = 1i32;
         if (*(*content).ct_type).tp_type == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int {
@@ -426,44 +426,44 @@ unsafe fn new_data_part(
             }
             encoding = mailmime_mechanism_new(encoding_type, 0 as *mut libc::c_char);
             if encoding.is_null() {
-				ok_to_continue = false;
-			}
+                ok_to_continue = false;
+            }
         }
-		if ok_to_continue {
-                mime_fields = mailmime_fields_new_with_data(
-                    encoding,
-                    0 as *mut libc::c_char,
-                    0 as *mut libc::c_char,
-                    0 as *mut mailmime_disposition,
-                    0 as *mut mailmime_language,
-                );
-                if mime_fields.is_null() {
-					ok_to_continue = false;
+        if ok_to_continue {
+            mime_fields = mailmime_fields_new_with_data(
+                encoding,
+                0 as *mut libc::c_char,
+                0 as *mut libc::c_char,
+                0 as *mut mailmime_disposition,
+                0 as *mut mailmime_language,
+            );
+            if mime_fields.is_null() {
+                ok_to_continue = false;
+            } else {
+                mime = mailmime_new_empty(content, mime_fields);
+                if mime.is_null() {
+                    mailmime_fields_free(mime_fields);
+                    mailmime_content_free(content);
                 } else {
-                    mime = mailmime_new_empty(content, mime_fields);
-                    if mime.is_null() {
-                        mailmime_fields_free(mime_fields);
-                        mailmime_content_free(content);
-                    } else {
-                        if !data.is_null()
-                            && data_bytes > 0
-                            && (*mime).mm_type == MAILMIME_SINGLE as libc::c_int
-                        {
-                            mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes);
-                        }
-                        return mime;
+                    if !data.is_null()
+                        && data_bytes > 0
+                        && (*mime).mm_type == MAILMIME_SINGLE as libc::c_int
+                    {
+                        mailmime_set_body_text(mime, data as *mut libc::c_char, data_bytes);
                     }
+                    return mime;
                 }
+            }
         }
     }
 
-	if ok_to_continue == false {
-            if !encoding.is_null() {
-                mailmime_mechanism_free(encoding);
-            }
-            if !content.is_null() {
-                mailmime_content_free(content);
-            }
+    if ok_to_continue == false {
+        if !encoding.is_null() {
+            mailmime_mechanism_free(encoding);
+        }
+        if !content.is_null() {
+            mailmime_content_free(content);
+        }
     }
     return 0 as *mut mailmime;
 }
