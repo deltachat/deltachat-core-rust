@@ -835,7 +835,7 @@ unsafe fn decrypt_part(
     ret_valid_signatures: &mut HashSet<String>,
     ret_decrypted_mime: *mut *mut mailmime,
 ) -> libc::c_int {
-    let ok_to_continue = true;
+    let mut ok_to_continue = true;
     let mime_data: *mut mailmime_data;
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
     /* mmap_string_unref()'d if set */
