@@ -23,7 +23,7 @@ use crate::x::*;
 // text1=URL
 // text1=error string
 pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc_lot_t {
-    let mut okToContinue = true;
+    let mut ok_to_continue = true;
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     // must be normalized, if set
     let mut addr: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -139,7 +139,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 (*qr_parsed).state = 400i32;
                 (*qr_parsed).text1 =
                     dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
-                okToContinue = false;
+                ok_to_continue = false;
             }
         } else {
             if strncasecmp(
@@ -189,7 +189,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 dc_free_splitted_lines(lines);
             }
         }
-        if okToContinue {
+        if ok_to_continue {
             /* check the parameters
             ---------------------- */
             if !addr.is_null() {
@@ -204,14 +204,10 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                     (*qr_parsed).state = 400i32;
                     (*qr_parsed).text1 =
                         dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
-                    okToContinue = false;
-                } else {
-
+                    ok_to_continue = false;
                 }
-            } else {
-
             }
-            if okToContinue {
+            if ok_to_continue {
                 if !fingerprint.is_null() {
                     if strlen(fingerprint) != 40 {
                         (*qr_parsed).state = 400i32;
@@ -219,14 +215,10 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                             b"Bad fingerprint length in QR code.\x00" as *const u8
                                 as *const libc::c_char,
                         );
-                        okToContinue = false;
-                    } else {
-
+                        ok_to_continue = false;
                     }
-                } else {
-
                 }
-                if okToContinue {
+                if ok_to_continue {
                     if !fingerprint.is_null() {
                         let peerstate =
                             Peerstate::from_fingerprint(context, &context.sql, as_str(fingerprint));
