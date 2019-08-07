@@ -812,7 +812,7 @@ unsafe fn decrypt_recursive(
 }
 
 unsafe fn decrypt_part(
-    _context: &Context,
+    context: &Context,
     mime: *mut mailmime,
     private_keyring: &Keyring,
     public_keyring_for_validate: &Keyring,
