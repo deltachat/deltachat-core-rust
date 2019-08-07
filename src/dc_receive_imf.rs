@@ -1390,44 +1390,39 @@ unsafe fn create_or_lookup_adhoc_group(
                 }
             }
             if ok_to_continue {
-                    if !(0 == allow_creation) {
-                        /* we do not check if the message is a reply to another group, this may result in
-                        chats with unclear member list. instead we create a new group in the following lines ... */
-                        /* create a new ad-hoc group
-                        - there is no need to check if this group exists; otherwise we would have caught it above */
-                        grpid = create_adhoc_grp_id(context, member_ids);
-                        if !grpid.is_null() {
-                            if !mime_parser.subject.is_null()
-                                && 0 != *mime_parser.subject.offset(0isize) as libc::c_int
-                            {
-                                grpname = dc_strdup(mime_parser.subject)
-                            } else {
-                                grpname = context
-                                    .stock_string_repl_int(
-                                        StockMessage::Member,
-                                        dc_array_get_cnt(member_ids) as libc::c_int,
-                                    )
-                                    .strdup();
-                            }
-                            chat_id =
-                                create_group_record(context, grpid, grpname, create_blocked, 0);
-                            chat_id_blocked = create_blocked;
-                            i = 0;
-                            while i < dc_array_get_cnt(member_ids) {
-                                dc_add_to_chat_contacts_table(
-                                    context,
-                                    chat_id,
-                                    dc_array_get_id(member_ids, i as size_t),
-                                );
-                                i += 1
-                            }
-                            context.call_cb(
-                                Event::CHAT_MODIFIED,
-                                chat_id as uintptr_t,
-                                0 as uintptr_t,
-                            );
+                if !(0 == allow_creation) {
+                    /* we do not check if the message is a reply to another group, this may result in
+                    chats with unclear member list. instead we create a new group in the following lines ... */
+                    /* create a new ad-hoc group
+                    - there is no need to check if this group exists; otherwise we would have caught it above */
+                    grpid = create_adhoc_grp_id(context, member_ids);
+                    if !grpid.is_null() {
+                        if !mime_parser.subject.is_null()
+                            && 0 != *mime_parser.subject.offset(0isize) as libc::c_int
+                        {
+                            grpname = dc_strdup(mime_parser.subject)
+                        } else {
+                            grpname = context
+                                .stock_string_repl_int(
+                                    StockMessage::Member,
+                                    dc_array_get_cnt(member_ids) as libc::c_int,
+                                )
+                                .strdup();
                         }
+                        chat_id = create_group_record(context, grpid, grpname, create_blocked, 0);
+                        chat_id_blocked = create_blocked;
+                        i = 0;
+                        while i < dc_array_get_cnt(member_ids) {
+                            dc_add_to_chat_contacts_table(
+                                context,
+                                chat_id,
+                                dc_array_get_id(member_ids, i as size_t),
+                            );
+                            i += 1
+                        }
+                        context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
                     }
+                }
             }
         }
     }
