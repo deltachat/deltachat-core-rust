@@ -67,50 +67,14 @@ pub unsafe fn dc_str_replace(
     haystack: *mut *mut libc::c_char,
     needle: *const libc::c_char,
     replacement: *const libc::c_char,
-) -> libc::c_int {
-    let mut replacements: libc::c_int = 0i32;
-    let mut start_search_pos: libc::c_int = 0i32;
-    let needle_len: libc::c_int;
-    let replacement_len: libc::c_int;
-    if haystack.is_null()
-        || (*haystack).is_null()
-        || needle.is_null()
-        || *needle.offset(0isize) as libc::c_int == 0i32
-    {
-        return 0i32;
-    }
-    needle_len = strlen(needle) as libc::c_int;
-    replacement_len = (if !replacement.is_null() {
-        strlen(replacement)
-    } else {
-        0
-    }) as libc::c_int;
-    loop {
-        let mut p2: *mut libc::c_char =
-            strstr((*haystack).offset(start_search_pos as isize), needle);
-        if p2.is_null() {
-            break;
-        }
-        start_search_pos =
-            (p2.wrapping_offset_from(*haystack) + replacement_len as isize) as libc::c_int;
-        *p2 = 0i32 as libc::c_char;
-        p2 = p2.offset(needle_len as isize);
-        let new_string: *mut libc::c_char = dc_mprintf(
-            b"%s%s%s\x00" as *const u8 as *const libc::c_char,
-            *haystack,
-            if !replacement.is_null() {
-                replacement
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-            p2,
-        );
-        free(*haystack as *mut libc::c_void);
-        *haystack = new_string;
-        replacements += 1
-    }
+) {
+    let haystack_s = to_string(*haystack);
+    let needle_s = to_string(needle);
+    let replacement_s = to_string(replacement);
 
-    replacements
+    free(*haystack as *mut libc::c_void);
+
+    *haystack = haystack_s.replace(&needle_s, &replacement_s).strdup();
 }
 
 pub unsafe fn dc_ftoa(f: libc::c_double) -> *mut libc::c_char {
@@ -1647,7 +1611,7 @@ mod tests {
     fn test_dc_str_replace() {
         unsafe {
             let mut str: *mut libc::c_char = strdup(b"aaa\x00" as *const u8 as *const libc::c_char);
-            let replacements: libc::c_int = dc_str_replace(
+            dc_str_replace(
                 &mut str,
                 b"a\x00" as *const u8 as *const libc::c_char,
                 b"ab\x00" as *const u8 as *const libc::c_char,
@@ -1656,7 +1620,6 @@ mod tests {
                 CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
                 "ababab"
             );
-            assert_eq!(replacements, 3);
             free(str as *mut libc::c_void);
         }
     }
