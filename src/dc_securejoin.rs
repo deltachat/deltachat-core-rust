@@ -682,52 +682,51 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             }
                         }
                         if ok_to_continue {
-                                if 0 == mark_peer_as_verified(context, scanned_fingerprint_of_alice)
-                                {
-                                    could_not_establish_secure_connection(
+                            if 0 == mark_peer_as_verified(context, scanned_fingerprint_of_alice) {
+                                could_not_establish_secure_connection(
+                                    context,
+                                    contact_chat_id,
+                                    b"Fingerprint mismatch on joiner-side.\x00" as *const u8
+                                        as *const libc::c_char,
+                                );
+                                ok_to_continue = false;
+                            } else {
+                                dc_scaleup_contact_origin(context, contact_id, 0x2000000i32);
+                                context.call_cb(
+                                    Event::CONTACTS_CHANGED,
+                                    0i32 as uintptr_t,
+                                    0i32 as uintptr_t,
+                                );
+                                if 0 != join_vg {
+                                    if 0 == dc_addr_equals_self(
                                         context,
-                                        contact_chat_id,
-                                        b"Fingerprint mismatch on joiner-side.\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
-                                    ok_to_continue = false;
-                                } else {
-                                    dc_scaleup_contact_origin(context, contact_id, 0x2000000i32);
-                                    context.call_cb(
-                                        Event::CONTACTS_CHANGED,
-                                        0i32 as uintptr_t,
-                                        0i32 as uintptr_t,
-                                    );
-                                    if 0 != join_vg {
-                                        if 0 == dc_addr_equals_self(
-                                            context,
-                                            lookup_field(mimeparser, "Chat-Group-Member-Added"),
-                                        ) {
-                                            info!(
+                                        lookup_field(mimeparser, "Chat-Group-Member-Added"),
+                                    ) {
+                                        info!(
                                                 context,
                                                 0,
                                                 "Message belongs to a different handshake (scaled up contact anyway to allow creation of group)."
                                             );
-                                            ok_to_continue = false;
-                                        }
-                                    }
-                                    if ok_to_continue {
-                                            secure_connection_established(context, contact_chat_id);
-                                            context.bob.clone().write().unwrap().expects = 0;
-                                            if 0 != join_vg {
-                                                send_handshake_msg(
-                                                    context,
-                                                    contact_chat_id,
-                                                    b"vg-member-added-received\x00" as *const u8
-                                                        as *const libc::c_char,
-                                                    0 as *const libc::c_char,
-                                                    0 as *const libc::c_char,
-                                                    0 as *const libc::c_char,
-                                                );
-                                            }
-                                            end_bobs_joining(context, 1i32);
+                                        ok_to_continue = false;
                                     }
                                 }
+                                if ok_to_continue {
+                                    secure_connection_established(context, contact_chat_id);
+                                    context.bob.clone().write().unwrap().expects = 0;
+                                    if 0 != join_vg {
+                                        send_handshake_msg(
+                                            context,
+                                            contact_chat_id,
+                                            b"vg-member-added-received\x00" as *const u8
+                                                as *const libc::c_char,
+                                            0 as *const libc::c_char,
+                                            0 as *const libc::c_char,
+                                            0 as *const libc::c_char,
+                                        );
+                                    }
+                                    end_bobs_joining(context, 1i32);
+                                }
+                            }
                         }
                     }
                 }
@@ -758,9 +757,9 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 }
             }
             if ok_to_continue {
-                    if 0 != ret & 0x2i32 {
-                        ret |= 0x4i32
-                    }
+                if 0 != ret & 0x2i32 {
+                    ret |= 0x4i32
+                }
             }
         }
     }
