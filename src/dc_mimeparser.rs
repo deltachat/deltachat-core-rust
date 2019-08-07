@@ -1127,8 +1127,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                             simplifier = Some(dc_simplify_t::new());
                         }
                         /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
-                        let charset: *const libc::c_char =
-                            mailmime_content_charset_get((*mime).mm_content_type);
+                        let charset = mailmime_content_charset_get((*mime).mm_content_type);
                         if !charset.is_null()
                             && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char)
                                 != 0i32
@@ -1173,29 +1172,30 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                             8795901732489102124 => {}
                             _ => {
                                 /* check header directly as is_send_by_messenger is not yet set up */
-                                let is_msgrmsg: libc::c_int = (dc_mimeparser_lookup_optional_field(
+                                let is_msgrmsg = (!dc_mimeparser_lookup_optional_field(
                                     &mimeparser,
                                     b"Chat-Version\x00" as *const u8 as *const libc::c_char,
-                                ) != 0 as *mut libc::c_void
-                                    as *mut mailimf_optional_field)
+                                )
+                                .is_null())
                                     as libc::c_int;
 
-                                info!(
-                                    mimeparser.context,
-                                    0,
-                                    "Simplifying text: \n---\n{}\n--\n",
-                                    String::from_utf8_lossy(std::slice::from_raw_parts(
-                                        decoded_data as *const u8,
-                                        decoded_data_bytes as usize,
-                                    ))
-                                );
-                                let simplified_txt: *mut libc::c_char =
-                                    simplifier.unwrap().simplify(
-                                        decoded_data,
-                                        decoded_data_bytes as libc::c_int,
-                                        if mime_type == 70i32 { 1i32 } else { 0i32 },
-                                        is_msgrmsg,
+                                if !decoded_data.is_null() && decoded_data_bytes > 0 {
+                                    info!(
+                                        mimeparser.context,
+                                        0,
+                                        "Simplifying text: \n---\n{}\n--\n",
+                                        String::from_utf8_lossy(std::slice::from_raw_parts(
+                                            decoded_data as *const u8,
+                                            decoded_data_bytes as usize,
+                                        ))
                                     );
+                                }
+                                let simplified_txt = simplifier.unwrap().simplify(
+                                    decoded_data,
+                                    decoded_data_bytes as libc::c_int,
+                                    if mime_type == 70i32 { 1i32 } else { 0i32 },
+                                    is_msgrmsg,
+                                );
                                 if !simplified_txt.is_null()
                                     && 0 != *simplified_txt.offset(0isize) as libc::c_int
                                 {
