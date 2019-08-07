@@ -906,45 +906,44 @@ unsafe fn decrypt_part(
             }
         }
         if ok_to_continue {
-                /* encrypted, decoded data in decoded_data now ... */
-                if !(0 == has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int))
-                {
-                    let add_signatures = if ret_valid_signatures.is_empty() {
-                        Some(ret_valid_signatures)
-                    } else {
-                        None
-                    };
+            /* encrypted, decoded data in decoded_data now ... */
+            if !(0 == has_decrypted_pgp_armor(decoded_data, decoded_data_bytes as libc::c_int)) {
+                let add_signatures = if ret_valid_signatures.is_empty() {
+                    Some(ret_valid_signatures)
+                } else {
+                    None
+                };
 
-                    /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
-                    if let Some(plain) = dc_pgp_pk_decrypt(
-                        decoded_data as *const libc::c_void,
-                        decoded_data_bytes,
-                        &private_keyring,
-                        &public_keyring_for_validate,
-                        add_signatures,
-                    ) {
-                        let plain_bytes = plain.len();
-                        let plain_buf = plain.as_ptr() as *const libc::c_char;
+                /*if we already have fingerprints, do not add more; this ensures, only the fingerprints from the outer-most part are collected */
+                if let Some(plain) = dc_pgp_pk_decrypt(
+                    decoded_data as *const libc::c_void,
+                    decoded_data_bytes,
+                    &private_keyring,
+                    &public_keyring_for_validate,
+                    add_signatures,
+                ) {
+                    let plain_bytes = plain.len();
+                    let plain_buf = plain.as_ptr() as *const libc::c_char;
 
-                        let mut index: size_t = 0i32 as size_t;
-                        let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;
-                        if mailmime_parse(
-                            plain_buf as *const _,
-                            plain_bytes,
-                            &mut index,
-                            &mut decrypted_mime,
-                        ) != MAIL_NO_ERROR as libc::c_int
-                            || decrypted_mime.is_null()
-                        {
-                            if !decrypted_mime.is_null() {
-                                mailmime_free(decrypted_mime);
-                            }
-                        } else {
-                            *ret_decrypted_mime = decrypted_mime;
-                            sth_decrypted = 1i32
+                    let mut index: size_t = 0i32 as size_t;
+                    let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;
+                    if mailmime_parse(
+                        plain_buf as *const _,
+                        plain_bytes,
+                        &mut index,
+                        &mut decrypted_mime,
+                    ) != MAIL_NO_ERROR as libc::c_int
+                        || decrypted_mime.is_null()
+                    {
+                        if !decrypted_mime.is_null() {
+                            mailmime_free(decrypted_mime);
                         }
+                    } else {
+                        *ret_decrypted_mime = decrypted_mime;
+                        sth_decrypted = 1i32
                     }
                 }
+            }
         }
     }
     //mailmime_substitute(mime, new_mime);
