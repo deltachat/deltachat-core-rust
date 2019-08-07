@@ -1144,13 +1144,16 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 );
 
                                 let (res, _, _) = encoding.decode(data);
+                                info!(mimeparser.context, 0, "decoded message: '{}'", res);
                                 if res.is_empty() {
                                     /* no error - but nothing to add */
                                     current_block = 8795901732489102124;
                                 } else {
-                                    decoded_data_bytes = res.len();
-                                    decoded_data = res.as_ptr() as *const libc::c_char;
+                                    let b = res.as_bytes();
+                                    decoded_data = b.as_ptr() as *const libc::c_char;
+                                    decoded_data_bytes = b.len();
                                     std::mem::forget(res);
+
                                     current_block = 17788412896529399552;
                                 }
                             } else {
