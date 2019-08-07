@@ -800,15 +800,15 @@ pub unsafe fn dc_msg_get_summary<'a>(
             }
         }
         if ok_to_continue {
-                let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
-                    && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
-                {
-                    Contact::get_by_id((*chat).context, (*msg).from_id).ok()
-                } else {
-                    None
-                };
+            let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
+                && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
+            {
+                Contact::get_by_id((*chat).context, (*msg).from_id).ok()
+            } else {
+                None
+            };
 
-                dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
+            dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
         }
     }
 
