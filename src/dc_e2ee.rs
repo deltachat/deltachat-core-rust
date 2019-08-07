@@ -378,7 +378,7 @@ unsafe fn new_data_part(
     default_content_type: *mut libc::c_char,
     default_encoding: libc::c_int,
 ) -> *mut mailmime {
-    let mut current_block: u64;
+	let mut ok_to_continue = true;
     //char basename_buf[PATH_MAX];
     let mut encoding: *mut mailmime_mechanism;
     let content: *mut mailmime_content;
@@ -398,7 +398,7 @@ unsafe fn new_data_part(
     }
     content = mailmime_content_new_with_str(content_type_str);
     if content.is_null() {
-        current_block = 16266721588079097885;
+		ok_to_continue = false;
     } else {
         do_encoding = 1i32;
         if (*(*content).ct_type).tp_type == MAILMIME_TYPE_COMPOSITE_TYPE as libc::c_int {
@@ -426,16 +426,10 @@ unsafe fn new_data_part(
             }
             encoding = mailmime_mechanism_new(encoding_type, 0 as *mut libc::c_char);
             if encoding.is_null() {
-                current_block = 16266721588079097885;
-            } else {
-                current_block = 11057878835866523405;
-            }
-        } else {
-            current_block = 11057878835866523405;
+				ok_to_continue = false;
+			}
         }
-        match current_block {
-            16266721588079097885 => {}
-            _ => {
+		if ok_to_continue {
                 mime_fields = mailmime_fields_new_with_data(
                     encoding,
                     0 as *mut libc::c_char,
@@ -444,7 +438,7 @@ unsafe fn new_data_part(
                     0 as *mut mailmime_language,
                 );
                 if mime_fields.is_null() {
-                    current_block = 16266721588079097885;
+					ok_to_continue = false;
                 } else {
                     mime = mailmime_new_empty(content, mime_fields);
                     if mime.is_null() {
@@ -459,21 +453,17 @@ unsafe fn new_data_part(
                         }
                         return mime;
                     }
-                    current_block = 13668317689588454213;
                 }
-            }
         }
     }
-    match current_block {
-        16266721588079097885 => {
+
+	if ok_to_continue == false {
             if !encoding.is_null() {
                 mailmime_mechanism_free(encoding);
             }
             if !content.is_null() {
                 mailmime_content_free(content);
             }
-        }
-        _ => {}
     }
     return 0 as *mut mailmime;
 }
