@@ -120,24 +120,20 @@ fn hex_2_int(ch: libc::c_char) -> libc::c_char {
 }
 
 pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut libc::c_char {
-    let mut current_block: u64;
+    let mut ok_to_continue = true;
     let mut ret_str: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut cur: *const libc::c_char = to_encode;
     let mmapstr: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     if to_encode.is_null() || mmapstr.is_null() {
-        current_block = 8550051112593613029;
-    } else {
-        current_block = 4644295000439058019;
+        ok_to_continue = false;
     }
     loop {
-        match current_block {
-            8550051112593613029 => {
+        if !ok_to_continue {
                 if !mmapstr.is_null() {
                     mmap_string_free(mmapstr);
                 }
                 break;
-            }
-            _ => {
+        } else {
                 if *cur as libc::c_int != '\u{0}' as i32 {
                     let begin: *const libc::c_char;
                     let mut end: *const libc::c_char;
@@ -165,12 +161,12 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                             begin,
                             end.wrapping_offset_from(begin) as size_t,
                         ) {
-                            current_block = 8550051112593613029;
+                            ok_to_continue = false;
                             continue;
                         }
                         if *end as libc::c_int == ' ' as i32 || *end as libc::c_int == '\t' as i32 {
                             if mmap_string_append_c(mmapstr, *end).is_null() {
-                                current_block = 8550051112593613029;
+                                ok_to_continue = false;
                                 continue;
                             }
                             end = end.offset(1isize)
@@ -183,7 +179,7 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                             )
                             .is_null()
                             {
-                                current_block = 8550051112593613029;
+                                ok_to_continue = false;
                                 continue;
                             }
                         }
@@ -194,24 +190,21 @@ pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut lib
                     )
                     .is_null()
                     {
-                        current_block = 8550051112593613029;
+                        ok_to_continue = false;
                         continue;
                     }
                     if !(*cur as libc::c_int == ' ' as i32 || *cur as libc::c_int == '\t' as i32) {
-                        current_block = 4644295000439058019;
                         continue;
                     }
                     if mmap_string_append_c(mmapstr, *cur).is_null() {
-                        current_block = 8550051112593613029;
+                        ok_to_continue = false;
                         continue;
                     }
                     cur = cur.offset(1isize);
-                    current_block = 4644295000439058019;
                 } else {
                     ret_str = strdup((*mmapstr).str_0);
-                    current_block = 8550051112593613029;
+                    ok_to_continue = false;
                 }
-            }
         }
     }
 
