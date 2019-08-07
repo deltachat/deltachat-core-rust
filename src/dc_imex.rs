@@ -508,7 +508,7 @@ pub unsafe fn dc_normalize_setup_code(
 
 #[allow(non_snake_case)]
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
-    let mut current_block: u64;
+    let mut ok_to_continue1 = true;
     let mut success: libc::c_int = 0;
     let mut ongoing_allocated_here: libc::c_int = 0;
     let what: libc::c_int;
@@ -536,179 +536,43 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             0,
                             "Import/export: Cannot create private key or private key not available.",
                         );
-                        current_block = 3568988166330621280;
+                        ok_to_continue1 = false;
                     } else {
                         dc_create_folder(context, &param1_s);
-                        current_block = 4495394744059808450;
                     }
-                } else {
-                    current_block = 4495394744059808450;
                 }
-                match current_block {
-                    3568988166330621280 => {}
-                    _ => match what {
+                if ok_to_continue1 {
+                    match what {
                         1 => {
-                            current_block = 10991094515395304355;
-                            match current_block {
-                                2973387206439775448 => {
-                                    if 0 == import_backup(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                11250025114629486028 => {
-                                    if 0 == import_self_keys(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                12669919903773909120 => {
-                                    if 0 == export_backup(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                _ => {
                                     if 0 == export_self_keys(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
                                     } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                            }
-                            match current_block {
-                                3568988166330621280 => {}
-                                _ => {
                                     info!(context, 0, "Import/export completed.",);
                                     success = 1
-                                }
-                            }
+                                    }
                         }
                         2 => {
-                            current_block = 11250025114629486028;
-                            match current_block {
-                                2973387206439775448 => {
-                                    if 0 == import_backup(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                11250025114629486028 => {
                                     if 0 == import_self_keys(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
                                     } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                12669919903773909120 => {
-                                    if 0 == export_backup(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                _ => {
-                                    if 0 == export_self_keys(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                            }
-                            match current_block {
-                                3568988166330621280 => {}
-                                _ => {
                                     info!(context, 0, "Import/export completed.",);
                                     success = 1
-                                }
-                            }
+                                    }
                         }
                         11 => {
-                            current_block = 12669919903773909120;
-                            match current_block {
-                                2973387206439775448 => {
-                                    if 0 == import_backup(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                11250025114629486028 => {
-                                    if 0 == import_self_keys(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                12669919903773909120 => {
                                     if 0 == export_backup(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
                                     } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                _ => {
-                                    if 0 == export_self_keys(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                            }
-                            match current_block {
-                                3568988166330621280 => {}
-                                _ => {
                                     info!(context, 0, "Import/export completed.",);
                                     success = 1
-                                }
-                            }
+                                    }
                         }
                         12 => {
-                            current_block = 2973387206439775448;
-                            match current_block {
-                                2973387206439775448 => {
                                     if 0 == import_backup(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
                                     } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                11250025114629486028 => {
-                                    if 0 == import_self_keys(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                12669919903773909120 => {
-                                    if 0 == export_backup(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                                _ => {
-                                    if 0 == export_self_keys(context, param1.as_ptr()) {
-                                        current_block = 3568988166330621280;
-                                    } else {
-                                        current_block = 1118134448028020070;
-                                    }
-                                }
-                            }
-                            match current_block {
-                                3568988166330621280 => {}
-                                _ => {
                                     info!(context, 0, "Import/export completed.",);
                                     success = 1
-                                }
-                            }
+                                    }
                         }
                         _ => {}
-                    },
+                    }
                 }
             }
         }
