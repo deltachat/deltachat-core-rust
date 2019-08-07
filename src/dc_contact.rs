@@ -45,23 +45,14 @@ pub fn dc_marknoticed_contact(context: &Context, contact_id: u32) {
 
 /// Returns false if addr is an invalid address, otherwise true.
 pub unsafe fn dc_may_be_valid_addr(addr: *const libc::c_char) -> bool {
-    if addr.is_null() {
-        return false;
-    }
-    let at: *const libc::c_char = strchr(addr, '@' as i32);
-    if at.is_null() || at.wrapping_offset_from(addr) < 1 {
-        return false;
-    }
-    let dot: *const libc::c_char = strchr(at, '.' as i32);
-    if dot.is_null()
-        || dot.wrapping_offset_from(at) < 2
-        || *dot.offset(1isize) as libc::c_int == 0i32
-        || *dot.offset(2isize) as libc::c_int == 0i32
-    {
-        return false;
-    }
+    let s = to_string(addr);
 
-    true
+    // Regexp: /.+@.+\..{2,}/
+    if let (Some(at), Some(dot)) = (s.find('@'), s.rfind('.')) {
+        at > 0 && dot > 2 && dot + 2 < s.len()
+    } else {
+        false
+    }
 }
 
 pub unsafe fn dc_lookup_contact_id_by_addr(
