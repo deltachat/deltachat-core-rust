@@ -863,7 +863,6 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     }
                 }
             }
-            // ok_to_continue = false = 11328123142868406523
             if ok_to_continue {
                 if parts == 0 {
                     set_error(
