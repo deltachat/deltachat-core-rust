@@ -353,7 +353,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     mimeparser: &dc_mimeparser_t,
     contact_id: uint32_t,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let mut ok_to_continue = true;
     let step: *const libc::c_char;
     let join_vg: libc::c_int;
     let mut scanned_fingerprint_of_alice: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -401,10 +401,10 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 invitenumber = lookup_field(mimeparser, "Secure-Join-Invitenumber");
                 if invitenumber.is_null() {
                     warn!(context, 0, "Secure-join denied (invitenumber missing).",);
-                    current_block = 4378276786830486580;
+                    ok_to_continue = false;
                 } else if !dc_token_exists(context, DC_TOKEN_INVITENUMBER, invitenumber) {
                     warn!(context, 0, "Secure-join denied (bad invitenumber).",);
-                    current_block = 4378276786830486580;
+                    ok_to_continue = false;
                 } else {
                     info!(context, 0, "Secure-join requested.",);
 
@@ -425,7 +425,6 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         0 as *const libc::c_char,
                         0 as *const libc::c_char,
                     );
-                    current_block = 10256747982273457880;
                 }
             } else if strcmp(
                 step,
@@ -446,7 +445,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 if cond {
                     warn!(context, 0, "auth-required message out of sync.",);
                     // no error, just aborted somehow or a mail from another handshake
-                    current_block = 4378276786830486580;
+                    ok_to_continue = false;
                 } else {
                     {
                         let scan = context.bob.clone().read().unwrap().qr_scan;
@@ -467,7 +466,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             },
                         );
                         end_bobs_joining(context, 0i32);
-                        current_block = 4378276786830486580;
+                        ok_to_continue = false;
                     } else if 0
                         == fingerprint_equals_sender(
                             context,
@@ -482,7 +481,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 as *const libc::c_char,
                         );
                         end_bobs_joining(context, 0i32);
-                        current_block = 4378276786830486580;
+                        ok_to_continue = false;
                     } else {
                         info!(context, 0, "Fingerprint verified.",);
                         own_fingerprint = get_self_fingerprint(context);
@@ -505,7 +504,6 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             own_fingerprint,
                             grpid,
                         );
-                        current_block = 10256747982273457880;
                     }
                 }
             } else if strcmp(
@@ -531,14 +529,14 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         contact_chat_id,
                         b"Fingerprint not provided.\x00" as *const u8 as *const libc::c_char,
                     );
-                    current_block = 4378276786830486580;
+                    ok_to_continue = false;
                 } else if 0 == encrypted_and_signed(mimeparser, fingerprint) {
                     could_not_establish_secure_connection(
                         context,
                         contact_chat_id,
                         b"Auth not encrypted.\x00" as *const u8 as *const libc::c_char,
                     );
-                    current_block = 4378276786830486580;
+                    ok_to_continue = false;
                 } else if 0 == fingerprint_equals_sender(context, fingerprint, contact_chat_id) {
                     could_not_establish_secure_connection(
                         context,
@@ -546,7 +544,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         b"Fingerprint mismatch on inviter-side.\x00" as *const u8
                             as *const libc::c_char,
                     );
-                    current_block = 4378276786830486580;
+                    ok_to_continue = false;
                 } else {
                     info!(context, 0, "Fingerprint verified.",);
                     // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
@@ -558,14 +556,14 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             contact_chat_id,
                             b"Auth not provided.\x00" as *const u8 as *const libc::c_char,
                         );
-                        current_block = 4378276786830486580;
+                        ok_to_continue = false;
                     } else if !dc_token_exists(context, DC_TOKEN_AUTH, auth_0) {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
                             b"Auth invalid.\x00" as *const u8 as *const libc::c_char,
                         );
-                        current_block = 4378276786830486580;
+                        ok_to_continue = false;
                     } else if 0 == mark_peer_as_verified(context, fingerprint) {
                         could_not_establish_secure_connection(
                             context,
@@ -573,7 +571,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Fingerprint mismatch on inviter-side.\x00" as *const u8
                                 as *const libc::c_char,
                         );
-                        current_block = 4378276786830486580;
+                        ok_to_continue = false;
                     } else {
                         dc_scaleup_contact_origin(context, contact_id, 0x1000000i32);
                         info!(context, 0, "Auth verified.",);
@@ -598,7 +596,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             );
                             if group_chat_id == 0i32 as libc::c_uint {
                                 error!(context, 0, "Chat {} not found.", as_str(grpid),);
-                                current_block = 4378276786830486580;
+                                ok_to_continue = false;
                             } else {
                                 dc_add_contact_to_chat_ex(
                                     context,
@@ -606,7 +604,6 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                     contact_id,
                                     0x1i32,
                                 );
-                                current_block = 10256747982273457880;
                             }
                         } else {
                             send_handshake_msg(
@@ -622,7 +619,6 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 contact_id as uintptr_t,
                                 1000i32 as uintptr_t,
                             );
-                            current_block = 10256747982273457880;
                         }
                     }
                 }
@@ -640,7 +636,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 }
                 if context.bob.clone().read().unwrap().expects != 6 {
                     info!(context, 0, "Message belongs to a different handshake.",);
-                    current_block = 4378276786830486580;
+                    ok_to_continue = false;
                 } else {
                     let cond = {
                         let scan = context.bob.clone().read().unwrap().qr_scan;
@@ -651,7 +647,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             context,
                             0, "Message out of sync or belongs to a different handshake.",
                         );
-                        current_block = 4378276786830486580;
+                        ok_to_continue = false;
                     } else {
                         {
                             let scan = context.bob.clone().read().unwrap().qr_scan;
@@ -682,16 +678,10 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                         as *const libc::c_char,
                                 );
                                 end_bobs_joining(context, 0i32);
-                                current_block = 4378276786830486580;
-                            } else {
-                                current_block = 5195798230510548452;
+                                ok_to_continue = false;
                             }
-                        } else {
-                            current_block = 5195798230510548452;
                         }
-                        match current_block {
-                            4378276786830486580 => {}
-                            _ => {
+                        if ok_to_continue {
                                 if 0 == mark_peer_as_verified(context, scanned_fingerprint_of_alice)
                                 {
                                     could_not_establish_secure_connection(
@@ -700,7 +690,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                         b"Fingerprint mismatch on joiner-side.\x00" as *const u8
                                             as *const libc::c_char,
                                     );
-                                    current_block = 4378276786830486580;
+                                    ok_to_continue = false;
                                 } else {
                                     dc_scaleup_contact_origin(context, contact_id, 0x2000000i32);
                                     context.call_cb(
@@ -718,16 +708,10 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                                 0,
                                                 "Message belongs to a different handshake (scaled up contact anyway to allow creation of group)."
                                             );
-                                            current_block = 4378276786830486580;
-                                        } else {
-                                            current_block = 9180031981464905198;
+                                            ok_to_continue = false;
                                         }
-                                    } else {
-                                        current_block = 9180031981464905198;
                                     }
-                                    match current_block {
-                                        4378276786830486580 => {}
-                                        _ => {
+                                    if ok_to_continue {
                                             secure_connection_established(context, contact_chat_id);
                                             context.bob.clone().write().unwrap().expects = 0;
                                             if 0 != join_vg {
@@ -742,11 +726,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                                 );
                                             }
                                             end_bobs_joining(context, 1i32);
-                                            current_block = 10256747982273457880;
-                                        }
                                     }
                                 }
-                            }
                         }
                     }
                 }
@@ -762,7 +743,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 contact = dc_get_contact(context, contact_id);
                 if contact.is_null() || 0 == dc_contact_is_verified(contact) {
                     warn!(context, 0, "vg-member-added-received invalid.",);
-                    current_block = 4378276786830486580;
+                    ok_to_continue = false;
                 } else {
                     context.call_cb(
                         Event::SECUREJOIN_INVITER_PROGRESS,
@@ -774,18 +755,12 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         contact_id as uintptr_t,
                         1000i32 as uintptr_t,
                     );
-                    current_block = 10256747982273457880;
                 }
-            } else {
-                current_block = 10256747982273457880;
             }
-            match current_block {
-                4378276786830486580 => {}
-                _ => {
+            if ok_to_continue {
                     if 0 != ret & 0x2i32 {
                         ret |= 0x4i32
                     }
-                }
             }
         }
     }
