@@ -3,7 +3,6 @@ use crate::dc_tools::*;
 use crate::x::*;
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct dc_simplify_t {
     pub is_forwarded: libc::c_int,
     pub is_cut_at_begin: libc::c_int,
