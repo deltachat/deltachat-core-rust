@@ -786,7 +786,7 @@ unsafe fn dc_add_smtp_job(
             b"\x1e\x00" as *const u8 as *const libc::c_char,
         );
         param.set(Param::File, as_str(pathNfilename));
-        param.set(Param::File, as_str(recipients));
+        param.set(Param::Recipients, as_str(recipients));
         dc_job_add(
             context,
             action,
