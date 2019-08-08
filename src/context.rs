@@ -20,7 +20,6 @@ use crate::sql::Sql;
 use crate::types::*;
 use crate::x::*;
 
-#[repr(C)]
 pub struct Context {
     pub userdata: *mut libc::c_void,
     pub dbfile: Arc<RwLock<*mut libc::c_char>>,
@@ -73,6 +72,14 @@ impl Context {
             unsafe { cb(self, event, data1, data2) }
         } else {
             0
+        }
+    }
+}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        unsafe {
+            dc_close(&self);
         }
     }
 }
@@ -165,16 +172,6 @@ pub fn dc_context_new(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn no_crashes_on_context_deref() {
-        let mut ctx = dc_context_new(None, std::ptr::null_mut(), Some("Test OS".into()));
-        unsafe { dc_context_unref(&mut ctx) };
-    }
-}
-
 unsafe fn cb_receive_imf(
     context: &Context,
     imf_raw_not_terminated: *const libc::c_char,
@@ -256,12 +253,6 @@ fn cb_set_config(context: &Context, key: &str, value: Option<&str>) {
  */
 fn cb_get_config(context: &Context, key: &str) -> Option<String> {
     context.sql.get_config(context, key)
-}
-
-pub unsafe fn dc_context_unref(context: &mut Context) {
-    if 0 != dc_is_open(context) {
-        dc_close(context);
-    }
 }
 
 pub unsafe fn dc_close(context: &Context) {
@@ -589,5 +580,26 @@ pub fn dc_is_mvbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
         name == folder_name.as_ref()
     } else {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_crashes_on_context_deref() {
+        let ctx = dc_context_new(None, std::ptr::null_mut(), Some("Test OS".into()));
+        std::mem::drop(ctx);
+    }
+
+    #[test]
+    fn test_context_double_close() {
+        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
+        unsafe {
+            dc_close(&ctx);
+            dc_close(&ctx);
+        }
+        std::mem::drop(ctx);
     }
 }

@@ -44,11 +44,14 @@ pub unsafe extern "C" fn dc_context_new(
     Box::into_raw(Box::new(ctx))
 }
 
+/// Release the context structure.
+///
+/// This function releases the memory of the `dc_context_t` structure.
 #[no_mangle]
 pub unsafe extern "C" fn dc_context_unref(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &mut *context;
-    context::dc_context_unref(context);
+    context::dc_close(context);
     Box::from_raw(context);
 }
 

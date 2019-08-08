@@ -456,12 +456,6 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     println!("history saved");
     {
         stop_threads(&ctx.read().unwrap());
-
-        unsafe {
-            let mut ctx = ctx.write().unwrap();
-            dc_close(&mut ctx);
-            dc_context_unref(&mut ctx);
-        }
     }
 
     Ok(())
