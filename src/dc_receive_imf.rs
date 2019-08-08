@@ -723,8 +723,7 @@ pub unsafe fn dc_receive_imf(
                                                                 &mut msg_id,
                                                             ) {
                                                                 rr_event_to_send
-                                                                    .push((chat_id_0, 0));
-                                                                rr_event_to_send.push((msg_id, 0));
+                                                                    .push((chat_id_0, msg_id));
                                                             }
                                                             mdn_consumed = (msg_id
                                                                 != 0 as libc::c_uint)
