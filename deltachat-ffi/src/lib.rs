@@ -1617,9 +1617,19 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
     Some(dc_tools::as_str(s))
 }
 
+pub type dc_provider = deltachat_provider_overview::Provider;
+pub type dc_provider_status = deltachat_provider_overview::Status;
+pub type dc_provider_status_state = deltachat_provider_overview::StatusState;
 #[no_mangle]
-pub unsafe extern "C" fn dc_provider_info_from_email(email: *const libc::c_char) {
+pub unsafe extern "C" fn dc_provider_info_from_email(
+    email: *const libc::c_char,
+) -> *const dc_provider {
     let option = deltachat_provider_overview::get_provider_info(
-        deltachat_provider_overview::get_domain_from_email(dc_tools::as_str(email))
+        deltachat_provider_overview::get_domain_from_email(dc_tools::as_str(email)),
     );
+    if let Some(provider) = option {
+        provider.0
+    } else {
+        ptr::null()
+    }
 }
