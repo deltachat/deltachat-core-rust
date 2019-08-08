@@ -25,7 +25,6 @@ pub mod contact;
 pub mod context;
 pub mod imap;
 pub mod key;
-pub mod keyhistory;
 pub mod keyring;
 pub mod oauth2;
 pub mod param;
