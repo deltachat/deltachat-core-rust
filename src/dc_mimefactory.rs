@@ -1041,6 +1041,11 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     &mut e2ee_helper,
                 );
             }
+            info!(
+                (*factory).context,
+                0, "encryption successful {}", e2ee_helper.encryption_successfull
+            );
+
             if 0 != e2ee_helper.encryption_successfull {
                 (*factory).out_encrypted = 1;
                 if 0 != do_gossip {
