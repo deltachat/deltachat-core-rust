@@ -291,7 +291,7 @@ impl<'a> Chatlist<'a> {
 
         if (*chat).id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
             (*ret).text2 = dc_strdup(0 as *const libc::c_char)
-        } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_SELF as u32 {
+        } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_UNDEFINED as u32 {
             (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
         } else {
             dc_lot_fill(ret, lastmsg, chat, lastcontact.as_ref(), self.context);
