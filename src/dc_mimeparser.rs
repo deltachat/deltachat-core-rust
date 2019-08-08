@@ -1112,7 +1112,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     /* must not be free()'d */
     let mut decoded_data: *const libc::c_char = 0 as *const libc::c_char;
     let mut decoded_data_bytes = 0;
-    let mut simplifier: Option<dc_simplify_t> = None;
+    let mut simplifier: Option<Simplify> = None;
     if !(mime.is_null() || (*mime).mm_data.mm_single.is_null()) {
         mime_type = mailmime_get_mime_type(mime, &mut msg_type, &mut raw_mime);
         mime_data = (*mime).mm_data.mm_single;
@@ -1134,7 +1134,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                 match mime_type {
                     60 | 70 => {
                         if simplifier.is_none() {
-                            simplifier = Some(dc_simplify_t::new());
+                            simplifier = Some(Simplify::new());
                         }
                         /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
                         let charset = mailmime_content_charset_get((*mime).mm_content_type);
