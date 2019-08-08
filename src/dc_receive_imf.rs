@@ -1723,7 +1723,7 @@ unsafe fn check_verified_properties(
 
 unsafe fn set_better_msg<T: AsRef<str>>(mime_parser: &mut dc_mimeparser_t, better_msg: T) {
     let msg = better_msg.as_ref();
-    if !(msg.len() > 0) && !mime_parser.parts.is_empty() {
+    if msg.len() > 0 && !mime_parser.parts.is_empty() {
         let part = &mut mime_parser.parts[0];
         if (*part).type_0 == 10 {
             free(part.msg as *mut libc::c_void);
