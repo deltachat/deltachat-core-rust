@@ -4,17 +4,17 @@ use crate::x::*;
 
 #[derive(Copy, Clone)]
 pub struct Simplify {
-    pub is_forwarded: libc::c_int,
-    pub is_cut_at_begin: libc::c_int,
-    pub is_cut_at_end: libc::c_int,
+    pub is_forwarded: bool,
+    pub is_cut_at_begin: bool,
+    pub is_cut_at_end: bool,
 }
 
 impl Simplify {
     pub fn new() -> Self {
         Simplify {
-            is_forwarded: 0,
-            is_cut_at_begin: 0,
-            is_cut_at_end: 0,
+            is_forwarded: false,
+            is_cut_at_begin: false,
+            is_cut_at_end: false,
         }
     }
 
@@ -35,9 +35,9 @@ impl Simplify {
         /* create a copy of the given buffer */
         let mut out: *mut libc::c_char;
         let mut temp: *mut libc::c_char;
-        self.is_forwarded = 0i32;
-        self.is_cut_at_begin = 0i32;
-        self.is_cut_at_end = 0i32;
+        self.is_forwarded = false;
+        self.is_cut_at_begin = false;
+        self.is_cut_at_end = false;
         out = strndup(
             in_unterminated as *mut libc::c_char,
             in_bytes as libc::c_ulong,
@@ -95,7 +95,7 @@ impl Simplify {
                 || strcmp(line, b"----\x00" as *const u8 as *const libc::c_char) == 0i32
             {
                 footer_mark = 1i32;
-                self.is_cut_at_end = 1i32
+                self.is_cut_at_end = true
             }
             if 0 != footer_mark {
                 l_last = l;
@@ -114,7 +114,7 @@ impl Simplify {
                 && strncmp(line1, b"From: \x00" as *const u8 as *const libc::c_char, 6) == 0i32
                 && *line2.offset(0isize) as libc::c_int == 0i32
             {
-                self.is_forwarded = 1i32;
+                self.is_forwarded = true;
                 l_first += 3
             }
         }
@@ -127,7 +127,7 @@ impl Simplify {
                 || strncmp(line, b"~~~~~\x00" as *const u8 as *const libc::c_char, 5) == 0i32
             {
                 l_last = l;
-                self.is_cut_at_end = 1i32;
+                self.is_cut_at_end = true;
                 /* done */
                 break;
             }
@@ -144,7 +144,7 @@ impl Simplify {
             }
             if l_lastQuotedLine.is_some() {
                 l_last = l_lastQuotedLine.unwrap();
-                self.is_cut_at_end = 1i32;
+                self.is_cut_at_end = true;
                 if l_last > 1 {
                     if is_empty_line(lines[l_last - 1]) {
                         l_last -= 1
@@ -179,12 +179,12 @@ impl Simplify {
             }
             if l_lastQuotedLine_0.is_some() {
                 l_first = l_lastQuotedLine_0.unwrap() + 1;
-                self.is_cut_at_begin = 1i32
+                self.is_cut_at_begin = true
             }
         }
         /* re-create buffer from the remaining lines */
         let mut ret = String::new();
-        if 0 != self.is_cut_at_begin {
+        if self.is_cut_at_begin {
             ret += "[...]";
         }
         /* we write empty lines only in case and non-empty line follows */
@@ -210,7 +210,7 @@ impl Simplify {
                 pending_linebreaks = 1i32
             }
         }
-        if 0 != self.is_cut_at_end && (0 == self.is_cut_at_begin || 0 != content_lines_added) {
+        if self.is_cut_at_end && (!self.is_cut_at_begin || 0 != content_lines_added) {
             ret += " [...]";
         }
         dc_free_splitted_lines(lines);
