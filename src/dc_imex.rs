@@ -326,7 +326,7 @@ pub unsafe fn dc_continue_key_transfer(
                 armored_key = dc_decrypt_setup_file(context, norm_sc, filecontent);
                 if armored_key.is_null() {
                     warn!(context, 0, "Cannot decrypt Autocrypt Setup Message.",);
-                } else if !(0 == set_self_key(context, armored_key, 1i32)) {
+                } else if set_self_key(context, armored_key, 1) {
                     /*set default*/
                     /* error already logged */
                     success = 1i32
@@ -343,12 +343,11 @@ pub unsafe fn dc_continue_key_transfer(
     success
 }
 
-// TODO should return bool /rtn
 fn set_self_key(
     context: &Context,
     armored_c: *const libc::c_char,
     set_default: libc::c_int,
-) -> libc::c_int {
+) -> bool {
     assert!(!armored_c.is_null(), "invalid buffer");
     let armored = as_str(armored_c);
 
@@ -358,7 +357,7 @@ fn set_self_key(
 
     if keys.is_none() {
         error!(context, 0, "File does not contain a valid private key.",);
-        return 0;
+        return false;
     }
 
     let (private_key, public_key, header) = keys.unwrap();
@@ -372,7 +371,7 @@ fn set_self_key(
     )
     .is_err()
     {
-        return 0;
+        return false;
     }
 
     if 0 != set_default {
@@ -384,7 +383,7 @@ fn set_self_key(
         )
         .is_err()
         {
-            return 0;
+            return false;
         }
     } else {
         error!(context, 0, "File does not contain a private key.",);
@@ -394,7 +393,7 @@ fn set_self_key(
 
     if self_addr.is_none() {
         error!(context, 0, "Missing self addr");
-        return 0;
+        return false;
     }
 
     if !dc_key_save_self_keypair(
@@ -406,20 +405,20 @@ fn set_self_key(
         &context.sql,
     ) {
         error!(context, 0, "Cannot save keypair.");
-        return 0;
+        return false;
     }
 
     match preferencrypt.map(|s| s.as_str()) {
-        Some("") => 0,
+        Some("") => false,
         Some("nopreference") => context
             .sql
             .set_config_int(context, "e2ee_enabled", 0)
-            .is_ok() as libc::c_int,
+            .is_ok(),
         Some("mutual") => context
             .sql
             .set_config_int(context, "e2ee_enabled", 1)
-            .is_ok() as libc::c_int,
-        _ => 1,
+            .is_ok(),
+        _ => true,
     }
 }
 
@@ -1155,7 +1154,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     );
                     set_default = 0i32
                 }
-                if 0 == set_self_key(context, private_key, set_default) {
+                if !set_self_key(context, private_key, set_default) {
                     continue;
                 }
                 imported_cnt += 1
