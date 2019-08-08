@@ -1047,10 +1047,8 @@ pub fn housekeeping(context: &Context) {
                     unreferenced_count,
                     entry.file_name()
                 );
-                unsafe {
-                    let path = entry.path().to_c_string().unwrap();
-                    dc_delete_file(context, path.as_ptr());
-                }
+                let path = entry.path().to_c_string().unwrap();
+                dc_delete_file(context, path.as_ptr());
             }
         }
         Err(err) => {

@@ -1036,6 +1036,26 @@ pub unsafe fn dc_get_filemeta(
     0
 }
 
+/// Expand paths relative to $BLOBDIR into absolute paths.
+///
+/// If `path` starts with "$BLOBDIR", replaces it with the blobdir path.
+/// Otherwise, returns path as is.
+pub fn dc_get_abs_path_safe<P: AsRef<std::path::Path>>(
+    context: &Context,
+    path: P,
+) -> std::path::PathBuf {
+    let p: &std::path::Path = path.as_ref();
+    if let Ok(p) = p.strip_prefix("$BLOBDIR") {
+        assert!(
+            context.has_blobdir(),
+            "Expected context to have blobdir to substitute $BLOBDIR",
+        );
+        std::path::PathBuf::from(as_str(context.get_blobdir())).join(p)
+    } else {
+        p.into()
+    }
+}
+
 #[allow(non_snake_case)]
 pub unsafe fn dc_get_abs_path(
     context: &Context,
@@ -1066,137 +1086,79 @@ pub unsafe fn dc_get_abs_path(
     pathNfilename_abs
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_file_exist(context: &Context, pathNfilename: *const libc::c_char) -> libc::c_int {
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if pathNfilename_abs.is_null() {
-        return 0;
-    }
-
-    let exist = {
-        let p = std::path::Path::new(as_str(pathNfilename_abs));
-        p.exists()
-    };
-
-    free(pathNfilename_abs as *mut libc::c_void);
-    exist as libc::c_int
+pub fn dc_file_exist(context: &Context, path: *const libc::c_char) -> libc::c_int {
+    dc_get_abs_path_safe(context, as_path(path)).exists() as libc::c_int
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_get_filebytes(context: &Context, pathNfilename: *const libc::c_char) -> uint64_t {
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if pathNfilename_abs.is_null() {
-        return 0;
+pub fn dc_get_filebytes(context: &Context, path: *const libc::c_char) -> uint64_t {
+    let path_abs = dc_get_abs_path_safe(context, as_path(path));
+    match fs::metadata(&path_abs) {
+        Ok(meta) => meta.len() as uint64_t,
+        Err(_err) => 0,
     }
-
-    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
-        .to_str()
-        .unwrap();
-    let filebytes = match fs::metadata(p) {
-        Ok(meta) => meta.len(),
-        Err(_err) => {
-            return 0;
-        }
-    };
-
-    free(pathNfilename_abs as *mut libc::c_void);
-    filebytes as uint64_t
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_delete_file(context: &Context, pathNfilename: *const libc::c_char) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if pathNfilename_abs.is_null() {
-        return 0;
-    }
-    let p = std::path::Path::new(
-        std::ffi::CStr::from_ptr(pathNfilename_abs)
-            .to_str()
-            .unwrap(),
-    );
-
-    let res = if p.is_file() {
-        fs::remove_file(p)
+pub fn dc_delete_file(context: &Context, path: *const libc::c_char) -> libc::c_int {
+    let path = as_path(path);
+    let path_abs = dc_get_abs_path_safe(context, path);
+    let res = if path_abs.is_file() {
+        fs::remove_file(path_abs)
     } else {
-        fs::remove_dir_all(p)
+        fs::remove_dir_all(path_abs)
     };
 
     match res {
-        Ok(_) => {
-            success = 1;
-        }
+        Ok(_) => 1,
         Err(_err) => {
-            warn!(context, 0, "Cannot delete \"{}\".", as_str(pathNfilename),);
+            warn!(context, 0, "Cannot delete \"{}\".", path.display());
+            0
         }
     }
-
-    free(pathNfilename_abs as *mut libc::c_void);
-    success
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_copy_file(
+pub fn dc_copy_file(
     context: &Context,
     src: *const libc::c_char,
     dest: *const libc::c_char,
 ) -> libc::c_int {
-    let mut success = 0;
-
-    let src_abs = dc_get_abs_path(context, src);
-    let dest_abs = dc_get_abs_path(context, dest);
-
-    if src_abs.is_null() || dest_abs.is_null() {
-        return 0;
-    }
-
-    let src_p = std::ffi::CStr::from_ptr(src_abs).to_str().unwrap();
-    let dest_p = std::ffi::CStr::from_ptr(dest_abs).to_str().unwrap();
-
-    match fs::copy(src_p, dest_p) {
-        Ok(_) => {
-            success = 1;
-        }
+    let src = as_path(src);
+    let dest = as_path(dest);
+    let src_abs = dc_get_abs_path_safe(context, src);
+    let dest_abs = dc_get_abs_path_safe(context, dest);
+    match fs::copy(&src_abs, &dest_abs) {
+        Ok(_) => 1,
         Err(_) => {
-            error!(context, 0, "Cannot copy \"{}\" to \"{}\".", src_p, dest_p,);
+            error!(
+                context,
+                0,
+                "Cannot copy \"{}\" to \"{}\".",
+                src.display(),
+                dest.display(),
+            );
+            0
         }
     }
-
-    free(src_abs as *mut libc::c_void);
-    free(dest_abs as *mut libc::c_void);
-    success
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_create_folder(
-    context: &Context,
-    pathNfilename: *const libc::c_char,
-) -> libc::c_int {
-    let mut success = 0;
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    {
-        let p = std::path::Path::new(as_str(pathNfilename_abs));
-        if !p.exists() {
-            match fs::create_dir_all(p) {
-                Ok(_) => {
-                    success = 1;
-                }
-                Err(_err) => {
-                    warn!(
-                        context,
-                        0,
-                        "Cannot create directory \"{}\".",
-                        as_str(pathNfilename),
-                    );
-                }
+pub fn dc_create_folder(context: &Context, path: *const libc::c_char) -> libc::c_int {
+    let path = as_path(path);
+    let path_abs = dc_get_abs_path_safe(context, path);
+    if !path_abs.exists() {
+        match fs::create_dir_all(path_abs) {
+            Ok(_) => 1,
+            Err(_err) => {
+                warn!(
+                    context,
+                    0,
+                    "Cannot create directory \"{}\".",
+                    path.display(),
+                );
+                0
             }
-        } else {
-            success = 1;
         }
+    } else {
+        1
     }
-
-    free(pathNfilename_abs as *mut libc::c_void);
-    success
 }
 
 #[allow(non_snake_case)]
@@ -1211,33 +1173,24 @@ pub unsafe fn dc_write_file(
     dc_write_file_safe(context, as_str(pathNfilename), bytes) as libc::c_int
 }
 
-#[allow(non_snake_case)]
-pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
-    let pathNfilename_abs = unsafe {
-        let n = CString::yolo(pathNfilename.as_ref());
-        dc_get_abs_path(context, n.as_ptr())
-    };
-    if pathNfilename_abs.is_null() {
-        return false;
-    }
-
-    let p = as_str(pathNfilename_abs);
-
-    let success = if let Err(_err) = fs::write(p, buf) {
+pub fn dc_write_file_safe<P: AsRef<std::path::Path>>(
+    context: &Context,
+    path: P,
+    buf: &[u8],
+) -> bool {
+    let path_abs = dc_get_abs_path_safe(context, &path);
+    if let Err(_err) = fs::write(&path_abs, buf) {
         warn!(
             context,
             0,
             "Cannot write {} bytes to \"{}\".",
             buf.len(),
-            pathNfilename.as_ref(),
+            path.as_ref().display(),
         );
         false
     } else {
         true
-    };
-
-    unsafe { free(pathNfilename_abs as *mut libc::c_void) };
-    success
+    }
 }
 
 #[allow(non_snake_case)]
@@ -1260,34 +1213,20 @@ pub unsafe fn dc_read_file(
     }
 }
 
-#[allow(non_snake_case)]
-pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
-    let pathNfilename_abs = unsafe {
-        let n = CString::yolo(pathNfilename.as_ref());
-        dc_get_abs_path(context, n.as_ptr())
-    };
-
-    if pathNfilename_abs.is_null() {
-        return None;
-    }
-
-    let p = as_str(pathNfilename_abs);
-    let res = match fs::read(p) {
+pub fn dc_read_file_safe<P: AsRef<std::path::Path>>(context: &Context, path: P) -> Option<Vec<u8>> {
+    let path_abs = dc_get_abs_path_safe(context, &path);
+    match fs::read(&path_abs) {
         Ok(bytes) => Some(bytes),
         Err(_err) => {
             warn!(
                 context,
                 0,
                 "Cannot read \"{}\" or file is empty.",
-                pathNfilename.as_ref(),
+                path.as_ref().display()
             );
             None
         }
-    };
-
-    unsafe { free(pathNfilename_abs as *mut libc::c_void) };
-
-    res
+    }
 }
 
 #[allow(non_snake_case)]
