@@ -173,7 +173,7 @@ pub unsafe fn dc_lot_fill(
 
     (*lot).text2 = dc_msg_get_summarytext_by_raw(
         (*msg).type_0,
-        &(*(&message_text).strdup()),
+        message_text.strdup(),
         &mut (*msg).param,
         160,
         context,
