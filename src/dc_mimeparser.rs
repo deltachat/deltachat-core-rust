@@ -1208,7 +1208,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 } else {
                                     free(simplified_txt as *mut libc::c_void);
                                 }
-                                if 0 != simplifier.unwrap().is_forwarded {
+                                if simplifier.unwrap().is_forwarded {
                                     mimeparser.is_forwarded = 1i32
                                 }
                                 current_block = 10261677128829721533;
