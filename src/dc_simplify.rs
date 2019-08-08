@@ -3,15 +3,15 @@ use crate::dc_tools::*;
 use crate::x::*;
 
 #[derive(Copy, Clone)]
-pub struct dc_simplify_t {
+pub struct Simplify {
     pub is_forwarded: libc::c_int,
     pub is_cut_at_begin: libc::c_int,
     pub is_cut_at_end: libc::c_int,
 }
 
-impl dc_simplify_t {
+impl Simplify {
     pub fn new() -> Self {
-        dc_simplify_t {
+        Simplify {
             is_forwarded: 0,
             is_cut_at_begin: 0,
             is_cut_at_end: 0,
@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn test_simplify_trim() {
         unsafe {
-            let mut simplify = dc_simplify_t::new();
+            let mut simplify = Simplify::new();
             let html: *const libc::c_char =
                 b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn test_simplify_parse_href() {
         unsafe {
-            let mut simplify = dc_simplify_t::new();
+            let mut simplify = Simplify::new();
             let html: *const libc::c_char =
                 b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
@@ -307,7 +307,7 @@ mod tests {
     #[test]
     fn test_simplify_bold_text() {
         unsafe {
-            let mut simplify = dc_simplify_t::new();
+            let mut simplify = Simplify::new();
             let html: *const libc::c_char =
                 b"<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>\x00"
                 as *const u8 as *const libc::c_char;
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn test_simplify_html_encoded() {
         unsafe {
-            let mut simplify = dc_simplify_t::new();
+            let mut simplify = Simplify::new();
             let html: *const libc::c_char =
                 b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&noent;&lrm;&rlm;&zwnj;&zwj;\x00"
                 as *const u8 as *const libc::c_char;
