@@ -4,7 +4,6 @@ use std::sync::{Arc, RwLock};
 use rusqlite::{Connection, OpenFlags, Statement, NO_PARAMS};
 use thread_local_object::ThreadLocal;
 
-use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::error::{Error, Result};
@@ -689,10 +688,6 @@ fn open(
                 "ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;",
                 params![],
             )?;
-            assert_eq!(DC_MOVE_STATE_UNDEFINED as libc::c_int, 0);
-            assert_eq!(DC_MOVE_STATE_PENDING as libc::c_int, 1);
-            assert_eq!(DC_MOVE_STATE_STAY as libc::c_int, 2);
-            assert_eq!(DC_MOVE_STATE_MOVING as libc::c_int, 3);
 
             dbversion = 48;
             sql.set_config_int(context, "dbversion", 48)?;

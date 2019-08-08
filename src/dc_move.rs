@@ -27,13 +27,13 @@ pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u3
     }
 
     if dc_is_mvbox(context, folder) {
-        dc_update_msg_move_state(context, (*msg).rfc724_mid, DC_MOVE_STATE_STAY);
+        dc_update_msg_move_state(context, (*msg).rfc724_mid, MoveState::Stay);
     }
 
     // 1 = dc message, 2 = reply to dc message
     if 0 != (*msg).is_dc_message {
         dc_job_add(context, 200, (*msg).id as libc::c_int, Params::new(), 0);
-        dc_update_msg_move_state(context, (*msg).rfc724_mid, DC_MOVE_STATE_MOVING);
+        dc_update_msg_move_state(context, (*msg).rfc724_mid, MoveState::Moving);
     }
 
     dc_msg_unref(msg);

@@ -6,10 +6,29 @@ use rusqlite::types::*;
 
 pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.3\x00";
 
-pub const DC_MOVE_STATE_MOVING: u32 = 3;
-pub const DC_MOVE_STATE_STAY: u32 = 2;
-pub const DC_MOVE_STATE_PENDING: u32 = 1;
-pub const DC_MOVE_STATE_UNDEFINED: u32 = 0;
+#[repr(u8)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+pub enum MoveState {
+    Undefined = 0,
+    Pending = 1,
+    Stay = 2,
+    Moving = 3,
+}
+
+impl ToSql for MoveState {
+    fn to_sql(&self) -> sql::Result<ToSqlOutput> {
+        let num = *self as i64;
+
+        Ok(ToSqlOutput::Owned(Value::Integer(num)))
+    }
+}
+
+impl FromSql for MoveState {
+    fn column_result(col: ValueRef) -> FromSqlResult<Self> {
+        let inner = FromSql::column_result(col)?;
+        FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
+    }
+}
 
 pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;

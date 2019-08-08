@@ -25,7 +25,7 @@ pub struct dc_msg_t<'a> {
     pub from_id: uint32_t,
     pub to_id: uint32_t,
     pub chat_id: uint32_t,
-    pub move_state: dc_move_state_t,
+    pub move_state: MoveState,
     pub type_0: Viewtype,
     pub state: libc::c_int,
     pub hidden: libc::c_int,
@@ -229,7 +229,7 @@ pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> *mut d
         from_id: 0,
         to_id: 0,
         chat_id: 0,
-        move_state: 0,
+        move_state: MoveState::Undefined,
         type_0: viewtype,
         state: 0,
         hidden: 0,
@@ -1187,7 +1187,7 @@ pub unsafe fn dc_msg_exists(context: &Context, msg_id: uint32_t) -> libc::c_int 
 pub fn dc_update_msg_move_state(
     context: &Context,
     rfc724_mid: *const libc::c_char,
-    state: dc_move_state_t,
+    state: MoveState,
 ) -> bool {
     // we update the move_state for all messages belonging to a given Message-ID
     // so that the state stay intact when parts are deleted

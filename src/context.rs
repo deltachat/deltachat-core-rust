@@ -229,7 +229,7 @@ unsafe fn cb_precheck_imf(
                 "[move] detected moved message {}",
                 as_str(rfc724_mid),
             );
-            dc_update_msg_move_state(context, rfc724_mid, DC_MOVE_STATE_STAY);
+            dc_update_msg_move_state(context, rfc724_mid, MoveState::Stay);
         }
         if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
             dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
