@@ -16,8 +16,6 @@ pub use rusqlite::ffi::*;
 pub type dc_callback_t =
     unsafe extern "C" fn(_: &Context, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
 
-pub type dc_move_state_t = u32;
-
 pub type dc_receive_imf_t = unsafe fn(
     _: &Context,
     _: *const libc::c_char,
