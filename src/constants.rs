@@ -89,6 +89,7 @@ pub const DC_MAX_GET_TEXT_LEN: usize = 30000;
 /// approx. max. length returned by dc_get_msg_info()
 pub const DC_MAX_GET_INFO_LEN: usize = 100000;
 
+pub const DC_CONTACT_ID_UNDEFINED: usize = 0;
 pub const DC_CONTACT_ID_SELF: usize = 1;
 pub const DC_CONTACT_ID_DEVICE: usize = 2;
 pub const DC_CONTACT_ID_LAST_SPECIAL: usize = 9;
