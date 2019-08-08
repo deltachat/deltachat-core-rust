@@ -6,8 +6,6 @@ use crate::dc_tools::*;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
-use std::ffi::CString;
-use std::ptr;
 
 /* * Structure behind dc_lot_t */
 #[derive(Copy, Clone)]
