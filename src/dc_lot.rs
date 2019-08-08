@@ -171,14 +171,10 @@ pub unsafe fn dc_lot_fill(
         }
     }
 
-    let msgtext_c = (*msg)
-        .text
-        .as_ref()
-        .map(|s| CString::yolo(String::as_str(s)));
-    let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
+    let message_text = (*msg).text.as_ref().unwrap();
 
     (*lot).text2 =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, msgtext_ptr, &mut (*msg).param, 160, context);
+        dc_msg_get_summarytext_by_raw((*msg).type_0, &(*(&message_text).strdup()), &mut (*msg).param, 160, context);
 
     (*lot).timestamp = dc_msg_get_timestamp(msg);
     (*lot).state = (*msg).state;
