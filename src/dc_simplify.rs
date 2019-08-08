@@ -25,7 +25,7 @@ impl Simplify {
         &mut self,
         in_unterminated: *const libc::c_char,
         in_bytes: libc::c_int,
-        is_html: libc::c_int,
+        is_html: bool,
         is_msgrmsg: libc::c_int,
     ) -> *mut libc::c_char {
         if in_bytes <= 0 {
@@ -45,7 +45,7 @@ impl Simplify {
         if out.is_null() {
             return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
         }
-        if 0 != is_html {
+        if is_html {
             temp = dc_dehtml(out);
             if !temp.is_null() {
                 free(out as *mut libc::c_void);
@@ -271,7 +271,7 @@ mod tests {
             let html: *const libc::c_char =
                 b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, 1, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -291,7 +291,7 @@ mod tests {
             let html: *const libc::c_char =
                 b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, 1, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -312,7 +312,7 @@ mod tests {
                 b"<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>\x00"
                 as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, 1, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -333,7 +333,7 @@ mod tests {
                 b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&noent;&lrm;&rlm;&zwnj;&zwj;\x00"
                 as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, 1, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
 
             assert_eq!(
                 strcmp(plain,

@@ -1192,7 +1192,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 let simplified_txt = simplifier.unwrap().simplify(
                                     decoded_data,
                                     decoded_data_bytes as libc::c_int,
-                                    if mime_type == 70i32 { 1i32 } else { 0i32 },
+                                    mime_type == 70i32,
                                     is_msgrmsg,
                                 );
                                 if !simplified_txt.is_null()
