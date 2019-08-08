@@ -17,7 +17,6 @@ use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::imap::*;
-use crate::keyhistory::*;
 use crate::param::*;
 use crate::sql;
 use crate::types::*;
@@ -1277,13 +1276,6 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 (*mimefactory.msg).param.set_int(Param::GuranteeE2ee, 1);
                 dc_msg_save_param_to_disk(mimefactory.msg);
             }
-            dc_add_to_keyhistory(
-                context,
-                0 as *const libc::c_char,
-                0,
-                0 as *const libc::c_char,
-                0 as *const libc::c_char,
-            );
             success = dc_add_smtp_job(context, 5901i32, &mut mimefactory);
         }
     }
