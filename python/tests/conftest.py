@@ -120,6 +120,8 @@ def acfactory(pytestconfig, tmpdir, request):
                 pytest.skip("specify a --liveconfig file to run tests with real accounts")
             self.live_count += 1
             configdict = self.configlist.pop(0)
+            if "e2ee_enabled" not in configdict:
+                configdict["e2ee_enabled"] = "1"
             tmpdb = tmpdir.join("livedb%d" % self.live_count)
             ac = Account(tmpdb.strpath, logid="ac{}".format(self.live_count))
             ac._evlogger.init_time = self.init_time
