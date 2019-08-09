@@ -205,23 +205,34 @@ impl<'a> Peerstate<'a> {
                 res.last_seen_autocrypt = row.get(2)?;
                 res.prefer_encrypt = EncryptPreference::from_i32(row.get(3)?).unwrap_or_default();
                 res.gossip_timestamp = row.get(5)?;
-                let pkf: String = row.get(7)?;
-                res.public_key_fingerprint = if pkf.is_empty() { None } else { Some(pkf) };
 
-                let t: Result<String, rusqlite::Error> = row.get(8);
-                let gkf: String = match t {
-                    Err(_) => String::from(""),
-                    Ok(res) => res,
-                };
-                res.gossip_key_fingerprint = if gkf.is_empty() { None } else { Some(gkf) };
-
-                let t: Result<String, rusqlite::Error> = row.get(10);
-                let vkf: String = match t {
-                    Err(_) => String::from(""),
-                    Ok(res) => res,
-                };
-                res.verified_key_fingerprint = if vkf.is_empty() { None } else { Some(vkf) };
-
+                res.public_key_fingerprint = row.get(7)?;
+                if res
+                    .public_key_fingerprint
+                    .as_ref()
+                    .map(|s| s.is_empty())
+                    .unwrap_or_default()
+                {
+                    res.public_key_fingerprint = None;
+                }
+                res.gossip_key_fingerprint = row.get(8)?;
+                if res
+                    .gossip_key_fingerprint
+                    .as_ref()
+                    .map(|s| s.is_empty())
+                    .unwrap_or_default()
+                {
+                    res.gossip_key_fingerprint = None;
+                }
+                res.verified_key_fingerprint = row.get(10)?;
+                if res
+                    .verified_key_fingerprint
+                    .as_ref()
+                    .map(|s| s.is_empty())
+                    .unwrap_or_default()
+                {
+                    res.verified_key_fingerprint = None;
+                }
                 res.public_key = row
                     .get(4)
                     .ok()
@@ -234,6 +245,7 @@ impl<'a> Peerstate<'a> {
                     .get(9)
                     .ok()
                     .and_then(|blob: Vec<u8>| Key::from_slice(&blob, KeyType::Public));
+
                 res.verified_key = if vk == res.gossip_key && res.gossip_key.is_some() {
                     VerifiedKey::Gossip
                 } else if vk == res.public_key {
