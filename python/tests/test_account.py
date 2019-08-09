@@ -427,6 +427,37 @@ class TestOnlineAccount:
         lp.step("2")
         assert msg_out.is_out_mdn_received()
 
+    def test_send_and_receive_will_encrypt_decrypt(self, acfactory, lp):
+        lp.sec("starting accounts, waiting for configuration")
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        c2 = ac1.create_contact(email=ac2.get_config("addr"))
+        chat = ac1.create_chat_by_contact(c2)
+        assert chat.id >= const.DC_CHAT_ID_LAST_SPECIAL
+
+        wait_configuration_progress(ac1, 1000)
+        wait_configuration_progress(ac2, 1000)
+
+        lp.sec("sending text message from ac1 to ac2")
+        msg_out = chat.send_text("message1")
+
+        lp.sec("wait for ac2 to receive message")
+        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+        assert ev[2] == msg_out.id
+        msg_in = ac2.get_message_by_id(msg_out.id)
+        assert msg_in.text == "message1"
+
+        lp.sec("create new chat with contact and send back (encrypted) message")
+        chat2b = ac2.create_chat_by_message(msg_in)
+        chat2b.send_text("message-back")
+
+        lp.sec("wait for ac1 to receive message")
+        ev = ac1._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        assert ev[1] == chat.id
+        assert ev[2] > msg_out.id
+        msg_back = ac1.get_message_by_id(ev[2])
+        assert msg_back.text == "message-back"
+
     def test_saved_mime_on_received_message(self, acfactory, lp):
         lp.sec("starting accounts, waiting for configuration")
         ac1 = acfactory.get_online_configuring_account()

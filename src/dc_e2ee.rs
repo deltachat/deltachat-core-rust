@@ -115,11 +115,22 @@ pub unsafe fn dc_e2ee_encrypt(
                                     || 0 != e2ee_guaranteed)
                             {
                                 let peerstate = peerstate.unwrap();
+                                info!(
+                                    context,
+                                    0, "dc_e2ee_encrypt {} has peerstate", recipient_addr
+                                );
                                 if let Some(key) = peerstate.peek_key(min_verified as usize) {
                                     keyring.add_owned(key.clone());
                                     peerstates.push(peerstate);
                                 }
                             } else {
+                                info!(
+                                    context,
+                                    0,
+                                    "dc_e2ee_encrypt {} HAS NO peerstate {}",
+                                    recipient_addr,
+                                    peerstate.is_some()
+                                );
                                 do_encrypt = 0i32;
                                 /* if we cannot encrypt to a single recipient, we cannot encrypt the message at all */
                                 break;
@@ -574,7 +585,7 @@ pub unsafe fn dc_e2ee_decrypt(
                 }
             } else if let Some(ref header) = autocryptheader {
                 let p = Peerstate::from_header(context, header, message_time);
-                p.save_to_db(&context.sql, true);
+                assert!(p.save_to_db(&context.sql, true));
                 peerstate = Some(p);
             }
         }
