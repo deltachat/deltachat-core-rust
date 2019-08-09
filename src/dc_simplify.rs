@@ -29,6 +29,10 @@ impl dc_simplify_t {
         is_html: libc::c_int,
         is_msgrmsg: libc::c_int,
     ) -> *mut libc::c_char {
+        if in_bytes <= 0 {
+            return "".strdup();
+        }
+
         /* create a copy of the given buffer */
         let mut out: *mut libc::c_char;
         let mut temp: *mut libc::c_char;

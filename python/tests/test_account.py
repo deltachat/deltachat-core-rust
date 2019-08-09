@@ -421,7 +421,9 @@ class TestOnlineAccount:
         lp.sec("mark message as seen on ac2, wait for changes on ac1")
         ac2.mark_seen_messages([msg_in])
         lp.step("1")
-        ac1._evlogger.get_matching("DC_EVENT_MSG_READ")
+        ev = ac1._evlogger.get_matching("DC_EVENT_MSG_READ")
+        assert ev[1] >= const.DC_CHAT_ID_LAST_SPECIAL
+        assert ev[2] >= const.DC_MSG_ID_LAST_SPECIAL
         lp.step("2")
         assert msg_out.is_out_mdn_received()
 
