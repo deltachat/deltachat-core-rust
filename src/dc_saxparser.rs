@@ -80,7 +80,7 @@ pub unsafe fn dc_saxparser_set_text_handler(
 }
 
 pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *const libc::c_char) {
-    let current_block: u64;
+    let mut is_valid = false;
     let mut bak: libc::c_char;
     let buf_start: *mut libc::c_char;
     let mut last_text_start: *mut libc::c_char;
@@ -99,7 +99,7 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
     p = buf_start;
     loop {
         if !(0 != *p) {
-            current_block = 13425230902034816933;
+            is_valid = true;
             break;
         }
         if *p as libc::c_int == '<' as i32 {
@@ -113,7 +113,6 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
             if strncmp(p, b"!--\x00" as *const u8 as *const libc::c_char, 3) == 0i32 {
                 p = strstr(p, b"-->\x00" as *const u8 as *const libc::c_char);
                 if p.is_null() {
-                    current_block = 7627180618761592946;
                     break;
                 }
                 p = p.offset(3isize)
@@ -137,7 +136,6 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
                         strlen(text_beg),
                         'c' as i32 as libc::c_char,
                     );
-                    current_block = 7627180618761592946;
                     break;
                 }
             } else if strncmp(p, b"!DOCTYPE\x00" as *const u8 as *const libc::c_char, 8) == 0i32 {
@@ -149,13 +147,11 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
                 }
                 if *p as libc::c_int == 0i32 {
                     /* unclosed doctype */
-                    current_block = 7627180618761592946;
                     break;
                 } else if *p as libc::c_int == '[' as i32 {
                     p = strstr(p, b"]>\x00" as *const u8 as *const libc::c_char);
                     if p.is_null() {
                         /* unclosed inline doctype */
-                        current_block = 7627180618761592946;
                         break;
                     } else {
                         p = p.offset(2isize)
@@ -167,7 +163,6 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
                 p = strstr(p, b"?>\x00" as *const u8 as *const libc::c_char);
                 if p.is_null() {
                     /* unclosed processing instruction */
-                    current_block = 7627180618761592946;
                     break;
                 } else {
                     p = p.offset(2isize)
@@ -328,7 +323,6 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
                 p = strchr(p, '>' as i32);
                 if p.is_null() {
                     /* unclosed start-tag or end-tag */
-                    current_block = 7627180618761592946;
                     break;
                 } else {
                     p = p.offset(1isize)
@@ -339,16 +333,13 @@ pub unsafe fn dc_saxparser_parse(saxparser: *mut dc_saxparser_t, buf_start__: *c
             p = p.offset(1isize)
         }
     }
-    match current_block {
-        13425230902034816933 => {
-            call_text_cb(
-                saxparser,
-                last_text_start,
-                p.wrapping_offset_from(last_text_start) as size_t,
-                '&' as i32 as libc::c_char,
-            );
-        }
-        _ => {}
+    if is_valid {
+        call_text_cb(
+            saxparser,
+            last_text_start,
+            p.wrapping_offset_from(last_text_start) as size_t,
+            '&' as i32 as libc::c_char,
+        );
     }
     do_free_attr(attr.as_mut_ptr(), free_attr.as_mut_ptr());
     free(buf_start as *mut libc::c_void);

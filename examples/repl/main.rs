@@ -291,7 +291,7 @@ const DB_COMMANDS: [&'static str; 11] = [
     "housekeeping",
 ];
 
-const CHAT_COMMANDS: [&'static str; 25] = [
+const CHAT_COMMANDS: [&'static str; 24] = [
     "listchats",
     "listarchived",
     "chat",
@@ -309,7 +309,6 @@ const CHAT_COMMANDS: [&'static str; 25] = [
     "dellocations",
     "getlocations",
     "send",
-    "send-garbage",
     "sendimage",
     "sendfile",
     "draft",
@@ -393,18 +392,13 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     let mut context = dc_context_new(
         Some(receive_event),
         0 as *mut libc::c_void,
-        b"CLI\x00" as *const u8 as *const libc::c_char,
+        Some("CLI".into()),
     );
 
     unsafe { dc_cmdline_skip_auth() };
 
     if args.len() == 2 {
-        if 0 == unsafe {
-            let a = to_cstring(&args[1]);
-            let res = dc_open(&mut context, a, 0 as *const _);
-            free(a as *mut _);
-            res
-        } {
+        if unsafe { !dc_open(&mut context, &args[1], None) } {
             println!("Error: Cannot open {}.", args[0],);
         }
     } else if args.len() != 1 {
@@ -486,7 +480,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
     let arg1_c = if arg1.is_empty() {
         std::ptr::null()
     } else {
-        to_cstring(arg1)
+        arg1.strdup()
     };
 
     match arg0 {

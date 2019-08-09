@@ -1,6 +1,6 @@
+use crate::contact::*;
 use crate::context::Context;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::stock::StockMessage;
@@ -127,41 +127,58 @@ pub unsafe fn dc_lot_fill(
     mut lot: *mut dc_lot_t,
     msg: *mut dc_msg_t,
     chat: *const Chat,
-    contact: *const dc_contact_t,
+    contact: Option<&Contact>,
     context: &Context,
 ) {
     if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint || msg.is_null() {
         return;
     }
     if (*msg).state == 19i32 {
-        (*lot).text1 = to_cstring(context.stock_str(StockMessage::Draft));
+        (*lot).text1 = context.stock_str(StockMessage::Draft).strdup();
         (*lot).text1_meaning = 1i32
     } else if (*msg).from_id == 1i32 as libc::c_uint {
         if 0 != dc_msg_is_info(msg) || 0 != dc_chat_is_self_talk(chat) {
             (*lot).text1 = 0 as *mut libc::c_char;
             (*lot).text1_meaning = 0i32
         } else {
-            (*lot).text1 = to_cstring(context.stock_str(StockMessage::SelfMsg));
+            (*lot).text1 = context.stock_str(StockMessage::SelfMsg).strdup();
             (*lot).text1_meaning = 3i32
         }
     } else if chat.is_null() {
         (*lot).text1 = 0 as *mut libc::c_char;
         (*lot).text1_meaning = 0i32
     } else if (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32 {
-        if 0 != dc_msg_is_info(msg) || contact.is_null() {
+        if 0 != dc_msg_is_info(msg) || contact.is_none() {
             (*lot).text1 = 0 as *mut libc::c_char;
             (*lot).text1_meaning = 0i32
         } else {
             if !chat.is_null() && (*chat).id == 1i32 as libc::c_uint {
-                (*lot).text1 = dc_contact_get_display_name(contact)
+                if let Some(contact) = contact {
+                    (*lot).text1 = contact.get_display_name().strdup();
+                } else {
+                    (*lot).text1 = std::ptr::null_mut();
+                }
             } else {
-                (*lot).text1 = dc_contact_get_first_name(contact)
+                if let Some(contact) = contact {
+                    (*lot).text1 = contact.get_first_name().strdup();
+                } else {
+                    (*lot).text1 = std::ptr::null_mut();
+                }
             }
-            (*lot).text1_meaning = 2i32
+            (*lot).text1_meaning = 2i32;
         }
     }
-    (*lot).text2 =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 160, context);
+
+    let message_text = (*msg).text.as_ref().unwrap();
+
+    (*lot).text2 = dc_msg_get_summarytext_by_raw(
+        (*msg).type_0,
+        message_text.strdup(),
+        &mut (*msg).param,
+        160,
+        context,
+    );
+
     (*lot).timestamp = dc_msg_get_timestamp(msg);
     (*lot).state = (*msg).state;
 }

@@ -11,8 +11,8 @@ use mmime::mailmime_types::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
+use crate::contact::*;
 use crate::context::Context;
-use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_simplify::*;
@@ -44,7 +44,7 @@ pub struct dc_mimepart_t {
 #[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub struct dc_mimeparser_t<'a> {
-    pub parts: *mut carray,
+    pub parts: Vec<dc_mimepart_t>,
     pub mimeroot: *mut mailmime,
     pub header: HashMap<String, *mut mailimf_field>,
     pub header_root: *mut mailimf_fields,
@@ -55,7 +55,7 @@ pub struct dc_mimeparser_t<'a> {
     pub e2ee_helper: dc_e2ee_helper_t,
     pub is_forwarded: libc::c_int,
     pub context: &'a Context,
-    pub reports: *mut carray,
+    pub reports: Vec<*mut mailmime>,
     pub is_system_message: libc::c_int,
     pub location_kml: Option<dc_kml_t>,
     pub message_kml: Option<dc_kml_t>,
@@ -71,7 +71,7 @@ static mut S_GENERATE_COMPOUND_MSGS: libc::c_int = 1i32;
 
 pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
     dc_mimeparser_t {
-        parts: carray_new(16i32 as libc::c_uint),
+        parts: Vec::new(),
         mimeroot: std::ptr::null_mut(),
         header: Default::default(),
         header_root: std::ptr::null_mut(),
@@ -82,7 +82,7 @@ pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
         e2ee_helper: Default::default(),
         is_forwarded: 0,
         context,
-        reports: carray_new(16i32 as libc::c_uint),
+        reports: Vec::new(),
         is_system_message: 0,
         location_kml: None,
         message_kml: None,
@@ -91,58 +91,41 @@ pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
 
 pub unsafe fn dc_mimeparser_unref(mimeparser: &mut dc_mimeparser_t) {
     dc_mimeparser_empty(mimeparser);
-    if !(*mimeparser).parts.is_null() {
-        carray_free((*mimeparser).parts);
-    }
-    if !(*mimeparser).reports.is_null() {
-        carray_free((*mimeparser).reports);
-    }
 }
 
 pub unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
-    if !(*mimeparser).parts.is_null() {
-        let mut i: libc::c_int;
-        let cnt: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
-        i = 0i32;
-        while i < cnt {
-            let part = carray_get((*mimeparser).parts, i as libc::c_uint) as *mut dc_mimepart_t;
-            if !part.is_null() {
-                dc_mimepart_unref(*Box::from_raw(part));
-            }
-            i += 1
-        }
-        carray_set_size((*mimeparser).parts, 0i32 as libc::c_uint);
+    for part in mimeparser.parts.drain(..) {
+        dc_mimepart_unref(part);
     }
-    (*mimeparser).header_root = 0 as *mut mailimf_fields;
-    (*mimeparser).header.clear();
-    if !(*mimeparser).header_protected.is_null() {
-        mailimf_fields_free((*mimeparser).header_protected);
-        (*mimeparser).header_protected = 0 as *mut mailimf_fields
+    assert!(mimeparser.parts.is_empty());
+    mimeparser.header_root = 0 as *mut mailimf_fields;
+    mimeparser.header.clear();
+    if !mimeparser.header_protected.is_null() {
+        mailimf_fields_free(mimeparser.header_protected);
+        mimeparser.header_protected = 0 as *mut mailimf_fields
     }
-    (*mimeparser).is_send_by_messenger = 0i32;
-    (*mimeparser).is_system_message = 0i32;
-    free((*mimeparser).subject as *mut libc::c_void);
-    (*mimeparser).subject = 0 as *mut libc::c_char;
-    if !(*mimeparser).mimeroot.is_null() {
-        mailmime_free((*mimeparser).mimeroot);
-        (*mimeparser).mimeroot = 0 as *mut mailmime
+    mimeparser.is_send_by_messenger = 0i32;
+    mimeparser.is_system_message = 0i32;
+    free(mimeparser.subject as *mut libc::c_void);
+    mimeparser.subject = 0 as *mut libc::c_char;
+    if !mimeparser.mimeroot.is_null() {
+        mailmime_free(mimeparser.mimeroot);
+        mimeparser.mimeroot = 0 as *mut mailmime
     }
-    (*mimeparser).is_forwarded = 0i32;
-    if !(*mimeparser).reports.is_null() {
-        carray_set_size((*mimeparser).reports, 0i32 as libc::c_uint);
-    }
-    (*mimeparser).decrypting_failed = 0i32;
-    dc_e2ee_thanks(&mut (*mimeparser).e2ee_helper);
+    mimeparser.is_forwarded = 0i32;
+    mimeparser.reports.clear();
+    mimeparser.decrypting_failed = 0i32;
+    dc_e2ee_thanks(&mut mimeparser.e2ee_helper);
 
-    if let Some(location_kml) = (*mimeparser).location_kml.as_mut() {
-        dc_kml_unref(location_kml as *mut dc_kml_t);
+    if let Some(location_kml) = mimeparser.location_kml.as_mut() {
+        dc_kml_unref(location_kml);
     }
-    (*mimeparser).location_kml = None;
+    mimeparser.location_kml = None;
 
-    if let Some(message_kml) = (*mimeparser).message_kml.as_mut() {
-        dc_kml_unref(message_kml as *mut dc_kml_t);
+    if let Some(message_kml) = mimeparser.message_kml.as_mut() {
+        dc_kml_unref(message_kml);
     }
-    (*mimeparser).message_kml = None;
+    mimeparser.message_kml = None;
 }
 
 unsafe fn dc_mimepart_unref(mut mimepart: dc_mimepart_t) {
@@ -165,19 +148,18 @@ pub unsafe fn dc_mimeparser_parse(
         body_not_terminated,
         body_bytes,
         &mut index,
-        &mut (*mimeparser).mimeroot,
+        &mut mimeparser.mimeroot,
     );
-    if !(r != MAILIMF_NO_ERROR as libc::c_int || (*mimeparser).mimeroot.is_null()) {
+    if !(r != MAILIMF_NO_ERROR as libc::c_int || mimeparser.mimeroot.is_null()) {
         dc_e2ee_decrypt(
-            (*mimeparser).context,
-            (*mimeparser).mimeroot,
-            &mut (*mimeparser).e2ee_helper,
+            mimeparser.context,
+            mimeparser.mimeroot,
+            &mut mimeparser.e2ee_helper,
         );
-        dc_mimeparser_parse_mime_recursive(mimeparser, (*mimeparser).mimeroot);
+        dc_mimeparser_parse_mime_recursive(mimeparser, mimeparser.mimeroot);
         let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, "Subject");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
-            (*mimeparser).subject =
-                dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)
+            mimeparser.subject = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)
         }
         if !dc_mimeparser_lookup_optional_field(
             mimeparser,
@@ -185,32 +167,37 @@ pub unsafe fn dc_mimeparser_parse(
         )
         .is_null()
         {
-            (*mimeparser).is_send_by_messenger = 1i32
+            mimeparser.is_send_by_messenger = 1i32
         }
         if !dc_mimeparser_lookup_field(mimeparser, "Autocrypt-Setup-Message").is_null() {
-            let mut i: libc::c_int;
             let mut has_setup_file: libc::c_int = 0i32;
-            i = 0i32;
-            while (i as libc::c_uint) < carray_count((*mimeparser).parts) {
-                let part: *mut dc_mimepart_t =
-                    carray_get((*mimeparser).parts, i as libc::c_uint) as *mut dc_mimepart_t;
-                if (*part).int_mimetype == 111i32 {
+            for part in &mimeparser.parts {
+                if part.int_mimetype == 111i32 {
                     has_setup_file = 1i32
                 }
-                i += 1
             }
             if 0 != has_setup_file {
-                (*mimeparser).is_system_message = 6i32;
-                i = 0i32;
-                while (i as libc::c_uint) < carray_count((*mimeparser).parts) {
-                    let part_0 =
-                        carray_get((*mimeparser).parts, i as libc::c_uint) as *mut dc_mimepart_t;
-                    if (*part_0).int_mimetype != 111i32 {
-                        dc_mimepart_unref(*Box::from_raw(part_0));
-                        carray_delete_slow((*mimeparser).parts, i as libc::c_uint);
-                        i -= 1
+                mimeparser.is_system_message = 6i32;
+
+                // TODO: replace the following code with this
+                // once drain_filter stabilizes.
+                //
+                // See https://doc.rust-lang.org/std/vec/struct.Vec.html#method.drain_filter
+                // and https://github.com/rust-lang/rust/issues/43244
+                //
+                // mimeparser
+                //    .parts
+                //    .drain_filter(|part| part.int_mimetype != 111)
+                //    .for_each(|part| dc_mimepart_unref(part));
+
+                let mut i = 0;
+                while i != mimeparser.parts.len() {
+                    if mimeparser.parts[i].int_mimetype != 111 {
+                        let part = mimeparser.parts.remove(i);
+                        dc_mimepart_unref(part);
+                    } else {
+                        i += 1;
                     }
-                    i += 1
                 }
             }
         } else {
@@ -224,56 +211,69 @@ pub unsafe fn dc_mimeparser_parse(
                     b"location-streaming-enabled\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    (*mimeparser).is_system_message = 8i32
+                    mimeparser.is_system_message = 8i32
                 }
             }
         }
         if !dc_mimeparser_lookup_field(mimeparser, "Chat-Group-Image").is_null()
-            && carray_count((*mimeparser).parts) >= 1i32 as libc::c_uint
+            && !mimeparser.parts.is_empty()
         {
-            let textpart: *mut dc_mimepart_t =
-                carray_get((*mimeparser).parts, 0i32 as libc::c_uint) as *mut dc_mimepart_t;
-            if (*textpart).type_0 == 10i32 {
-                if carray_count((*mimeparser).parts) >= 2i32 as libc::c_uint {
-                    let mut imgpart: *mut dc_mimepart_t =
-                        carray_get((*mimeparser).parts, 1i32 as libc::c_uint) as *mut dc_mimepart_t;
-                    if (*imgpart).type_0 == 20i32 {
-                        (*imgpart).is_meta = 1i32
+            let textpart = &mimeparser.parts[0];
+            if textpart.type_0 == 10i32 {
+                if mimeparser.parts.len() >= 2 {
+                    let imgpart = &mut mimeparser.parts[1];
+                    if imgpart.type_0 == 20i32 {
+                        imgpart.is_meta = 1i32
                     }
                 }
             }
         }
-        if 0 != (*mimeparser).is_send_by_messenger
+        if 0 != mimeparser.is_send_by_messenger
             && 0 != S_GENERATE_COMPOUND_MSGS
-            && carray_count((*mimeparser).parts) == 2i32 as libc::c_uint
+            && mimeparser.parts.len() == 2
         {
-            let mut textpart_0 = carray_get((*mimeparser).parts, 0) as *mut dc_mimepart_t;
-            let mut filepart = carray_get((*mimeparser).parts, 1) as *mut dc_mimepart_t;
-            if (*textpart_0).type_0 == 10i32
-                && ((*filepart).type_0 == 20i32
-                    || (*filepart).type_0 == 21i32
-                    || (*filepart).type_0 == 40i32
-                    || (*filepart).type_0 == 41i32
-                    || (*filepart).type_0 == 50i32
-                    || (*filepart).type_0 == 60i32)
-                && 0 == (*filepart).is_meta
+            let need_drop: bool;
             {
-                free((*filepart).msg as *mut libc::c_void);
-                (*filepart).msg = (*textpart_0).msg;
-                (*textpart_0).msg = 0 as *mut libc::c_char;
-                dc_mimepart_unref(*Box::from_raw(textpart_0));
-                carray_delete_slow((*mimeparser).parts, 0i32 as libc::c_uint);
+                let textpart = &mimeparser.parts[0];
+                let filepart = &mimeparser.parts[1];
+                need_drop = textpart.type_0 == 10i32
+                    && (filepart.type_0 == 20i32
+                        || filepart.type_0 == 21i32
+                        || filepart.type_0 == 40i32
+                        || filepart.type_0 == 41i32
+                        || filepart.type_0 == 50i32
+                        || filepart.type_0 == 60i32)
+                    && 0 == filepart.is_meta;
+            }
+
+            if need_drop {
+                let mut filepart = mimeparser.parts.swap_remove(1);
+
+                // clear old one
+                free(filepart.msg as *mut libc::c_void);
+
+                // insert new one
+                filepart.msg = mimeparser.parts[0].msg;
+
+                // forget the one we use now
+                mimeparser.parts[0].msg = std::ptr::null_mut();
+
+                // swap new with old
+                let old = std::mem::replace(&mut mimeparser.parts[0], filepart);
+
+                // unref old one
+                dc_mimepart_unref(old);
             }
         }
-        if !(*mimeparser).subject.is_null() {
+        if !mimeparser.subject.is_null() {
             let mut prepend_subject: libc::c_int = 1i32;
-            if 0 == (*mimeparser).decrypting_failed {
-                let p: *mut libc::c_char = strchr((*mimeparser).subject, ':' as i32);
-                if p.wrapping_offset_from((*mimeparser).subject) == 2
-                    || p.wrapping_offset_from((*mimeparser).subject) == 3
-                    || 0 != (*mimeparser).is_send_by_messenger
+            if 0 == mimeparser.decrypting_failed {
+                let p: *mut libc::c_char = strchr(mimeparser.subject, ':' as i32);
+                if p.wrapping_offset_from(mimeparser.subject) == 2
+                    || p.wrapping_offset_from(mimeparser.subject) == 3
+                    || 0 != mimeparser.is_send_by_messenger
                     || !strstr(
-                        (*mimeparser).subject,
+                        mimeparser.subject,
                         b"Chat:\x00" as *const u8 as *const libc::c_char,
                     )
                     .is_null()
@@ -282,62 +282,48 @@ pub unsafe fn dc_mimeparser_parse(
                 }
             }
             if 0 != prepend_subject {
-                let subj: *mut libc::c_char = dc_strdup((*mimeparser).subject);
+                let subj: *mut libc::c_char = dc_strdup(mimeparser.subject);
                 let p_0: *mut libc::c_char = strchr(subj, '[' as i32);
                 if !p_0.is_null() {
                     *p_0 = 0i32 as libc::c_char
                 }
                 dc_trim(subj);
                 if 0 != *subj.offset(0isize) {
-                    let mut i_0: libc::c_int;
-                    let icnt: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
-                    i_0 = 0i32;
-                    while i_0 < icnt {
-                        let mut part_1: *mut dc_mimepart_t =
-                            carray_get((*mimeparser).parts, i_0 as libc::c_uint)
-                                as *mut dc_mimepart_t;
-                        if (*part_1).type_0 == 10i32 {
+                    for part in mimeparser.parts.iter_mut() {
+                        if part.type_0 == 10i32 {
                             let new_txt: *mut libc::c_char = dc_mprintf(
                                 b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
                                 subj,
-                                (*part_1).msg,
+                                part.msg,
                             );
-                            free((*part_1).msg as *mut libc::c_void);
-                            (*part_1).msg = new_txt;
+                            free(part.msg as *mut libc::c_void);
+                            part.msg = new_txt;
                             break;
-                        } else {
-                            i_0 += 1
                         }
                     }
                 }
                 free(subj as *mut libc::c_void);
             }
         }
-        if 0 != (*mimeparser).is_forwarded {
-            let mut i_1: libc::c_int;
-            let icnt_0: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
-            i_1 = 0i32;
-            while i_1 < icnt_0 {
-                let part_2 =
-                    carray_get((*mimeparser).parts, i_1 as libc::c_uint) as *mut dc_mimepart_t;
-                (*part_2).param.set_int(Param::Forwarded, 1);
-                i_1 += 1
+        if 0 != mimeparser.is_forwarded {
+            for part in mimeparser.parts.iter_mut() {
+                part.param.set_int(Param::Forwarded, 1);
             }
         }
-        if carray_count((*mimeparser).parts) == 1i32 as libc::c_uint {
-            let mut part_3: *mut dc_mimepart_t =
-                carray_get((*mimeparser).parts, 0i32 as libc::c_uint) as *mut dc_mimepart_t;
-            if (*part_3).type_0 == 40i32 {
+        if mimeparser.parts.len() == 1 {
+            if mimeparser.parts[0].type_0 == 40i32 {
                 if !dc_mimeparser_lookup_optional_field(
                     mimeparser,
                     b"Chat-Voice-Message\x00" as *const u8 as *const libc::c_char,
                 )
                 .is_null()
                 {
-                    (*part_3).type_0 = 41i32
+                    let part_mut = &mut mimeparser.parts[0];
+                    part_mut.type_0 = 41i32
                 }
             }
-            if (*part_3).type_0 == 40i32 || (*part_3).type_0 == 41i32 || (*part_3).type_0 == 50i32 {
+            let part = &mimeparser.parts[0];
+            if part.type_0 == 40i32 || part.type_0 == 41i32 || part.type_0 == 50i32 {
                 let field_0 = dc_mimeparser_lookup_optional_field(
                     mimeparser,
                     b"Chat-Duration\x00" as *const u8 as *const libc::c_char,
@@ -345,17 +331,18 @@ pub unsafe fn dc_mimeparser_parse(
                 if !field_0.is_null() {
                     let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
                     if duration_ms > 0i32 && duration_ms < 24i32 * 60i32 * 60i32 * 1000i32 {
-                        (*part_3).param.set_int(Param::Duration, duration_ms);
+                        let part_mut = &mut mimeparser.parts[0];
+                        part_mut.param.set_int(Param::Duration, duration_ms);
                     }
                 }
             }
         }
-        if 0 == (*mimeparser).decrypting_failed {
+        if 0 == mimeparser.decrypting_failed {
             let dn_field: *const mailimf_optional_field = dc_mimeparser_lookup_optional_field(
                 mimeparser,
                 b"Chat-Disposition-Notification-To\x00" as *const u8 as *const libc::c_char,
             );
-            if !dn_field.is_null() && !dc_mimeparser_get_last_nonmeta(mimeparser).is_null() {
+            if !dn_field.is_null() && dc_mimeparser_get_last_nonmeta(mimeparser).is_some() {
                 let mut mb_list: *mut mailimf_mailbox_list = 0 as *mut mailimf_mailbox_list;
                 let mut index_0: size_t = 0i32 as size_t;
                 if mailimf_mailbox_list_parse(
@@ -379,10 +366,9 @@ pub unsafe fn dc_mimeparser_parse(
                             );
                             if !from_addr.is_null() {
                                 if strcmp(from_addr, dn_to_addr) == 0i32 {
-                                    let part_4: *mut dc_mimepart_t =
-                                        dc_mimeparser_get_last_nonmeta(mimeparser);
-                                    if !part_4.is_null() {
-                                        (*part_4).param.set_int(Param::WantsMdn, 1);
+                                    if let Some(part_4) = dc_mimeparser_get_last_nonmeta(mimeparser)
+                                    {
+                                        part_4.param.set_int(Param::WantsMdn, 1);
                                     }
                                 }
                                 free(from_addr as *mut libc::c_void);
@@ -396,21 +382,15 @@ pub unsafe fn dc_mimeparser_parse(
         }
     }
     /* Cleanup - and try to create at least an empty part if there are no parts yet */
-    if dc_mimeparser_get_last_nonmeta(mimeparser).is_null()
-        && carray_count((*mimeparser).reports) == 0i32 as libc::c_uint
-    {
+    if dc_mimeparser_get_last_nonmeta(mimeparser).is_none() && mimeparser.reports.is_empty() {
         let mut part_5 = dc_mimepart_new();
         part_5.type_0 = 10i32;
-        if !(*mimeparser).subject.is_null() && 0 == (*mimeparser).is_send_by_messenger {
-            part_5.msg = dc_strdup((*mimeparser).subject)
+        if !mimeparser.subject.is_null() && 0 == mimeparser.is_send_by_messenger {
+            part_5.msg = dc_strdup(mimeparser.subject)
         } else {
             part_5.msg = dc_strdup(b"\x00" as *const u8 as *const libc::c_char)
         }
-        carray_add(
-            (*mimeparser).parts,
-            Box::into_raw(Box::new(part_5)) as *mut libc::c_void,
-            0 as *mut libc::c_uint,
-        );
+        mimeparser.parts.push(part_5);
     };
 }
 
@@ -429,22 +409,14 @@ unsafe fn dc_mimepart_new() -> dc_mimepart_t {
     }
 }
 
-pub unsafe fn dc_mimeparser_get_last_nonmeta(mimeparser: &dc_mimeparser_t) -> *mut dc_mimepart_t {
-    if !(*mimeparser).parts.is_null() {
-        let mut i: libc::c_int;
-        let icnt: libc::c_int = carray_count((*mimeparser).parts) as libc::c_int;
-        i = icnt - 1i32;
-        while i >= 0i32 {
-            let part: *mut dc_mimepart_t =
-                carray_get(mimeparser.parts, i as libc::c_uint) as *mut dc_mimepart_t;
-            if !part.is_null() && 0 == (*part).is_meta {
-                return part;
-            }
-            i -= 1
-        }
-    }
-
-    0 as *mut dc_mimepart_t
+pub fn dc_mimeparser_get_last_nonmeta<'a>(
+    mimeparser: &'a mut dc_mimeparser_t,
+) -> Option<&'a mut dc_mimepart_t> {
+    mimeparser
+        .parts
+        .iter_mut()
+        .rev()
+        .find(|part| part.is_meta == 0)
 }
 
 /*the result must be freed*/
@@ -460,7 +432,7 @@ pub unsafe fn mailimf_find_first_addr(mb_list: *const mailimf_mailbox_list) -> *
             0 as *mut libc::c_void
         }) as *mut mailimf_mailbox;
         if !mb.is_null() && !(*mb).mb_addr_spec.is_null() {
-            return dc_addr_normalize((*mb).mb_addr_spec);
+            return addr_normalize(as_str((*mb).mb_addr_spec)).strdup();
         }
         cur = if !cur.is_null() {
             (*cur).next
@@ -531,32 +503,32 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
             ) == 0i32
         {
             info!(
-                (*mimeparser).context,
+                mimeparser.context,
                 0, "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
             );
             return 0i32;
         }
-        if (*mimeparser).header_protected.is_null() {
+        if mimeparser.header_protected.is_null() {
             let mut dummy: size_t = 0i32 as size_t;
             if mailimf_envelope_and_optional_fields_parse(
                 (*mime).mm_mime_start,
                 (*mime).mm_length,
                 &mut dummy,
-                &mut (*mimeparser).header_protected,
+                &mut mimeparser.header_protected,
             ) != MAILIMF_NO_ERROR as libc::c_int
-                || (*mimeparser).header_protected.is_null()
+                || mimeparser.header_protected.is_null()
             {
-                warn!((*mimeparser).context, 0, "Protected headers parsing error.",);
+                warn!(mimeparser.context, 0, "Protected headers parsing error.",);
             } else {
                 hash_header(
-                    &mut (*mimeparser).header,
-                    (*mimeparser).header_protected,
-                    (*mimeparser).context,
+                    &mut mimeparser.header,
+                    mimeparser.header_protected,
+                    mimeparser.context,
                 );
             }
         } else {
             info!(
-                (*mimeparser).context,
+                mimeparser.context,
                 0,
                 "Protected headers found in MIME header: Will be ignored as we already found an outer one."
             );
@@ -660,7 +632,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                     let mut part = dc_mimepart_new();
                     part.type_0 = 10i32;
                     let msg_body = CString::new(
-                        (*mimeparser)
+                        mimeparser
                             .context
                             .stock_str(StockMessage::CantDecryptMsgBody)
                             .as_ref(),
@@ -671,13 +643,9 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                         msg_body.as_ptr(),
                     );
                     part.msg_raw = dc_strdup(part.msg);
-                    carray_add(
-                        (*mimeparser).parts,
-                        Box::into_raw(Box::new(part)) as *mut libc::c_void,
-                        0 as *mut libc::c_uint,
-                    );
+                    mimeparser.parts.push(part);
                     any_part_added = 1i32;
-                    (*mimeparser).decrypting_failed = 1i32
+                    mimeparser.decrypting_failed = 1i32
                 }
                 46 => {
                     cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
@@ -705,11 +673,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                                 b"disposition-notification\x00" as *const u8 as *const libc::c_char,
                             ) == 0i32
                         {
-                            carray_add(
-                                (*mimeparser).reports,
-                                mime as *mut libc::c_void,
-                                0 as *mut libc::c_uint,
-                            );
+                            mimeparser.reports.push(mime);
                         } else {
                             any_part_added = dc_mimeparser_parse_mime_recursive(
                                 mimeparser,
@@ -759,7 +723,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                     }
                     if plain_cnt == 1i32 && html_cnt == 1i32 {
                         warn!(
-                            (*mimeparser).context,
+                            mimeparser.context,
                             0i32,
                             "HACK: multipart/mixed message found with PLAIN and HTML, we\'ll skip the HTML part as this seems to be unwanted."
                         );
@@ -788,12 +752,12 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
             }
         }
         3 => {
-            if (*mimeparser).header_root.is_null() {
-                (*mimeparser).header_root = (*mime).mm_data.mm_message.mm_fields;
+            if mimeparser.header_root.is_null() {
+                mimeparser.header_root = (*mime).mm_data.mm_message.mm_fields;
                 hash_header(
-                    &mut (*mimeparser).header,
-                    (*mimeparser).header_root,
-                    (*mimeparser).context,
+                    &mut mimeparser.header,
+                    mimeparser.header_root,
+                    mimeparser.context,
                 );
             }
             if !(*mime).mm_data.mm_message.mm_msg_mime.is_null() {
@@ -1136,7 +1100,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     mime: *mut mailmime,
 ) -> libc::c_int {
     let mut current_block: u64;
-    let old_part_count: libc::c_int = carray_count(mimeparser.parts) as libc::c_int;
+    let old_part_count = mimeparser.parts.len();
     let mime_type: libc::c_int;
     let mime_data: *mut mailmime_data;
     let file_suffix: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1173,8 +1137,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                             simplifier = Some(dc_simplify_t::new());
                         }
                         /* get from `Content-Type: text/...; charset=utf-8`; must not be free()'d */
-                        let charset: *const libc::c_char =
-                            mailmime_content_charset_get((*mime).mm_content_type);
+                        let charset = mailmime_content_charset_get((*mime).mm_content_type);
                         if !charset.is_null()
                             && strcmp(charset, b"utf-8\x00" as *const u8 as *const libc::c_char)
                                 != 0i32
@@ -1190,12 +1153,16 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 );
 
                                 let (res, _, _) = encoding.decode(data);
+                                info!(mimeparser.context, 0, "decoded message: '{}'", res);
                                 if res.is_empty() {
                                     /* no error - but nothing to add */
                                     current_block = 8795901732489102124;
                                 } else {
-                                    decoded_data_bytes = res.len();
-                                    decoded_data = res.as_ptr() as *const libc::c_char;
+                                    let b = res.as_bytes();
+                                    decoded_data = b.as_ptr() as *const libc::c_char;
+                                    decoded_data_bytes = b.len();
+                                    std::mem::forget(res);
+
                                     current_block = 17788412896529399552;
                                 }
                             } else {
@@ -1215,19 +1182,19 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                             8795901732489102124 => {}
                             _ => {
                                 /* check header directly as is_send_by_messenger is not yet set up */
-                                let is_msgrmsg: libc::c_int = (dc_mimeparser_lookup_optional_field(
+                                let is_msgrmsg = (!dc_mimeparser_lookup_optional_field(
                                     &mimeparser,
                                     b"Chat-Version\x00" as *const u8 as *const libc::c_char,
-                                ) != 0 as *mut libc::c_void
-                                    as *mut mailimf_optional_field)
+                                )
+                                .is_null())
                                     as libc::c_int;
-                                let simplified_txt: *mut libc::c_char =
-                                    simplifier.unwrap().simplify(
-                                        decoded_data,
-                                        decoded_data_bytes as libc::c_int,
-                                        if mime_type == 70i32 { 1i32 } else { 0i32 },
-                                        is_msgrmsg,
-                                    );
+
+                                let simplified_txt = simplifier.unwrap().simplify(
+                                    decoded_data,
+                                    decoded_data_bytes as libc::c_int,
+                                    if mime_type == 70i32 { 1i32 } else { 0i32 },
+                                    is_msgrmsg,
+                                );
                                 if !simplified_txt.is_null()
                                     && 0 != *simplified_txt.offset(0isize) as libc::c_int
                                 {
@@ -1242,7 +1209,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     free(simplified_txt as *mut libc::c_void);
                                 }
                                 if 0 != simplifier.unwrap().is_forwarded {
-                                    (*mimeparser).is_forwarded = 1i32
+                                    mimeparser.is_forwarded = 1i32
                                 }
                                 current_block = 10261677128829721533;
                             }
@@ -1323,9 +1290,8 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                         }
                         if !filename_parts.is_empty() {
                             free(desired_filename as *mut libc::c_void);
-                            let parts_c = to_cstring(filename_parts);
-                            desired_filename = dc_decode_ext_header(parts_c);
-                            free(parts_c as *mut _);
+                            let parts_c = CString::yolo(filename_parts);
+                            desired_filename = dc_decode_ext_header(parts_c.as_ptr());
                         }
                         if desired_filename.is_null() {
                             let param = mailmime_find_ct_parameter(
@@ -1371,8 +1337,8 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         4,
                                     ) == 0i32
                                 {
-                                    (*mimeparser).location_kml = Some(dc_kml_parse(
-                                        (*mimeparser).context,
+                                    mimeparser.location_kml = Some(dc_kml_parse(
+                                        mimeparser.context,
                                         decoded_data,
                                         decoded_data_bytes,
                                     ));
@@ -1390,8 +1356,8 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         4,
                                     ) == 0i32
                                 {
-                                    (*mimeparser).message_kml = Some(dc_kml_parse(
-                                        (*mimeparser).context,
+                                    mimeparser.message_kml = Some(dc_kml_parse(
+                                        mimeparser.context,
                                         decoded_data,
                                         decoded_data_bytes,
                                     ));
@@ -1430,16 +1396,16 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     free(file_suffix as *mut libc::c_void);
     free(desired_filename as *mut libc::c_void);
     free(raw_mime as *mut libc::c_void);
-    return if carray_count((*mimeparser).parts) > old_part_count as libc::c_uint {
-        1i32
+    return if mimeparser.parts.len() > old_part_count {
+        1
     } else {
-        0i32
+        0
     };
 }
 
 #[allow(non_snake_case)]
 unsafe fn do_add_single_file_part(
-    parser: &dc_mimeparser_t,
+    parser: &mut dc_mimeparser_t,
     msg_type: libc::c_int,
     mime_type: libc::c_int,
     raw_mime: *const libc::c_char,
@@ -1488,17 +1454,13 @@ unsafe fn do_add_single_file_part(
     free(pathNfilename as *mut libc::c_void);
 }
 
-unsafe fn do_add_single_part(parser: &dc_mimeparser_t, mut part: dc_mimepart_t) {
+unsafe fn do_add_single_part(parser: &mut dc_mimeparser_t, mut part: dc_mimepart_t) {
     if 0 != (*parser).e2ee_helper.encrypted && (*parser).e2ee_helper.signatures.len() > 0 {
         part.param.set_int(Param::GuranteeE2ee, 1);
     } else if 0 != (*parser).e2ee_helper.encrypted {
         part.param.set_int(Param::ErroneousE2ee, 0x2);
     }
-    carray_add(
-        (*parser).parts,
-        Box::into_raw(Box::new(part)) as *mut libc::c_void,
-        0 as *mut libc::c_uint,
-    );
+    parser.parts.push(part);
 }
 
 // TODO should return bool /rtn
@@ -1616,8 +1578,8 @@ pub unsafe fn dc_mimeparser_sender_equals_recipient(mimeparser: &dc_mimeparser_t
     let fld: *const mailimf_field;
     let mut fld_from: *const mailimf_from = 0 as *const mailimf_from;
     let mb: *mut mailimf_mailbox;
-    let mut from_addr_norm: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(*mimeparser).header_root.is_null() {
+
+    if !mimeparser.header_root.is_null() {
         /* get From: and check there is exactly one sender */
         fld = mailimf_find_field(mimeparser.header_root, MAILIMF_FIELD_FROM as libc::c_int);
         if !(fld.is_null()
@@ -1635,17 +1597,16 @@ pub unsafe fn dc_mimeparser_sender_equals_recipient(mimeparser: &dc_mimeparser_t
                 0 as *mut libc::c_void
             }) as *mut mailimf_mailbox;
             if !mb.is_null() {
-                from_addr_norm = dc_addr_normalize((*mb).mb_addr_spec);
+                let from_addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
                 let recipients = mailimf_get_recipients(mimeparser.header_root);
                 if recipients.len() == 1 {
-                    if recipients.contains(as_str(from_addr_norm)) {
+                    if recipients.contains(from_addr_norm) {
                         sender_equals_recipient = 1i32;
                     }
                 }
             }
         }
     }
-    free(from_addr_norm as *mut libc::c_void);
 
     sender_equals_recipient
 }
@@ -1742,15 +1703,15 @@ pub unsafe fn mailimf_get_recipients(imffields: *mut mailimf_fields) -> HashSet<
 /* ******************************************************************************
  * low-level-tools for getting a list of all recipients
  ******************************************************************************/
+
 #[allow(non_snake_case)]
 unsafe fn mailimf_get_recipients__add_addr(
     recipients: &mut HashSet<String>,
     mb: *mut mailimf_mailbox,
 ) {
     if !mb.is_null() {
-        let addr_norm: *mut libc::c_char = dc_addr_normalize((*mb).mb_addr_spec);
-        recipients.insert(to_string(addr_norm));
-        free(addr_norm as *mut libc::c_void);
+        let addr_norm = addr_normalize(as_str((*mb).mb_addr_spec));
+        recipients.insert(addr_norm.into());
     };
 }
 
@@ -1785,27 +1746,20 @@ pub unsafe fn mailimf_find_field(
 }
 
 pub unsafe fn dc_mimeparser_repl_msg_by_error(
-    mimeparser: &dc_mimeparser_t,
+    mimeparser: &mut dc_mimeparser_t,
     error_msg: *const libc::c_char,
 ) {
-    let mut part: *mut dc_mimepart_t;
-    let mut i: libc::c_int;
-    if (*mimeparser).parts.is_null() || carray_count((*mimeparser).parts) <= 0i32 as libc::c_uint {
+    if mimeparser.parts.is_empty() {
         return;
     }
-    part = carray_get((*mimeparser).parts, 0i32 as libc::c_uint) as *mut dc_mimepart_t;
-    (*part).type_0 = 10i32;
-    free((*part).msg as *mut libc::c_void);
-    (*part).msg = dc_mprintf(b"[%s]\x00" as *const u8 as *const libc::c_char, error_msg);
-    i = 1i32;
-    while (i as libc::c_uint) < carray_count((*mimeparser).parts) {
-        part = carray_get((*mimeparser).parts, i as libc::c_uint) as *mut dc_mimepart_t;
-        if !part.is_null() {
-            dc_mimepart_unref(*Box::from_raw(part));
-        }
-        i += 1
+    let part = &mut mimeparser.parts[0];
+    part.type_0 = 10i32;
+    free(part.msg as *mut libc::c_void);
+    part.msg = dc_mprintf(b"[%s]\x00" as *const u8 as *const libc::c_char, error_msg);
+    for part in mimeparser.parts.drain(1..) {
+        dc_mimepart_unref(part);
     }
-    carray_set_size((*mimeparser).parts, 1i32 as libc::c_uint);
+    assert_eq!(mimeparser.parts.len(), 1);
 }
 
 /*the result is a pointer to mime, must not be freed*/

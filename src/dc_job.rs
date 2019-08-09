@@ -17,11 +17,13 @@ use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::imap::*;
-use crate::keyhistory::*;
 use crate::param::*;
 use crate::sql;
 use crate::types::*;
 use crate::x::*;
+
+const DC_IMAP_THREAD: libc::c_int = 100;
+const DC_SMTP_THREAD: libc::c_int = 5000;
 
 // thread IDs
 // jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
@@ -51,15 +53,15 @@ pub unsafe fn dc_perform_imap_jobs(context: &Context) {
     info!(context, 0, "dc_perform_imap_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
-    *context.probe_imap_network.write().unwrap() = 0;
-    *context.perform_inbox_jobs_needed.write().unwrap() = 0;
+    *context.probe_imap_network.write().unwrap() = false;
+    *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
-    dc_job_perform(context, 100, probe_imap_network);
+    dc_job_perform(context, DC_IMAP_THREAD, probe_imap_network);
     info!(context, 0, "dc_perform_imap_jobs ended.",);
 }
 
-unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: libc::c_int) {
-    let query = if probe_network == 0 {
+unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: bool) {
+    let query = if !probe_network {
         // processing for first-try and after backoff-timeouts:
         // process jobs in the order they were added.
         "SELECT id, action, foreign_id, param, added_timestamp, desired_timestamp, tries \
@@ -74,7 +76,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
 
     let params_no_probe = params![thread as i64, time()];
     let params_probe = params![thread as i64];
-    let params: &[&dyn rusqlite::ToSql] = if probe_network == 0 {
+    let params: &[&dyn rusqlite::ToSql] = if !probe_network {
         params_no_probe
     } else {
         params_probe
@@ -116,7 +118,11 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             context,
             0,
             "{}-job #{}, action {} started...",
-            if thread == 100 { "INBOX" } else { "SMTP" },
+            if thread == DC_IMAP_THREAD {
+                "INBOX"
+            } else {
+                "SMTP"
+            },
             job.job_id,
             job.action,
         );
@@ -129,7 +135,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             dc_job_kill_action(context, job.action);
             dc_jobthread_suspend(context, &context.sentbox_thread.clone().read().unwrap(), 1);
             dc_jobthread_suspend(context, &context.mvbox_thread.clone().read().unwrap(), 1);
-            dc_suspend_smtp_thread(context, 1);
+            dc_suspend_smtp_thread(context, true);
         }
 
         let mut tries = 0;
@@ -167,7 +173,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 &mut context.mvbox_thread.clone().read().unwrap(),
                 0,
             );
-            dc_suspend_smtp_thread(context, 0);
+            dc_suspend_smtp_thread(context, false);
             break;
         } else if job.try_again == 2 {
             // just try over next loop unconditionally, the ui typically interrupts idle when the file (video) is ready
@@ -175,7 +181,11 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 context,
                 0,
                 "{}-job #{} not yet ready and will be delayed.",
-                if thread == 100 { "INBOX" } else { "SMTP" },
+                if thread == DC_IMAP_THREAD {
+                    "INBOX"
+                } else {
+                    "SMTP"
+                },
                 job.job_id
             );
         } else if job.try_again == -1 || job.try_again == 3 {
@@ -189,13 +199,17 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                     context,
                     0,
                     "{}-job #{} not succeeded on try #{}, retry in ADD_TIME+{} (in {} seconds).",
-                    if thread == 100 { "INBOX" } else { "SMTP" },
+                    if thread == DC_IMAP_THREAD {
+                        "INBOX"
+                    } else {
+                        "SMTP"
+                    },
                     job.job_id as libc::c_int,
                     tries,
                     time_offset,
                     job.added_timestamp + time_offset - time()
                 );
-                if thread == 5000 && tries < 17 - 1 {
+                if thread == DC_SMTP_THREAD && tries < 17 - 1 {
                     context
                         .smtp_state
                         .clone()
@@ -210,7 +224,7 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
                 }
                 dc_job_delete(context, &mut job);
             }
-            if 0 == probe_network {
+            if !probe_network {
                 continue;
             }
             // on dc_maybe_network() we stop trying here;
@@ -236,7 +250,7 @@ fn dc_job_delete(context: &Context, job: &dc_job_t) -> bool {
  * Tools
  ******************************************************************************/
 #[allow(non_snake_case)]
-unsafe fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
+fn get_backoff_time_offset(c_tries: libc::c_int) -> i64 {
     // results in ~3 weeks for the last backoff timespan
     let mut N = 2_i32.pow((c_tries - 1) as u32);
     N = N * 60;
@@ -264,11 +278,11 @@ fn dc_job_update(context: &Context, job: &dc_job_t) -> bool {
     .is_ok()
 }
 
-unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: libc::c_int) {
+unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: bool) {
     context.smtp_state.0.lock().unwrap().suspended = suspend;
-    if 0 != suspend {
+    if suspend {
         loop {
-            if context.smtp_state.0.lock().unwrap().doing_jobs == 0 {
+            if !context.smtp_state.0.lock().unwrap().doing_jobs {
                 return;
             }
             std::thread::sleep(std::time::Duration::from_micros(300 * 1000));
@@ -299,7 +313,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     }
     match current_block {
         13109137661213826276 => {
-            filename = to_cstring(job.param.get(Param::File).unwrap_or_default());
+            filename = job.param.get(Param::File).unwrap_or_default().strdup();
             if strlen(filename) == 0 {
                 warn!(context, 0, "Missing file name for job {}", job.job_id,);
             } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
@@ -772,7 +786,7 @@ unsafe fn dc_add_smtp_job(
             b"\x1e\x00" as *const u8 as *const libc::c_char,
         );
         param.set(Param::File, as_str(pathNfilename));
-        param.set(Param::File, as_str(recipients));
+        param.set(Param::Recipients, as_str(recipients));
         dc_job_add(
             context,
             action,
@@ -801,10 +815,10 @@ pub unsafe fn dc_job_add(
     delay_seconds: libc::c_int,
 ) {
     let timestamp = time();
-    let thread = if action >= 100 && action < 100 + 1000 {
-        100
-    } else if action >= 5000 && action < 5000 + 1000 {
-        5000
+    let thread = if action >= DC_IMAP_THREAD && action < DC_IMAP_THREAD + 1000 {
+        DC_IMAP_THREAD
+    } else if action >= DC_SMTP_THREAD && action < DC_SMTP_THREAD + 1000 {
+        DC_SMTP_THREAD
     } else {
         return;
     };
@@ -823,7 +837,7 @@ pub unsafe fn dc_job_add(
         ]
     ).ok();
 
-    if thread == 100 {
+    if thread == DC_IMAP_THREAD {
         dc_interrupt_imap_idle(context);
     } else {
         dc_interrupt_smtp_idle(context);
@@ -844,7 +858,7 @@ pub unsafe fn dc_interrupt_smtp_idle(context: &Context) {
 pub unsafe fn dc_interrupt_imap_idle(context: &Context) {
     info!(context, 0, "Interrupting IMAP-IDLE...",);
 
-    *context.perform_inbox_jobs_needed.write().unwrap() = 1;
+    *context.perform_inbox_jobs_needed.write().unwrap() = true;
     context.inbox.read().unwrap().interrupt_idle();
 }
 
@@ -952,7 +966,7 @@ pub fn dc_perform_imap_idle(context: &Context) {
 
     connect_to_inbox(context, &inbox);
 
-    if 0 != *context.perform_inbox_jobs_needed.clone().read().unwrap() {
+    if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         info!(
             context,
             0, "INBOX-IDLE will not be started because of waiting jobs."
@@ -1027,26 +1041,26 @@ pub unsafe fn dc_perform_smtp_jobs(context: &Context) {
         let mut state = lock.lock().unwrap();
 
         let probe_smtp_network = state.probe_network;
-        state.probe_network = 0;
+        state.probe_network = false;
         state.perform_jobs_needed = 0;
 
-        if 0 != state.suspended {
+        if state.suspended {
             info!(context, 0, "SMTP-jobs suspended.",);
             return;
         }
-        state.doing_jobs = 1;
+        state.doing_jobs = true;
         probe_smtp_network
     };
 
     info!(context, 0, "SMTP-jobs started...",);
-    dc_job_perform(context, 5000, probe_smtp_network);
+    dc_job_perform(context, DC_SMTP_THREAD, probe_smtp_network);
     info!(context, 0, "SMTP-jobs ended.");
 
     {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
 
-        state.doing_jobs = 0;
+        state.doing_jobs = false;
     }
 }
 
@@ -1062,7 +1076,7 @@ pub unsafe fn dc_perform_smtp_idle(context: &Context) {
                 0, "SMTP-idle will not be started because of waiting jobs.",
             );
         } else {
-            let dur = get_next_wakeup_time(context, 5000);
+            let dur = get_next_wakeup_time(context, DC_SMTP_THREAD);
 
             loop {
                 let res = cvar.wait_timeout(state, dur).unwrap();
@@ -1108,9 +1122,9 @@ pub unsafe fn dc_maybe_network(context: &Context) {
     {
         let &(ref lock, _) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
-        state.probe_network = 1;
+        state.probe_network = true;
 
-        *context.probe_imap_network.write().unwrap() = 1;
+        *context.probe_imap_network.write().unwrap() = true;
     }
 
     dc_interrupt_smtp_idle(context);
@@ -1162,15 +1176,14 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
     } else {
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
         if msgtype_has_file((*mimefactory.msg).type_0) {
-            let pathNfilename = to_cstring(
-                (*mimefactory.msg)
-                    .param
-                    .get(Param::File)
-                    .unwrap_or_default(),
-            );
+            let pathNfilename = (*mimefactory.msg)
+                .param
+                .get(Param::File)
+                .unwrap_or_default()
+                .strdup();
             if strlen(pathNfilename) > 0 {
-                if ((*mimefactory.msg).type_0 == DC_MSG_IMAGE
-                    || (*mimefactory.msg).type_0 == DC_MSG_GIF)
+                if ((*mimefactory.msg).type_0 == Viewtype::Image
+                    || (*mimefactory.msg).type_0 == Viewtype::Gif)
                     && !(*mimefactory.msg).param.exists(Param::Width)
                 {
                     let mut buf = 0 as *mut libc::c_uchar;
@@ -1263,13 +1276,6 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 (*mimefactory.msg).param.set_int(Param::GuranteeE2ee, 1);
                 dc_msg_save_param_to_disk(mimefactory.msg);
             }
-            dc_add_to_keyhistory(
-                context,
-                0 as *const libc::c_char,
-                0,
-                0 as *const libc::c_char,
-                0 as *const libc::c_char,
-            );
             success = dc_add_smtp_job(context, 5901i32, &mut mimefactory);
         }
     }

@@ -1,4 +1,4 @@
-#![feature(c_variadic, ptr_wrapping_offset_from)]
+#![feature(c_variadic, ptr_wrapping_offset_from, ptr_cast)]
 
 #[macro_use]
 extern crate failure_derive;
@@ -8,6 +8,9 @@ extern crate num_derive;
 extern crate smallvec;
 #[macro_use]
 extern crate rusqlite;
+extern crate strum;
+#[macro_use]
+extern crate strum_macros;
 
 #[macro_use]
 mod log;
@@ -18,10 +21,10 @@ pub mod aheader;
 pub mod chatlist;
 pub mod config;
 pub mod constants;
+pub mod contact;
 pub mod context;
 pub mod imap;
 pub mod key;
-pub mod keyhistory;
 pub mod keyring;
 pub mod oauth2;
 pub mod param;
@@ -36,7 +39,6 @@ pub mod x;
 pub mod dc_array;
 pub mod dc_chat;
 pub mod dc_configure;
-pub mod dc_contact;
 pub mod dc_dehtml;
 pub mod dc_e2ee;
 pub mod dc_imex;

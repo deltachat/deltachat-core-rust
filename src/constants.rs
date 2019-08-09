@@ -1,5 +1,8 @@
-#![allow(non_camel_case_types)]
 //! Constants
+#![allow(non_camel_case_types)]
+use num_traits::{FromPrimitive, ToPrimitive};
+use rusqlite as sql;
+use rusqlite::types::*;
 
 pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.3\x00";
 
@@ -86,6 +89,7 @@ pub const DC_MAX_GET_TEXT_LEN: usize = 30000;
 /// approx. max. length returned by dc_get_msg_info()
 pub const DC_MAX_GET_INFO_LEN: usize = 100000;
 
+pub const DC_CONTACT_ID_UNDEFINED: usize = 0;
 pub const DC_CONTACT_ID_SELF: usize = 1;
 pub const DC_CONTACT_ID_DEVICE: usize = 2;
 pub const DC_CONTACT_ID_LAST_SPECIAL: usize = 9;
@@ -95,46 +99,6 @@ pub const DC_TEXT1_USERNAME: usize = 2;
 pub const DC_TEXT1_SELF: usize = 3;
 
 pub const DC_CREATE_MVBOX: usize = 1;
-
-/// Text message.
-/// The text of the message is set using dc_msg_set_text()
-/// and retrieved with dc_msg_get_text().
-pub const DC_MSG_TEXT: i32 = 10;
-
-/// Image message.
-/// If the image is an animated GIF, the type DC_MSG_GIF should be used.
-/// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
-/// and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
-pub const DC_MSG_IMAGE: i32 = 20;
-
-/// Animated GIF message.
-/// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
-/// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
-pub const DC_MSG_GIF: i32 = 21;
-
-/// Message containing an Audio file.
-/// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
-/// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
-pub const DC_MSG_AUDIO: i32 = 40;
-
-/// A voice message that was directly recorded by the user.
-/// For all other audio messages, the type #DC_MSG_AUDIO should be used.
-/// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
-/// and retrieved via dc_msg_get_file(), dc_msg_get_duration()
-pub const DC_MSG_VOICE: i32 = 41;
-
-/// Video messages.
-/// File, width, height and durarion
-/// are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
-/// and retrieved via
-/// dc_msg_get_file(), dc_msg_get_width(),
-/// dc_msg_get_height(), dc_msg_get_duration().
-pub const DC_MSG_VIDEO: i32 = 50;
-
-/// Message containing any file, eg. a PDF.
-/// The file is set via dc_msg_set_file()
-/// and retrieved via dc_msg_get_file().
-pub const DC_MSG_FILE: i32 = 60;
 
 // Flags for configuring IMAP and SMTP servers.
 // These flags are optional
@@ -182,6 +146,78 @@ pub const DC_LP_IMAP_SOCKET_FLAGS: usize =
 /// if none of these flags are set, the default is chosen
 pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
     (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
+
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[repr(i32)]
+pub enum Viewtype {
+    Unknown = 0,
+    /// Text message.
+    /// The text of the message is set using dc_msg_set_text()
+    /// and retrieved with dc_msg_get_text().
+    Text = 10,
+
+    /// Image message.
+    /// If the image is an animated GIF, the type DC_MSG_GIF should be used.
+    /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension
+    /// and retrieved via dc_msg_set_file(), dc_msg_set_dimension().
+    Image = 20,
+
+    /// Animated GIF message.
+    /// File, width and height are set via dc_msg_set_file(), dc_msg_set_dimension()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_width(), dc_msg_get_height().
+    Gif = 21,
+
+    /// Message containing an Audio file.
+    /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_duration().
+    Audio = 40,
+
+    /// A voice message that was directly recorded by the user.
+    /// For all other audio messages, the type #DC_MSG_AUDIO should be used.
+    /// File and duration are set via dc_msg_set_file(), dc_msg_set_duration()
+    /// and retrieved via dc_msg_get_file(), dc_msg_get_duration()
+    Voice = 41,
+
+    /// Video messages.
+    /// File, width, height and durarion
+    /// are set via dc_msg_set_file(), dc_msg_set_dimension(), dc_msg_set_duration()
+    /// and retrieved via
+    /// dc_msg_get_file(), dc_msg_get_width(),
+    /// dc_msg_get_height(), dc_msg_get_duration().
+    Video = 50,
+
+    /// Message containing any file, eg. a PDF.
+    /// The file is set via dc_msg_set_file()
+    /// and retrieved via dc_msg_get_file().
+    File = 60,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn derive_display_works_as_expected() {
+        assert_eq!(format!("{}", Viewtype::Audio), "Audio");
+    }
+}
+
+impl ToSql for Viewtype {
+    fn to_sql(&self) -> sql::Result<ToSqlOutput> {
+        let num: i64 = self
+            .to_i64()
+            .expect("impossible: Viewtype -> i64 conversion failed");
+
+        Ok(ToSqlOutput::Owned(Value::Integer(num)))
+    }
+}
+
+impl FromSql for Viewtype {
+    fn column_result(col: ValueRef) -> FromSqlResult<Self> {
+        let inner = FromSql::column_result(col)?;
+        FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
+    }
+}
 
 // These constants are used as events
 // reported to the callback given to dc_context_new().

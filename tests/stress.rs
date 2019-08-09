@@ -8,11 +8,11 @@ use tempfile::{tempdir, TempDir};
 
 use deltachat::config;
 use deltachat::constants::*;
+use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_contact::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_location::*;
 use deltachat::dc_lot::*;
@@ -273,7 +273,6 @@ unsafe fn stress_functions(context: &Context) {
     assert!(res.contains(" configured_send_port "));
     assert!(res.contains(" configured_server_flags "));
 
-    let mut ok: libc::c_int;
     let mut buf_0: *mut libc::c_char;
     let mut headerline: *const libc::c_char = 0 as *const libc::c_char;
     let mut setupcodebegin: *const libc::c_char = 0 as *const libc::c_char;
@@ -283,14 +282,14 @@ unsafe fn stress_functions(context: &Context) {
         b"-----BEGIN PGP MESSAGE-----\nNoVal:\n\ndata\n-----END PGP MESSAGE-----\x00" as *const u8
             as *const libc::c_char,
     );
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -308,7 +307,7 @@ unsafe fn stress_functions(context: &Context) {
     buf_0 =
         strdup(b"-----BEGIN PGP MESSAGE-----\n\ndat1\n-----END PGP MESSAGE-----\n-----BEGIN PGP MESSAGE-----\n\ndat2\n-----END PGP MESSAGE-----\x00"
                    as *const u8 as *const libc::c_char);
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
@@ -316,7 +315,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
 
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -335,7 +334,7 @@ unsafe fn stress_functions(context: &Context) {
         b"foo \n -----BEGIN PGP MESSAGE----- \n base64-123 \n  -----END PGP MESSAGE-----\x00"
             as *const u8 as *const libc::c_char,
     );
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
@@ -343,7 +342,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
 
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -360,7 +359,7 @@ unsafe fn stress_functions(context: &Context) {
     free(buf_0 as *mut libc::c_void);
 
     buf_0 = strdup(b"foo-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char);
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
@@ -368,19 +367,19 @@ unsafe fn stress_functions(context: &Context) {
         &mut base64,
     );
 
-    assert_eq!(ok, 0);
+    assert!(!ok);
     free(buf_0 as *mut libc::c_void);
     buf_0 =
         strdup(b"foo \n -----BEGIN PGP MESSAGE-----\n  Passphrase-BeGIN  :  23 \n  \n base64-567 \r\n abc \n  -----END PGP MESSAGE-----\n\n\n\x00"
                    as *const u8 as *const libc::c_char);
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
         0 as *mut *const libc::c_char,
         &mut base64,
     );
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -407,14 +406,14 @@ unsafe fn stress_functions(context: &Context) {
     buf_0 =
         strdup(b"-----BEGIN PGP PRIVATE KEY BLOCK-----\n Autocrypt-Prefer-Encrypt :  mutual \n\nbase64\n-----END PGP PRIVATE KEY BLOCK-----\x00"
                    as *const u8 as *const libc::c_char);
-    ok = dc_split_armored_data(
+    let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
         0 as *mut *const libc::c_char,
         &mut preferencrypt,
         &mut base64,
     );
-    assert_eq!(ok, 1);
+    assert!(ok);
     assert!(!headerline.is_null());
     assert_eq!(
         strcmp(
@@ -470,16 +469,13 @@ unsafe fn stress_functions(context: &Context) {
     let mut setupcodebegin_0: *const libc::c_char = 0 as *const libc::c_char;
     let mut preferencrypt_0: *const libc::c_char = 0 as *const libc::c_char;
     buf_1 = strdup(S_EM_SETUPFILE);
-    assert_ne!(
-        0,
-        dc_split_armored_data(
-            buf_1,
-            &mut headerline_0,
-            &mut setupcodebegin_0,
-            &mut preferencrypt_0,
-            0 as *mut *const libc::c_char,
-        )
-    );
+    assert!(dc_split_armored_data(
+        buf_1,
+        &mut headerline_0,
+        &mut setupcodebegin_0,
+        &mut preferencrypt_0,
+        0 as *mut *const libc::c_char,
+    ));
     assert!(!headerline_0.is_null());
     assert_eq!(
         0,
@@ -499,16 +495,13 @@ unsafe fn stress_functions(context: &Context) {
     free(buf_1 as *mut libc::c_void);
     buf_1 = dc_decrypt_setup_file(context, S_EM_SETUPCODE, S_EM_SETUPFILE);
     assert!(!buf_1.is_null());
-    assert_ne!(
-        0,
-        dc_split_armored_data(
-            buf_1,
-            &mut headerline_0,
-            &mut setupcodebegin_0,
-            &mut preferencrypt_0,
-            0 as *mut *const libc::c_char,
-        )
-    );
+    assert!(dc_split_armored_data(
+        buf_1,
+        &mut headerline_0,
+        &mut setupcodebegin_0,
+        &mut preferencrypt_0,
+        0 as *mut *const libc::c_char,
+    ));
     assert!(!headerline_0.is_null());
     assert_eq!(
         strcmp(
@@ -528,65 +521,21 @@ unsafe fn stress_functions(context: &Context) {
     );
     free(buf_1 as *mut libc::c_void);
     if 0 != dc_is_configured(context) {
-        let setupfile: *mut libc::c_char;
-        let setupcode_c =
-            CString::new(dc_create_setup_code(context)).expect("invalid string converted");
-        assert_eq!(setupcode_c.to_bytes().len(), 44);
-        let setupcode = setupcode_c.as_ptr();
-        assert!(
-            0 != !(*setupcode.offset(4isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(9isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(14isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(19isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(24isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(29isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(34isize) as libc::c_int == '-' as i32
-                && *setupcode.offset(39isize) as libc::c_int == '-' as i32)
-                as usize
-        );
-        setupfile = dc_render_setup_file(context, setupcode);
-        assert!(!setupfile.is_null());
-        let buf_2: *mut libc::c_char = dc_strdup(setupfile);
-        let mut headerline_1: *const libc::c_char = 0 as *const libc::c_char;
-        let mut setupcodebegin_1: *const libc::c_char = 0 as *const libc::c_char;
-        assert_eq!(
-            0,
-            dc_split_armored_data(
-                buf_2,
-                &mut headerline_1,
-                &mut setupcodebegin_1,
-                0 as *mut *const libc::c_char,
-                0 as *mut *const libc::c_char,
-            )
-        );
-        assert!(!headerline_1.is_null());
-        assert_eq!(
-            strcmp(
-                headerline_1,
-                b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-            ),
-            0
-        );
-        assert!(
-            !(!setupcodebegin_1.is_null()
-                && strlen(setupcodebegin_1) == 2
-                && strncmp(setupcodebegin_1, setupcode, 2) == 0i32)
-        );
-        free(buf_2 as *mut libc::c_void);
+        let setupcode = dc_create_setup_code(context);
+        let setupcode_c = CString::yolo(setupcode.clone());
+        let setupfile = dc_render_setup_file(context, &setupcode).unwrap();
+        let setupfile_c = CString::yolo(setupfile);
         let payload: *mut libc::c_char;
         let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
-        payload = dc_decrypt_setup_file(context, setupcode, setupfile);
+        payload = dc_decrypt_setup_file(context, setupcode_c.as_ptr(), setupfile_c.as_ptr());
         assert!(payload.is_null());
-        assert_eq!(
-            0,
-            dc_split_armored_data(
-                payload,
-                &mut headerline_2,
-                0 as *mut *const libc::c_char,
-                0 as *mut *const libc::c_char,
-                0 as *mut *const libc::c_char,
-            )
-        );
+        assert!(!dc_split_armored_data(
+            payload,
+            &mut headerline_2,
+            0 as *mut *const libc::c_char,
+            0 as *mut *const libc::c_char,
+            0 as *mut *const libc::c_char,
+        ));
         assert!(!headerline_2.is_null());
         assert_eq!(
             strcmp(
@@ -596,7 +545,6 @@ unsafe fn stress_functions(context: &Context) {
             0
         );
         free(payload as *mut libc::c_void);
-        free(setupfile as *mut libc::c_void);
     }
 
     if 0 != dc_is_configured(context) {
@@ -684,7 +632,7 @@ fn test_encryption_decryption() {
         assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
 
         let ctext_signed_bytes = ctext.len();
-        let ctext_signed = to_cstring(ctext);
+        let ctext_signed = CString::yolo(ctext);
 
         let ctext = dc_pgp_pk_encrypt(
             original_text as *const libc::c_void,
@@ -697,7 +645,7 @@ fn test_encryption_decryption() {
         assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
 
         let ctext_unsigned_bytes = ctext.len();
-        let ctext_unsigned = to_cstring(ctext);
+        let ctext_unsigned = CString::yolo(ctext);
 
         let mut keyring = Keyring::default();
         keyring.add_owned(private_key);
@@ -711,7 +659,7 @@ fn test_encryption_decryption() {
         let mut valid_signatures: HashSet<String> = Default::default();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed as *const _,
+            ctext_signed.as_ptr() as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring,
@@ -726,7 +674,7 @@ fn test_encryption_decryption() {
 
         let empty_keyring = Keyring::default();
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed as *const _,
+            ctext_signed.as_ptr() as *const _,
             ctext_signed_bytes,
             &keyring,
             &empty_keyring,
@@ -739,7 +687,7 @@ fn test_encryption_decryption() {
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed as *const _,
+            ctext_signed.as_ptr() as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring2,
@@ -754,7 +702,7 @@ fn test_encryption_decryption() {
         public_keyring2.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed as *const _,
+            ctext_signed.as_ptr() as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring2,
@@ -767,7 +715,7 @@ fn test_encryption_decryption() {
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_unsigned as *const _,
+            ctext_unsigned.as_ptr() as *const _,
             ctext_unsigned_bytes,
             &keyring,
             &public_keyring,
@@ -775,7 +723,6 @@ fn test_encryption_decryption() {
         )
         .unwrap();
 
-        free(ctext_unsigned as *mut _);
         assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
 
         valid_signatures.clear();
@@ -786,7 +733,7 @@ fn test_encryption_decryption() {
         public_keyring.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed as *const _,
+            ctext_signed.as_ptr() as *const _,
             ctext_signed_bytes,
             &keyring,
             &public_keyring,
@@ -794,7 +741,6 @@ fn test_encryption_decryption() {
         )
         .unwrap();
 
-        free(ctext_signed as *mut _);
         assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
     }
 }
@@ -815,16 +761,14 @@ struct TestContext {
 }
 
 unsafe fn create_test_context() -> TestContext {
-    let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
+    let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), None);
     let dir = tempdir().unwrap();
-    let dbfile = to_cstring(dir.path().join("db.sqlite").to_str().unwrap());
-    assert_eq!(
-        dc_open(&mut ctx, dbfile, std::ptr::null()),
-        1,
+    let dbfile = dir.path().join("db.sqlite");
+    assert!(
+        dc_open(&mut ctx, dbfile.to_str().unwrap(), None),
         "Failed to open {}",
-        as_str(dbfile as *const libc::c_char)
+        dbfile.display()
     );
-    free(dbfile as *mut _);
     TestContext { ctx: ctx, dir: dir }
 }
 
@@ -842,24 +786,24 @@ fn test_dc_kml_parse() {
         assert!(!kml.addr.is_null());
         assert_eq!(as_str(kml.addr as *const libc::c_char), "user@example.org",);
 
-        assert_eq!(dc_array_get_cnt(kml.locations), 2);
+        let locations_ref = &kml.locations.as_ref().unwrap();
+        assert_eq!(locations_ref.len(), 2);
 
-        assert!(dc_array_get_latitude(kml.locations, 0) > 53.6f64);
-        assert!(dc_array_get_latitude(kml.locations, 0) < 53.8f64);
-        assert!(dc_array_get_longitude(kml.locations, 0) > 9.3f64);
-        assert!(dc_array_get_longitude(kml.locations, 0) < 9.5f64);
-        assert!(dc_array_get_accuracy(kml.locations, 0) > 31.9f64);
-        assert!(dc_array_get_accuracy(kml.locations, 0) < 32.1f64);
-        assert_eq!(dc_array_get_timestamp(kml.locations, 0), 1551906597);
+        assert!(locations_ref[0].latitude > 53.6f64);
+        assert!(locations_ref[0].latitude < 53.8f64);
+        assert!(locations_ref[0].longitude > 9.3f64);
+        assert!(locations_ref[0].longitude < 9.5f64);
+        assert!(locations_ref[0].accuracy > 31.9f64);
+        assert!(locations_ref[0].accuracy < 32.1f64);
+        assert_eq!(locations_ref[0].timestamp, 1551906597);
 
-        assert!(dc_array_get_latitude(kml.locations, 1) > 63.6f64);
-        assert!(dc_array_get_latitude(kml.locations, 1) < 63.8f64);
-        assert!(dc_array_get_longitude(kml.locations, 1) > 19.3f64);
-        assert!(dc_array_get_longitude(kml.locations, 1) < 19.5f64);
-        assert!(dc_array_get_accuracy(kml.locations, 1) > 2.4f64);
-        assert!(dc_array_get_accuracy(kml.locations, 1) < 2.6f64);
-
-        assert_eq!(dc_array_get_timestamp(kml.locations, 1), 1544739072);
+        assert!(locations_ref[1].latitude > 63.6f64);
+        assert!(locations_ref[1].latitude < 63.8f64);
+        assert!(locations_ref[1].longitude > 19.3f64);
+        assert!(locations_ref[1].longitude < 19.5f64);
+        assert!(locations_ref[1].accuracy > 2.4f64);
+        assert!(locations_ref[1].accuracy < 2.6f64);
+        assert_eq!(locations_ref[1].timestamp, 1544739072);
 
         dc_kml_unref(&mut kml);
     }
@@ -898,7 +842,7 @@ fn test_dc_mimeparser_with_context() {
             b"Chat-Version\x00" as *const u8 as *const libc::c_char,
         );
         assert_eq!(as_str((*of).fld_value as *const libc::c_char), "1.0",);
-        assert_eq!(carray_count(mimeparser.parts), 1);
+        assert_eq!(mimeparser.parts.len(), 1);
 
         dc_mimeparser_unref(&mut mimeparser);
     }
@@ -946,29 +890,20 @@ fn test_stress_tests() {
 fn test_get_contacts() {
     unsafe {
         let context = create_test_context();
-        let name = to_cstring("some2");
-        let contacts = dc_get_contacts(&context.ctx, 0, name);
+        let contacts = Contact::get_all(&context.ctx, 0, Some("some2")).unwrap();
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
-        free(name as *mut _);
 
-        let name = to_cstring("bob");
-        let email = to_cstring("bob@mail.de");
-        let id = dc_create_contact(&context.ctx, name, email);
+        let id = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
         assert_ne!(id, 0);
 
-        let contacts = dc_get_contacts(&context.ctx, 0, name);
+        let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).unwrap();
         assert_eq!(dc_array_get_cnt(contacts), 1);
         dc_array_unref(contacts);
 
-        let name2 = to_cstring("alice");
-        let contacts = dc_get_contacts(&context.ctx, 0, name2);
+        let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
         assert_eq!(dc_array_get_cnt(contacts), 0);
         dc_array_unref(contacts);
-
-        free(name as *mut _);
-        free(name2 as *mut _);
-        free(email as *mut _);
     }
 }
 
@@ -976,12 +911,7 @@ fn test_get_contacts() {
 fn test_chat() {
     unsafe {
         let context = create_test_context();
-        let name = to_cstring("bob");
-        let email = to_cstring("bob@mail.de");
-
-        let contact1 = dc_create_contact(&context.ctx, name, email);
-        free(name as *mut _);
-        free(email as *mut _);
+        let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
         assert_ne!(contact1, 0);
 
         let chat_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
@@ -1001,14 +931,12 @@ fn test_chat() {
 #[test]
 fn test_wrong_db() {
     unsafe {
-        let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), std::ptr::null_mut());
+        let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), None);
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
         std::fs::write(&dbfile, b"123").unwrap();
 
-        let dbfile_c = to_cstring(dbfile.to_str().unwrap());
-        let res = dc_open(&mut ctx, dbfile_c, std::ptr::null());
-        free(dbfile_c as *mut _);
-        assert_eq!(res, 0);
+        let res = dc_open(&mut ctx, dbfile.to_str().unwrap(), None);
+        assert!(!res);
     }
 }

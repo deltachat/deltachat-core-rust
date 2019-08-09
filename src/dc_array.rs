@@ -4,6 +4,7 @@ use crate::types::*;
 
 /* * the structure behind dc_array_t */
 #[derive(Clone)]
+#[allow(non_camel_case_types)]
 pub enum dc_array_t {
     Locations(Vec<dc_location>),
     Uint(Vec<uintptr_t>),
@@ -136,6 +137,20 @@ impl dc_array_t {
             panic!("Attempt to search for id in array of other type");
         }
     }
+
+    pub fn sort_ids(&mut self) {
+        if let dc_array_t::Uint(v) = self {
+            v.sort();
+        } else {
+            panic!("Attempt to sort array of something other than uints");
+        }
+    }
+}
+
+impl From<Vec<dc_location>> for dc_array_t {
+    fn from(array: Vec<dc_location>) -> Self {
+        dc_array_t::Locations(array)
+    }
 }
 
 pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
@@ -256,7 +271,7 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
 
     if let dc_array_t::Locations(v) = &*array {
         if let Some(s) = &v[index].marker {
-            to_cstring(s)
+            s.strdup()
         } else {
             std::ptr::null_mut()
         }
@@ -339,17 +354,6 @@ pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
     }
 }
 
-pub unsafe fn dc_array_sort_ids(array: *mut dc_array_t) {
-    if array.is_null() || (*array).len() <= 1 {
-        return;
-    }
-    if let dc_array_t::Uint(v) = &mut *array {
-        v.sort();
-    } else {
-        panic!("Attempt to sort array of something other than uints");
-    }
-}
-
 pub unsafe fn dc_array_get_string(
     array: *const dc_array_t,
     sep: *const libc::c_char,
@@ -371,7 +375,7 @@ pub unsafe fn dc_array_get_string(
                     res + sep + &n.to_string()
                 }
             });
-        to_cstring(res)
+        res.strdup()
     } else {
         panic!("Attempt to get string from array of other type");
     }
@@ -416,7 +420,7 @@ mod tests {
             dc_array_add_id(arr, 0 as uint32_t);
             dc_array_add_id(arr, 5000 as uint32_t);
 
-            dc_array_sort_ids(arr);
+            (*arr).sort_ids();
 
             assert_eq!(dc_array_get_id(arr, 0 as size_t), 0);
             assert_eq!(dc_array_get_id(arr, 1 as size_t), 7);

@@ -1,6 +1,5 @@
 use crate::dc_dehtml::*;
 use crate::dc_tools::*;
-use crate::types::*;
 use crate::x::*;
 
 #[derive(Copy, Clone)]
@@ -20,6 +19,9 @@ impl dc_simplify_t {
         }
     }
 
+    /// Simplify and normalise text: Remove quotes, signatures, unnecessary
+    /// lineends etc.
+    /// The data returned from simplify() must be free()'d when no longer used.
     pub unsafe fn simplify(
         &mut self,
         in_unterminated: *const libc::c_char,
@@ -27,6 +29,10 @@ impl dc_simplify_t {
         is_html: libc::c_int,
         is_msgrmsg: libc::c_int,
     ) -> *mut libc::c_char {
+        if in_bytes <= 0 {
+            return "".strdup();
+        }
+
         /* create a copy of the given buffer */
         let mut out: *mut libc::c_char;
         let mut temp: *mut libc::c_char;
@@ -73,17 +79,13 @@ impl dc_simplify_t {
             these are all lines starting with the character `>`
         ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
         /* split the given buffer into lines */
-        let lines: *mut carray = dc_split_into_lines(buf_terminated);
-        let mut l: libc::c_int;
-        let mut l_first: libc::c_int = 0i32;
-        /* if l_last is -1, there are no lines */
-        let mut l_last: libc::c_int =
-            carray_count(lines).wrapping_sub(1i32 as libc::c_uint) as libc::c_int;
+        let lines = dc_split_into_lines(buf_terminated);
+        let mut l_first: usize = 0;
+        let mut l_last = lines.len();
         let mut line: *mut libc::c_char;
         let mut footer_mark: libc::c_int = 0i32;
-        l = l_first;
-        while l <= l_last {
-            line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+        for l in l_first..l_last {
+            line = lines[l];
             if strcmp(line, b"-- \x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(line, b"--  \x00" as *const u8 as *const libc::c_char) == 0i32
             {
@@ -97,20 +99,15 @@ impl dc_simplify_t {
                 self.is_cut_at_end = 1i32
             }
             if 0 != footer_mark {
-                l_last = l - 1i32;
+                l_last = l;
                 /* done */
                 break;
-            } else {
-                l += 1
             }
         }
-        if l_last - l_first + 1i32 >= 3i32 {
-            let line0: *mut libc::c_char =
-                carray_get(lines, l_first as libc::c_uint) as *mut libc::c_char;
-            let line1: *mut libc::c_char =
-                carray_get(lines, (l_first + 1i32) as libc::c_uint) as *mut libc::c_char;
-            let line2: *mut libc::c_char =
-                carray_get(lines, (l_first + 2i32) as libc::c_uint) as *mut libc::c_char;
+        if l_last > l_first + 2 {
+            let line0: *mut libc::c_char = lines[l_first];
+            let line1: *mut libc::c_char = lines[l_first + 1];
+            let line2: *mut libc::c_char = lines[l_first + 2];
             if strcmp(
                 line0,
                 b"---------- Forwarded message ----------\x00" as *const u8 as *const libc::c_char,
@@ -119,49 +116,43 @@ impl dc_simplify_t {
                 && *line2.offset(0isize) as libc::c_int == 0i32
             {
                 self.is_forwarded = 1i32;
-                l_first += 3i32
+                l_first += 3
             }
         }
-        l = l_first;
-        while l <= l_last {
-            line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+        for l in l_first..l_last {
+            line = lines[l];
             if strncmp(line, b"-----\x00" as *const u8 as *const libc::c_char, 5) == 0i32
                 || strncmp(line, b"_____\x00" as *const u8 as *const libc::c_char, 5) == 0i32
                 || strncmp(line, b"=====\x00" as *const u8 as *const libc::c_char, 5) == 0i32
                 || strncmp(line, b"*****\x00" as *const u8 as *const libc::c_char, 5) == 0i32
                 || strncmp(line, b"~~~~~\x00" as *const u8 as *const libc::c_char, 5) == 0i32
             {
-                l_last = l - 1i32;
+                l_last = l;
                 self.is_cut_at_end = 1i32;
                 /* done */
                 break;
-            } else {
-                l += 1
             }
         }
         if 0 == is_msgrmsg {
-            let mut l_lastQuotedLine: libc::c_int = -1i32;
-            l = l_last;
-            while l >= l_first {
-                line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+            let mut l_lastQuotedLine = None;
+            for l in (l_first..l_last).rev() {
+                line = lines[l];
                 if is_plain_quote(line) {
-                    l_lastQuotedLine = l
+                    l_lastQuotedLine = Some(l)
                 } else if !is_empty_line(line) {
                     break;
                 }
-                l -= 1
             }
-            if l_lastQuotedLine != -1i32 {
-                l_last = l_lastQuotedLine - 1i32;
+            if l_lastQuotedLine.is_some() {
+                l_last = l_lastQuotedLine.unwrap();
                 self.is_cut_at_end = 1i32;
-                if l_last > 0i32 {
-                    if is_empty_line(carray_get(lines, l_last as libc::c_uint) as *mut libc::c_char)
-                    {
+                if l_last > 1 {
+                    if is_empty_line(lines[l_last - 1]) {
                         l_last -= 1
                     }
                 }
-                if l_last > 0i32 {
-                    line = carray_get(lines, l_last as libc::c_uint) as *mut libc::c_char;
+                if l_last > 1 {
+                    line = lines[l_last - 1];
                     if is_quoted_headline(line) {
                         l_last -= 1
                     }
@@ -169,17 +160,16 @@ impl dc_simplify_t {
             }
         }
         if 0 == is_msgrmsg {
-            let mut l_lastQuotedLine_0: libc::c_int = -1i32;
-            let mut hasQuotedHeadline: libc::c_int = 0i32;
-            l = l_first;
-            while l <= l_last {
-                line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+            let mut l_lastQuotedLine_0 = None;
+            let mut hasQuotedHeadline = 0;
+            for l in l_first..l_last {
+                line = lines[l];
                 if is_plain_quote(line) {
-                    l_lastQuotedLine_0 = l
+                    l_lastQuotedLine_0 = Some(l)
                 } else if !is_empty_line(line) {
                     if is_quoted_headline(line)
                         && 0 == hasQuotedHeadline
-                        && l_lastQuotedLine_0 == -1i32
+                        && l_lastQuotedLine_0.is_none()
                     {
                         hasQuotedHeadline = 1i32
                     } else {
@@ -187,10 +177,9 @@ impl dc_simplify_t {
                         break;
                     }
                 }
-                l += 1
             }
-            if l_lastQuotedLine_0 != -1i32 {
-                l_first = l_lastQuotedLine_0 + 1i32;
+            if l_lastQuotedLine_0.is_some() {
+                l_first = l_lastQuotedLine_0.unwrap() + 1;
                 self.is_cut_at_begin = 1i32
             }
         }
@@ -202,9 +191,8 @@ impl dc_simplify_t {
         /* we write empty lines only in case and non-empty line follows */
         let mut pending_linebreaks: libc::c_int = 0i32;
         let mut content_lines_added: libc::c_int = 0i32;
-        l = l_first;
-        while l <= l_last {
-            line = carray_get(lines, l as libc::c_uint) as *mut libc::c_char;
+        for l in l_first..l_last {
+            line = lines[l];
             if is_empty_line(line) {
                 pending_linebreaks += 1
             } else {
@@ -222,31 +210,14 @@ impl dc_simplify_t {
                 content_lines_added += 1;
                 pending_linebreaks = 1i32
             }
-            l += 1
         }
         if 0 != self.is_cut_at_end && (0 == self.is_cut_at_begin || 0 != content_lines_added) {
             ret += " [...]";
         }
         dc_free_splitted_lines(lines);
 
-        to_cstring(ret)
+        ret.strdup()
     }
-}
-
-/* Simplify and normalise text: Remove quotes, signatures, unnecessary
-lineends etc.
-The data returned from Simplify() must be free()'d when no longer used, private */
-pub unsafe fn dc_simplify_simplify(
-    simplify: *mut dc_simplify_t,
-    in_unterminated: *const libc::c_char,
-    in_bytes: libc::c_int,
-    is_html: libc::c_int,
-    is_msgrmsg: libc::c_int,
-) -> *mut libc::c_char {
-    if simplify.is_null() || in_unterminated.is_null() || in_bytes <= 0i32 {
-        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
-    }
-    (*simplify).simplify(in_unterminated, in_bytes, is_html, is_msgrmsg)
 }
 
 /**

@@ -1,9 +1,9 @@
 use std::ffi::CString;
 
 use crate::constants::*;
+use crate::contact::*;
 use crate::context::*;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
@@ -14,6 +14,7 @@ use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
+use std::ptr;
 
 /* * the structure behind dc_msg_t */
 #[derive(Clone)]
@@ -25,13 +26,13 @@ pub struct dc_msg_t<'a> {
     pub to_id: uint32_t,
     pub chat_id: uint32_t,
     pub move_state: dc_move_state_t,
-    pub type_0: libc::c_int,
+    pub type_0: Viewtype,
     pub state: libc::c_int,
     pub hidden: libc::c_int,
     pub timestamp_sort: i64,
     pub timestamp_sent: i64,
     pub timestamp_rcvd: i64,
-    pub text: *mut libc::c_char,
+    pub text: Option<String>,
     pub context: &'a Context,
     pub rfc724_mid: *mut libc::c_char,
     pub in_reply_to: *mut libc::c_char,
@@ -47,12 +48,10 @@ pub struct dc_msg_t<'a> {
 // handle messages
 pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char {
     let msg = dc_msg_new_untyped(context);
-    let contact_from = dc_contact_new(context);
     let mut p: *mut libc::c_char;
     let mut ret = String::new();
 
     dc_msg_load_from_db(msg, context, msg_id);
-    dc_contact_load_from_db(contact_from, &context.sql, (*msg).from_id);
 
     let rawtxt: Option<String> = context.sql.query_row_col(
         context,
@@ -64,36 +63,35 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     if rawtxt.is_none() {
         ret += &format!("Cannot load message #{}.", msg_id as usize);
         dc_msg_unref(msg);
-        dc_contact_unref(contact_from);
-        return to_cstring(ret);
+        return ret.strdup();
     }
     let rawtxt = rawtxt.unwrap();
     let rawtxt = dc_truncate_str(rawtxt.trim(), 100000);
 
-    let fts = dc_timestamp_to_str_safe(dc_msg_get_timestamp(msg));
+    let fts = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
     ret += &format!("Sent: {}", fts);
 
-    p = dc_contact_get_name_n_addr(contact_from);
-    ret += &format!(" by {}", to_string(p));
-    free(p as *mut libc::c_void);
+    let name = Contact::load_from_db(context, (*msg).from_id)
+        .map(|contact| contact.get_name_n_addr())
+        .unwrap_or_default();
+
+    ret += &format!(" by {}", name);
     ret += "\n";
 
-    if (*msg).from_id != 1 as libc::c_uint {
-        p = dc_timestamp_to_str(if 0 != (*msg).timestamp_rcvd {
+    if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint {
+        let s = dc_timestamp_to_str(if 0 != (*msg).timestamp_rcvd {
             (*msg).timestamp_rcvd
         } else {
             (*msg).timestamp_sort
         });
-        ret += &format!("Received: {}", as_str(p));
-        free(p as *mut libc::c_void);
+        ret += &format!("Received: {}", &s);
         ret += "\n";
     }
 
     if (*msg).from_id == 2 || (*msg).to_id == 2 {
         // device-internal message, no further details needed
         dc_msg_unref(msg);
-        dc_contact_unref(contact_from);
-        return to_cstring(ret);
+        return ret.strdup();
     }
 
     context
@@ -109,17 +107,14 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
             |rows| {
                 for row in rows {
                     let (contact_id, ts) = row?;
-                    let fts = dc_timestamp_to_str_safe(ts);
+                    let fts = dc_timestamp_to_str(ts);
                     ret += &format!("Read: {}", fts);
 
-                    let contact = dc_contact_new(context);
-                    dc_contact_load_from_db(contact, &context.sql, contact_id as u32);
+                    let name = Contact::load_from_db(context, contact_id as u32)
+                        .map(|contact| contact.get_name_n_addr())
+                        .unwrap_or_default();
 
-                    p = dc_contact_get_name_n_addr(contact);
-                    ret += &format!(" by {}", as_str(p));
-                    free(p as *mut libc::c_void);
-                    dc_contact_unref(contact);
-
+                    ret += &format!(" by {}", name);
                     ret += "\n";
                 }
                 Ok(())
@@ -178,17 +173,9 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     }
     free(p as *mut libc::c_void);
 
-    if (*msg).type_0 != DC_MSG_TEXT {
+    if (*msg).type_0 != Viewtype::Text {
         ret += "Type: ";
-        match (*msg).type_0 {
-            DC_MSG_AUDIO => ret += "Audio",
-            DC_MSG_FILE => ret += "File",
-            DC_MSG_GIF => ret += "GIF",
-            DC_MSG_IMAGE => ret += "Image",
-            DC_MSG_VIDEO => ret += "Video",
-            DC_MSG_VOICE => ret += "Voice",
-            _ => ret += &format!("{}", (*msg).type_0),
-        }
+        ret += &format!("{}", (*msg).type_0);
         ret += "\n";
         p = dc_msg_get_filemime(msg);
         ret += &format!("Mimetype: {}\n", as_str(p));
@@ -218,12 +205,11 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     }
 
     dc_msg_unref(msg);
-    dc_contact_unref(contact_from);
-    to_cstring(ret)
+    ret.strdup()
 }
 
 pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> {
-    dc_msg_new(context, 0i32)
+    dc_msg_new(context, Viewtype::Unknown)
 }
 
 /* *
@@ -236,7 +222,7 @@ pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> 
 // to check if a mail was sent, use dc_msg_is_sent()
 // approx. max. length returned by dc_msg_get_text()
 // approx. max. length returned by dc_get_msg_info()
-pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: libc::c_int) -> *mut dc_msg_t<'a> {
+pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> *mut dc_msg_t<'a> {
     let msg = dc_msg_t {
         magic: 0x11561156,
         id: 0,
@@ -250,7 +236,7 @@ pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: libc::c_int) -> *mu
         timestamp_sort: 0,
         timestamp_sent: 0,
         timestamp_rcvd: 0,
-        text: std::ptr::null_mut(),
+        text: None,
         context,
         rfc724_mid: std::ptr::null_mut(),
         in_reply_to: std::ptr::null_mut(),
@@ -279,8 +265,6 @@ pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    free((*msg).text as *mut libc::c_void);
-    (*msg).text = 0 as *mut libc::c_char;
     free((*msg).rfc724_mid as *mut libc::c_void);
     (*msg).rfc724_mid = 0 as *mut libc::c_char;
     free((*msg).in_reply_to as *mut libc::c_void);
@@ -297,18 +281,17 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         match (*msg).param.get(Param::MimeType) {
             Some(m) => {
-                ret = to_cstring(m);
+                ret = m.strdup();
             }
             None => {
                 if let Some(file) = (*msg).param.get(Param::File) {
-                    let file_c = to_cstring(file);
-                    dc_msg_guess_msgtype_from_suffix(file_c, 0 as *mut libc::c_int, &mut ret);
+                    let file_c = CString::yolo(file);
+                    dc_msg_guess_msgtype_from_suffix(file_c.as_ptr(), 0 as *mut Viewtype, &mut ret);
                     if ret.is_null() {
                         ret = dc_strdup(
                             b"application/octet-stream\x00" as *const u8 as *const libc::c_char,
                         )
                     }
-                    free(file_c as *mut _);
                 }
             }
         }
@@ -324,11 +307,11 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
 #[allow(non_snake_case)]
 pub unsafe fn dc_msg_guess_msgtype_from_suffix(
     pathNfilename: *const libc::c_char,
-    mut ret_msgtype: *mut libc::c_int,
+    mut ret_msgtype: *mut Viewtype,
     mut ret_mime: *mut *mut libc::c_char,
 ) {
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut dummy_msgtype: libc::c_int = 0;
+    let mut dummy_msgtype = Viewtype::Unknown;
     let mut dummy_buf: *mut libc::c_char = 0 as *mut libc::c_char;
     if !pathNfilename.is_null() {
         if ret_msgtype.is_null() {
@@ -337,37 +320,37 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
         if ret_mime.is_null() {
             ret_mime = &mut dummy_buf
         }
-        *ret_msgtype = 0;
+        *ret_msgtype = Viewtype::Unknown;
         *ret_mime = 0 as *mut libc::c_char;
         suffix = dc_get_filesuffix_lc(pathNfilename);
         if !suffix.is_null() {
             if strcmp(suffix, b"mp3\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_AUDIO;
+                *ret_msgtype = Viewtype::Audio;
                 *ret_mime = dc_strdup(b"audio/mpeg\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"aac\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_AUDIO;
+                *ret_msgtype = Viewtype::Audio;
                 *ret_mime = dc_strdup(b"audio/aac\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"mp4\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_VIDEO;
+                *ret_msgtype = Viewtype::Video;
                 *ret_mime = dc_strdup(b"video/mp4\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                *ret_msgtype = DC_MSG_IMAGE;
+                *ret_msgtype = Viewtype::Image;
                 *ret_mime = dc_strdup(b"image/jpeg\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_IMAGE;
+                *ret_msgtype = Viewtype::Image;
                 *ret_mime = dc_strdup(b"image/png\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"webp\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_IMAGE;
+                *ret_msgtype = Viewtype::Image;
                 *ret_mime = dc_strdup(b"image/webp\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = DC_MSG_GIF;
+                *ret_msgtype = Viewtype::Gif;
                 *ret_mime = dc_strdup(b"image/gif\x00" as *const u8 as *const libc::c_char)
             } else if strcmp(suffix, b"vcf\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(suffix, b"vcard\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                *ret_msgtype = DC_MSG_FILE;
+                *ret_msgtype = Viewtype::File;
                 *ret_mime = dc_strdup(b"text/vcard\x00" as *const u8 as *const libc::c_char)
             }
         }
@@ -381,9 +364,8 @@ pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file_rel) = (*msg).param.get(Param::File) {
-            let file_rel_c = to_cstring(file_rel);
-            file_abs = dc_get_abs_path((*msg).context, file_rel_c);
-            free(file_rel_c as *mut _);
+            let file_rel_c = CString::yolo(file_rel);
+            file_abs = dc_get_abs_path((*msg).context, file_rel_c.as_ptr());
         }
     }
     if !file_abs.is_null() {
@@ -473,12 +455,12 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 dc_msg_empty(msg);
 
                 (*msg).id = row.get::<_, i32>(0)? as u32;
-                (*msg).rfc724_mid = to_cstring(row.get::<_, String>(1)?);
+                (*msg).rfc724_mid = row.get::<_, String>(1)?.strdup();
                 (*msg).in_reply_to = match row.get::<_, Option<String>>(2)? {
-                    Some(s) => to_cstring(s),
+                    Some(s) => s.strdup(),
                     None => std::ptr::null_mut(),
                 };
-                (*msg).server_folder = to_cstring(row.get::<_, String>(3)?);
+                (*msg).server_folder = row.get::<_, String>(3)?.strdup();
                 (*msg).server_uid = row.get(4)?;
                 (*msg).move_state = row.get(5)?;
                 (*msg).chat_id = row.get(6)?;
@@ -490,19 +472,25 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                (*msg).text = to_cstring(row.get::<_, String>(15).unwrap_or_default());
+                (*msg).text = row.get::<_, Option<String>>(15)?;
                 (*msg).param = row.get::<_, String>(16)?.parse().unwrap_or_default();
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
                 (*msg).location_id = row.get(19)?;
                 (*msg).chat_blocked = row.get::<_, Option<i32>>(20)?.unwrap_or_default();
                 if (*msg).chat_blocked == 2 {
-                    dc_truncate_n_unwrap_str((*msg).text, 256, 0);
-                }
-            }
+                    if let Some(ref text) = (*msg).text {
+                        let ptr = text.strdup();
+
+                        dc_truncate_n_unwrap_str(ptr, 256, 0);
+
+                        (*msg).text = Some(to_string(ptr));
+                        free(ptr.cast());
+                    }
+                };
             Ok(())
-        }
-    );
+            }
+        });
 
     res.is_ok()
 }
@@ -516,10 +504,8 @@ pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut l
     );
 
     if let Some(headers) = headers {
-        let h = to_cstring(headers);
-        let res = dc_strdup_keep_null(h);
-        free(h as *mut _);
-        res
+        let h = CString::yolo(headers);
+        dc_strdup_keep_null(h.as_ptr())
     } else {
         std::ptr::null_mut()
     }
@@ -682,9 +668,9 @@ pub unsafe fn dc_msg_get_chat_id(msg: *const dc_msg_t) -> uint32_t {
     };
 }
 
-pub unsafe fn dc_msg_get_viewtype(msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_viewtype(msg: *const dc_msg_t) -> Viewtype {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32;
+        return Viewtype::Unknown;
     }
 
     (*msg).type_0
@@ -718,9 +704,11 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return dc_strdup(0 as *const libc::c_char);
     }
-
-    let res = dc_truncate_str(as_str((*msg).text), 30000);
-    to_cstring(res)
+    if let Some(ref text) = (*msg).text {
+        dc_truncate_str(text, 30000).strdup()
+    } else {
+        ptr::null_mut()
+    }
 }
 
 #[allow(non_snake_case)]
@@ -729,9 +717,8 @@ pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file) = (*msg).param.get(Param::File) {
-            let file_c = to_cstring(file);
-            ret = dc_get_filename(file_c);
-            free(file_c as *mut _);
+            let file_c = CString::yolo(file);
+            ret = dc_get_filename(file_c.as_ptr());
         }
     }
     if !ret.is_null() {
@@ -746,9 +733,8 @@ pub unsafe fn dc_msg_get_filebytes(msg: *const dc_msg_t) -> uint64_t {
 
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file) = (*msg).param.get(Param::File) {
-            let file_c = to_cstring(file);
-            ret = dc_get_filebytes((*msg).context, file_c);
-            free(file_c as *mut _);
+            let file_c = CString::yolo(file);
+            ret = dc_get_filebytes((*msg).context, file_c.as_ptr());
         }
     }
 
@@ -802,8 +788,8 @@ pub unsafe fn dc_msg_get_summary<'a>(
 ) -> *mut dc_lot_t {
     let mut success = true;
     let ret: *mut dc_lot_t = dc_lot_new();
-    let mut contact: *mut dc_contact_t = 0 as *mut dc_contact_t;
     let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
+
     if !(msg.is_null() || (*msg).magic != 0x11561156 as libc::c_uint) {
         if chat.is_null() {
             chat_to_delete = dc_get_chat((*msg).context, (*msg).chat_id);
@@ -816,15 +802,18 @@ pub unsafe fn dc_msg_get_summary<'a>(
             success = false;
         }
         if success == false {
-            if (*msg).from_id != 1 as libc::c_uint
+            let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
                 && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
             {
-                contact = dc_get_contact((*chat).context, (*msg).from_id)
-            }
-            dc_lot_fill(ret, msg, chat, contact, (*msg).context);
+                Contact::get_by_id((*chat).context, (*msg).from_id).ok()
+            } else {
+                None
+            };
+
+            dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
         }
     }
-    dc_contact_unref(contact);
+
     dc_chat_unref(chat_to_delete);
 
     ret
@@ -838,9 +827,15 @@ pub unsafe fn dc_msg_get_summarytext(
         return dc_strdup(0 as *const libc::c_char);
     }
 
+    let msgtext_c = (*msg)
+        .text
+        .as_ref()
+        .map(|s| CString::yolo(String::as_str(s)));
+    let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
+
     dc_msg_get_summarytext_by_raw(
         (*msg).type_0,
-        (*msg).text,
+        msgtext_ptr,
         &mut (*msg).param,
         approx_characters,
         (*msg).context,
@@ -850,7 +845,7 @@ pub unsafe fn dc_msg_get_summarytext(
 /* the returned value must be free()'d */
 #[allow(non_snake_case)]
 pub unsafe fn dc_msg_get_summarytext_by_raw(
-    type_0: libc::c_int,
+    type_0: Viewtype,
     text: *const libc::c_char,
     param: &mut Params,
     approx_characters: libc::c_int,
@@ -863,20 +858,23 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
     let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut append_text: libc::c_int = 1i32;
     match type_0 {
-        20 => prefix = to_cstring(context.stock_str(StockMessage::Image)),
-        21 => prefix = to_cstring(context.stock_str(StockMessage::Gif)),
-        50 => prefix = to_cstring(context.stock_str(StockMessage::Video)),
-        41 => prefix = to_cstring(context.stock_str(StockMessage::VoiceMessage)),
-        40 | 60 => {
+        Viewtype::Image => prefix = context.stock_str(StockMessage::Image).strdup(),
+        Viewtype::Gif => prefix = context.stock_str(StockMessage::Gif).strdup(),
+        Viewtype::Video => prefix = context.stock_str(StockMessage::Video).strdup(),
+        Viewtype::Voice => prefix = context.stock_str(StockMessage::VoiceMessage).strdup(),
+        Viewtype::Audio | Viewtype::File => {
             if param.get_int(Param::Cmd) == Some(6) {
-                prefix = to_cstring(context.stock_str(StockMessage::AcSetupMsgSubject));
+                prefix = context.stock_str(StockMessage::AcSetupMsgSubject).strdup();
                 append_text = 0i32
             } else {
-                pathNfilename = to_cstring(param.get(Param::File).unwrap_or_else(|| "ErrFilename"));
+                pathNfilename = param
+                    .get(Param::File)
+                    .unwrap_or_else(|| "ErrFilename")
+                    .strdup();
                 value = dc_get_filename(pathNfilename);
                 let label = CString::new(
                     context
-                        .stock_str(if type_0 == DC_MSG_AUDIO {
+                        .stock_str(if type_0 == Viewtype::Audio {
                             StockMessage::Audio
                         } else {
                             StockMessage::File
@@ -893,7 +891,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
         }
         _ => {
             if param.get_int(Param::Cmd) == Some(9) {
-                prefix = to_cstring(context.stock_str(StockMessage::Location));
+                prefix = context.stock_str(StockMessage::Location).strdup();
                 append_text = 0;
             }
         }
@@ -946,12 +944,11 @@ pub unsafe fn dc_msg_is_sent(msg: *const dc_msg_t) -> libc::c_int {
     }
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_msg_is_starred(msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_is_starred(msg: *const dc_msg_t) -> bool {
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
-        return 0i32;
+        return false;
     }
-    return if 0 != (*msg).starred { 1i32 } else { 0i32 };
+    0 != (*msg).starred
 }
 
 // TODO should return bool /rtn
@@ -998,7 +995,7 @@ pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
 pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> bool {
     if msg.is_null()
         || (*msg).magic != 0x11561156i32 as libc::c_uint
-        || (*msg).type_0 != DC_MSG_FILE as libc::c_int
+        || (*msg).type_0 != Viewtype::File
     {
         return false;
     }
@@ -1028,19 +1025,17 @@ pub unsafe fn dc_msg_get_setupcodebegin(msg: *const dc_msg_t) -> *mut libc::c_ch
                 || buf.is_null()
                 || buf_bytes <= 0)
             {
-                if !(0
-                    == dc_split_armored_data(
-                        buf,
-                        &mut buf_headerline,
-                        &mut buf_setupcodebegin,
-                        0 as *mut *const libc::c_char,
-                        0 as *mut *const libc::c_char,
-                    )
-                    || strcmp(
-                        buf_headerline,
-                        b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-                    ) != 0i32
-                    || buf_setupcodebegin.is_null())
+                if dc_split_armored_data(
+                    buf,
+                    &mut buf_headerline,
+                    &mut buf_setupcodebegin,
+                    0 as *mut *const libc::c_char,
+                    0 as *mut *const libc::c_char,
+                ) && strcmp(
+                    buf_headerline,
+                    b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
+                ) == 0
+                    && !buf_setupcodebegin.is_null()
                 {
                     ret = dc_strdup(buf_setupcodebegin)
                 }
@@ -1060,8 +1055,11 @@ pub unsafe fn dc_msg_set_text(mut msg: *mut dc_msg_t, text: *const libc::c_char)
     if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
         return;
     }
-    free((*msg).text as *mut libc::c_void);
-    (*msg).text = dc_strdup(text);
+    (*msg).text = if text.is_null() {
+        None
+    } else {
+        Some(to_string(text))
+    };
 }
 
 pub unsafe fn dc_msg_set_file(
@@ -1395,7 +1393,7 @@ pub fn dc_rfc724_mid_exists(
         &[as_str(rfc724_mid)],
         |row| {
             if !ret_server_folder.is_null() {
-                unsafe { *ret_server_folder = to_cstring(row.get::<_, String>(0)?) };
+                unsafe { *ret_server_folder = row.get::<_, String>(0)?.strdup() };
             }
             if !ret_server_uid.is_null() {
                 unsafe { *ret_server_uid = row.get(1)? };
@@ -1437,12 +1435,13 @@ pub fn dc_update_server_uid(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils as test;
     use std::ffi::CStr;
 
     #[test]
     fn test_dc_msg_guess_msgtype_from_suffix() {
         unsafe {
-            let mut type_0: libc::c_int = 0;
+            let mut type_0 = Viewtype::Unknown;
             let mut mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
 
             dc_msg_guess_msgtype_from_suffix(
@@ -1450,7 +1449,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
+            assert_eq!(type_0, Viewtype::Audio);
             assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/mpeg");
             free(mime_0 as *mut libc::c_void);
 
@@ -1459,7 +1458,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_AUDIO as libc::c_int);
+            assert_eq!(type_0, Viewtype::Audio);
             assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/aac");
             free(mime_0 as *mut libc::c_void);
 
@@ -1468,7 +1467,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_VIDEO as libc::c_int);
+            assert_eq!(type_0, Viewtype::Video);
             assert_eq!(as_str(mime_0 as *const libc::c_char), "video/mp4");
             free(mime_0 as *mut libc::c_void);
 
@@ -1477,7 +1476,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(type_0, Viewtype::Image);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1491,7 +1490,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(type_0, Viewtype::Image);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1505,7 +1504,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(type_0, Viewtype::Image);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1519,7 +1518,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_IMAGE as libc::c_int);
+            assert_eq!(type_0, Viewtype::Image);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1533,7 +1532,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_GIF as libc::c_int);
+            assert_eq!(type_0, Viewtype::Gif);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1547,7 +1546,7 @@ mod tests {
                 &mut type_0,
                 &mut mime_0,
             );
-            assert_eq!(type_0, DC_MSG_FILE as libc::c_int);
+            assert_eq!(type_0, Viewtype::File);
             assert_eq!(
                 CStr::from_ptr(mime_0 as *const libc::c_char)
                     .to_str()
@@ -1555,6 +1554,34 @@ mod tests {
                 "text/vcard"
             );
             free(mime_0 as *mut libc::c_void);
+        }
+    }
+
+    #[test]
+    pub fn test_prepare_message_and_send() {
+        use crate::config::Config;
+
+        unsafe {
+            let d = test::dummy_context();
+            let ctx = &d.ctx;
+
+            let contact =
+                Contact::create(ctx, "", "dest@example.com").expect("failed to create contact");
+
+            let res = ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"));
+            assert!(res.is_ok());
+
+            let chat = dc_create_chat_by_contact_id(ctx, contact);
+            assert!(chat != 0);
+
+            let msg = dc_msg_new(ctx, Viewtype::Text);
+            assert!(!msg.is_null());
+
+            let msg_id = dc_prepare_msg(ctx, chat, msg);
+            assert!(msg_id != 0);
+
+            let msg2 = dc_get_msg(ctx, msg_id);
+            assert!(!msg2.is_null());
         }
     }
 }

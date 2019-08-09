@@ -7,7 +7,6 @@ use crate::dc_job::*;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::stock::StockMessage;
-use crate::x::*;
 
 /// The available configuration keys.
 #[derive(
@@ -70,17 +69,7 @@ impl Context {
         let value = match key {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_config(self, key);
-                rel_path.map(|p| {
-                    let v = unsafe {
-                        let n = to_cstring(p);
-                        let res = dc_get_abs_path(self, n);
-                        free(n as *mut libc::c_void);
-                        res
-                    };
-                    let r = to_string(v);
-                    unsafe { free(v as *mut _) };
-                    r
-                })
+                rel_path.map(|p| dc_get_abs_path_safe(self, &p).to_str().unwrap().to_string())
             }
             Config::SysVersion => Some(std::str::from_utf8(DC_VERSION_STR).unwrap().into()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", 24 * 1024 * 1024 / 4 * 3)),

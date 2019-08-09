@@ -216,22 +216,16 @@ impl Key {
         }
     }
 
-    /// Each header line must be terminated by `\r\n`, the result must be freed.
-    pub fn to_asc_c(&self, header: Option<(&str, &str)>) -> *mut libc::c_char {
+    /// Each header line must be terminated by `\r\n`
+    pub fn to_asc(&self, header: Option<(&str, &str)>) -> String {
         let headers = header.map(|(key, value)| {
             let mut m = BTreeMap::new();
             m.insert(key.to_string(), value.to_string());
             m
         });
 
-        let buf = self
-            .to_armored_string(headers.as_ref())
-            .expect("failed to serialize key");
-        let buf_c = CString::new(buf).unwrap();
-
-        // need to use strdup to allocate the result with malloc
-        // so it can be `free`d later.
-        unsafe { strdup(buf_c.as_ptr()) }
+        self.to_armored_string(headers.as_ref())
+            .expect("failed to serialize key")
     }
 
     pub fn write_asc_to_file(&self, file: *const libc::c_char, context: &Context) -> bool {
@@ -239,15 +233,16 @@ impl Key {
             return false;
         }
 
-        let file_content = self.to_asc_c(None);
+        let file_content = self.to_asc(None);
+        let file_content_c = CString::new(file_content).unwrap();
 
         let success = if 0
             == unsafe {
                 dc_write_file(
                     context,
                     file,
-                    file_content as *const libc::c_void,
-                    strlen(file_content),
+                    file_content_c.as_ptr() as *const libc::c_void,
+                    file_content_c.as_bytes().len(),
                 )
             } {
             error!(context, 0, "Cannot write key to {}", to_string(file));
@@ -255,8 +250,6 @@ impl Key {
         } else {
             true
         };
-
-        unsafe { free(file_content as *mut libc::c_void) };
 
         success
     }

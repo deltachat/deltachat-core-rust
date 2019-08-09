@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::net;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::time::{Duration, SystemTime};
@@ -5,10 +6,9 @@ use std::time::{Duration, SystemTime};
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_loginparam::*;
-use crate::dc_tools::{as_str, to_cstring};
+use crate::dc_tools::CStringExt;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
-use crate::x::free;
 
 pub const DC_IMAP_SEEN: usize = 0x0001;
 pub const DC_REGENERATE: usize = 0x01;
@@ -705,26 +705,16 @@ impl Imap {
 
     fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {
         let key = format!("imap.mailbox.{}", folder.as_ref());
-        let val1 = unsafe {
-            let key_c = to_cstring(key);
-            let val = (self.get_config)(context, key_c, 0 as *const libc::c_char);
-            free(key_c as *mut _);
-            val
-        };
-        if val1.is_null() {
-            return (0, 0);
+        if let Some(entry) = (self.get_config)(context, &key) {
+            // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
+            let mut parts = entry.split(':');
+            (
+                parts.next().unwrap().parse().unwrap_or_else(|_| 0),
+                parts.next().unwrap().parse().unwrap_or_else(|_| 0),
+            )
+        } else {
+            (0, 0)
         }
-        let entry = as_str(val1);
-
-        if entry.is_empty() {
-            return (0, 0);
-        }
-        // the entry has the format `imap.mailbox.<folder>=<uidvalidity>:<lastseenuid>`
-        let mut parts = entry.split(':');
-        (
-            parts.next().unwrap().parse().unwrap_or_else(|_| 0),
-            parts.next().unwrap().parse().unwrap_or_else(|_| 0),
-        )
     }
 
     fn fetch_from_single_folder<S: AsRef<str>>(&self, context: &Context, folder: S) -> usize {
@@ -853,10 +843,8 @@ impl Imap {
                     .expect("missing message id");
 
                 if 0 == unsafe {
-                    let message_id_c = to_cstring(message_id);
-                    let res = (self.precheck_imf)(context, message_id_c, folder.as_ref(), cur_uid);
-                    free(message_id_c as *mut _);
-                    res
+                    let message_id_c = CString::yolo(message_id);
+                    (self.precheck_imf)(context, message_id_c.as_ptr(), folder.as_ref(), cur_uid)
                 } {
                     // check passed, go fetch the rest
                     if self.fetch_single_msg(context, &folder, cur_uid) == 0 {
@@ -924,13 +912,7 @@ impl Imap {
         let key = format!("imap.mailbox.{}", folder.as_ref());
         let val = format!("{}:{}", uidvalidity, lastseenuid);
 
-        unsafe {
-            let key_c = to_cstring(key);
-            let val_c = to_cstring(val);
-            (self.set_config)(context, key_c, val_c);
-            free(key_c as *mut _);
-            free(val_c as *mut _);
-        };
+        (self.set_config)(context, &key, Some(&val));
     }
 
     fn fetch_single_msg<S: AsRef<str>>(

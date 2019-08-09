@@ -17,15 +17,14 @@ use crate::keyring::*;
 use crate::types::*;
 use crate::x::*;
 
-// TODO should return bool /rtn
 pub unsafe fn dc_split_armored_data(
     buf: *mut libc::c_char,
     ret_headerline: *mut *const libc::c_char,
     ret_setupcodebegin: *mut *const libc::c_char,
     ret_preferencrypt: *mut *const libc::c_char,
     ret_base64: *mut *const libc::c_char,
-) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+) -> bool {
+    let mut success = false;
     let mut line_chars: size_t = 0i32 as size_t;
     let mut line: *mut libc::c_char = buf;
     let mut p1: *mut libc::c_char = buf;
@@ -128,7 +127,7 @@ pub unsafe fn dc_split_armored_data(
                 if !ret_base64.is_null() {
                     *ret_base64 = base64
                 }
-                success = 1i32
+                success = true;
             }
         }
     }

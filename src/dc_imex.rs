@@ -5,6 +5,7 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 use rand::{thread_rng, Rng};
 
+use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_chat::*;
@@ -13,6 +14,7 @@ use crate::dc_e2ee::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
+use crate::error::*;
 use crate::key::*;
 use crate::param::*;
 use crate::pgp::*;
@@ -98,101 +100,85 @@ pub unsafe fn dc_imex_has_backup(
 }
 
 pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
-    let current_block: u64;
-    let mut success: libc::c_int = 0i32;
-    let mut setup_code: *mut libc::c_char;
-    let mut setup_file_content: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut setup_file_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let chat_id: uint32_t;
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
-    let msg_id: uint32_t;
-    if 0 == dc_alloc_ongoing(context) {
-        return 0 as *mut libc::c_char;
+    if dc_alloc_ongoing(context) == 0 {
+        return std::ptr::null_mut();
     }
-    setup_code = to_cstring(dc_create_setup_code(context));
-    if !setup_code.is_null() {
-        /* this may require a keypair to be created. this may take a second ... */
-        if !context
-            .running_state
-            .clone()
-            .read()
-            .unwrap()
-            .shall_stop_ongoing
-        {
-            setup_file_content = dc_render_setup_file(context, setup_code);
-            if !setup_file_content.is_null() {
-                /* encrypting may also take a while ... */
-                if !context
-                    .running_state
-                    .clone()
-                    .read()
-                    .unwrap()
-                    .shall_stop_ongoing
-                {
-                    setup_file_name = dc_get_fine_pathNfilename(
+    let setup_code = dc_create_setup_code(context);
+    /* this may require a keypair to be created. this may take a second ... */
+    if !context
+        .running_state
+        .clone()
+        .read()
+        .unwrap()
+        .shall_stop_ongoing
+    {
+        if let Ok(setup_file_content) = dc_render_setup_file(context, &setup_code) {
+            let setup_file_content_c = CString::yolo(setup_file_content.as_str());
+            /* encrypting may also take a while ... */
+            if !context
+                .running_state
+                .clone()
+                .read()
+                .unwrap()
+                .shall_stop_ongoing
+            {
+                setup_file_name = dc_get_fine_pathNfilename(
+                    context,
+                    b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
+                    b"autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
+                );
+                if !(setup_file_name.is_null()
+                    || 0 == dc_write_file(
                         context,
-                        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-                        b"autocrypt-setup-message.html\x00" as *const u8 as *const libc::c_char,
-                    );
-                    if !(setup_file_name.is_null()
-                        || 0 == dc_write_file(
-                            context,
-                            setup_file_name,
-                            setup_file_content as *const libc::c_void,
-                            strlen(setup_file_content),
-                        ))
-                    {
-                        chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
-                        if !(chat_id == 0i32 as libc::c_uint) {
-                            msg = dc_msg_new_untyped(context);
-                            (*msg).type_0 = DC_MSG_FILE;
-                            (*msg).param.set(Param::File, as_str(setup_file_name));
+                        setup_file_name,
+                        setup_file_content_c.as_ptr() as *const libc::c_void,
+                        setup_file_content_c.as_bytes().len(),
+                    ))
+                {
+                    let chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
+                    if !(chat_id == 0i32 as libc::c_uint) {
+                        msg = dc_msg_new_untyped(context);
+                        (*msg).type_0 = Viewtype::File;
+                        (*msg).param.set(Param::File, as_str(setup_file_name));
 
-                            (*msg)
-                                .param
-                                .set(Param::MimeType, "application/autocrypt-setup");
-                            (*msg).param.set_int(Param::Cmd, 6);
-                            (*msg).param.set_int(Param::ForcePlaintext, 2);
+                        (*msg)
+                            .param
+                            .set(Param::MimeType, "application/autocrypt-setup");
+                        (*msg).param.set_int(Param::Cmd, 6);
+                        (*msg).param.set_int(Param::ForcePlaintext, 2);
 
-                            if !context
-                                .running_state
-                                .clone()
-                                .read()
-                                .unwrap()
-                                .shall_stop_ongoing
-                            {
-                                msg_id = dc_send_msg(context, chat_id, msg);
-                                if !(msg_id == 0i32 as libc::c_uint) {
+                        if !context
+                            .running_state
+                            .clone()
+                            .read()
+                            .unwrap()
+                            .shall_stop_ongoing
+                        {
+                            let msg_id = dc_send_msg(context, chat_id, msg);
+                            if msg_id != 0 {
+                                dc_msg_unref(msg);
+                                msg = 0 as *mut dc_msg_t;
+                                info!(context, 0, "Wait for setup message being sent ...",);
+                                loop {
+                                    if context
+                                        .running_state
+                                        .clone()
+                                        .read()
+                                        .unwrap()
+                                        .shall_stop_ongoing
+                                    {
+                                        break;
+                                    }
+                                    std::thread::sleep(std::time::Duration::from_secs(1));
+                                    msg = dc_get_msg(context, msg_id);
+                                    if 0 != dc_msg_is_sent(msg) {
+                                        info!(context, 0, "... setup message sent.",);
+                                        break;
+                                    }
                                     dc_msg_unref(msg);
-                                    msg = 0 as *mut dc_msg_t;
-                                    info!(context, 0, "Wait for setup message being sent ...",);
-                                    loop {
-                                        if context
-                                            .running_state
-                                            .clone()
-                                            .read()
-                                            .unwrap()
-                                            .shall_stop_ongoing
-                                        {
-                                            current_block = 6116957410927263949;
-                                            break;
-                                        }
-                                        std::thread::sleep(std::time::Duration::from_secs(1));
-                                        msg = dc_get_msg(context, msg_id);
-                                        if 0 != dc_msg_is_sent(msg) {
-                                            current_block = 6450636197030046351;
-                                            break;
-                                        }
-                                        dc_msg_unref(msg);
-                                        msg = 0 as *mut dc_msg_t
-                                    }
-                                    match current_block {
-                                        6116957410927263949 => {}
-                                        _ => {
-                                            info!(context, 0, "... setup message sent.",);
-                                            success = 1;
-                                        }
-                                    }
+                                    msg = 0 as *mut dc_msg_t
                                 }
                             }
                         }
@@ -201,88 +187,77 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
             }
         }
     }
-    if 0 == success {
-        free(setup_code as *mut libc::c_void);
-        setup_code = 0 as *mut libc::c_char
-    }
     free(setup_file_name as *mut libc::c_void);
-    free(setup_file_content as *mut libc::c_void);
     dc_msg_unref(msg);
     dc_free_ongoing(context);
 
-    setup_code
+    setup_code.strdup()
 }
 
-pub unsafe extern "C" fn dc_render_setup_file(
-    context: &Context,
-    passphrase: *const libc::c_char,
-) -> *mut libc::c_char {
-    let stmt: *mut sqlite3_stmt = 0 as *mut sqlite3_stmt;
-
-    let mut passphrase_begin: [libc::c_char; 8] = [0; 8];
-    let mut ret_setupfilecontent: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !(passphrase.is_null() || strlen(passphrase) < 2) {
-        strncpy(passphrase_begin.as_mut_ptr(), passphrase, 2);
-        passphrase_begin[2usize] = 0i32 as libc::c_char;
-        /* create the payload */
-        if !(0 == dc_ensure_secret_key_exists(context)) {
-            let self_addr = context
-                .sql
-                .get_config(context, "configured_addr")
-                .unwrap_or_default();
-            let curr_private_key = Key::from_self_private(context, self_addr, &context.sql);
-            let e2ee_enabled = context
-                .sql
-                .get_config_int(context, "e2ee_enabled")
-                .unwrap_or_else(|| 1);
-
-            let headers = if 0 != e2ee_enabled {
-                Some(("Autocrypt-Prefer-Encrypt", "mutual"))
-            } else {
-                None
-            };
-
-            if let Some(payload_key_asc) = curr_private_key.map(|k| k.to_asc_c(headers)) {
-                if let Some(encr) = dc_pgp_symm_encrypt(
-                    passphrase,
-                    payload_key_asc as *const libc::c_void,
-                    strlen(payload_key_asc),
-                ) {
-                    let encr_string_c = CString::new(encr).unwrap();
-                    let mut encr_string = strdup(encr_string_c.as_ptr());
-
-                    free(payload_key_asc as *mut libc::c_void);
-                    let  replacement: *mut libc::c_char =
-                        dc_mprintf(b"-----BEGIN PGP MESSAGE-----\r\nPassphrase-Format: numeric9x4\r\nPassphrase-Begin: %s\x00"
-                                       as *const u8 as *const libc::c_char,
-                                   passphrase_begin.as_mut_ptr());
-                    dc_str_replace(
-                        &mut encr_string,
-                        b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-                        replacement,
-                    );
-                    free(replacement as *mut libc::c_void);
-                    let setup_message_title =
-                        CString::new(context.stock_str(StockMessage::AcSetupMsgSubject).as_ref())
-                            .unwrap();
-                    let setup_message_body = context.stock_str(StockMessage::AcSetupMsgBody);
-                    let msg_body_head: &str = setup_message_body.split('\r').next().unwrap();
-                    let msg_body_html = CString::new(msg_body_head.replace("\n", "<br>")).unwrap();
-                    ret_setupfilecontent =
-                        dc_mprintf(b"<!DOCTYPE html>\r\n<html>\r\n<head>\r\n<title>%s</title>\r\n</head>\r\n<body>\r\n<h1>%s</h1>\r\n<p>%s</p>\r\n<pre>\r\n%s\r\n</pre>\r\n</body>\r\n</html>\r\n\x00"
-                                   as *const u8 as *const libc::c_char,
-                                   setup_message_title.as_ptr(),
-                                   setup_message_title.as_ptr(),
-                                   msg_body_html.as_ptr(),
-                                   encr_string);
-                    free(encr_string as *mut libc::c_void);
-                }
-            }
-        }
+pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<String> {
+    ensure!(
+        passphrase.len() >= 2,
+        "Passphrase must be at least 2 chars long."
+    );
+    unsafe {
+        ensure!(
+            !(dc_ensure_secret_key_exists(context) == 0),
+            "No secret key available."
+        );
     }
-    sqlite3_finalize(stmt);
+    let self_addr = context
+        .get_config(Config::ConfiguredAddr)
+        .ok_or(format_err!("Failed to get self address."))?;
+    let private_key = Key::from_self_private(context, self_addr, &context.sql)
+        .ok_or(format_err!("Failed to get private key."))?;
+    let ac_headers = match context
+        .sql
+        .get_config_int(context, Config::E2eeEnabled)
+        .unwrap_or(1)
+    {
+        0 => None,
+        _ => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
+    };
+    let private_key_asc = private_key.to_asc(ac_headers);
+    let encr = {
+        let private_key_asc_c = CString::yolo(private_key_asc);
+        let passphrase_c = CString::yolo(passphrase);
+        dc_pgp_symm_encrypt(
+            passphrase_c.as_ptr(),
+            private_key_asc_c.as_ptr() as *const libc::c_void,
+            private_key_asc_c.as_bytes().len(),
+        )
+        .ok_or(format_err!("Failed to encrypt private key."))?
+    };
+    let replacement = format!(
+        concat!(
+            "-----BEGIN PGP MESSAGE-----\r\n",
+            "Passphrase-Format: numeric9x4\r\n",
+            "Passphrase-Begin: {}"
+        ),
+        &passphrase[..2]
+    );
+    let pgp_msg = encr.replace("-----BEGIN PGP MESSAGE-----", &replacement);
 
-    ret_setupfilecontent
+    let msg_subj = context.stock_str(StockMessage::AcSetupMsgSubject);
+    let msg_body = context.stock_str(StockMessage::AcSetupMsgBody);
+    let msg_body_html = msg_body.replace("\r", "").replace("\n", "<br>");
+    Ok(format!(
+        concat!(
+            "<!DOCTYPE html>\r\n",
+            "<html>\r\n",
+            "  <head>\r\n",
+            "    <title>{}</title>\r\n",
+            "  </head>\r\n",
+            "  <body>\r\n",
+            "    <h1>{}</h1>\r\n",
+            "    <p>{}</p>\r\n",
+            "    <pre>\r\n{}\r\n</pre>\r\n",
+            "  </body>\r\n",
+            "</html>\r\n"
+        ),
+        msg_subj, msg_subj, msg_body_html, pgp_msg
+    ))
 }
 
 pub fn dc_create_setup_code(_context: &Context) -> String {
@@ -351,7 +326,7 @@ pub unsafe fn dc_continue_key_transfer(
                 armored_key = dc_decrypt_setup_file(context, norm_sc, filecontent);
                 if armored_key.is_null() {
                     warn!(context, 0, "Cannot decrypt Autocrypt Setup Message.",);
-                } else if !(0 == set_self_key(context, armored_key, 1i32)) {
+                } else if set_self_key(context, armored_key, 1) {
                     /*set default*/
                     /* error already logged */
                     success = 1i32
@@ -368,12 +343,11 @@ pub unsafe fn dc_continue_key_transfer(
     success
 }
 
-// TODO should return bool /rtn
 fn set_self_key(
     context: &Context,
     armored_c: *const libc::c_char,
     set_default: libc::c_int,
-) -> libc::c_int {
+) -> bool {
     assert!(!armored_c.is_null(), "invalid buffer");
     let armored = as_str(armored_c);
 
@@ -383,7 +357,7 @@ fn set_self_key(
 
     if keys.is_none() {
         error!(context, 0, "File does not contain a valid private key.",);
-        return 0;
+        return false;
     }
 
     let (private_key, public_key, header) = keys.unwrap();
@@ -397,7 +371,7 @@ fn set_self_key(
     )
     .is_err()
     {
-        return 0;
+        return false;
     }
 
     if 0 != set_default {
@@ -409,7 +383,7 @@ fn set_self_key(
         )
         .is_err()
         {
-            return 0;
+            return false;
         }
     } else {
         error!(context, 0, "File does not contain a private key.",);
@@ -419,7 +393,7 @@ fn set_self_key(
 
     if self_addr.is_none() {
         error!(context, 0, "Missing self addr");
-        return 0;
+        return false;
     }
 
     if !dc_key_save_self_keypair(
@@ -431,20 +405,20 @@ fn set_self_key(
         &context.sql,
     ) {
         error!(context, 0, "Cannot save keypair.");
-        return 0;
+        return false;
     }
 
     match preferencrypt.map(|s| s.as_str()) {
-        Some("") => 0,
+        Some("") => false,
         Some("nopreference") => context
             .sql
             .set_config_int(context, "e2ee_enabled", 0)
-            .is_ok() as libc::c_int,
+            .is_ok(),
         Some("mutual") => context
             .sql
             .set_config_int(context, "e2ee_enabled", 1)
-            .is_ok() as libc::c_int,
-        _ => 1,
+            .is_ok(),
+        _ => true,
     }
 }
 
@@ -462,20 +436,18 @@ pub unsafe fn dc_decrypt_setup_file(
 
     let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
     fc_buf = dc_strdup(filecontent);
-    if !(0
-        == dc_split_armored_data(
-            fc_buf,
-            &mut fc_headerline,
-            0 as *mut *const libc::c_char,
-            0 as *mut *const libc::c_char,
-            &mut fc_base64,
-        )
-        || fc_headerline.is_null()
-        || strcmp(
+    if dc_split_armored_data(
+        fc_buf,
+        &mut fc_headerline,
+        0 as *mut *const libc::c_char,
+        0 as *mut *const libc::c_char,
+        &mut fc_base64,
+    ) && !fc_headerline.is_null()
+        && strcmp(
             fc_headerline,
             b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
-        ) != 0i32
-        || fc_base64.is_null())
+        ) == 0
+        && !fc_base64.is_null()
     {
         /* convert base64 to binary */
         /*must be freed using mmap_string_unref()*/
@@ -536,7 +508,7 @@ pub unsafe fn dc_normalize_setup_code(
         p1 = p1.offset(1);
     }
 
-    to_cstring(out)
+    out.strdup()
 }
 
 #[allow(non_snake_case)]
@@ -545,16 +517,14 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
     let mut success: libc::c_int = 0;
     let mut ongoing_allocated_here: libc::c_int = 0;
     let what: libc::c_int;
-    let mut param1 = 0 as *mut libc::c_char;
-    let mut param2 = 0 as *mut libc::c_char;
 
     if !(0 == dc_alloc_ongoing(context)) {
         ongoing_allocated_here = 1;
         what = (*job).param.get_int(Param::Cmd).unwrap_or_default();
-        param1 = to_cstring((*job).param.get(Param::Arg).unwrap_or_default());
-        param2 = to_cstring((*job).param.get(Param::Arg2).unwrap_or_default());
+        let param1 = CString::yolo((*job).param.get(Param::Arg).unwrap_or_default());
+        let _param2 = CString::yolo((*job).param.get(Param::Arg2).unwrap_or_default());
 
-        if strlen(param1) == 0 {
+        if strlen(param1.as_ptr()) == 0 {
             error!(context, 0, "No Import/export dir/file given.",);
         } else {
             info!(context, 0, "Import/export process started.",);
@@ -572,7 +542,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                         );
                         current_block = 3568988166330621280;
                     } else {
-                        dc_create_folder(context, param1);
+                        dc_create_folder(context, param1.as_ptr());
                         current_block = 4495394744059808450;
                     }
                 } else {
@@ -585,28 +555,28 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             current_block = 10991094515395304355;
                             match current_block {
                                 2973387206439775448 => {
-                                    if 0 == import_backup(context, param1) {
+                                    if 0 == import_backup(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 11250025114629486028 => {
-                                    if 0 == import_self_keys(context, param1) {
+                                    if 0 == import_self_keys(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 12669919903773909120 => {
-                                    if 0 == export_backup(context, param1) {
+                                    if 0 == export_backup(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 _ => {
-                                    if 0 == export_self_keys(context, param1) {
+                                    if 0 == export_self_keys(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
@@ -625,28 +595,28 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             current_block = 11250025114629486028;
                             match current_block {
                                 2973387206439775448 => {
-                                    if 0 == import_backup(context, param1) {
+                                    if 0 == import_backup(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 11250025114629486028 => {
-                                    if 0 == import_self_keys(context, param1) {
+                                    if 0 == import_self_keys(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 12669919903773909120 => {
-                                    if 0 == export_backup(context, param1) {
+                                    if 0 == export_backup(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 _ => {
-                                    if 0 == export_self_keys(context, param1) {
+                                    if 0 == export_self_keys(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
@@ -665,28 +635,28 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             current_block = 12669919903773909120;
                             match current_block {
                                 2973387206439775448 => {
-                                    if 0 == import_backup(context, param1) {
+                                    if 0 == import_backup(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 11250025114629486028 => {
-                                    if 0 == import_self_keys(context, param1) {
+                                    if 0 == import_self_keys(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 12669919903773909120 => {
-                                    if 0 == export_backup(context, param1) {
+                                    if 0 == export_backup(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 _ => {
-                                    if 0 == export_self_keys(context, param1) {
+                                    if 0 == export_self_keys(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
@@ -705,28 +675,28 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                             current_block = 2973387206439775448;
                             match current_block {
                                 2973387206439775448 => {
-                                    if 0 == import_backup(context, param1) {
+                                    if 0 == import_backup(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 11250025114629486028 => {
-                                    if 0 == import_self_keys(context, param1) {
+                                    if 0 == import_self_keys(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 12669919903773909120 => {
-                                    if 0 == export_backup(context, param1) {
+                                    if 0 == export_backup(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
                                     }
                                 }
                                 _ => {
-                                    if 0 == export_self_keys(context, param1) {
+                                    if 0 == export_self_keys(context, param1.as_ptr()) {
                                         current_block = 3568988166330621280;
                                     } else {
                                         current_block = 1118134448028020070;
@@ -748,8 +718,6 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
         }
     }
 
-    free(param1 as *mut libc::c_void);
-    free(param2 as *mut libc::c_void);
     if 0 != ongoing_allocated_here {
         dc_free_ongoing(context);
     }
@@ -896,9 +864,8 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     let res = chrono::NaiveDateTime::from_timestamp(now as i64, 0)
         .format("delta-chat-%Y-%m-%d.bak")
         .to_string();
-    let buffer = to_cstring(res);
-    let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer);
-    free(buffer as *mut _);
+    let buffer = CString::yolo(res);
+    let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
     if dest_pathNfilename.is_null() {
         error!(context, 0, "Cannot get backup file name.",);
 
@@ -1097,7 +1064,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     let mut imported_cnt: libc::c_int = 0;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut name_c: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut set_default: libc::c_int;
     let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf_bytes: size_t = 0 as size_t;
@@ -1125,9 +1091,8 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 let entry = entry.unwrap();
                 free(suffix as *mut libc::c_void);
                 let name_f = entry.file_name();
-                free(name_c as *mut libc::c_void);
-                name_c = to_cstring(name_f.to_string_lossy());
-                suffix = dc_get_filesuffix_lc(name_c);
+                let name_c = name_f.to_c_string().unwrap();
+                suffix = dc_get_filesuffix_lc(name_c.as_ptr());
                 if suffix.is_null()
                     || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0
                 {
@@ -1137,7 +1102,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 path_plus_name = dc_mprintf(
                     b"%s/%s\x00" as *const u8 as *const libc::c_char,
                     dir_name,
-                    name_c,
+                    name_c.as_ptr(),
                 );
                 info!(context, 0, "Checking: {}", as_str(path_plus_name));
                 free(buf as *mut libc::c_void);
@@ -1154,7 +1119,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 private_key = buf;
                 free(buf2 as *mut libc::c_void);
                 buf2 = dc_strdup(buf);
-                if 0 != dc_split_armored_data(
+                if dc_split_armored_data(
                     buf2,
                     &mut buf2_headerline,
                     0 as *mut *const libc::c_char,
@@ -1175,7 +1140,12 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     }
                 }
                 set_default = 1;
-                if !strstr(name_c, b"legacy\x00" as *const u8 as *const libc::c_char).is_null() {
+                if !strstr(
+                    name_c.as_ptr(),
+                    b"legacy\x00" as *const u8 as *const libc::c_char,
+                )
+                .is_null()
+                {
                     info!(
                         context,
                         0,
@@ -1184,7 +1154,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     );
                     set_default = 0i32
                 }
-                if 0 == set_self_key(context, private_key, set_default) {
+                if !set_self_key(context, private_key, set_default) {
                     continue;
                 }
                 imported_cnt += 1
@@ -1200,7 +1170,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
         }
     }
 
-    free(name_c as *mut libc::c_void);
     free(suffix as *mut libc::c_void);
     free(path_plus_name as *mut libc::c_void);
     free(buf as *mut libc::c_void);
@@ -1309,4 +1278,202 @@ unsafe fn export_key_to_asc_file(
     free(file_name as *mut libc::c_void);
 
     success
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use std::ffi::CStr;
+
+    use num_traits::ToPrimitive;
+
+    use crate::config::Config;
+    use crate::key;
+    use crate::test_utils::*;
+
+    unsafe extern "C" fn logging_cb(
+        _ctx: &Context,
+        evt: Event,
+        _d1: uintptr_t,
+        d2: uintptr_t,
+    ) -> uintptr_t {
+        let to_str = |x| CStr::from_ptr(x as *const libc::c_char).to_str().unwrap();
+        match evt {
+            Event::INFO => println!("I: {}", to_str(d2)),
+            Event::WARNING => println!("W: {}", to_str(d2)),
+            Event::ERROR => println!("E: {}", to_str(d2)),
+            _ => (),
+        }
+        0
+    }
+
+    /// Create Alice with a pre-generated keypair.
+    fn create_alice_keypair(ctx: &Context) {
+        ctx.set_config(Config::ConfiguredAddr, Some("alice@example.org"))
+            .unwrap();
+
+        // The keypair was created using:
+        //   let (public, private) = crate::pgp::dc_pgp_create_keypair("alice@example.com")
+        //       .unwrap();
+        //   println!("{}", public.to_base64(64));
+        //   println!("{}", private.to_base64(64));
+        let public = key::Key::from_base64(
+            concat!(
+                "xsBNBF086ewBCACmJKuoxIO6T87yi4Q3MyNpMch3Y8KrtHDQyUszU36eqM3Pmd1l",
+                "FrbcCd8ZWo2pq6OJSwsM/jjRGn1zo2YOaQeJRRrC+KrKGqSUtRSYQBPrPjE2YjSX",
+                "AMbu8jBI6VVUhHeghriBkK79PY9O/oRhIJC0p14IJe6CQ6OI2fTmTUHF9i/nJ3G4",
+                "Wb3/K1bU3yVfyPZjTZQPYPvvh03vxHULKurtYkX5DTEMSWsF4qzLMps+l87VuLV9",
+                "iQnbN7YMRLHHx2KkX5Ivi7JCefhCa54M0K3bDCCxuVWAM5wjQwNZjzR+WL+dYchw",
+                "oFvuF8NrlzjM9dSv+2rn+J7f99ijSXarzPC7ABEBAAHNEzxhbGljZUBleGFtcGxl",
+                "LmNvbT7CwIkEEAEIADMCGQEFAl086fgCGwMECwkIBwYVCAkKCwIDFgIBFiEE+iai",
+                "x4d0doj87Q0ek6DcNkbrcegACgkQk6DcNkbrcei3ogf/cruUmQ+th52TFHTHdkw9",
+                "OHUl3MrXtZ7QmHyOAFvbXE/6n5Eeh+eZoF8MWWV72m14Wbs+vTcNQkFVTdOPptkK",
+                "A8e4cJqwDOHsyAnvQXZ7WNje9+BMzcoipIUawHP4ORFaPDsKLZQ0b4wBbKn8ziea",
+                "6zjGF0/qljTdoxTtsYpv5wXYuhwbYklrLOqgSa5M7LXUe7E3g9mbg+9iX1GuB8m6",
+                "GkquJN814Y+xny4xhZzGOfue6SeP12jJMNSjSP7416dRq7794VGnkkW9V/7oFEUK",
+                "u5wO9FFbgDySOSlEjByGejSGuBmho0iJSjcPjZ7EY/j3M3orq4dpza5C82OeSvxD",
+                "Fc7ATQRdPOnsAQgA5oLxXRLnyugzOmNCy7dxV3JrDZscA6JNlJlDWIShT0YSs+zG",
+                "9JzDeQql+sYXgUSxOoIayItuXtnFn7tstwGoOnYvadm/e5/7V5fKAQRtCtdN51av",
+                "62n18Venlm0yNKpROPcZ6M/sc4m6uU6YRZ/a1idal8VGY0wLKlghjIBuIiBoVQ/R",
+                "noW+/fhmwIg08dQ5m8hQe3GEOZEeLrTWL/9awPlXK7Y+DmJOoR4qbHWEcRfbzS6q",
+                "4zW8vk2ztB8ngwbnqYy8zrN1DCICN1gYdlU++uVw6Bb1XfY8Cdldh1VLKpF35mAm",
+                "jxLZfVDcoObFH3Cv2GB7BEYxv86KC2Y6T74Q/wARAQABwsB2BBgBCAAgBQJdPOn4",
+                "AhsMFiEE+iaix4d0doj87Q0ek6DcNkbrcegACgkQk6DcNkbrcegLxwf/dXshJnoW",
+                "qEnRsf6rVb9/Mc66ti+NVQLfNd275dybh/QIJdK3NmSxdnTPIEJRVspJywJoupwX",
+                "FNrnHG2Ff6QPvHqI+/oNu986r9d7Z1oQibbLHKt8t6kpOfg/xGxotagJuiCQvR9m",
+                "MjD1DqsdB37SjDxGupZOOJSXWi6KX60IE+uM+QOBfeOZziQwuFmA5wV6RDXIeYJf",
+                "qrcbeXeR1d0nfNpPHQR1gBiqmxNb6KBbdXD2+EXW60axC7D2b1APmzMlammDliPw",
+                "sK9U1rc9nuquEBvGDOJf4K+Dzn+mDCqRpP6uAuQ7RKHyim4uyN0wwKObzPqgJCGw",
+                "jTglkixw+aSTXw=="
+            ),
+            KeyType::Public,
+        )
+        .unwrap();
+        let private = key::Key::from_base64(
+            concat!(
+                "xcLYBF086ewBCACmJKuoxIO6T87yi4Q3MyNpMch3Y8KrtHDQyUszU36eqM3Pmd1l",
+                "FrbcCd8ZWo2pq6OJSwsM/jjRGn1zo2YOaQeJRRrC+KrKGqSUtRSYQBPrPjE2YjSX",
+                "AMbu8jBI6VVUhHeghriBkK79PY9O/oRhIJC0p14IJe6CQ6OI2fTmTUHF9i/nJ3G4",
+                "Wb3/K1bU3yVfyPZjTZQPYPvvh03vxHULKurtYkX5DTEMSWsF4qzLMps+l87VuLV9",
+                "iQnbN7YMRLHHx2KkX5Ivi7JCefhCa54M0K3bDCCxuVWAM5wjQwNZjzR+WL+dYchw",
+                "oFvuF8NrlzjM9dSv+2rn+J7f99ijSXarzPC7ABEBAAEACAChqzVOuErmVRqvcYtq",
+                "m1xt1H+ZjX20z5Sn1fhTLYAcq236AWMqJvwxCXoKlc8bt2UfB+Ls9cQb1YcVq353",
+                "r0QiExiDeK3YlCxqd/peXJwFYTNKFC3QcnUhtpG9oS/jWjN+BRotGbjtu6Vj3M68",
+                "JJAq+mHJ0/9OyrqrREvGfo7uLZt7iMGemDlrDakvrbIyZrPLgay+nZ3dEFKeOQ6F",
+                "FrU05jyUVdoHBy0Tqx/6VpFUX9+IHcMHL2lTJB0nynBj+XZ/G4aX3WYoo3YlixHb",
+                "Iu35fGFA0TChoGaGPzqcI/kg2Z+b/BryG9NM3LA2cO8iGrGXAE1nPFp91jmCrQ3V",
+                "WushBADERP+uojjjfdO5J+RkmcFe9mFYDdtkhN+kV+LdePjiNNtcXMBhasstio0S",
+                "ut0GKnE7DFRhX7mkN9w2apJ2ooeFeVVWot18eSdp6Rzh6/1Z7TmhYFJ3oUxxLbnQ",
+                "sWIXIec1SzqWBFJUCn3IP0mCnJktFg/uGW6yLs01r5ds52uSBQQA2LSWiTwk9tEm",
+                "dr9mz3tHnmrkyGiyKhKGM1Z7Rch63D5yQc1s4kUMBlyuLL2QtM/e4dtaz2JAkO8k",
+                "QrYCnNgJ+2roTAK3kDZgYtymjdvK3HpQNtjVo7dds5RJVb6U618phZwU5WNFAEJW",
+                "yyImmycGfjLv+18cW/3mq0QVZejkM78D/2kHaIeJAowtBOFY2zDrKyDRoBHaUSgj",
+                "5BjGoviRC5rYihWDEyYDQ6mBJQstAD0Ty3MYzyUxl6ruB/BMWnMDFq5+TqtdBzu3",
+                "jCtZ8OEyH8A5Kdo68Wzo/PGxzMtusOdNj9+3PBmSq4yibJxbLSrn59aVUYpGLjeG",
+                "Kyvm9OTKkrOGN27NEzxhbGljZUBleGFtcGxlLmNvbT7CwIkEEAEIADMCGQEFAl08",
+                "6fgCGwMECwkIBwYVCAkKCwIDFgIBFiEE+iaix4d0doj87Q0ek6DcNkbrcegACgkQ",
+                "k6DcNkbrcei3ogf/cruUmQ+th52TFHTHdkw9OHUl3MrXtZ7QmHyOAFvbXE/6n5Ee",
+                "h+eZoF8MWWV72m14Wbs+vTcNQkFVTdOPptkKA8e4cJqwDOHsyAnvQXZ7WNje9+BM",
+                "zcoipIUawHP4ORFaPDsKLZQ0b4wBbKn8ziea6zjGF0/qljTdoxTtsYpv5wXYuhwb",
+                "YklrLOqgSa5M7LXUe7E3g9mbg+9iX1GuB8m6GkquJN814Y+xny4xhZzGOfue6SeP",
+                "12jJMNSjSP7416dRq7794VGnkkW9V/7oFEUKu5wO9FFbgDySOSlEjByGejSGuBmh",
+                "o0iJSjcPjZ7EY/j3M3orq4dpza5C82OeSvxDFcfC2ARdPOnsAQgA5oLxXRLnyugz",
+                "OmNCy7dxV3JrDZscA6JNlJlDWIShT0YSs+zG9JzDeQql+sYXgUSxOoIayItuXtnF",
+                "n7tstwGoOnYvadm/e5/7V5fKAQRtCtdN51av62n18Venlm0yNKpROPcZ6M/sc4m6",
+                "uU6YRZ/a1idal8VGY0wLKlghjIBuIiBoVQ/RnoW+/fhmwIg08dQ5m8hQe3GEOZEe",
+                "LrTWL/9awPlXK7Y+DmJOoR4qbHWEcRfbzS6q4zW8vk2ztB8ngwbnqYy8zrN1DCIC",
+                "N1gYdlU++uVw6Bb1XfY8Cdldh1VLKpF35mAmjxLZfVDcoObFH3Cv2GB7BEYxv86K",
+                "C2Y6T74Q/wARAQABAAgAhSvFEYZoj1sSrXrHDjZOrryViGjCCH9t3pmkxLDrGIdd",
+                "KsFyN8ORUo6KUZS745yx3yFnI9EZ1IZvm9aF+jxk2lGJFtgLvfoxFOvGckwCSy8T",
+                "/MCiJZkz01hWo5s2VCLJheWL/GqTKjS5wXDcm+y8Wtilh+UawycdlDsSNr/D4MZL",
+                "j3Chq9K03l5UIR8DcC7SavNi55R2oGOfboXsdvwOlrNZdCkZOlXDI4ZKFwbDHCtp",
+                "Do5FS30hnJi2TecUPZWB1CaGFWnevINd4ikugVjcAoZj/QAIvfrOCgqisF/Ylg9u",
+                "RMUPBapmcJUueILwd0iQqvGG0aCqtchvSmlg15/lQQQA9G1NNjNAH+NQrXvDJFJe",
+                "/V1U3F3pz7jCjQa69c0dxSBUeNX1pG8XXD6tSkkd4Ni1mzZGcZXOmVUM6cA9I7RH",
+                "95RqV+QIfnXVneCRrlCjV8m6OBlkivkESXc3nW5wtCIfw7oKg9w1xuVNUaAlbCt9",
+                "QVLaxXJiY7ad0f5U9XJ1+w8EAPFs+M/+GZK1wOZYBL1vo7x0gL9ZggmjC4B+viBJ",
+                "8Q60mqTrphYFsbXHuwKV0g9aIoZMucKyEE0QLR7imttiLEz1nD8bfEScbGy9ZG//",
+                "wRfyJmCVAjA0pQ6LtB93d70PSVzzJrMHgbLKrDuSd6RChl7n9BIEdVyk7LEph0Yg",
+                "9UsRBADm6DvpKL+P3lQ0eLTfAgcQTOqLZDYmI3PvqqSkHb1kHChqOXXs8hGOSSwK",
+                "Gjcd4CZeNOGWR42rZyRhVgtkt6iYviIaVAWUfme6K+sLQBCeyMlmEGtykAA+LmPB",
+                "f4zdyUNADfoxgZF3EKHf6I3nlVn5cdT+o/9vjdY2XAOwcls1RzaFwsB2BBgBCAAg",
+                "BQJdPOn4AhsMFiEE+iaix4d0doj87Q0ek6DcNkbrcegACgkQk6DcNkbrcegLxwf/",
+                "dXshJnoWqEnRsf6rVb9/Mc66ti+NVQLfNd275dybh/QIJdK3NmSxdnTPIEJRVspJ",
+                "ywJoupwXFNrnHG2Ff6QPvHqI+/oNu986r9d7Z1oQibbLHKt8t6kpOfg/xGxotagJ",
+                "uiCQvR9mMjD1DqsdB37SjDxGupZOOJSXWi6KX60IE+uM+QOBfeOZziQwuFmA5wV6",
+                "RDXIeYJfqrcbeXeR1d0nfNpPHQR1gBiqmxNb6KBbdXD2+EXW60axC7D2b1APmzMl",
+                "ammDliPwsK9U1rc9nuquEBvGDOJf4K+Dzn+mDCqRpP6uAuQ7RKHyim4uyN0wwKOb",
+                "zPqgJCGwjTglkixw+aSTXw=="
+            ),
+            KeyType::Private,
+        )
+        .unwrap();
+        let saved = key::dc_key_save_self_keypair(
+            &ctx,
+            &public,
+            &private,
+            "alice@example.org",
+            1,
+            &ctx.sql,
+        );
+        assert_eq!(saved, true, "Failed to save Alice's key");
+    }
+
+    #[test]
+    fn test_render_setup_file() {
+        let t = test_context(Some(logging_cb));
+
+        create_alice_keypair(&t.ctx); // Trick things to think we're configured.
+        let msg = dc_render_setup_file(&t.ctx, "hello").unwrap();
+        println!("{}", &msg);
+        // Check some substrings, indicating things got substituted.
+        // In particular note the mixing of `\r\n` and `\n` depending
+        // on who generated the stings.
+        assert!(msg.contains("<title>Autocrypt Setup Message</title"));
+        assert!(msg.contains("<h1>Autocrypt Setup Message</h1>"));
+        assert!(msg.contains("<p>This is the Autocrypt Setup Message used to"));
+        assert!(msg.contains("-----BEGIN PGP MESSAGE-----\r\n"));
+        assert!(msg.contains("Passphrase-Format: numeric9x4\r\n"));
+        assert!(msg.contains("Passphrase-Begin: he\n"));
+        assert!(msg.contains("==\n"));
+        assert!(msg.contains("-----END PGP MESSAGE-----\n"));
+    }
+
+    unsafe extern "C" fn ac_setup_msg_cb(
+        ctx: &Context,
+        evt: Event,
+        d1: uintptr_t,
+        d2: uintptr_t,
+    ) -> uintptr_t {
+        if evt == Event::GET_STRING && d1 == StockMessage::AcSetupMsgBody.to_usize().unwrap() {
+            "hello\r\nthere".strdup() as usize
+        } else {
+            logging_cb(ctx, evt, d1, d2)
+        }
+    }
+
+    #[test]
+    fn test_render_setup_file_newline_replace() {
+        let t = test_context(Some(ac_setup_msg_cb));
+        create_alice_keypair(&t.ctx);
+        let msg = dc_render_setup_file(&t.ctx, "pw").unwrap();
+        println!("{}", &msg);
+        assert!(msg.contains("<p>hello<br>there</p>"));
+    }
+
+    #[test]
+    fn test_create_setup_code() {
+        let t = dummy_context();
+        let setupcode = dc_create_setup_code(&t.ctx);
+        assert_eq!(setupcode.len(), 44);
+        assert_eq!(setupcode.chars().nth(4).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(9).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(14).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(19).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(24).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(29).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(34).unwrap(), '-');
+        assert_eq!(setupcode.chars().nth(39).unwrap(), '-');
+    }
 }

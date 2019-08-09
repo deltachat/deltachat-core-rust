@@ -1,9 +1,9 @@
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use crate::constants::*;
+use crate::contact::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_jobthread::*;
 use crate::dc_loginparam::*;
@@ -27,15 +27,15 @@ pub struct Context {
     pub blobdir: Arc<RwLock<*mut libc::c_char>>,
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
-    pub perform_inbox_jobs_needed: Arc<RwLock<i32>>,
-    pub probe_imap_network: Arc<RwLock<i32>>,
+    pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
+    pub probe_imap_network: Arc<RwLock<bool>>,
     pub sentbox_thread: Arc<RwLock<dc_jobthread_t>>,
     pub mvbox_thread: Arc<RwLock<dc_jobthread_t>>,
     pub smtp: Arc<Mutex<Smtp>>,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
     pub cb: Option<dc_callback_t>,
-    pub os_name: *mut libc::c_char,
+    pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
     pub bob: Arc<RwLock<BobStatus>>,
     pub last_smeared_timestamp: Arc<RwLock<i64>>,
@@ -106,17 +106,17 @@ impl Default for BobStatus {
 #[derive(Default, Debug)]
 pub struct SmtpState {
     pub idle: bool,
-    pub suspended: i32,
-    pub doing_jobs: i32,
+    pub suspended: bool,
+    pub doing_jobs: bool,
     pub perform_jobs_needed: i32,
-    pub probe_network: i32,
+    pub probe_network: bool,
 }
 
 // create/open/config/information
 pub fn dc_context_new(
     cb: Option<dc_callback_t>,
     userdata: *mut libc::c_void,
-    os_name: *const libc::c_char,
+    os_name: Option<String>,
 ) -> Context {
     Context {
         blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
@@ -131,7 +131,7 @@ pub fn dc_context_new(
         })),
         userdata,
         cb,
-        os_name: unsafe { dc_strdup_keep_null(os_name) },
+        os_name: os_name,
         running_state: Arc::new(RwLock::new(Default::default())),
         sql: Sql::new(),
         smtp: Arc::new(Mutex::new(Smtp::new())),
@@ -160,8 +160,18 @@ pub fn dc_context_new(
                 cb_receive_imf,
             ),
         ))),
-        probe_imap_network: Arc::new(RwLock::new(0)),
-        perform_inbox_jobs_needed: Arc::new(RwLock::new(0)),
+        probe_imap_network: Arc::new(RwLock::new(false)),
+        perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn no_crashes_on_context_deref() {
+        let mut ctx = dc_context_new(None, std::ptr::null_mut(), Some("Test OS".into()));
+        unsafe { dc_context_unref(&mut ctx) };
     }
 }
 
@@ -233,13 +243,8 @@ unsafe fn cb_precheck_imf(
     return rfc724_mid_exists;
 }
 
-unsafe fn cb_set_config(context: &Context, key: *const libc::c_char, value: *const libc::c_char) {
-    let v = if value.is_null() {
-        None
-    } else {
-        Some(as_str(value))
-    };
-    context.sql.set_config(context, as_str(key), v).ok();
+fn cb_set_config(context: &Context, key: &str, value: Option<&str>) {
+    context.sql.set_config(context, key, value).ok();
 }
 
 /* *
@@ -249,24 +254,14 @@ unsafe fn cb_set_config(context: &Context, key: *const libc::c_char, value: *con
  *
  * @private @memberof Context
  */
-unsafe fn cb_get_config(
-    context: &Context,
-    key: *const libc::c_char,
-    def: *const libc::c_char,
-) -> *mut libc::c_char {
-    let res = context
-        .sql
-        .get_config(context, as_str(key))
-        .unwrap_or_else(|| to_string(def));
-    to_cstring(res)
+fn cb_get_config(context: &Context, key: &str) -> Option<String> {
+    context.sql.get_config(context, key)
 }
 
 pub unsafe fn dc_context_unref(context: &mut Context) {
     if 0 != dc_is_open(context) {
         dc_close(context);
     }
-
-    free(context.os_name as *mut libc::c_void);
 }
 
 pub unsafe fn dc_close(context: &Context) {
@@ -310,32 +305,26 @@ pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
     context.userdata as *mut _
 }
 
-pub unsafe fn dc_open(
-    context: &Context,
-    dbfile: *const libc::c_char,
-    blobdir: *const libc::c_char,
-) -> libc::c_int {
-    let mut success = 0;
+pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) -> bool {
+    let mut success = false;
     if 0 != dc_is_open(context) {
-        return 0;
+        return false;
     }
-    if !dbfile.is_null() {
-        *context.dbfile.write().unwrap() = dc_strdup(dbfile);
-        if !blobdir.is_null() && 0 != *blobdir.offset(0isize) as libc::c_int {
-            let dir = dc_strdup(blobdir);
-            dc_ensure_no_slash(dir);
-            *context.blobdir.write().unwrap() = dir;
-        } else {
-            let dir = dc_mprintf(b"%s-blobs\x00" as *const u8 as *const libc::c_char, dbfile);
-            dc_create_folder(context, dir);
-            *context.blobdir.write().unwrap() = dir;
-        }
-        // Create/open sqlite database, this may already use the blobdir
-        if context.sql.open(context, as_path(dbfile), 0) {
-            success = 1i32
-        }
+    *context.dbfile.write().unwrap() = dbfile.strdup();
+    if blobdir.is_some() && blobdir.unwrap().len() > 0 {
+        let dir = dc_ensure_no_slash_safe(blobdir.unwrap()).strdup();
+        *context.blobdir.write().unwrap() = dir;
+    } else {
+        let dir = (dbfile.to_string() + "-blobs").strdup();
+        dc_create_folder(context, dir);
+        *context.blobdir.write().unwrap() = dir;
     }
-    if 0 == success {
+    // Create/open sqlite database, this may already use the blobdir
+    let dbfile_path = std::path::Path::new(dbfile);
+    if context.sql.open(context, dbfile_path, 0) {
+        success = true
+    }
+    if !success {
         dc_close(context);
     }
     success
@@ -357,7 +346,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let chats = dc_get_chat_cnt(context) as usize;
     let real_msgs = dc_get_real_msg_cnt(context) as usize;
     let deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as usize;
-    let contacts = dc_get_real_contact_cnt(context) as usize;
+    let contacts = Contact::get_real_cnt(context) as usize;
     let is_configured = context
         .sql
         .get_config_int(context, "configured")
@@ -494,7 +483,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         fingerprint_str,
     );
 
-    to_cstring(res)
+    res.strdup()
 }
 
 pub unsafe fn dc_get_version_str() -> *mut libc::c_char {

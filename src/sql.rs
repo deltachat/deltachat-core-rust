@@ -10,7 +10,6 @@ use crate::dc_tools::*;
 use crate::error::{Error, Result};
 use crate::param::*;
 use crate::peerstate::*;
-use crate::x::*;
 
 const DC_OPEN_READONLY: usize = 0x01;
 
@@ -1007,35 +1006,15 @@ pub fn housekeeping(context: &Context) {
                 }
                 let entry = entry.unwrap();
                 let name_f = entry.file_name();
-                let name_c = unsafe { to_cstring(name_f.to_string_lossy()) };
+                let name_s = name_f.to_string_lossy();
 
-                if unsafe { is_file_in_use(&mut files_in_use, 0 as *const libc::c_char, name_c) }
-                    || unsafe {
-                        is_file_in_use(
-                            &mut files_in_use,
-                            b".increation\x00" as *const u8 as *const libc::c_char,
-                            name_c,
-                        )
-                    }
-                    || unsafe {
-                        is_file_in_use(
-                            &mut files_in_use,
-                            b".waveform\x00" as *const u8 as *const libc::c_char,
-                            name_c,
-                        )
-                    }
-                    || unsafe {
-                        is_file_in_use(
-                            &mut files_in_use,
-                            b"-preview.jpg\x00" as *const u8 as *const libc::c_char,
-                            name_c,
-                        )
-                    }
+                if is_file_in_use(&mut files_in_use, None, &name_s)
+                    || is_file_in_use(&mut files_in_use, Some(".increation"), &name_s)
+                    || is_file_in_use(&mut files_in_use, Some(".waveform"), &name_s)
+                    || is_file_in_use(&mut files_in_use, Some("-preview.jpg"), &name_s)
                 {
-                    unsafe { free(name_c as *mut _) };
                     continue;
                 }
-                unsafe { free(name_c as *mut _) };
 
                 unreferenced_count += 1;
 
@@ -1068,11 +1047,8 @@ pub fn housekeeping(context: &Context) {
                     unreferenced_count,
                     entry.file_name()
                 );
-                unsafe {
-                    let path = to_cstring(entry.path().to_str().unwrap());
-                    dc_delete_file(context, path);
-                    free(path as *mut _);
-                }
+                let path = entry.path().to_c_string().unwrap();
+                dc_delete_file(context, path.as_ptr());
             }
         }
         Err(err) => {
@@ -1089,26 +1065,18 @@ pub fn housekeeping(context: &Context) {
     info!(context, 0, "Housekeeping done.",);
 }
 
-unsafe fn is_file_in_use(
-    files_in_use: &HashSet<String>,
-    namespc: *const libc::c_char,
-    name: *const libc::c_char,
-) -> bool {
-    let name_to_check = dc_strdup(name);
-    if !namespc.is_null() {
-        let name_len: libc::c_int = strlen(name) as libc::c_int;
-        let namespc_len: libc::c_int = strlen(namespc) as libc::c_int;
-        if name_len <= namespc_len
-            || strcmp(&*name.offset((name_len - namespc_len) as isize), namespc) != 0
-        {
+fn is_file_in_use(files_in_use: &HashSet<String>, namespc_opt: Option<&str>, name: &str) -> bool {
+    let name_to_check = if let Some(namespc) = namespc_opt {
+        let name_len = name.len();
+        let namespc_len = namespc.len();
+        if name_len <= namespc_len || !name.ends_with(namespc) {
             return false;
         }
-        *name_to_check.offset((name_len - namespc_len) as isize) = 0 as libc::c_char
-    }
-
-    let contains = files_in_use.contains(as_str(name_to_check));
-    free(name_to_check as *mut libc::c_void);
-    contains
+        &name[..name_len - namespc_len]
+    } else {
+        name
+    };
+    files_in_use.contains(name_to_check)
 }
 
 fn maybe_add_file(files_in_use: &mut HashSet<String>, file: impl AsRef<str>) {
@@ -1162,26 +1130,12 @@ mod test {
         maybe_add_file(&mut files, "$BLOBDIR/world.txt");
         maybe_add_file(&mut files, "world2.txt");
 
-        assert!(unsafe {
-            is_file_in_use(
-                &mut files,
-                std::ptr::null(),
-                b"hello\x00" as *const u8 as *const _,
-            )
-        });
-        assert!(!unsafe {
-            is_file_in_use(
-                &mut files,
-                b".txt\x00" as *const u8 as *const _,
-                b"hello\x00" as *const u8 as *const _,
-            )
-        });
-        assert!(unsafe {
-            is_file_in_use(
-                &mut files,
-                b"-suffix\x00" as *const u8 as *const _,
-                b"world.txt-suffix\x00" as *const u8 as *const _,
-            )
-        });
+        assert!(is_file_in_use(&mut files, None, "hello"));
+        assert!(!is_file_in_use(&mut files, Some(".txt"), "hello"));
+        assert!(is_file_in_use(
+            &mut files,
+            Some("-suffix"),
+            "world.txt-suffix"
+        ));
     }
 }

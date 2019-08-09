@@ -7,8 +7,6 @@ use tempfile::{tempdir, TempDir};
 use crate::context::{dc_context_new, dc_open, Context};
 use crate::types::dc_callback_t;
 
-use crate::dc_tools::OsStrExt;
-
 /// A Context and temporary directory.
 ///
 /// The temporary directory can be used to store the SQLite database,
@@ -26,13 +24,11 @@ pub struct TestContext {
 /// [Context]: crate::context::Context
 pub fn test_context(cb: Option<dc_callback_t>) -> TestContext {
     unsafe {
-        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), std::ptr::null_mut());
+        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), None);
         let dir = tempdir().unwrap();
         let dbfile = dir.path().join("db.sqlite");
-        let dbfile_c = dbfile.to_c_string().unwrap();
-        assert_eq!(
-            dc_open(&mut ctx, dbfile_c.as_ptr(), std::ptr::null()),
-            1,
+        assert!(
+            dc_open(&mut ctx, dbfile.to_str().unwrap(), None),
             "Failed to open {}",
             dbfile.display(),
         );

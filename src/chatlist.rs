@@ -1,7 +1,7 @@
 use crate::constants::*;
+use crate::contact::*;
 use crate::context::*;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_lot::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
@@ -155,7 +155,7 @@ impl<'a> Chatlist<'a> {
             let query = query.trim().to_string();
             ensure!(!query.is_empty(), "missing query");
 
-            let strLikeCmd = format!("%{}%", query);
+            let str_like_cmd = format!("%{}%", query);
             context.sql.query_map(
                 "SELECT c.id, m.id FROM chats c  LEFT JOIN msgs m         \
                  ON c.id=m.chat_id        \
@@ -164,7 +164,7 @@ impl<'a> Chatlist<'a> {
                  AND (hidden=0 OR (hidden=1 AND state=19))) WHERE c.id>9   \
                  AND c.blocked=0 AND c.name LIKE ?  \
                  GROUP BY c.id  ORDER BY IFNULL(m.timestamp,0) DESC, m.id DESC;",
-                params![strLikeCmd],
+                params![str_like_cmd],
                 process_row,
                 process_rows,
             )?
@@ -256,18 +256,18 @@ impl<'a> Chatlist<'a> {
 
         let mut ret = dc_lot_new();
         if index >= self.ids.len() {
-            (*ret).text2 = to_cstring("ErrBadChatlistIndex");
+            (*ret).text2 = "ErrBadChatlistIndex".strdup();
             return ret;
         }
 
         let lastmsg_id = self.ids[index].1;
-        let mut lastcontact = 0 as *mut dc_contact_t;
+        let mut lastcontact = None;
 
         if chat.is_null() {
             chat = dc_chat_new(self.context);
             let chat_to_delete = chat;
             if !dc_chat_load_from_db(chat, self.ids[index].0) {
-                (*ret).text2 = to_cstring("ErrCannotReadChat");
+                (*ret).text2 = "ErrCannotReadChat".strdup();
                 dc_chat_unref(chat_to_delete);
 
                 return ret;
@@ -282,8 +282,7 @@ impl<'a> Chatlist<'a> {
                 && ((*chat).type_0 == DC_CHAT_TYPE_GROUP
                     || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP)
             {
-                lastcontact = dc_contact_new(self.context);
-                dc_contact_load_from_db(lastcontact, &self.context.sql, (*lastmsg).from_id);
+                lastcontact = Contact::load_from_db(self.context, (*lastmsg).from_id).ok();
             }
             lastmsg
         } else {
@@ -292,14 +291,13 @@ impl<'a> Chatlist<'a> {
 
         if (*chat).id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
             (*ret).text2 = dc_strdup(0 as *const libc::c_char)
-        } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_SELF as u32 {
-            (*ret).text2 = to_cstring(self.context.stock_str(StockMessage::NoMessages));
+        } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_UNDEFINED as u32 {
+            (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
         } else {
-            dc_lot_fill(ret, lastmsg, chat, lastcontact, self.context);
+            dc_lot_fill(ret, lastmsg, chat, lastcontact.as_ref(), self.context);
         }
 
         dc_msg_unref(lastmsg);
-        dc_contact_unref(lastcontact);
 
         ret
     }
