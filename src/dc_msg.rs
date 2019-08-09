@@ -198,11 +198,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     }
     if let Some(ref server_folder) = (*msg).server_folder {
         if server_folder != "" {
-            ret += &format!(
-                "\nLast seen as: {}/{}",
-                server_folder,
-                (*msg).server_uid as libc::c_int,
-            );
+            ret += &format!("\nLast seen as: {}/{}", server_folder, (*msg).server_uid);
         }
     }
 
