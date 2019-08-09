@@ -36,7 +36,7 @@ pub struct dc_msg_t<'a> {
     pub context: &'a Context,
     pub rfc724_mid: *mut libc::c_char,
     pub in_reply_to: *mut libc::c_char,
-    pub server_folder: *mut libc::c_char,
+    pub server_folder: Option<String>,
     pub server_uid: uint32_t,
     pub is_dc_message: libc::c_int,
     pub starred: libc::c_int,
@@ -196,12 +196,14 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     if !(*msg).rfc724_mid.is_null() && 0 != *(*msg).rfc724_mid.offset(0) as libc::c_int {
         ret += &format!("\nMessage-ID: {}", (*msg).rfc724_mid as libc::c_int);
     }
-    if !(*msg).server_folder.is_null() && 0 != *(*msg).server_folder.offset(0) as libc::c_int {
-        ret += &format!(
-            "\nLast seen as: {}/{}",
-            to_string((*msg).server_folder),
-            (*msg).server_uid as libc::c_int,
-        );
+    if let Some(ref server_folder) = (*msg).server_folder {
+        if server_folder != "" {
+            ret += &format!(
+                "\nLast seen as: {}/{}",
+                server_folder,
+                (*msg).server_uid as libc::c_int,
+            );
+        }
     }
 
     dc_msg_unref(msg);
@@ -240,7 +242,7 @@ pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> *mut d
         context,
         rfc724_mid: std::ptr::null_mut(),
         in_reply_to: std::ptr::null_mut(),
-        server_folder: std::ptr::null_mut(),
+        server_folder: None,
         server_uid: 0,
         is_dc_message: 0,
         starred: 0,
@@ -269,8 +271,6 @@ pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
     (*msg).rfc724_mid = 0 as *mut libc::c_char;
     free((*msg).in_reply_to as *mut libc::c_void);
     (*msg).in_reply_to = 0 as *mut libc::c_char;
-    free((*msg).server_folder as *mut libc::c_void);
-    (*msg).server_folder = 0 as *mut libc::c_char;
     (*msg).param = Params::new();
     (*msg).hidden = 0i32;
 }
@@ -460,7 +460,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                     Some(s) => s.strdup(),
                     None => std::ptr::null_mut(),
                 };
-                (*msg).server_folder = row.get::<_, String>(3)?.strdup();
+                (*msg).server_folder = row.get::<_, Option<String>>(3)?;
                 (*msg).server_uid = row.get(4)?;
                 (*msg).move_state = row.get(5)?;
                 (*msg).chat_id = row.get(6)?;
