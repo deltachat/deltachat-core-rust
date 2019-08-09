@@ -23,8 +23,21 @@ pub fn dc_exactly_one_bit_set(v: libc::c_int) -> bool {
     0 != v && 0 == v & v - 1i32
 }
 
-/* string tools */
-/* dc_strdup() returns empty string if NULL is given, never returns NULL (exits on errors) */
+/// Duplicates a string
+///
+/// returns an empty string if NULL is given, never returns NULL (exits on errors)
+///
+/// # Examples
+///
+/// ```
+/// use deltachat::dc_tools::{dc_strdup, to_string};
+/// unsafe {
+///     let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
+///     let str_a_copy = dc_strdup(str_a);
+///     assert_eq!(to_string(str_a_copy), "foobar");
+///     assert_ne!(str_a, str_a_copy);
+/// }
+/// ```
 pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     let ret: *mut libc::c_char;
     if !s.is_null() {
@@ -38,7 +51,21 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     ret
 }
 
-/* strdup(NULL) is undefined, safe_strdup_keep_null(NULL) returns NULL in this case */
+/// Duplicates a string, returns null if given string is null
+///
+/// # Examples
+///
+/// ```
+/// use deltachat::dc_tools::{dc_strdup_keep_null, to_string};
+/// use std::ffi::{CStr};
+///
+/// unsafe {
+///     let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
+///     let str_a_copy = dc_strdup_keep_null(str_a);
+///     assert_eq!(to_string(str_a_copy), "foobar");
+///     assert_ne!(str_a, str_a_copy);
+/// }
+/// ```
 pub unsafe fn dc_strdup_keep_null(s: *const libc::c_char) -> *mut libc::c_char {
     return if !s.is_null() {
         dc_strdup(s)
@@ -1572,6 +1599,49 @@ pub fn time() -> i64 {
 mod tests {
     use super::*;
     use std::ffi::CStr;
+
+    #[test]
+    fn test_dc_strdup() {
+        unsafe {
+            let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
+            let str_a_copy = dc_strdup(str_a);
+
+            // Value of str_a_copy should equal foobar
+            assert_eq!(
+                CStr::from_ptr(str_a_copy),
+                CString::new("foobar").unwrap().as_c_str()
+            );
+            // Address of str_a should be different from str_a_copy
+            assert_ne!(str_a, str_a_copy);
+
+            let str_a = std::ptr::null() as *const libc::c_char;
+            let str_a_copy = dc_strdup(str_a);
+            // Value of str_a_copy should equal ""
+            assert_eq!(
+                CStr::from_ptr(str_a_copy),
+                CString::new("").unwrap().as_c_str()
+            );
+            assert_ne!(str_a, str_a_copy);
+        }
+    }
+
+    #[test]
+    fn test_dc_strdup_keep_null() {
+        unsafe {
+            let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
+            let str_a_copy = dc_strdup_keep_null(str_a);
+            assert_eq!(
+                CStr::from_ptr(str_a_copy),
+                CString::new("foobar").unwrap().as_c_str()
+            );
+            assert_ne!(str_a, str_a_copy);
+
+            let str_a = 0 as *const u8 as *const libc::c_char;
+            let str_a_copy = dc_strdup_keep_null(str_a);
+            assert_eq!(str_a.is_null(), true);
+            assert_eq!(str_a_copy.is_null(), true);
+        }
+    }
 
     #[test]
     fn test_dc_ltrim() {
