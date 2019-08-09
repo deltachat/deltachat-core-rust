@@ -16,8 +16,6 @@ use crate::types::*;
 use crate::x::*;
 use std::ptr;
 
-const ELLIPSE: &'static str = "[...]";
-
 /* Some tools and enhancements to the used libraries, there should be
 no references to Context and other "larger" classes here. */
 /* ** library-private **********************************************************/
@@ -335,17 +333,22 @@ pub unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
 
     j
 }
+pub fn dc_truncate_n_str(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow<str> {
+    let ellipse = if do_unwrap { "..." } else { "[...]" };
 
-pub fn dc_truncate_str(buf: &str, approx_chars: usize) -> Cow<str> {
-    if approx_chars > 0 && buf.len() > approx_chars + ELLIPSE.len() {
+    if approx_chars > 0 && buf.len() > approx_chars + ellipse.len() {
         if let Some(index) = buf[..approx_chars].rfind(|c| c == ' ' || c == '\n') {
-            Cow::Owned(format!("{}{}", &buf[..index + 1], ELLIPSE))
+            Cow::Owned(format!("{}{}", &buf[..index + 1], ellipse))
         } else {
-            Cow::Owned(format!("{}{}", &buf[..approx_chars], ELLIPSE))
+            Cow::Owned(format!("{}{}", &buf[..approx_chars], ellipse))
         }
     } else {
         Cow::Borrowed(buf)
     }
+}
+
+pub fn dc_truncate_str(buf: &str, approx_chars: usize) -> Cow<str> {
+    return dc_truncate_n_str(buf, approx_chars, false);
 }
 
 #[allow(non_snake_case)]

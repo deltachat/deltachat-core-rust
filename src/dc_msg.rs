@@ -15,6 +15,7 @@ use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 use std::ptr;
+use std::convert::TryInto;
 
 /* * the structure behind dc_msg_t */
 #[derive(Clone)]
@@ -834,98 +835,70 @@ pub unsafe fn dc_msg_get_summarytext(
         return dc_strdup(0 as *const libc::c_char);
     }
 
-    let msgtext_c = (*msg)
-        .text
-        .as_ref()
-        .map(|s| CString::yolo(String::as_str(s)));
-    let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
-
     dc_msg_get_summarytext_by_raw(
         (*msg).type_0,
-        msgtext_ptr,
+        (*msg).text.as_ref().unwrap(),
         &mut (*msg).param,
         approx_characters,
         (*msg).context,
-    )
+    ).strdup()
 }
 
-/* the returned value must be free()'d */
+/// get a summary text
 #[allow(non_snake_case)]
-pub unsafe fn dc_msg_get_summarytext_by_raw(
+pub fn dc_msg_get_summarytext_by_raw(
     type_0: Viewtype,
-    text: *const libc::c_char,
+    text: &str,
     param: &mut Params,
     approx_characters: libc::c_int,
     context: &Context,
-) -> *mut libc::c_char {
-    /* get a summary text, result must be free()'d, never returns NULL. */
-    let mut ret;
-    let mut prefix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut append_text: libc::c_int = 1i32;
+) -> String {
+    let ret: String;
+    let mut prefix = "".to_string();
+    let mut append_text = true;
     match type_0 {
-        Viewtype::Image => prefix = context.stock_str(StockMessage::Image).strdup(),
-        Viewtype::Gif => prefix = context.stock_str(StockMessage::Gif).strdup(),
-        Viewtype::Video => prefix = context.stock_str(StockMessage::Video).strdup(),
-        Viewtype::Voice => prefix = context.stock_str(StockMessage::VoiceMessage).strdup(),
+        Viewtype::Image => prefix = context.stock_str(StockMessage::Image).to_string(),
+        Viewtype::Gif => prefix = context.stock_str(StockMessage::Gif).to_string(),
+        Viewtype::Video => prefix = context.stock_str(StockMessage::Video).to_string(),
+        Viewtype::Voice => prefix = context.stock_str(StockMessage::VoiceMessage).to_string(),
         Viewtype::Audio | Viewtype::File => {
             if param.get_int(Param::Cmd) == Some(6) {
-                prefix = context.stock_str(StockMessage::AcSetupMsgSubject).strdup();
-                append_text = 0i32
+                prefix = context.stock_str(StockMessage::AcSetupMsgSubject).to_string();
+                append_text = false
             } else {
-                pathNfilename = param
-                    .get(Param::File)
-                    .unwrap_or_else(|| "ErrFilename")
-                    .strdup();
-                value = dc_get_filename(pathNfilename);
-                let label = CString::new(
-                    context
+                let value;
+                unsafe {
+                    let pathNfilename = param
+                        .get(Param::File)
+                        .unwrap_or_else(|| "ErrFilename").strdup();
+                    value = as_str(dc_get_filename(pathNfilename));
+                    free(pathNfilename as *mut libc::c_void);
+                }
+                let label = context
                         .stock_str(if type_0 == Viewtype::Audio {
                             StockMessage::Audio
                         } else {
                             StockMessage::File
-                        })
-                        .as_ref(),
-                )
-                .unwrap();
-                prefix = dc_mprintf(
-                    b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-                    label.as_ptr(),
-                    value,
-                )
+                        });
+                prefix = format!("{} – {}", label, value)
             }
         }
         _ => {
             if param.get_int(Param::Cmd) == Some(9) {
-                prefix = context.stock_str(StockMessage::Location).strdup();
-                append_text = 0;
+                prefix = context.stock_str(StockMessage::Location).to_string();
+                append_text = false;
             }
         }
     }
-    if 0 != append_text
-        && !prefix.is_null()
-        && !text.is_null()
-        && 0 != *text.offset(0isize) as libc::c_int
-    {
-        ret = dc_mprintf(
-            b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-            prefix,
-            text,
-        );
-        dc_truncate_n_unwrap_str(ret, approx_characters, 1i32);
-    } else if 0 != append_text && !text.is_null() && 0 != *text.offset(0isize) as libc::c_int {
-        ret = dc_strdup(text);
-        dc_truncate_n_unwrap_str(ret, approx_characters, 1i32);
+    if append_text && text != "" {
+        if prefix != "" {
+            let tmp = format!("{} – {}", prefix, text);
+            ret = dc_truncate_n_str(tmp.as_str(), approx_characters.try_into().unwrap(), true).to_string();
+        } else {
+            ret = dc_truncate_n_str(text, approx_characters.try_into().unwrap(), true).to_string();
+        }
     } else {
         ret = prefix;
-        prefix = 0 as *mut libc::c_char
-    }
-    free(prefix as *mut libc::c_void);
-    free(pathNfilename as *mut libc::c_void);
-    free(value as *mut libc::c_void);
-    if ret.is_null() {
-        ret = dc_strdup(0 as *const libc::c_char)
     }
 
     ret
