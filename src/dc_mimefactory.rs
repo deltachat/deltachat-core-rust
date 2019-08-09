@@ -1079,8 +1079,9 @@ unsafe fn get_subject(
             (*msg).text.as_ref().unwrap().as_str(),
             &mut (*msg).param,
             32,
-            context
-        ).strdup()
+            context,
+        )
+        .strdup()
     };
 
     let fwd = if 0 != afwd_email {

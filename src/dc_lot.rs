@@ -168,13 +168,9 @@ pub unsafe fn dc_lot_fill(
 
     let message_text = (*msg).text.as_ref().unwrap();
 
-    (*lot).text2 = dc_msg_get_summarytext_by_raw(
-        (*msg).type_0,
-        message_text,
-        &mut (*msg).param,
-        160,
-        context,
-    ).strdup();
+    (*lot).text2 =
+        dc_msg_get_summarytext_by_raw((*msg).type_0, message_text, &mut (*msg).param, 160, context)
+            .strdup();
 
     (*lot).timestamp = dc_msg_get_timestamp(msg);
     (*lot).state = (*msg).state;

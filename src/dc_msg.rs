@@ -14,8 +14,8 @@ use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
-use std::ptr;
 use std::convert::TryInto;
+use std::ptr;
 
 /* * the structure behind dc_msg_t */
 #[derive(Clone)]
@@ -841,7 +841,8 @@ pub unsafe fn dc_msg_get_summarytext(
         &mut (*msg).param,
         approx_characters,
         (*msg).context,
-    ).strdup()
+    )
+    .strdup()
 }
 
 /// get a summary text
@@ -863,23 +864,25 @@ pub fn dc_msg_get_summarytext_by_raw(
         Viewtype::Voice => prefix = context.stock_str(StockMessage::VoiceMessage).to_string(),
         Viewtype::Audio | Viewtype::File => {
             if param.get_int(Param::Cmd) == Some(6) {
-                prefix = context.stock_str(StockMessage::AcSetupMsgSubject).to_string();
+                prefix = context
+                    .stock_str(StockMessage::AcSetupMsgSubject)
+                    .to_string();
                 append_text = false
             } else {
                 let value;
                 unsafe {
                     let pathNfilename = param
                         .get(Param::File)
-                        .unwrap_or_else(|| "ErrFilename").strdup();
+                        .unwrap_or_else(|| "ErrFilename")
+                        .strdup();
                     value = as_str(dc_get_filename(pathNfilename));
                     free(pathNfilename as *mut libc::c_void);
                 }
-                let label = context
-                        .stock_str(if type_0 == Viewtype::Audio {
-                            StockMessage::Audio
-                        } else {
-                            StockMessage::File
-                        });
+                let label = context.stock_str(if type_0 == Viewtype::Audio {
+                    StockMessage::Audio
+                } else {
+                    StockMessage::File
+                });
                 prefix = format!("{} – {}", label, value)
             }
         }
@@ -893,7 +896,8 @@ pub fn dc_msg_get_summarytext_by_raw(
     if append_text && text != "" {
         if prefix != "" {
             let tmp = format!("{} – {}", prefix, text);
-            ret = dc_truncate_n_str(tmp.as_str(), approx_characters.try_into().unwrap(), true).to_string();
+            ret = dc_truncate_n_str(tmp.as_str(), approx_characters.try_into().unwrap(), true)
+                .to_string();
         } else {
             ret = dc_truncate_n_str(text, approx_characters.try_into().unwrap(), true).to_string();
         }
