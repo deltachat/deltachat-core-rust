@@ -76,11 +76,6 @@ pub unsafe fn dc_e2ee_encrypt(
     let mut peerstates: Vec<Peerstate> = Vec::new();
     *helper = Default::default();
 
-    info!(
-        context,
-        0, "dc_e2ee_encrypt guaruanteed={}", e2ee_guaranteed
-    );
-
     if !(recipients_addr.is_null()
         || in_out_message.is_null()
         || !(*in_out_message).mm_parent.is_null()
@@ -111,10 +106,6 @@ pub unsafe fn dc_e2ee_encrypt(
                     iter1 = (*recipients_addr).first;
                     while !iter1.is_null() {
                         let recipient_addr = to_string((*iter1).data as *const libc::c_char);
-                        info!(
-                            context,
-                            0, "dc_e2ee_encrypt recipient_addr {}", recipient_addr
-                        );
                         if recipient_addr != addr {
                             let peerstate =
                                 Peerstate::from_addr(context, &context.sql, &recipient_addr);
@@ -594,7 +585,6 @@ pub unsafe fn dc_e2ee_decrypt(
                 }
             } else if let Some(ref header) = autocryptheader {
                 let p = Peerstate::from_header(context, header, message_time);
-                info!(context, 0, "setting peerstate from header for {:?}", p.addr);
                 assert!(p.save_to_db(&context.sql, true));
                 peerstate = Some(p);
             }
