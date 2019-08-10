@@ -1,3 +1,5 @@
+//! End-to-end encryption support.
+
 use std::collections::HashSet;
 use std::ffi::CStr;
 use std::str::FromStr;
@@ -98,9 +100,11 @@ pub unsafe fn dc_e2ee_encrypt(
         let addr = context.sql.get_config(context, "configured_addr");
 
         if let Some(addr) = addr {
-            if let Some(public_key) =
-                load_or_generate_self_public_key(context, &addr, in_out_message)
-            {
+            let pubkey_ret = load_or_generate_self_public_key(context, &addr).map_err(|err| {
+                error!(context, 0, "Failed to load public key: {}", err);
+                err
+            });
+            if let Ok(public_key) = pubkey_ret {
                 /*only for random-seed*/
                 if prefer_encrypt == EncryptPreference::Mutual || 0 != e2ee_guaranteed {
                     do_encrypt = 1i32;
@@ -475,65 +479,52 @@ unsafe fn new_data_part(
     return 0 as *mut mailmime;
 }
 
-/*******************************************************************************
- * Generate Keypairs
- ******************************************************************************/
-unsafe fn load_or_generate_self_public_key(
-    context: &Context,
-    self_addr: impl AsRef<str>,
-    _random_data_mime: *mut mailmime,
-) -> Option<Key> {
-    /* avoid double creation (we unlock the database during creation) */
-    static mut S_IN_KEY_CREATION: libc::c_int = 0;
+/// Load public key from database or generate a new one.
+///
+/// This will load a public key from the database, generating and
+/// storing a new one when one doesn't exist yet.  Care is taken to
+/// only generate one key per context even when multiple threads call
+/// this function concurrently.
+fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str>) -> Result<Key> {
+    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
+        return Ok(key);
+    }
+    let _guard = context.generating_key_mutex.lock().unwrap();
 
-    let mut key = Key::from_self_public(context, &self_addr, &context.sql);
-    if key.is_some() {
-        return key;
+    // Check again in case the key was generated while we were waiting for the lock.
+    if let Some(key) = Key::from_self_public(context, &self_addr, &context.sql) {
+        return Ok(key);
     }
 
-    /* create the keypair - this may take a moment, however, as this is in a thread, this is no big deal */
-    if 0 != S_IN_KEY_CREATION {
-        return None;
-    }
-    let key_creation_here = 1;
-    S_IN_KEY_CREATION = 1;
-
-    let start = clock();
+    let start = std::time::Instant::now();
     info!(
         context,
         0, "Generating keypair with {} bits, e={} ...", 2048, 65537,
     );
-
-    if let Some((public_key, private_key)) = dc_pgp_create_keypair(&self_addr) {
-        if !dc_key_save_self_keypair(
-            context,
-            &public_key,
-            &private_key,
-            &self_addr,
-            1i32,
-            &context.sql,
-        ) {
-            /*set default*/
-            warn!(context, 0, "Cannot save keypair.",);
-        } else {
-            info!(
+    match dc_pgp_create_keypair(&self_addr) {
+        Some((public_key, private_key)) => {
+            match dc_key_save_self_keypair(
                 context,
-                0,
-                "Keypair generated in {:.3}s.",
-                clock().wrapping_sub(start) as libc::c_double / 1000000 as libc::c_double,
-            );
+                &public_key,
+                &private_key,
+                &self_addr,
+                1,
+                &context.sql,
+            ) {
+                true => {
+                    info!(
+                        context,
+                        0,
+                        "Keypair generated in {:.3}s.",
+                        start.elapsed().as_secs()
+                    );
+                    Ok(public_key)
+                }
+                false => Err(format_err!("Failed to save keypair")),
+            }
         }
-
-        key = Some(public_key);
-    } else {
-        warn!(context, 0, "Cannot create keypair.");
+        None => Err(format_err!("Failed to generate keypair")),
     }
-
-    if 0 != key_creation_here {
-        S_IN_KEY_CREATION = 0;
-    }
-
-    key
 }
 
 /* returns 1 if sth. was decrypted, 0 in other cases */
@@ -1050,8 +1041,7 @@ pub unsafe fn dc_e2ee_thanks(helper: &mut dc_e2ee_helper_t) {
 /// Ensures a private key exists for the configured user.
 ///
 /// Normally the private key is generated when the first message is
-/// sent (allowing the use of some extra random seed from the message
-/// content) but in a few locations there are no such guarantees,
+/// sent but in a few locations there are no such guarantees,
 /// e.g. when exporting keys, and calling this function ensures a
 /// private key will be present.
 ///
@@ -1064,10 +1054,7 @@ pub fn dc_ensure_secret_key_exists(context: &Context) -> Result<String> {
             "Failed to get self address, ",
             "cannot ensure secret key if not configured."
         )))?;
-    unsafe {
-        load_or_generate_self_public_key(context, &self_addr, 0 as *mut mailmime)
-            .ok_or(format_err!("Failed to generate private key."))?;
-    }
+    load_or_generate_self_public_key(context, &self_addr)?;
     Ok(self_addr)
 }
 
@@ -1153,5 +1140,48 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         assert!(!decrypted_mime.is_null());
 
         unsafe { free(decrypted_mime as *mut _) };
+    }
+
+    mod load_or_generate_self_public_key {
+        use super::*;
+
+        #[test]
+        fn test_existing() {
+            let t = dummy_context();
+            let addr = configure_alice_keypair(&t.ctx);
+            let key = load_or_generate_self_public_key(&t.ctx, addr);
+            assert!(key.is_ok());
+        }
+
+        #[test]
+        #[ignore] // generating keys is expensive
+        fn test_generate() {
+            let t = dummy_context();
+            let addr = "alice@example.org";
+            let key0 = load_or_generate_self_public_key(&t.ctx, addr);
+            assert!(key0.is_ok());
+            let key1 = load_or_generate_self_public_key(&t.ctx, addr);
+            assert!(key1.is_ok());
+            assert_eq!(key0.unwrap(), key1.unwrap());
+        }
+
+        #[test]
+        #[ignore]
+        fn test_generate_concurrent() {
+            use std::sync::Arc;
+            use std::thread;
+
+            let t = dummy_context();
+            let ctx = Arc::new(t.ctx);
+            let ctx0 = Arc::clone(&ctx);
+            let thr0 =
+                thread::spawn(move || load_or_generate_self_public_key(&ctx0, "alice@example.org"));
+            let ctx1 = Arc::clone(&ctx);
+            let thr1 =
+                thread::spawn(move || load_or_generate_self_public_key(&ctx1, "alice@example.org"));
+            let res0 = thr0.join().unwrap();
+            let res1 = thr1.join().unwrap();
+            assert_eq!(res0.unwrap(), res1.unwrap());
+        }
     }
 }
