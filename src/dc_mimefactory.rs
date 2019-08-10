@@ -1311,16 +1311,14 @@ unsafe fn build_body_file(
 /*******************************************************************************
  * Render
  ******************************************************************************/
-#[allow(non_snake_case)]
 unsafe fn is_file_size_okay(msg: *const dc_msg_t) -> bool {
     let mut file_size_okay = true;
-    let pathNfilename = (*msg).param.get(Param::File).unwrap_or_default().strdup();
-    let bytes = dc_get_filebytes((*msg).context, pathNfilename);
+    let path = (*msg).param.get(Param::File).unwrap_or_default();
+    let bytes = dc_get_filebytes((*msg).context, &path);
 
     if bytes > (49 * 1024 * 1024 / 4 * 3) {
         file_size_okay = false;
     }
-    free(pathNfilename as *mut _);
 
     file_size_okay
 }
