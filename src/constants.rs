@@ -1,34 +1,37 @@
 //! Constants
 #![allow(non_camel_case_types)]
-use num_traits::{FromPrimitive, ToPrimitive};
+use num_traits::FromPrimitive;
 use rusqlite as sql;
 use rusqlite::types::*;
 
 pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.3\x00";
 
+macro_rules! derive_sql {
+    ($name:ident) => {
+        impl ToSql for $name {
+            fn to_sql(&self) -> sql::Result<ToSqlOutput> {
+                Ok(ToSqlOutput::Owned(Value::Integer(*self as i64)))
+            }
+        }
+        impl FromSql for $name {
+            fn column_result(col: ValueRef) -> FromSqlResult<Self> {
+                let inner = FromSql::column_result(col)?;
+                FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
+            }
+        }
+    }
+}
+
+
 #[repr(u8)]
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive,)]
 pub enum MoveState {
     Undefined = 0,
     Pending = 1,
     Stay = 2,
     Moving = 3,
 }
-
-impl ToSql for MoveState {
-    fn to_sql(&self) -> sql::Result<ToSqlOutput> {
-        let num = *self as i64;
-
-        Ok(ToSqlOutput::Owned(Value::Integer(num)))
-    }
-}
-
-impl FromSql for MoveState {
-    fn column_result(col: ValueRef) -> FromSqlResult<Self> {
-        let inner = FromSql::column_result(col)?;
-        FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
-    }
-}
+derive_sql!{MoveState}
 
 pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;
@@ -210,6 +213,7 @@ pub enum Viewtype {
     /// and retrieved via dc_msg_get_file().
     File = 60,
 }
+derive_sql!{Viewtype}
 
 #[cfg(test)]
 mod tests {
@@ -218,23 +222,6 @@ mod tests {
     #[test]
     fn derive_display_works_as_expected() {
         assert_eq!(format!("{}", Viewtype::Audio), "Audio");
-    }
-}
-
-impl ToSql for Viewtype {
-    fn to_sql(&self) -> sql::Result<ToSqlOutput> {
-        let num: i64 = self
-            .to_i64()
-            .expect("impossible: Viewtype -> i64 conversion failed");
-
-        Ok(ToSqlOutput::Owned(Value::Integer(num)))
-    }
-}
-
-impl FromSql for Viewtype {
-    fn column_result(col: ValueRef) -> FromSqlResult<Self> {
-        let inner = FromSql::column_result(col)?;
-        FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
     }
 }
 
