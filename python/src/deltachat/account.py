@@ -50,8 +50,9 @@ class Account(object):
         self._configkeys = self.get_config("sys.config_keys").split()
         self._imex_completed = threading.Event()
 
-    def __del__(self):
-        self.shutdown()
+    # XXX this can cause "illegal instructions" at test ends so we omit it for now
+    # def __del__(self):
+    #    self.shutdown()
 
     def _check_config_key(self, name):
         if name not in self._configkeys:

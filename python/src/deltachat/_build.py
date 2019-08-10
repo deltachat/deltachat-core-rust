@@ -6,10 +6,15 @@ import platform
 import os
 import cffi
 import shutil
+from os.path import dirname as dn
+from os.path import abspath
 
 
 def ffibuilder():
     projdir = os.environ.get('DCC_RS_DEV')
+    if not projdir:
+        p = dn(dn(dn(dn(abspath(__file__)))))
+        projdir = os.environ["DCC_RS_DEV"] = p
     target = os.environ.get('DCC_RS_TARGET', 'release')
     if projdir:
         if platform.system() == 'Darwin':

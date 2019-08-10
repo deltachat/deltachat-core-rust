@@ -1,9 +1,9 @@
 from __future__ import print_function
 import os
 import pytest
+import requests
 import time
 from deltachat import Account
-from deltachat import props
 from deltachat.capi import lib
 import tempfile
 
@@ -36,6 +36,8 @@ def pytest_runtest_call(item):
 
 
 def pytest_report_header(config, startdir):
+    summary = []
+
     t = tempfile.mktemp()
     try:
         ac = Account(t, eventlogging=False)
@@ -43,13 +45,18 @@ def pytest_report_header(config, startdir):
         ac.shutdown()
     finally:
         os.remove(t)
-    summary = ['Deltachat core={} sqlite={}'.format(
+    summary.extend(['Deltachat core={} sqlite={}'.format(
          info['deltachat_core_version'],
          info['sqlite_version'],
-     )]
-    cfg = config.getoption('--liveconfig')
+     )])
+
+    cfg = config.option.liveconfig
     if cfg:
-        summary.append('Liveconfig: {}'.format(os.path.abspath(cfg)))
+        if "#" in cfg:
+            url, token = cfg.split("#", 1)
+            summary.append('Liveconfig provider: {}#<token ommitted>'.format(url))
+        else:
+            summary.append('Liveconfig file: {}'.format(cfg))
     return summary
 
 
@@ -66,9 +73,56 @@ def data():
     return Data()
 
 
+class SessionLiveConfigFromFile:
+    def __init__(self, fn):
+        self.fn = fn
+        self.configlist = []
+        for line in open(fn):
+            if line.strip() and not line.strip().startswith('#'):
+                d = {}
+                for part in line.split():
+                    name, value = part.split("=")
+                    d[name] = value
+                self.configlist.append(d)
+
+    def get(self, index):
+        return self.configlist[index]
+
+    def exists(self):
+        return bool(self.configlist)
+
+
+class SessionLiveConfigFromURL:
+    def __init__(self, url, create_token):
+        self.configlist = []
+        for i in range(2):
+            res = requests.post(url, json={"token_create_user": int(create_token)})
+            if res.status_code != 200:
+                pytest.skip("creating newtmpuser failed {!r}".format(res))
+            d = res.json()
+            config = dict(addr=d["email"], mail_pw=d["password"])
+            self.configlist.append(config)
+
+    def get(self, index):
+        return self.configlist[index]
+
+    def exists(self):
+        return bool(self.configlist)
+
+
+@pytest.fixture(scope="session")
+def session_liveconfig(request):
+    liveconfig_opt = request.config.option.liveconfig
+    if liveconfig_opt:
+        if liveconfig_opt.startswith("http"):
+            url, create_token = liveconfig_opt.split("#", 1)
+            return SessionLiveConfigFromURL(url, create_token)
+        else:
+            return SessionLiveConfigFromFile(liveconfig_opt)
+
+
 @pytest.fixture
-def acfactory(pytestconfig, tmpdir, request):
-    fn = pytestconfig.getoption("--liveconfig")
+def acfactory(pytestconfig, tmpdir, request, session_liveconfig):
 
     class AccountMaker:
         def __init__(self):
@@ -81,18 +135,6 @@ def acfactory(pytestconfig, tmpdir, request):
             while self._finalizers:
                 fin = self._finalizers.pop()
                 fin()
-
-        @props.cached
-        def configlist(self):
-            configlist = []
-            for line in open(fn):
-                if line.strip() and not line.strip().startswith('#'):
-                    d = {}
-                    for part in line.split():
-                        name, value = part.split("=")
-                        d[name] = value
-                    configlist.append(d)
-            return configlist
 
         def get_unconfigured_account(self):
             self.offline_count += 1
@@ -116,10 +158,10 @@ def acfactory(pytestconfig, tmpdir, request):
             return ac
 
         def get_online_configuring_account(self):
-            if not fn:
-                pytest.skip("specify a --liveconfig file to run tests with real accounts")
+            if not session_liveconfig:
+                pytest.skip("specify DCC_PY_LIVECONFIG or --liveconfig")
+            configdict = session_liveconfig.get(self.live_count)
             self.live_count += 1
-            configdict = self.configlist.pop(0)
             if "e2ee_enabled" not in configdict:
                 configdict["e2ee_enabled"] = "1"
             tmpdb = tmpdir.join("livedb%d" % self.live_count)

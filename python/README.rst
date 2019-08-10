@@ -39,6 +39,12 @@ and push them to a python package index. To install the latest github ``master``
 
     pip install -i https://m.devpi.net/dc/master deltachat
 
+.. note::
+
+    If you can help to automate the building of wheels for Mac or Windows,
+    that'd be much appreciated! please then get
+    `in contact with us <https://delta.chat/en/contribute>`_.
+
 
 Installing bindings from source
 ===============================
@@ -48,34 +54,56 @@ to core deltachat library::
 
     git clone https://github.com/deltachat/deltachat-core-rust
     cd deltachat-core-rust
-    cargo build -p deltachat_ffi --release
-
-This will result in a ``libdeltachat.so`` and ``libdeltachat.a`` files
-in the ``target/release`` directory. These files are needed for
-creating the python bindings for deltachat::
-
     cd python
-    DCC_RS_DEV=`pwd`/.. pip install -e .
 
-Now test if the bindings find the correct library::
+It is always a good idea to create a python "virtualenv".
+Install "virtualenv" on your system and run::
 
-    python -c 'import deltachat ; print(deltachat.__version__)'
+    virtualenv venv
+    source venv/bin/activate
 
-This should print your deltachat bindings version.
+Afterwards ``which python`` tells you that it comes out of the "venv"
+directory that contains all python install artifacts. Let's first
+install test tools::
+
+    pip install pytest pytest-timeout pytest-faulthandler requests
+
+then cargo-build and install the deltachat bindings::
+
+    python install_python_bindings.py
+
+The bindings will be installed in release mode but with debug symbols.
+The release mode is neccessary because some tests generate RSA keys
+which is prohibitively slow in debug mode.
+
+After succcessul binding installation you can finally run the tests::
+
+    pytest -v tests
 
 .. note::
 
-    If you can help to automate the building of wheels for Mac or Windows,
-    that'd be much appreciated! please then get
-    `in contact with us <https://delta.chat/en/contribute>`_.
+    Some tests are sometimes failing/hanging because of
+    https://github.com/deltachat/deltachat-core-rust/issues/331
+    and
+    https://github.com/deltachat/deltachat-core-rust/issues/326
 
-Using a system-installed deltachat-core-rust
---------------------------------------------
 
-When calling ``pip`` without specifying the ``DCC_RS_DEV`` environment
-variable cffi will try to use a ``deltachat.h`` from a system location
-like ``/usr/local/include`` and will try to dynamically link against a
-``libdeltachat.so`` in a similar location (e.g. ``/usr/local/lib``).
+running "live" tests (experimental)
+-----------------------------------
+
+If you want to run "liveconfig" functional tests you can set
+``DCC_PY_LIVECONFIG`` to:
+
+- a particular https-url that you can ask for from the delta
+  chat devs.
+
+- or the path of a file that contains two lines, each describing
+  via "addr=... mail_pwd=..." a test account login that will
+  be used for the live tests.
+
+With ``DCC_PY_LIVECONFIG`` set pytest invocations will use real
+e-mail accounts and run through all functional "liveconfig" tests.
+
 
 
 Code examples
@@ -84,47 +112,16 @@ Code examples
 You may look at `examples <https://py.delta.chat/examples.html>`_.
 
 
-Running tests
-=============
-
-Get a checkout of the `deltachat-core-rust github repository`_ and type::
-
-    pip install tox
-    ./run-integration-tests.sh
-
-If you want to run functional tests with real
-e-mail test accounts, generate a "liveconfig" file where each
-lines contains test account settings, for example::
-
-    # 'liveconfig' file specifying imap/smtp accounts
-    addr=some-email@example.org mail_pw=password
-    addr=other-email@example.org mail_pw=otherpassword
-
-The "keyword=value" style allows to specify any
-`deltachat account config setting <https://c.delta.chat/classdc__context__t.html#aff3b894f6cfca46cab5248fdffdf083d>`_ so you can also specify smtp or imap servers, ports, ssl modes etc.
-Typically DC's automatic configuration allows to not specify these settings.
-
-The ``run-integration-tests.sh`` script will automatically use
-``python/liveconfig`` if it exists, to manually run tests with this
-``liveconfig`` file use::
-
-    tox -- --liveconfig liveconfig
-
-
 .. _`deltachat-core-rust github repository`: https://github.com/deltachat/deltachat-core-rust
 .. _`deltachat-core`: https://github.com/deltachat/deltachat-core-rust
-
-Running test using a debug build
---------------------------------
-
-If you need to examine e.g. a coredump you may want to run the tests
-using a debug build::
-
-   DCC_RS_TARGET=debug ./run-integration-tests.sh -e py37 -- -x -v -k failing_test
 
 
 Building manylinux1 wheels
 ==========================
+
+.. note::
+
+   This section may not fully work.
 
 Building portable manylinux1 wheels which come with libdeltachat.so
 and all it's dependencies is easy using the provided docker tooling.
@@ -132,20 +129,17 @@ and all it's dependencies is easy using the provided docker tooling.
 using docker pull / premade images
 ------------------------------------
 
-We publish a build environment under the ``deltachat/wheel`` tag so
+We publish a build environment under the ``deltachat/coredeps`` tag so
 that you can pull it from the ``hub.docker.com`` site's "deltachat"
 organization::
 
-    $ docker pull deltachat/wheel
+    $ docker pull deltachat/coredeps
 
-The ``deltachat/wheel`` image can be used to build both libdeltachat.so
-and the Python wheels::
+This docker image can be used to run tests and build Python wheels for all interpreters::
 
-    $ docker run --rm -it -v $(pwd):/io/ deltachat/wheel /io/python/wheelbuilder/build-wheels.sh
+    $ bash ci_scripts/ci_run.sh
 
-This command runs a script within the image, after mounting ``$(pwd)`` as ``/io`` within
-the docker image.  The script is specified as a path within the docker image's filesystem.
-The resulting wheel files will be in ``python/wheelhouse``.
+This command runs tests and build-wheel scripts in a docker container.
 
 
 Optionally build your own docker image
@@ -154,10 +148,10 @@ Optionally build your own docker image
 If you want to build your own custom docker image you can do this::
 
    $ cd deltachat-core # cd to deltachat-core checkout directory
-   $ docker build -t deltachat/wheel python/wheelbuilder/
+   $ docker build -t deltachat/coredeps ci_scripts/docker_coredeps
 
-This will use the ``python/wheelbuilder/Dockerfile`` to build
-up docker image called ``deltachat/wheel``.  You can afterwards
+This will use the ``ci_scripts/docker_coredeps/Dockerfile`` to build
+up docker image called ``deltachat/coredeps``.  You can afterwards
 find it with::
 
    $ docker images
