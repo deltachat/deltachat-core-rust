@@ -39,6 +39,8 @@ pub struct Context {
     pub bob: Arc<RwLock<BobStatus>>,
     pub last_smeared_timestamp: Arc<RwLock<i64>>,
     pub running_state: Arc<RwLock<RunningState>>,
+    /// Mutex to avoid generating the key for the user more than once.
+    pub generating_key_mutex: Mutex<()>,
 }
 
 unsafe impl std::marker::Send for Context {}
@@ -169,6 +171,7 @@ pub fn dc_context_new(
         ))),
         probe_imap_network: Arc::new(RwLock::new(false)),
         perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
+        generating_key_mutex: Mutex::new(()),
     }
 }
 

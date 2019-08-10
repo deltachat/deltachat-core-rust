@@ -89,6 +89,14 @@ $ cargo test --all
 $ cargo build -p deltachat_ffi --release
 ```
 
+### Expensive tests
+
+Some tests are expensive and marked with `#[ignore]`, to run these
+use the `--ignored` argument to the test binary (not to cargo itself):
+```sh
+$ cargo test -- --ignored
+```
+
 ## Features
 
 - `vendored`: When using Openssl for TLS, this bundles a vendored version.
