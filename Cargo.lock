@@ -467,6 +467,7 @@ dependencies = [
  "cc 1.0.38 (registry+https://github.com/rust-lang/crates.io-index)",
  "charset 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "deltachat_derive 0.1.0",
  "failure 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "failure_derive 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "hex 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -499,6 +500,14 @@ dependencies = [
  "strum_macros 0.15.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "thread-local-object 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "deltachat_derive"
+version = "0.1.0"
+dependencies = [
+ "quote 0.6.13 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syn 0.14.9 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

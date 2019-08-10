@@ -1,33 +1,16 @@
 //! Constants
 #![allow(non_camel_case_types)]
-use num_traits::{FromPrimitive, ToPrimitive};
-use rusqlite as sql;
-use rusqlite::types::*;
+use deltachat_derive::*;
 
 pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.3\x00";
 
 #[repr(u8)]
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
 pub enum MoveState {
     Undefined = 0,
     Pending = 1,
     Stay = 2,
     Moving = 3,
-}
-
-impl ToSql for MoveState {
-    fn to_sql(&self) -> sql::Result<ToSqlOutput> {
-        let num = *self as i64;
-
-        Ok(ToSqlOutput::Owned(Value::Integer(num)))
-    }
-}
-
-impl FromSql for MoveState {
-    fn column_result(col: ValueRef) -> FromSqlResult<Self> {
-        let inner = FromSql::column_result(col)?;
-        FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
-    }
 }
 
 pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
@@ -166,7 +149,7 @@ pub const DC_LP_IMAP_SOCKET_FLAGS: usize =
 pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
     (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
 
-#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(i32)]
 pub enum Viewtype {
     Unknown = 0,
@@ -218,23 +201,6 @@ mod tests {
     #[test]
     fn derive_display_works_as_expected() {
         assert_eq!(format!("{}", Viewtype::Audio), "Audio");
-    }
-}
-
-impl ToSql for Viewtype {
-    fn to_sql(&self) -> sql::Result<ToSqlOutput> {
-        let num: i64 = self
-            .to_i64()
-            .expect("impossible: Viewtype -> i64 conversion failed");
-
-        Ok(ToSqlOutput::Owned(Value::Integer(num)))
-    }
-}
-
-impl FromSql for Viewtype {
-    fn column_result(col: ValueRef) -> FromSqlResult<Self> {
-        let inner = FromSql::column_result(col)?;
-        FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
     }
 }
 
