@@ -23,8 +23,21 @@ pub fn dc_exactly_one_bit_set(v: libc::c_int) -> bool {
     0 != v && 0 == v & v - 1i32
 }
 
-/* string tools */
-/* dc_strdup() returns empty string if NULL is given, never returns NULL (exits on errors) */
+/// Duplicates a string
+///
+/// returns an empty string if NULL is given, never returns NULL (exits on errors)
+///
+/// # Examples
+///
+/// ```
+/// use deltachat::dc_tools::{dc_strdup, to_string};
+/// unsafe {
+///     let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
+///     let str_a_copy = dc_strdup(str_a);
+///     assert_eq!(to_string(str_a_copy), "foobar");
+///     assert_ne!(str_a, str_a_copy);
+/// }
+/// ```
 pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     let ret: *mut libc::c_char;
     if !s.is_null() {
@@ -38,7 +51,21 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     ret
 }
 
-/* strdup(NULL) is undefined, safe_strdup_keep_null(NULL) returns NULL in this case */
+/// Duplicates a string, returns null if given string is null
+///
+/// # Examples
+///
+/// ```
+/// use deltachat::dc_tools::{dc_strdup_keep_null, to_string};
+/// use std::ffi::{CStr};
+///
+/// unsafe {
+///     let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
+///     let str_a_copy = dc_strdup_keep_null(str_a);
+///     assert_eq!(to_string(str_a_copy), "foobar");
+///     assert_ne!(str_a, str_a_copy);
+/// }
+/// ```
 pub unsafe fn dc_strdup_keep_null(s: *const libc::c_char) -> *mut libc::c_char {
     return if !s.is_null() {
         dc_strdup(s)
@@ -67,50 +94,14 @@ pub unsafe fn dc_str_replace(
     haystack: *mut *mut libc::c_char,
     needle: *const libc::c_char,
     replacement: *const libc::c_char,
-) -> libc::c_int {
-    let mut replacements: libc::c_int = 0i32;
-    let mut start_search_pos: libc::c_int = 0i32;
-    let needle_len: libc::c_int;
-    let replacement_len: libc::c_int;
-    if haystack.is_null()
-        || (*haystack).is_null()
-        || needle.is_null()
-        || *needle.offset(0isize) as libc::c_int == 0i32
-    {
-        return 0i32;
-    }
-    needle_len = strlen(needle) as libc::c_int;
-    replacement_len = (if !replacement.is_null() {
-        strlen(replacement)
-    } else {
-        0
-    }) as libc::c_int;
-    loop {
-        let mut p2: *mut libc::c_char =
-            strstr((*haystack).offset(start_search_pos as isize), needle);
-        if p2.is_null() {
-            break;
-        }
-        start_search_pos =
-            (p2.wrapping_offset_from(*haystack) + replacement_len as isize) as libc::c_int;
-        *p2 = 0i32 as libc::c_char;
-        p2 = p2.offset(needle_len as isize);
-        let new_string: *mut libc::c_char = dc_mprintf(
-            b"%s%s%s\x00" as *const u8 as *const libc::c_char,
-            *haystack,
-            if !replacement.is_null() {
-                replacement
-            } else {
-                b"\x00" as *const u8 as *const libc::c_char
-            },
-            p2,
-        );
-        free(*haystack as *mut libc::c_void);
-        *haystack = new_string;
-        replacements += 1
-    }
+) {
+    let haystack_s = to_string(*haystack);
+    let needle_s = to_string(needle);
+    let replacement_s = to_string(replacement);
 
-    replacements
+    free(*haystack as *mut libc::c_void);
+
+    *haystack = haystack_s.replace(&needle_s, &replacement_s).strdup();
 }
 
 pub unsafe fn dc_ftoa(f: libc::c_double) -> *mut libc::c_char {
@@ -539,32 +530,32 @@ pub unsafe fn dc_str_to_clist(
     list
 }
 
+/* the colors must fulfill some criterions as:
+- contrast to black and to white
+- work as a text-color
+- being noticeable on a typical map
+- harmonize together while being different enough
+(therefore, we cannot just use random rgb colors :) */
+const COLORS: [u32; 16] = [
+    0xe56555, 0xf28c48, 0x8e85ee, 0x76c84d, 0x5bb6cc, 0x549cdd, 0xd25c99, 0xb37800, 0xf23030,
+    0x39b249, 0xbb243b, 0x964078, 0x66874f, 0x308ab9, 0x127ed0, 0xbe450c,
+];
+
+pub fn dc_str_to_color_safe(s: impl AsRef<str>) -> u32 {
+    let str_lower = s.as_ref().to_lowercase();
+    let mut checksum = 0;
+    let bytes = str_lower.as_bytes();
+    for i in 0..str_lower.len() {
+        checksum += (i + 1) * bytes[i] as usize;
+        checksum %= 0xffffff;
+    }
+    let color_index = checksum % COLORS.len();
+
+    COLORS[color_index]
+}
+
 pub unsafe fn dc_str_to_color(str: *const libc::c_char) -> libc::c_int {
     let str_lower: *mut libc::c_char = dc_strlower(str);
-    /* the colors must fulfill some criterions as:
-    - contrast to black and to white
-    - work as a text-color
-    - being noticeable on a typical map
-    - harmonize together while being different enough
-    (therefore, we cannot just use random rgb colors :) */
-    static mut COLORS: [uint32_t; 16] = [
-        0xe56555i32 as uint32_t,
-        0xf28c48i32 as uint32_t,
-        0x8e85eei32 as uint32_t,
-        0x76c84di32 as uint32_t,
-        0x5bb6cci32 as uint32_t,
-        0x549cddi32 as uint32_t,
-        0xd25c99i32 as uint32_t,
-        0xb37800i32 as uint32_t,
-        0xf23030i32 as uint32_t,
-        0x39b249i32 as uint32_t,
-        0xbb243bi32 as uint32_t,
-        0x964078i32 as uint32_t,
-        0x66874fi32 as uint32_t,
-        0x308ab9i32 as uint32_t,
-        0x127ed0i32 as uint32_t,
-        0xbe450ci32 as uint32_t,
-    ];
     let mut checksum: libc::c_int = 0i32;
     let str_len: libc::c_int = strlen(str_lower) as libc::c_int;
     let mut i: libc::c_int = 0i32;
@@ -1036,6 +1027,26 @@ pub unsafe fn dc_get_filemeta(
     0
 }
 
+/// Expand paths relative to $BLOBDIR into absolute paths.
+///
+/// If `path` starts with "$BLOBDIR", replaces it with the blobdir path.
+/// Otherwise, returns path as is.
+pub fn dc_get_abs_path_safe<P: AsRef<std::path::Path>>(
+    context: &Context,
+    path: P,
+) -> std::path::PathBuf {
+    let p: &std::path::Path = path.as_ref();
+    if let Ok(p) = p.strip_prefix("$BLOBDIR") {
+        assert!(
+            context.has_blobdir(),
+            "Expected context to have blobdir to substitute $BLOBDIR",
+        );
+        std::path::PathBuf::from(as_str(context.get_blobdir())).join(p)
+    } else {
+        p.into()
+    }
+}
+
 #[allow(non_snake_case)]
 pub unsafe fn dc_get_abs_path(
     context: &Context,
@@ -1066,137 +1077,79 @@ pub unsafe fn dc_get_abs_path(
     pathNfilename_abs
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_file_exist(context: &Context, pathNfilename: *const libc::c_char) -> libc::c_int {
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if pathNfilename_abs.is_null() {
-        return 0;
-    }
-
-    let exist = {
-        let p = std::path::Path::new(as_str(pathNfilename_abs));
-        p.exists()
-    };
-
-    free(pathNfilename_abs as *mut libc::c_void);
-    exist as libc::c_int
+pub fn dc_file_exist(context: &Context, path: *const libc::c_char) -> libc::c_int {
+    dc_get_abs_path_safe(context, as_path(path)).exists() as libc::c_int
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_get_filebytes(context: &Context, pathNfilename: *const libc::c_char) -> uint64_t {
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if pathNfilename_abs.is_null() {
-        return 0;
+pub fn dc_get_filebytes(context: &Context, path: *const libc::c_char) -> uint64_t {
+    let path_abs = dc_get_abs_path_safe(context, as_path(path));
+    match fs::metadata(&path_abs) {
+        Ok(meta) => meta.len() as uint64_t,
+        Err(_err) => 0,
     }
-
-    let p = std::ffi::CStr::from_ptr(pathNfilename_abs)
-        .to_str()
-        .unwrap();
-    let filebytes = match fs::metadata(p) {
-        Ok(meta) => meta.len(),
-        Err(_err) => {
-            return 0;
-        }
-    };
-
-    free(pathNfilename_abs as *mut libc::c_void);
-    filebytes as uint64_t
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_delete_file(context: &Context, pathNfilename: *const libc::c_char) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    if pathNfilename_abs.is_null() {
-        return 0;
-    }
-    let p = std::path::Path::new(
-        std::ffi::CStr::from_ptr(pathNfilename_abs)
-            .to_str()
-            .unwrap(),
-    );
-
-    let res = if p.is_file() {
-        fs::remove_file(p)
+pub fn dc_delete_file(context: &Context, path: *const libc::c_char) -> libc::c_int {
+    let path = as_path(path);
+    let path_abs = dc_get_abs_path_safe(context, path);
+    let res = if path_abs.is_file() {
+        fs::remove_file(path_abs)
     } else {
-        fs::remove_dir_all(p)
+        fs::remove_dir_all(path_abs)
     };
 
     match res {
-        Ok(_) => {
-            success = 1;
-        }
+        Ok(_) => 1,
         Err(_err) => {
-            warn!(context, 0, "Cannot delete \"{}\".", as_str(pathNfilename),);
+            warn!(context, 0, "Cannot delete \"{}\".", path.display());
+            0
         }
     }
-
-    free(pathNfilename_abs as *mut libc::c_void);
-    success
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_copy_file(
+pub fn dc_copy_file(
     context: &Context,
     src: *const libc::c_char,
     dest: *const libc::c_char,
 ) -> libc::c_int {
-    let mut success = 0;
-
-    let src_abs = dc_get_abs_path(context, src);
-    let dest_abs = dc_get_abs_path(context, dest);
-
-    if src_abs.is_null() || dest_abs.is_null() {
-        return 0;
-    }
-
-    let src_p = std::ffi::CStr::from_ptr(src_abs).to_str().unwrap();
-    let dest_p = std::ffi::CStr::from_ptr(dest_abs).to_str().unwrap();
-
-    match fs::copy(src_p, dest_p) {
-        Ok(_) => {
-            success = 1;
-        }
+    let src = as_path(src);
+    let dest = as_path(dest);
+    let src_abs = dc_get_abs_path_safe(context, src);
+    let dest_abs = dc_get_abs_path_safe(context, dest);
+    match fs::copy(&src_abs, &dest_abs) {
+        Ok(_) => 1,
         Err(_) => {
-            error!(context, 0, "Cannot copy \"{}\" to \"{}\".", src_p, dest_p,);
+            error!(
+                context,
+                0,
+                "Cannot copy \"{}\" to \"{}\".",
+                src.display(),
+                dest.display(),
+            );
+            0
         }
     }
-
-    free(src_abs as *mut libc::c_void);
-    free(dest_abs as *mut libc::c_void);
-    success
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_create_folder(
-    context: &Context,
-    pathNfilename: *const libc::c_char,
-) -> libc::c_int {
-    let mut success = 0;
-    let pathNfilename_abs = dc_get_abs_path(context, pathNfilename);
-    {
-        let p = std::path::Path::new(as_str(pathNfilename_abs));
-        if !p.exists() {
-            match fs::create_dir_all(p) {
-                Ok(_) => {
-                    success = 1;
-                }
-                Err(_err) => {
-                    warn!(
-                        context,
-                        0,
-                        "Cannot create directory \"{}\".",
-                        as_str(pathNfilename),
-                    );
-                }
+pub fn dc_create_folder(context: &Context, path: *const libc::c_char) -> libc::c_int {
+    let path = as_path(path);
+    let path_abs = dc_get_abs_path_safe(context, path);
+    if !path_abs.exists() {
+        match fs::create_dir_all(path_abs) {
+            Ok(_) => 1,
+            Err(_err) => {
+                warn!(
+                    context,
+                    0,
+                    "Cannot create directory \"{}\".",
+                    path.display(),
+                );
+                0
             }
-        } else {
-            success = 1;
         }
+    } else {
+        1
     }
-
-    free(pathNfilename_abs as *mut libc::c_void);
-    success
 }
 
 #[allow(non_snake_case)]
@@ -1211,33 +1164,24 @@ pub unsafe fn dc_write_file(
     dc_write_file_safe(context, as_str(pathNfilename), bytes) as libc::c_int
 }
 
-#[allow(non_snake_case)]
-pub fn dc_write_file_safe(context: &Context, pathNfilename: impl AsRef<str>, buf: &[u8]) -> bool {
-    let pathNfilename_abs = unsafe {
-        let n = CString::yolo(pathNfilename.as_ref());
-        dc_get_abs_path(context, n.as_ptr())
-    };
-    if pathNfilename_abs.is_null() {
-        return false;
-    }
-
-    let p = as_str(pathNfilename_abs);
-
-    let success = if let Err(_err) = fs::write(p, buf) {
+pub fn dc_write_file_safe<P: AsRef<std::path::Path>>(
+    context: &Context,
+    path: P,
+    buf: &[u8],
+) -> bool {
+    let path_abs = dc_get_abs_path_safe(context, &path);
+    if let Err(_err) = fs::write(&path_abs, buf) {
         warn!(
             context,
             0,
             "Cannot write {} bytes to \"{}\".",
             buf.len(),
-            pathNfilename.as_ref(),
+            path.as_ref().display(),
         );
         false
     } else {
         true
-    };
-
-    unsafe { free(pathNfilename_abs as *mut libc::c_void) };
-    success
+    }
 }
 
 #[allow(non_snake_case)]
@@ -1260,34 +1204,20 @@ pub unsafe fn dc_read_file(
     }
 }
 
-#[allow(non_snake_case)]
-pub fn dc_read_file_safe(context: &Context, pathNfilename: impl AsRef<str>) -> Option<Vec<u8>> {
-    let pathNfilename_abs = unsafe {
-        let n = CString::yolo(pathNfilename.as_ref());
-        dc_get_abs_path(context, n.as_ptr())
-    };
-
-    if pathNfilename_abs.is_null() {
-        return None;
-    }
-
-    let p = as_str(pathNfilename_abs);
-    let res = match fs::read(p) {
+pub fn dc_read_file_safe<P: AsRef<std::path::Path>>(context: &Context, path: P) -> Option<Vec<u8>> {
+    let path_abs = dc_get_abs_path_safe(context, &path);
+    match fs::read(&path_abs) {
         Ok(bytes) => Some(bytes),
         Err(_err) => {
             warn!(
                 context,
                 0,
                 "Cannot read \"{}\" or file is empty.",
-                pathNfilename.as_ref(),
+                path.as_ref().display()
             );
             None
         }
-    };
-
-    unsafe { free(pathNfilename_abs as *mut libc::c_void) };
-
-    res
+    }
 }
 
 #[allow(non_snake_case)]
@@ -1523,9 +1453,9 @@ pub trait StrExt {
     ///
     /// This allocates a new raw C string which must be freed using
     /// `free`.  It takes care of some common pitfalls with using
-    /// [CString::as_ptr].
+    /// [CString.as_ptr].
     ///
-    /// [CString::as_ptr]: std::ffi::CString::as_ptr
+    /// [CString.as_ptr]: std::ffi::CString.as_ptr
     ///
     /// # Panics
     ///
@@ -1635,6 +1565,49 @@ mod tests {
     use std::ffi::CStr;
 
     #[test]
+    fn test_dc_strdup() {
+        unsafe {
+            let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
+            let str_a_copy = dc_strdup(str_a);
+
+            // Value of str_a_copy should equal foobar
+            assert_eq!(
+                CStr::from_ptr(str_a_copy),
+                CString::new("foobar").unwrap().as_c_str()
+            );
+            // Address of str_a should be different from str_a_copy
+            assert_ne!(str_a, str_a_copy);
+
+            let str_a = std::ptr::null() as *const libc::c_char;
+            let str_a_copy = dc_strdup(str_a);
+            // Value of str_a_copy should equal ""
+            assert_eq!(
+                CStr::from_ptr(str_a_copy),
+                CString::new("").unwrap().as_c_str()
+            );
+            assert_ne!(str_a, str_a_copy);
+        }
+    }
+
+    #[test]
+    fn test_dc_strdup_keep_null() {
+        unsafe {
+            let str_a = b"foobar\x00" as *const u8 as *const libc::c_char;
+            let str_a_copy = dc_strdup_keep_null(str_a);
+            assert_eq!(
+                CStr::from_ptr(str_a_copy),
+                CString::new("foobar").unwrap().as_c_str()
+            );
+            assert_ne!(str_a, str_a_copy);
+
+            let str_a = 0 as *const u8 as *const libc::c_char;
+            let str_a_copy = dc_strdup_keep_null(str_a);
+            assert_eq!(str_a.is_null(), true);
+            assert_eq!(str_a_copy.is_null(), true);
+        }
+    }
+
+    #[test]
     fn test_dc_ltrim() {
         unsafe {
             let html: *const libc::c_char =
@@ -1708,7 +1681,7 @@ mod tests {
     fn test_dc_str_replace() {
         unsafe {
             let mut str: *mut libc::c_char = strdup(b"aaa\x00" as *const u8 as *const libc::c_char);
-            let replacements: libc::c_int = dc_str_replace(
+            dc_str_replace(
                 &mut str,
                 b"a\x00" as *const u8 as *const libc::c_char,
                 b"ab\x00" as *const u8 as *const libc::c_char,
@@ -1717,7 +1690,6 @@ mod tests {
                 CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
                 "ababab"
             );
-            assert_eq!(replacements, 3);
             free(str as *mut libc::c_void);
         }
     }

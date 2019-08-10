@@ -1,9 +1,9 @@
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use crate::constants::*;
+use crate::contact::*;
 use crate::dc_array::*;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_job::*;
 use crate::dc_jobthread::*;
 use crate::dc_loginparam::*;
@@ -20,7 +20,6 @@ use crate::sql::Sql;
 use crate::types::*;
 use crate::x::*;
 
-#[repr(C)]
 pub struct Context {
     pub userdata: *mut libc::c_void,
     pub dbfile: Arc<RwLock<*mut libc::c_char>>,
@@ -73,6 +72,14 @@ impl Context {
             unsafe { cb(self, event, data1, data2) }
         } else {
             0
+        }
+    }
+}
+
+impl Drop for Context {
+    fn drop(&mut self) {
+        unsafe {
+            dc_close(&self);
         }
     }
 }
@@ -165,16 +172,6 @@ pub fn dc_context_new(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn no_crashes_on_context_deref() {
-        let mut ctx = dc_context_new(None, std::ptr::null_mut(), Some("Test OS".into()));
-        unsafe { dc_context_unref(&mut ctx) };
-    }
-}
-
 unsafe fn cb_receive_imf(
     context: &Context,
     imf_raw_not_terminated: *const libc::c_char,
@@ -229,7 +226,7 @@ unsafe fn cb_precheck_imf(
                 "[move] detected moved message {}",
                 as_str(rfc724_mid),
             );
-            dc_update_msg_move_state(context, rfc724_mid, DC_MOVE_STATE_STAY);
+            dc_update_msg_move_state(context, rfc724_mid, MoveState::Stay);
         }
         if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
             dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
@@ -256,12 +253,6 @@ fn cb_set_config(context: &Context, key: &str, value: Option<&str>) {
  */
 fn cb_get_config(context: &Context, key: &str) -> Option<String> {
     context.sql.get_config(context, key)
-}
-
-pub unsafe fn dc_context_unref(context: &mut Context) {
-    if 0 != dc_is_open(context) {
-        dc_close(context);
-    }
 }
 
 pub unsafe fn dc_close(context: &Context) {
@@ -346,7 +337,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let chats = dc_get_chat_cnt(context) as usize;
     let real_msgs = dc_get_real_msg_cnt(context) as usize;
     let deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as usize;
-    let contacts = dc_get_real_contact_cnt(context) as usize;
+    let contacts = Contact::get_real_cnt(context) as usize;
     let is_configured = context
         .sql
         .get_config_int(context, "configured")
@@ -589,5 +580,26 @@ pub fn dc_is_mvbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
         name == folder_name.as_ref()
     } else {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_crashes_on_context_deref() {
+        let ctx = dc_context_new(None, std::ptr::null_mut(), Some("Test OS".into()));
+        std::mem::drop(ctx);
+    }
+
+    #[test]
+    fn test_context_double_close() {
+        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
+        unsafe {
+            dc_close(&ctx);
+            dc_close(&ctx);
+        }
+        std::mem::drop(ctx);
     }
 }

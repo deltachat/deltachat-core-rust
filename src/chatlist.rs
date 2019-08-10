@@ -1,7 +1,7 @@
 use crate::constants::*;
+use crate::contact::*;
 use crate::context::*;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_lot::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
@@ -261,7 +261,7 @@ impl<'a> Chatlist<'a> {
         }
 
         let lastmsg_id = self.ids[index].1;
-        let mut lastcontact = 0 as *mut dc_contact_t;
+        let mut lastcontact = None;
 
         if chat.is_null() {
             chat = dc_chat_new(self.context);
@@ -282,8 +282,7 @@ impl<'a> Chatlist<'a> {
                 && ((*chat).type_0 == DC_CHAT_TYPE_GROUP
                     || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP)
             {
-                lastcontact = dc_contact_new(self.context);
-                dc_contact_load_from_db(lastcontact, &self.context.sql, (*lastmsg).from_id);
+                lastcontact = Contact::load_from_db(self.context, (*lastmsg).from_id).ok();
             }
             lastmsg
         } else {
@@ -292,14 +291,13 @@ impl<'a> Chatlist<'a> {
 
         if (*chat).id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
             (*ret).text2 = dc_strdup(0 as *const libc::c_char)
-        } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_SELF as u32 {
+        } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_UNDEFINED as u32 {
             (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
         } else {
-            dc_lot_fill(ret, lastmsg, chat, lastcontact, self.context);
+            dc_lot_fill(ret, lastmsg, chat, lastcontact.as_ref(), self.context);
         }
 
         dc_msg_unref(lastmsg);
-        dc_contact_unref(lastcontact);
 
         ret
     }

@@ -291,7 +291,7 @@ const DB_COMMANDS: [&'static str; 11] = [
     "housekeeping",
 ];
 
-const CHAT_COMMANDS: [&'static str; 25] = [
+const CHAT_COMMANDS: [&'static str; 24] = [
     "listchats",
     "listarchived",
     "chat",
@@ -309,7 +309,6 @@ const CHAT_COMMANDS: [&'static str; 25] = [
     "dellocations",
     "getlocations",
     "send",
-    "send-garbage",
     "sendimage",
     "sendfile",
     "draft",
@@ -457,12 +456,6 @@ fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     println!("history saved");
     {
         stop_threads(&ctx.read().unwrap());
-
-        unsafe {
-            let mut ctx = ctx.write().unwrap();
-            dc_close(&mut ctx);
-            dc_context_unref(&mut ctx);
-        }
     }
 
     Ok(())

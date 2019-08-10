@@ -1,8 +1,8 @@
 use percent_encoding::percent_decode_str;
 
+use crate::contact::*;
 use crate::context::Context;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_lot::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
@@ -66,8 +66,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                         let name_r = percent_decode_str(name_enc)
                             .decode_utf8()
                             .expect("invalid name");
-                        name = name_r.strdup();
-                        dc_normalize_name(name);
+                        name = normalize_name(name_r).strdup();
                     }
                     invitenumber = param
                         .get(Param::ProfileImage)
@@ -186,7 +185,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                 b";\x00" as *const u8 as *const libc::c_char,
                                 b",\x00" as *const u8 as *const libc::c_char,
                             );
-                            dc_normalize_name(name);
+                            name = normalize_name(as_str(name)).strdup();
                         }
                     }
                 }
@@ -204,10 +203,10 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                     let mut temp: *mut libc::c_char = dc_urldecode(addr);
                     free(addr as *mut libc::c_void);
                     addr = temp;
-                    temp = dc_addr_normalize(addr);
+                    temp = addr_normalize(as_str(addr)).strdup();
                     free(addr as *mut libc::c_void);
                     addr = temp;
-                    if !dc_may_be_valid_addr(addr) {
+                    if !may_be_valid_addr(as_str(addr)) {
                         (*qr_parsed).state = 400i32;
                         (*qr_parsed).text1 = dc_strdup(
                             b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char,
@@ -248,19 +247,19 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                     if addr.is_null() || invitenumber.is_null() || auth.is_null() {
                                         if let Some(peerstate) = peerstate {
                                             (*qr_parsed).state = 210i32;
-                                            let addr_ptr = if let Some(ref addr) = peerstate.addr {
-                                                addr.strdup()
-                                            } else {
-                                                std::ptr::null()
-                                            };
-                                            (*qr_parsed).id = dc_add_or_lookup_contact(
+                                            let addr = peerstate
+                                                .addr
+                                                .as_ref()
+                                                .map(|s| s.as_str())
+                                                .unwrap_or_else(|| "");
+                                            (*qr_parsed).id = Contact::add_or_lookup(
                                                 context,
-                                                0 as *const libc::c_char,
-                                                addr_ptr,
-                                                0x80i32,
-                                                0 as *mut libc::c_int,
-                                            );
-                                            free(addr_ptr as *mut _);
+                                                "",
+                                                addr,
+                                                Origin::UnhandledQrScan,
+                                            )
+                                            .map(|(id, _)| id)
+                                            .unwrap_or_default();
                                             dc_create_or_lookup_nchat_by_contact_id(
                                                 context,
                                                 (*qr_parsed).id,
@@ -286,26 +285,28 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                                         } else {
                                             (*qr_parsed).state = 200i32
                                         }
-                                        (*qr_parsed).id = dc_add_or_lookup_contact(
+                                        (*qr_parsed).id = Contact::add_or_lookup(
                                             context,
-                                            name,
-                                            addr,
-                                            0x80i32,
-                                            0 as *mut libc::c_int,
-                                        );
+                                            as_str(name),
+                                            as_str(addr),
+                                            Origin::UnhandledQrScan,
+                                        )
+                                        .map(|(id, _)| id)
+                                        .unwrap_or_default();
                                         (*qr_parsed).fingerprint = dc_strdup(fingerprint);
                                         (*qr_parsed).invitenumber = dc_strdup(invitenumber);
                                         (*qr_parsed).auth = dc_strdup(auth)
                                     }
                                 } else if !addr.is_null() {
                                     (*qr_parsed).state = 320i32;
-                                    (*qr_parsed).id = dc_add_or_lookup_contact(
+                                    (*qr_parsed).id = Contact::add_or_lookup(
                                         context,
-                                        name,
-                                        addr,
-                                        0x80i32,
-                                        0 as *mut libc::c_int,
+                                        as_str(name),
+                                        as_str(addr),
+                                        Origin::UnhandledQrScan,
                                     )
+                                    .map(|(id, _)| id)
+                                    .unwrap_or_default();
                                 } else if strstr(
                                     qr,
                                     b"http://\x00" as *const u8 as *const libc::c_char,

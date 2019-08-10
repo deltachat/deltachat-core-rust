@@ -9,11 +9,12 @@ use mmime::mailmime_types_helper::*;
 use mmime::mailmime_write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
+use std::ptr;
 
 use crate::constants::*;
+use crate::contact::*;
 use crate::context::Context;
 use crate::dc_chat::*;
-use crate::dc_contact::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_msg::*;
@@ -293,7 +294,6 @@ pub unsafe fn dc_mimefactory_load_mdn(
     }
 
     let mut success = 0;
-    let mut contact = 0 as *mut dc_contact_t;
 
     (*factory).recipients_names = clist_new();
     (*factory).recipients_addr = clist_new();
@@ -305,24 +305,19 @@ pub unsafe fn dc_mimefactory_load_mdn(
         .unwrap_or_else(|| 1)
     {
         // MDNs not enabled - check this is late, in the job. the use may have changed its choice while offline ...
-        contact = dc_contact_new((*factory).context);
-        if !(!dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id)
-            || !dc_contact_load_from_db(
-                contact,
-                &(*factory).context.sql,
-                (*(*factory).msg).from_id,
-            ))
-        {
-            if !(0 != (*contact).blocked || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
+        if !dc_msg_load_from_db((*factory).msg, (*factory).context, msg_id) {
+            return success;
+        }
+
+        if let Ok(contact) = Contact::load_from_db((*factory).context, (*(*factory).msg).from_id) {
+            if !(contact.is_blocked() || (*(*factory).msg).chat_id <= 9 as libc::c_uint) {
                 // Do not send MDNs trash etc.; chats.blocked is already checked by the caller in dc_markseen_msgs()
                 if !((*(*factory).msg).from_id <= 9 as libc::c_uint) {
                     clist_insert_after(
                         (*factory).recipients_names,
                         (*(*factory).recipients_names).last,
-                        (if !(*contact).authname.is_null()
-                            && 0 != *(*contact).authname.offset(0isize) as libc::c_int
-                        {
-                            dc_strdup((*contact).authname)
+                        (if !contact.get_authname().is_empty() {
+                            contact.get_authname().strdup()
                         } else {
                             0 as *mut libc::c_char
                         }) as *mut libc::c_void,
@@ -330,7 +325,7 @@ pub unsafe fn dc_mimefactory_load_mdn(
                     clist_insert_after(
                         (*factory).recipients_addr,
                         (*(*factory).recipients_addr).last,
-                        dc_strdup((*contact).addr) as *mut libc::c_void,
+                        contact.get_addr().strdup() as *mut libc::c_void,
                     );
                     load_from(factory);
                     (*factory).timestamp = dc_create_smeared_timestamp((*factory).context);
@@ -345,15 +340,13 @@ pub unsafe fn dc_mimefactory_load_mdn(
         }
     }
 
-    dc_contact_unref(contact);
-
     success
 }
 
 // TODO should return bool /rtn
 pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc::c_int {
     let subject: *mut mailimf_subject;
-    let mut current_block: u64;
+    let mut ok_to_continue = true;
     let imf_fields: *mut mailimf_fields;
     let mut message: *mut mailmime = 0 as *mut mailmime;
     let mut message_text: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -799,12 +792,17 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 )
             }
 
-            let mut final_text: *const libc::c_char = 0 as *const libc::c_char;
-            if !placeholdertext.is_null() {
-                final_text = placeholdertext
-            } else if !(*msg).text.is_null() && 0 != *(*msg).text.offset(0isize) as libc::c_int {
-                final_text = (*msg).text
-            }
+            let final_text = {
+                if !placeholdertext.is_null() {
+                    to_string(placeholdertext)
+                } else if let Some(ref text) = (*msg).text {
+                    text.clone()
+                } else {
+                    "".into()
+                }
+            };
+            let final_text = CString::yolo(final_text);
+
             let footer: *mut libc::c_char = (*factory).selfstatus;
             message_text = dc_mprintf(
                 b"%s%s%s%s%s\x00" as *const u8 as *const libc::c_char,
@@ -813,12 +811,8 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                 } else {
                     b"\x00" as *const u8 as *const libc::c_char
                 },
-                if !final_text.is_null() {
-                    final_text
-                } else {
-                    b"\x00" as *const u8 as *const libc::c_char
-                },
-                if !final_text.is_null()
+                final_text.as_ptr(),
+                if final_text != CString::yolo("")
                     && !footer.is_null()
                     && 0 != *footer.offset(0isize) as libc::c_int
                 {
@@ -853,7 +847,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     );
                     set_error(factory, error);
                     free(error as *mut libc::c_void);
-                    current_block = 11328123142868406523;
+                    ok_to_continue = false;
                 } else {
                     let file_part: *mut mailmime =
                         build_body_file(msg, 0 as *const libc::c_char, 0 as *mut *mut libc::c_char);
@@ -861,86 +855,73 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                         mailmime_smart_add_part(message, file_part);
                         parts += 1
                     }
-                    current_block = 13000670339742628194;
                 }
-            } else {
-                current_block = 13000670339742628194;
             }
-            match current_block {
-                11328123142868406523 => {}
-                _ => {
-                    if parts == 0 {
-                        set_error(
-                            factory,
-                            b"Empty message.\x00" as *const u8 as *const libc::c_char,
-                        );
-                        current_block = 11328123142868406523;
-                    } else {
-                        if !meta_part.is_null() {
-                            mailmime_smart_add_part(message, meta_part);
-                        }
-                        if (*msg).param.exists(Param::SetLatitude) {
-                            let latitude = (*msg)
-                                .param
-                                .get_float(Param::SetLatitude)
-                                .unwrap_or_default();
-                            let longitude = (*msg)
-                                .param
-                                .get_float(Param::SetLongitude)
-                                .unwrap_or_default();
-                            let kml_file =
-                                dc_get_message_kml((*msg).timestamp_sort, latitude, longitude);
-                            if !kml_file.is_null() {
-                                let content_type = mailmime_content_new_with_str(
-                                    b"application/vnd.google-earth.kml+xml\x00" as *const u8
-                                        as *const libc::c_char,
-                                );
-                                let mime_fields = mailmime_fields_new_filename(
-                                    MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                                    dc_strdup(
-                                        b"message.kml\x00" as *const u8 as *const libc::c_char,
-                                    ),
-                                    MAILMIME_MECHANISM_8BIT as libc::c_int,
-                                );
-                                let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
-                                mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
-
-                                mailmime_smart_add_part(message, kml_mime_part);
-                            }
-                        }
-
-                        if dc_is_sending_locations_to_chat((*msg).context, (*msg).chat_id) {
-                            let mut last_added_location_id: uint32_t = 0 as uint32_t;
-                            let kml_file: *mut libc::c_char = dc_get_location_kml(
-                                (*msg).context,
-                                (*msg).chat_id,
-                                &mut last_added_location_id,
+            if ok_to_continue {
+                if parts == 0 {
+                    set_error(
+                        factory,
+                        b"Empty message.\x00" as *const u8 as *const libc::c_char,
+                    );
+                    ok_to_continue = false;
+                } else {
+                    if !meta_part.is_null() {
+                        mailmime_smart_add_part(message, meta_part);
+                    }
+                    if (*msg).param.exists(Param::SetLatitude) {
+                        let latitude = (*msg)
+                            .param
+                            .get_float(Param::SetLatitude)
+                            .unwrap_or_default();
+                        let longitude = (*msg)
+                            .param
+                            .get_float(Param::SetLongitude)
+                            .unwrap_or_default();
+                        let kml_file =
+                            dc_get_message_kml((*msg).timestamp_sort, latitude, longitude);
+                        if !kml_file.is_null() {
+                            let content_type = mailmime_content_new_with_str(
+                                b"application/vnd.google-earth.kml+xml\x00" as *const u8
+                                    as *const libc::c_char,
                             );
-                            if !kml_file.is_null() {
-                                let content_type: *mut mailmime_content =
-                                    mailmime_content_new_with_str(
-                                        b"application/vnd.google-earth.kml+xml\x00" as *const u8
-                                            as *const libc::c_char,
-                                    );
-                                let mime_fields: *mut mailmime_fields =
-                                    mailmime_fields_new_filename(
-                                        MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                                        dc_strdup(
-                                            b"location.kml\x00" as *const u8 as *const libc::c_char,
-                                        ),
-                                        MAILMIME_MECHANISM_8BIT as libc::c_int,
-                                    );
-                                let kml_mime_part: *mut mailmime =
-                                    mailmime_new_empty(content_type, mime_fields);
-                                mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
-                                mailmime_smart_add_part(message, kml_mime_part);
-                                if !(*msg).param.exists(Param::SetLatitude) {
-                                    // otherwise, the independent location is already filed
-                                    (*factory).out_last_added_location_id = last_added_location_id;
-                                }
+                            let mime_fields = mailmime_fields_new_filename(
+                                MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
+                                dc_strdup(b"message.kml\x00" as *const u8 as *const libc::c_char),
+                                MAILMIME_MECHANISM_8BIT as libc::c_int,
+                            );
+                            let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
+                            mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
+
+                            mailmime_smart_add_part(message, kml_mime_part);
+                        }
+                    }
+
+                    if dc_is_sending_locations_to_chat((*msg).context, (*msg).chat_id) {
+                        let mut last_added_location_id: uint32_t = 0 as uint32_t;
+                        let kml_file: *mut libc::c_char = dc_get_location_kml(
+                            (*msg).context,
+                            (*msg).chat_id,
+                            &mut last_added_location_id,
+                        );
+                        if !kml_file.is_null() {
+                            let content_type: *mut mailmime_content = mailmime_content_new_with_str(
+                                b"application/vnd.google-earth.kml+xml\x00" as *const u8
+                                    as *const libc::c_char,
+                            );
+                            let mime_fields: *mut mailmime_fields = mailmime_fields_new_filename(
+                                MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
+                                dc_strdup(b"location.kml\x00" as *const u8 as *const libc::c_char),
+                                MAILMIME_MECHANISM_8BIT as libc::c_int,
+                            );
+                            let kml_mime_part: *mut mailmime =
+                                mailmime_new_empty(content_type, mime_fields);
+                            mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
+                            mailmime_smart_add_part(message, kml_mime_part);
+                            if !(*msg).param.exists(Param::SetLatitude) {
+                                // otherwise, the independent location is already filed
+                                (*factory).out_last_added_location_id = last_added_location_id;
                             }
                         }
-                        current_block = 9952640327414195044;
                     }
                 }
             }
@@ -994,86 +975,81 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             mailmime_set_body_text(mach_mime_part, message_text2, strlen(message_text2));
             mailmime_add_part(multipart, mach_mime_part);
             force_plaintext = 2;
-            current_block = 9952640327414195044;
         } else {
             set_error(
                 factory,
                 b"No message loaded.\x00" as *const u8 as *const libc::c_char,
             );
-            current_block = 11328123142868406523;
+            ok_to_continue = false;
         }
 
-        match current_block {
-            11328123142868406523 => {}
-            _ => {
-                if (*factory).loaded as libc::c_uint
-                    == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
-                {
-                    let e = CString::new(
-                        (*factory)
-                            .context
-                            .stock_str(StockMessage::ReadRcpt)
-                            .as_ref(),
-                    )
-                    .unwrap();
-                    subject_str = dc_mprintf(
-                        b"Chat: %s\x00" as *const u8 as *const libc::c_char,
-                        e.as_ptr(),
-                    );
-                } else {
-                    subject_str = get_subject((*factory).chat, (*factory).msg, afwd_email)
-                }
-                subject = mailimf_subject_new(dc_encode_header_words(subject_str));
-                mailimf_fields_add(
-                    imf_fields,
-                    mailimf_field_new(
-                        MAILIMF_FIELD_SUBJECT as libc::c_int,
-                        0 as *mut mailimf_return,
-                        0 as *mut mailimf_orig_date,
-                        0 as *mut mailimf_from,
-                        0 as *mut mailimf_sender,
-                        0 as *mut mailimf_to,
-                        0 as *mut mailimf_cc,
-                        0 as *mut mailimf_bcc,
-                        0 as *mut mailimf_message_id,
-                        0 as *mut mailimf_orig_date,
-                        0 as *mut mailimf_from,
-                        0 as *mut mailimf_sender,
-                        0 as *mut mailimf_reply_to,
-                        0 as *mut mailimf_to,
-                        0 as *mut mailimf_cc,
-                        0 as *mut mailimf_bcc,
-                        0 as *mut mailimf_message_id,
-                        0 as *mut mailimf_in_reply_to,
-                        0 as *mut mailimf_references,
-                        subject,
-                        0 as *mut mailimf_comments,
-                        0 as *mut mailimf_keywords,
-                        0 as *mut mailimf_optional_field,
-                    ),
+        if ok_to_continue {
+            if (*factory).loaded as libc::c_uint == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
+            {
+                let e = CString::new(
+                    (*factory)
+                        .context
+                        .stock_str(StockMessage::ReadRcpt)
+                        .as_ref(),
+                )
+                .unwrap();
+                subject_str = dc_mprintf(
+                    b"Chat: %s\x00" as *const u8 as *const libc::c_char,
+                    e.as_ptr(),
                 );
-                if force_plaintext != 2 {
-                    dc_e2ee_encrypt(
-                        (*factory).context,
-                        (*factory).recipients_addr,
-                        force_plaintext,
-                        e2ee_guaranteed,
-                        min_verified,
-                        do_gossip,
-                        message,
-                        &mut e2ee_helper,
-                    );
-                }
-                if 0 != e2ee_helper.encryption_successfull {
-                    (*factory).out_encrypted = 1;
-                    if 0 != do_gossip {
-                        (*factory).out_gossiped = 1
-                    }
-                }
-                (*factory).out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
-                mailmime_write_mem((*factory).out, &mut col, message);
-                success = 1
+            } else {
+                subject_str = get_subject((*factory).chat, (*factory).msg, afwd_email)
             }
+            subject = mailimf_subject_new(dc_encode_header_words(subject_str));
+            mailimf_fields_add(
+                imf_fields,
+                mailimf_field_new(
+                    MAILIMF_FIELD_SUBJECT as libc::c_int,
+                    0 as *mut mailimf_return,
+                    0 as *mut mailimf_orig_date,
+                    0 as *mut mailimf_from,
+                    0 as *mut mailimf_sender,
+                    0 as *mut mailimf_to,
+                    0 as *mut mailimf_cc,
+                    0 as *mut mailimf_bcc,
+                    0 as *mut mailimf_message_id,
+                    0 as *mut mailimf_orig_date,
+                    0 as *mut mailimf_from,
+                    0 as *mut mailimf_sender,
+                    0 as *mut mailimf_reply_to,
+                    0 as *mut mailimf_to,
+                    0 as *mut mailimf_cc,
+                    0 as *mut mailimf_bcc,
+                    0 as *mut mailimf_message_id,
+                    0 as *mut mailimf_in_reply_to,
+                    0 as *mut mailimf_references,
+                    subject,
+                    0 as *mut mailimf_comments,
+                    0 as *mut mailimf_keywords,
+                    0 as *mut mailimf_optional_field,
+                ),
+            );
+            if force_plaintext != 2 {
+                dc_e2ee_encrypt(
+                    (*factory).context,
+                    (*factory).recipients_addr,
+                    force_plaintext,
+                    e2ee_guaranteed,
+                    min_verified,
+                    do_gossip,
+                    message,
+                    &mut e2ee_helper,
+                );
+            }
+            if 0 != e2ee_helper.encryption_successfull {
+                (*factory).out_encrypted = 1;
+                if 0 != do_gossip {
+                    (*factory).out_gossiped = 1
+                }
+            }
+            (*factory).out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
+            mailmime_write_mem((*factory).out, &mut col, message);
+            success = 1
         }
     }
     if !message.is_null() {
@@ -1094,8 +1070,17 @@ unsafe fn get_subject(
 ) -> *mut libc::c_char {
     let context = (*chat).context;
     let ret: *mut libc::c_char;
-    let raw_subject =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, (*msg).text, &mut (*msg).param, 32, context);
+
+    let raw_subject = {
+        let msgtext_c = (*msg)
+            .text
+            .as_ref()
+            .map(|s| CString::yolo(String::as_str(s)));
+        let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
+
+        dc_msg_get_summarytext_by_raw((*msg).type_0, msgtext_ptr, &mut (*msg).param, 32, context)
+    };
+
     let fwd = if 0 != afwd_email {
         b"Fwd: \x00" as *const u8 as *const libc::c_char
     } else {

@@ -17,7 +17,6 @@ use crate::dc_mimefactory::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::imap::*;
-use crate::keyhistory::*;
 use crate::param::*;
 use crate::sql;
 use crate::types::*;
@@ -448,7 +447,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                 let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
 
                 if let Some(dest_folder) = dest_folder {
-                    let server_folder = as_str((*msg).server_folder);
+                    let server_folder = (*msg).server_folder.as_ref().unwrap();
 
                     match inbox.mv(
                         context,
@@ -583,7 +582,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
     match current_block {
         15240798224410183470 => {
             if dc_msg_load_from_db(msg, context, job.foreign_id) {
-                let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                let server_folder = (*msg).server_folder.as_ref().unwrap();
                 match inbox.set_seen(context, server_folder, (*msg).server_uid) as libc::c_uint {
                     0 => {}
                     1 => {
@@ -599,8 +598,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                                         .get_config_int(context, "mdns_enabled")
                                         .unwrap_or_else(|| 1)
                                 {
-                                    let folder =
-                                        CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                                    let folder = (*msg).server_folder.as_ref().unwrap();
                                     match inbox.set_mdnsent(context, folder, (*msg).server_uid)
                                         as libc::c_uint
                                     {
@@ -653,8 +651,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
                                         .get_config_int(context, "mdns_enabled")
                                         .unwrap_or_else(|| 1)
                                 {
-                                    let folder =
-                                        CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                                    let folder = (*msg).server_folder.as_ref().unwrap();
 
                                     match inbox.set_mdnsent(context, folder, (*msg).server_uid)
                                         as libc::c_uint
@@ -787,7 +784,7 @@ unsafe fn dc_add_smtp_job(
             b"\x1e\x00" as *const u8 as *const libc::c_char,
         );
         param.set(Param::File, as_str(pathNfilename));
-        param.set(Param::File, as_str(recipients));
+        param.set(Param::Recipients, as_str(recipients));
         dc_job_add(
             context,
             action,
@@ -899,7 +896,7 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_jo
                 8913536887710889399 => {}
                 _ => {
                     let mid = CStr::from_ptr((*msg).rfc724_mid).to_str().unwrap();
-                    let server_folder = CStr::from_ptr((*msg).server_folder).to_str().unwrap();
+                    let server_folder = (*msg).server_folder.as_ref().unwrap();
                     if 0 == inbox.delete_msg(context, mid, server_folder, &mut (*msg).server_uid) {
                         dc_job_try_again_later(job, -1i32, 0 as *const libc::c_char);
                         current_block = 8913536887710889399;
@@ -1277,13 +1274,6 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 (*mimefactory.msg).param.set_int(Param::GuranteeE2ee, 1);
                 dc_msg_save_param_to_disk(mimefactory.msg);
             }
-            dc_add_to_keyhistory(
-                context,
-                0 as *const libc::c_char,
-                0,
-                0 as *const libc::c_char,
-                0 as *const libc::c_char,
-            );
             success = dc_add_smtp_job(context, 5901i32, &mut mimefactory);
         }
     }

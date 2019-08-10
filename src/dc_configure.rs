@@ -101,7 +101,7 @@ pub fn dc_stop_ongoing_process(context: &Context) {
 }
 
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
-#[allow(non_snake_case)]
+#[allow(non_snake_case, unused_must_use)]
 pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_job_t) {
     let flags: libc::c_int;
     let mut current_block: u64;

@@ -11,7 +11,7 @@ lazy_static! {
 struct Dehtml {
     strbuilder: String,
     add_text: AddText,
-    last_href: *mut libc::c_char,
+    last_href: Option<String>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -32,7 +32,7 @@ pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char 
     let mut dehtml = Dehtml {
         strbuilder: String::with_capacity(strlen(buf_terminated)),
         add_text: AddText::YesRemoveLineEnds,
-        last_href: 0 as *mut libc::c_char,
+        last_href: None,
     };
     let mut saxparser = dc_saxparser_t {
         starttag_cb: None,
@@ -51,7 +51,6 @@ pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char 
     );
     dc_saxparser_set_text_handler(&mut saxparser, Some(dehtml_text_cb));
     dc_saxparser_parse(&mut saxparser, buf_terminated);
-    free(dehtml.last_href as *mut libc::c_void);
 
     dehtml.strbuilder.strdup()
 }
@@ -66,7 +65,11 @@ unsafe fn dehtml_text_cb(
     if dehtml.add_text == AddText::YesPreserveLineEnds
         || dehtml.add_text == AddText::YesRemoveLineEnds
     {
-        let last_added = std::ffi::CStr::from_ptr(text).to_string_lossy();
+        let last_added = std::ffi::CStr::from_ptr(text)
+            .to_str()
+            .expect("invalid utf8");
+        // TODO: why does len does not match?
+        // assert_eq!(last_added.len(), len as usize);
 
         if dehtml.add_text == AddText::YesRemoveLineEnds {
             dehtml.strbuilder += LINE_RE.replace_all(last_added.as_ref(), "\r").as_ref();
@@ -86,14 +89,10 @@ unsafe fn dehtml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char
             dehtml.add_text = AddText::YesRemoveLineEnds;
         }
         "a" => {
-            if !dehtml.last_href.is_null() {
+            if let Some(ref last_href) = dehtml.last_href.take() {
                 dehtml.strbuilder += "](";
-                dehtml.strbuilder += std::ffi::CStr::from_ptr((*dehtml).last_href)
-                    .to_string_lossy()
-                    .as_ref();
+                dehtml.strbuilder += last_href;
                 dehtml.strbuilder += ")";
-                free(dehtml.last_href as *mut libc::c_void);
-                dehtml.last_href = 0 as *mut libc::c_char;
             }
         }
         "b" | "strong" => {
@@ -131,12 +130,13 @@ unsafe fn dehtml_starttag_cb(
             dehtml.add_text = AddText::YesPreserveLineEnds;
         }
         "a" => {
-            free(dehtml.last_href as *mut libc::c_void);
-            dehtml.last_href = dc_strdup_keep_null(dc_attr_find(
+            let text_c = std::ffi::CStr::from_ptr(dc_attr_find(
                 attr,
                 b"href\x00" as *const u8 as *const libc::c_char,
             ));
-            if !dehtml.last_href.is_null() {
+            let text_r = text_c.to_str().expect("invalid utf8");
+            if !text_r.is_empty() {
+                dehtml.last_href = Some(text_r.to_string());
                 dehtml.strbuilder += "[";
             }
         }
