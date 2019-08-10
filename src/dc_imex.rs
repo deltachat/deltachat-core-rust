@@ -516,7 +516,8 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
     if !(0 == dc_alloc_ongoing(context)) {
         ongoing_allocated_here = 1;
         what = (*job).param.get_int(Param::Cmd).unwrap_or_default();
-        let param1 = CString::yolo((*job).param.get(Param::Arg).unwrap_or_default());
+        let param1_s = (*job).param.get(Param::Arg).unwrap_or_default();
+        let param1 = CString::yolo(param1_s);
         let _param2 = CString::yolo((*job).param.get(Param::Arg2).unwrap_or_default());
 
         if strlen(param1.as_ptr()) == 0 {
@@ -537,7 +538,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
                         );
                         current_block = 3568988166330621280;
                     } else {
-                        dc_create_folder(context, param1.as_ptr());
+                        dc_create_folder(context, &param1_s);
                         current_block = 4495394744059808450;
                     }
                 } else {
@@ -743,8 +744,8 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         return 0;
     }
     &context.sql.close(&context);
-    dc_delete_file(context, context.get_dbfile());
-    if 0 != dc_file_exist(context, context.get_dbfile()) {
+    dc_delete_file(context, as_path(context.get_dbfile()));
+    if dc_file_exist(context, as_path(context.get_dbfile())) {
         error!(
             context,
             0, "Cannot import backups: Cannot delete the old file.",
@@ -752,7 +753,11 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         return 0;
     }
 
-    if 0 == dc_copy_file(context, backup_to_import, context.get_dbfile()) {
+    if !dc_copy_file(
+        context,
+        as_path(backup_to_import),
+        as_path(context.get_dbfile()),
+    ) {
         return 0;
     }
     /* error already logged */
@@ -879,7 +884,11 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         as_str(context.get_dbfile()),
         as_str(dest_pathNfilename),
     );
-    if !(0 == dc_copy_file(context, context.get_dbfile(), dest_pathNfilename)) {
+    if dc_copy_file(
+        context,
+        as_path(context.get_dbfile()),
+        as_path(dest_pathNfilename),
+    ) {
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
         closed = false;
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
@@ -1039,7 +1048,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         context.sql.open(&context, as_path(context.get_dbfile()), 0);
     }
     if 0 != delete_dest_file {
-        dc_delete_file(context, dest_pathNfilename);
+        dc_delete_file(context, as_path(dest_pathNfilename));
     }
     free(dest_pathNfilename as *mut libc::c_void);
 
@@ -1259,7 +1268,7 @@ unsafe fn export_key_to_asc_file(
         )
     }
     info!(context, 0, "Exporting key {}", as_str(file_name),);
-    dc_delete_file(context, file_name);
+    dc_delete_file(context, as_path(file_name));
     if !key.write_asc_to_file(file_name, context) {
         error!(context, 0, "Cannot write key to {}", as_str(file_name),);
     } else {

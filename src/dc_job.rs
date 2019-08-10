@@ -313,7 +313,8 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     }
     match current_block {
         13109137661213826276 => {
-            filename = job.param.get(Param::File).unwrap_or_default().strdup();
+            let filename_s = job.param.get(Param::File).unwrap_or_default();
+            filename = filename_s.strdup();
             if strlen(filename) == 0 {
                 warn!(context, 0, "Missing file name for job {}", job.job_id,);
             } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
@@ -369,7 +370,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
                                     (*&mut context.smtp.clone().lock().unwrap()).error,
                                 );
                             } else {
-                                dc_delete_file(context, filename);
+                                dc_delete_file(context, filename_s);
                                 if 0 != job.foreign_id {
                                     dc_update_msg_state(
                                         context,

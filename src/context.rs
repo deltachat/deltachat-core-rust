@@ -306,9 +306,9 @@ pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) ->
         let dir = dc_ensure_no_slash_safe(blobdir.unwrap()).strdup();
         *context.blobdir.write().unwrap() = dir;
     } else {
-        let dir = (dbfile.to_string() + "-blobs").strdup();
-        dc_create_folder(context, dir);
-        *context.blobdir.write().unwrap() = dir;
+        let dir = dbfile.to_string() + "-blobs";
+        dc_create_folder(context, &dir);
+        *context.blobdir.write().unwrap() = dir.strdup();
     }
     // Create/open sqlite database, this may already use the blobdir
     let dbfile_path = std::path::Path::new(dbfile);

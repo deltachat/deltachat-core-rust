@@ -57,39 +57,15 @@ unsafe fn stress_functions(context: &Context) {
     );
 
     if 0 != dc_is_open(context) {
-        if 0 != dc_file_exist(
-            context,
-            b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-        ) || 0
-            != dc_file_exist(
-                context,
-                b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            )
-            || 0 != dc_file_exist(
-                context,
-                b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
-            )
-            || 0 != dc_file_exist(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )
+        if dc_file_exist(context, "$BLOBDIR/foobar")
+            || dc_file_exist(context, "$BLOBDIR/dada")
+            || dc_file_exist(context, "$BLOBDIR/foobar.dadada")
+            || dc_file_exist(context, "$BLOBDIR/foobar-folder")
         {
-            dc_delete_file(
-                context,
-                b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            );
-            dc_delete_file(
-                context,
-                b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            );
-            dc_delete_file(
-                context,
-                b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
-            );
-            dc_delete_file(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            );
+            dc_delete_file(context, "$BLOBDIR/foobar");
+            dc_delete_file(context, "$BLOBDIR/dada");
+            dc_delete_file(context, "$BLOBDIR/foobar.dadada");
+            dc_delete_file(context, "$BLOBDIR/foobar-folder");
         }
         dc_write_file(
             context,
@@ -97,25 +73,10 @@ unsafe fn stress_functions(context: &Context) {
             b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
             7i32 as size_t,
         );
-        assert_ne!(
-            0,
-            dc_file_exist(
-                context,
-                b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            )
-        );
+        assert!(dc_file_exist(context, "$BLOBDIR/foobar",));
+        assert!(!dc_file_exist(context, "$BLOBDIR/foobarx"));
         assert_eq!(
-            0,
-            dc_file_exist(
-                context,
-                b"$BLOBDIR/foobarx\x00" as *const u8 as *const libc::c_char,
-            )
-        );
-        assert_eq!(
-            dc_get_filebytes(
-                context,
-                b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            ),
+            dc_get_filebytes(context, "$BLOBDIR/foobar",),
             7i32 as libc::c_ulonglong
         );
 
@@ -133,23 +94,10 @@ unsafe fn stress_functions(context: &Context) {
             context,
             b"/BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
         ));
-        assert_ne!(0, dc_file_exist(context, abs_path));
+        assert!(dc_file_exist(context, as_path(abs_path)));
         free(abs_path as *mut libc::c_void);
-        assert_ne!(
-            0,
-            dc_copy_file(
-                context,
-                b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-                b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            )
-        );
-        assert_eq!(
-            dc_get_filebytes(
-                context,
-                b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            ),
-            7
-        );
+        assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
+        assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
 
         let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
         let mut buf_bytes: size_t = 0;
@@ -170,41 +118,11 @@ unsafe fn stress_functions(context: &Context) {
         );
 
         free(buf as *mut _);
-        assert_ne!(
-            0,
-            dc_delete_file(
-                context,
-                b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            )
-        );
-        assert_ne!(
-            0,
-            dc_delete_file(
-                context,
-                b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-            )
-        );
-        assert_ne!(
-            0,
-            dc_create_folder(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )
-        );
-        assert_ne!(
-            0,
-            dc_file_exist(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )
-        );
-        assert_ne!(
-            0,
-            dc_delete_file(
-                context,
-                b"$BLOBDIR/foobar-folder\x00" as *const u8 as *const libc::c_char,
-            )
-        );
+        assert!(dc_delete_file(context, "$BLOBDIR/foobar"));
+        assert!(dc_delete_file(context, "$BLOBDIR/dada"));
+        assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
+        assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
+        assert!(dc_delete_file(context, "$BLOBDIR/foobar-folder"));
         let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
@@ -237,7 +155,7 @@ unsafe fn stress_functions(context: &Context) {
             ),
             0
         );
-        assert_ne!(0, dc_delete_file(context, fn0));
+        assert!(dc_delete_file(context, as_path(fn0)));
         free(fn0 as *mut libc::c_void);
         free(fn1 as *mut libc::c_void);
     }

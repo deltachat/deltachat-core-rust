@@ -1077,21 +1077,20 @@ pub unsafe fn dc_get_abs_path(
     pathNfilename_abs
 }
 
-pub fn dc_file_exist(context: &Context, path: *const libc::c_char) -> libc::c_int {
-    dc_get_abs_path_safe(context, as_path(path)).exists() as libc::c_int
+pub fn dc_file_exist(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
+    dc_get_abs_path_safe(context, &path).exists()
 }
 
-pub fn dc_get_filebytes(context: &Context, path: *const libc::c_char) -> uint64_t {
-    let path_abs = dc_get_abs_path_safe(context, as_path(path));
+pub fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) -> uint64_t {
+    let path_abs = dc_get_abs_path_safe(context, &path);
     match fs::metadata(&path_abs) {
         Ok(meta) => meta.len() as uint64_t,
         Err(_err) => 0,
     }
 }
 
-pub fn dc_delete_file(context: &Context, path: *const libc::c_char) -> libc::c_int {
-    let path = as_path(path);
-    let path_abs = dc_get_abs_path_safe(context, path);
+pub fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
+    let path_abs = dc_get_abs_path_safe(context, &path);
     let res = if path_abs.is_file() {
         fs::remove_file(path_abs)
     } else {
@@ -1099,56 +1098,53 @@ pub fn dc_delete_file(context: &Context, path: *const libc::c_char) -> libc::c_i
     };
 
     match res {
-        Ok(_) => 1,
+        Ok(_) => true,
         Err(_err) => {
-            warn!(context, 0, "Cannot delete \"{}\".", path.display());
-            0
+            warn!(context, 0, "Cannot delete \"{}\".", path.as_ref().display());
+            false
         }
     }
 }
 
 pub fn dc_copy_file(
     context: &Context,
-    src: *const libc::c_char,
-    dest: *const libc::c_char,
-) -> libc::c_int {
-    let src = as_path(src);
-    let dest = as_path(dest);
-    let src_abs = dc_get_abs_path_safe(context, src);
-    let dest_abs = dc_get_abs_path_safe(context, dest);
+    src: impl AsRef<std::path::Path>,
+    dest: impl AsRef<std::path::Path>,
+) -> bool {
+    let src_abs = dc_get_abs_path_safe(context, &src);
+    let dest_abs = dc_get_abs_path_safe(context, &dest);
     match fs::copy(&src_abs, &dest_abs) {
-        Ok(_) => 1,
+        Ok(_) => true,
         Err(_) => {
             error!(
                 context,
                 0,
                 "Cannot copy \"{}\" to \"{}\".",
-                src.display(),
-                dest.display(),
+                src.as_ref().display(),
+                dest.as_ref().display(),
             );
-            0
+            false
         }
     }
 }
 
-pub fn dc_create_folder(context: &Context, path: *const libc::c_char) -> libc::c_int {
-    let path = as_path(path);
-    let path_abs = dc_get_abs_path_safe(context, path);
+pub fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
+    let path_abs = dc_get_abs_path_safe(context, &path);
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs) {
-            Ok(_) => 1,
+            Ok(_) => true,
             Err(_err) => {
                 warn!(
                     context,
                     0,
                     "Cannot create directory \"{}\".",
-                    path.display(),
+                    path.as_ref().display(),
                 );
-                0
+                false
             }
         }
     } else {
-        1
+        true
     }
 }
 
@@ -1257,7 +1253,7 @@ pub unsafe fn dc_get_fine_pathNfilename(
                 dotNSuffix,
             )
         }
-        if 0 == dc_file_exist(context, ret) {
+        if !dc_file_exist(context, as_path(ret)) {
             /* fine filename found */
             break;
         } else {
@@ -1311,7 +1307,7 @@ pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_ch
                     );
                     blobdir_path.is_null()
                 }
-                || 0 == dc_copy_file(context, *path, blobdir_path))
+                || !dc_copy_file(context, as_path(*path), as_path(blobdir_path)))
             {
                 free(*path as *mut libc::c_void);
                 *path = blobdir_path;

@@ -168,7 +168,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += &format!(
             "\nFile: {}, {}, bytes\n",
             as_str(p),
-            dc_get_filebytes(context, p) as libc::c_int,
+            dc_get_filebytes(context, as_path(p)) as libc::c_int,
         );
     }
     free(p as *mut libc::c_void);
@@ -725,16 +725,13 @@ pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_msg_get_filebytes(msg: *const dc_msg_t) -> uint64_t {
-    let mut ret = 0;
-
     if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
         if let Some(file) = (*msg).param.get(Param::File) {
-            let file_c = CString::yolo(file);
-            ret = dc_get_filebytes((*msg).context, file_c.as_ptr());
+            return dc_get_filebytes((*msg).context, &file);
         }
     }
 
-    ret
+    0
 }
 
 pub unsafe fn dc_msg_get_width(msg: *const dc_msg_t) -> libc::c_int {
