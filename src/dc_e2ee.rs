@@ -99,7 +99,7 @@ pub unsafe fn dc_e2ee_encrypt(
 
         if let Some(addr) = addr {
             if let Some(public_key) =
-                load_or_generate_self_public_key(context, &addr, in_out_message)
+                load_or_generate_self_public_key(context, &addr)
             {
                 /*only for random-seed*/
                 if prefer_encrypt == EncryptPreference::Mutual || 0 != e2ee_guaranteed {
@@ -481,7 +481,6 @@ unsafe fn new_data_part(
 unsafe fn load_or_generate_self_public_key(
     context: &Context,
     self_addr: impl AsRef<str>,
-    _random_data_mime: *mut mailmime,
 ) -> Option<Key> {
     /* avoid double creation (we unlock the database during creation) */
     static mut S_IN_KEY_CREATION: libc::c_int = 0;
@@ -1065,7 +1064,7 @@ pub fn dc_ensure_secret_key_exists(context: &Context) -> Result<String> {
             "cannot ensure secret key if not configured."
         )))?;
     unsafe {
-        load_or_generate_self_public_key(context, &self_addr, 0 as *mut mailmime)
+        load_or_generate_self_public_key(context, &self_addr)
             .ok_or(format_err!("Failed to generate private key."))?;
     }
     Ok(self_addr)
