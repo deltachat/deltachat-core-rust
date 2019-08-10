@@ -441,7 +441,6 @@ pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> i64 {
 
 pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id: u32) -> bool {
     if msg.is_null() {
-        println!("xxx msg is null {}", id);
         return false;
     }
 
@@ -476,15 +475,13 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                println!("Before2 text: {}", id);
-                (*msg).text = match row.get(15) {
-                    Ok(text) => Some(text),
+                (*msg).text = Some(match row.get(15) {
+                    Ok(text) => text,
                     Err(e) => {
                         warn!(context, 0, "dc_msg_load_from_db: could not get text column for id {} because of {}", id, e);
-                        Some("[ Could not read from db ]".to_string())
+                        "[ Could not read from db ]".to_string()
                     }
-                };
-                println!("After text: {}", id);
+                });
                 (*msg).param = row.get::<_, String>(16)?.parse().unwrap_or_default();
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
@@ -503,10 +500,13 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
             Ok(())
             }
         });
-    // HERE WE ARE!
+
     if let Err(e) = res {
-       warn!(context, 0, "Error in msg_load_from_db for id {} because of {}", id, e);
-       return false;
+        warn!(
+            context,
+            0, "Error in msg_load_from_db for id {} because of {}", id, e
+        );
+        return false;
     }
     true
 }
@@ -649,7 +649,6 @@ pub unsafe fn dc_get_msg<'a>(context: &'a Context, msg_id: uint32_t) -> *mut dc_
     if dc_msg_load_from_db(obj, context, msg_id) {
         success = true
     }
-
 
     if success {
         obj

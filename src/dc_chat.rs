@@ -1081,7 +1081,6 @@ pub fn dc_get_chat_msgs(
     let process_rows = |rows: rusqlite::MappedRows<_>| {
         for row in rows {
             let (curr_id, ts) = row?;
-            //println!("{}", curr_id);
             if curr_id as u32 == marker1before {
                 ret.add_id(1);
             }
