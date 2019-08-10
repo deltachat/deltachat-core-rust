@@ -16,7 +16,7 @@ export BRANCH=${CIRCLE_BRANCH:-test7}
 #fi
 
 # run everything else inside docker (TESTS, DOCS, WHEELS) 
-docker run -e BRANCH -e TESTS -e DOCS \
+docker run -e DCC_PY_LIVECONFIG -e BRANCH -e TESTS -e DOCS \
            --rm -it -v $(pwd):/mnt -w /mnt \
            deltachat/coredeps ci_scripts/run_all.sh
 
