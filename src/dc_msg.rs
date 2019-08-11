@@ -20,7 +20,6 @@ use std::ptr;
 #[derive(Clone)]
 #[repr(C)]
 pub struct dc_msg_t<'a> {
-    pub magic: uint32_t,
     pub id: uint32_t,
     pub from_id: uint32_t,
     pub to_id: uint32_t,
@@ -222,7 +221,6 @@ pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> *mut dc_msg_t<'a> 
 // approx. max. length returned by dc_get_msg_info()
 pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> *mut dc_msg_t<'a> {
     let msg = dc_msg_t {
-        magic: 0x11561156,
         id: 0,
         from_id: 0,
         to_id: 0,
@@ -250,17 +248,16 @@ pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> *mut d
     Box::into_raw(Box::new(msg))
 }
 
-pub unsafe fn dc_msg_unref(mut msg: *mut dc_msg_t) {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+pub unsafe fn dc_msg_unref(msg: *mut dc_msg_t) {
+    if msg.is_null() {
         return;
     }
     dc_msg_empty(msg);
-    (*msg).magic = 0i32 as uint32_t;
     Box::from_raw(msg);
 }
 
 pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return;
     }
     free((*msg).rfc724_mid as *mut libc::c_void);
@@ -274,7 +271,7 @@ pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
 pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret = 0 as *mut libc::c_char;
 
-    if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
+    if !msg.is_null() {
         match (*msg).param.get(Param::MimeType) {
             Some(m) => {
                 ret = m.strdup();
@@ -358,7 +355,7 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
 pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut file_abs = 0 as *mut libc::c_char;
 
-    if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
+    if !msg.is_null() {
         if let Some(file_rel) = (*msg).param.get(Param::File) {
             let file_rel_c = CString::yolo(file_rel);
             file_abs = dc_get_abs_path((*msg).context, file_rel_c.as_ptr());
@@ -381,7 +378,7 @@ pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
  * @return 1=Message has location bound to it, 0=No location bound to message.
  */
 pub unsafe fn dc_msg_has_location(msg: *const dc_msg_t) -> bool {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return false;
     }
 
@@ -411,7 +408,6 @@ pub unsafe fn dc_msg_set_location(
     longitude: libc::c_double,
 ) {
     if msg.is_null()
-        || (*msg).magic != 0x11561156i32 as libc::c_uint
         || (latitude == 0.0 && longitude == 0.0)
     {
         return;
@@ -422,7 +418,7 @@ pub unsafe fn dc_msg_set_location(
 }
 
 pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> i64 {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
     return if 0 != (*msg).timestamp_sent {
@@ -660,7 +656,7 @@ pub unsafe fn dc_get_msg<'a>(context: &'a Context, msg_id: uint32_t) -> *mut dc_
 }
 
 pub unsafe fn dc_msg_get_id(msg: *const dc_msg_t) -> uint32_t {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0i32 as uint32_t;
     }
 
@@ -668,7 +664,7 @@ pub unsafe fn dc_msg_get_id(msg: *const dc_msg_t) -> uint32_t {
 }
 
 pub unsafe fn dc_msg_get_from_id(msg: *const dc_msg_t) -> uint32_t {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0i32 as uint32_t;
     }
 
@@ -676,7 +672,7 @@ pub unsafe fn dc_msg_get_from_id(msg: *const dc_msg_t) -> uint32_t {
 }
 
 pub unsafe fn dc_msg_get_chat_id(msg: *const dc_msg_t) -> uint32_t {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0i32 as uint32_t;
     }
     return if 0 != (*msg).chat_blocked {
@@ -687,7 +683,7 @@ pub unsafe fn dc_msg_get_chat_id(msg: *const dc_msg_t) -> uint32_t {
 }
 
 pub unsafe fn dc_msg_get_viewtype(msg: *const dc_msg_t) -> Viewtype {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return Viewtype::Unknown;
     }
 
@@ -695,7 +691,7 @@ pub unsafe fn dc_msg_get_viewtype(msg: *const dc_msg_t) -> Viewtype {
 }
 
 pub unsafe fn dc_msg_get_state(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0i32;
     }
 
@@ -703,7 +699,7 @@ pub unsafe fn dc_msg_get_state(msg: *const dc_msg_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_msg_get_received_timestamp(msg: *const dc_msg_t) -> i64 {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
 
@@ -711,7 +707,7 @@ pub unsafe fn dc_msg_get_received_timestamp(msg: *const dc_msg_t) -> i64 {
 }
 
 pub unsafe fn dc_msg_get_sort_timestamp(msg: *const dc_msg_t) -> i64 {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
 
@@ -719,7 +715,7 @@ pub unsafe fn dc_msg_get_sort_timestamp(msg: *const dc_msg_t) -> i64 {
 }
 
 pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return dc_strdup(0 as *const libc::c_char);
     }
     if let Some(ref text) = (*msg).text {
@@ -733,7 +729,7 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
 pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
     let mut ret = 0 as *mut libc::c_char;
 
-    if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
+    if !msg.is_null() {
         if let Some(file) = (*msg).param.get(Param::File) {
             let file_c = CString::yolo(file);
             ret = dc_get_filename(file_c.as_ptr());
@@ -747,7 +743,7 @@ pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_msg_get_filebytes(msg: *const dc_msg_t) -> uint64_t {
-    if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
+    if !msg.is_null() {
         if let Some(file) = (*msg).param.get(Param::File) {
             return dc_get_filebytes((*msg).context, &file);
         }
@@ -757,7 +753,7 @@ pub unsafe fn dc_msg_get_filebytes(msg: *const dc_msg_t) -> uint64_t {
 }
 
 pub unsafe fn dc_msg_get_width(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
 
@@ -765,7 +761,7 @@ pub unsafe fn dc_msg_get_width(msg: *const dc_msg_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_msg_get_height(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
 
@@ -773,7 +769,7 @@ pub unsafe fn dc_msg_get_height(msg: *const dc_msg_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
 
@@ -782,7 +778,7 @@ pub unsafe fn dc_msg_get_duration(msg: *const dc_msg_t) -> libc::c_int {
 
 // TODO should return bool /rtn
 pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
     if (*msg)
@@ -805,7 +801,7 @@ pub unsafe fn dc_msg_get_summary<'a>(
     let ret: *mut dc_lot_t = dc_lot_new();
     let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
 
-    if !(msg.is_null() || (*msg).magic != 0x11561156 as libc::c_uint) {
+    if !msg.is_null() {
         if chat.is_null() {
             chat_to_delete = dc_get_chat((*msg).context, (*msg).chat_id);
             if chat_to_delete.is_null() {
@@ -836,7 +832,7 @@ pub unsafe fn dc_msg_get_summarytext(
     msg: *mut dc_msg_t,
     approx_characters: libc::c_int,
 ) -> *mut libc::c_char {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return dc_strdup(0 as *const libc::c_char);
     }
 
@@ -947,7 +943,7 @@ pub unsafe fn dc_msg_has_deviating_timestamp(msg: *const dc_msg_t) -> libc::c_in
 
 // TODO should return bool /rtn
 pub unsafe fn dc_msg_is_sent(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
     if (*msg).state >= DC_STATE_OUT_DELIVERED {
@@ -958,7 +954,7 @@ pub unsafe fn dc_msg_is_sent(msg: *const dc_msg_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_msg_is_starred(msg: *const dc_msg_t) -> bool {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return false;
     }
     0 != (*msg).starred
@@ -966,7 +962,7 @@ pub unsafe fn dc_msg_is_starred(msg: *const dc_msg_t) -> bool {
 
 // TODO should return bool /rtn
 pub unsafe fn dc_msg_is_forwarded(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
     if 0 != (*msg).param.get_int(Param::Forwarded).unwrap_or_default() {
@@ -978,7 +974,7 @@ pub unsafe fn dc_msg_is_forwarded(msg: *const dc_msg_t) -> libc::c_int {
 
 // TODO should return bool /rtn
 pub unsafe fn dc_msg_is_info(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
     let cmd = (*msg).param.get_int(Param::Cmd).unwrap_or_default();
@@ -994,7 +990,7 @@ pub unsafe fn dc_msg_is_info(msg: *const dc_msg_t) -> libc::c_int {
 
 // TODO should return bool /rtn
 pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return 0;
     }
 
@@ -1007,7 +1003,6 @@ pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
 
 pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> bool {
     if msg.is_null()
-        || (*msg).magic != 0x11561156i32 as libc::c_uint
         || (*msg).type_0 != Viewtype::File
     {
         return false;
@@ -1065,7 +1060,7 @@ pub unsafe fn dc_msg_get_setupcodebegin(msg: *const dc_msg_t) -> *mut libc::c_ch
 }
 
 pub unsafe fn dc_msg_set_text(mut msg: *mut dc_msg_t, text: *const libc::c_char) {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return;
     }
     (*msg).text = if text.is_null() {
@@ -1080,7 +1075,7 @@ pub unsafe fn dc_msg_set_file(
     file: *const libc::c_char,
     filemime: *const libc::c_char,
 ) {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return;
     }
     if !file.is_null() {
@@ -1092,7 +1087,7 @@ pub unsafe fn dc_msg_set_file(
 }
 
 pub unsafe fn dc_msg_set_dimension(msg: *mut dc_msg_t, width: libc::c_int, height: libc::c_int) {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return;
     }
     (*msg).param.set_int(Param::Width, width);
@@ -1100,7 +1095,7 @@ pub unsafe fn dc_msg_set_dimension(msg: *mut dc_msg_t, width: libc::c_int, heigh
 }
 
 pub unsafe fn dc_msg_set_duration(msg: *mut dc_msg_t, duration: libc::c_int) {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return;
     }
     (*msg).param.set_int(Param::Duration, duration);
@@ -1112,7 +1107,7 @@ pub unsafe fn dc_msg_latefiling_mediasize(
     height: libc::c_int,
     duration: libc::c_int,
 ) {
-    if !(msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint) {
+    if !msg.is_null() {
         if width > 0 && height > 0 {
             (*msg).param.set_int(Param::Width, width);
             (*msg).param.set_int(Param::Height, height);
@@ -1125,7 +1120,7 @@ pub unsafe fn dc_msg_latefiling_mediasize(
 }
 
 pub unsafe fn dc_msg_save_param_to_disk(msg: *mut dc_msg_t) -> bool {
-    if msg.is_null() || (*msg).magic != 0x11561156i32 as libc::c_uint {
+    if msg.is_null() {
         return false;
     }
 
