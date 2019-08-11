@@ -24,7 +24,6 @@ use crate::x::*;
  */
 #[derive(Clone)]
 pub struct Chat<'a> {
-    magic: u32,
     pub id: uint32_t,
     pub type_0: libc::c_int,
     pub name: *mut libc::c_char,
@@ -65,7 +64,6 @@ pub unsafe fn dc_create_chat_by_msg_id(context: &Context, msg_id: uint32_t) -> u
 
 pub unsafe fn dc_chat_new<'a>(context: &'a Context) -> *mut Chat<'a> {
     let chat = Chat {
-        magic: DC_CHAT_MAGIC,
         id: 0,
         type_0: 0,
         name: std::ptr::null_mut(),
@@ -81,17 +79,16 @@ pub unsafe fn dc_chat_new<'a>(context: &'a Context) -> *mut Chat<'a> {
     Box::into_raw(Box::new(chat))
 }
 
-pub unsafe fn dc_chat_unref(mut chat: *mut Chat) {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+pub unsafe fn dc_chat_unref(chat: *mut Chat) {
+    if chat.is_null() {
         return;
     }
     dc_chat_empty(chat);
-    (*chat).magic = 0;
     Box::from_raw(chat);
 }
 
 pub unsafe fn dc_chat_empty(mut chat: *mut Chat) {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return;
     }
     free((*chat).name as *mut libc::c_void);
@@ -120,7 +117,7 @@ pub fn dc_block_chat(context: &Context, chat_id: u32, new_blocking: libc::c_int)
 }
 
 pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
-    if chat.is_null() || unsafe { (*chat).magic != DC_CHAT_MAGIC } {
+    if chat.is_null() {
         return false;
     }
     unsafe { dc_chat_empty(chat) };
@@ -810,7 +807,7 @@ unsafe fn get_parent_mime_headers(
 }
 
 pub unsafe fn dc_chat_is_self_talk(chat: *const Chat) -> libc::c_int {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return 0;
     }
     (*chat).param.exists(Param::Selftalk) as libc::c_int
@@ -2012,21 +2009,21 @@ pub unsafe fn dc_forward_msgs(
 }
 
 pub unsafe fn dc_chat_get_id(chat: *const Chat) -> uint32_t {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return 0i32 as uint32_t;
     }
     (*chat).id
 }
 
 pub unsafe fn dc_chat_get_type(chat: *const Chat) -> libc::c_int {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return 0i32;
     }
     (*chat).type_0
 }
 
 pub unsafe fn dc_chat_get_name(chat: *const Chat) -> *mut libc::c_char {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return dc_strdup(b"Err\x00" as *const u8 as *const libc::c_char);
     }
     dc_strdup((*chat).name)
@@ -2034,7 +2031,7 @@ pub unsafe fn dc_chat_get_name(chat: *const Chat) -> *mut libc::c_char {
 
 pub unsafe fn dc_chat_get_subtitle(chat: *const Chat) -> *mut libc::c_char {
     /* returns either the address or the number of chat members */
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return dc_strdup(b"Err\x00" as *const u8 as *const libc::c_char);
     }
 
@@ -2092,7 +2089,7 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
     let mut image_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut image_abs: *mut libc::c_char = 0 as *mut libc::c_char;
 
-    if !(chat.is_null() || (*chat).magic != DC_CHAT_MAGIC) {
+    if !chat.is_null() {
         image_rel = (*chat)
             .param
             .get(Param::ProfileImage)
@@ -2120,7 +2117,7 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
 pub unsafe fn dc_chat_get_color(chat: *const Chat) -> uint32_t {
     let mut color: uint32_t = 0i32 as uint32_t;
 
-    if !(chat.is_null() || (*chat).magic != DC_CHAT_MAGIC) {
+    if !chat.is_null() {
         if (*chat).type_0 == DC_CHAT_TYPE_SINGLE {
             let contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
             if !contacts.is_empty() {
@@ -2138,7 +2135,7 @@ pub unsafe fn dc_chat_get_color(chat: *const Chat) -> uint32_t {
 
 // TODO should return bool /rtn
 pub unsafe fn dc_chat_get_archived(chat: *const Chat) -> libc::c_int {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return 0i32;
     }
     (*chat).archived
@@ -2146,7 +2143,7 @@ pub unsafe fn dc_chat_get_archived(chat: *const Chat) -> libc::c_int {
 
 // TODO should return bool /rtn
 pub unsafe fn dc_chat_is_unpromoted(chat: *const Chat) -> libc::c_int {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return 0;
     }
     (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() as libc::c_int
@@ -2154,7 +2151,7 @@ pub unsafe fn dc_chat_is_unpromoted(chat: *const Chat) -> libc::c_int {
 
 // TODO should return bool /rtn
 pub unsafe fn dc_chat_is_verified(chat: *const Chat) -> libc::c_int {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
         return 0i32;
     }
     ((*chat).type_0 == 130i32) as libc::c_int
@@ -2162,7 +2159,8 @@ pub unsafe fn dc_chat_is_verified(chat: *const Chat) -> libc::c_int {
 
 // TODO should return bool /rtn
 pub unsafe fn dc_chat_is_sending_locations(chat: *const Chat) -> libc::c_int {
-    if chat.is_null() || (*chat).magic != DC_CHAT_MAGIC {
+    if chat.is_null() {
+
         return 0i32;
     }
     (*chat).is_sending_locations
