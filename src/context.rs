@@ -496,13 +496,12 @@ pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
             &[10, 9, if 0 != show_deaddrop { 2 } else { 0 }],
             |row| row.get(0),
             |rows| {
-                let mut ret = dc_array_t::new(128);
-
+                let mut ret = Vec::new();
                 for row in rows {
-                    let id = row?;
-                    ret.add_id(id);
+                    let id: u32 = row?;
+                    ret.push(id);
                 }
-                Ok(ret.into_raw())
+                Ok(dc_array_t::from(ret).into_raw())
             },
         )
         .unwrap()
@@ -536,7 +535,7 @@ pub fn dc_search_msgs(
          AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
     };
 
-    let mut ret = dc_array_t::new(100);
+    let mut ret = Vec::new();
 
     let success = context
         .sql
@@ -546,7 +545,7 @@ pub fn dc_search_msgs(
             |row| row.get::<_, i32>(0),
             |rows| {
                 for id in rows {
-                    ret.add_id(id? as u32);
+                    ret.push(id? as u32);
                 }
                 Ok(())
             },
@@ -554,7 +553,7 @@ pub fn dc_search_msgs(
         .is_ok();
 
     if success {
-        return ret.into_raw();
+        return dc_array_t::from(ret).into_raw();
     }
 
     std::ptr::null_mut()

@@ -147,6 +147,12 @@ impl dc_array_t {
     }
 }
 
+impl From<Vec<u32>> for dc_array_t {
+    fn from(array: Vec<u32>) -> Self {
+        dc_array_t::Uint(array.iter().map(|&x| x as uintptr_t).collect())
+    }
+}
+
 impl From<Vec<dc_location>> for dc_array_t {
     fn from(array: Vec<dc_location>) -> Self {
         dc_array_t::Locations(array)

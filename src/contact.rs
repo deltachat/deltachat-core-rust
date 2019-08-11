@@ -478,7 +478,7 @@ impl<'a> Contact<'a> {
             .unwrap_or_default();
 
         let mut add_self = false;
-        let mut ret = dc_array_t::new(100);
+        let mut ret = Vec::new();
 
         if (listflags & DC_GCL_VERIFIED_ONLY) > 0 || query.is_some() {
             let s3str_like_cmd = format!(
@@ -509,7 +509,7 @@ impl<'a> Contact<'a> {
                 |row| row.get::<_, i32>(0),
                 |ids| {
                     for id in ids {
-                        ret.add_id(id? as u32);
+                        ret.push(id? as u32);
                     }
                     Ok(())
                 },
@@ -537,7 +537,7 @@ impl<'a> Contact<'a> {
                 |row| row.get::<_, i32>(0),
                 |ids| {
                     for id in ids {
-                        ret.add_id(id? as u32);
+                        ret.push(id? as u32);
                     }
                     Ok(())
                 }
@@ -545,10 +545,10 @@ impl<'a> Contact<'a> {
         }
 
         if 0 != listflags & DC_GCL_ADD_SELF as u32 && add_self {
-            ret.add_id(DC_CONTACT_ID_SELF as u32);
+            ret.push(DC_CONTACT_ID_SELF as u32);
         }
 
-        Ok(ret.into_raw())
+        Ok(dc_array_t::from(ret).into_raw())
     }
 
     pub fn get_blocked_cnt(context: &Context) -> usize {
@@ -572,13 +572,13 @@ impl<'a> Contact<'a> {
                 params![DC_CONTACT_ID_LAST_SPECIAL as i32],
                 |row| row.get::<_, i32>(0),
                 |ids| {
-                    let mut ret = dc_array_t::new(100);
+                    let mut ret = Vec::new();
 
                     for id in ids {
-                        ret.add_id(id? as u32);
+                        ret.push(id? as u32);
                     }
 
-                    Ok(ret.into_raw())
+                    Ok(dc_array_t::from(ret).into_raw())
                 },
             )
             .unwrap_or_else(|_| std::ptr::null_mut())
