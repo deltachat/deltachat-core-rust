@@ -472,17 +472,21 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                (*msg).text = Some(if let rusqlite::types::ValueRef::Text(buf) = row.get_raw(15) {
+                
+                let text;
+                if let rusqlite::types::ValueRef::Text(buf) = row.get_raw(15) {
                     if let Ok(t) = String::from_utf8(buf.to_vec()) {
-                        t
+                        text = t;
                     } else {
                         warn!(context, 0, "dc_msg_load_from_db: could not get text column as non-lossy utf8 id {}", id);
-                        String::from_utf8_lossy(buf).into_owned()
+                        text = String::from_utf8_lossy(buf).into_owned();
                     }
                 } else {
                     warn!(context, 0, "dc_msg_load_from_db: could not get text column for id {}", id);
-                    "[ Could not read from db ]".to_string()
-                });
+                    text = "[ Could not read from db ]".to_string();
+                }
+                (*msg).text = Some(text);
+
                 (*msg).param = row.get::<_, String>(16)?.parse().unwrap_or_default();
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
@@ -654,7 +658,6 @@ pub unsafe fn dc_get_msg<'a>(context: &'a Context, msg_id: uint32_t) -> *mut dc_
     if success {
         obj
     } else {
-        println!("No success for {}", msg_id);
         dc_msg_unref(obj);
         0 as *mut dc_msg_t
     }
