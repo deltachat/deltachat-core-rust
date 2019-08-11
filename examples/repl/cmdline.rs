@@ -604,7 +604,12 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };
-            let chatlist = Chatlist::try_load(context, listflags, Some(arg1), None)?;
+            let chatlist = Chatlist::try_load(
+                context,
+                listflags,
+                if arg1.is_empty() { None } else { Some(arg1) },
+                None,
+            )?;
 
             let cnt = chatlist.len();
             if cnt > 0 {
