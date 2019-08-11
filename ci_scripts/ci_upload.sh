@@ -15,6 +15,7 @@ export BRANCH=${CIRCLE_BRANCH:?specify branch for uploading purposes}
 
 
 # python docs to py.delta.chat
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null delta@py.delta.chat mkdir -p build/${BRANCH}
 rsync -avz \
   -e "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" \
   "$PYDOCDIR/html/" \
@@ -37,11 +38,13 @@ pip install devpi-client
 devpi use https://m.devpi.net
 devpi login dc --password $DEVPI_LOGIN
 
-devpi use dc/$BRANCH || {
-    devpi index -c $BRANCH 
-    devpi use dc/$BRANCH
+N_BRANCH=${BRANCH//[\/]}
+
+devpi use dc/$N_BRANCH || {
+    devpi index -c $N_BRANCH 
+    devpi use dc/$N_BRANCH
 }
-devpi index $BRANCH bases=/root/pypi
+devpi index $N_BRANCH bases=/root/pypi
 devpi upload deltachat*.whl
 
 popd
