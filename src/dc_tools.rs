@@ -333,6 +333,19 @@ pub unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
 
     j
 }
+
+/// Shortens a string to a specified length and adds "..." or "[...]" to the end of
+/// the shortened string.
+///
+/// # Examples
+/// ```
+/// use deltachat::dc_tools::dc_truncate;
+///
+/// let s = "this is a little test string";
+/// let s = "this is a little test string";
+/// assert_eq!(dc_truncate(s, 16, false), "this is a [...]");
+/// assert_eq!(dc_truncate(s, 16, true), "this is a ...");
+/// ```
 pub fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow<str> {
     let ellipse = if do_unwrap { "..." } else { "[...]" };
 
@@ -1756,25 +1769,28 @@ mod tests {
     }
 
     #[test]
-    fn test_dc_str_truncate_1() {
+    fn test_dc_truncate_1() {
         let s = "this is a little test string";
-        assert_eq!(dc_truncate_str(s, 16), "this is a [...]");
+        assert_eq!(dc_truncate(s, 16, false), "this is a [...]");
+        assert_eq!(dc_truncate(s, 16, true), "this is a ...");
     }
 
     #[test]
-    fn test_dc_str_truncate_2() {
-        assert_eq!(dc_truncate_str("1234", 2), "1234");
+    fn test_dc_truncate_2() {
+        assert_eq!(dc_truncate("1234", 2, false), "1234");
+        assert_eq!(dc_truncate("1234", 2, true), "1234");
     }
 
-    // This test seems wrong
-    // #[test]
-    // fn test_dc_str_truncate_3() {
-    //     assert_eq!(dc_truncate_str("1234567", 3), "1[...]");
-    // }
+    #[test]
+    fn test_dc_truncate_3() {
+        assert_eq!(dc_truncate("1234567", 1, false), "1[...]");
+        assert_eq!(dc_truncate("1234567", 1, true), "1...");
+    }
 
     #[test]
-    fn test_dc_str_truncate_4() {
-        assert_eq!(dc_truncate_str("123456", 4), "123456");
+    fn test_dc_truncate_4() {
+        assert_eq!(dc_truncate("123456", 4, false), "123456");
+        assert_eq!(dc_truncate("123456", 4, true), "123456");
     }
 
     #[test]
