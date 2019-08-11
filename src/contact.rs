@@ -472,7 +472,7 @@ impl<'a> Contact<'a> {
         context: &Context,
         listflags: u32,
         query: Option<impl AsRef<str>>,
-    ) -> Result<*mut dc_array_t> {
+    ) -> Result<Vec<u32>> {
         let self_addr = context
             .get_config(Config::ConfiguredAddr)
             .unwrap_or_default();
@@ -548,7 +548,7 @@ impl<'a> Contact<'a> {
             ret.push(DC_CONTACT_ID_SELF as u32);
         }
 
-        Ok(dc_array_t::from(ret).into_raw())
+        Ok(ret)
     }
 
     pub fn get_blocked_cnt(context: &Context) -> usize {

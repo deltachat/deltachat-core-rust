@@ -545,7 +545,7 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_chat_contacts(context, chat_id)
+    dc_array_t::from(dc_chat::dc_get_chat_contacts(context, chat_id)).into_raw()
 }
 
 #[no_mangle]
@@ -817,7 +817,7 @@ pub unsafe extern "C" fn dc_get_contacts(
     };
 
     match Contact::get_all(context, flags, query) {
-        Ok(contacts) => contacts,
+        Ok(contacts) => dc_array_t::from(contacts).into_raw(),
         Err(_) => std::ptr::null_mut(),
     }
 }

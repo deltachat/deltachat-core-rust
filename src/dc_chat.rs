@@ -1406,12 +1406,12 @@ pub fn dc_delete_chat(context: &Context, chat_id: u32) -> bool {
     true
 }
 
-pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t {
+pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> Vec<u32> {
     /* Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     groupchat but the chats stays visible, moreover, this makes displaying lists easier) */
 
     if chat_id == 1 {
-        return std::ptr::null_mut();
+        return Vec::new();
     }
 
     // we could also create a list for all contacts in the deaddrop by searching contacts belonging to chats with
@@ -1423,19 +1423,11 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
             "SELECT cc.contact_id FROM chats_contacts cc \
              LEFT JOIN contacts c ON c.id=cc.contact_id WHERE cc.chat_id=? \
              ORDER BY c.id=1, LOWER(c.name||c.addr), c.id;",
-            params![chat_id as i32],
-            |row| row.get::<_, i32>(0),
-            |ids| {
-                let mut ret = Vec::new();
-
-                for id in ids {
-                    ret.push(id? as u32);
-                }
-
-                Ok(dc_array_t::from(ret).into_raw())
-            },
+            params![chat_id],
+            |row| row.get::<_, u32>(0),
+            |ids| ids.collect::<Result<Vec<_>, _>>().map_err(Into::into),
         )
-        .unwrap_or_else(|_| std::ptr::null_mut())
+        .unwrap_or_default()
 }
 
 pub unsafe fn dc_get_chat(context: &Context, chat_id: uint32_t) -> *mut Chat {
@@ -2099,7 +2091,6 @@ pub fn dc_get_chat_contact_cnt(context: &Context, chat_id: u32) -> libc::c_int {
 pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char {
     let mut image_rel: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut image_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
 
     if !(chat.is_null() || (*chat).magic != DC_CHAT_MAGIC) {
         image_rel = (*chat)
@@ -2110,9 +2101,9 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
         if !image_rel.is_null() && 0 != *image_rel.offset(0isize) as libc::c_int {
             image_abs = dc_get_abs_path((*chat).context, image_rel)
         } else if (*chat).type_0 == DC_CHAT_TYPE_SINGLE {
-            contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-            if !(*contacts).is_empty() {
-                if let Ok(contact) = Contact::get_by_id((*chat).context, (*contacts).get_id(0)) {
+            let contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
+            if !contacts.is_empty() {
+                if let Ok(contact) = Contact::get_by_id((*chat).context, contacts[0]) {
                     if let Some(img) = contact.get_profile_image() {
                         image_abs = img.strdup();
                     }
@@ -2122,20 +2113,18 @@ pub unsafe fn dc_chat_get_profile_image(chat: *const Chat) -> *mut libc::c_char 
     }
 
     free(image_rel as *mut libc::c_void);
-    dc_array_unref(contacts);
 
     image_abs
 }
 
 pub unsafe fn dc_chat_get_color(chat: *const Chat) -> uint32_t {
     let mut color: uint32_t = 0i32 as uint32_t;
-    let mut contacts: *mut dc_array_t = 0 as *mut dc_array_t;
 
     if !(chat.is_null() || (*chat).magic != DC_CHAT_MAGIC) {
         if (*chat).type_0 == DC_CHAT_TYPE_SINGLE {
-            contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-            if !(*contacts).is_empty() {
-                if let Ok(contact) = Contact::get_by_id((*chat).context, (*contacts).get_id(0)) {
+            let contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
+            if !contacts.is_empty() {
+                if let Ok(contact) = Contact::get_by_id((*chat).context, contacts[0]) {
                     color = contact.get_color();
                 }
             }
@@ -2143,8 +2132,6 @@ pub unsafe fn dc_chat_get_color(chat: *const Chat) -> uint32_t {
             color = dc_str_to_color((*chat).name) as uint32_t
         }
     }
-
-    dc_array_unref(contacts);
 
     color
 }

@@ -301,13 +301,12 @@ unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
     }
 }
 
-unsafe fn log_contactlist(context: &Context, contacts: *mut dc_array_t) {
-    if !dc_array_search_id(contacts, 1 as uint32_t, 0 as *mut size_t) {
-        dc_array_add_id(contacts, 1 as uint32_t);
+unsafe fn log_contactlist(context: &Context, contacts: &Vec<u32>) {
+    let mut contacts = contacts.clone();
+    if !contacts.contains(&1) {
+        contacts.push(1);
     }
-    let cnt = dc_array_get_cnt(contacts);
-    for i in 0..cnt {
-        let contact_id = dc_array_get_id(contacts, i as size_t);
+    for contact_id in contacts {
         let line;
         let mut line2 = "".to_string();
         if let Ok(contact) = Contact::get_by_id(context, contact_id) {
@@ -835,16 +834,14 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
 
             let contacts = dc_get_chat_contacts(context, dc_chat_get_id(sel_chat));
-            ensure!(!contacts.is_null(), "Failed to retreive contacts");
             info!(context, 0, "Memberlist:");
 
-            log_contactlist(context, contacts);
+            log_contactlist(context, &contacts);
             println!(
                 "{} contacts\nLocation streaming: {}",
-                dc_array_get_cnt(contacts),
+                contacts.len(),
                 dc_is_sending_locations_to_chat(context, dc_chat_get_id(sel_chat)),
             );
-            dc_array_unref(contacts);
         }
         "getlocations" => {
             let contact_id = arg1.parse().unwrap_or_default();
@@ -1064,13 +1061,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 },
                 Some(arg1),
             )?;
-            if !contacts.is_null() {
-                log_contactlist(context, contacts);
-                println!("{} contacts.", dc_array_get_cnt(contacts) as libc::c_int,);
-                dc_array_unref(contacts);
-            } else {
-                bail!("");
-            }
+            log_contactlist(context, &contacts);
+            println!("{} contacts.", contacts.len());
         }
         "addcontact" => {
             ensure!(!arg1.is_empty(), "Arguments [<name>] <addr> expected.");

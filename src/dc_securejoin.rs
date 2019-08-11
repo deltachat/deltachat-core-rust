@@ -7,7 +7,6 @@ use crate::aheader::EncryptPreference;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_e2ee::*;
@@ -296,14 +295,12 @@ unsafe fn send_handshake_msg(
 }
 
 unsafe fn chat_id_2_contact_id(context: &Context, contact_chat_id: uint32_t) -> uint32_t {
-    let mut contact_id: uint32_t = 0i32 as uint32_t;
-    let contacts: *mut dc_array_t = dc_get_chat_contacts(context, contact_chat_id);
-    if !(dc_array_get_cnt(contacts) != 1) {
-        contact_id = dc_array_get_id(contacts, 0i32 as size_t)
+    let contacts = dc_get_chat_contacts(context, contact_chat_id);
+    if contacts.len() == 1 {
+        contacts[0]
+    } else {
+        0
     }
-    dc_array_unref(contacts);
-
-    contact_id
 }
 
 unsafe fn fingerprint_equals_sender(
@@ -317,8 +314,8 @@ unsafe fn fingerprint_equals_sender(
     let mut fingerprint_equal: libc::c_int = 0i32;
     let contacts = dc_get_chat_contacts(context, contact_chat_id);
 
-    if !(dc_array_get_cnt(contacts) != 1) {
-        if let Ok(contact) = Contact::load_from_db(context, dc_array_get_id(contacts, 0)) {
+    if contacts.len() == 1 {
+        if let Ok(contact) = Contact::load_from_db(context, contacts[0]) {
             if let Some(peerstate) = Peerstate::from_addr(context, &context.sql, contact.get_addr())
             {
                 let fingerprint_normalized = dc_normalize_fingerprint(as_str(fingerprint));
@@ -332,7 +329,6 @@ unsafe fn fingerprint_equals_sender(
             return 0;
         }
     }
-    dc_array_unref(contacts);
 
     fingerprint_equal
 }

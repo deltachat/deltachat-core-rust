@@ -10,7 +10,6 @@ use deltachat::config;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_array::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
@@ -809,19 +808,16 @@ fn test_get_contacts() {
     unsafe {
         let context = create_test_context();
         let contacts = Contact::get_all(&context.ctx, 0, Some("some2")).unwrap();
-        assert_eq!(dc_array_get_cnt(contacts), 0);
-        dc_array_unref(contacts);
+        assert_eq!(contacts.len(), 0);
 
         let id = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
         assert_ne!(id, 0);
 
         let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).unwrap();
-        assert_eq!(dc_array_get_cnt(contacts), 1);
-        dc_array_unref(contacts);
+        assert_eq!(contacts.len(), 1);
 
         let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
-        assert_eq!(dc_array_get_cnt(contacts), 0);
-        dc_array_unref(contacts);
+        assert_eq!(contacts.len(), 0);
     }
 }
 
