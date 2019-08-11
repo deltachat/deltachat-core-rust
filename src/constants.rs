@@ -87,6 +87,8 @@ pub const DC_CHAT_TYPE_SINGLE: i32 = 100;
 pub const DC_CHAT_TYPE_GROUP: i32 = 120;
 pub const DC_CHAT_TYPE_VERIFIED_GROUP: i32 = 130;
 
+pub const DC_CHAT_MAGIC: u32 = 0xc4a7c4a7;
+
 pub const DC_MSG_ID_MARKER1: usize = 1;
 pub const DC_MSG_ID_DAYMARKER: usize = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: usize = 9;
