@@ -333,7 +333,7 @@ pub unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
 
     j
 }
-pub fn dc_truncate_n_str(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow<str> {
+pub fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow<str> {
     let ellipse = if do_unwrap { "..." } else { "[...]" };
 
     if approx_chars > 0 && buf.len() > approx_chars + ellipse.len() {
@@ -345,10 +345,6 @@ pub fn dc_truncate_n_str(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow
     } else {
         Cow::Borrowed(buf)
     }
-}
-
-pub fn dc_truncate_str(buf: &str, approx_chars: usize) -> Cow<str> {
-    return dc_truncate_n_str(buf, approx_chars, false);
 }
 
 #[allow(non_snake_case)]

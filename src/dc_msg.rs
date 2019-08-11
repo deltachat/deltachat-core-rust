@@ -14,7 +14,6 @@ use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
-use std::convert::TryInto;
 use std::ptr;
 
 /* * the structure behind dc_msg_t */
@@ -66,7 +65,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         return ret.strdup();
     }
     let rawtxt = rawtxt.unwrap();
-    let rawtxt = dc_truncate_str(rawtxt.trim(), 100000);
+    let rawtxt = dc_truncate(rawtxt.trim(), 100000, false);
 
     let fts = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
     ret += &format!("Sent: {}", fts);
@@ -718,7 +717,7 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
         return dc_strdup(0 as *const libc::c_char);
     }
     if let Some(ref text) = (*msg).text {
-        dc_truncate_str(text, 30000).strdup()
+        dc_truncate(text, 30000, false).strdup()
     } else {
         ptr::null_mut()
     }
@@ -829,7 +828,7 @@ pub unsafe fn dc_msg_get_summary<'a>(
 
 pub unsafe fn dc_msg_get_summarytext(
     msg: *mut dc_msg_t,
-    approx_characters: libc::c_int,
+    approx_characters: usize,
 ) -> *mut libc::c_char {
     if msg.is_null() {
         return dc_strdup(0 as *const libc::c_char);
@@ -850,7 +849,7 @@ pub fn dc_msg_get_summarytext_by_raw(
     type_0: Viewtype,
     text: &Option<String>,
     param: &mut Params,
-    approx_characters: libc::c_int,
+    approx_characters: usize,
     context: &Context,
 ) -> String {
     let mut append_text = true;
@@ -862,7 +861,9 @@ pub fn dc_msg_get_summarytext_by_raw(
         Viewtype::Audio | Viewtype::File => {
             if param.get_int(Param::Cmd) == Some(6) {
                 append_text = false;
-                context.stock_str(StockMessage::AcSetupMsgSubject).to_string()
+                context
+                    .stock_str(StockMessage::AcSetupMsgSubject)
+                    .to_string()
             } else {
                 let value = unsafe {
                     let base_fname = CString::yolo(param.get(Param::File).unwrap_or("ErrFilename"));
@@ -888,9 +889,9 @@ pub fn dc_msg_get_summarytext_by_raw(
         let text = text.as_ref().unwrap();
         if !prefix.is_empty() {
             let tmp = format!("{} – {}", prefix, text);
-            dc_truncate_n_str(&tmp, approx_characters.try_into().unwrap(), true).to_string()
+            dc_truncate(&tmp, approx_characters, true).to_string()
         } else {
-            dc_truncate_n_str(&text, approx_characters.try_into().unwrap(), true).to_string()
+            dc_truncate(&text, approx_characters, true).to_string()
         }
     } else {
         prefix

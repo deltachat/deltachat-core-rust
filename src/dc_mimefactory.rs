@@ -1074,14 +1074,8 @@ unsafe fn get_subject(
     let ret: *mut libc::c_char;
 
     let raw_subject = {
-        dc_msg_get_summarytext_by_raw(
-            (*msg).type_0,
-            &(*msg).text,
-            &mut (*msg).param,
-            32,
-            context,
-        )
-        .strdup()
+        dc_msg_get_summarytext_by_raw((*msg).type_0, &(*msg).text, &mut (*msg).param, 32, context)
+            .strdup()
     };
 
     let fwd = if 0 != afwd_email {

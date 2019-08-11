@@ -12,6 +12,7 @@ extern crate human_panic;
 extern crate num_traits;
 
 use num_traits::{FromPrimitive, ToPrimitive};
+use std::convert::TryInto;
 use std::str::FromStr;
 
 use deltachat::contact::Contact;
@@ -1539,7 +1540,7 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
 ) -> *mut libc::c_char {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_summarytext(msg, approx_characters)
+    dc_msg::dc_msg_get_summarytext(msg, approx_characters.try_into().unwrap())
 }
 
 #[no_mangle]
