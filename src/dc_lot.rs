@@ -11,7 +11,6 @@ use crate::x::*;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct dc_lot_t {
-    pub magic: uint32_t,
     pub text1_meaning: libc::c_int,
     pub text1: *mut libc::c_char,
     pub text2: *mut libc::c_char,
@@ -38,14 +37,13 @@ pub unsafe fn dc_lot_new() -> *mut dc_lot_t {
     lot = calloc(1, ::std::mem::size_of::<dc_lot_t>()) as *mut dc_lot_t;
     assert!(!lot.is_null());
 
-    (*lot).magic = 0x107107i32 as uint32_t;
     (*lot).text1_meaning = 0i32;
 
     lot
 }
 
 pub unsafe fn dc_lot_empty(mut lot: *mut dc_lot_t) {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
+    if lot.is_null() {
         return;
     }
     free((*lot).text1 as *mut libc::c_void);
@@ -64,17 +62,16 @@ pub unsafe fn dc_lot_empty(mut lot: *mut dc_lot_t) {
     (*lot).id = 0i32 as uint32_t;
 }
 
-pub unsafe fn dc_lot_unref(mut set: *mut dc_lot_t) {
-    if set.is_null() || (*set).magic != 0x107107i32 as libc::c_uint {
+pub unsafe fn dc_lot_unref(set: *mut dc_lot_t) {
+    if set.is_null() {
         return;
     }
     dc_lot_empty(set);
-    (*set).magic = 0i32 as uint32_t;
     free(set as *mut libc::c_void);
 }
 
 pub unsafe fn dc_lot_get_text1(lot: *const dc_lot_t) -> *mut libc::c_char {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
+    if lot.is_null() {
         return 0 as *mut libc::c_char;
     }
 
@@ -82,7 +79,7 @@ pub unsafe fn dc_lot_get_text1(lot: *const dc_lot_t) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_lot_get_text2(lot: *const dc_lot_t) -> *mut libc::c_char {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
+    if lot.is_null() {
         return 0 as *mut libc::c_char;
     }
 
@@ -90,7 +87,7 @@ pub unsafe fn dc_lot_get_text2(lot: *const dc_lot_t) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_lot_get_text1_meaning(lot: *const dc_lot_t) -> libc::c_int {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
+    if lot.is_null() {
         return 0i32;
     }
 
@@ -98,7 +95,7 @@ pub unsafe fn dc_lot_get_text1_meaning(lot: *const dc_lot_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_lot_get_state(lot: *const dc_lot_t) -> libc::c_int {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
+    if lot.is_null() {
         return 0i32;
     }
 
@@ -106,7 +103,7 @@ pub unsafe fn dc_lot_get_state(lot: *const dc_lot_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_lot_get_id(lot: *const dc_lot_t) -> uint32_t {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
+    if lot.is_null() {
         return 0i32 as uint32_t;
     }
 
@@ -114,7 +111,7 @@ pub unsafe fn dc_lot_get_id(lot: *const dc_lot_t) -> uint32_t {
 }
 
 pub unsafe fn dc_lot_get_timestamp(lot: *const dc_lot_t) -> i64 {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint {
+    if lot.is_null() {
         return 0;
     }
 
@@ -130,7 +127,7 @@ pub unsafe fn dc_lot_fill(
     contact: Option<&Contact>,
     context: &Context,
 ) {
-    if lot.is_null() || (*lot).magic != 0x107107i32 as libc::c_uint || msg.is_null() {
+    if lot.is_null() || msg.is_null() {
         return;
     }
     if (*msg).state == 19i32 {
