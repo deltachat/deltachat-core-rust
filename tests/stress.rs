@@ -742,22 +742,14 @@ fn test_dc_mimeparser_with_context() {
             "inner-subject",
         );
 
-        let mut of: *mut mailimf_optional_field = dc_mimeparser_lookup_optional_field(
-            &mimeparser,
-            b"X-Special-A\x00" as *const u8 as *const libc::c_char,
-        );
+        let mut of: *mut mailimf_optional_field =
+            dc_mimeparser_lookup_optional_field(&mimeparser, "X-Special-A");
         assert_eq!(as_str((*of).fld_value as *const libc::c_char), "special-a",);
 
-        of = dc_mimeparser_lookup_optional_field(
-            &mimeparser,
-            b"Foo\x00" as *const u8 as *const libc::c_char,
-        );
+        of = dc_mimeparser_lookup_optional_field(&mimeparser, "Foo");
         assert_eq!(as_str((*of).fld_value as *const libc::c_char), "Bar",);
 
-        of = dc_mimeparser_lookup_optional_field(
-            &mimeparser,
-            b"Chat-Version\x00" as *const u8 as *const libc::c_char,
-        );
+        of = dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Version");
         assert_eq!(as_str((*of).fld_value as *const libc::c_char), "1.0",);
         assert_eq!(mimeparser.parts.len(), 1);
 

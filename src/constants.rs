@@ -13,6 +13,24 @@ pub enum MoveState {
     Moving = 3,
 }
 
+// some defaults
+pub const DC_E2EE_DEFAULT_ENABLED: i32 = 1;
+pub const DC_MDNS_DEFAULT_ENABLED: i32 = 1;
+pub const DC_INBOX_WATCH_DEFAULT: i32 = 1;
+pub const DC_SENTBOX_WATCH_DEFAULT: i32 = 1;
+pub const DC_MVBOX_WATCH_DEFAULT: i32 = 1;
+pub const DC_MVBOX_MOVE_DEFAULT: i32 = 1;
+
+pub const DC_CHAT_NOT_BLOCKED: i32 = 0;
+pub const DC_CHAT_MANUALLY_BLOCKED: i32 = 1;
+pub const DC_CHAT_DEADDROP_BLOCKED: i32 = 2;
+
+pub const DC_IMAP_SEEN: u32 = 0x1;
+
+pub const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
+pub const DC_HANDSHAKE_STOP_NORMAL_PROCESSING: i32 = 0x02;
+pub const DC_HANDSHAKE_ADD_DELETE_JOB: i32 = 0x04;
+
 pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;
 pub const DC_GCL_ADD_ALLDONE_HINT: usize = 0x04;
