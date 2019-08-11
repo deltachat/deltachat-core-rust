@@ -342,7 +342,6 @@ pub unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
 /// use deltachat::dc_tools::dc_truncate;
 ///
 /// let s = "this is a little test string";
-/// let s = "this is a little test string";
 /// assert_eq!(dc_truncate(s, 16, false), "this is a [...]");
 /// assert_eq!(dc_truncate(s, 16, true), "this is a ...");
 /// ```
