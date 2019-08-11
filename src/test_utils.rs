@@ -9,9 +9,8 @@ use tempfile::{tempdir, TempDir};
 
 use crate::config::Config;
 use crate::constants::{Event, KeyType};
-use crate::context::{dc_context_new, dc_open, Context};
+use crate::context::{Context, ContextCallback};
 use crate::key;
-use crate::types::dc_callback_t;
 
 /// A Context and temporary directory.
 ///
@@ -28,18 +27,15 @@ pub struct TestContext {
 /// "db.sqlite" in the [TestContext.dir] directory.
 ///
 /// [Context]: crate::context::Context
-pub fn test_context(cb: Option<dc_callback_t>) -> TestContext {
-    unsafe {
-        let mut ctx = dc_context_new(cb, std::ptr::null_mut(), None);
-        let dir = tempdir().unwrap();
-        let dbfile = dir.path().join("db.sqlite");
-        assert!(
-            dc_open(&mut ctx, dbfile.to_str().unwrap(), None),
-            "Failed to open {}",
-            dbfile.display(),
-        );
-        TestContext { ctx: ctx, dir: dir }
-    }
+pub fn test_context(callback: Option<Box<ContextCallback>>) -> TestContext {
+    let dir = tempdir().unwrap();
+    let dbfile = dir.path().join("db.sqlite");
+    let cb: Box<ContextCallback> = match callback {
+        Some(cb) => cb,
+        None => Box::new(|_, _, _, _| 0),
+    };
+    let ctx = Context::new(cb, "FakeOs".into(), dbfile).unwrap();
+    TestContext { ctx: ctx, dir: dir }
 }
 
 /// Return a dummy [TestContext].
@@ -51,13 +47,8 @@ pub fn dummy_context() -> TestContext {
     test_context(None)
 }
 
-pub unsafe extern "C" fn logging_cb(
-    _ctx: &Context,
-    evt: Event,
-    _d1: uintptr_t,
-    d2: uintptr_t,
-) -> uintptr_t {
-    let to_str = |x| CStr::from_ptr(x as *const libc::c_char).to_str().unwrap();
+pub fn logging_cb(_ctx: &Context, evt: Event, _d1: uintptr_t, d2: uintptr_t) -> uintptr_t {
+    let to_str = unsafe { |x| CStr::from_ptr(x as *const libc::c_char).to_str().unwrap() };
     match evt {
         Event::INFO => println!("I: {}", to_str(d2)),
         Event::WARNING => println!("W: {}", to_str(d2)),

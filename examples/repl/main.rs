@@ -14,6 +14,7 @@ extern crate lazy_static;
 extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -41,7 +42,7 @@ use self::cmdline::*;
 
 // Event Handler
 
-unsafe extern "C" fn receive_event(
+fn receive_event(
     _context: &Context,
     event: Event,
     data1: uintptr_t,
@@ -384,21 +385,16 @@ impl Highlighter for DcHelper {
 impl Helper for DcHelper {}
 
 fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
-    let mut context = dc_context_new(
-        Some(receive_event),
-        0 as *mut libc::c_void,
-        Some("CLI".into()),
-    );
-
     unsafe { dc_cmdline_skip_auth() };
-
-    if args.len() == 2 {
-        if unsafe { !dc_open(&mut context, &args[1], None) } {
-            println!("Error: Cannot open {}.", args[0],);
-        }
-    } else if args.len() != 1 {
+    if args.len() != 2 {
         println!("Error: Bad arguments, expected [db-name].");
+        return Err(format_err!("No db-name specified"));
     }
+    let context = Context::new(
+        Box::new(receive_event),
+        "CLI".into(),
+        Path::new(&args[1]).to_path_buf(),
+    )?;
 
     println!("Delta Chat Core is awaiting your commands.");
 

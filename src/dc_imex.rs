@@ -74,7 +74,7 @@ pub unsafe fn dc_imex_has_backup(
                 let name = name.to_string_lossy();
                 if name.starts_with("delta-chat") && name.ends_with(".bak") {
                     let sql = Sql::new();
-                    if sql.open(context, &path, 0x1) {
+                    if sql.open(context, &path, 0x1).is_ok() {
                         let curr_backup_time =
                             sql.get_config_int(context, "backup_time")
                                 .unwrap_or_default() as u64;
@@ -617,9 +617,10 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
     }
     /* error already logged */
     /* re-open copied database file */
-    if !context
+    if context
         .sql
         .open(&context, &context.get_dbfile().unwrap(), 0)
+        .is_err()
     {
         return 0;
     }
@@ -710,7 +711,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
 // TODO should return bool /rtn
-#[allow(non_snake_case)]
+#[allow(non_snake_case, unused_must_use)]
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
     let mut current_block: u64;
     let mut success: libc::c_int = 0;
@@ -757,7 +758,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
         let sql = Sql::new();
-        if sql.open(context, as_path(dest_pathNfilename), 0) {
+        if sql.open(context, as_path(dest_pathNfilename), 0).is_ok() {
             if !sql.table_exists("backup_blobs") {
                 if sql::execute(
                     context,
@@ -1159,7 +1160,7 @@ mod tests {
 
     #[test]
     fn test_render_setup_file() {
-        let t = test_context(Some(logging_cb));
+        let t = test_context(Some(Box::new(logging_cb)));
 
         configure_alice_keypair(&t.ctx);
         let msg = dc_render_setup_file(&t.ctx, "hello").unwrap();
@@ -1177,14 +1178,9 @@ mod tests {
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
     }
 
-    unsafe extern "C" fn ac_setup_msg_cb(
-        ctx: &Context,
-        evt: Event,
-        d1: uintptr_t,
-        d2: uintptr_t,
-    ) -> uintptr_t {
+    fn ac_setup_msg_cb(ctx: &Context, evt: Event, d1: uintptr_t, d2: uintptr_t) -> uintptr_t {
         if evt == Event::GET_STRING && d1 == StockMessage::AcSetupMsgBody.to_usize().unwrap() {
-            "hello\r\nthere".strdup() as usize
+            unsafe { "hello\r\nthere".strdup() as usize }
         } else {
             logging_cb(ctx, evt, d1, d2)
         }
@@ -1192,7 +1188,7 @@ mod tests {
 
     #[test]
     fn test_render_setup_file_newline_replace() {
-        let t = test_context(Some(ac_setup_msg_cb));
+        let t = test_context(Some(Box::new(ac_setup_msg_cb)));
         configure_alice_keypair(&t.ctx);
         let msg = dc_render_setup_file(&t.ctx, "pw").unwrap();
         println!("{}", &msg);

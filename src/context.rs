@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+use std::path::Path;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use crate::chat::*;
@@ -7,6 +9,7 @@ use crate::dc_loginparam::*;
 use crate::dc_move::*;
 use crate::dc_receive_imf::*;
 use crate::dc_tools::*;
+use crate::error::*;
 use crate::imap::*;
 use crate::job::*;
 use crate::job_thread::JobThread;
@@ -22,6 +25,15 @@ use std::ptr;
 
 use std::path::PathBuf;
 
+/// Callback function type for [Context].
+///
+/// @param context The context object as returned by dc_context_new().
+/// @param event one of the @ref DC_EVENT constants
+/// @param data1 depends on the event parameter
+/// @param data2 depends on the event parameter
+/// @return return 0 unless stated otherwise in the event parameter documentation
+pub type ContextCallback = dyn Fn(&Context, Event, uintptr_t, uintptr_t) -> uintptr_t;
+
 pub struct Context {
     pub userdata: *mut libc::c_void,
     pub dbfile: Arc<RwLock<Option<PathBuf>>>,
@@ -35,7 +47,7 @@ pub struct Context {
     pub smtp: Arc<Mutex<Smtp>>,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
-    pub cb: Option<dc_callback_t>,
+    pub cb: Box<ContextCallback>,
     pub os_name: Option<String>,
     pub cmdline_sel_chat_id: Arc<RwLock<u32>>,
     pub bob: Arc<RwLock<BobStatus>>,
@@ -55,6 +67,76 @@ pub struct RunningState {
 }
 
 impl Context {
+    pub fn new(cb: Box<ContextCallback>, os_name: String, dbfile: PathBuf) -> Result<Context> {
+        let mut blob_fname = OsString::new();
+        blob_fname.push(dbfile.file_name().unwrap_or_default());
+        blob_fname.push("-blobs");
+        let blobdir = dbfile.with_file_name(blob_fname);
+        if !blobdir.exists() {
+            std::fs::create_dir_all(&blobdir)?;
+        }
+        Context::with_blobdir(cb, os_name, dbfile, &blobdir)
+    }
+
+    pub fn with_blobdir(
+        cb: Box<ContextCallback>,
+        os_name: String,
+        dbfile: PathBuf,
+        blobdir: &Path,
+    ) -> Result<Context> {
+        if !blobdir.is_dir() {
+            return Err(format_err!("Blobdir does not exist: {}", blobdir.display()));
+        }
+        let ctx = Context {
+            blobdir: Arc::new(RwLock::new(unsafe { blobdir.strdup() })),
+            dbfile: Arc::new(RwLock::new(Some(dbfile))),
+            inbox: Arc::new(RwLock::new({
+                Imap::new(
+                    cb_get_config,
+                    cb_set_config,
+                    cb_precheck_imf,
+                    cb_receive_imf,
+                )
+            })),
+            userdata: std::ptr::null_mut(),
+            cb,
+            os_name: Some(os_name),
+            running_state: Arc::new(RwLock::new(Default::default())),
+            sql: Sql::new(),
+            smtp: Arc::new(Mutex::new(Smtp::new())),
+            smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
+            oauth2_critical: Arc::new(Mutex::new(())),
+            bob: Arc::new(RwLock::new(Default::default())),
+            last_smeared_timestamp: Arc::new(RwLock::new(0)),
+            cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
+            sentbox_thread: Arc::new(RwLock::new(JobThread::new(
+                "SENTBOX",
+                "configured_sentbox_folder",
+                Imap::new(
+                    cb_get_config,
+                    cb_set_config,
+                    cb_precheck_imf,
+                    cb_receive_imf,
+                ),
+            ))),
+            mvbox_thread: Arc::new(RwLock::new(JobThread::new(
+                "MVBOX",
+                "configured_mvbox_folder",
+                Imap::new(
+                    cb_get_config,
+                    cb_set_config,
+                    cb_precheck_imf,
+                    cb_receive_imf,
+                ),
+            ))),
+            probe_imap_network: Arc::new(RwLock::new(false)),
+            perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
+            generating_key_mutex: Mutex::new(()),
+        };
+        ctx.sql.open(&ctx, &ctx.dbfile.read().unwrap().as_ref().unwrap(), 0)?;
+        Ok(ctx)
+    }
+
     pub fn has_dbfile(&self) -> bool {
         self.get_dbfile().is_some()
     }
@@ -74,11 +156,7 @@ impl Context {
     }
 
     pub fn call_cb(&self, event: Event, data1: uintptr_t, data2: uintptr_t) -> uintptr_t {
-        if let Some(cb) = self.cb {
-            unsafe { cb(self, event, data1, data2) }
-        } else {
-            0
-        }
+        (*self.cb)(self, event, data1, data2)
     }
 }
 
@@ -113,60 +191,6 @@ pub struct SmtpState {
     pub doing_jobs: bool,
     pub perform_jobs_needed: i32,
     pub probe_network: bool,
-}
-
-// create/open/config/information
-pub fn dc_context_new(
-    cb: Option<dc_callback_t>,
-    userdata: *mut libc::c_void,
-    os_name: Option<String>,
-) -> Context {
-    Context {
-        blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
-        dbfile: Arc::new(RwLock::new(None)),
-        inbox: Arc::new(RwLock::new({
-            Imap::new(
-                cb_get_config,
-                cb_set_config,
-                cb_precheck_imf,
-                cb_receive_imf,
-            )
-        })),
-        userdata,
-        cb,
-        os_name,
-        running_state: Arc::new(RwLock::new(Default::default())),
-        sql: Sql::new(),
-        smtp: Arc::new(Mutex::new(Smtp::new())),
-        smtp_state: Arc::new((Mutex::new(Default::default()), Condvar::new())),
-        oauth2_critical: Arc::new(Mutex::new(())),
-        bob: Arc::new(RwLock::new(Default::default())),
-        last_smeared_timestamp: Arc::new(RwLock::new(0)),
-        cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
-        sentbox_thread: Arc::new(RwLock::new(JobThread::new(
-            "SENTBOX",
-            "configured_sentbox_folder",
-            Imap::new(
-                cb_get_config,
-                cb_set_config,
-                cb_precheck_imf,
-                cb_receive_imf,
-            ),
-        ))),
-        mvbox_thread: Arc::new(RwLock::new(JobThread::new(
-            "MVBOX",
-            "configured_mvbox_folder",
-            Imap::new(
-                cb_get_config,
-                cb_set_config,
-                cb_precheck_imf,
-                cb_receive_imf,
-            ),
-        ))),
-        probe_imap_network: Arc::new(RwLock::new(false)),
-        perform_inbox_jobs_needed: Arc::new(RwLock::new(false)),
-        generating_key_mutex: Mutex::new(()),
-    }
 }
 
 unsafe fn cb_receive_imf(
@@ -287,37 +311,8 @@ pub unsafe fn dc_close(context: &Context) {
     *blobdir = ptr::null_mut();
 }
 
-pub unsafe fn dc_is_open(context: &Context) -> libc::c_int {
-    context.sql.is_open() as libc::c_int
-}
-
 pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
     context.userdata as *mut _
-}
-
-pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) -> bool {
-    let mut success = false;
-    if 0 != dc_is_open(context) {
-        return false;
-    }
-    *context.dbfile.write().unwrap() = Some(PathBuf::from(dbfile));
-    if blobdir.is_some() && !blobdir.unwrap().is_empty() {
-        let dir = dc_ensure_no_slash_safe(blobdir.unwrap()).strdup();
-        *context.blobdir.write().unwrap() = dir;
-    } else {
-        let dir = dbfile.to_string() + "-blobs";
-        dc_create_folder(context, &dir);
-        *context.blobdir.write().unwrap() = dir.strdup();
-    }
-    // Create/open sqlite database, this may already use the blobdir
-    let dbfile_path = std::path::Path::new(dbfile);
-    if context.sql.open(context, dbfile_path, 0) {
-        success = true
-    }
-    if !success {
-        dc_close(context);
-    }
-    success
 }
 
 pub unsafe fn dc_get_blobdir(context: &Context) -> *mut libc::c_char {
@@ -577,19 +572,70 @@ pub fn dc_is_mvbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
 mod tests {
     use super::*;
 
+    use crate::test_utils::*;
+
+    #[test]
+    fn test_wrong_db() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dbfile = tmp.path().join("db.sqlite");
+        std::fs::write(&dbfile, b"123").unwrap();
+        let res = Context::new(Box::new(|_, _, _, _| 0), "FakeOs".into(), dbfile);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_blobdir_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dbfile = tmp.path().join("db.sqlite");
+        Context::new(Box::new(|_, _, _, _| 0), "FakeOS".into(), dbfile).unwrap();
+        let blobdir = tmp.path().join("db.sqlite-blobs");
+        assert!(blobdir.is_dir());
+    }
+
+    #[test]
+    fn test_wrong_blogdir() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dbfile = tmp.path().join("db.sqlite");
+        let blobdir = tmp.path().join("db.sqlite-blobs");
+        std::fs::write(&blobdir, b"123").unwrap();
+        let res = Context::new(Box::new(|_, _, _, _| 0), "FakeOS".into(), dbfile);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_sqlite_parent_not_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let subdir = tmp.path().join("subdir");
+        let dbfile = subdir.join("db.sqlite");
+        let dbfile2 = dbfile.clone();
+        Context::new(Box::new(|_, _, _, _| 0), "FakeOS".into(), dbfile).unwrap();
+        assert!(subdir.is_dir());
+        assert!(dbfile2.is_file());
+    }
+
+    #[test]
+    fn test_with_blobdir_not_exists() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dbfile = tmp.path().join("db.sqlite");
+        let blobdir = tmp.path().join("blobs");
+        let res =
+            Context::with_blobdir(Box::new(|_, _, _, _| 0), "FakeOS".into(), dbfile, &blobdir);
+        assert!(res.is_err());
+    }
+
     #[test]
     fn no_crashes_on_context_deref() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), Some("Test OS".into()));
-        std::mem::drop(ctx);
+        let t = dummy_context();
+        std::mem::drop(t.ctx);
     }
 
     #[test]
     fn test_context_double_close() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
+        let t = dummy_context();
         unsafe {
-            dc_close(&ctx);
-            dc_close(&ctx);
+            dc_close(&t.ctx);
+            dc_close(&t.ctx);
         }
-        std::mem::drop(ctx);
+        std::mem::drop(t.ctx);
     }
 }

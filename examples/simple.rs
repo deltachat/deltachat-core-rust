@@ -16,9 +16,8 @@ use deltachat::job::{
     perform_imap_fetch, perform_imap_idle, perform_imap_jobs, perform_smtp_idle, perform_smtp_jobs,
 };
 
-extern "C" fn cb(_ctx: &Context, event: Event, data1: usize, data2: usize) -> usize {
+fn cb(_ctx: &Context, event: Event, data1: usize, data2: usize) -> usize {
     println!("[{:?}]", event);
-
     match event {
         Event::CONFIGURE_PROGRESS => {
             println!("  progress: {}", data1);
@@ -39,7 +38,11 @@ extern "C" fn cb(_ctx: &Context, event: Event, data1: usize, data2: usize) -> us
 
 fn main() {
     unsafe {
-        let ctx = dc_context_new(Some(cb), std::ptr::null_mut(), None);
+        let dir = tempdir().unwrap();
+        let dbfile = dir.path().join("db.sqlite");
+        println!("creating database {:?}", dbfile);
+        let ctx =
+            Context::new(Box::new(cb), "FakeOs".into(), dbfile).expect("Failed to create context");
         let running = Arc::new(RwLock::new(true));
         let info = dc_get_info(&ctx);
         let info_s = CStr::from_ptr(info);
@@ -72,13 +75,6 @@ fn main() {
                 }
             }
         });
-
-        let dir = tempdir().unwrap();
-        let dbfile = dir.path().join("db.sqlite");
-
-        println!("opening database {:?}", dbfile);
-
-        assert!(dc_open(&ctx, dbfile.to_str().unwrap(), None));
 
         println!("configuring");
         let args = std::env::args().collect::<Vec<String>>();

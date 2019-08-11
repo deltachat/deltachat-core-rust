@@ -38,16 +38,13 @@ impl Sql {
         info!(context, 0, "Database closed.");
     }
 
-    // return true on success, false on failure
-    pub fn open(&self, context: &Context, dbfile: &std::path::Path, flags: libc::c_int) -> bool {
-        match open(context, self, dbfile, flags) {
-            Ok(_) => true,
-            Err(Error::SqlAlreadyOpen) => false,
-            Err(_) => {
-                self.close(context);
-                false
-            }
-        }
+    pub fn open(
+        &self,
+        context: &Context,
+        dbfile: &std::path::Path,
+        flags: libc::c_int,
+    ) -> Result<()> {
+        open(context, self, dbfile, flags)
     }
 
     pub fn execute<P>(&self, sql: &str, params: P) -> Result<usize>
@@ -227,7 +224,10 @@ impl Sql {
         match res {
             Ok(_) => Ok(()),
             Err(err) => {
-                error!(context, 0, "set_config(): Cannot change value. {:?}", &err);
+                error!(
+                    context,
+                    0, "set_config(): Cannot change value for {}: {:?}", key, &err
+                );
                 Err(err.into())
             }
         }

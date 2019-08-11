@@ -8,13 +8,12 @@ use std::{fmt, fs, ptr};
 use chrono::{Local, TimeZone};
 use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
+use itertools::max;
 
 use crate::context::Context;
 use crate::error::Error;
 use crate::types::*;
 use crate::x::*;
-
-use itertools::max;
 
 /* Some tools and enhancements to the used libraries, there should be
 no references to Context and other "larger" classes here. */
@@ -1228,7 +1227,7 @@ impl CStringExt for CString {}
 /// Rust strings to raw C strings.  This can be clumsy to do correctly
 /// and the compiler sometimes allows it in an unsafe way.  These
 /// methods make it more succinct and help you get it right.
-pub trait StrExt {
+pub trait Strdup {
     /// Allocate a new raw C `*char` version of this string.
     ///
     /// This allocates a new raw C string which must be freed using
@@ -1245,9 +1244,22 @@ pub trait StrExt {
     unsafe fn strdup(&self) -> *mut libc::c_char;
 }
 
-impl<T: AsRef<str>> StrExt for T {
+impl<T: AsRef<str>> Strdup for T {
     unsafe fn strdup(&self) -> *mut libc::c_char {
         let tmp = CString::yolo(self.as_ref());
+        dc_strdup(tmp.as_ptr())
+    }
+}
+
+impl Strdup for CStr {
+    unsafe fn strdup(&self) -> *mut libc::c_char {
+        dc_strdup(self.as_ptr())
+    }
+}
+
+impl Strdup for std::path::Path {
+    unsafe fn strdup(&self) -> *mut libc::c_char {
+        let tmp = self.to_c_string().unwrap();
         dc_strdup(tmp.as_ptr())
     }
 }
