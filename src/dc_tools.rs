@@ -2114,5 +2114,4 @@ mod tests {
         let grpid = dc_extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("1234567890123456"));
     }
-
 }
