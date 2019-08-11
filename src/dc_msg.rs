@@ -472,7 +472,7 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                
+
                 let text;
                 if let rusqlite::types::ValueRef::Text(buf) = row.get_raw(15) {
                     if let Ok(t) = String::from_utf8(buf.to_vec()) {
