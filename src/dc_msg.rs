@@ -194,7 +194,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += &format!("\n{}\n", rawtxt);
     }
     if !(*msg).rfc724_mid.is_null() && 0 != *(*msg).rfc724_mid.offset(0) as libc::c_int {
-        ret += &format!("\nMessage-ID: {}", (*msg).rfc724_mid as libc::c_int);
+        ret += &format!("\nMessage-ID: {}", as_str((*msg).rfc724_mid));
     }
     if let Some(ref server_folder) = (*msg).server_folder {
         if server_folder != "" {
