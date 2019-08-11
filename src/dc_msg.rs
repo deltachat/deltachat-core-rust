@@ -468,7 +468,21 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                 (*msg).type_0 = row.get(12)?;
                 (*msg).state = row.get(13)?;
                 (*msg).is_dc_message = row.get(14)?;
-                (*msg).text = row.get::<_, Option<String>>(15)?;
+
+                let text;
+                if let rusqlite::types::ValueRef::Text(buf) = row.get_raw(15) {
+                    if let Ok(t) = String::from_utf8(buf.to_vec()) {
+                        text = t;
+                    } else {
+                        warn!(context, 0, "dc_msg_load_from_db: could not get text column as non-lossy utf8 id {}", id);
+                        text = String::from_utf8_lossy(buf).into_owned();
+                    }
+                } else {
+                    warn!(context, 0, "dc_msg_load_from_db: could not get text column for id {}", id);
+                    text = "[ Could not read from db ]".to_string();
+                }
+                (*msg).text = Some(text);
+
                 (*msg).param = row.get::<_, String>(16)?.parse().unwrap_or_default();
                 (*msg).starred = row.get(17)?;
                 (*msg).hidden = row.get(18)?;
@@ -484,11 +498,18 @@ pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id:
                         free(ptr.cast());
                     }
                 };
-            Ok(())
+                Ok(())
             }
         });
 
-    res.is_ok()
+    if let Err(e) = res {
+        warn!(
+            context,
+            0, "Error in msg_load_from_db for id {} because of {}", id, e
+        );
+        return false;
+    }
+    true
 }
 
 pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: uint32_t) -> *mut libc::c_char {
@@ -624,12 +645,13 @@ pub fn dc_star_msgs(
 }
 
 pub unsafe fn dc_get_msg<'a>(context: &'a Context, msg_id: uint32_t) -> *mut dc_msg_t<'a> {
-    let mut success: libc::c_int = 0i32;
+    let mut success = false;
     let obj: *mut dc_msg_t = dc_msg_new_untyped(context);
     if dc_msg_load_from_db(obj, context, msg_id) {
-        success = 1i32
+        success = true
     }
-    if 0 != success {
+
+    if success {
         obj
     } else {
         dc_msg_unref(obj);
