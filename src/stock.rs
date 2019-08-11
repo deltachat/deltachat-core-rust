@@ -232,10 +232,7 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
 
-    use std::ffi::CString;
-
     use crate::constants::DC_CONTACT_ID_SELF;
-    use crate::context::dc_context_new;
     use crate::types::uintptr_t;
 
     use num_traits::ToPrimitive;
@@ -253,19 +250,18 @@ mod tests {
 
     #[test]
     fn test_stock_str() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
-        assert_eq!(ctx.stock_str(StockMessage::NoMessages), "No messages.");
+        let t = dummy_context();
+        assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "No messages.");
     }
 
-    unsafe extern "C" fn test_stock_str_no_fallback_cb(
+    fn test_stock_str_no_fallback_cb(
         _ctx: &Context,
         evt: Event,
         d1: uintptr_t,
         _d2: uintptr_t,
     ) -> uintptr_t {
         if evt == Event::GET_STRING && d1 == StockMessage::NoMessages.to_usize().unwrap() {
-            let tmp = CString::new("Hello there").unwrap();
-            dc_strdup(tmp.as_ptr()) as usize
+            unsafe { "Hello there".strdup() as usize }
         } else {
             0
         }
@@ -273,16 +269,16 @@ mod tests {
 
     #[test]
     fn test_stock_str_no_fallback() {
-        let t = test_context(Some(test_stock_str_no_fallback_cb));
+        let t = test_context(Some(Box::new(test_stock_str_no_fallback_cb)));
         assert_eq!(t.ctx.stock_str(StockMessage::NoMessages), "Hello there");
     }
 
     #[test]
     fn test_stock_string_repl_str() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
+        let t = dummy_context();
         // uses %1$s substitution
         assert_eq!(
-            ctx.stock_string_repl_str(StockMessage::Member, "42"),
+            t.ctx.stock_string_repl_str(StockMessage::Member, "42"),
             "42 member(s)"
         );
         // We have no string using %1$d to test...
@@ -290,36 +286,38 @@ mod tests {
 
     #[test]
     fn test_stock_string_repl_int() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
+        let t = dummy_context();
         assert_eq!(
-            ctx.stock_string_repl_int(StockMessage::Member, 42),
+            t.ctx.stock_string_repl_int(StockMessage::Member, 42),
             "42 member(s)"
         );
     }
 
     #[test]
     fn test_stock_string_repl_str2() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
+        let t = dummy_context();
         assert_eq!(
-            ctx.stock_string_repl_str2(StockMessage::ServerResponse, "foo", "bar"),
+            t.ctx
+                .stock_string_repl_str2(StockMessage::ServerResponse, "foo", "bar"),
             "Response from foo: bar"
         );
     }
 
     #[test]
     fn test_stock_system_msg_simple() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
+        let t = dummy_context();
         assert_eq!(
-            ctx.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0),
+            t.ctx
+                .stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0),
             "Location streaming enabled."
         )
     }
 
     #[test]
     fn test_stock_system_msg_add_member_by_me() {
-        let ctx = dc_context_new(None, std::ptr::null_mut(), None);
+        let t = dummy_context();
         assert_eq!(
-            ctx.stock_system_msg(
+            t.ctx.stock_system_msg(
                 StockMessage::MsgAddMember,
                 "alice@example.com",
                 "",

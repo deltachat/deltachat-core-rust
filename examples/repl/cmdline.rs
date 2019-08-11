@@ -391,8 +391,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             _ => println!(
                 "==========================Database commands==\n\
                  info\n\
-                 open <file to open or create>\n\
-                 close\n\
                  set <configuration-key> [<value>]\n\
                  get <configuration-key>\n\
                  oauth2\n\
@@ -455,13 +453,19 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  ============================================="
             ),
         },
-        "open" => {
-            ensure!(!arg1.is_empty(), "Argument <file> missing");
-            dc_close(context);
-            ensure!(dc_open(context, arg1, None), "Open failed");
-        }
-        "close" => {
-            dc_close(context);
+        "auth" => {
+            if 0 == S_IS_AUTH {
+                let is_pw = context
+                    .get_config(config::Config::MailPw)
+                    .unwrap_or_default();
+                if arg1 == is_pw {
+                    S_IS_AUTH = 1;
+                } else {
+                    println!("Bad password.");
+                }
+            } else {
+                println!("Already authorized.");
+            }
         }
         "initiate-key-transfer" => {
             let setup_code = dc_initiate_key_transfer(context);
