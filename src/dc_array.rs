@@ -437,5 +437,4 @@ mod tests {
             dc_array_unref(arr);
         }
     }
-
 }
