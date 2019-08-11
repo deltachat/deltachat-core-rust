@@ -15,7 +15,7 @@ without any "build-from-source" steps.
 1. `Install virtualenv <https://virtualenv.pypa.io/en/stable/installation/>`_,
    then create a fresh python environment and activate it in your shell::
 
-        virtualenv -p python3 venv
+        virtualenv venv  # or: python -m venv
         source venv/bin/activate
 
    Afterwards, invoking ``python`` or ``pip install`` will only
@@ -56,17 +56,16 @@ to core deltachat library::
     cd deltachat-core-rust
     cd python
 
-It is always a good idea to create a python "virtualenv".
-Install "virtualenv" on your system and run::
+If you don't have one active, create and activate a python "virtualenv":
 
-    virtualenv venv
+    python virtualenv venv  # or python -m venv
     source venv/bin/activate
 
 Afterwards ``which python`` tells you that it comes out of the "venv"
 directory that contains all python install artifacts. Let's first
 install test tools::
 
-    pip install pytest pytest-timeout pytest-faulthandler requests
+    pip install pytest pytest-timeout requests
 
 then cargo-build and install the deltachat bindings::
 
