@@ -161,12 +161,7 @@ pub unsafe fn dc_mimeparser_parse(
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
             mimeparser.subject = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)
         }
-        if !dc_mimeparser_lookup_optional_field(
-            mimeparser,
-            b"Chat-Version\x00" as *const u8 as *const libc::c_char,
-        )
-        .is_null()
-        {
+        if !dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Version").is_null() {
             mimeparser.is_send_by_messenger = 1i32
         }
         if !dc_mimeparser_lookup_field(mimeparser, "Autocrypt-Setup-Message").is_null() {
@@ -201,10 +196,7 @@ pub unsafe fn dc_mimeparser_parse(
                 }
             }
         } else {
-            optional_field = dc_mimeparser_lookup_optional_field(
-                mimeparser,
-                b"Chat-Content\x00" as *const u8 as *const libc::c_char,
-            );
+            optional_field = dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Content");
             if !optional_field.is_null() && !(*optional_field).fld_value.is_null() {
                 if strcmp(
                     (*optional_field).fld_value,
@@ -312,11 +304,7 @@ pub unsafe fn dc_mimeparser_parse(
         }
         if mimeparser.parts.len() == 1 {
             if mimeparser.parts[0].type_0 == 40i32 {
-                if !dc_mimeparser_lookup_optional_field(
-                    mimeparser,
-                    b"Chat-Voice-Message\x00" as *const u8 as *const libc::c_char,
-                )
-                .is_null()
+                if !dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Voice-Message").is_null()
                 {
                     let part_mut = &mut mimeparser.parts[0];
                     part_mut.type_0 = 41i32
@@ -324,10 +312,7 @@ pub unsafe fn dc_mimeparser_parse(
             }
             let part = &mimeparser.parts[0];
             if part.type_0 == 40i32 || part.type_0 == 41i32 || part.type_0 == 50i32 {
-                let field_0 = dc_mimeparser_lookup_optional_field(
-                    mimeparser,
-                    b"Chat-Duration\x00" as *const u8 as *const libc::c_char,
-                );
+                let field_0 = dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Duration");
                 if !field_0.is_null() {
                     let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
                     if duration_ms > 0i32 && duration_ms < 24i32 * 60i32 * 60i32 * 1000i32 {
@@ -338,10 +323,8 @@ pub unsafe fn dc_mimeparser_parse(
             }
         }
         if 0 == mimeparser.decrypting_failed {
-            let dn_field: *const mailimf_optional_field = dc_mimeparser_lookup_optional_field(
-                mimeparser,
-                b"Chat-Disposition-Notification-To\x00" as *const u8 as *const libc::c_char,
-            );
+            let dn_field: *const mailimf_optional_field =
+                dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Disposition-Notification-To");
             if !dn_field.is_null() && dc_mimeparser_get_last_nonmeta(mimeparser).is_some() {
                 let mut mb_list: *mut mailimf_mailbox_list = 0 as *mut mailimf_mailbox_list;
                 let mut index_0: size_t = 0i32 as size_t;
@@ -459,11 +442,11 @@ pub fn dc_mimeparser_lookup_field(
 
 pub unsafe fn dc_mimeparser_lookup_optional_field(
     mimeparser: &dc_mimeparser_t,
-    field_name: *const libc::c_char,
+    field_name: &str,
 ) -> *mut mailimf_optional_field {
     let field = mimeparser
         .header
-        .get(as_str(field_name))
+        .get(field_name)
         .map(|v| *v)
         .unwrap_or_else(|| std::ptr::null_mut());
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
@@ -1184,7 +1167,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 /* check header directly as is_send_by_messenger is not yet set up */
                                 let is_msgrmsg = (!dc_mimeparser_lookup_optional_field(
                                     &mimeparser,
-                                    b"Chat-Version\x00" as *const u8 as *const libc::c_char,
+                                    "Chat-Version",
                                 )
                                 .is_null())
                                     as libc::c_int;
@@ -1552,10 +1535,8 @@ pub unsafe fn dc_mimeparser_is_mailinglist_message(mimeparser: &dc_mimeparser_t)
     if !dc_mimeparser_lookup_field(&mimeparser, "List-Id").is_null() {
         return 1i32;
     }
-    let precedence: *mut mailimf_optional_field = dc_mimeparser_lookup_optional_field(
-        mimeparser,
-        b"Precedence\x00" as *const u8 as *const libc::c_char,
-    );
+    let precedence: *mut mailimf_optional_field =
+        dc_mimeparser_lookup_optional_field(mimeparser, "Precedence");
     if !precedence.is_null() {
         if strcasecmp(
             (*precedence).fld_value,
