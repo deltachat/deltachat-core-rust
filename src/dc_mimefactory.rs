@@ -1076,7 +1076,7 @@ unsafe fn get_subject(
     let raw_subject = {
         dc_msg_get_summarytext_by_raw(
             (*msg).type_0,
-            (*msg).text.as_ref().unwrap().as_str(),
+            &(*msg).text,
             &mut (*msg).param,
             32,
             context,

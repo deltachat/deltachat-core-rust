@@ -837,7 +837,7 @@ pub unsafe fn dc_msg_get_summarytext(
 
     dc_msg_get_summarytext_by_raw(
         (*msg).type_0,
-        (*msg).text.as_ref().unwrap(),
+        &(*msg).text,
         &mut (*msg).param,
         approx_characters,
         (*msg).context,
@@ -845,65 +845,56 @@ pub unsafe fn dc_msg_get_summarytext(
     .strdup()
 }
 
-/// get a summary text
-#[allow(non_snake_case)]
+/// Returns a summary test.
 pub fn dc_msg_get_summarytext_by_raw(
     type_0: Viewtype,
-    text: &str,
+    text: &Option<String>,
     param: &mut Params,
     approx_characters: libc::c_int,
     context: &Context,
 ) -> String {
-    let ret: String;
-    let mut prefix = "".to_string();
     let mut append_text = true;
-    match type_0 {
-        Viewtype::Image => prefix = context.stock_str(StockMessage::Image).to_string(),
-        Viewtype::Gif => prefix = context.stock_str(StockMessage::Gif).to_string(),
-        Viewtype::Video => prefix = context.stock_str(StockMessage::Video).to_string(),
-        Viewtype::Voice => prefix = context.stock_str(StockMessage::VoiceMessage).to_string(),
+    let prefix = match type_0 {
+        Viewtype::Image => context.stock_str(StockMessage::Image).into_owned(),
+        Viewtype::Gif => context.stock_str(StockMessage::Gif).into_owned(),
+        Viewtype::Video => context.stock_str(StockMessage::Video).into_owned(),
+        Viewtype::Voice => context.stock_str(StockMessage::VoiceMessage).into_owned(),
         Viewtype::Audio | Viewtype::File => {
             if param.get_int(Param::Cmd) == Some(6) {
-                prefix = context
-                    .stock_str(StockMessage::AcSetupMsgSubject)
-                    .to_string();
-                append_text = false
+                append_text = false;
+                context.stock_str(StockMessage::AcSetupMsgSubject).to_string()
             } else {
-                let value;
-                unsafe {
-                    let pathNfilename = param
-                        .get(Param::File)
-                        .unwrap_or_else(|| "ErrFilename")
-                        .strdup();
-                    value = as_str(dc_get_filename(pathNfilename));
-                    free(pathNfilename as *mut libc::c_void);
-                }
+                let value = unsafe {
+                    let base_fname = CString::yolo(param.get(Param::File).unwrap_or("ErrFilename"));
+                    to_string(dc_get_filename(base_fname.as_ptr()))
+                };
                 let label = context.stock_str(if type_0 == Viewtype::Audio {
                     StockMessage::Audio
                 } else {
                     StockMessage::File
                 });
-                prefix = format!("{} – {}", label, value)
+                format!("{} – {}", label, value)
             }
         }
         _ => {
-            if param.get_int(Param::Cmd) == Some(9) {
-                prefix = context.stock_str(StockMessage::Location).to_string();
-                append_text = false;
+            if param.get_int(Param::Cmd) != Some(9) {
+                return "".to_string();
             }
+            append_text = false;
+            context.stock_str(StockMessage::Location).to_string()
         }
-    }
-    if append_text && text != "" {
-        if prefix != "" {
+    };
+    let ret = if append_text && text.is_some() {
+        let text = text.as_ref().unwrap();
+        if !prefix.is_empty() {
             let tmp = format!("{} – {}", prefix, text);
-            ret = dc_truncate_n_str(tmp.as_str(), approx_characters.try_into().unwrap(), true)
-                .to_string();
+            dc_truncate_n_str(&tmp, approx_characters.try_into().unwrap(), true).to_string()
         } else {
-            ret = dc_truncate_n_str(text, approx_characters.try_into().unwrap(), true).to_string();
+            dc_truncate_n_str(&text, approx_characters.try_into().unwrap(), true).to_string()
         }
     } else {
-        ret = prefix;
-    }
+        prefix
+    };
 
     ret
 }
