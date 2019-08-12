@@ -889,11 +889,7 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
                         .as_ref(),
                 )
                 .unwrap();
-                prefix = dc_mprintf(
-                    b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-                    label.as_ptr(),
-                    value,
-                )
+                prefix = dc_mprintf!("{} – {}", label.as_ptr(), value)
             }
         }
         _ => {
