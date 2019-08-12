@@ -1072,7 +1072,7 @@ pub fn dc_get_chat_msgs(
     flags: uint32_t,
     marker1before: uint32_t,
 ) -> *mut dc_array_t {
-    let mut ret = dc_array_t::new(512);
+    let mut ret = Vec::new();
 
     let mut last_day = 0;
     let cnv_to_local = dc_gm2local_offset();
@@ -1082,17 +1082,17 @@ pub fn dc_get_chat_msgs(
         for row in rows {
             let (curr_id, ts) = row?;
             if curr_id as u32 == marker1before {
-                ret.add_id(1);
+                ret.push(DC_MSG_ID_MARKER1 as u32);
             }
             if 0 != flags & 0x1 {
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = (curr_local_timestamp / 86400) as libc::c_int;
                 if curr_day != last_day {
-                    ret.add_id(9);
+                    ret.push(DC_MSG_ID_LAST_SPECIAL as u32);
                     last_day = curr_day;
                 }
             }
-            ret.add_id(curr_id as u32);
+            ret.push(curr_id as u32);
         }
         Ok(())
     };
@@ -1140,7 +1140,7 @@ pub fn dc_get_chat_msgs(
     };
 
     if success.is_ok() {
-        ret.into_raw()
+        dc_array_t::from(ret).into_raw()
     } else {
         0 as *mut dc_array_t
     }
@@ -1253,11 +1253,11 @@ pub fn dc_get_chat_media(
         ],
         |row| row.get::<_, i32>(0),
         |ids| {
-            let mut ret = dc_array_t::new(100);
+            let mut ret = Vec::new();
             for id in ids {
-                ret.add_id(id? as u32);
+                ret.push(id? as u32);
             }
-            Ok(ret.into_raw())
+            Ok(dc_array_t::from(ret).into_raw())
         }
     ).unwrap_or_else(|_| std::ptr::null_mut())
 }
@@ -1426,13 +1426,13 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
             params![chat_id as i32],
             |row| row.get::<_, i32>(0),
             |ids| {
-                let mut ret = dc_array_t::new(100);
+                let mut ret = Vec::new();
 
                 for id in ids {
-                    ret.add_id(id? as u32);
+                    ret.push(id? as u32);
                 }
 
-                Ok(ret.into_raw())
+                Ok(dc_array_t::from(ret).into_raw())
             },
         )
         .unwrap_or_else(|_| std::ptr::null_mut())
