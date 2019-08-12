@@ -335,8 +335,8 @@ const CONTACT_COMMANDS: [&'static str; 6] = [
     "delcontact",
     "cleanupcontacts",
 ];
-const MISC_COMMANDS: [&'static str; 8] = [
-    "getqr", "getbadqr", "checkqr", "event", "fileinfo", "clear", "exit", "help",
+const MISC_COMMANDS: [&'static str; 9] = [
+    "getqr", "getbadqr", "checkqr", "event", "fileinfo", "clear", "exit", "quit", "help",
 ];
 
 impl Hinter for DcHelper {
@@ -550,7 +550,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
                 dc_join_securejoin(&ctx.read().unwrap(), arg1_c);
             }
         }
-        "exit" => return Ok(ExitResult::Exit),
+        "exit" | "quit" => return Ok(ExitResult::Exit),
         _ => dc_cmdline(&ctx.read().unwrap(), line)?,
     }
 

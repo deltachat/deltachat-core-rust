@@ -471,7 +471,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  event <event-id to test>\n\
                  fileinfo <file>\n\
                  clear -- clear screen\n\
-                 exit\n\
+                 exit or quit\n\
                  ============================================="
             ),
         },
