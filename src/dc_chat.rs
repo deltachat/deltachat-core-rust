@@ -1410,8 +1410,6 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
     /* Normal chats do not include SELF.  Group chats do (as it may happen that one is deleted from a
     groupchat but the chats stays visible, moreover, this makes displaying lists easier) */
 
-
-
     let ret = if chat_id != 1 {
         // we could also create a list for all contacts in the deaddrop by searching contacts belonging to chats with
         // chats.blocked=2, however, currently this is not needed
@@ -1433,18 +1431,17 @@ pub fn dc_get_chat_contacts(context: &Context, chat_id: u32) -> *mut dc_array_t 
 
                     Ok(ret.into_raw())
                 },
-            ).ok()
+            )
+            .ok()
     } else {
         None
     };
-
 
     if let Some(chat_contacts) = ret {
         chat_contacts
     } else {
         dc_array_t::new(0).into_raw()
     }
-
 }
 
 pub unsafe fn dc_get_chat(context: &Context, chat_id: uint32_t) -> *mut Chat {
