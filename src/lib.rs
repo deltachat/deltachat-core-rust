@@ -39,6 +39,7 @@ pub mod smtp;
 pub mod sql;
 pub mod stock;
 pub mod types;
+#[macro_use]
 pub mod x;
 
 pub mod dc_array;

@@ -40,6 +40,13 @@ extern "C" {
     pub fn dc_mprintf(format: *const libc::c_char, _: ...) -> *mut libc::c_char;
 }
 
+#[macro_export]
+macro_rules! dc_mprintf {
+    ($fmt:expr, $($x:expr),*) => {
+        format!($fmt, $(to_string($x), )*).strdup()
+    }
+}
+
 pub(crate) unsafe fn strcasecmp(s1: *const libc::c_char, s2: *const libc::c_char) -> libc::c_int {
     let s1 = std::ffi::CStr::from_ptr(s1)
         .to_string_lossy()
