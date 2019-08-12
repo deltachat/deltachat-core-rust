@@ -407,9 +407,7 @@ pub unsafe fn dc_msg_set_location(
     latitude: libc::c_double,
     longitude: libc::c_double,
 ) {
-    if msg.is_null()
-        || (latitude == 0.0 && longitude == 0.0)
-    {
+    if msg.is_null() || (latitude == 0.0 && longitude == 0.0) {
         return;
     }
 
@@ -1002,9 +1000,7 @@ pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
 }
 
 pub unsafe fn dc_msg_is_setupmessage(msg: *const dc_msg_t) -> bool {
-    if msg.is_null()
-        || (*msg).type_0 != Viewtype::File
-    {
+    if msg.is_null() || (*msg).type_0 != Viewtype::File {
         return false;
     }
 
