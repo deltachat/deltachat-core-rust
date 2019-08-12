@@ -104,7 +104,6 @@ pub fn dc_stop_ongoing_process(context: &Context) {
 #[allow(non_snake_case, unused_must_use)]
 pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_job_t) {
     let flags: libc::c_int;
-    let mut current_block: u64;
     let mut success = false;
     let mut imap_connected_here = false;
     let mut smtp_connected_here = false;
@@ -152,12 +151,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                 if param.addr.is_empty() {
                     error!(context, 0, "Please enter an email address.",);
                 } else {
+                    let ok_to_continue0;
                     if 0 != param.server_flags & 0x2 {
                         // the used oauth2 addr may differ, check this.
                         // if dc_get_oauth2_addr() is not available in the oauth2 implementation,
                         // just use the given one.
                         if s.shall_stop_ongoing {
-                            current_block = 2927484062889439186;
+                            ok_to_continue0 = false;
                         } else {
                             context.call_cb(
                                 Event::CONFIGURE_PROGRESS,
@@ -181,7 +181,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                     .ok();
                             }
                             if s.shall_stop_ongoing {
-                                current_block = 2927484062889439186;
+                                ok_to_continue0 = false;
                             } else {
                                 context.call_cb(
                                     Event::CONFIGURE_PROGRESS,
@@ -194,16 +194,15 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                     }) as uintptr_t,
                                     0 as uintptr_t,
                                 );
-                                current_block = 7746103178988627676;
+                                ok_to_continue0 = true;
                             }
                         }
                     } else {
-                        current_block = 7746103178988627676;
+                        ok_to_continue0 = true;
                     }
-                    match current_block {
-                        2927484062889439186 => {}
-                        _ => {
+                    if ok_to_continue0 {
                             let parsed: addr::Result<addr::Email> = param.addr.parse();
+                            let mut ok_to_continue7 = false;
                             if parsed.is_err() {
                                 error!(context, 0, "Bad email-address.");
                             } else {
@@ -233,6 +232,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                         && param.send_user.is_empty()
                                         && param.server_flags & !0x2 == 0
                                     {
+                                        let ok_to_continue1;
                                         /*&&param->mail_user   ==NULL -- the user can enter a loginname which is used by autoconfig then */
                                         /*&&param->send_pw     ==NULL -- the password cannot be auto-configured and is no criterion for autoconfig or not */
                                         /* flags but OAuth2 avoid autoconfig */
@@ -247,7 +247,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                             param_autoconfig =
                                                 moz_autoconfigure(context, &url, &param);
                                             if s.shall_stop_ongoing {
-                                                current_block = 2927484062889439186;
+                                                ok_to_continue1 = false;
                                             } else {
                                                 context.call_cb(
                                                     Event::CONFIGURE_PROGRESS,
@@ -261,14 +261,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         as uintptr_t,
                                                     0 as uintptr_t,
                                                 );
-                                                current_block = 13325891313334703151;
+                                                ok_to_continue1 = true;
                                             }
                                         } else {
-                                            current_block = 13325891313334703151;
+                                            ok_to_continue1 = true;
                                         }
-                                        match current_block {
-                                            2927484062889439186 => {}
-                                            _ => {
+                                        if ok_to_continue1 {
+                                                let ok_to_continue2;
                                                 if param_autoconfig.is_none() {
                                                     // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
                                                     let url = format!(
@@ -279,7 +278,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                     param_autoconfig =
                                                         moz_autoconfigure(context, &url, &param);
                                                     if s.shall_stop_ongoing {
-                                                        current_block = 2927484062889439186;
+                                                        ok_to_continue2 = false;
                                                     } else {
                                                         context.call_cb(
                                                             Event::CONFIGURE_PROGRESS,
@@ -293,19 +292,17 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                 as uintptr_t,
                                                             0 as uintptr_t,
                                                         );
-                                                        current_block = 5597585068398118923;
+                                                        ok_to_continue2 = true;
                                                     }
                                                 } else {
-                                                    current_block = 5597585068398118923;
+                                                    ok_to_continue2 = true;
                                                 }
-                                                match current_block {
-                                                    2927484062889439186 => {}
-                                                    _ => {
+                                                if ok_to_continue2 {
                                                         let mut i: libc::c_int = 0;
+                                                        let ok_to_continue3;
                                                         loop {
                                                             if !(i <= 1) {
-                                                                current_block =
-                                                                    12961834331865314435;
+                                                                ok_to_continue3 = true;
                                                                 break;
                                                             }
                                                             if param_autoconfig.is_none() {
@@ -325,8 +322,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                     );
 
                                                                 if s.shall_stop_ongoing {
-                                                                    current_block =
-                                                                        2927484062889439186;
+                                                                    ok_to_continue3 = false;  
                                                                     break;
                                                                 }
                                                                 context.call_cb(
@@ -344,9 +340,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                             }
                                                             i += 1
                                                         }
-                                                        match current_block {
-                                                            2927484062889439186 => {}
-                                                            _ => {
+                                                        if ok_to_continue3 {
+                                                                let ok_to_continue4;
                                                                 if param_autoconfig.is_none() {
                                                                     let url = format!(
                                                                     "http://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
@@ -359,8 +354,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                         );
 
                                                                     if s.shall_stop_ongoing {
-                                                                        current_block =
-                                                                            2927484062889439186;
+                                                                        ok_to_continue4 = false;
                                                                     } else {
                                                                         context.call_cb(
                                                                         Event::CONFIGURE_PROGRESS,
@@ -374,16 +368,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                             as uintptr_t,
                                                                         0,
                                                                     );
-                                                                        current_block =
-                                                                            10778260831612459202;
+                                                                        ok_to_continue4 = true;
                                                                     }
                                                                 } else {
-                                                                    current_block =
-                                                                        10778260831612459202;
+                                                                    ok_to_continue4 = true;
                                                                 }
-                                                                match current_block {
-                                                                    2927484062889439186 => {}
-                                                                    _ => {
+                                                                if ok_to_continue4 {
+                                                                        let ok_to_continue5;
                                                                         if param_autoconfig
                                                                             .is_none()
                                                                         {
@@ -399,8 +390,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                 );
                                                                             if s.shall_stop_ongoing
                                                                             {
-                                                                                current_block =
-                                                                                2927484062889439186;
+                                                                                ok_to_continue5 = false;
                                                                             } else {
                                                                                 context.call_cb(
                                                                                     Event::CONFIGURE_PROGRESS,
@@ -413,17 +403,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                     },
                                                                                     0
                                                                                 );
-                                                                                current_block =
-                                                                                5207889489643863322;
+                                                                                ok_to_continue5 = true;
                                                                             }
                                                                         } else {
-                                                                            current_block =
-                                                                                5207889489643863322;
+                                                                            ok_to_continue5 = true;
                                                                         }
-                                                                        match current_block {
-                                                                            2927484062889439186 => {
-                                                                            }
-                                                                            _ => {
+                                                                        if ok_to_continue5 {
+                                                                                let ok_to_continue6;
                                                                                 /* B.  If we have no configuration yet, search configuration in Thunderbird's centeral database */
                                                                                 if param_autoconfig
                                                                                     .is_none()
@@ -442,9 +428,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                     );
                                                                                     if s.shall_stop_ongoing
                                                                                     {
-                                                                                        current_block
-                                                                                            =
-                                                                                            2927484062889439186;
+                                                                                        ok_to_continue6 = false;
                                                                                     } else {
                                                                                         context.call_cb(
                                                                                             Event::CONFIGURE_PROGRESS,
@@ -456,24 +440,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                                  500
                                                                                             },
                                                                                             0);
-                                                                                        current_block
-                                                                                            =
-                                                                                            2798392256336243897;
+                                                                                        ok_to_continue6 = true;
                                                                                     }
                                                                                 } else {
-                                                                                    current_block
-                                                                                        =
-                                                                                        2798392256336243897;
+                                                                                    ok_to_continue6 = true;
                                                                                 }
-                                                                                match current_block
-                                                                                {
-                                                                                    2927484062889439186
-                                                                                        =>
-                                                                                    {
-                                                                                    }
-                                                                                    _
-                                                                                        =>
-                                                                                    {
+                                                                                if ok_to_continue6 {
                                                                                         if let Some(ref cfg) = param_autoconfig
                                                                                         {
                                                                                             let r = dc_loginparam_get_readable(cfg);
@@ -507,27 +479,18 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                         param.server_flags
                                                                                             |=
                                                                                             keep_flags;
-                                                                                        current_block
-                                                                                            =
-                                                                                            3024367268842933116;
-                                                                                    }
+                                                                                        ok_to_continue7 = true;
                                                                                 }
-                                                                            }
                                                                         }
-                                                                    }
                                                                 }
-                                                            }
                                                         }
                                                     }
                                                 }
-                                            }
                                         }
                                     } else {
-                                        current_block = 3024367268842933116;
+                                        ok_to_continue7 = true;
                                     }
-                                    match current_block {
-                                        2927484062889439186 => {}
-                                        _ => {
+                                    if ok_to_continue7 {
                                             if param.mail_server.is_empty() {
                                                 param.mail_server =
                                                     format!("imap.{}", param_domain,)
@@ -628,10 +591,11 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                 );
                                                 /* try to connect to IMAP - if we did not got an autoconfig,
                                                 do some further tries with different settings and username variations */
+                                                let ok_to_continue8;
                                                 let mut username_variation = 0;
                                                 loop {
                                                     if !(username_variation <= 1) {
-                                                        current_block = 14187386403465544025;
+                                                        ok_to_continue8 = true;
                                                         break;
                                                     }
                                                     let r_0 = dc_loginparam_get_readable(&param);
@@ -643,16 +607,16 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         .unwrap()
                                                         .connect(context, &param)
                                                     {
-                                                        current_block = 14187386403465544025;
+                                                        ok_to_continue8 = true;
                                                         break;
                                                     }
                                                     if !param_autoconfig.is_none() {
-                                                        current_block = 2927484062889439186;
+                                                        ok_to_continue8 = false;
                                                         break;
                                                     }
                                                     // probe STARTTLS/993
                                                     if s.shall_stop_ongoing {
-                                                        current_block = 2927484062889439186;
+                                                        ok_to_continue8 = false;
                                                         break;
                                                     }
                                                     context.call_cb(
@@ -680,12 +644,12 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         .unwrap()
                                                         .connect(context, &param)
                                                     {
-                                                        current_block = 14187386403465544025;
+                                                        ok_to_continue8 = true;
                                                         break;
                                                     }
                                                     // probe STARTTLS/143
                                                     if s.shall_stop_ongoing {
-                                                        current_block = 2927484062889439186;
+                                                        ok_to_continue8 = false;
                                                         break;
                                                     }
                                                     context.call_cb(
@@ -712,16 +676,16 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         .unwrap()
                                                         .connect(context, &param)
                                                     {
-                                                        current_block = 14187386403465544025;
+                                                        ok_to_continue8 = true;
                                                         break;
                                                     }
                                                     if 0 != username_variation {
-                                                        current_block = 2927484062889439186;
+                                                        ok_to_continue8 = false;
                                                         break;
                                                     }
                                                     // next probe round with only the localpart of the email-address as the loginname
                                                     if s.shall_stop_ongoing {
-                                                        current_block = 2927484062889439186;
+                                                        ok_to_continue8 = false;
                                                         break;
                                                     }
                                                     context.call_cb(
@@ -759,9 +723,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
 
                                                     username_variation += 1
                                                 }
-                                                match current_block {
-                                                    2927484062889439186 => {}
-                                                    _ => {
+                                                if ok_to_continue8 {
                                                         imap_connected_here = true;
                                                         if !s.shall_stop_ongoing {
                                                             context.call_cb(
@@ -776,6 +738,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                     as uintptr_t,
                                                                 0 as uintptr_t,
                                                             );
+                                                            let ok_to_continue9;
                                                             /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
                                                             if !context
                                                                 .smtp
@@ -785,11 +748,9 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                 .connect(context, &param)
                                                             {
                                                                 if !param_autoconfig.is_none() {
-                                                                    current_block =
-                                                                        2927484062889439186;
+                                                                    ok_to_continue9 = false;
                                                                 } else if s.shall_stop_ongoing {
-                                                                    current_block =
-                                                                        2927484062889439186;
+                                                                    ok_to_continue9 = false;
                                                                 } else {
                                                                     context.call_cb(
                                                                         Event::CONFIGURE_PROGRESS,
@@ -825,8 +786,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                         .connect(context, &param)
                                                                     {
                                                                         if s.shall_stop_ongoing {
-                                                                            current_block =
-                                                                                2927484062889439186;
+                                                                            ok_to_continue9 = false;
                                                                         } else {
                                                                             context.call_cb(
                                                                                             Event::CONFIGURE_PROGRESS,
@@ -872,24 +832,19 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                                     context, &param,
                                                                                 )
                                                                             {
-                                                                                current_block =
-                                                                                2927484062889439186;
+                                                                                ok_to_continue9 = false;
                                                                             } else {
-                                                                                current_block =
-                                                                                5083741289379115417;
+                                                                                ok_to_continue9 = true;
                                                                             }
                                                                         }
                                                                     } else {
-                                                                        current_block =
-                                                                            5083741289379115417;
+                                                                        ok_to_continue9 = true;
                                                                     }
                                                                 }
                                                             } else {
-                                                                current_block = 5083741289379115417;
+                                                                ok_to_continue9 = true;
                                                             }
-                                                            match current_block {
-                                                                2927484062889439186 => {}
-                                                                _ => {
+                                                            if ok_to_continue9 {
                                                                     smtp_connected_here = true;
                                                                     if !s.shall_stop_ongoing {
                                                                         context.call_cb(
@@ -1027,21 +982,16 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                             }
                                                                         }
                                                                     }
-                                                                }
                                                             }
                                                         }
-                                                    }
                                                 }
                                             }
-                                        }
                                     }
                                 }
-                            }
                         }
                     }
                 }
             }
-        }
     }
     if imap_connected_here {
         context.inbox.read().unwrap().disconnect(context);
@@ -1320,7 +1270,6 @@ unsafe fn outlk_autodiscover(
     url__: &str,
     param_in: &dc_loginparam_t,
 ) -> Option<dc_loginparam_t> {
-    let current_block: u64;
     let mut xml_raw: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut url = url__.strdup();
     let mut outlk_ad = outlk_autodiscover_t {
@@ -1332,10 +1281,11 @@ unsafe fn outlk_autodiscover(
         config: [0 as *mut libc::c_char; 6],
         redirect: 0 as *mut libc::c_char,
     };
+    let ok_to_continue;
     let mut i = 0;
     loop {
         if !(i < 10) {
-            current_block = 11584701595673473500;
+            ok_to_continue = true;
             break;
         }
         memset(
@@ -1345,7 +1295,7 @@ unsafe fn outlk_autodiscover(
         );
         xml_raw = read_autoconf_file(context, url);
         if xml_raw.is_null() {
-            current_block = 3070887585260837332;
+            ok_to_continue = false;
             break;
         }
         let mut saxparser: dc_saxparser_t = dc_saxparser_t {
@@ -1368,7 +1318,7 @@ unsafe fn outlk_autodiscover(
         if !(!outlk_ad.config[5usize].is_null()
             && 0 != *outlk_ad.config[5usize].offset(0isize) as libc::c_int)
         {
-            current_block = 11584701595673473500;
+            ok_to_continue = true;
             break;
         }
         free(url as *mut libc::c_void);
@@ -1380,8 +1330,7 @@ unsafe fn outlk_autodiscover(
         i += 1;
     }
 
-    match current_block {
-        11584701595673473500 => {
+    if ok_to_continue {
             if outlk_ad.out.mail_server.is_empty()
                 || outlk_ad.out.mail_port == 0
                 || outlk_ad.out.send_server.is_empty()
@@ -1395,8 +1344,6 @@ unsafe fn outlk_autodiscover(
 
                 return None;
             }
-        }
-        _ => {}
     }
     free(url as *mut libc::c_void);
     free(xml_raw as *mut libc::c_void);
