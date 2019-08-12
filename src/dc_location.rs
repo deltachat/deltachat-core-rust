@@ -373,19 +373,19 @@ pub unsafe fn dc_get_message_kml(
     let latitude_str = dc_ftoa(latitude);
     let longitude_str = dc_ftoa(longitude);
 
-    let ret = dc_mprintf(
-        b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+    let ret = dc_mprintf!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <kml xmlns=\"http://www.opengis.net/kml/2.2\">\n\
          <Document>\n\
          <Placemark>\
-         <Timestamp><when>%s</when></Timestamp>\
-         <Point><coordinates>%s,%s</coordinates></Point>\
+         <Timestamp><when>{}</when></Timestamp>\
+         <Point><coordinates>{},{}</coordinates></Point>\
          </Placemark>\n\
          </Document>\n\
-         </kml>\x00" as *const u8 as *const libc::c_char,
+         </kml>",
         timestamp_str,
         longitude_str, // reverse order!
-        latitude_str,
+        latitude_str
     );
 
     free(latitude_str as *mut libc::c_void);
