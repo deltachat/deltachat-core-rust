@@ -651,11 +651,7 @@ unsafe fn prepare_msg_raw(
                         && !parent_rfc724_mid.is_null()
                         && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
                     {
-                        new_references = dc_mprintf(
-                            b"%s %s\x00" as *const u8 as *const libc::c_char,
-                            parent_references,
-                            parent_rfc724_mid,
-                        )
+                        new_references = dc_mprintf!("{} {}", parent_references, parent_rfc724_mid)
                     } else if !parent_references.is_null()
                         && 0 != *parent_references.offset(0isize) as libc::c_int
                     {
