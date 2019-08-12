@@ -2173,7 +2173,6 @@ pub unsafe fn dc_chat_is_verified(chat: *const Chat) -> libc::c_int {
 // TODO should return bool /rtn
 pub unsafe fn dc_chat_is_sending_locations(chat: *const Chat) -> libc::c_int {
     if chat.is_null() {
-
         return 0i32;
     }
     (*chat).is_sending_locations
