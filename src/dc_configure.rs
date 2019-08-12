@@ -13,6 +13,22 @@ use crate::param::Params;
 use crate::types::*;
 use crate::x::*;
 
+macro_rules! progress {
+    ($context:tt, $progress:expr) => {
+        $context.call_cb(
+            Event::CONFIGURE_PROGRESS,
+            (if $progress < 1 {
+                1
+            } else if $progress > 999 {
+                999
+            } else {
+                $progress
+            }) as uintptr_t,
+            0 as uintptr_t,
+        );
+    };
+}
+
 /* ******************************************************************************
  * Configure folders
  ******************************************************************************/
@@ -135,17 +151,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
             let s = s_a.read().unwrap();
 
             if !s.shall_stop_ongoing {
-                context.call_cb(
-                    Event::CONFIGURE_PROGRESS,
-                    (if 0i32 < 1i32 {
-                        1i32
-                    } else if 0i32 > 999i32 {
-                        999i32
-                    } else {
-                        0i32
-                    }) as uintptr_t,
-                    0i32 as uintptr_t,
-                );
+                progress!(context, 0);
 
                 let mut param = dc_loginparam_read(context, &context.sql, "");
                 if param.addr.is_empty() {
@@ -159,17 +165,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                         if s.shall_stop_ongoing {
                             ok_to_continue0 = false;
                         } else {
-                            context.call_cb(
-                                Event::CONFIGURE_PROGRESS,
-                                (if 10 < 1 {
-                                    1
-                                } else if 10 > 999 {
-                                    999
-                                } else {
-                                    10
-                                }) as uintptr_t,
-                                0 as uintptr_t,
-                            );
+                            progress!(context, 10);
                             if let Some(oauth2_addr) =
                                 dc_get_oauth2_addr(context, &param.addr, &param.mail_pw)
                                     .and_then(|e| e.parse().ok())
@@ -183,17 +179,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                             if s.shall_stop_ongoing {
                                 ok_to_continue0 = false;
                             } else {
-                                context.call_cb(
-                                    Event::CONFIGURE_PROGRESS,
-                                    (if 20 < 1 {
-                                        1
-                                    } else if 20 > 999 {
-                                        999
-                                    } else {
-                                        20
-                                    }) as uintptr_t,
-                                    0 as uintptr_t,
-                                );
+                                progress!(context, 20);
                                 ok_to_continue0 = true;
                             }
                         }
@@ -212,17 +198,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                 utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 
                             if !s.shall_stop_ongoing {
-                                context.call_cb(
-                                    Event::CONFIGURE_PROGRESS,
-                                    (if 200 < 1 {
-                                        1
-                                    } else if 200 > 999 {
-                                        999
-                                    } else {
-                                        200
-                                    }) as uintptr_t,
-                                    0 as uintptr_t,
-                                );
+                                progress!(context, 200);
                                 /* 2.  Autoconfig
                                  **************************************************************************/
                                 if param.mail_server.is_empty()
@@ -248,18 +224,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                         if s.shall_stop_ongoing {
                                             ok_to_continue1 = false;
                                         } else {
-                                            context.call_cb(
-                                                Event::CONFIGURE_PROGRESS,
-                                                (if 300 < 1 {
-                                                    1
-                                                } else if 300 > 999 {
-                                                    999
-                                                } else {
-                                                    300
-                                                })
-                                                    as uintptr_t,
-                                                0 as uintptr_t,
-                                            );
+                                            progress!(context, 300);
                                             ok_to_continue1 = true;
                                         }
                                     } else {
@@ -279,18 +244,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                             if s.shall_stop_ongoing {
                                                 ok_to_continue2 = false;
                                             } else {
-                                                context.call_cb(
-                                                    Event::CONFIGURE_PROGRESS,
-                                                    (if 310 < 1 {
-                                                        1
-                                                    } else if 310 > 999 {
-                                                        999
-                                                    } else {
-                                                        310
-                                                    })
-                                                        as uintptr_t,
-                                                    0 as uintptr_t,
-                                                );
+                                                progress!(context, 310);
                                                 ok_to_continue2 = true;
                                             }
                                         } else {
@@ -322,18 +276,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         ok_to_continue3 = false;
                                                         break;
                                                     }
-                                                    context.call_cb(
-                                                        Event::CONFIGURE_PROGRESS,
-                                                        (if 320 + i * 10 < 1 {
-                                                            1
-                                                        } else if 320 + i * 10 > 999 {
-                                                            999
-                                                        } else {
-                                                            320 + i * 10
-                                                        })
-                                                            as uintptr_t,
-                                                        0 as uintptr_t,
-                                                    );
+                                                    progress!(context, 320 + i * 10);
                                                 }
                                                 i += 1
                                             }
@@ -351,18 +294,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                     if s.shall_stop_ongoing {
                                                         ok_to_continue4 = false;
                                                     } else {
-                                                        context.call_cb(
-                                                            Event::CONFIGURE_PROGRESS,
-                                                            (if 340 < 1 {
-                                                                1
-                                                            } else if 340 > 999 {
-                                                                999
-                                                            } else {
-                                                                340
-                                                            })
-                                                                as uintptr_t,
-                                                            0,
-                                                        );
+                                                        progress!(context, 340);
                                                         ok_to_continue4 = true;
                                                     }
                                                 } else {
@@ -382,17 +314,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         if s.shall_stop_ongoing {
                                                             ok_to_continue5 = false;
                                                         } else {
-                                                            context.call_cb(
-                                                                Event::CONFIGURE_PROGRESS,
-                                                                if 350 < 1 {
-                                                                    1
-                                                                } else if 350 > 999 {
-                                                                    999
-                                                                } else {
-                                                                    350
-                                                                },
-                                                                0,
-                                                            );
+                                                            progress!(context, 350);
                                                             ok_to_continue5 = true;
                                                         }
                                                     } else {
@@ -413,17 +335,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                             if s.shall_stop_ongoing {
                                                                 ok_to_continue6 = false;
                                                             } else {
-                                                                context.call_cb(
-                                                                    Event::CONFIGURE_PROGRESS,
-                                                                    if 500 < 1 {
-                                                                        1
-                                                                    } else if 500 > 999 {
-                                                                        999
-                                                                    } else {
-                                                                        500
-                                                                    },
-                                                                    0,
-                                                                );
+                                                                progress!(context, 500);
                                                                 ok_to_continue6 = true;
                                                             }
                                                         } else {
@@ -537,17 +449,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                 {
                                     error!(context, 0, "Account settings incomplete.",);
                                 } else if !s.shall_stop_ongoing {
-                                    context.call_cb(
-                                        Event::CONFIGURE_PROGRESS,
-                                        (if 600 < 1 {
-                                            1
-                                        } else if 600 > 999 {
-                                            999
-                                        } else {
-                                            600
-                                        }) as uintptr_t,
-                                        0,
-                                    );
+                                    progress!(context, 600);
                                     /* try to connect to IMAP - if we did not got an autoconfig,
                                     do some further tries with different settings and username variations */
                                     let ok_to_continue8;
@@ -573,18 +475,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                             ok_to_continue8 = false;
                                             break;
                                         }
-                                        context.call_cb(
-                                            Event::CONFIGURE_PROGRESS,
-                                            (if 650 + username_variation * 30 < 1 {
-                                                1
-                                            } else if 650 + username_variation * 30 > 999 {
-                                                999
-                                            } else {
-                                                650 + username_variation * 30
-                                            })
-                                                as uintptr_t,
-                                            0 as uintptr_t,
-                                        );
+                                        progress!(context, 650 + username_variation * 30);
                                         param.server_flags &= !(0x100 | 0x200 | 0x400);
                                         param.server_flags |= 0x100;
                                         let r_1 = dc_loginparam_get_readable(&param);
@@ -599,18 +490,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                             ok_to_continue8 = false;
                                             break;
                                         }
-                                        context.call_cb(
-                                            Event::CONFIGURE_PROGRESS,
-                                            (if 660 + username_variation * 30 < 1 {
-                                                1
-                                            } else if 660 + username_variation * 30 > 999 {
-                                                999
-                                            } else {
-                                                660 + username_variation * 30
-                                            })
-                                                as uintptr_t,
-                                            0 as uintptr_t,
-                                        );
+                                        progress!(context, 660 + username_variation * 30);
                                         param.mail_port = 143;
                                         let r_2 = dc_loginparam_get_readable(&param);
                                         info!(context, 0, "Trying: {}", r_2,);
@@ -628,18 +508,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                             ok_to_continue8 = false;
                                             break;
                                         }
-                                        context.call_cb(
-                                            Event::CONFIGURE_PROGRESS,
-                                            (if 670 + username_variation * 30 < 1 {
-                                                1
-                                            } else if 670 + username_variation * 30 > 999 {
-                                                999
-                                            } else {
-                                                670 + username_variation * 30
-                                            })
-                                                as uintptr_t,
-                                            0 as uintptr_t,
-                                        );
+                                        progress!(context, 670 + username_variation * 30);
                                         param.server_flags &= !(0x100 | 0x200 | 0x400);
                                         param.server_flags |= 0x200;
                                         param.mail_port = 993;
@@ -658,18 +527,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                     if ok_to_continue8 {
                                         imap_connected_here = true;
                                         if !s.shall_stop_ongoing {
-                                            context.call_cb(
-                                                Event::CONFIGURE_PROGRESS,
-                                                (if 800 < 1 {
-                                                    1
-                                                } else if 800 > 999 {
-                                                    999
-                                                } else {
-                                                    800
-                                                })
-                                                    as uintptr_t,
-                                                0 as uintptr_t,
-                                            );
+                                            progress!(context, 800);
                                             let ok_to_continue9;
                                             /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
                                             if !context
@@ -684,18 +542,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                 } else if s.shall_stop_ongoing {
                                                     ok_to_continue9 = false;
                                                 } else {
-                                                    context.call_cb(
-                                                        Event::CONFIGURE_PROGRESS,
-                                                        (if 850 < 1 {
-                                                            1
-                                                        } else if 850 > 999 {
-                                                            999
-                                                        } else {
-                                                            850
-                                                        })
-                                                            as uintptr_t,
-                                                        0 as uintptr_t,
-                                                    );
+                                                    progress!(context, 850);
                                                     param.server_flags &=
                                                         !(0x10000 | 0x20000 | 0x40000);
                                                     param.server_flags |= 0x10000;
@@ -713,18 +560,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         if s.shall_stop_ongoing {
                                                             ok_to_continue9 = false;
                                                         } else {
-                                                            context.call_cb(
-                                                                Event::CONFIGURE_PROGRESS,
-                                                                (if 860 < 1 {
-                                                                    1
-                                                                } else if 860 > 999 {
-                                                                    999
-                                                                } else {
-                                                                    860
-                                                                })
-                                                                    as uintptr_t,
-                                                                0 as uintptr_t,
-                                                            );
+                                                            progress!(context, 860);
                                                             param.server_flags &=
                                                                 !(0x10000 | 0x20000 | 0x40000);
                                                             param.server_flags |= 0x10000;
@@ -755,18 +591,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                             if ok_to_continue9 {
                                                 smtp_connected_here = true;
                                                 if !s.shall_stop_ongoing {
-                                                    context.call_cb(
-                                                        Event::CONFIGURE_PROGRESS,
-                                                        (if 900 < 1 {
-                                                            1
-                                                        } else if 900 > 999 {
-                                                            999
-                                                        } else {
-                                                            900
-                                                        })
-                                                            as uintptr_t,
-                                                        0 as uintptr_t,
-                                                    );
+                                                    progress!(context, 900);
                                                     flags = if 0
                                                         != context
                                                             .sql
@@ -788,18 +613,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                         .unwrap()
                                                         .configure_folders(context, flags);
                                                     if !s.shall_stop_ongoing {
-                                                        context.call_cb(
-                                                            Event::CONFIGURE_PROGRESS,
-                                                            (if 910 < 1 {
-                                                                1
-                                                            } else if 910 > 999 {
-                                                                999
-                                                            } else {
-                                                                910
-                                                            })
-                                                                as uintptr_t,
-                                                            0 as uintptr_t,
-                                                        );
+                                                        progress!(context, 910);
                                                         dc_loginparam_write(
                                                             context,
                                                             &param,
@@ -815,18 +629,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                             )
                                                             .ok();
                                                         if !s.shall_stop_ongoing {
-                                                            context.call_cb(
-                                                                Event::CONFIGURE_PROGRESS,
-                                                                (if 920 < 1 {
-                                                                    1
-                                                                } else if 920 > 999 {
-                                                                    999
-                                                                } else {
-                                                                    920
-                                                                })
-                                                                    as uintptr_t,
-                                                                0 as uintptr_t,
-                                                            );
+                                                            progress!(context, 920);
                                                             dc_ensure_secret_key_exists(context);
                                                             success = true;
                                                             info!(
@@ -834,18 +637,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                 0, "Configure completed."
                                                             );
                                                             if !s.shall_stop_ongoing {
-                                                                context.call_cb(
-                                                                    Event::CONFIGURE_PROGRESS,
-                                                                    (if 940 < 1 {
-                                                                        1
-                                                                    } else if 940 > 999 {
-                                                                        999
-                                                                    } else {
-                                                                        940
-                                                                    })
-                                                                        as uintptr_t,
-                                                                    0 as uintptr_t,
-                                                                );
+                                                                progress!(context, 940);
                                                             }
                                                         }
                                                     }
@@ -889,11 +681,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
         dc_free_ongoing(context);
     }
 
-    context.call_cb(
-        Event::CONFIGURE_PROGRESS,
-        (if success { 1000 } else { 0 }) as uintptr_t,
-        0 as uintptr_t,
-    );
+    progress!(context, (if success { 1000 } else { 0 }));
 }
 
 pub unsafe fn dc_free_ongoing(context: &Context) {
