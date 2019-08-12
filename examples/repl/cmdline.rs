@@ -604,9 +604,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "listchats" | "listarchived" | "chats" => {
             let listflags = if arg0 == "listarchived" { 0x01 } else { 0 };
-            let chatlist = Chatlist::try_load(context, listflags, Some(arg1), None)?;
+            let chatlist = Chatlist::try_load(
+                context,
+                listflags,
+                if arg1.is_empty() { None } else { Some(arg1) },
+                None,
+            )?;
 
-            let mut i: usize;
             let cnt = chatlist.len();
             if cnt > 0 {
                 info!(
@@ -614,9 +618,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     "================================================================================"
                 );
 
-                i = cnt - 1;
-
-                while i > 0 {
+                for i in (0..cnt).rev() {
                     let chat = dc_get_chat(context, chatlist.get_chat_id(i));
                     let temp_subtitle = dc_chat_get_subtitle(chat);
                     let temp_name = dc_chat_get_name(chat);
@@ -670,8 +672,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         context, 0,
                         "================================================================================"
                     );
-
-                    i -= 1
                 }
             }
             if dc_is_sending_locations_to_chat(context, 0 as uint32_t) {
