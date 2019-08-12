@@ -107,7 +107,7 @@ pub unsafe fn dc_str_replace(
 
 pub unsafe fn dc_ftoa(f: libc::c_double) -> *mut libc::c_char {
     // hack around printf(%f) that may return `,` as decimal point on mac
-    let test: *mut libc::c_char = dc_mprintf(b"%f\x00" as *const u8 as *const libc::c_char, 1.2f64);
+    let test: *mut libc::c_char = format!("{}", 1.2f64).strdup();
     *test.offset(2isize) = 0 as libc::c_char;
     let mut str: *mut libc::c_char = dc_mprintf(b"%f\x00" as *const u8 as *const libc::c_char, f);
     dc_str_replace(
