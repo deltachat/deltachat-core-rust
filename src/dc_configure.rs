@@ -201,113 +201,112 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                         ok_to_continue0 = true;
                     }
                     if ok_to_continue0 {
-                            let parsed: addr::Result<addr::Email> = param.addr.parse();
-                            let mut ok_to_continue7 = false;
-                            if parsed.is_err() {
-                                error!(context, 0, "Bad email-address.");
-                            } else {
-                                let parsed = parsed.unwrap();
-                                let param_domain = parsed.host();
-                                let param_addr_urlencoded =
-                                    utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
+                        let parsed: addr::Result<addr::Email> = param.addr.parse();
+                        let mut ok_to_continue7 = false;
+                        if parsed.is_err() {
+                            error!(context, 0, "Bad email-address.");
+                        } else {
+                            let parsed = parsed.unwrap();
+                            let param_domain = parsed.host();
+                            let param_addr_urlencoded =
+                                utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 
-                                if !s.shall_stop_ongoing {
-                                    context.call_cb(
-                                        Event::CONFIGURE_PROGRESS,
-                                        (if 200 < 1 {
-                                            1
-                                        } else if 200 > 999 {
-                                            999
-                                        } else {
-                                            200
-                                        }) as uintptr_t,
-                                        0 as uintptr_t,
-                                    );
-                                    /* 2.  Autoconfig
-                                     **************************************************************************/
-                                    if param.mail_server.is_empty()
-                                        && param.mail_port == 0
-                                        && param.send_server.is_empty()
-                                        && param.send_port == 0
-                                        && param.send_user.is_empty()
-                                        && param.server_flags & !0x2 == 0
-                                    {
-                                        let ok_to_continue1;
-                                        /*&&param->mail_user   ==NULL -- the user can enter a loginname which is used by autoconfig then */
-                                        /*&&param->send_pw     ==NULL -- the password cannot be auto-configured and is no criterion for autoconfig or not */
-                                        /* flags but OAuth2 avoid autoconfig */
-                                        let keep_flags = param.server_flags & 0x2;
-                                        /* A.  Search configurations from the domain used in the email-address, prefer encrypted */
-                                        if param_autoconfig.is_none() {
-                                            let url = format!(
+                            if !s.shall_stop_ongoing {
+                                context.call_cb(
+                                    Event::CONFIGURE_PROGRESS,
+                                    (if 200 < 1 {
+                                        1
+                                    } else if 200 > 999 {
+                                        999
+                                    } else {
+                                        200
+                                    }) as uintptr_t,
+                                    0 as uintptr_t,
+                                );
+                                /* 2.  Autoconfig
+                                 **************************************************************************/
+                                if param.mail_server.is_empty()
+                                    && param.mail_port == 0
+                                    && param.send_server.is_empty()
+                                    && param.send_port == 0
+                                    && param.send_user.is_empty()
+                                    && param.server_flags & !0x2 == 0
+                                {
+                                    let ok_to_continue1;
+                                    /*&&param->mail_user   ==NULL -- the user can enter a loginname which is used by autoconfig then */
+                                    /*&&param->send_pw     ==NULL -- the password cannot be auto-configured and is no criterion for autoconfig or not */
+                                    /* flags but OAuth2 avoid autoconfig */
+                                    let keep_flags = param.server_flags & 0x2;
+                                    /* A.  Search configurations from the domain used in the email-address, prefer encrypted */
+                                    if param_autoconfig.is_none() {
+                                        let url = format!(
                                             "https://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
                                             param_domain,
                                             param_addr_urlencoded
                                         );
-                                            param_autoconfig =
-                                                moz_autoconfigure(context, &url, &param);
-                                            if s.shall_stop_ongoing {
-                                                ok_to_continue1 = false;
-                                            } else {
-                                                context.call_cb(
-                                                    Event::CONFIGURE_PROGRESS,
-                                                    (if 300 < 1 {
-                                                        1
-                                                    } else if 300 > 999 {
-                                                        999
-                                                    } else {
-                                                        300
-                                                    })
-                                                        as uintptr_t,
-                                                    0 as uintptr_t,
-                                                );
-                                                ok_to_continue1 = true;
-                                            }
+                                        param_autoconfig = moz_autoconfigure(context, &url, &param);
+                                        if s.shall_stop_ongoing {
+                                            ok_to_continue1 = false;
                                         } else {
+                                            context.call_cb(
+                                                Event::CONFIGURE_PROGRESS,
+                                                (if 300 < 1 {
+                                                    1
+                                                } else if 300 > 999 {
+                                                    999
+                                                } else {
+                                                    300
+                                                })
+                                                    as uintptr_t,
+                                                0 as uintptr_t,
+                                            );
                                             ok_to_continue1 = true;
                                         }
-                                        if ok_to_continue1 {
-                                                let ok_to_continue2;
-                                                if param_autoconfig.is_none() {
-                                                    // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
-                                                    let url = format!(
+                                    } else {
+                                        ok_to_continue1 = true;
+                                    }
+                                    if ok_to_continue1 {
+                                        let ok_to_continue2;
+                                        if param_autoconfig.is_none() {
+                                            // the doc does not mention `emailaddress=`, however, Thunderbird adds it, see https://releases.mozilla.org/pub/thunderbird/ ,  which makes some sense
+                                            let url = format!(
                                                     "https://{}/.well-known/autoconfig/mail/config-v1.1.xml?emailaddress={}",
                                                     param_domain,
                                                     param_addr_urlencoded
                                                 );
-                                                    param_autoconfig =
-                                                        moz_autoconfigure(context, &url, &param);
-                                                    if s.shall_stop_ongoing {
-                                                        ok_to_continue2 = false;
+                                            param_autoconfig =
+                                                moz_autoconfigure(context, &url, &param);
+                                            if s.shall_stop_ongoing {
+                                                ok_to_continue2 = false;
+                                            } else {
+                                                context.call_cb(
+                                                    Event::CONFIGURE_PROGRESS,
+                                                    (if 310 < 1 {
+                                                        1
+                                                    } else if 310 > 999 {
+                                                        999
                                                     } else {
-                                                        context.call_cb(
-                                                            Event::CONFIGURE_PROGRESS,
-                                                            (if 310 < 1 {
-                                                                1
-                                                            } else if 310 > 999 {
-                                                                999
-                                                            } else {
-                                                                310
-                                                            })
-                                                                as uintptr_t,
-                                                            0 as uintptr_t,
-                                                        );
-                                                        ok_to_continue2 = true;
-                                                    }
-                                                } else {
-                                                    ok_to_continue2 = true;
+                                                        310
+                                                    })
+                                                        as uintptr_t,
+                                                    0 as uintptr_t,
+                                                );
+                                                ok_to_continue2 = true;
+                                            }
+                                        } else {
+                                            ok_to_continue2 = true;
+                                        }
+                                        if ok_to_continue2 {
+                                            let mut i: libc::c_int = 0;
+                                            let ok_to_continue3;
+                                            loop {
+                                                if !(i <= 1) {
+                                                    ok_to_continue3 = true;
+                                                    break;
                                                 }
-                                                if ok_to_continue2 {
-                                                        let mut i: libc::c_int = 0;
-                                                        let ok_to_continue3;
-                                                        loop {
-                                                            if !(i <= 1) {
-                                                                ok_to_continue3 = true;
-                                                                break;
-                                                            }
-                                                            if param_autoconfig.is_none() {
-                                                                /* Outlook uses always SSL but different domains */
-                                                                let url = format!(
+                                                if param_autoconfig.is_none() {
+                                                    /* Outlook uses always SSL but different domains */
+                                                    let url = format!(
                                                                     "https://{}{}/autodiscover/autodiscover.xml",
                                                                     if i == 0 {
                                                                         ""
@@ -316,430 +315,424 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                     },
                                                                     param_domain
                                                                 );
-                                                                param_autoconfig =
-                                                                    outlk_autodiscover(
-                                                                        context, &url, &param,
-                                                                    );
+                                                    param_autoconfig =
+                                                        outlk_autodiscover(context, &url, &param);
 
-                                                                if s.shall_stop_ongoing {
-                                                                    ok_to_continue3 = false;  
-                                                                    break;
-                                                                }
-                                                                context.call_cb(
-                                                                    Event::CONFIGURE_PROGRESS,
-                                                                    (if 320 + i * 10 < 1 {
-                                                                        1
-                                                                    } else if 320 + i * 10 > 999 {
-                                                                        999
-                                                                    } else {
-                                                                        320 + i * 10
-                                                                    })
-                                                                        as uintptr_t,
-                                                                    0 as uintptr_t,
-                                                                );
-                                                            }
-                                                            i += 1
-                                                        }
-                                                        if ok_to_continue3 {
-                                                                let ok_to_continue4;
-                                                                if param_autoconfig.is_none() {
-                                                                    let url = format!(
+                                                    if s.shall_stop_ongoing {
+                                                        ok_to_continue3 = false;
+                                                        break;
+                                                    }
+                                                    context.call_cb(
+                                                        Event::CONFIGURE_PROGRESS,
+                                                        (if 320 + i * 10 < 1 {
+                                                            1
+                                                        } else if 320 + i * 10 > 999 {
+                                                            999
+                                                        } else {
+                                                            320 + i * 10
+                                                        })
+                                                            as uintptr_t,
+                                                        0 as uintptr_t,
+                                                    );
+                                                }
+                                                i += 1
+                                            }
+                                            if ok_to_continue3 {
+                                                let ok_to_continue4;
+                                                if param_autoconfig.is_none() {
+                                                    let url = format!(
                                                                     "http://autoconfig.{}/mail/config-v1.1.xml?emailaddress={}",
                                                                     param_domain,
                                                                     param_addr_urlencoded
                                                                 );
-                                                                    param_autoconfig =
-                                                                        moz_autoconfigure(
-                                                                            context, &url, &param,
-                                                                        );
+                                                    param_autoconfig =
+                                                        moz_autoconfigure(context, &url, &param);
 
-                                                                    if s.shall_stop_ongoing {
-                                                                        ok_to_continue4 = false;
-                                                                    } else {
-                                                                        context.call_cb(
-                                                                        Event::CONFIGURE_PROGRESS,
-                                                                        (if 340 < 1 {
-                                                                            1
-                                                                        } else if 340 > 999 {
-                                                                            999
-                                                                        } else {
-                                                                            340
-                                                                        })
-                                                                            as uintptr_t,
-                                                                        0,
-                                                                    );
-                                                                        ok_to_continue4 = true;
-                                                                    }
-                                                                } else {
-                                                                    ok_to_continue4 = true;
-                                                                }
-                                                                if ok_to_continue4 {
-                                                                        let ok_to_continue5;
-                                                                        if param_autoconfig
-                                                                            .is_none()
-                                                                        {
-                                                                            // do not transfer the email-address unencrypted
-                                                                            let url = format!(
+                                                    if s.shall_stop_ongoing {
+                                                        ok_to_continue4 = false;
+                                                    } else {
+                                                        context.call_cb(
+                                                            Event::CONFIGURE_PROGRESS,
+                                                            (if 340 < 1 {
+                                                                1
+                                                            } else if 340 > 999 {
+                                                                999
+                                                            } else {
+                                                                340
+                                                            })
+                                                                as uintptr_t,
+                                                            0,
+                                                        );
+                                                        ok_to_continue4 = true;
+                                                    }
+                                                } else {
+                                                    ok_to_continue4 = true;
+                                                }
+                                                if ok_to_continue4 {
+                                                    let ok_to_continue5;
+                                                    if param_autoconfig.is_none() {
+                                                        // do not transfer the email-address unencrypted
+                                                        let url = format!(
                                                                                     "http://{}/.well-known/autoconfig/mail/config-v1.1.xml",
                                                                                     param_domain
                                                                                 );
-                                                                            param_autoconfig =
-                                                                                moz_autoconfigure(
-                                                                                    context, &url,
-                                                                                    &param,
-                                                                                );
-                                                                            if s.shall_stop_ongoing
-                                                                            {
-                                                                                ok_to_continue5 = false;
-                                                                            } else {
-                                                                                context.call_cb(
-                                                                                    Event::CONFIGURE_PROGRESS,
-                                                                                    if 350 < 1 {
-                                                                                        1
-                                                                                    } else if 350 > 999 {
-                                                                                        999
-                                                                                    } else {
-                                                                                        350
-                                                                                    },
-                                                                                    0
-                                                                                );
-                                                                                ok_to_continue5 = true;
-                                                                            }
-                                                                        } else {
-                                                                            ok_to_continue5 = true;
-                                                                        }
-                                                                        if ok_to_continue5 {
-                                                                                let ok_to_continue6;
-                                                                                /* B.  If we have no configuration yet, search configuration in Thunderbird's centeral database */
-                                                                                if param_autoconfig
-                                                                                    .is_none()
-                                                                                {
-                                                                                    /* always SSL for Thunderbird's database */
-                                                                                    let url =
+                                                        param_autoconfig = moz_autoconfigure(
+                                                            context, &url, &param,
+                                                        );
+                                                        if s.shall_stop_ongoing {
+                                                            ok_to_continue5 = false;
+                                                        } else {
+                                                            context.call_cb(
+                                                                Event::CONFIGURE_PROGRESS,
+                                                                if 350 < 1 {
+                                                                    1
+                                                                } else if 350 > 999 {
+                                                                    999
+                                                                } else {
+                                                                    350
+                                                                },
+                                                                0,
+                                                            );
+                                                            ok_to_continue5 = true;
+                                                        }
+                                                    } else {
+                                                        ok_to_continue5 = true;
+                                                    }
+                                                    if ok_to_continue5 {
+                                                        let ok_to_continue6;
+                                                        /* B.  If we have no configuration yet, search configuration in Thunderbird's centeral database */
+                                                        if param_autoconfig.is_none() {
+                                                            /* always SSL for Thunderbird's database */
+                                                            let url =
                                                                                     format!("https://autoconfig.thunderbird.net/v1.1/{}",
                                                                                             param_domain
                                                                                         );
-                                                                                    param_autoconfig
-                                                                                    =
-                                                                                    moz_autoconfigure(
-                                                                                        context,
-                                                                                        &url,
-                                                                                        &param
-                                                                                    );
-                                                                                    if s.shall_stop_ongoing
-                                                                                    {
-                                                                                        ok_to_continue6 = false;
-                                                                                    } else {
-                                                                                        context.call_cb(
-                                                                                            Event::CONFIGURE_PROGRESS,
-                                                                                            if 500 < 1 {
-                                                                                                 1
-                                                                                             } else if 500 > 999 {
-                                                                                                 999
-                                                                                             } else {
-                                                                                                 500
-                                                                                            },
-                                                                                            0);
-                                                                                        ok_to_continue6 = true;
-                                                                                    }
-                                                                                } else {
-                                                                                    ok_to_continue6 = true;
-                                                                                }
-                                                                                if ok_to_continue6 {
-                                                                                        if let Some(ref cfg) = param_autoconfig
-                                                                                        {
-                                                                                            let r = dc_loginparam_get_readable(cfg);
-                                                                                            info!(
-                                                                                                context,
-                                                                                                0,
-                                                                                                "Got autoconfig: {}",
-                                                                                                r
-                                                                                            );
-                                                                                            if !cfg.mail_user.is_empty()
-                                                                                            {
-                                                                                                param.mail_user = cfg.mail_user.clone();
-                                                                                            }
-                                                                                            param.mail_server = cfg.mail_server.clone();
-                                                                                            param.mail_port
-                                                                                                =
-                                                                                                cfg.mail_port;
-                                                                                            param.send_server
-                                                                                                =
-                                                                                                cfg.send_server.clone();
-                                                                                            param.send_port
-                                                                                                =
-                                                                                                cfg.send_port;
-                                                                                            param.send_user
-                                                                                                =
-                                                                                                cfg.send_user.clone();
-                                                                                            param.server_flags
-                                                                                                =
-                                                                                                cfg.server_flags;
-                                                                                        }
-                                                                                        param.server_flags
-                                                                                            |=
-                                                                                            keep_flags;
-                                                                                        ok_to_continue7 = true;
-                                                                                }
-                                                                        }
+                                                            param_autoconfig = moz_autoconfigure(
+                                                                context, &url, &param,
+                                                            );
+                                                            if s.shall_stop_ongoing {
+                                                                ok_to_continue6 = false;
+                                                            } else {
+                                                                context.call_cb(
+                                                                    Event::CONFIGURE_PROGRESS,
+                                                                    if 500 < 1 {
+                                                                        1
+                                                                    } else if 500 > 999 {
+                                                                        999
+                                                                    } else {
+                                                                        500
+                                                                    },
+                                                                    0,
+                                                                );
+                                                                ok_to_continue6 = true;
+                                                            }
+                                                        } else {
+                                                            ok_to_continue6 = true;
+                                                        }
+                                                        if ok_to_continue6 {
+                                                            if let Some(ref cfg) = param_autoconfig
+                                                            {
+                                                                let r =
+                                                                    dc_loginparam_get_readable(cfg);
+                                                                info!(
+                                                                    context,
+                                                                    0, "Got autoconfig: {}", r
+                                                                );
+                                                                if !cfg.mail_user.is_empty() {
+                                                                    param.mail_user =
+                                                                        cfg.mail_user.clone();
                                                                 }
+                                                                param.mail_server =
+                                                                    cfg.mail_server.clone();
+                                                                param.mail_port = cfg.mail_port;
+                                                                param.send_server =
+                                                                    cfg.send_server.clone();
+                                                                param.send_port = cfg.send_port;
+                                                                param.send_user =
+                                                                    cfg.send_user.clone();
+                                                                param.server_flags =
+                                                                    cfg.server_flags;
+                                                            }
+                                                            param.server_flags |= keep_flags;
+                                                            ok_to_continue7 = true;
                                                         }
                                                     }
                                                 }
+                                            }
                                         }
-                                    } else {
-                                        ok_to_continue7 = true;
                                     }
-                                    if ok_to_continue7 {
-                                            if param.mail_server.is_empty() {
-                                                param.mail_server =
-                                                    format!("imap.{}", param_domain,)
-                                            }
-                                            if param.mail_port == 0 {
-                                                param.mail_port =
-                                                    if 0 != param.server_flags & (0x100 | 0x400) {
-                                                        143
-                                                    } else {
-                                                        993
-                                                    }
-                                            }
-                                            if param.mail_user.is_empty() {
-                                                param.mail_user = param.addr.clone();
-                                            }
-                                            if param.send_server.is_empty()
-                                                && !param.mail_server.is_empty()
-                                            {
-                                                param.send_server = param.mail_server.clone();
-                                                if param.send_server.starts_with("imap.") {
-                                                    param.send_server = param
-                                                        .send_server
-                                                        .replacen("imap", "smtp", 1);
-                                                }
-                                            }
-                                            if param.send_port == 0 {
-                                                param.send_port =
-                                                    if 0 != param.server_flags & 0x10000 {
-                                                        587
-                                                    } else if 0 != param.server_flags & 0x40000 {
-                                                        25
-                                                    } else {
-                                                        465
-                                                    }
-                                            }
-                                            if param.send_user.is_empty()
-                                                && !param.mail_user.is_empty()
-                                            {
-                                                param.send_user = param.mail_user.clone();
-                                            }
-                                            if param.send_pw.is_empty() && !param.mail_pw.is_empty()
-                                            {
-                                                param.send_pw = param.mail_pw.clone()
-                                            }
-                                            if !dc_exactly_one_bit_set(
-                                                param.server_flags & (0x2 | 0x4),
-                                            ) {
-                                                param.server_flags &= !(0x2 | 0x4);
-                                                param.server_flags |= 0x4
-                                            }
-                                            if !dc_exactly_one_bit_set(
-                                                param.server_flags & (0x100 | 0x200 | 0x400),
-                                            ) {
-                                                param.server_flags &= !(0x100 | 0x200 | 0x400);
-                                                param.server_flags |= if param.send_port == 143 {
-                                                    0x100
+                                }
+                            } else {
+                                ok_to_continue7 = true;
+                            }
+                            if ok_to_continue7 {
+                                if param.mail_server.is_empty() {
+                                    param.mail_server = format!("imap.{}", param_domain,)
+                                }
+                                if param.mail_port == 0 {
+                                    param.mail_port = if 0 != param.server_flags & (0x100 | 0x400) {
+                                        143
+                                    } else {
+                                        993
+                                    }
+                                }
+                                if param.mail_user.is_empty() {
+                                    param.mail_user = param.addr.clone();
+                                }
+                                if param.send_server.is_empty() && !param.mail_server.is_empty() {
+                                    param.send_server = param.mail_server.clone();
+                                    if param.send_server.starts_with("imap.") {
+                                        param.send_server =
+                                            param.send_server.replacen("imap", "smtp", 1);
+                                    }
+                                }
+                                if param.send_port == 0 {
+                                    param.send_port = if 0 != param.server_flags & 0x10000 {
+                                        587
+                                    } else if 0 != param.server_flags & 0x40000 {
+                                        25
+                                    } else {
+                                        465
+                                    }
+                                }
+                                if param.send_user.is_empty() && !param.mail_user.is_empty() {
+                                    param.send_user = param.mail_user.clone();
+                                }
+                                if param.send_pw.is_empty() && !param.mail_pw.is_empty() {
+                                    param.send_pw = param.mail_pw.clone()
+                                }
+                                if !dc_exactly_one_bit_set(param.server_flags & (0x2 | 0x4)) {
+                                    param.server_flags &= !(0x2 | 0x4);
+                                    param.server_flags |= 0x4
+                                }
+                                if !dc_exactly_one_bit_set(
+                                    param.server_flags & (0x100 | 0x200 | 0x400),
+                                ) {
+                                    param.server_flags &= !(0x100 | 0x200 | 0x400);
+                                    param.server_flags |=
+                                        if param.send_port == 143 { 0x100 } else { 0x200 }
+                                }
+                                if !dc_exactly_one_bit_set(
+                                    param.server_flags & (0x10000 | 0x20000 | 0x40000),
+                                ) {
+                                    param.server_flags &= !(0x10000 | 0x20000 | 0x40000);
+                                    param.server_flags |= if param.send_port == 587 {
+                                        0x10000
+                                    } else if param.send_port == 25 {
+                                        0x40000
+                                    } else {
+                                        0x20000
+                                    }
+                                }
+                                /* do we have a complete configuration? */
+                                if param.mail_server.is_empty()
+                                    || param.mail_port == 0
+                                    || param.mail_user.is_empty()
+                                    || param.mail_pw.is_empty()
+                                    || param.send_server.is_empty()
+                                    || param.send_port == 0
+                                    || param.send_user.is_empty()
+                                    || param.send_pw.is_empty()
+                                    || param.server_flags == 0
+                                {
+                                    error!(context, 0, "Account settings incomplete.",);
+                                } else if !s.shall_stop_ongoing {
+                                    context.call_cb(
+                                        Event::CONFIGURE_PROGRESS,
+                                        (if 600 < 1 {
+                                            1
+                                        } else if 600 > 999 {
+                                            999
+                                        } else {
+                                            600
+                                        }) as uintptr_t,
+                                        0,
+                                    );
+                                    /* try to connect to IMAP - if we did not got an autoconfig,
+                                    do some further tries with different settings and username variations */
+                                    let ok_to_continue8;
+                                    let mut username_variation = 0;
+                                    loop {
+                                        if !(username_variation <= 1) {
+                                            ok_to_continue8 = true;
+                                            break;
+                                        }
+                                        let r_0 = dc_loginparam_get_readable(&param);
+                                        info!(context, 0, "Trying: {}", r_0,);
+
+                                        if context.inbox.read().unwrap().connect(context, &param) {
+                                            ok_to_continue8 = true;
+                                            break;
+                                        }
+                                        if !param_autoconfig.is_none() {
+                                            ok_to_continue8 = false;
+                                            break;
+                                        }
+                                        // probe STARTTLS/993
+                                        if s.shall_stop_ongoing {
+                                            ok_to_continue8 = false;
+                                            break;
+                                        }
+                                        context.call_cb(
+                                            Event::CONFIGURE_PROGRESS,
+                                            (if 650 + username_variation * 30 < 1 {
+                                                1
+                                            } else if 650 + username_variation * 30 > 999 {
+                                                999
+                                            } else {
+                                                650 + username_variation * 30
+                                            })
+                                                as uintptr_t,
+                                            0 as uintptr_t,
+                                        );
+                                        param.server_flags &= !(0x100 | 0x200 | 0x400);
+                                        param.server_flags |= 0x100;
+                                        let r_1 = dc_loginparam_get_readable(&param);
+                                        info!(context, 0, "Trying: {}", r_1,);
+
+                                        if context.inbox.read().unwrap().connect(context, &param) {
+                                            ok_to_continue8 = true;
+                                            break;
+                                        }
+                                        // probe STARTTLS/143
+                                        if s.shall_stop_ongoing {
+                                            ok_to_continue8 = false;
+                                            break;
+                                        }
+                                        context.call_cb(
+                                            Event::CONFIGURE_PROGRESS,
+                                            (if 660 + username_variation * 30 < 1 {
+                                                1
+                                            } else if 660 + username_variation * 30 > 999 {
+                                                999
+                                            } else {
+                                                660 + username_variation * 30
+                                            })
+                                                as uintptr_t,
+                                            0 as uintptr_t,
+                                        );
+                                        param.mail_port = 143;
+                                        let r_2 = dc_loginparam_get_readable(&param);
+                                        info!(context, 0, "Trying: {}", r_2,);
+
+                                        if context.inbox.read().unwrap().connect(context, &param) {
+                                            ok_to_continue8 = true;
+                                            break;
+                                        }
+                                        if 0 != username_variation {
+                                            ok_to_continue8 = false;
+                                            break;
+                                        }
+                                        // next probe round with only the localpart of the email-address as the loginname
+                                        if s.shall_stop_ongoing {
+                                            ok_to_continue8 = false;
+                                            break;
+                                        }
+                                        context.call_cb(
+                                            Event::CONFIGURE_PROGRESS,
+                                            (if 670 + username_variation * 30 < 1 {
+                                                1
+                                            } else if 670 + username_variation * 30 > 999 {
+                                                999
+                                            } else {
+                                                670 + username_variation * 30
+                                            })
+                                                as uintptr_t,
+                                            0 as uintptr_t,
+                                        );
+                                        param.server_flags &= !(0x100 | 0x200 | 0x400);
+                                        param.server_flags |= 0x200;
+                                        param.mail_port = 993;
+
+                                        if let Some(at) = param.mail_user.find('@') {
+                                            param.mail_user =
+                                                param.mail_user.split_at(at).0.to_string();
+                                        }
+                                        if let Some(at) = param.send_user.find('@') {
+                                            param.send_user =
+                                                param.send_user.split_at(at).0.to_string();
+                                        }
+
+                                        username_variation += 1
+                                    }
+                                    if ok_to_continue8 {
+                                        imap_connected_here = true;
+                                        if !s.shall_stop_ongoing {
+                                            context.call_cb(
+                                                Event::CONFIGURE_PROGRESS,
+                                                (if 800 < 1 {
+                                                    1
+                                                } else if 800 > 999 {
+                                                    999
                                                 } else {
-                                                    0x200
-                                                }
-                                            }
-                                            if !dc_exactly_one_bit_set(
-                                                param.server_flags & (0x10000 | 0x20000 | 0x40000),
-                                            ) {
-                                                param.server_flags &=
-                                                    !(0x10000 | 0x20000 | 0x40000);
-                                                param.server_flags |= if param.send_port == 587 {
-                                                    0x10000
-                                                } else if param.send_port == 25 {
-                                                    0x40000
-                                                } else {
-                                                    0x20000
-                                                }
-                                            }
-                                            /* do we have a complete configuration? */
-                                            if param.mail_server.is_empty()
-                                                || param.mail_port == 0
-                                                || param.mail_user.is_empty()
-                                                || param.mail_pw.is_empty()
-                                                || param.send_server.is_empty()
-                                                || param.send_port == 0
-                                                || param.send_user.is_empty()
-                                                || param.send_pw.is_empty()
-                                                || param.server_flags == 0
+                                                    800
+                                                })
+                                                    as uintptr_t,
+                                                0 as uintptr_t,
+                                            );
+                                            let ok_to_continue9;
+                                            /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
+                                            if !context
+                                                .smtp
+                                                .clone()
+                                                .lock()
+                                                .unwrap()
+                                                .connect(context, &param)
                                             {
-                                                error!(context, 0, "Account settings incomplete.",);
-                                            } else if !s.shall_stop_ongoing {
-                                                context.call_cb(
-                                                    Event::CONFIGURE_PROGRESS,
-                                                    (if 600 < 1 {
-                                                        1
-                                                    } else if 600 > 999 {
-                                                        999
-                                                    } else {
-                                                        600
-                                                    })
-                                                        as uintptr_t,
-                                                    0,
-                                                );
-                                                /* try to connect to IMAP - if we did not got an autoconfig,
-                                                do some further tries with different settings and username variations */
-                                                let ok_to_continue8;
-                                                let mut username_variation = 0;
-                                                loop {
-                                                    if !(username_variation <= 1) {
-                                                        ok_to_continue8 = true;
-                                                        break;
-                                                    }
-                                                    let r_0 = dc_loginparam_get_readable(&param);
-                                                    info!(context, 0, "Trying: {}", r_0,);
-
-                                                    if context
-                                                        .inbox
-                                                        .read()
-                                                        .unwrap()
-                                                        .connect(context, &param)
-                                                    {
-                                                        ok_to_continue8 = true;
-                                                        break;
-                                                    }
-                                                    if !param_autoconfig.is_none() {
-                                                        ok_to_continue8 = false;
-                                                        break;
-                                                    }
-                                                    // probe STARTTLS/993
-                                                    if s.shall_stop_ongoing {
-                                                        ok_to_continue8 = false;
-                                                        break;
-                                                    }
+                                                if !param_autoconfig.is_none() {
+                                                    ok_to_continue9 = false;
+                                                } else if s.shall_stop_ongoing {
+                                                    ok_to_continue9 = false;
+                                                } else {
                                                     context.call_cb(
                                                         Event::CONFIGURE_PROGRESS,
-                                                        (if 650 + username_variation * 30 < 1 {
+                                                        (if 850 < 1 {
                                                             1
-                                                        } else if 650 + username_variation * 30
-                                                            > 999
-                                                        {
+                                                        } else if 850 > 999 {
                                                             999
                                                         } else {
-                                                            650 + username_variation * 30
+                                                            850
                                                         })
                                                             as uintptr_t,
                                                         0 as uintptr_t,
                                                     );
-                                                    param.server_flags &= !(0x100 | 0x200 | 0x400);
-                                                    param.server_flags |= 0x100;
-                                                    let r_1 = dc_loginparam_get_readable(&param);
-                                                    info!(context, 0, "Trying: {}", r_1,);
+                                                    param.server_flags &=
+                                                        !(0x10000 | 0x20000 | 0x40000);
+                                                    param.server_flags |= 0x10000;
+                                                    param.send_port = 587;
+                                                    let r_3 = dc_loginparam_get_readable(&param);
+                                                    info!(context, 0, "Trying: {}", r_3,);
 
-                                                    if context
-                                                        .inbox
-                                                        .read()
+                                                    if !context
+                                                        .smtp
+                                                        .clone()
+                                                        .lock()
                                                         .unwrap()
                                                         .connect(context, &param)
                                                     {
-                                                        ok_to_continue8 = true;
-                                                        break;
-                                                    }
-                                                    // probe STARTTLS/143
-                                                    if s.shall_stop_ongoing {
-                                                        ok_to_continue8 = false;
-                                                        break;
-                                                    }
-                                                    context.call_cb(
-                                                        Event::CONFIGURE_PROGRESS,
-                                                        (if 660 + username_variation * 30 < 1 {
-                                                            1
-                                                        } else if 660 + username_variation * 30
-                                                            > 999
-                                                        {
-                                                            999
+                                                        if s.shall_stop_ongoing {
+                                                            ok_to_continue9 = false;
                                                         } else {
-                                                            660 + username_variation * 30
-                                                        })
-                                                            as uintptr_t,
-                                                        0 as uintptr_t,
-                                                    );
-                                                    param.mail_port = 143;
-                                                    let r_2 = dc_loginparam_get_readable(&param);
-                                                    info!(context, 0, "Trying: {}", r_2,);
-
-                                                    if context
-                                                        .inbox
-                                                        .read()
-                                                        .unwrap()
-                                                        .connect(context, &param)
-                                                    {
-                                                        ok_to_continue8 = true;
-                                                        break;
-                                                    }
-                                                    if 0 != username_variation {
-                                                        ok_to_continue8 = false;
-                                                        break;
-                                                    }
-                                                    // next probe round with only the localpart of the email-address as the loginname
-                                                    if s.shall_stop_ongoing {
-                                                        ok_to_continue8 = false;
-                                                        break;
-                                                    }
-                                                    context.call_cb(
-                                                        Event::CONFIGURE_PROGRESS,
-                                                        (if 670 + username_variation * 30 < 1 {
-                                                            1
-                                                        } else if 670 + username_variation * 30
-                                                            > 999
-                                                        {
-                                                            999
-                                                        } else {
-                                                            670 + username_variation * 30
-                                                        })
-                                                            as uintptr_t,
-                                                        0 as uintptr_t,
-                                                    );
-                                                    param.server_flags &= !(0x100 | 0x200 | 0x400);
-                                                    param.server_flags |= 0x200;
-                                                    param.mail_port = 993;
-
-                                                    if let Some(at) = param.mail_user.find('@') {
-                                                        param.mail_user = param
-                                                            .mail_user
-                                                            .split_at(at)
-                                                            .0
-                                                            .to_string();
-                                                    }
-                                                    if let Some(at) = param.send_user.find('@') {
-                                                        param.send_user = param
-                                                            .send_user
-                                                            .split_at(at)
-                                                            .0
-                                                            .to_string();
-                                                    }
-
-                                                    username_variation += 1
-                                                }
-                                                if ok_to_continue8 {
-                                                        imap_connected_here = true;
-                                                        if !s.shall_stop_ongoing {
                                                             context.call_cb(
                                                                 Event::CONFIGURE_PROGRESS,
-                                                                (if 800 < 1 {
+                                                                (if 860 < 1 {
                                                                     1
-                                                                } else if 800 > 999 {
+                                                                } else if 860 > 999 {
                                                                     999
                                                                 } else {
-                                                                    800
+                                                                    860
                                                                 })
                                                                     as uintptr_t,
                                                                 0 as uintptr_t,
                                                             );
-                                                            let ok_to_continue9;
-                                                            /* try to connect to SMTP - if we did not got an autoconfig, the first try was SSL-465 and we do a second try with STARTTLS-587 */
+                                                            param.server_flags &=
+                                                                !(0x10000 | 0x20000 | 0x40000);
+                                                            param.server_flags |= 0x10000;
+                                                            param.send_port = 25;
+                                                            let r_4 =
+                                                                dc_loginparam_get_readable(&param);
+                                                            info!(context, 0, "Trying: {}", r_4);
+
                                                             if !context
                                                                 .smtp
                                                                 .clone()
@@ -747,251 +740,126 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                                                                 .unwrap()
                                                                 .connect(context, &param)
                                                             {
-                                                                if !param_autoconfig.is_none() {
-                                                                    ok_to_continue9 = false;
-                                                                } else if s.shall_stop_ongoing {
-                                                                    ok_to_continue9 = false;
-                                                                } else {
-                                                                    context.call_cb(
-                                                                        Event::CONFIGURE_PROGRESS,
-                                                                        (if 850 < 1 {
-                                                                            1
-                                                                        } else if 850 > 999 {
-                                                                            999
-                                                                        } else {
-                                                                            850
-                                                                        })
-                                                                            as uintptr_t,
-                                                                        0 as uintptr_t,
-                                                                    );
-                                                                    param.server_flags &= !(0x10000
-                                                                        | 0x20000
-                                                                        | 0x40000);
-                                                                    param.server_flags |= 0x10000;
-                                                                    param.send_port = 587;
-                                                                    let r_3 =
-                                                                        dc_loginparam_get_readable(
-                                                                            &param,
-                                                                        );
-                                                                    info!(
-                                                                        context,
-                                                                        0, "Trying: {}", r_3,
-                                                                    );
-
-                                                                    if !context
-                                                                        .smtp
-                                                                        .clone()
-                                                                        .lock()
-                                                                        .unwrap()
-                                                                        .connect(context, &param)
-                                                                    {
-                                                                        if s.shall_stop_ongoing {
-                                                                            ok_to_continue9 = false;
-                                                                        } else {
-                                                                            context.call_cb(
-                                                                                            Event::CONFIGURE_PROGRESS,
-                                                                                            (if 860
-                                                                                             <
-                                                                                             1
-                                                                                             {
-                                                                                                 1
-                                                                                             } else if 860
-                                                                                             >
-                                                                                             999
-                                                                                             {
-                                                                                                 999
-                                                                                             } else {
-                                                                                                 860
-                                                                                             })
-                                                                                            as
-                                                                                            uintptr_t,
-                                                                                            0
-                                                                                            as
-                                                                                            uintptr_t);
-                                                                            param.server_flags &=
-                                                                                !(0x10000
-                                                                                    | 0x20000
-                                                                                    | 0x40000);
-                                                                            param.server_flags |=
-                                                                                0x10000;
-                                                                            param.send_port = 25;
-                                                                            let r_4 = dc_loginparam_get_readable(&param);
-                                                                            info!(
-                                                                                context,
-                                                                                0,
-                                                                                "Trying: {}",
-                                                                                r_4
-                                                                            );
-
-                                                                            if !context
-                                                                                .smtp
-                                                                                .clone()
-                                                                                .lock()
-                                                                                .unwrap()
-                                                                                .connect(
-                                                                                    context, &param,
-                                                                                )
-                                                                            {
-                                                                                ok_to_continue9 = false;
-                                                                            } else {
-                                                                                ok_to_continue9 = true;
-                                                                            }
-                                                                        }
-                                                                    } else {
-                                                                        ok_to_continue9 = true;
-                                                                    }
-                                                                }
+                                                                ok_to_continue9 = false;
                                                             } else {
                                                                 ok_to_continue9 = true;
                                                             }
-                                                            if ok_to_continue9 {
-                                                                    smtp_connected_here = true;
-                                                                    if !s.shall_stop_ongoing {
-                                                                        context.call_cb(
-                                                                        Event::CONFIGURE_PROGRESS,
-                                                                        (if 900 < 1 {
-                                                                            1
-                                                                        } else if 900 > 999 {
-                                                                            999
-                                                                        } else {
-                                                                            900
-                                                                        })
-                                                                            as uintptr_t,
-                                                                        0 as uintptr_t,
-                                                                    );
-                                                                        flags = if 0
-                                                                            != context
-                                                                                .sql
-                                                                                .get_config_int(
-                                                                                    context,
-                                                                                    "mvbox_watch",
-                                                                                )
-                                                                                .unwrap_or_else(
-                                                                                    || 1,
-                                                                                )
-                                                                            || 0 != context
-                                                                                .sql
-                                                                                .get_config_int(
-                                                                                    context,
-                                                                                    "mvbox_move",
-                                                                                )
-                                                                                .unwrap_or_else(
-                                                                                    || 1,
-                                                                                ) {
-                                                                            0x1
-                                                                        } else {
-                                                                            0
-                                                                        };
+                                                        }
+                                                    } else {
+                                                        ok_to_continue9 = true;
+                                                    }
+                                                }
+                                            } else {
+                                                ok_to_continue9 = true;
+                                            }
+                                            if ok_to_continue9 {
+                                                smtp_connected_here = true;
+                                                if !s.shall_stop_ongoing {
+                                                    context.call_cb(
+                                                        Event::CONFIGURE_PROGRESS,
+                                                        (if 900 < 1 {
+                                                            1
+                                                        } else if 900 > 999 {
+                                                            999
+                                                        } else {
+                                                            900
+                                                        })
+                                                            as uintptr_t,
+                                                        0 as uintptr_t,
+                                                    );
+                                                    flags = if 0
+                                                        != context
+                                                            .sql
+                                                            .get_config_int(context, "mvbox_watch")
+                                                            .unwrap_or_else(|| 1)
+                                                        || 0 != context
+                                                            .sql
+                                                            .get_config_int(context, "mvbox_move")
+                                                            .unwrap_or_else(|| 1)
+                                                    {
+                                                        0x1
+                                                    } else {
+                                                        0
+                                                    };
 
-                                                                        context
-                                                                            .inbox
-                                                                            .read()
-                                                                            .unwrap()
-                                                                            .configure_folders(
-                                                                                context, flags,
-                                                                            );
-                                                                        if !s.shall_stop_ongoing {
-                                                                            context.call_cb(
-                                                                                Event::CONFIGURE_PROGRESS,
-                                                                                (if 910
-                                                                                 <
-                                                                                 1
-                                                                                 {
-                                                                                     1
-                                                                                 } else if 910
-                                                                                 >
-                                                                                 999
-                                                                                 {
-                                                                                     999
-                                                                                 } else {
-                                                                                     910
-                                                                                 })
-                                                                                    as
-                                                                                    uintptr_t,
-                                                                                0
-                                                                                    as
-                                                                                    uintptr_t
-                                                                            );
-                                                                            dc_loginparam_write(
-                                                                                context,
-                                                                                &param,
-                                                                                &context.sql,
-                                                                                "configured_",
-                                                                            );
-                                                                            context
-                                                                                .sql
-                                                                                .set_config_int(
-                                                                                    context,
-                                                                                    "configured",
-                                                                                    1,
-                                                                                )
-                                                                                .ok();
-                                                                            if !s.shall_stop_ongoing
-                                                                            {
-                                                                                context.call_cb(
-                                                                                    Event::CONFIGURE_PROGRESS,
-                                                                                    (if 920
-                                                                                     <
-                                                                                     1
-                                                                                     {
-                                                                                         1
-                                                                                     } else if 920
-                                                                                     >
-                                                                                     999
-                                                                                     {
-                                                                                         999
-                                                                                     } else {
-                                                                                         920
-                                                                                     })
-                                                                                        as
-                                                                                        uintptr_t,
-                                                                                    0
-                                                                                        as
-                                                                                        uintptr_t
-                                                                                );
-                                                                                dc_ensure_secret_key_exists(context);
-                                                                                success = true;
-                                                                                info!(
-                                                                                    context,
-                                                                                    0,
-                                                                                    "Configure completed."
-                                                                                );
-                                                                                if !s.shall_stop_ongoing
-                                                                            {
-                                                                                context.call_cb(
-                                                                                        Event::CONFIGURE_PROGRESS,
-                                                                                        (if 940
-                                                                                         <
-                                                                                         1
-                                                                                         {
-                                                                                             1
-                                                                                         } else if 940
-                                                                                         >
-                                                                                         999
-                                                                                         {
-                                                                                             999
-                                                                                         } else {
-                                                                                             940
-                                                                                         })
-                                                                                            as
-                                                                                            uintptr_t,
-                                                                                        0
-                                                                                            as
-                                                                                            uintptr_t);
-                                                                            }
-                                                                            }
-                                                                        }
-                                                                    }
+                                                    context
+                                                        .inbox
+                                                        .read()
+                                                        .unwrap()
+                                                        .configure_folders(context, flags);
+                                                    if !s.shall_stop_ongoing {
+                                                        context.call_cb(
+                                                            Event::CONFIGURE_PROGRESS,
+                                                            (if 910 < 1 {
+                                                                1
+                                                            } else if 910 > 999 {
+                                                                999
+                                                            } else {
+                                                                910
+                                                            })
+                                                                as uintptr_t,
+                                                            0 as uintptr_t,
+                                                        );
+                                                        dc_loginparam_write(
+                                                            context,
+                                                            &param,
+                                                            &context.sql,
+                                                            "configured_",
+                                                        );
+                                                        context
+                                                            .sql
+                                                            .set_config_int(
+                                                                context,
+                                                                "configured",
+                                                                1,
+                                                            )
+                                                            .ok();
+                                                        if !s.shall_stop_ongoing {
+                                                            context.call_cb(
+                                                                Event::CONFIGURE_PROGRESS,
+                                                                (if 920 < 1 {
+                                                                    1
+                                                                } else if 920 > 999 {
+                                                                    999
+                                                                } else {
+                                                                    920
+                                                                })
+                                                                    as uintptr_t,
+                                                                0 as uintptr_t,
+                                                            );
+                                                            dc_ensure_secret_key_exists(context);
+                                                            success = true;
+                                                            info!(
+                                                                context,
+                                                                0, "Configure completed."
+                                                            );
+                                                            if !s.shall_stop_ongoing {
+                                                                context.call_cb(
+                                                                    Event::CONFIGURE_PROGRESS,
+                                                                    (if 940 < 1 {
+                                                                        1
+                                                                    } else if 940 > 999 {
+                                                                        999
+                                                                    } else {
+                                                                        940
+                                                                    })
+                                                                        as uintptr_t,
+                                                                    0 as uintptr_t,
+                                                                );
                                                             }
                                                         }
+                                                    }
                                                 }
                                             }
+                                        }
                                     }
                                 }
+                            }
                         }
                     }
                 }
             }
+        }
     }
     if imap_connected_here {
         context.inbox.read().unwrap().disconnect(context);
@@ -1331,19 +1199,19 @@ unsafe fn outlk_autodiscover(
     }
 
     if ok_to_continue {
-            if outlk_ad.out.mail_server.is_empty()
-                || outlk_ad.out.mail_port == 0
-                || outlk_ad.out.send_server.is_empty()
-                || outlk_ad.out.send_port == 0
-            {
-                let r = dc_loginparam_get_readable(&outlk_ad.out);
-                warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
-                free(url as *mut libc::c_void);
-                free(xml_raw as *mut libc::c_void);
-                outlk_clean_config(&mut outlk_ad);
+        if outlk_ad.out.mail_server.is_empty()
+            || outlk_ad.out.mail_port == 0
+            || outlk_ad.out.send_server.is_empty()
+            || outlk_ad.out.send_port == 0
+        {
+            let r = dc_loginparam_get_readable(&outlk_ad.out);
+            warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
+            free(url as *mut libc::c_void);
+            free(xml_raw as *mut libc::c_void);
+            outlk_clean_config(&mut outlk_ad);
 
-                return None;
-            }
+            return None;
+        }
     }
     free(url as *mut libc::c_void);
     free(xml_raw as *mut libc::c_void);
