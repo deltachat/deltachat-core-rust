@@ -1158,6 +1158,7 @@ unsafe fn create_or_lookup_group(
                 }
             }
         }
+    }
 
         let optional_field = dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Name");
         if !optional_field.is_null() {
@@ -1462,7 +1463,7 @@ unsafe fn create_or_lookup_group(
                 );
             }
         }
-    }
+
 
     cleanup(
         grpid,
