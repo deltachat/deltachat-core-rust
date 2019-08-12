@@ -783,15 +783,16 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     }
     if !grpid.is_null() {
         ret = dc_mprintf(
-            b"Gr.%s.%s%s\x00" as *const u8 as *const libc::c_char,
+            b"chat$group.%s.%s.%s%s\x00" as *const u8 as *const libc::c_char,   // chat$ prefix, J-P Tyrkkö 2019 08 12
             grpid,
+            rand1,
             rand2,
             at_hostname,
         )
     } else {
         rand1 = dc_create_id().strdup();
         ret = dc_mprintf(
-            b"Mr.%s.%s%s\x00" as *const u8 as *const libc::c_char,
+            b"chat$%s.%s%s\x00" as *const u8 as *const libc::c_char,   // chat$ prefix, J-P Tyrkkö 2019 08 12
             rand1,
             rand2,
             at_hostname,
