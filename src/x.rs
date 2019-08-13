@@ -85,7 +85,8 @@ pub(crate) unsafe fn strncasecmp(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::dc_tools::to_string;
+    use crate::dc_tools::*;
+    use std::ffi::CString;
 
     #[test]
     fn test_strndup() {
@@ -97,6 +98,24 @@ mod tests {
             );
             assert_eq!(strlen(res), 4);
             free(res as *mut _);
+        }
+    }
+
+    #[test]
+    fn dc_mprintf_macro_equivalent_to_function() {
+        unsafe {
+            let arg1 = CString::yolo("привет");
+            let arg2 = CString::yolo("мир");
+            let res1 = dc_mprintf(
+                b"%s \xe2\x80\x93 %s\x00".as_ptr() as *const libc::c_char,
+                arg1.as_ptr(),
+                arg2.as_ptr(),
+            );
+            let res2 = dc_mprintf!("{} – {}", arg1.as_ptr(), arg2.as_ptr());
+            assert!(strcmp(res1, res2) == 0);
+
+            free(res1 as *mut _);
+            free(res2 as *mut _);
         }
     }
 }
