@@ -1,3 +1,5 @@
+use itertools::join;
+
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
 use mmime::mailmime::*;
@@ -1548,9 +1550,8 @@ unsafe fn search_chat_ids_by_contact_ids(
     unsorted_contact_ids: *const dc_array_t,
 ) -> *mut dc_array_t {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
-    let contact_ids: *mut dc_array_t = dc_array_new(23 as size_t);
-    let mut contact_ids_str: *mut libc::c_char = 0 as *mut libc::c_char;
-    let chat_ids: *mut dc_array_t = dc_array_new(23 as size_t);
+    let mut contact_ids = Vec::with_capacity(23);
+    let mut chat_ids = Vec::with_capacity(23);
 
     /* copy array, remove duplicates and SELF, sort by ID */
     let mut i: libc::c_int;
@@ -1559,22 +1560,18 @@ unsafe fn search_chat_ids_by_contact_ids(
         i = 0;
         while i < iCnt {
             let curr_id: uint32_t = dc_array_get_id(unsorted_contact_ids, i as size_t);
-            if curr_id != 1 as libc::c_uint
-                && !dc_array_search_id(contact_ids, curr_id, 0 as *mut size_t)
-            {
-                dc_array_add_id(contact_ids, curr_id);
+            if curr_id != 1 as libc::c_uint && !contact_ids.contains(&curr_id) {
+                contact_ids.push(curr_id);
             }
             i += 1
         }
-        if !(dc_array_get_cnt(contact_ids) == 0) {
-            (*contact_ids).sort_ids();
-            contact_ids_str =
-                dc_array_get_string(contact_ids, b",\x00" as *const u8 as *const libc::c_char);
-
+        if !contact_ids.is_empty() {
+            contact_ids.sort();
+            let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
             context.sql.query_map(
                 format!(
                     "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
-                    as_str(contact_ids_str)
+                    contact_ids_str
                 ),
                 params![],
                 |row| Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?)),
@@ -1586,32 +1583,30 @@ unsafe fn search_chat_ids_by_contact_ids(
                     for row in rows {
                         let (chat_id, contact_id) = row?;
                         if chat_id as u32 != last_chat_id {
-                            if matches == dc_array_get_cnt(contact_ids) && mismatches == 0 {
-                                dc_array_add_id(chat_ids, last_chat_id);
+                            if matches == contact_ids.len() && mismatches == 0 {
+                                chat_ids.push(last_chat_id);
                             }
                             last_chat_id = chat_id as u32;
                             matches = 0;
                             mismatches = 0;
                         }
-                        if contact_id as u32 == dc_array_get_id(contact_ids, matches as size_t) {
+                        if contact_id as u32 == contact_ids[matches] {
                             matches += 1;
                         } else {
                             mismatches += 1;
                         }
                     }
 
-                    if matches == dc_array_get_cnt(contact_ids) && mismatches == 0 {
-                        dc_array_add_id(chat_ids, last_chat_id);
+                    if matches == contact_ids.len() && mismatches == 0 {
+                        chat_ids.push(last_chat_id);
                     }
                 Ok(())
                 }
             ).unwrap(); // TODO: better error handling
         }
     }
-    free(contact_ids_str as *mut libc::c_void);
-    dc_array_unref(contact_ids);
 
-    chat_ids
+    dc_array_t::from(chat_ids).into_raw()
 }
 
 unsafe fn check_verified_properties(
