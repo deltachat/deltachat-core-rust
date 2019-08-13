@@ -8,6 +8,7 @@ use mmime::mailmime_types::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 use sha2::{Digest, Sha256};
+use std::ptr;
 
 use crate::constants::*;
 use crate::contact::*;
@@ -772,7 +773,7 @@ unsafe fn lookup_field(
 ) -> Option<*const mailimf_field> {
     let field = dc_mimeparser_lookup_field(parser, name);
     if !field.is_null() && (*field).fld_type == typ as libc::c_int {
-        return Some(field);
+        Some(field)
     } else {
         None
     }
@@ -1957,7 +1958,7 @@ unsafe fn dc_is_reply_to_known_message(
             }
         }
     }
-    return 0;
+    0
 }
 
 unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> libc::c_int {
@@ -1978,11 +1979,11 @@ unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist)
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell
+                ptr::null_mut()
             }
         }
     }
-    return 0;
+    0
 }
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).
@@ -2035,7 +2036,7 @@ unsafe fn dc_is_reply_to_messenger_message(
             }
         }
     }
-    return 0;
+    0
 }
 
 unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> libc::c_int {
@@ -2055,11 +2056,11 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clis
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell
+                ptr::null_mut()
             }
         }
     }
-    return 0;
+    0
 }
 
 /// Check if a message is a reply to any messenger message.

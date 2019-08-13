@@ -1379,11 +1379,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     free(file_suffix as *mut libc::c_void);
     free(desired_filename as *mut libc::c_void);
     free(raw_mime as *mut libc::c_void);
-    return if mimeparser.parts.len() > old_part_count {
-        1
-    } else {
-        0
-    };
+    (mimeparser.parts.len() > old_part_count) as libc::c_int
 }
 
 #[allow(non_snake_case)]

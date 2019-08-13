@@ -12,6 +12,7 @@ use crate::oauth2::*;
 use crate::param::Params;
 use crate::types::*;
 use crate::x::*;
+use std::ptr;
 
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
@@ -731,7 +732,7 @@ unsafe fn moz_autoconfigure(
         starttag_cb: None,
         endtag_cb: None,
         text_cb: None,
-        userdata: 0 as *mut libc::c_void,
+        userdata: ptr::null_mut(),
     };
     dc_saxparser_init(
         &mut saxparser,
@@ -793,12 +794,12 @@ unsafe fn moz_autoconfigure_text_cb(
         match (*moz_ac).tag_config {
             10 => {
                 (*moz_ac).out.mail_server = to_string(val);
-                val = 0 as *mut libc::c_char
+                val = ptr::null_mut();
             }
             11 => (*moz_ac).out.mail_port = dc_atoi_null_is_0(val),
             12 => {
                 (*moz_ac).out.mail_user = to_string(val);
-                val = 0 as *mut libc::c_char
+                val = ptr::null_mut();
             }
             13 => {
                 if strcasecmp(val, b"ssl\x00" as *const u8 as *const libc::c_char) == 0 {
@@ -817,12 +818,12 @@ unsafe fn moz_autoconfigure_text_cb(
         match (*moz_ac).tag_config {
             10 => {
                 (*moz_ac).out.send_server = to_string(val);
-                val = 0 as *mut libc::c_char
+                val = ptr::null_mut();
             }
             11 => (*moz_ac).out.send_port = as_str(val).parse().unwrap_or_default(),
             12 => {
                 (*moz_ac).out.send_user = to_string(val);
-                val = 0 as *mut libc::c_char
+                val = ptr::null_mut();
             }
             13 => {
                 if strcasecmp(val, b"ssl\x00" as *const u8 as *const libc::c_char) == 0 {
@@ -926,7 +927,7 @@ unsafe fn outlk_autodiscover(
     url__: &str,
     param_in: &dc_loginparam_t,
 ) -> Option<dc_loginparam_t> {
-    let mut xml_raw: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut xml_raw: *mut libc::c_char = ptr::null_mut();
     let mut url = url__.strdup();
     let mut outlk_ad = outlk_autodiscover_t {
         in_0: param_in,
@@ -934,8 +935,8 @@ unsafe fn outlk_autodiscover(
         out_imap_set: 0,
         out_smtp_set: 0,
         tag_config: 0,
-        config: [0 as *mut libc::c_char; 6],
-        redirect: 0 as *mut libc::c_char,
+        config: [ptr::null_mut(); 6],
+        redirect: ptr::null_mut(),
     };
     let ok_to_continue;
     let mut i = 0;
@@ -982,7 +983,7 @@ unsafe fn outlk_autodiscover(
 
         outlk_clean_config(&mut outlk_ad);
         free(xml_raw as *mut libc::c_void);
-        xml_raw = 0 as *mut libc::c_char;
+        xml_raw = ptr::null_mut();
         i += 1;
     }
 

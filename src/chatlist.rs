@@ -7,6 +7,7 @@ use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::error::Result;
 use crate::stock::StockMessage;
+use std::ptr;
 
 /// An object representing a single chatlist in memory.
 ///
@@ -290,7 +291,7 @@ impl<'a> Chatlist<'a> {
         };
 
         if (*chat).id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
-            (*ret).text2 = dc_strdup(0 as *const libc::c_char)
+            (*ret).text2 = dc_strdup(ptr::null())
         } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_UNDEFINED as u32 {
             (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
         } else {

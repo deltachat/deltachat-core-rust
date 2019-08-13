@@ -120,8 +120,7 @@ impl Context {
                     value
                 };
 
-                let ret = self.sql.set_config(self, key, val);
-                ret
+                self.sql.set_config(self, key, val)
             }
             _ => self.sql.set_config(self, key, value),
         }

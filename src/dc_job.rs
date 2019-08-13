@@ -1,6 +1,7 @@
 use mmime::mmapstring::*;
 
 use std::ffi::CStr;
+use std::ptr;
 use std::time::Duration;
 
 use rand::{thread_rng, Rng};
@@ -101,10 +102,8 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             Ok(job)
         },
         |jobs| {
-            let res = jobs
-                .collect::<Result<Vec<dc_job_t>, _>>()
-                .map_err(Into::into);
-            res
+            jobs.collect::<Result<Vec<dc_job_t>, _>>()
+                .map_err(Into::into)
         },
     );
     match jobs {
@@ -294,7 +293,7 @@ unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: bool) {
 unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
     let ok_to_continue;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
+    let mut buf: *mut libc::c_void = ptr::null_mut();
     let mut buf_bytes: size_t = 0i32 as size_t;
 
     /* connect to SMTP server, if not yet done */
@@ -303,7 +302,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
         let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
 
         if !connected {
-            dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+            dc_job_try_again_later(job, 3i32, ptr::null());
             ok_to_continue = false;
         } else {
             ok_to_continue = true;
@@ -414,7 +413,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
     if !inbox.is_connected() {
         connect_to_inbox(context, &inbox);
         if !inbox.is_connected() {
-            dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+            dc_job_try_again_later(job, 3i32, ptr::null());
             ok_to_continue = false;
         } else {
             ok_to_continue = true;
@@ -446,7 +445,7 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
                 ) as libc::c_uint
                 {
                     1 => {
-                        dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+                        dc_job_try_again_later(job, 3i32, ptr::null());
                     }
                     3 => {
                         dc_update_server_uid(context, (*msg).rfc724_mid, &dest_folder, dest_uid);
@@ -486,7 +485,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
     if !inbox.is_connected() {
         connect_to_inbox(context, &inbox);
         if !inbox.is_connected() {
-            dc_job_try_again_later(job, 3, 0 as *const libc::c_char);
+            dc_job_try_again_later(job, 3, ptr::null());
             ok_to_continue = false;
         } else {
             ok_to_continue = true;
@@ -496,7 +495,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
     }
     if ok_to_continue {
         if inbox.set_seen(context, &folder, uid) == 0 {
-            dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+            dc_job_try_again_later(job, 3i32, ptr::null());
         }
         if 0 != job.param.get_int(Param::AlsoMove).unwrap_or_default() {
             if context
@@ -526,7 +525,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
     if !inbox.is_connected() {
         connect_to_inbox(context, &inbox);
         if !inbox.is_connected() {
-            dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+            dc_job_try_again_later(job, 3i32, ptr::null());
             ok_to_continue = false;
         } else {
             ok_to_continue = true;
@@ -540,7 +539,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
             match inbox.set_seen(context, server_folder, (*msg).server_uid) as libc::c_uint {
                 0 => {}
                 1 => {
-                    dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+                    dc_job_try_again_later(job, 3i32, ptr::null());
                 }
                 _ => {
                     if 0 != (*msg).param.get_int(Param::WantsMdn).unwrap_or_default()
@@ -570,25 +569,25 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
 }
 unsafe fn dc_send_mdn(context: &Context, msg_id: uint32_t) {
     let mut mimefactory: dc_mimefactory_t = dc_mimefactory_t {
-        from_addr: 0 as *mut libc::c_char,
-        from_displayname: 0 as *mut libc::c_char,
-        selfstatus: 0 as *mut libc::c_char,
-        recipients_names: 0 as *mut clist,
-        recipients_addr: 0 as *mut clist,
+        from_addr: ptr::null_mut(),
+        from_displayname: ptr::null_mut(),
+        selfstatus: ptr::null_mut(),
+        recipients_names: ptr::null_mut(),
+        recipients_addr: ptr::null_mut(),
         timestamp: 0,
-        rfc724_mid: 0 as *mut libc::c_char,
+        rfc724_mid: ptr::null_mut(),
         loaded: DC_MF_NOTHING_LOADED,
-        msg: 0 as *mut dc_msg_t,
-        chat: 0 as *mut Chat,
+        msg: ptr::null_mut(),
+        chat: ptr::null_mut(),
         increation: 0,
-        in_reply_to: 0 as *mut libc::c_char,
-        references: 0 as *mut libc::c_char,
+        in_reply_to: ptr::null_mut(),
+        references: ptr::null_mut(),
         req_mdn: 0,
-        out: 0 as *mut MMAPString,
+        out: ptr::null_mut(),
         out_encrypted: 0,
         out_gossiped: 0,
         out_last_added_location_id: 0,
-        error: 0 as *mut libc::c_char,
+        error: ptr::null_mut(),
         context,
     };
     dc_mimefactory_init(&mut mimefactory, context);
@@ -671,7 +670,7 @@ unsafe fn dc_add_smtp_job(
     }
     free(recipients as *mut libc::c_void);
     free(pathNfilename as *mut libc::c_void);
-    return success;
+    success
 }
 
 pub unsafe fn dc_job_add(

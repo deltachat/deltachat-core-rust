@@ -18,9 +18,9 @@ pub const DC_ALREADY_DONE: usize = 2;
 pub const DC_RETRY_LATER: usize = 1;
 pub const DC_FAILED: usize = 0;
 
-const PREFETCH_FLAGS: &'static str = "(UID ENVELOPE)";
-const BODY_FLAGS: &'static str = "(FLAGS BODY.PEEK[])";
-const FETCH_FLAGS: &'static str = "(FLAGS)";
+const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
+const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
+const FETCH_FLAGS: &str = "(FLAGS)";
 
 #[repr(C)]
 pub struct Imap {
@@ -260,8 +260,8 @@ impl Session {
 
     pub fn idle(&mut self) -> imap::error::Result<IdleHandle> {
         match self {
-            Session::Secure(i) => i.idle().map(|h| IdleHandle::Secure(h)),
-            Session::Insecure(i) => i.idle().map(|h| IdleHandle::Insecure(h)),
+            Session::Secure(i) => i.idle().map(IdleHandle::Secure),
+            Session::Insecure(i) => i.idle().map(IdleHandle::Insecure),
         }
     }
 
@@ -539,7 +539,7 @@ impl Imap {
             let mut config = self.config.write().unwrap();
             config.addr = addr.to_string();
             config.imap_server = imap_server.to_string();
-            config.imap_port = imap_port.into();
+            config.imap_port = imap_port;
             config.imap_user = imap_user.to_string();
             config.imap_pw = imap_pw.to_string();
             config.server_flags = server_flags;

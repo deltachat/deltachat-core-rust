@@ -19,6 +19,7 @@ use crate::smtp::*;
 use crate::sql::Sql;
 use crate::types::*;
 use crate::x::*;
+use std::ptr;
 
 pub struct Context {
     pub userdata: *mut libc::c_void,
@@ -140,7 +141,7 @@ pub fn dc_context_new(
         })),
         userdata,
         cb,
-        os_name: os_name,
+        os_name,
         running_state: Arc::new(RwLock::new(Default::default())),
         sql: Sql::new(),
         smtp: Arc::new(Mutex::new(Smtp::new())),
@@ -201,7 +202,7 @@ unsafe fn cb_precheck_imf(
 ) -> libc::c_int {
     let mut rfc724_mid_exists: libc::c_int = 0i32;
     let msg_id: uint32_t;
-    let mut old_server_folder: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut old_server_folder: *mut libc::c_char = ptr::null_mut();
     let mut old_server_uid: uint32_t = 0i32 as uint32_t;
     let mut mark_seen: libc::c_int = 0i32;
     msg_id = dc_rfc724_mid_exists(
@@ -240,7 +241,7 @@ unsafe fn cb_precheck_imf(
         }
     }
     free(old_server_folder as *mut libc::c_void);
-    return rfc724_mid_exists;
+    rfc724_mid_exists
 }
 
 fn cb_set_config(context: &Context, key: &str, value: Option<&str>) {
@@ -282,17 +283,14 @@ pub unsafe fn dc_close(context: &Context) {
     context.sql.close(context);
     let mut dbfile = context.dbfile.write().unwrap();
     free(*dbfile as *mut libc::c_void);
-    *dbfile = 0 as *mut libc::c_char;
+    *dbfile = ptr::null_mut();
     let mut blobdir = context.blobdir.write().unwrap();
     free(*blobdir as *mut libc::c_void);
-    *blobdir = 0 as *mut libc::c_char;
+    *blobdir = ptr::null_mut();
 }
 
 pub unsafe fn dc_is_open(context: &Context) -> libc::c_int {
-    match context.sql.is_open() {
-        true => 1,
-        false => 0,
-    }
+    context.sql.is_open() as libc::c_int
 }
 
 pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
@@ -305,7 +303,7 @@ pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) ->
         return false;
     }
     *context.dbfile.write().unwrap() = dbfile.strdup();
-    if blobdir.is_some() && blobdir.unwrap().len() > 0 {
+    if blobdir.is_some() && !blobdir.unwrap().is_empty() {
         let dir = dc_ensure_no_slash_safe(blobdir.unwrap()).strdup();
         *context.blobdir.write().unwrap() = dir;
     } else {

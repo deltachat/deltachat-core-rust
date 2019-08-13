@@ -12,6 +12,7 @@ use crate::dc_array::*;
 use crate::error::Error;
 use crate::types::*;
 use crate::x::*;
+use std::ptr;
 
 const ELLIPSE: &'static str = "[...]";
 
@@ -67,11 +68,11 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
 /// }
 /// ```
 pub unsafe fn dc_strdup_keep_null(s: *const libc::c_char) -> *mut libc::c_char {
-    return if !s.is_null() {
+    if !s.is_null() {
         dc_strdup(s)
     } else {
-        0 as *mut libc::c_char
-    };
+        ptr::null_mut()
+    }
 }
 
 pub unsafe fn dc_atoi_null_is_0(s: *const libc::c_char) -> libc::c_int {
@@ -891,10 +892,10 @@ pub unsafe fn dc_get_filename(pathNfilename: *const libc::c_char) -> *mut libc::
     }
     if !p.is_null() {
         p = p.offset(1isize);
-        return dc_strdup(p);
+        dc_strdup(p)
     } else {
-        return dc_strdup(pathNfilename);
-    };
+        dc_strdup(pathNfilename)
+    }
 }
 
 // the case of the suffix is preserved
@@ -1271,8 +1272,8 @@ pub unsafe fn dc_get_fine_pathNfilename(
 }
 
 pub unsafe fn dc_is_blobdir_path(context: &Context, path: *const libc::c_char) -> bool {
-    return strncmp(path, context.get_blobdir(), strlen(context.get_blobdir())) == 0
-        || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0;
+    strncmp(path, context.get_blobdir(), strlen(context.get_blobdir())) == 0
+        || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0
 }
 
 pub unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) {
@@ -1311,7 +1312,7 @@ pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_ch
             {
                 free(*path as *mut libc::c_void);
                 *path = blobdir_path;
-                blobdir_path = 0 as *mut libc::c_char;
+                blobdir_path = ptr::null_mut();
                 dc_make_rel_path(context, path);
                 success = true;
             }

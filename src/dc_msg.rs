@@ -419,11 +419,11 @@ pub unsafe fn dc_msg_get_timestamp(msg: *const dc_msg_t) -> i64 {
     if msg.is_null() {
         return 0;
     }
-    return if 0 != (*msg).timestamp_sent {
+    if 0 != (*msg).timestamp_sent {
         (*msg).timestamp_sent
     } else {
         (*msg).timestamp_sort
-    };
+    }
 }
 
 pub fn dc_msg_load_from_db<'a>(msg: *mut dc_msg_t<'a>, context: &'a Context, id: u32) -> bool {
@@ -1048,11 +1048,11 @@ pub unsafe fn dc_msg_get_setupcodebegin(msg: *const dc_msg_t) -> *mut libc::c_ch
     }
     free(filename as *mut libc::c_void);
     free(buf as *mut libc::c_void);
-    return if !ret.is_null() {
+    if !ret.is_null() {
         ret
     } else {
         dc_strdup(0 as *const libc::c_char)
-    };
+    }
 }
 
 pub unsafe fn dc_msg_set_text(mut msg: *mut dc_msg_t, text: *const libc::c_char) {
@@ -1201,9 +1201,9 @@ pub fn dc_update_msg_move_state(
 }
 
 fn msgstate_can_fail(state: i32) -> bool {
-    return DC_STATE_OUT_PREPARING == state
+    DC_STATE_OUT_PREPARING == state
         || DC_STATE_OUT_PENDING == state
-        || DC_STATE_OUT_DELIVERED == state;
+        || DC_STATE_OUT_DELIVERED == state
 }
 
 pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *const libc::c_char) {

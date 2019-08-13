@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::ptr;
 
 use mmime::mailmime_content::*;
 use mmime::mmapstring::*;
@@ -61,7 +62,7 @@ pub unsafe fn dc_imex_has_backup(
             "Backup check: Cannot open directory \"{}\".\x00",
             dir_name.display(),
         );
-        return 0 as *mut libc::c_char;
+        return ptr::null_mut();
     }
     let mut newest_backup_time = 0;
     let mut newest_backup_path: Option<std::path::PathBuf> = None;
@@ -100,8 +101,8 @@ pub unsafe fn dc_imex_has_backup(
 }
 
 pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
-    let mut setup_file_name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
+    let mut setup_file_name: *mut libc::c_char = ptr::null_mut();
+    let mut msg: *mut dc_msg_t = ptr::null_mut();
     if dc_alloc_ongoing(context) == 0 {
         return std::ptr::null_mut();
     }
@@ -159,7 +160,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                             let msg_id = dc_send_msg(context, chat_id, msg);
                             if msg_id != 0 {
                                 dc_msg_unref(msg);
-                                msg = 0 as *mut dc_msg_t;
+                                msg = ptr::null_mut();
                                 info!(context, 0, "Wait for setup message being sent ...",);
                                 loop {
                                     if context
@@ -285,12 +286,12 @@ pub unsafe fn dc_continue_key_transfer(
     setup_code: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
-    let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut filecontent: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut msg: *mut dc_msg_t = ptr::null_mut();
+    let mut filename: *mut libc::c_char = ptr::null_mut();
+    let mut filecontent: *mut libc::c_char = ptr::null_mut();
     let mut filebytes: size_t = 0i32 as size_t;
-    let mut armored_key: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut norm_sc: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut armored_key: *mut libc::c_char = ptr::null_mut();
+    let mut norm_sc: *mut libc::c_char = ptr::null_mut();
     if !(msg_id <= 9i32 as libc::c_uint || setup_code.is_null()) {
         msg = dc_get_msg(context, msg_id);
         if msg.is_null()
@@ -423,19 +424,19 @@ pub unsafe fn dc_decrypt_setup_file(
     filecontent: *const libc::c_char,
 ) -> *mut libc::c_char {
     let fc_buf: *mut libc::c_char;
-    let mut fc_headerline: *const libc::c_char = 0 as *const libc::c_char;
-    let mut fc_base64: *const libc::c_char = 0 as *const libc::c_char;
-    let mut binary: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut fc_headerline: *const libc::c_char = ptr::null();
+    let mut fc_base64: *const libc::c_char = ptr::null();
+    let mut binary: *mut libc::c_char = ptr::null_mut();
     let mut binary_bytes: size_t = 0i32 as size_t;
     let mut indx: size_t = 0i32 as size_t;
 
-    let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut payload: *mut libc::c_char = ptr::null_mut();
     fc_buf = dc_strdup(filecontent);
     if dc_split_armored_data(
         fc_buf,
         &mut fc_headerline,
-        0 as *mut *const libc::c_char,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
+        ptr::null_mut(),
         &mut fc_base64,
     ) && !fc_headerline.is_null()
         && strcmp(
@@ -479,7 +480,7 @@ pub unsafe fn dc_normalize_setup_code(
     in_0: *const libc::c_char,
 ) -> *mut libc::c_char {
     if in_0.is_null() {
-        return 0 as *mut libc::c_char;
+        return ptr::null_mut();
     }
     let mut out = String::new();
     let mut outlen;
@@ -926,16 +927,16 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     Maybe we should make the "default" key handlong also a little bit smarter
     (currently, the last imported key is the standard key unless it contains the string "legacy" in its name) */
     let mut imported_cnt: libc::c_int = 0;
-    let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut path_plus_name: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut suffix: *mut libc::c_char = ptr::null_mut();
+    let mut path_plus_name: *mut libc::c_char = ptr::null_mut();
     let mut set_default: libc::c_int;
-    let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut buf: *mut libc::c_char = ptr::null_mut();
     let mut buf_bytes: size_t = 0 as size_t;
     // a pointer inside buf, MUST NOT be free()'d
     let mut private_key: *const libc::c_char;
-    let mut buf2: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut buf2: *mut libc::c_char = ptr::null_mut();
     // a pointer inside buf2, MUST NOT be free()'d
-    let mut buf2_headerline: *const libc::c_char = 0 as *const libc::c_char;
+    let mut buf2_headerline: *const libc::c_char = ptr::null_mut();
     if !dir_name.is_null() {
         let dir = std::path::Path::new(as_str(dir_name));
         let dir_handle = std::fs::read_dir(dir);
@@ -970,7 +971,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 );
                 info!(context, 0, "Checking: {}", as_str(path_plus_name));
                 free(buf as *mut libc::c_void);
-                buf = 0 as *mut libc::c_char;
+                buf = ptr::null_mut();
                 if 0 == dc_read_file(
                     context,
                     path_plus_name,
