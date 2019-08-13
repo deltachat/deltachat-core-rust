@@ -17,8 +17,8 @@ macro_rules! progress {
     ($context:tt, $progress:expr) => {
         $context.call_cb(
             Event::CONFIGURE_PROGRESS,
-            (if $progress < 1 {
-                1
+            (if $progress < 0 {
+                0
             } else if $progress > 1000 {
                 1000
             } else {
@@ -151,7 +151,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
             let s = s_a.read().unwrap();
 
             if !s.shall_stop_ongoing {
-                progress!(context, 0);
+                progress!(context, 1);
 
                 let mut param = dc_loginparam_read(context, &context.sql, "");
                 if param.addr.is_empty() {
