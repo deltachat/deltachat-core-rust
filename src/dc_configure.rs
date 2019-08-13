@@ -187,13 +187,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_j
                         ok_to_continue0 = true;
                     }
                     if ok_to_continue0 {
-                        let parsed: addr::Result<addr::Email> = param.addr.parse();
+                        let parsed: Result<EmailAddress, _> = param.addr.parse();
                         let mut ok_to_continue7 = false;
                         if parsed.is_err() {
                             error!(context, 0, "Bad email-address.");
                         } else {
                             let parsed = parsed.unwrap();
-                            let param_domain = parsed.host();
+                            let param_domain = parsed.domain;
                             let param_addr_urlencoded =
                                 utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
 

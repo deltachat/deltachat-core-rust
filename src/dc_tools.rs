@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
+use std::fmt;
 use std::fs;
+use std::str::FromStr;
 use std::time::SystemTime;
 
 use chrono::{Local, TimeZone};
@@ -1555,6 +1557,69 @@ pub fn time() -> i64 {
         .as_secs() as i64
 }
 
+/// Very simple email address wrapper.
+///
+/// Represents an email address, right now just the `name@domain` portion.
+///
+/// # Example
+///
+/// ```
+/// use deltachat::dc_tools::EmailAddress;
+/// let email = match EmailAddress::new("someone@example.com") {
+///     Ok(addr) => addr,
+///     Err(e) => panic!("Error parsing address, error was {}", e),
+/// };
+/// assert_eq!(&email.local, "someone");
+/// assert_eq!(&email.domain, "example.com");
+/// assert_eq!(email.to_string(), "someone@example.com");
+/// ```
+#[derive(Debug, PartialEq, Clone)]
+pub struct EmailAddress {
+    pub local: String,
+    pub domain: String,
+}
+
+impl EmailAddress {
+    pub fn new(input: &str) -> Result<Self, Error> {
+        input.parse::<EmailAddress>()
+    }
+}
+
+impl fmt::Display for EmailAddress {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}@{}", self.local, self.domain)
+    }
+}
+
+impl FromStr for EmailAddress {
+    type Err = Error;
+
+    /// Performs a dead-simple parse of an email address.
+    fn from_str(input: &str) -> Result<EmailAddress, Error> {
+        ensure!(!input.is_empty(), "empty string is not valid");
+        let parts: Vec<&str> = input.rsplitn(2, '@').collect();
+
+        ensure!(parts.len() > 1, "missing '@' character");
+        let local = parts[1];
+        let domain = parts[0];
+
+        ensure!(
+            !local.is_empty(),
+            "empty string is not valid for local part"
+        );
+        ensure!(domain.len() > 3, "domain is too short");
+
+        let dot = domain.find('.');
+        ensure!(dot.is_some(), "invalid domain");
+        ensure!(dot.unwrap() < domain.len() - 2, "invalid domain");
+
+        Ok(EmailAddress {
+            local: local.to_string(),
+            domain: domain.to_string(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2113,5 +2178,32 @@ mod tests {
         let mid = "Gr.1234567890123456.morerandom@domain.de";
         let grpid = dc_extract_grpid_from_rfc724_mid(mid);
         assert_eq!(grpid, Some("1234567890123456"));
+    }
+
+    #[test]
+    fn test_emailaddress_parse() {
+        assert_eq!(EmailAddress::new("").is_ok(), false);
+        assert_eq!(
+            EmailAddress::new("user@domain.tld").unwrap(),
+            EmailAddress {
+                local: "user".into(),
+                domain: "domain.tld".into(),
+            }
+        );
+        assert_eq!(EmailAddress::new("uuu").is_ok(), false);
+        assert_eq!(EmailAddress::new("dd.tt").is_ok(), false);
+        assert_eq!(EmailAddress::new("tt.dd@uu").is_ok(), false);
+        assert_eq!(EmailAddress::new("u@d").is_ok(), false);
+        assert_eq!(EmailAddress::new("u@d.").is_ok(), false);
+        assert_eq!(EmailAddress::new("u@d.t").is_ok(), false);
+        assert_eq!(
+            EmailAddress::new("u@d.tt").unwrap(),
+            EmailAddress {
+                local: "u".into(),
+                domain: "d.tt".into(),
+            }
+        );
+        assert_eq!(EmailAddress::new("u@.tt").is_ok(), false);
+        assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
     }
 }

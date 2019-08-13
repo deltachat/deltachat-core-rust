@@ -915,20 +915,7 @@ pub fn get_first_name<'a>(full_name: &'a str) -> &'a str {
 
 /// Returns false if addr is an invalid address, otherwise true.
 pub fn may_be_valid_addr(addr: &str) -> bool {
-    if addr.is_empty() {
-        return false;
-    }
-
-    let at = addr.find('@').unwrap_or_default();
-    if at < 1 {
-        return false;
-    }
-    let dot = addr.find('.').unwrap_or_default();
-    if dot < 1 || dot > addr.len() - 3 || dot < at + 2 {
-        return false;
-    }
-
-    true
+    addr.parse::<EmailAddress>().is_ok()
 }
 
 pub fn addr_normalize(addr: &str) -> &str {
