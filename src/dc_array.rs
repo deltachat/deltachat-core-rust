@@ -403,5 +403,4 @@ mod tests {
         }
         unsafe { dc_array_get_id(arr, 1000) };
     }
-
 }
