@@ -160,22 +160,18 @@ impl From<Vec<dc_location>> for dc_array_t {
 }
 
 pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
-    if array.is_null() {
-        return;
-    }
+    assert!(!array.is_null());
     Box::from_raw(array);
 }
 
 pub unsafe fn dc_array_add_uint(array: *mut dc_array_t, item: uintptr_t) {
-    if !array.is_null() {
-        (*array).add_uint(item);
-    }
+    assert!(!array.is_null());
+    (*array).add_uint(item);
 }
 
 pub unsafe fn dc_array_add_id(array: *mut dc_array_t, item: uint32_t) {
-    if !array.is_null() {
-        (*array).add_id(item);
-    }
+    assert!(!array.is_null());
+    (*array).add_id(item);
 }
 
 pub unsafe fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut libc::c_void) {
@@ -183,97 +179,62 @@ pub unsafe fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut libc::c_void) 
 }
 
 pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
-    if array.is_null() {
-        0
-    } else {
-        (*array).len()
-    }
+    assert!(!array.is_null());
+    (*array).len()
 }
 
 pub unsafe fn dc_array_get_uint(array: *const dc_array_t, index: size_t) -> uintptr_t {
-    if array.is_null() || index >= (*array).len() {
-        0
-    } else {
-        (*array).get_uint(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_uint(index)
 }
 
 pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    if array.is_null() || index >= (*array).len() {
-        0
-    } else {
-        (*array).get_id(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_id(index)
 }
 
 pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut libc::c_void {
-    if array.is_null() || index >= (*array).len() {
-        std::ptr::null_mut()
-    } else {
-        (*array).get_ptr(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_ptr(index)
 }
 
 pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
-    if array.is_null() || index >= (*array).len() {
-        0.0
-    } else {
-        (*array).get_latitude(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_latitude(index)
 }
 
 pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
-    if array.is_null() || index >= (*array).len() {
-        0.0
-    } else {
-        (*array).get_longitude(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_longitude(index)
 }
 
 pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> libc::c_double {
-    if array.is_null() || index >= (*array).len() {
-        0.0
-    } else {
-        (*array).get_accuracy(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_accuracy(index)
 }
 
 pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) -> i64 {
-    if array.is_null() || index >= (*array).len() {
-        0
-    } else {
-        (*array).get_timestamp(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_timestamp(index)
 }
 
 pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    if array.is_null() || index >= (*array).len() {
-        0
-    } else {
-        (*array).get_chat_id(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_chat_id(index)
 }
 
 pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    if array.is_null() || index >= (*array).len() {
-        0
-    } else {
-        (*array).get_contact_id(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_contact_id(index)
 }
 
 pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    if array.is_null() || index >= (*array).len() {
-        0
-    } else {
-        (*array).get_msg_id(index)
-    }
+    assert!(!array.is_null());
+    (*array).get_msg_id(index)
 }
 
 pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *mut libc::c_char {
-    if array.is_null() || index >= (*array).len() {
-        return std::ptr::null_mut();
-    }
+    assert!(!array.is_null());
 
     if let dc_array_t::Locations(v) = &*array {
         if let Some(s) = &v[index].marker {
@@ -282,7 +243,7 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
             std::ptr::null_mut()
         }
     } else {
-        std::ptr::null_mut()
+        panic!("Not an array of locations");
     }
 }
 
@@ -297,9 +258,7 @@ pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *m
  *     1=Location was reported independently.
  */
 pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -> libc::c_int {
-    if array.is_null() || index >= (*array).len() {
-        return 0;
-    }
+    assert!(!array.is_null());
 
     if let dc_array_t::Locations(v) = &*array {
         v[index].independent as libc::c_int
@@ -313,9 +272,8 @@ pub unsafe fn dc_array_search_id(
     needle: uint32_t,
     ret_index: *mut size_t,
 ) -> bool {
-    if array.is_null() {
-        return false;
-    }
+    assert!(!array.is_null());
+
     if let Some(i) = (*array).search_id(needle as uintptr_t) {
         if !ret_index.is_null() {
             *ret_index = i
@@ -327,9 +285,8 @@ pub unsafe fn dc_array_search_id(
 }
 
 pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
-    if array.is_null() {
-        return 0 as *const uintptr_t;
-    }
+    assert!(!array.is_null());
+
     if let dc_array_t::Uint(v) = &*array {
         v.as_ptr()
     } else {
@@ -346,27 +303,24 @@ pub fn dc_array_new_locations(initsize: size_t) -> *mut dc_array_t {
 }
 
 pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
-    if array.is_null() {
-        return;
-    }
+    assert!(!array.is_null());
+
     (*array).clear()
 }
 
 pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
-    if array.is_null() {
-        std::ptr::null_mut()
-    } else {
-        (*array).clone().into_raw()
-    }
+    assert!(!array.is_null());
+
+    (*array).clone().into_raw()
 }
 
 pub unsafe fn dc_array_get_string(
     array: *const dc_array_t,
     sep: *const libc::c_char,
 ) -> *mut libc::c_char {
-    if array.is_null() || sep.is_null() {
-        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
-    }
+    assert!(!array.is_null());
+    assert!(!sep.is_null());
+
     if let dc_array_t::Uint(v) = &*array {
         let cnt = v.len();
         let sep = as_str(sep);
@@ -412,10 +366,6 @@ mod tests {
                 );
             }
 
-            assert_eq!(dc_array_get_id(arr, -1i32 as size_t), 0);
-            assert_eq!(dc_array_get_id(arr, 1000 as size_t), 0);
-            assert_eq!(dc_array_get_id(arr, 1001 as size_t), 0);
-
             dc_array_empty(arr);
 
             assert_eq!(dc_array_get_cnt(arr), 0);
@@ -443,4 +393,15 @@ mod tests {
             dc_array_unref(arr);
         }
     }
+
+    #[test]
+    #[should_panic]
+    fn test_dc_array_out_of_bounds() {
+        let arr = dc_array_new(7);
+        for i in 0..1000 {
+            unsafe { dc_array_add_id(arr, (i + 2) as uint32_t) };
+        }
+        unsafe { dc_array_get_id(arr, 1000) };
+    }
+
 }
