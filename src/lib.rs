@@ -3,7 +3,7 @@
 #![warn(clippy::all, clippy::perf, clippy::not_unsafe_ptr_arg_deref)]
 // This is nice, but for now just annoying.
 #![allow(clippy::unreadable_literal)]
-#![feature(c_variadic, ptr_wrapping_offset_from, ptr_cast)]
+#![feature(ptr_wrapping_offset_from)]
 
 #[macro_use]
 extern crate failure_derive;

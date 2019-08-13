@@ -3,7 +3,6 @@
 //!
 //! Usage:  cargo run --example repl --release -- <databasefile>
 //! All further options can be set using the set-command (type ? for help).
-#![feature(ptr_cast)]
 
 #[macro_use]
 extern crate deltachat;
