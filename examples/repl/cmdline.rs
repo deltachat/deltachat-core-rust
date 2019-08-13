@@ -125,7 +125,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         return 0;
     }
 
-    let mut current_block: u64;
+    let ok_to_continue;
     let mut success: libc::c_int = 0;
     let real_spec: *mut libc::c_char;
     let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -138,77 +138,71 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
             .sql
             .set_config(context, "import_spec", Some(as_str(real_spec)))
             .unwrap();
-        current_block = 7149356873433890176;
+        ok_to_continue = true;
     } else {
         let rs = context.sql.get_config(context, "import_spec");
         if rs.is_none() {
             error!(context, 0, "Import: No file or folder given.");
-            current_block = 8522321847195001863;
+            ok_to_continue = false;
         } else {
-            current_block = 7149356873433890176;
+            ok_to_continue = true;
         }
         real_spec = rs.unwrap_or_default().strdup();
     }
-    match current_block {
-        8522321847195001863 => {}
-        _ => {
-            suffix = dc_get_filesuffix_lc(real_spec);
-            if !suffix.is_null()
-                && strcmp(suffix, b"eml\x00" as *const u8 as *const libc::c_char) == 0
-            {
-                if 0 != dc_poke_eml_file(context, real_spec) {
-                    read_cnt += 1
-                }
-                current_block = 1622411330066726685;
+    if ok_to_continue {
+        let ok_to_continue2;
+        suffix = dc_get_filesuffix_lc(real_spec);
+        if !suffix.is_null() && strcmp(suffix, b"eml\x00" as *const u8 as *const libc::c_char) == 0
+        {
+            if 0 != dc_poke_eml_file(context, real_spec) {
+                read_cnt += 1
+            }
+            ok_to_continue2 = true;
+        } else {
+            /* import a directory */
+            let dir_name = std::path::Path::new(as_str(real_spec));
+            let dir = std::fs::read_dir(dir_name);
+            if dir.is_err() {
+                error!(
+                    context,
+                    0,
+                    "Import: Cannot open directory \"{}\".",
+                    as_str(real_spec),
+                );
+                ok_to_continue2 = false;
             } else {
-                /* import a directory */
-                let dir_name = std::path::Path::new(as_str(real_spec));
-                let dir = std::fs::read_dir(dir_name);
-                if dir.is_err() {
-                    error!(
-                        context,
-                        0,
-                        "Import: Cannot open directory \"{}\".",
-                        as_str(real_spec),
-                    );
-                    current_block = 8522321847195001863;
-                } else {
-                    let dir = dir.unwrap();
-                    for entry in dir {
-                        if entry.is_err() {
-                            break;
-                        }
-                        let entry = entry.unwrap();
-                        let name_f = entry.file_name();
-                        let name = name_f.to_string_lossy();
-                        if name.ends_with(".eml") {
-                            let path_plus_name = format!("{}/{}", as_str(real_spec), name);
-                            info!(context, 0, "Import: {}", path_plus_name);
-                            let path_plus_name_c = CString::yolo(path_plus_name);
-                            if 0 != dc_poke_eml_file(context, path_plus_name_c.as_ptr()) {
-                                read_cnt += 1
-                            }
+                let dir = dir.unwrap();
+                for entry in dir {
+                    if entry.is_err() {
+                        break;
+                    }
+                    let entry = entry.unwrap();
+                    let name_f = entry.file_name();
+                    let name = name_f.to_string_lossy();
+                    if name.ends_with(".eml") {
+                        let path_plus_name = format!("{}/{}", as_str(real_spec), name);
+                        info!(context, 0, "Import: {}", path_plus_name);
+                        let path_plus_name_c = CString::yolo(path_plus_name);
+                        if 0 != dc_poke_eml_file(context, path_plus_name_c.as_ptr()) {
+                            read_cnt += 1
                         }
                     }
-                    current_block = 1622411330066726685;
                 }
+                ok_to_continue2 = true;
             }
-            match current_block {
-                8522321847195001863 => {}
-                _ => {
-                    info!(
-                        context,
-                        0,
-                        "Import: {} items read from \"{}\".",
-                        read_cnt,
-                        as_str(real_spec)
-                    );
-                    if read_cnt > 0 {
-                        context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
-                    }
-                    success = 1
-                }
+        }
+        if ok_to_continue2 {
+            info!(
+                context,
+                0,
+                "Import: {} items read from \"{}\".",
+                read_cnt,
+                as_str(real_spec)
+            );
+            if read_cnt > 0 {
+                context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
             }
+            success = 1
         }
     }
 
