@@ -19,8 +19,8 @@ macro_rules! progress {
             Event::CONFIGURE_PROGRESS,
             (if $progress < 1 {
                 1
-            } else if $progress > 999 {
-                999
+            } else if $progress > 1000 {
+                1000
             } else {
                 $progress
             }) as uintptr_t,
