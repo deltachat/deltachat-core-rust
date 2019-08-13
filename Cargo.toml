@@ -10,6 +10,7 @@ cc = "1.0.35"
 pkg-config = "0.3"
 
 [dependencies]
+deltachat_derive = { path = "./deltachat_derive" }
 libc = "0.2.51"
 pgp = { version = "0.2", default-features = false }
 hex = "0.3.2"
@@ -53,7 +54,8 @@ pretty_env_logger = "0.3.0"
 
 [workspace]
 members = [
-  "deltachat-ffi"
+  "deltachat-ffi",
+  "deltachat_derive",
 ]
 
 [[example]]
