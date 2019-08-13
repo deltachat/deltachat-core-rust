@@ -1506,8 +1506,12 @@ unsafe fn create_or_lookup_adhoc_group(
                    ret_chat_id_blocked: *mut libc::c_int,
                    chat_id: u32,
                    chat_id_blocked: i32| {
-        dc_array_unref(member_ids);
-        dc_array_unref(chat_ids);
+        if !member_ids.is_null() {
+            dc_array_unref(member_ids);
+        }
+        if !chat_ids.is_null() {
+            dc_array_unref(chat_ids);
+        }
         free(chat_ids_str as *mut libc::c_void);
         free(grpid as *mut libc::c_void);
         free(grpname as *mut libc::c_void);
