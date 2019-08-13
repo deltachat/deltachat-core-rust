@@ -292,7 +292,7 @@ unsafe fn dc_suspend_smtp_thread(context: &Context, suspend: bool) {
 
 #[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
-    let mut current_block: u64;
+    let ok_to_continue;
     let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
     let mut buf_bytes: size_t = 0i32 as size_t;
@@ -304,101 +304,89 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
 
         if !connected {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-            current_block = 14216916617354591294;
+            ok_to_continue = false;
         } else {
-            current_block = 13109137661213826276;
+            ok_to_continue = true;
         }
     } else {
-        current_block = 13109137661213826276;
+        ok_to_continue = true;
     }
-    match current_block {
-        13109137661213826276 => {
-            let filename_s = job.param.get(Param::File).unwrap_or_default();
-            filename = filename_s.strdup();
-            if strlen(filename) == 0 {
-                warn!(context, 0, "Missing file name for job {}", job.job_id,);
-            } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
-                let recipients = job.param.get(Param::Recipients);
-                if recipients.is_none() {
-                    warn!(context, 0, "Missing recipients for job {}", job.job_id,);
-                } else {
-                    let recipients_list = recipients
-                        .unwrap()
-                        .split("\x1e")
-                        .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
-                            Ok(addr) => Some(addr),
-                            Err(err) => {
-                                eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>();
-                    /* if there is a msg-id and it does not exist in the db, cancel sending.
-                    this happends if dc_delete_msgs() was called
-                    before the generated mime was sent out */
-                    if 0 != job.foreign_id {
-                        if 0 == dc_msg_exists(context, job.foreign_id) {
-                            warn!(
-                                context,
-                                0,
-                                "Message {} for job {} does not exist",
-                                job.foreign_id,
-                                job.job_id,
-                            );
-                            current_block = 14216916617354591294;
-                        } else {
-                            current_block = 11194104282611034094;
+    if ok_to_continue {
+        let filename_s = job.param.get(Param::File).unwrap_or_default();
+        filename = filename_s.strdup();
+        if strlen(filename) == 0 {
+            warn!(context, 0, "Missing file name for job {}", job.job_id,);
+        } else if !(0 == dc_read_file(context, filename, &mut buf, &mut buf_bytes)) {
+            let recipients = job.param.get(Param::Recipients);
+            if recipients.is_none() {
+                warn!(context, 0, "Missing recipients for job {}", job.job_id,);
+            } else {
+                let recipients_list = recipients
+                    .unwrap()
+                    .split("\x1e")
+                    .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
+                        Ok(addr) => Some(addr),
+                        Err(err) => {
+                            eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
+                            None
                         }
+                    })
+                    .collect::<Vec<_>>();
+                /* if there is a msg-id and it does not exist in the db, cancel sending.
+                this happends if dc_delete_msgs() was called
+                before the generated mime was sent out */
+                let ok_to_continue1;
+                if 0 != job.foreign_id {
+                    if 0 == dc_msg_exists(context, job.foreign_id) {
+                        warn!(
+                            context,
+                            0, "Message {} for job {} does not exist", job.foreign_id, job.job_id,
+                        );
+                        ok_to_continue1 = false;
                     } else {
-                        current_block = 11194104282611034094;
+                        ok_to_continue1 = true;
                     }
-                    match current_block {
-                        14216916617354591294 => {}
-                        _ => {
-                            /* send message */
-                            let body =
-                                std::slice::from_raw_parts(buf as *const u8, buf_bytes).to_vec();
-                            if 0 == context.smtp.lock().unwrap().send(
-                                context,
-                                recipients_list,
-                                body,
-                            ) {
-                                context.smtp.lock().unwrap().disconnect();
-                                dc_job_try_again_later(
-                                    job,
-                                    -1i32,
-                                    (*&mut context.smtp.clone().lock().unwrap()).error,
-                                );
-                            } else {
-                                dc_delete_file(context, filename_s);
-                                if 0 != job.foreign_id {
-                                    dc_update_msg_state(
-                                        context,
-                                        job.foreign_id,
-                                        DC_STATE_OUT_DELIVERED,
-                                    );
-                                    let chat_id: i32 = context
-                                        .sql
-                                        .query_row_col(
-                                            context,
-                                            "SELECT chat_id FROM msgs WHERE id=?",
-                                            params![job.foreign_id as i32],
-                                            0,
-                                        )
-                                        .unwrap_or_default();
-                                    context.call_cb(
-                                        Event::MSG_DELIVERED,
-                                        chat_id as uintptr_t,
-                                        job.foreign_id as uintptr_t,
-                                    );
-                                }
-                            }
+                } else {
+                    ok_to_continue1 = true;
+                }
+                if ok_to_continue1 {
+                    /* send message */
+                    let body = std::slice::from_raw_parts(buf as *const u8, buf_bytes).to_vec();
+                    if 0 == context
+                        .smtp
+                        .lock()
+                        .unwrap()
+                        .send(context, recipients_list, body)
+                    {
+                        context.smtp.lock().unwrap().disconnect();
+                        dc_job_try_again_later(
+                            job,
+                            -1i32,
+                            (*&mut context.smtp.clone().lock().unwrap()).error,
+                        );
+                    } else {
+                        dc_delete_file(context, filename_s);
+                        if 0 != job.foreign_id {
+                            dc_update_msg_state(context, job.foreign_id, DC_STATE_OUT_DELIVERED);
+                            let chat_id: i32 = context
+                                .sql
+                                .query_row_col(
+                                    context,
+                                    "SELECT chat_id FROM msgs WHERE id=?",
+                                    params![job.foreign_id as i32],
+                                    0,
+                                )
+                                .unwrap_or_default();
+                            context.call_cb(
+                                Event::MSG_DELIVERED,
+                                chat_id as uintptr_t,
+                                job.foreign_id as uintptr_t,
+                            );
                         }
                     }
                 }
             }
         }
-        _ => {}
     }
     free(buf);
     free(filename as *mut libc::c_void);
@@ -417,7 +405,7 @@ pub unsafe fn dc_job_try_again_later(
 
 #[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
-    let mut current_block: u64;
+    let ok_to_continue;
     let msg = dc_msg_new_untyped(context);
     let mut dest_uid: uint32_t = 0i32 as uint32_t;
 
@@ -427,75 +415,46 @@ unsafe fn dc_job_do_DC_JOB_MOVE_MSG(context: &Context, job: &mut dc_job_t) {
         connect_to_inbox(context, &inbox);
         if !inbox.is_connected() {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-            current_block = 2238328302157162973;
+            ok_to_continue = false;
         } else {
-            current_block = 2473556513754201174;
+            ok_to_continue = true;
         }
     } else {
-        current_block = 2473556513754201174;
+        ok_to_continue = true;
     }
-    match current_block {
-        2473556513754201174 => {
-            if dc_msg_load_from_db(msg, context, job.foreign_id) {
-                if context
-                    .sql
-                    .get_config_int(context, "folders_configured")
-                    .unwrap_or_default()
-                    < 3
+    if ok_to_continue {
+        if dc_msg_load_from_db(msg, context, job.foreign_id) {
+            if context
+                .sql
+                .get_config_int(context, "folders_configured")
+                .unwrap_or_default()
+                < 3
+            {
+                inbox.configure_folders(context, 0x1i32);
+            }
+            let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
+
+            if let Some(dest_folder) = dest_folder {
+                let server_folder = (*msg).server_folder.as_ref().unwrap();
+
+                match inbox.mv(
+                    context,
+                    server_folder,
+                    (*msg).server_uid,
+                    &dest_folder,
+                    &mut dest_uid,
+                ) as libc::c_uint
                 {
-                    inbox.configure_folders(context, 0x1i32);
-                }
-                let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
-
-                if let Some(dest_folder) = dest_folder {
-                    let server_folder = (*msg).server_folder.as_ref().unwrap();
-
-                    match inbox.mv(
-                        context,
-                        server_folder,
-                        (*msg).server_uid,
-                        &dest_folder,
-                        &mut dest_uid,
-                    ) as libc::c_uint
-                    {
-                        1 => {
-                            current_block = 6379107252614456477;
-                            match current_block {
-                                12072121998757195963 => {
-                                    dc_update_server_uid(
-                                        context,
-                                        (*msg).rfc724_mid,
-                                        &dest_folder,
-                                        dest_uid,
-                                    );
-                                }
-                                _ => {
-                                    dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-                                }
-                            }
-                        }
-                        3 => {
-                            current_block = 12072121998757195963;
-                            match current_block {
-                                12072121998757195963 => {
-                                    dc_update_server_uid(
-                                        context,
-                                        (*msg).rfc724_mid,
-                                        &dest_folder,
-                                        dest_uid,
-                                    );
-                                }
-                                _ => {
-                                    dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-                                }
-                            }
-                        }
-                        0 | 2 | _ => {}
+                    1 => {
+                        dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
                     }
+                    3 => {
+                        dc_update_server_uid(context, (*msg).rfc724_mid, &dest_folder, dest_uid);
+                    }
+                    0 | 2 | _ => {}
                 }
             }
         }
-        _ => {}
     }
 
     dc_msg_unref(msg);
@@ -514,7 +473,7 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
 
 #[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_job_t) {
-    let current_block: u64;
+    let ok_to_continue;
     let folder = job
         .param
         .get(Param::ServerFolder)
@@ -528,44 +487,39 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MDN_ON_IMAP(context: &Context, job: &mut dc_
         connect_to_inbox(context, &inbox);
         if !inbox.is_connected() {
             dc_job_try_again_later(job, 3, 0 as *const libc::c_char);
-            current_block = 2670689566614003383;
+            ok_to_continue = false;
         } else {
-            current_block = 11006700562992250127;
+            ok_to_continue = true;
         }
     } else {
-        current_block = 11006700562992250127;
+        ok_to_continue = true;
     }
-    match current_block {
-        11006700562992250127 => {
-            if inbox.set_seen(context, &folder, uid) == 0 {
-                dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+    if ok_to_continue {
+        if inbox.set_seen(context, &folder, uid) == 0 {
+            dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+        }
+        if 0 != job.param.get_int(Param::AlsoMove).unwrap_or_default() {
+            if context
+                .sql
+                .get_config_int(context, "folders_configured")
+                .unwrap_or_default()
+                < 3
+            {
+                inbox.configure_folders(context, 0x1i32);
             }
-            if 0 != job.param.get_int(Param::AlsoMove).unwrap_or_default() {
-                if context
-                    .sql
-                    .get_config_int(context, "folders_configured")
-                    .unwrap_or_default()
-                    < 3
-                {
-                    inbox.configure_folders(context, 0x1i32);
-                }
-                let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
-                if let Some(dest_folder) = dest_folder {
-                    if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
-                        as libc::c_uint
-                    {
-                        dc_job_try_again_later(job, 3, 0 as *const libc::c_char);
-                    }
+            let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
+            if let Some(dest_folder) = dest_folder {
+                if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid) as libc::c_uint {
+                    dc_job_try_again_later(job, 3, 0 as *const libc::c_char);
                 }
             }
         }
-        _ => {}
     }
 }
 
 #[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_job_t) {
-    let mut current_block: u64;
+    let ok_to_continue;
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let inbox = context.inbox.read().unwrap();
 
@@ -573,130 +527,44 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
         connect_to_inbox(context, &inbox);
         if !inbox.is_connected() {
             dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-            current_block = 17792648348530113339;
+            ok_to_continue = false;
         } else {
-            current_block = 15240798224410183470;
+            ok_to_continue = true;
         }
     } else {
-        current_block = 15240798224410183470;
+        ok_to_continue = true;
     }
-    match current_block {
-        15240798224410183470 => {
-            if dc_msg_load_from_db(msg, context, job.foreign_id) {
-                let server_folder = (*msg).server_folder.as_ref().unwrap();
-                match inbox.set_seen(context, server_folder, (*msg).server_uid) as libc::c_uint {
-                    0 => {}
-                    1 => {
-                        current_block = 12392248546350854223;
-                        match current_block {
-                            12392248546350854223 => {
-                                dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-                            }
-                            _ => {
-                                if 0 != (*msg).param.get_int(Param::WantsMdn).unwrap_or_default()
-                                    && 0 != context
-                                        .sql
-                                        .get_config_int(context, "mdns_enabled")
-                                        .unwrap_or_else(|| 1)
-                                {
-                                    let folder = (*msg).server_folder.as_ref().unwrap();
-                                    match inbox.set_mdnsent(context, folder, (*msg).server_uid)
-                                        as libc::c_uint
-                                    {
-                                        1 => {
-                                            current_block = 4016212065805849280;
-                                            match current_block {
-                                                6186957421461061791 => {
-                                                    dc_send_mdn(context, (*msg).id);
-                                                }
-                                                _ => {
-                                                    dc_job_try_again_later(
-                                                        job,
-                                                        3i32,
-                                                        0 as *const libc::c_char,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                        3 => {
-                                            current_block = 6186957421461061791;
-                                            match current_block {
-                                                6186957421461061791 => {
-                                                    dc_send_mdn(context, (*msg).id);
-                                                }
-                                                _ => {
-                                                    dc_job_try_again_later(
-                                                        job,
-                                                        3i32,
-                                                        0 as *const libc::c_char,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                        0 | 2 | _ => {}
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    _ => {
-                        current_block = 7746791466490516765;
-                        match current_block {
-                            12392248546350854223 => {
-                                dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-                            }
-                            _ => {
-                                if 0 != (*msg).param.get_int(Param::WantsMdn).unwrap_or_default()
-                                    && 0 != context
-                                        .sql
-                                        .get_config_int(context, "mdns_enabled")
-                                        .unwrap_or_else(|| 1)
-                                {
-                                    let folder = (*msg).server_folder.as_ref().unwrap();
+    if ok_to_continue {
+        if dc_msg_load_from_db(msg, context, job.foreign_id) {
+            let server_folder = (*msg).server_folder.as_ref().unwrap();
+            match inbox.set_seen(context, server_folder, (*msg).server_uid) as libc::c_uint {
+                0 => {}
+                1 => {
+                    dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
+                }
+                _ => {
+                    if 0 != (*msg).param.get_int(Param::WantsMdn).unwrap_or_default()
+                        && 0 != context
+                            .sql
+                            .get_config_int(context, "mdns_enabled")
+                            .unwrap_or_else(|| 1)
+                    {
+                        let folder = (*msg).server_folder.as_ref().unwrap();
 
-                                    match inbox.set_mdnsent(context, folder, (*msg).server_uid)
-                                        as libc::c_uint
-                                    {
-                                        1 => {
-                                            current_block = 4016212065805849280;
-                                            match current_block {
-                                                6186957421461061791 => {
-                                                    dc_send_mdn(context, (*msg).id);
-                                                }
-                                                _ => {
-                                                    dc_job_try_again_later(
-                                                        job,
-                                                        3i32,
-                                                        0 as *const libc::c_char,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                        3 => {
-                                            current_block = 6186957421461061791;
-                                            match current_block {
-                                                6186957421461061791 => {
-                                                    dc_send_mdn(context, (*msg).id);
-                                                }
-                                                _ => {
-                                                    dc_job_try_again_later(
-                                                        job,
-                                                        3i32,
-                                                        0 as *const libc::c_char,
-                                                    );
-                                                }
-                                            }
-                                        }
-                                        0 | 2 | _ => {}
-                                    }
-                                }
+                        match inbox.set_mdnsent(context, folder, (*msg).server_uid) as libc::c_uint
+                        {
+                            1 => {
+                                dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
                             }
+                            3 => {
+                                dc_send_mdn(context, (*msg).id);
+                            }
+                            0 | 2 | _ => {}
                         }
                     }
                 }
             }
         }
-        _ => {}
     }
     dc_msg_unref(msg);
 }
@@ -863,7 +731,6 @@ pub unsafe fn dc_interrupt_imap_idle(context: &Context) {
 
 #[allow(non_snake_case)]
 unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_job_t) {
-    let mut current_block: u64;
     let mut delete_from_server: libc::c_int = 1i32;
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     let inbox = context.inbox.read().unwrap();
@@ -872,6 +739,7 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_jo
         || (*msg).rfc724_mid.is_null()
         || *(*msg).rfc724_mid.offset(0isize) as libc::c_int == 0i32)
     {
+        let ok_to_continue1;
         /* eg. device messages have no Message-ID */
         if dc_rfc724_mid_cnt(context, (*msg).rfc724_mid) != 1i32 {
             info!(
@@ -882,38 +750,35 @@ unsafe fn dc_job_do_DC_JOB_DELETE_MSG_ON_IMAP(context: &Context, job: &mut dc_jo
         }
         /* if this is the last existing part of the message, we delete the message from the server */
         if 0 != delete_from_server {
+            let ok_to_continue;
             if !inbox.is_connected() {
                 connect_to_inbox(context, &inbox);
                 if !inbox.is_connected() {
                     dc_job_try_again_later(job, 3i32, 0 as *const libc::c_char);
-                    current_block = 8913536887710889399;
+                    ok_to_continue = false;
                 } else {
-                    current_block = 5399440093318478209;
+                    ok_to_continue = true;
                 }
             } else {
-                current_block = 5399440093318478209;
+                ok_to_continue = true;
             }
-            match current_block {
-                8913536887710889399 => {}
-                _ => {
-                    let mid = CStr::from_ptr((*msg).rfc724_mid).to_str().unwrap();
-                    let server_folder = (*msg).server_folder.as_ref().unwrap();
-                    if 0 == inbox.delete_msg(context, mid, server_folder, &mut (*msg).server_uid) {
-                        dc_job_try_again_later(job, -1i32, 0 as *const libc::c_char);
-                        current_block = 8913536887710889399;
-                    } else {
-                        current_block = 17407779659766490442;
-                    }
+            if ok_to_continue {
+                let mid = CStr::from_ptr((*msg).rfc724_mid).to_str().unwrap();
+                let server_folder = (*msg).server_folder.as_ref().unwrap();
+                if 0 == inbox.delete_msg(context, mid, server_folder, &mut (*msg).server_uid) {
+                    dc_job_try_again_later(job, -1i32, 0 as *const libc::c_char);
+                    ok_to_continue1 = false;
+                } else {
+                    ok_to_continue1 = true;
                 }
+            } else {
+                ok_to_continue1 = false;
             }
         } else {
-            current_block = 17407779659766490442;
+            ok_to_continue1 = true;
         }
-        match current_block {
-            8913536887710889399 => {}
-            _ => {
-                dc_delete_msg_from_db(context, (*msg).id);
-            }
+        if ok_to_continue1 {
+            dc_delete_msg_from_db(context, (*msg).id);
         }
     }
     dc_msg_unref(msg);
