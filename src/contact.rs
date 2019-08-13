@@ -7,7 +7,6 @@ use crate::aheader::EncryptPreference;
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_array::*;
 use crate::dc_e2ee::*;
 use crate::dc_loginparam::*;
 use crate::dc_tools::*;
@@ -564,24 +563,19 @@ impl<'a> Contact<'a> {
     }
 
     /// Get blocked contacts.
-    pub fn get_all_blocked(context: &Context) -> *mut dc_array_t {
+    pub fn get_all_blocked(context: &Context) -> Vec<u32> {
         context
             .sql
             .query_map(
                 "SELECT id FROM contacts WHERE id>? AND blocked!=0 ORDER BY LOWER(name||addr),id;",
                 params![DC_CONTACT_ID_LAST_SPECIAL as i32],
-                |row| row.get::<_, i32>(0),
+                |row| row.get::<_, u32>(0),
                 |ids| {
-                    let mut ret = Vec::new();
-
-                    for id in ids {
-                        ret.push(id? as u32);
-                    }
-
-                    Ok(dc_array_t::from(ret).into_raw())
+                    ids.collect::<std::result::Result<Vec<_>, _>>()
+                        .map_err(Into::into)
                 },
             )
-            .unwrap_or_else(|_| std::ptr::null_mut())
+            .unwrap_or_default()
     }
 
     /// Returns a textual summary of the encryption state for the contact.

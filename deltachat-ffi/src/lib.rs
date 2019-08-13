@@ -837,7 +837,7 @@ pub unsafe extern "C" fn dc_get_blocked_contacts(
     assert!(!context.is_null());
     let context = &*context;
 
-    Contact::get_all_blocked(context)
+    dc_array_t::from(Contact::get_all_blocked(context)).into_raw()
 }
 
 #[no_mangle]
