@@ -1160,113 +1160,112 @@ unsafe fn create_or_lookup_group(
         }
     }
 
-        let optional_field = dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Name");
-        if !optional_field.is_null() {
-            grpname = dc_decode_header_words((*optional_field).fld_value)
-        }
+    let optional_field = dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Name");
+    if !optional_field.is_null() {
+        grpname = dc_decode_header_words((*optional_field).fld_value)
+    }
+    let optional_field =
+        dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Member-Removed");
+    if !optional_field.is_null() {
+        X_MrRemoveFromGrp = (*optional_field).fld_value;
+        mime_parser.is_system_message = DC_CMD_MEMBER_REMOVED_FROM_GROUP;
+        let left_group = (Contact::lookup_id_by_addr(context, as_str(X_MrRemoveFromGrp))
+            == from_id as u32) as libc::c_int;
+        better_msg = context.stock_system_msg(
+            if 0 != left_group {
+                StockMessage::MsgGroupLeft
+            } else {
+                StockMessage::MsgDelMember
+            },
+            as_str(X_MrRemoveFromGrp),
+            "",
+            from_id as u32,
+        )
+    } else {
         let optional_field =
-            dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Member-Removed");
+            dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Member-Added");
         if !optional_field.is_null() {
-            X_MrRemoveFromGrp = (*optional_field).fld_value;
-            mime_parser.is_system_message = DC_CMD_MEMBER_REMOVED_FROM_GROUP;
-            let left_group = (Contact::lookup_id_by_addr(context, as_str(X_MrRemoveFromGrp))
-                == from_id as u32) as libc::c_int;
+            X_MrAddToGrp = (*optional_field).fld_value;
+            mime_parser.is_system_message = DC_CMD_MEMBER_ADDED_TO_GROUP;
+            let optional_field =
+                dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Image");
+            if !optional_field.is_null() {
+                X_MrGrpImageChanged = (*optional_field).fld_value
+            }
             better_msg = context.stock_system_msg(
-                if 0 != left_group {
-                    StockMessage::MsgGroupLeft
-                } else {
-                    StockMessage::MsgDelMember
-                },
-                as_str(X_MrRemoveFromGrp),
+                StockMessage::MsgAddMember,
+                as_str(X_MrAddToGrp),
                 "",
                 from_id as u32,
             )
         } else {
             let optional_field =
-                dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Member-Added");
+                dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Name-Changed");
             if !optional_field.is_null() {
-                X_MrAddToGrp = (*optional_field).fld_value;
-                mime_parser.is_system_message = DC_CMD_MEMBER_ADDED_TO_GROUP;
-                let optional_field =
-                    dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Image");
-                if !optional_field.is_null() {
-                    X_MrGrpImageChanged = (*optional_field).fld_value
-                }
+                X_MrGrpNameChanged = 1;
+                mime_parser.is_system_message = DC_CMD_GROUPNAME_CHANGED;
                 better_msg = context.stock_system_msg(
-                    StockMessage::MsgAddMember,
-                    as_str(X_MrAddToGrp),
-                    "",
+                    StockMessage::MsgGrpName,
+                    as_str((*optional_field).fld_value),
+                    as_str(grpname),
                     from_id as u32,
                 )
             } else {
                 let optional_field =
-                    dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Name-Changed");
+                    dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Image");
                 if !optional_field.is_null() {
-                    X_MrGrpNameChanged = 1;
-                    mime_parser.is_system_message = DC_CMD_GROUPNAME_CHANGED;
+                    X_MrGrpImageChanged = (*optional_field).fld_value;
+                    mime_parser.is_system_message = DC_CMD_GROUPIMAGE_CHANGED;
                     better_msg = context.stock_system_msg(
-                        StockMessage::MsgGrpName,
-                        as_str((*optional_field).fld_value),
-                        as_str(grpname),
+                        if strcmp(
+                            X_MrGrpImageChanged,
+                            b"0\x00" as *const u8 as *const libc::c_char,
+                        ) == 0
+                        {
+                            StockMessage::MsgGrpImgDeleted
+                        } else {
+                            StockMessage::MsgGrpImgChanged
+                        },
+                        "",
+                        "",
                         from_id as u32,
                     )
-                } else {
-                    let optional_field =
-                        dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Image");
-                    if !optional_field.is_null() {
-                        X_MrGrpImageChanged = (*optional_field).fld_value;
-                        mime_parser.is_system_message = DC_CMD_GROUPIMAGE_CHANGED;
-                        better_msg = context.stock_system_msg(
-                            if strcmp(
-                                X_MrGrpImageChanged,
-                                b"0\x00" as *const u8 as *const libc::c_char,
-                            ) == 0
-                            {
-                                StockMessage::MsgGrpImgDeleted
-                            } else {
-                                StockMessage::MsgGrpImgChanged
-                            },
-                            "",
-                            "",
-                            from_id as u32,
-                        )
-                    }
                 }
             }
         }
-        set_better_msg(mime_parser, &better_msg);
+    }
+    set_better_msg(mime_parser, &better_msg);
 
-        // check, if we have a chat with this group ID
-        chat_id =
-            dc_get_chat_id_by_grpid(context, grpid, &mut chat_id_blocked, &mut chat_id_verified);
-        if chat_id != 0 {
-            if 0 != chat_id_verified
-                && 0 == check_verified_properties(
-                    context,
-                    mime_parser,
-                    from_id as uint32_t,
-                    to_ids,
-                    &mut failure_reason,
-                )
-            {
-                dc_mimeparser_repl_msg_by_error(mime_parser, failure_reason);
-            }
+    // check, if we have a chat with this group ID
+    chat_id = dc_get_chat_id_by_grpid(context, grpid, &mut chat_id_blocked, &mut chat_id_verified);
+    if chat_id != 0 {
+        if 0 != chat_id_verified
+            && 0 == check_verified_properties(
+                context,
+                mime_parser,
+                from_id as uint32_t,
+                to_ids,
+                &mut failure_reason,
+            )
+        {
+            dc_mimeparser_repl_msg_by_error(mime_parser, failure_reason);
         }
+    }
 
-        // check if the sender is a member of the existing group -
-        // if not, we'll recreate the group list
-        if chat_id != 0 && 0 == dc_is_contact_in_chat(context, chat_id, from_id as u32) {
-            recreate_member_list = 1;
-        }
+    // check if the sender is a member of the existing group -
+    // if not, we'll recreate the group list
+    if chat_id != 0 && 0 == dc_is_contact_in_chat(context, chat_id, from_id as u32) {
+        recreate_member_list = 1;
+    }
 
-        // check if the group does not exist but should be created
-        group_explicitly_left = dc_is_group_explicitly_left(context, grpid);
+    // check if the group does not exist but should be created
+    group_explicitly_left = dc_is_group_explicitly_left(context, grpid);
 
-        let self_addr = context
-            .sql
-            .get_config(context, "configured_addr")
-            .unwrap_or_default();
-        if chat_id == 0
+    let self_addr = context
+        .sql
+        .get_config(context, "configured_addr")
+        .unwrap_or_default();
+    if chat_id == 0
             && 0 == dc_mimeparser_is_mailinglist_message(mime_parser)
             && !grpid.is_null()
             && !grpname.is_null()
@@ -1275,54 +1274,21 @@ unsafe fn create_or_lookup_group(
             // re-create explicitly left groups only if ourself is re-added
             && (0 == group_explicitly_left
                 || !X_MrAddToGrp.is_null() && addr_cmp(&self_addr, as_str(X_MrAddToGrp)))
-        {
-            let mut create_verified: libc::c_int = 0;
-            if !dc_mimeparser_lookup_field(mime_parser, "Chat-Verified").is_null() {
-                create_verified = 1;
-                if 0 == check_verified_properties(
-                    context,
-                    mime_parser,
-                    from_id as uint32_t,
-                    to_ids,
-                    &mut failure_reason,
-                ) {
-                    dc_mimeparser_repl_msg_by_error(mime_parser, failure_reason);
-                }
+    {
+        let mut create_verified: libc::c_int = 0;
+        if !dc_mimeparser_lookup_field(mime_parser, "Chat-Verified").is_null() {
+            create_verified = 1;
+            if 0 == check_verified_properties(
+                context,
+                mime_parser,
+                from_id as uint32_t,
+                to_ids,
+                &mut failure_reason,
+            ) {
+                dc_mimeparser_repl_msg_by_error(mime_parser, failure_reason);
             }
-            if 0 == allow_creation {
-                cleanup(
-                    grpid,
-                    grpname,
-                    failure_reason,
-                    ret_chat_id,
-                    ret_chat_id_blocked,
-                    chat_id,
-                    chat_id_blocked,
-                );
-                return;
-            }
-            chat_id = create_group_record(context, grpid, grpname, create_blocked, create_verified);
-            chat_id_blocked = create_blocked;
-            recreate_member_list = 1;
         }
-
-        // again, check chat_id
-        if chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
-            chat_id = 0;
-            if 0 != group_explicitly_left {
-                chat_id = DC_CHAT_ID_TRASH as u32;
-            } else {
-                create_or_lookup_adhoc_group(
-                    context,
-                    mime_parser,
-                    allow_creation,
-                    create_blocked,
-                    from_id,
-                    to_ids,
-                    &mut chat_id,
-                    &mut chat_id_blocked,
-                );
-            }
+        if 0 == allow_creation {
             cleanup(
                 grpid,
                 grpname,
@@ -1334,136 +1300,168 @@ unsafe fn create_or_lookup_group(
             );
             return;
         }
+        chat_id = create_group_record(context, grpid, grpname, create_blocked, create_verified);
+        chat_id_blocked = create_blocked;
+        recreate_member_list = 1;
+    }
 
-        // execute group commands
-        if !X_MrAddToGrp.is_null() || !X_MrRemoveFromGrp.is_null() {
-            recreate_member_list = 1;
-        } else if 0 != X_MrGrpNameChanged && !grpname.is_null() && strlen(grpname) < 200 {
-            if sql::execute(
+    // again, check chat_id
+    if chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
+        chat_id = 0;
+        if 0 != group_explicitly_left {
+            chat_id = DC_CHAT_ID_TRASH as u32;
+        } else {
+            create_or_lookup_adhoc_group(
                 context,
-                &context.sql,
-                "UPDATE chats SET name=? WHERE id=?;",
-                params![as_str(grpname), chat_id as i32],
-            )
-            .is_ok()
-            {
-                context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0);
-            }
+                mime_parser,
+                allow_creation,
+                create_blocked,
+                from_id,
+                to_ids,
+                &mut chat_id,
+                &mut chat_id_blocked,
+            );
         }
-        if !X_MrGrpImageChanged.is_null() {
-            let mut ok = 0;
-            let mut grpimage = 0 as *mut libc::c_char;
-            if strcmp(
-                X_MrGrpImageChanged,
-                b"0\x00" as *const u8 as *const libc::c_char,
-            ) == 0
-            {
-                ok = 1
-            } else {
-                for part in &mut mime_parser.parts {
-                    if part.type_0 == 20 {
-                        grpimage = part
-                            .param
-                            .get(Param::File)
-                            .map(|s| s.strdup())
-                            .unwrap_or_else(|| std::ptr::null_mut());
-                        ok = 1
-                    }
+        cleanup(
+            grpid,
+            grpname,
+            failure_reason,
+            ret_chat_id,
+            ret_chat_id_blocked,
+            chat_id,
+            chat_id_blocked,
+        );
+        return;
+    }
+
+    // execute group commands
+    if !X_MrAddToGrp.is_null() || !X_MrRemoveFromGrp.is_null() {
+        recreate_member_list = 1;
+    } else if 0 != X_MrGrpNameChanged && !grpname.is_null() && strlen(grpname) < 200 {
+        if sql::execute(
+            context,
+            &context.sql,
+            "UPDATE chats SET name=? WHERE id=?;",
+            params![as_str(grpname), chat_id as i32],
+        )
+        .is_ok()
+        {
+            context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0);
+        }
+    }
+    if !X_MrGrpImageChanged.is_null() {
+        let mut ok = 0;
+        let mut grpimage = 0 as *mut libc::c_char;
+        if strcmp(
+            X_MrGrpImageChanged,
+            b"0\x00" as *const u8 as *const libc::c_char,
+        ) == 0
+        {
+            ok = 1
+        } else {
+            for part in &mut mime_parser.parts {
+                if part.type_0 == 20 {
+                    grpimage = part
+                        .param
+                        .get(Param::File)
+                        .map(|s| s.strdup())
+                        .unwrap_or_else(|| std::ptr::null_mut());
+                    ok = 1
                 }
             }
-            if 0 != ok {
-                let chat = dc_chat_new(context);
-                info!(
-                    context,
-                    0,
-                    "New group image set to {}.",
-                    if !grpimage.is_null() {
-                        "DELETED".to_string()
-                    } else {
-                        to_string(grpimage)
-                    },
-                );
-                dc_chat_load_from_db(chat, chat_id);
-                if grpimage.is_null() {
-                    (*chat).param.remove(Param::ProfileImage);
+        }
+        if 0 != ok {
+            let chat = dc_chat_new(context);
+            info!(
+                context,
+                0,
+                "New group image set to {}.",
+                if !grpimage.is_null() {
+                    "DELETED".to_string()
                 } else {
-                    (*chat).param.set(Param::ProfileImage, as_str(grpimage));
-                }
-                dc_chat_update_param(chat);
-                dc_chat_unref(chat);
-                free(grpimage as *mut libc::c_void);
-                send_EVENT_CHAT_MODIFIED = 1
-            }
-        }
-
-        // add members to group/check members
-        // for recreation: we should add a timestamp
-        if 0 != recreate_member_list {
-            // TODO: the member list should only be recreated if the corresponding message is newer
-            // than the one that is responsible for the current member list, see
-            // https://github.com/deltachat/deltachat-core/issues/127
-
-            let skip = if !X_MrRemoveFromGrp.is_null() {
-                X_MrRemoveFromGrp
+                    to_string(grpimage)
+                },
+            );
+            dc_chat_load_from_db(chat, chat_id);
+            if grpimage.is_null() {
+                (*chat).param.remove(Param::ProfileImage);
             } else {
-                0 as *mut libc::c_char
-            };
-            sql::execute(
+                (*chat).param.set(Param::ProfileImage, as_str(grpimage));
+            }
+            dc_chat_update_param(chat);
+            dc_chat_unref(chat);
+            free(grpimage as *mut libc::c_void);
+            send_EVENT_CHAT_MODIFIED = 1
+        }
+    }
+
+    // add members to group/check members
+    // for recreation: we should add a timestamp
+    if 0 != recreate_member_list {
+        // TODO: the member list should only be recreated if the corresponding message is newer
+        // than the one that is responsible for the current member list, see
+        // https://github.com/deltachat/deltachat-core/issues/127
+
+        let skip = if !X_MrRemoveFromGrp.is_null() {
+            X_MrRemoveFromGrp
+        } else {
+            0 as *mut libc::c_char
+        };
+        sql::execute(
+            context,
+            &context.sql,
+            "DELETE FROM chats_contacts WHERE chat_id=?;",
+            params![chat_id as i32],
+        )
+        .ok();
+        if skip.is_null() || !addr_cmp(&self_addr, as_str(skip)) {
+            dc_add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF as u32);
+        }
+        if from_id > DC_CHAT_ID_LAST_SPECIAL as i32 {
+            if !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
+                && (skip.is_null()
+                    || !Contact::addr_equals_contact(context, to_string(skip), from_id as u32))
+            {
+                dc_add_to_chat_contacts_table(context, chat_id, from_id as u32);
+            }
+        }
+        for i in 0..to_ids_cnt {
+            let to_id = dc_array_get_id(to_ids, i as size_t);
+            if !Contact::addr_equals_contact(context, &self_addr, to_id)
+                && (skip.is_null()
+                    || !Contact::addr_equals_contact(context, to_string(skip), to_id))
+            {
+                dc_add_to_chat_contacts_table(context, chat_id, to_id);
+            }
+        }
+        send_EVENT_CHAT_MODIFIED = 1;
+        dc_reset_gossiped_timestamp(context, chat_id);
+    }
+
+    if 0 != send_EVENT_CHAT_MODIFIED {
+        context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
+    }
+
+    // check the number of receivers -
+    // the only critical situation is if the user hits "Reply" instead of "Reply all" in a non-messenger-client */
+    if to_ids_cnt == 1 && mime_parser.is_send_by_messenger == 0 {
+        let is_contact_cnt = dc_get_chat_contact_cnt(context, chat_id);
+        if is_contact_cnt > 3 {
+            // to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt.
+            // So everything up to 3 is no error.
+            chat_id = 0;
+            create_or_lookup_adhoc_group(
                 context,
-                &context.sql,
-                "DELETE FROM chats_contacts WHERE chat_id=?;",
-                params![chat_id as i32],
-            )
-            .ok();
-            if skip.is_null() || !addr_cmp(&self_addr, as_str(skip)) {
-                dc_add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF as u32);
-            }
-            if from_id > DC_CHAT_ID_LAST_SPECIAL as i32 {
-                if !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
-                    && (skip.is_null()
-                        || !Contact::addr_equals_contact(context, to_string(skip), from_id as u32))
-                {
-                    dc_add_to_chat_contacts_table(context, chat_id, from_id as u32);
-                }
-            }
-            for i in 0..to_ids_cnt {
-                let to_id = dc_array_get_id(to_ids, i as size_t);
-                if !Contact::addr_equals_contact(context, &self_addr, to_id)
-                    && (skip.is_null()
-                        || !Contact::addr_equals_contact(context, to_string(skip), to_id))
-                {
-                    dc_add_to_chat_contacts_table(context, chat_id, to_id);
-                }
-            }
-            send_EVENT_CHAT_MODIFIED = 1;
-            dc_reset_gossiped_timestamp(context, chat_id);
+                mime_parser,
+                allow_creation,
+                create_blocked,
+                from_id,
+                to_ids,
+                &mut chat_id,
+                &mut chat_id_blocked,
+            );
         }
-
-        if 0 != send_EVENT_CHAT_MODIFIED {
-            context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
-        }
-
-        // check the number of receivers -
-        // the only critical situation is if the user hits "Reply" instead of "Reply all" in a non-messenger-client */
-        if to_ids_cnt == 1 && mime_parser.is_send_by_messenger == 0 {
-            let is_contact_cnt = dc_get_chat_contact_cnt(context, chat_id);
-            if is_contact_cnt > 3 {
-                // to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt.
-                // So everything up to 3 is no error.
-                chat_id = 0;
-                create_or_lookup_adhoc_group(
-                    context,
-                    mime_parser,
-                    allow_creation,
-                    create_blocked,
-                    from_id,
-                    to_ids,
-                    &mut chat_id,
-                    &mut chat_id_blocked,
-                );
-            }
-        }
-
+    }
 
     cleanup(
         grpid,
