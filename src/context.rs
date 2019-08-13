@@ -21,9 +21,11 @@ use crate::types::*;
 use crate::x::*;
 use std::ptr;
 
+use std::path::PathBuf;
+
 pub struct Context {
     pub userdata: *mut libc::c_void,
-    pub dbfile: Arc<RwLock<*mut libc::c_char>>,
+    pub dbfile: Arc<RwLock<Option<PathBuf>>>,
     pub blobdir: Arc<RwLock<*mut libc::c_char>>,
     pub sql: Sql,
     pub inbox: Arc<RwLock<Imap>>,
@@ -55,15 +57,17 @@ pub struct RunningState {
 
 impl Context {
     pub fn has_dbfile(&self) -> bool {
-        !self.get_dbfile().is_null()
+        self.get_dbfile().is_some()
     }
 
     pub fn has_blobdir(&self) -> bool {
         !self.get_blobdir().is_null()
     }
 
-    pub fn get_dbfile(&self) -> *const libc::c_char {
-        *self.dbfile.clone().read().unwrap()
+    pub fn get_dbfile(&self) -> Option<PathBuf> {
+        (*self.dbfile.clone().read().unwrap())
+            .as_ref()
+            .map(|x| x.clone())
     }
 
     pub fn get_blobdir(&self) -> *const libc::c_char {
@@ -130,7 +134,7 @@ pub fn dc_context_new(
 ) -> Context {
     Context {
         blobdir: Arc::new(RwLock::new(std::ptr::null_mut())),
-        dbfile: Arc::new(RwLock::new(std::ptr::null_mut())),
+        dbfile: Arc::new(RwLock::new(None)),
         inbox: Arc::new(RwLock::new({
             Imap::new(
                 cb_get_config,
@@ -282,8 +286,7 @@ pub unsafe fn dc_close(context: &Context) {
 
     context.sql.close(context);
     let mut dbfile = context.dbfile.write().unwrap();
-    free(*dbfile as *mut libc::c_void);
-    *dbfile = ptr::null_mut();
+    *dbfile = None;
     let mut blobdir = context.blobdir.write().unwrap();
     free(*blobdir as *mut libc::c_void);
     *blobdir = ptr::null_mut();
@@ -302,7 +305,7 @@ pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) ->
     if 0 != dc_is_open(context) {
         return false;
     }
-    *context.dbfile.write().unwrap() = dbfile.strdup();
+    *context.dbfile.write().unwrap() = Some(PathBuf::from(dbfile));
     if blobdir.is_some() && !blobdir.unwrap().is_empty() {
         let dir = dc_ensure_no_slash_safe(blobdir.unwrap()).strdup();
         *context.blobdir.write().unwrap() = dir;
@@ -446,11 +449,10 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         real_msgs,
         deaddrop_msgs,
         contacts,
-        if context.has_dbfile() {
-            as_str(context.get_dbfile())
-        } else {
-            unset
-        },
+        context
+            .get_dbfile()
+            .as_ref()
+            .map_or(unset, |p| p.to_str().unwrap()),
         dbversion,
         if context.has_blobdir() {
             as_str(context.get_blobdir())

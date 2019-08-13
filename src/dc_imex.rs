@@ -597,7 +597,10 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         0,
         "Import \"{}\" to \"{}\".",
         as_str(backup_to_import),
-        as_str(context.get_dbfile()),
+        context
+            .get_dbfile()
+            .as_ref()
+            .map_or("<<None>>", |p| p.to_str().unwrap())
     );
 
     if 0 != dc_is_configured(context) {
@@ -605,8 +608,8 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         return 0;
     }
     &context.sql.close(&context);
-    dc_delete_file(context, as_path(context.get_dbfile()));
-    if dc_file_exist(context, as_path(context.get_dbfile())) {
+    dc_delete_file(context, context.get_dbfile().unwrap());
+    if dc_file_exist(context, context.get_dbfile().unwrap()) {
         error!(
             context,
             0, "Cannot import backups: Cannot delete the old file.",
@@ -617,13 +620,16 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
     if !dc_copy_file(
         context,
         as_path(backup_to_import),
-        as_path(context.get_dbfile()),
+        context.get_dbfile().unwrap(),
     ) {
         return 0;
     }
     /* error already logged */
     /* re-open copied database file */
-    if !context.sql.open(&context, as_path(context.get_dbfile()), 0) {
+    if !context
+        .sql
+        .open(&context, &context.get_dbfile().unwrap(), 0)
+    {
         return 0;
     }
 
@@ -742,15 +748,20 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         context,
         0,
         "Backup \"{}\" to \"{}\".",
-        as_str(context.get_dbfile()),
+        context
+            .get_dbfile()
+            .as_ref()
+            .map_or("<<None>>", |p| p.to_str().unwrap()),
         as_str(dest_pathNfilename),
     );
     if dc_copy_file(
         context,
-        as_path(context.get_dbfile()),
+        context.get_dbfile().unwrap(),
         as_path(dest_pathNfilename),
     ) {
-        context.sql.open(&context, as_path(context.get_dbfile()), 0);
+        context
+            .sql
+            .open(&context, &context.get_dbfile().unwrap(), 0);
         closed = false;
         /* add all files as blobs to the database copy (this does not require the source to be locked, neigher the destination as it is used only here) */
         /*for logging only*/
@@ -906,7 +917,9 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
         }
     }
     if closed {
-        context.sql.open(&context, as_path(context.get_dbfile()), 0);
+        context
+            .sql
+            .open(&context, &context.get_dbfile().unwrap(), 0);
     }
     if 0 != delete_dest_file {
         dc_delete_file(context, as_path(dest_pathNfilename));
