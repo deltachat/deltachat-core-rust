@@ -1,6 +1,9 @@
 use std::ffi::CString;
 use std::net;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Condvar, Mutex, RwLock,
+};
 use std::time::{Duration, SystemTime};
 
 use crate::constants::*;
@@ -35,6 +38,8 @@ pub struct Imap {
     session: Arc<Mutex<Option<Session>>>,
     stream: Arc<RwLock<Option<net::TcpStream>>>,
     connected: Arc<Mutex<bool>>,
+
+    should_reconnect: AtomicBool,
 }
 
 struct OAuth2 {
@@ -313,7 +318,6 @@ pub struct ImapConfig {
     pub selected_folder: Option<String>,
     pub selected_mailbox: Option<imap::types::Mailbox>,
     pub selected_folder_needs_expunge: bool,
-    pub should_reconnect: bool,
     pub can_idle: bool,
     pub has_xlist: bool,
     pub imap_delimiter: char,
@@ -332,7 +336,6 @@ impl Default for ImapConfig {
             selected_folder: None,
             selected_mailbox: None,
             selected_folder_needs_expunge: false,
-            should_reconnect: false,
             can_idle: false,
             has_xlist: false,
             imap_delimiter: '.',
@@ -360,6 +363,7 @@ impl Imap {
             precheck_imf,
             receive_imf,
             connected: Arc::new(Mutex::new(false)),
+            should_reconnect: AtomicBool::new(false),
         }
     }
 
@@ -368,7 +372,7 @@ impl Imap {
     }
 
     pub fn should_reconnect(&self) -> bool {
-        self.config.read().unwrap().should_reconnect
+        self.should_reconnect.load(Ordering::Relaxed)
     }
 
     fn setup_handle_if_needed(&self, context: &Context) -> bool {
@@ -381,7 +385,7 @@ impl Imap {
         }
 
         if self.is_connected() && self.stream.read().unwrap().is_some() {
-            self.config.write().unwrap().should_reconnect = false;
+            self.should_reconnect.store(false, Ordering::Relaxed);
             return true;
         }
 
@@ -451,7 +455,7 @@ impl Imap {
             }
         };
 
-        self.config.write().unwrap().should_reconnect = false;
+        self.should_reconnect.store(false, Ordering::Relaxed);
 
         match login_res {
             Ok((session, stream)) => {
@@ -550,14 +554,12 @@ impl Imap {
             return false;
         }
 
-        let teardown: bool;
-
-        match &mut *self.session.lock().unwrap() {
+        let (teardown, can_idle, has_xlist) = match &mut *self.session.lock().unwrap() {
             Some(ref mut session) => {
                 if let Ok(caps) = session.capabilities() {
                     if !context.sql.is_open() {
                         warn!(context, 0, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
-                        teardown = true;
+                        (true, false, false)
                     } else {
                         let can_idle = caps.has("IDLE");
                         let has_xlist = caps.has("XLIST");
@@ -574,24 +576,23 @@ impl Imap {
                             lp.mail_user,
                             caps_list,
                         );
-                        self.config.write().unwrap().can_idle = can_idle;
-                        self.config.write().unwrap().has_xlist = has_xlist;
-                        *self.connected.lock().unwrap() = true;
-                        teardown = false;
+                        (false, can_idle, has_xlist)
                     }
                 } else {
-                    teardown = true;
+                    (true, false, false)
                 }
             }
-            None => {
-                teardown = true;
-            }
-        }
+            None => (true, false, false),
+        };
+
         if teardown {
             self.unsetup_handle(context);
             self.free_connect_params();
             false
         } else {
+            self.config.write().unwrap().can_idle = can_idle;
+            self.config.write().unwrap().has_xlist = has_xlist;
+            *self.connected.lock().unwrap() = true;
             true
         }
     }
@@ -689,9 +690,8 @@ impl Imap {
                             err
                         );
 
-                        let mut config = self.config.write().unwrap();
-                        config.selected_folder = None;
-                        config.should_reconnect = true;
+                        self.config.write().unwrap().selected_folder = None;
+                        self.should_reconnect.store(true, Ordering::Relaxed);
                         return 0;
                     }
                 }
@@ -777,7 +777,7 @@ impl Imap {
                 match session.fetch(set, PREFETCH_FLAGS) {
                     Ok(list) => list,
                     Err(_err) => {
-                        self.config.write().unwrap().should_reconnect = true;
+                        self.should_reconnect.store(true, Ordering::Relaxed);
                         info!(
                             context,
                             0,
@@ -822,7 +822,7 @@ impl Imap {
             match session.uid_fetch(set, PREFETCH_FLAGS) {
                 Ok(list) => list,
                 Err(err) => {
-                    eprintln!("fetch err: {:?}", err);
+                    warn!(context, 0, "failed to fetch uids: {}", err);
                     return 0;
                 }
             }
@@ -928,15 +928,13 @@ impl Imap {
             return 0;
         }
 
-        let mut retry_later = false;
-
         let set = format!("{}", server_uid);
 
         let msgs = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
             match session.uid_fetch(set, BODY_FLAGS) {
                 Ok(msgs) => msgs,
                 Err(err) => {
-                    self.config.write().unwrap().should_reconnect = true;
+                    self.should_reconnect.store(true, Ordering::Relaxed);
                     warn!(
                         context,
                         0,
@@ -946,17 +944,11 @@ impl Imap {
                         self.should_reconnect(),
                         err
                     );
-
-                    if self.should_reconnect() {
-                        // maybe we should also retry on other errors, however, we should check this carefully, as this may result in a dead lock!
-                        retry_later = true;
-                    }
-
-                    return if retry_later { 0 } else { 1 };
+                    return 0;
                 }
             }
         } else {
-            return if retry_later { 0 } else { 1 };
+            return 1;
         };
 
         if msgs.is_empty() {
@@ -1004,11 +996,7 @@ impl Imap {
             }
         }
 
-        if retry_later {
-            0
-        } else {
-            1
-        }
+        1
     }
 
     pub fn idle(&self, context: &Context) {
@@ -1073,7 +1061,7 @@ impl Imap {
                         context,
                         0, "IMAP-IDLE wait cancelled, we will reconnect soon."
                     );
-                    self.config.write().unwrap().should_reconnect = true;
+                    self.should_reconnect.store(true, Ordering::Relaxed);
                 }
                 _ => {
                     warn!(context, 0, "IMAP-IDLE returns unknown value: {}", err);
