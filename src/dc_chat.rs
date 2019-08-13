@@ -184,15 +184,15 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                         if (*chat).type_0 == DC_CHAT_TYPE_SINGLE {
                             free((*chat).name as *mut libc::c_void);
                             let contacts = dc_get_chat_contacts((*chat).context, (*chat).id);
-                            if (*contacts).is_empty() {
-                                (*chat).name = "Err [Name not found]".strdup() // two times because #![feature(let_chains)] is deactivated
-                            } else if let Ok(contact) =
-                                Contact::get_by_id((*chat).context, (*contacts).get_id(0))
-                            {
-                                (*chat).name = contact.get_display_name().strdup();
-                            } else {
-                                (*chat).name = "Err [Name not found]".strdup()
+                            let mut chat_name = "Err [Name not found]".strdup();
+                            if !(*contacts).is_empty() {
+                                if let Ok(contact) =
+                                    Contact::get_by_id((*chat).context, (*contacts).get_id(0))
+                                {
+                                    chat_name = contact.get_display_name().strdup();
+                                }
                             }
+                            (*chat).name = chat_name;
                             dc_array_unref(contacts);
                         }
                     }
