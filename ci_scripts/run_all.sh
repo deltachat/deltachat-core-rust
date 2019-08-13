@@ -39,7 +39,7 @@ if [ -n "$TESTS" ]; then
     # run tox
     # XXX we don't run liveconfig tests because they hang sometimes
     # see https://github.com/deltachat/deltachat-core-rust/issues/331
-    unset DCC_PY_LIVECONFIG
+    # unset DCC_PY_LIVECONFIG
 
     tox --workdir "$TOXWORKDIR" -e lint,py27,py35,py36,py37,auditwheels
     popd
