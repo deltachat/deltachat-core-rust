@@ -13,7 +13,7 @@ restore-workspace: &restore-workspace
 restore-cache: &restore-cache
   restore_cache:
     keys:
-      - cargo-v0-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+      - cargo-v1-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
       - repo-source-{{ .Branch }}-{{ .Revision }}
 
 commands:
@@ -53,10 +53,11 @@ jobs:
           command: cargo generate-lockfile
       - restore_cache:
           keys:
-            - cargo-v0-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+            - cargo-v1-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
       - run: rustup install $(cat rust-toolchain)
       - run: rustup default $(cat rust-toolchain)
       - run: rustup component add --toolchain $(cat rust-toolchain) rustfmt
+      - run: rustup component add --toolchain $(cat rust-toolchain) clippy-preview
       - run: cargo update
       - run: cargo fetch
       - run: rustc +stable --version
@@ -67,7 +68,7 @@ jobs:
           paths:
             - crate
       - save_cache:
-          key: cargo-v0-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+          key: cargo-v1-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
           paths:
             - "~/.cargo"
             - "~/.rustup"
@@ -160,6 +161,15 @@ jobs:
       - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse
 
+  clippy:
+    executor: default
+    steps:
+      - *restore-workspace
+      - *restore-cache
+      - run:
+          name: Run cargo clippy
+          command: cargo clippy --all
+
 
 workflows:
   version: 2.1
@@ -172,6 +182,10 @@ workflows:
             - build_test_docs_wheel
       - cargo_fetch
       - rustfmt:
+          requires:
+            - cargo_fetch
+
+      - clippy:
           requires:
             - cargo_fetch
 
