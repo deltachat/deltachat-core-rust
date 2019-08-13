@@ -239,10 +239,10 @@ pub fn dc_get_locations(
                     accuracy: row.get(3)?,
                     timestamp: row.get(4)?,
                     independent: row.get(5)?,
-                    msg_id: msg_id,
+                    msg_id,
                     contact_id: row.get(7)?,
                     chat_id: row.get(8)?,
-                    marker: marker,
+                    marker,
                 };
                 Ok(loc)
             },

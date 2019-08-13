@@ -286,7 +286,7 @@ impl Sql {
 
 fn table_exists(conn: &Connection, name: impl AsRef<str>) -> Result<bool> {
     let mut exists = false;
-    conn.pragma(None, "table_info", &format!("{}", name.as_ref()), |_row| {
+    conn.pragma(None, "table_info", &name.as_ref().to_string(), |_row| {
         // will only be executed if the info was found
         exists = true;
         Ok(())
@@ -830,7 +830,7 @@ where
                 &err,
                 querystr.as_ref()
             );
-            Err(err.into())
+            Err(err)
         }
     }
 }
@@ -1003,10 +1003,10 @@ pub fn housekeeping(context: &Context) {
                 let name_f = entry.file_name();
                 let name_s = name_f.to_string_lossy();
 
-                if is_file_in_use(&mut files_in_use, None, &name_s)
-                    || is_file_in_use(&mut files_in_use, Some(".increation"), &name_s)
-                    || is_file_in_use(&mut files_in_use, Some(".waveform"), &name_s)
-                    || is_file_in_use(&mut files_in_use, Some("-preview.jpg"), &name_s)
+                if is_file_in_use(&files_in_use, None, &name_s)
+                    || is_file_in_use(&files_in_use, Some(".increation"), &name_s)
+                    || is_file_in_use(&files_in_use, Some(".waveform"), &name_s)
+                    || is_file_in_use(&files_in_use, Some("-preview.jpg"), &name_s)
                 {
                     continue;
                 }

@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::io::Cursor;
+use std::ptr;
 
 use pgp::composed::{
     Deserializable, KeyType as PgpKeyType, Message, SecretKeyParamsBuilder, SignedPublicKey,
@@ -29,19 +30,19 @@ pub unsafe fn dc_split_armored_data(
     let mut line: *mut libc::c_char = buf;
     let mut p1: *mut libc::c_char = buf;
     let mut p2: *mut libc::c_char;
-    let mut headerline: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut base64: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut headerline: *mut libc::c_char = ptr::null_mut();
+    let mut base64: *mut libc::c_char = ptr::null_mut();
     if !ret_headerline.is_null() {
         *ret_headerline = 0 as *const libc::c_char
     }
     if !ret_setupcodebegin.is_null() {
-        *ret_setupcodebegin = 0 as *const libc::c_char
+        *ret_setupcodebegin = ptr::null_mut();
     }
     if !ret_preferencrypt.is_null() {
-        *ret_preferencrypt = 0 as *const libc::c_char
+        *ret_preferencrypt = ptr::null();
     }
     if !ret_base64.is_null() {
-        *ret_base64 = 0 as *const libc::c_char
+        *ret_base64 = ptr::null();
     }
     if !(buf.is_null() || ret_headerline.is_null()) {
         dc_remove_cr_chars(buf);
@@ -143,7 +144,7 @@ pub fn dc_pgp_create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
         .key_type(PgpKeyType::Rsa(2048))
         .can_create_certificates(true)
         .can_sign(true)
-        .primary_user_id(user_id.into())
+        .primary_user_id(user_id)
         .passphrase(None)
         .preferred_symmetric_algorithms(smallvec![
             SymmetricKeyAlgorithm::AES256,

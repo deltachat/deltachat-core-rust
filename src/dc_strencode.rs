@@ -691,11 +691,11 @@ pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc:
         }
     }
     free(charset as *mut libc::c_void);
-    return if !decoded.is_null() {
+    if !decoded.is_null() {
         decoded
     } else {
         dc_strdup(to_decode)
-    };
+    }
 }
 
 unsafe fn print_hex(target: *mut libc::c_char, cur: *const libc::c_char) {

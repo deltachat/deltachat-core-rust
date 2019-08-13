@@ -3,6 +3,7 @@ use lazy_static::lazy_static;
 use crate::dc_saxparser::*;
 use crate::dc_tools::*;
 use crate::x::*;
+use std::ptr;
 
 lazy_static! {
     static ref LINE_RE: regex::Regex = regex::Regex::new(r"(\r?\n)+").unwrap();
@@ -38,7 +39,7 @@ pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char 
         starttag_cb: None,
         endtag_cb: None,
         text_cb: None,
-        userdata: 0 as *mut libc::c_void,
+        userdata: ptr::null_mut(),
     };
     dc_saxparser_init(
         &mut saxparser,

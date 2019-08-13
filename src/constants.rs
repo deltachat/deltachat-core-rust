@@ -2,7 +2,7 @@
 #![allow(non_camel_case_types)]
 use deltachat_derive::*;
 
-pub const DC_VERSION_STR: &'static [u8; 14] = b"1.0.0-alpha.3\x00";
+pub const DC_VERSION_STR: &[u8; 14] = b"1.0.0-alpha.3\x00";
 
 #[repr(u8)]
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]

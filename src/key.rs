@@ -89,7 +89,7 @@ impl Key {
     }
 
     pub fn from_slice(bytes: &[u8], key_type: KeyType) -> Option<Self> {
-        if 0 == bytes.len() {
+        if bytes.is_empty() {
             return None;
         }
         let res: Result<Key, _> = match key_type {
@@ -283,7 +283,7 @@ impl Key {
             Key::Public(_) => None,
             Key::Secret(k) => {
                 let pub_key = k.public_key();
-                pub_key.sign(k, || "".into()).map(|k| Key::Public(k)).ok()
+                pub_key.sign(k, || "".into()).map(Key::Public).ok()
             }
         }
     }

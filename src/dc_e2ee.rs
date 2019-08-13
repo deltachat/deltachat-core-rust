@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 use std::ffi::CStr;
+use std::ptr;
 use std::str::FromStr;
 
 use mmime::clist::*;
@@ -145,7 +146,7 @@ pub unsafe fn dc_e2ee_encrypt(
                         iter1 = if !iter1.is_null() {
                             (*iter1).next
                         } else {
-                            0 as *mut clistcell
+                            ptr::null_mut()
                         }
                     }
                 }
@@ -170,19 +171,19 @@ pub unsafe fn dc_e2ee_encrypt(
                         mailprivacy_prepare_mime(in_out_message);
                         let mut part_to_encrypt: *mut mailmime =
                             (*in_out_message).mm_data.mm_message.mm_msg_mime;
-                        (*part_to_encrypt).mm_parent = 0 as *mut mailmime;
+                        (*part_to_encrypt).mm_parent = ptr::null_mut();
                         let imffields_encrypted: *mut mailimf_fields = mailimf_fields_new_empty();
                         /* mailmime_new_message_data() calls mailmime_fields_new_with_version() which would add the unwanted MIME-Version:-header */
                         let message_to_encrypt: *mut mailmime = mailmime_new(
                             MAILMIME_MESSAGE as libc::c_int,
-                            0 as *const libc::c_char,
+                            ptr::null(),
                             0i32 as size_t,
                             mailmime_fields_new_empty(),
                             mailmime_get_content_message(),
-                            0 as *mut mailmime_data,
-                            0 as *mut mailmime_data,
-                            0 as *mut mailmime_data,
-                            0 as *mut clist,
+                            ptr::null_mut(),
+                            ptr::null_mut(),
+                            ptr::null_mut(),
+                            ptr::null_mut(),
                             imffields_encrypted,
                             part_to_encrypt,
                         );
@@ -214,7 +215,7 @@ pub unsafe fn dc_e2ee_encrypt(
                             let field: *mut mailimf_field = (if !cur.is_null() {
                                 (*cur).data
                             } else {
-                                0 as *mut libc::c_void
+                                ptr::null_mut()
                             })
                                 as *mut mailimf_field;
                             if !field.is_null() {
@@ -265,28 +266,28 @@ pub unsafe fn dc_e2ee_encrypt(
                             imffields_unprotected,
                             mailimf_field_new(
                                 MAILIMF_FIELD_SUBJECT as libc::c_int,
-                                0 as *mut mailimf_return,
-                                0 as *mut mailimf_orig_date,
-                                0 as *mut mailimf_from,
-                                0 as *mut mailimf_sender,
-                                0 as *mut mailimf_to,
-                                0 as *mut mailimf_cc,
-                                0 as *mut mailimf_bcc,
-                                0 as *mut mailimf_message_id,
-                                0 as *mut mailimf_orig_date,
-                                0 as *mut mailimf_from,
-                                0 as *mut mailimf_sender,
-                                0 as *mut mailimf_reply_to,
-                                0 as *mut mailimf_to,
-                                0 as *mut mailimf_cc,
-                                0 as *mut mailimf_bcc,
-                                0 as *mut mailimf_message_id,
-                                0 as *mut mailimf_in_reply_to,
-                                0 as *mut mailimf_references,
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
                                 subject,
-                                0 as *mut mailimf_comments,
-                                0 as *mut mailimf_keywords,
-                                0 as *mut mailimf_optional_field,
+                                ptr::null_mut(),
+                                ptr::null_mut(),
+                                ptr::null_mut(),
                             ),
                         );
                         clist_insert_after(
@@ -314,7 +315,7 @@ pub unsafe fn dc_e2ee_encrypt(
 
                                 /* create MIME-structure that will contain the encrypted text */
                                 let mut encrypted_part: *mut mailmime = new_data_part(
-                                    0 as *mut libc::c_void,
+                                    ptr::null_mut(),
                                     0i32 as size_t,
                                     b"multipart/encrypted\x00" as *const u8 as *const libc::c_char
                                         as *mut libc::c_char,
@@ -400,7 +401,7 @@ unsafe fn new_data_part(
     let encoding_type: libc::c_int;
     let content_type_str: *mut libc::c_char;
     let mut do_encoding: libc::c_int;
-    encoding = 0 as *mut mailmime_mechanism;
+    encoding = ptr::null_mut();
     if default_content_type.is_null() {
         content_type_str =
             b"application/octet-stream\x00" as *const u8 as *const libc::c_char as *mut libc::c_char
@@ -435,7 +436,7 @@ unsafe fn new_data_part(
             } else {
                 encoding_type = default_encoding
             }
-            encoding = mailmime_mechanism_new(encoding_type, 0 as *mut libc::c_char);
+            encoding = mailmime_mechanism_new(encoding_type, ptr::null_mut());
             if encoding.is_null() {
                 ok_to_continue = false;
             }
@@ -443,10 +444,10 @@ unsafe fn new_data_part(
         if ok_to_continue {
             mime_fields = mailmime_fields_new_with_data(
                 encoding,
-                0 as *mut libc::c_char,
-                0 as *mut libc::c_char,
-                0 as *mut mailmime_disposition,
-                0 as *mut mailmime_language,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
+                ptr::null_mut(),
             );
             if mime_fields.is_null() {
                 ok_to_continue = false;
@@ -476,7 +477,7 @@ unsafe fn new_data_part(
             mailmime_content_free(content);
         }
     }
-    return 0 as *mut mailmime;
+    ptr::null_mut()
 }
 
 /// Load public key from database or generate a new one.
@@ -539,10 +540,10 @@ pub unsafe fn dc_e2ee_decrypt(
     /*just a pointer into mailmime structure, must not be freed*/
     let imffields: *mut mailimf_fields = mailmime_find_mailimf_fields(in_out_message);
     let mut message_time = 0;
-    let mut from: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut from: *mut libc::c_char = ptr::null_mut();
     let mut private_keyring = Keyring::default();
     let mut public_keyring_for_validate = Keyring::default();
-    let mut gossip_headers: *mut mailimf_fields = 0 as *mut mailimf_fields;
+    let mut gossip_headers: *mut mailimf_fields = ptr::null_mut();
     if !(in_out_message.is_null() || imffields.is_null()) {
         let mut field: *mut mailimf_field =
             mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
@@ -646,7 +647,7 @@ unsafe fn update_gossip_peerstates(
         let field: *mut mailimf_field = (if !cur1.is_null() {
             (*cur1).data
         } else {
-            0 as *mut libc::c_void
+            ptr::null_mut()
         }) as *mut mailimf_field;
         if (*field).fld_type == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
             let optional_field: *const mailimf_optional_field =
@@ -698,7 +699,7 @@ unsafe fn update_gossip_peerstates(
         cur1 = if !cur1.is_null() {
             (*cur1).next
         } else {
-            0 as *mut clistcell
+            ptr::null_mut()
         }
     }
 
@@ -731,7 +732,7 @@ unsafe fn decrypt_recursive(
         {
             cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
             while !cur.is_null() {
-                let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;
+                let mut decrypted_mime: *mut mailmime = ptr::null_mut();
                 if 0 != decrypt_part(
                     context,
                     (if !cur.is_null() {
@@ -746,7 +747,7 @@ unsafe fn decrypt_recursive(
                 ) {
                     if (*ret_gossip_headers).is_null() && ret_valid_signatures.len() > 0 {
                         let mut dummy: size_t = 0i32 as size_t;
-                        let mut test: *mut mailimf_fields = 0 as *mut mailimf_fields;
+                        let mut test: *mut mailimf_fields = ptr::null_mut();
                         if mailimf_envelope_and_optional_fields_parse(
                             (*decrypted_mime).mm_mime_start,
                             (*decrypted_mime).mm_length,
@@ -777,7 +778,7 @@ unsafe fn decrypt_recursive(
                     (if !cur.is_null() {
                         (*cur).data
                     } else {
-                        0 as *mut libc::c_void
+                        ptr::null_mut()
                     }) as *mut mailmime,
                     private_keyring,
                     public_keyring_for_validate,
@@ -790,7 +791,7 @@ unsafe fn decrypt_recursive(
                 cur = if !cur.is_null() {
                     (*cur).next
                 } else {
-                    0 as *mut clistcell
+                    ptr::null_mut()
                 }
             }
         }
@@ -825,12 +826,12 @@ unsafe fn decrypt_part(
     let mime_data: *mut mailmime_data;
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
     /* mmap_string_unref()'d if set */
-    let mut transfer_decoding_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
     /* must not be free()'d */
-    let mut decoded_data: *const libc::c_char = 0 as *const libc::c_char;
+    let mut decoded_data: *const libc::c_char = ptr::null_mut();
     let mut decoded_data_bytes: size_t = 0i32 as size_t;
     let mut sth_decrypted: libc::c_int = 0i32;
-    *ret_decrypted_mime = 0 as *mut mailmime;
+    *ret_decrypted_mime = ptr::null_mut();
     mime_data = (*mime).mm_data.mm_single;
     /* MAILMIME_DATA_FILE indicates, the data is in a file; AFAIK this is not used on parsing */
     if !((*mime_data).dt_type != MAILMIME_DATA_TEXT as libc::c_int
@@ -844,7 +845,7 @@ unsafe fn decrypt_part(
                 let field: *mut mailmime_field = (if !cur.is_null() {
                     (*cur).data
                 } else {
-                    0 as *mut libc::c_void
+                    ptr::null_mut()
                 }) as *mut mailmime_field;
                 if !field.is_null() {
                     if (*field).fld_type == MAILMIME_FIELD_TRANSFER_ENCODING as libc::c_int
@@ -856,7 +857,7 @@ unsafe fn decrypt_part(
                 cur = if !cur.is_null() {
                     (*cur).next
                 } else {
-                    0 as *mut clistcell
+                    ptr::null_mut()
                 }
             }
         }
@@ -912,7 +913,7 @@ unsafe fn decrypt_part(
                     let plain_buf = plain.as_ptr() as *const libc::c_char;
 
                     let mut index: size_t = 0i32 as size_t;
-                    let mut decrypted_mime: *mut mailmime = 0 as *mut mailmime;
+                    let mut decrypted_mime: *mut mailmime = ptr::null_mut();
                     if mailmime_parse(
                         plain_buf as *const _,
                         plain_bytes,
@@ -1010,7 +1011,7 @@ unsafe fn contains_report(mime: *mut mailmime) -> libc::c_int {
                 (if !cur.is_null() {
                     (*cur).data
                 } else {
-                    0 as *mut libc::c_void
+                    ptr::null_mut()
                 }) as *mut mailmime,
             ) {
                 return 1i32;
@@ -1033,7 +1034,7 @@ unsafe fn contains_report(mime: *mut mailmime) -> libc::c_int {
 /* frees data referenced by "mailmime" but not freed by mailmime_free(). After calling this function, in_out_message cannot be used any longer! */
 pub unsafe fn dc_e2ee_thanks(helper: &mut dc_e2ee_helper_t) {
     free(helper.cdata_to_free);
-    helper.cdata_to_free = 0 as *mut libc::c_void;
+    helper.cdata_to_free = ptr::null_mut();
 }
 
 /// Ensures a private key exists for the configured user.
