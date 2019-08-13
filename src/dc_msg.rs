@@ -904,7 +904,8 @@ pub unsafe fn dc_msg_get_summarytext_by_raw(
         && !text.is_null()
         && 0 != *text.offset(0isize) as libc::c_int
     {
-        ret = dc_mprintf!("{} – {}", prefix, text);
+        let endash = b"\xe2\x80\x93\x00" as *const u8 as *const libc::c_char;
+        ret = dc_mprintf!("{} {} {}", prefix, endash, text);
         dc_truncate_n_unwrap_str(ret, approx_characters, 1i32);
     } else if 0 != append_text && !text.is_null() && 0 != *text.offset(0isize) as libc::c_int {
         ret = dc_strdup(text);
