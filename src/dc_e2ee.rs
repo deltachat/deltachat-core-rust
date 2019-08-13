@@ -553,21 +553,21 @@ pub unsafe fn dc_e2ee_decrypt(
     let mut public_keyring_for_validate = Keyring::default();
     let mut gossip_headers: *mut mailimf_fields = 0 as *mut mailimf_fields;
     if !(in_out_message.is_null() || imffields.is_null()) {
-            let mut field: *mut mailimf_field =
-                mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
-            if !field.is_null() && !(*field).fld_data.fld_from.is_null() {
-                from = mailimf_find_first_addr((*(*field).fld_data.fld_from).frm_mb_list)
-            }
-            field = mailimf_find_field(imffields, MAILIMF_FIELD_ORIG_DATE as libc::c_int);
-            if !field.is_null() && !(*field).fld_data.fld_orig_date.is_null() {
-                let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
-                if !orig_date.is_null() {
-                    message_time = dc_timestamp_from_date((*orig_date).dt_date_time);
-                    if message_time != 0 && message_time > time() {
-                        message_time = time()
-                    }
+        let mut field: *mut mailimf_field =
+            mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
+        if !field.is_null() && !(*field).fld_data.fld_from.is_null() {
+            from = mailimf_find_first_addr((*(*field).fld_data.fld_from).frm_mb_list)
+        }
+        field = mailimf_find_field(imffields, MAILIMF_FIELD_ORIG_DATE as libc::c_int);
+        if !field.is_null() && !(*field).fld_data.fld_orig_date.is_null() {
+            let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
+            if !orig_date.is_null() {
+                message_time = dc_timestamp_from_date((*orig_date).dt_date_time);
+                if message_time != 0 && message_time > time() {
+                    message_time = time()
                 }
             }
+        }
         let mut peerstate = None;
         let autocryptheader = Aheader::from_imffields(from, imffields);
         if message_time > 0 && !from.is_null() {
