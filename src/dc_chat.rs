@@ -1307,7 +1307,9 @@ pub unsafe fn dc_get_next_media(
         }
     }
 
-    dc_array_unref(list);
+    if !list.is_null() {
+        dc_array_unref(list);
+    }
     dc_msg_unref(msg);
     ret_msg_id
 }
