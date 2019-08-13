@@ -15,15 +15,13 @@ use crate::x::*;
 
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
+        assert!(
+            $progress >= 0 && $progress <= 1000,
+            "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
+        );
         $context.call_cb(
             Event::CONFIGURE_PROGRESS,
-            (if $progress < 0 {
-                0
-            } else if $progress > 1000 {
-                1000
-            } else {
-                $progress
-            }) as uintptr_t,
+            $progress as uintptr_t,
             0 as uintptr_t,
         );
     };
