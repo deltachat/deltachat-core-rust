@@ -351,18 +351,15 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
                 if ok_to_continue1 {
                     /* send message */
                     let body = std::slice::from_raw_parts(buf as *const u8, buf_bytes).to_vec();
-                    if 0 == context
-                        .smtp
-                        .lock()
-                        .unwrap()
-                        .send(context, recipients_list, body)
-                    {
-                        context.smtp.lock().unwrap().disconnect();
-                        dc_job_try_again_later(
-                            job,
-                            -1i32,
-                            (*&mut context.smtp.clone().lock().unwrap()).error,
-                        );
+
+                    // hold the smtp lock during sending of a job and
+                    // its ok/error response processing. Note that if a message
+                    // was sent we need to mark it in the database as we
+                    // otherwise might send it twice.
+                    let mut sock = context.smtp.lock().unwrap();
+                    if 0 == sock.send(context, recipients_list, body) {
+                        sock.disconnect();
+                        dc_job_try_again_later(job, -1i32, sock.error);
                     } else {
                         dc_delete_file(context, filename_s);
                         if 0 != job.foreign_id {
