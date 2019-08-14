@@ -1171,7 +1171,7 @@ pub unsafe extern "C" fn dc_array_search_id(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const libc::size_t {
+pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const u32 {
     assert!(!array.is_null());
 
     dc_array::dc_array_get_raw(array)

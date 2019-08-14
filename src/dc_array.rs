@@ -7,7 +7,7 @@ use crate::types::*;
 #[allow(non_camel_case_types)]
 pub enum dc_array_t {
     Locations(Vec<dc_location>),
-    Uint(Vec<uintptr_t>),
+    Uint(Vec<u32>),
 }
 
 impl dc_array_t {
@@ -26,7 +26,7 @@ impl dc_array_t {
 
     pub fn add_id(&mut self, item: uint32_t) {
         if let Self::Uint(array) = self {
-            array.push(item as uintptr_t);
+            array.push(item);
         } else {
             panic!("Attempt to add id to array of other type");
         }
@@ -105,7 +105,7 @@ impl dc_array_t {
         }
     }
 
-    pub fn search_id(&self, needle: uintptr_t) -> Option<usize> {
+    pub fn search_id(&self, needle: u32) -> Option<usize> {
         if let Self::Uint(array) = self {
             for (i, &u) in array.iter().enumerate() {
                 if u == needle {
@@ -129,7 +129,7 @@ impl dc_array_t {
 
 impl From<Vec<u32>> for dc_array_t {
     fn from(array: Vec<u32>) -> Self {
-        dc_array_t::Uint(array.iter().map(|&x| x as uintptr_t).collect())
+        dc_array_t::Uint(array)
     }
 }
 
@@ -235,7 +235,7 @@ pub unsafe fn dc_array_search_id(
 ) -> bool {
     assert!(!array.is_null());
 
-    if let Some(i) = (*array).search_id(needle as uintptr_t) {
+    if let Some(i) = (*array).search_id(needle) {
         if !ret_index.is_null() {
             *ret_index = i
         }
@@ -245,7 +245,7 @@ pub unsafe fn dc_array_search_id(
     }
 }
 
-pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
+pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const u32 {
     assert!(!array.is_null());
 
     if let dc_array_t::Uint(v) = &*array {
