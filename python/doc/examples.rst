@@ -22,7 +22,7 @@ For example you can type ``python`` and then::
     # create a contact and send a message
     contact = ac.create_contact("someother@email.address")
     chat = ac.create_chat_by_contact(contact)
-    chat.send_text_message("hi from the python interpreter command line")
+    chat.send_text("hi from the python interpreter command line")
 
 Checkout our :doc:`api` for the various high-level things you can do
 to send/receive messages, create contacts and chats.
