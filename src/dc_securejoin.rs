@@ -234,12 +234,9 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
     bob.expects = 0;
     if bob.status == 1 {
         if 0 != join_vg {
-            ret_chat_id = dc_get_chat_id_by_grpid(
-                context,
-                (*qr_scan).text2,
-                0 as *mut libc::c_int,
-                0 as *mut libc::c_int,
-            ) as libc::c_int
+            ret_chat_id =
+                dc_get_chat_id_by_grpid(context, (*qr_scan).text2, None, 0 as *mut libc::c_int)
+                    as libc::c_int
         } else {
             ret_chat_id = contact_chat_id as libc::c_int
         }
@@ -346,7 +343,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut own_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
-    let mut contact_chat_id_blocked: libc::c_int = 0i32;
+    let mut contact_chat_id_blocked = Blocked::Not;
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_int = 0i32;
 
@@ -364,11 +361,11 @@ pub unsafe fn dc_handle_securejoin_handshake(
             dc_create_or_lookup_nchat_by_contact_id(
                 context,
                 contact_id,
-                0i32,
+                Blocked::Not,
                 &mut contact_chat_id,
-                &mut contact_chat_id_blocked,
+                Some(&mut contact_chat_id_blocked),
             );
-            if 0 != contact_chat_id_blocked {
+            if Blocked::Not != contact_chat_id_blocked {
                 dc_unblock_chat(context, contact_chat_id);
             }
             ret = 0x2i32;
@@ -583,7 +580,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             let group_chat_id: uint32_t = dc_get_chat_id_by_grpid(
                                 context,
                                 grpid,
-                                0 as *mut libc::c_int,
+                                None,
                                 0 as *mut libc::c_int,
                             );
                             if group_chat_id == 0i32 as libc::c_uint {
@@ -653,12 +650,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         let mut vg_expect_encrypted: libc::c_int = 1i32;
                         if 0 != join_vg {
                             let mut is_verified_group: libc::c_int = 0i32;
-                            dc_get_chat_id_by_grpid(
-                                context,
-                                grpid,
-                                0 as *mut libc::c_int,
-                                &mut is_verified_group,
-                            );
+                            dc_get_chat_id_by_grpid(context, grpid, None, &mut is_verified_group);
                             if 0 == is_verified_group {
                                 vg_expect_encrypted = 0i32
                             }
@@ -938,9 +930,9 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
             dc_create_or_lookup_nchat_by_contact_id(
                 context,
                 contact_id as u32,
-                2,
+                Blocked::Deaddrop,
                 &mut contact_chat_id,
-                0 as *mut libc::c_int,
+                None,
             );
             let peeraddr: &str = match peerstate.addr {
                 Some(ref addr) => &addr,

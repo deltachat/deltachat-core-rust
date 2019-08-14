@@ -1276,7 +1276,7 @@ pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat_t) -> u32 {
 pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
 
-    dc_chat::dc_chat_get_type(chat)
+    dc_chat::dc_chat_get_type(chat) as libc::c_int
 }
 
 #[no_mangle]
@@ -1311,7 +1311,7 @@ pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
 pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
 
-    dc_chat::dc_chat_get_archived(chat)
+    dc_chat::dc_chat_get_archived(chat) as libc::c_int
 }
 
 #[no_mangle]
@@ -1339,7 +1339,7 @@ pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_in
 pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
 
-    dc_chat::dc_chat_is_sending_locations(chat)
+    dc_chat::dc_chat_is_sending_locations(chat) as libc::c_int
 }
 
 // dc_msg_t

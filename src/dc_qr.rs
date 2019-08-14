@@ -1,5 +1,6 @@
 use percent_encoding::percent_decode_str;
 
+use crate::constants::Blocked;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_chat::*;
@@ -233,9 +234,9 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                         dc_create_or_lookup_nchat_by_contact_id(
                             context,
                             (*qr_parsed).id,
-                            2i32,
+                            Blocked::Deaddrop,
                             &mut chat_id,
-                            0 as *mut libc::c_int,
+                            None,
                         );
                         device_msg = dc_mprintf(
                             b"%s verified.\x00" as *const u8 as *const libc::c_char,

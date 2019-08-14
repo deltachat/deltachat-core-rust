@@ -350,13 +350,7 @@ pub unsafe fn dc_cmdline_skip_auth() {
 }
 
 unsafe fn chat_prefix(chat: *const Chat) -> &'static str {
-    if (*chat).type_0 == 120 {
-        "Group"
-    } else if (*chat).type_0 == 130 {
-        "VerifiedGroup"
-    } else {
-        "Single"
-    }
+    (*chat).typ.into()
 }
 
 pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
@@ -628,7 +622,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     free(temp_subtitle as *mut libc::c_void);
                     free(temp_name as *mut libc::c_void);
                     let lot = chatlist.get_summary(i, chat);
-                    let statestr = if 0 != dc_chat_get_archived(chat) {
+                    let statestr = if dc_chat_get_archived(chat) {
                         " [Archived]"
                     } else {
                         match dc_lot_get_state(lot) {
@@ -651,7 +645,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         to_string(text2),
                         statestr,
                         &timestr,
-                        if 0 != dc_chat_is_sending_locations(chat) {
+                        if dc_chat_is_sending_locations(chat) {
                             "📍"
                         } else {
                             ""
@@ -699,7 +693,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 dc_chat_get_id(sel_chat),
                 as_str(temp_name),
                 as_str(temp2),
-                if 0 != dc_chat_is_sending_locations(sel_chat) {
+                if dc_chat_is_sending_locations(sel_chat) {
                     "📍"
                 } else {
                     ""

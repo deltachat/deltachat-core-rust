@@ -20,7 +20,6 @@ pub fn to_sql_derive(input: TokenStream) -> TokenStream {
                 let num = *self as i64;
                 let value = rusqlite::types::Value::Integer(num);
                 let output = rusqlite::types::ToSqlOutput::Owned(value);
-
                 std::result::Result::Ok(output)
             }
         }

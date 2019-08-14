@@ -518,7 +518,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             let msg: *mut dc_msg_t = (*factory).msg;
             let mut meta_part: *mut mailmime = 0 as *mut mailmime;
             let mut placeholdertext: *mut libc::c_char = 0 as *mut libc::c_char;
-            if (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int {
+            if (*chat).typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -549,9 +549,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
 
             /* build header etc. */
             let command = (*msg).param.get_int(Param::Cmd).unwrap_or_default();
-            if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
-                || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
-            {
+            if (*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -1091,9 +1089,7 @@ unsafe fn get_subject(
     };
     if (*msg).param.get_int(Param::Cmd).unwrap_or_default() == 6 {
         ret = context.stock_str(StockMessage::AcSetupMsgSubject).strdup()
-    } else if (*chat).type_0 == DC_CHAT_TYPE_GROUP as libc::c_int
-        || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP as libc::c_int
-    {
+    } else if (*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup {
         ret = dc_mprintf(
             b"Chat: %s: %s%s\x00" as *const u8 as *const libc::c_char,
             (*chat).name,

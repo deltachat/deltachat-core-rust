@@ -280,8 +280,7 @@ impl<'a> Chatlist<'a> {
             dc_msg_load_from_db(lastmsg, self.context, lastmsg_id);
 
             if (*lastmsg).from_id != 1 as libc::c_uint
-                && ((*chat).type_0 == DC_CHAT_TYPE_GROUP
-                    || (*chat).type_0 == DC_CHAT_TYPE_VERIFIED_GROUP)
+                && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
             {
                 lastcontact = Contact::load_from_db(self.context, (*lastmsg).from_id).ok();
             }

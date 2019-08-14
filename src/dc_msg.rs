@@ -762,7 +762,7 @@ pub unsafe fn dc_msg_get_summary<'a>(
         }
         if ok_to_continue {
             let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
-                && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
+                && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
             {
                 Contact::get_by_id((*chat).context, (*msg).from_id).ok()
             } else {
@@ -1393,7 +1393,7 @@ mod tests {
             assert!(res.is_ok());
 
             let chat = dc_create_chat_by_contact_id(ctx, contact);
-            assert!(chat != 0);
+            assert!(chat != 0, "failed to create chat");
 
             let msg = dc_msg_new(ctx, Viewtype::Text);
             assert!(!msg.is_null());

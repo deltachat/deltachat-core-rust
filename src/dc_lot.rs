@@ -1,3 +1,4 @@
+use crate::constants::Chattype;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_chat::*;
@@ -144,7 +145,7 @@ pub unsafe fn dc_lot_fill(
     } else if chat.is_null() {
         (*lot).text1 = 0 as *mut libc::c_char;
         (*lot).text1_meaning = 0i32
-    } else if (*chat).type_0 == 120i32 || (*chat).type_0 == 130i32 {
+    } else if (*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup {
         if 0 != dc_msg_is_info(msg) || contact.is_none() {
             (*lot).text1 = 0 as *mut libc::c_char;
             (*lot).text1_meaning = 0i32
