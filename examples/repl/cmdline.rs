@@ -1126,20 +1126,10 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "fileinfo" => {
             ensure!(!arg1.is_empty(), "Argument <file> missing.");
-            let mut buf = 0 as *mut libc::c_uchar;
-            let mut buf_bytes = 0;
-            let mut w = 0;
-            let mut h = 0;
 
-            if 0 != dc_read_file(
-                context,
-                arg1_c,
-                &mut buf as *mut *mut libc::c_uchar as *mut *mut libc::c_void,
-                &mut buf_bytes,
-            ) {
-                dc_get_filemeta(buf as *const libc::c_void, buf_bytes, &mut w, &mut h);
-                println!("width={}, height={}", w, h,);
-                free(buf as *mut libc::c_void);
+            if let Some(buf) = dc_read_file_safe(context, &arg1) {
+                let (width, height) = dc_get_filemeta(&buf)?;
+                println!("width={}, height={}", width, height);
             } else {
                 bail!("Command failed.");
             }

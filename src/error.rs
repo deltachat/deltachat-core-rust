@@ -18,6 +18,8 @@ pub enum Error {
     Io(std::io::Error),
     #[fail(display = "{:?}", _0)]
     Message(String),
+    #[fail(display = "{:?}", _0)]
+    Image(image_meta::ImageError),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -43,6 +45,12 @@ impl From<r2d2::Error> for Error {
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Error {
         Error::Io(err)
+    }
+}
+
+impl From<image_meta::ImageError> for Error {
+    fn from(err: image_meta::ImageError) -> Error {
+        Error::Image(err)
     }
 }
 
