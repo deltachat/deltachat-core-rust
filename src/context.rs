@@ -1,9 +1,9 @@
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
+use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::dc_array::*;
-use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_jobthread::*;
 use crate::dc_loginparam::*;

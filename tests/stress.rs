@@ -6,11 +6,11 @@ use std::ffi::CString;
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
 
+use deltachat::chat::*;
 use deltachat::config;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_lot::*;

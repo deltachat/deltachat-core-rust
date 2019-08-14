@@ -1,7 +1,7 @@
+use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_chat::*;
 use crate::dc_lot::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;

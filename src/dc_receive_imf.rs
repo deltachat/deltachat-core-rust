@@ -1,5 +1,6 @@
-use itertools::join;
+use std::ptr;
 
+use itertools::join;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
 use mmime::mailmime::*;
@@ -8,12 +9,11 @@ use mmime::mailmime_types::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 use sha2::{Digest, Sha256};
-use std::ptr;
 
+use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_location::*;
 use crate::dc_mimeparser::*;

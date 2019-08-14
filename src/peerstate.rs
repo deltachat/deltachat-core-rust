@@ -4,9 +4,9 @@ use std::fmt;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
+use crate::chat::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_chat::*;
 use crate::key::*;
 use crate::sql::{self, Sql};
 

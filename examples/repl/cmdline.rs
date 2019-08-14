@@ -1,13 +1,13 @@
 use std::ffi::CString;
 use std::str::FromStr;
 
+use deltachat::chat::*;
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_array::*;
-use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_job::*;

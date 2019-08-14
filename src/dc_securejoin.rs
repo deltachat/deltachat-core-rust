@@ -4,10 +4,10 @@ use mmime::mailimf_types::*;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
+use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_e2ee::*;
 use crate::dc_lot::*;

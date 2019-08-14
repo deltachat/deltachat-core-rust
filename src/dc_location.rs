@@ -3,10 +3,10 @@ use std::ffi::CString;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
+use crate::chat::*;
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::*;
-use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;

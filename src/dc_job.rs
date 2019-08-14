@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use rand::{thread_rng, Rng};
 
+use crate::chat::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_imex::*;
 use crate::dc_jobthread::*;

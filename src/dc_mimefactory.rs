@@ -10,10 +10,10 @@ use mmime::mailmime_write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
+use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{dc_get_version_str, Context};
-use crate::dc_chat::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
 use crate::dc_msg::*;

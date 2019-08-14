@@ -1,9 +1,9 @@
 use percent_encoding::percent_decode_str;
 
+use crate::chat::*;
 use crate::constants::Blocked;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_chat::*;
 use crate::dc_lot::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;

@@ -1,10 +1,10 @@
 use std::ffi::CString;
 use std::path::Path;
 
+use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
