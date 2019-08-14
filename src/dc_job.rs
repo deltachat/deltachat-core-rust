@@ -1036,43 +1036,25 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
     } else {
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
         if msgtype_has_file((*mimefactory.msg).type_0) {
-            let pathNfilename = (*mimefactory.msg)
-                .param
-                .get(Param::File)
-                .unwrap_or_default()
-                .strdup();
-            if strlen(pathNfilename) > 0 {
+            if let Some(pathNfilename) = (*mimefactory.msg).param.get(Param::File) {
                 if ((*mimefactory.msg).type_0 == Viewtype::Image
                     || (*mimefactory.msg).type_0 == Viewtype::Gif)
                     && !(*mimefactory.msg).param.exists(Param::Width)
                 {
-                    let mut buf = 0 as *mut libc::c_uchar;
-                    let mut buf_bytes: size_t = 0;
-                    let mut w = 0;
-                    let mut h = 0;
                     (*mimefactory.msg).param.set_int(Param::Width, 0);
                     (*mimefactory.msg).param.set_int(Param::Height, 0);
-                    if 0 != dc_read_file(
-                        context,
-                        pathNfilename,
-                        &mut buf as *mut *mut libc::c_uchar as *mut *mut libc::c_void,
-                        &mut buf_bytes,
-                    ) {
-                        if 0 != dc_get_filemeta(
-                            buf as *const libc::c_void,
-                            buf_bytes,
-                            &mut w,
-                            &mut h,
-                        ) {
-                            (*mimefactory.msg).param.set_int(Param::Width, w as i32);
-                            (*mimefactory.msg).param.set_int(Param::Height, h as i32);
+
+                    if let Some(buf) = dc_read_file_safe(context, pathNfilename) {
+                        if let Ok((width, height)) = dc_get_filemeta(&buf) {
+                            (*mimefactory.msg).param.set_int(Param::Width, width as i32);
+                            (*mimefactory.msg)
+                                .param
+                                .set_int(Param::Height, height as i32);
                         }
                     }
-                    free(buf as *mut libc::c_void);
                     dc_msg_save_param_to_disk(mimefactory.msg);
                 }
             }
-            free(pathNfilename as *mut libc::c_void);
         }
         /* create message */
         if 0 == dc_mimefactory_render(&mut mimefactory) {
