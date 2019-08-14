@@ -37,16 +37,3 @@ Message
 .. autoclass:: deltachat.message.Message
     :members:
 
-MessageType
-------------
-
-.. autoclass:: deltachat.message.MessageType
-    :members:
-
-MessageState
-------------
-
-.. autoclass:: deltachat.message.MessageState
-    :members:
-
-
