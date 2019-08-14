@@ -270,36 +270,23 @@ pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
 }
 
 pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
-    let mut ret = 0 as *mut libc::c_char;
+    if msg.is_null() {
+        return dc_strdup(0 as *const libc::c_char);
+    }
 
-    if !msg.is_null() {
-        match (*msg).param.get(Param::MimeType) {
-            Some(m) => {
-                ret = m.strdup();
-            }
-            None => {
-                if let Some(file) = (*msg).param.get(Param::File) {
-                    let file_c = CString::yolo(file);
-                    dc_msg_guess_msgtype_from_suffix(file_c.as_ptr(), 0 as *mut Viewtype, &mut ret);
-                    if ret.is_null() {
-                        ret = dc_strdup(
-                            b"application/octet-stream\x00" as *const u8 as *const libc::c_char,
-                        )
-                    }
-                }
-            }
+    if let Some(m) = (*msg).param.get(Param::MimeType) {
+        return m.strdup();
+    } else if let Some(file) = (*msg).param.get(Param::File) {
+        if let Some((_, mime)) = dc_msg_guess_msgtype_from_suffix(Path::new(file)) {
+            return mime.strdup();
         }
     }
 
-    if !ret.is_null() {
-        return ret;
-    }
-
-    dc_strdup(0 as *const libc::c_char)
+    "application/octet-stream".strdup()
 }
 
 #[allow(non_snake_case)]
-pub unsafe fn dc_msg_guess_msgtype_from_suffix(
+pub unsafe fn dc_msg_guess_msgtype_from_suffix0(
     pathNfilename: *const libc::c_char,
     mut ret_msgtype: *mut Viewtype,
     mut ret_mime: *mut *mut libc::c_char,
@@ -353,7 +340,7 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
     free(dummy_buf as *mut libc::c_void);
 }
 
-pub fn dc_msg_guess_msgtype_from_suffix2(path: &Path) -> Option<(Viewtype, &str)> {
+pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
     let known = hashmap! {
         "mp3"   => (Viewtype::Audio, "audio/mpeg"),
         "aac"   => (Viewtype::Audio, "audio/aac"),
