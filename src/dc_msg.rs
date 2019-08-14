@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::path::Path;
 
 use crate::constants::*;
 use crate::contact::*;
@@ -350,6 +351,24 @@ pub unsafe fn dc_msg_guess_msgtype_from_suffix(
     }
     free(suffix as *mut libc::c_void);
     free(dummy_buf as *mut libc::c_void);
+}
+
+pub fn dc_msg_guess_msgtype_from_suffix2(path: &Path) -> Option<(Viewtype, &str)> {
+    let known = hashmap! {
+        "mp3"   => (Viewtype::Audio, "audio/mpeg"),
+        "aac"   => (Viewtype::Audio, "audio/aac"),
+        "mp4"   => (Viewtype::Video, "video/mp4"),
+        "jpg"   => (Viewtype::Image, "image/jpeg"),
+        "jpeg"  => (Viewtype::Image, "image/jpeg"),
+        "png"   => (Viewtype::Image, "image/png"),
+        "webp"  => (Viewtype::Image, "image/webp"),
+        "gif"   => (Viewtype::Gif,   "image/gif"),
+        "vcf"   => (Viewtype::File,  "text/vcard"),
+        "vcard" => (Viewtype::File,  "text/vcard"),
+    };
+    let extension = path.extension()?.to_str()?;
+
+    known.get(extension).map(|x| *x)
 }
 
 pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
