@@ -442,7 +442,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             grpid = dc_strdup((*scan).text2)
                         }
                     }
-                    if 0 == encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
+                    if !encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
@@ -518,7 +518,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         b"Fingerprint not provided.\x00" as *const u8 as *const libc::c_char,
                     );
                     current_block = 4378276786830486580;
-                } else if 0 == encrypted_and_signed(mimeparser, fingerprint) {
+                } else if !encrypted_and_signed(mimeparser, fingerprint) {
                     could_not_establish_secure_connection(
                         context,
                         contact_chat_id,
@@ -664,7 +664,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             }
                         }
                         if 0 != vg_expect_encrypted {
-                            if 0 == encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
+                            if !encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
                                 could_not_establish_secure_connection(
                                     context,
                                     contact_chat_id,
@@ -883,22 +883,21 @@ unsafe fn mark_peer_as_verified(
  * Tools: Misc.
  ******************************************************************************/
 
-// TODO should return bool
 unsafe fn encrypted_and_signed(
     mimeparser: &dc_mimeparser_t,
     expected_fingerprint: *const libc::c_char,
-) -> libc::c_int {
+) -> bool {
     if 0 == mimeparser.e2ee_helper.encrypted {
         warn!(mimeparser.context, 0, "Message not encrypted.",);
-        return 0i32;
+        return false;
     }
     if mimeparser.e2ee_helper.signatures.len() <= 0 {
         warn!(mimeparser.context, 0, "Message not signed.",);
-        return 0i32;
+        return false;
     }
     if expected_fingerprint.is_null() {
         warn!(mimeparser.context, 0, "Fingerprint for comparison missing.",);
-        return 0i32;
+        return false;
     }
     if !mimeparser
         .e2ee_helper
@@ -911,10 +910,10 @@ unsafe fn encrypted_and_signed(
             "Message does not match expected fingerprint {}.",
             as_str(expected_fingerprint),
         );
-        return 0;
+        return false;
     }
 
-    1
+    true
 }
 
 pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) {
