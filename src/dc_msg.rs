@@ -14,6 +14,7 @@ use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
+use std::path::Path;
 use std::ptr;
 
 /* * the structure behind dc_msg_t */
@@ -836,7 +837,7 @@ pub unsafe fn dc_msg_get_summarytext(
 
     dc_msg_get_summarytext_by_raw(
         (*msg).type_0,
-        &(*msg).text,
+        (*msg).text.as_ref(),
         &mut (*msg).param,
         approx_characters,
         (*msg).context,
@@ -846,14 +847,14 @@ pub unsafe fn dc_msg_get_summarytext(
 
 /// Returns a summary test.
 pub fn dc_msg_get_summarytext_by_raw(
-    type_0: Viewtype,
-    text: &Option<String>,
+    viewtype: Viewtype,
+    text: Option<impl AsRef<str>>,
     param: &mut Params,
     approx_characters: usize,
     context: &Context,
 ) -> String {
     let mut append_text = true;
-    let prefix = match type_0 {
+    let prefix = match viewtype {
         Viewtype::Image => context.stock_str(StockMessage::Image).into_owned(),
         Viewtype::Gif => context.stock_str(StockMessage::Gif).into_owned(),
         Viewtype::Video => context.stock_str(StockMessage::Video).into_owned(),
@@ -865,16 +866,23 @@ pub fn dc_msg_get_summarytext_by_raw(
                     .stock_str(StockMessage::AcSetupMsgSubject)
                     .to_string()
             } else {
-                let value = unsafe {
-                    let base_fname = CString::yolo(param.get(Param::File).unwrap_or("ErrFilename"));
-                    to_string(dc_get_filename(base_fname.as_ptr()))
-                };
-                let label = context.stock_str(if type_0 == Viewtype::Audio {
+                let file_name: String = if let Some(file_path) = param.get(Param::File) {
+                    if let Some(file_name) = Path::new(file_path).file_name() {
+                        Some(file_name.to_string_lossy().into_owned())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+                .unwrap_or("ErrFileName".to_string());
+
+                let label = context.stock_str(if viewtype == Viewtype::Audio {
                     StockMessage::Audio
                 } else {
                     StockMessage::File
                 });
-                format!("{} – {}", label, value)
+                format!("{} – {}", label, file_name)
             }
         }
         _ => {
@@ -886,12 +894,12 @@ pub fn dc_msg_get_summarytext_by_raw(
         }
     };
     let ret = if append_text && text.is_some() {
-        let text = text.as_ref().unwrap();
+        let text = text.unwrap();
         if !prefix.is_empty() {
-            let tmp = format!("{} – {}", prefix, text);
+            let tmp = format!("{} – {}", prefix, text.as_ref());
             dc_truncate(&tmp, approx_characters, true).to_string()
         } else {
-            dc_truncate(&text, approx_characters, true).to_string()
+            dc_truncate(text.as_ref(), approx_characters, true).to_string()
         }
     } else {
         prefix

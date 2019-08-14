@@ -166,9 +166,14 @@ pub unsafe fn dc_lot_fill(
         }
     }
 
-    (*lot).text2 =
-        dc_msg_get_summarytext_by_raw((*msg).type_0, &(*msg).text, &mut (*msg).param, 160, context)
-            .strdup();
+    (*lot).text2 = dc_msg_get_summarytext_by_raw(
+        (*msg).type_0,
+        (*msg).text.as_ref(),
+        &mut (*msg).param,
+        160,
+        context,
+    )
+    .strdup();
 
     (*lot).timestamp = dc_msg_get_timestamp(msg);
     (*lot).state = (*msg).state;
