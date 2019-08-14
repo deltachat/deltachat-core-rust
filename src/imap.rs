@@ -204,8 +204,8 @@ impl Session {
 
     pub fn create<S: AsRef<str>>(&mut self, mailbox_name: S) -> imap::error::Result<()> {
         match self {
-            Session::Secure(i) => i.subscribe(mailbox_name),
-            Session::Insecure(i) => i.subscribe(mailbox_name),
+            Session::Secure(i) => i.create(mailbox_name),
+            Session::Insecure(i) => i.create(mailbox_name),
         }
     }
 
@@ -1564,20 +1564,23 @@ impl Imap {
                         info!(context, 0, "MVBOX-folder created.",);
                     }
                     Err(err) => {
-                        eprintln!("create error: {:?}", err);
                         warn!(
                             context,
-                            0, "Cannot create MVBOX-folder, using trying INBOX subfolder."
+                            0,
+                            "Cannot create MVBOX-folder, using trying INBOX subfolder. ({})",
+                            err
                         );
 
                         match session.create(&fallback_folder) {
                             Ok(_) => {
                                 mvbox_folder = Some(fallback_folder);
-                                info!(context, 0, "MVBOX-folder created as INBOX subfolder.",);
+                                info!(
+                                    context,
+                                    0, "MVBOX-folder created as INBOX subfolder. ({})", err
+                                );
                             }
                             Err(err) => {
-                                eprintln!("create error: {:?}", err);
-                                warn!(context, 0, "Cannot create MVBOX-folder.",);
+                                warn!(context, 0, "Cannot create MVBOX-folder. ({})", err);
                             }
                         }
                     }
