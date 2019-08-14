@@ -249,7 +249,7 @@ impl<'a> Chatlist<'a> {
     /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
     /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
     //    0 if not applicable.
-    pub unsafe fn get_summary(&self, index: usize, mut chat: *mut Chat<'a>) -> *mut dc_lot_t {
+    pub unsafe fn get_summary(&self, index: usize, chat: Option<&Chat<'a>>) -> *mut dc_lot_t {
         // The summary is created by the chat, not by the last message.
         // This is because we may want to display drafts here or stuff as
         // "is typing".
@@ -261,26 +261,27 @@ impl<'a> Chatlist<'a> {
             return ret;
         }
 
-        let lastmsg_id = self.ids[index].1;
-        let mut lastcontact = None;
-
-        if chat.is_null() {
-            chat = dc_chat_new(self.context);
-            let chat_to_delete = chat;
-            if !dc_chat_load_from_db(chat, self.ids[index].0) {
-                (*ret).text2 = "ErrCannotReadChat".strdup();
-                dc_chat_unref(chat_to_delete);
-
+        let chat_loaded: Chat;
+        let chat = if let Some(chat) = chat {
+            chat
+        } else {
+            if let Ok(chat) = dc_get_chat(self.context, self.ids[index].0) {
+                chat_loaded = chat;
+                &chat_loaded
+            } else {
                 return ret;
             }
-        }
+        };
+
+        let lastmsg_id = self.ids[index].1;
+        let mut lastcontact = None;
 
         let lastmsg = if 0 != lastmsg_id {
             let lastmsg = dc_msg_new_untyped(self.context);
             dc_msg_load_from_db(lastmsg, self.context, lastmsg_id);
 
             if (*lastmsg).from_id != 1 as libc::c_uint
-                && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
+                && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
             {
                 lastcontact = Contact::load_from_db(self.context, (*lastmsg).from_id).ok();
             }
@@ -289,7 +290,7 @@ impl<'a> Chatlist<'a> {
             std::ptr::null_mut()
         };
 
-        if (*chat).id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
+        if chat.id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
             (*ret).text2 = dc_strdup(ptr::null())
         } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_UNDEFINED as u32 {
             (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();

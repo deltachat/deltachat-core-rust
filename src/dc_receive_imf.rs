@@ -1375,7 +1375,6 @@ unsafe fn create_or_lookup_group(
             }
         }
         if 0 != ok {
-            let chat = dc_chat_new(context);
             info!(
                 context,
                 0,
@@ -1386,16 +1385,17 @@ unsafe fn create_or_lookup_group(
                     to_string(grpimage)
                 },
             );
-            dc_chat_load_from_db(chat, chat_id);
-            if grpimage.is_null() {
-                (*chat).param.remove(Param::ProfileImage);
-            } else {
-                (*chat).param.set(Param::ProfileImage, as_str(grpimage));
+            if let Ok(mut chat) = dc_chat_load_from_db(context, chat_id) {
+                if grpimage.is_null() {
+                    chat.param.remove(Param::ProfileImage);
+                } else {
+                    chat.param.set(Param::ProfileImage, as_str(grpimage));
+                }
+                dc_chat_update_param(&mut chat);
+                send_EVENT_CHAT_MODIFIED = 1;
             }
-            dc_chat_update_param(chat);
-            dc_chat_unref(chat);
+
             free(grpimage as *mut libc::c_void);
-            send_EVENT_CHAT_MODIFIED = 1
         }
     }
 

@@ -767,15 +767,13 @@ fn test_chat() {
 
         let chat_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
         assert!(chat_id > 9, "chat_id too small {}", chat_id);
-        let chat = dc_chat_new(&context.ctx);
-        assert!(dc_chat_load_from_db(chat, chat_id));
+        let chat = dc_chat_load_from_db(&context.ctx, chat_id).unwrap();
 
         let chat2_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
         assert_eq!(chat2_id, chat_id);
-        let chat2 = dc_chat_new(&context.ctx);
-        assert!(dc_chat_load_from_db(chat2, chat2_id));
+        let chat2 = dc_chat_load_from_db(&context.ctx, chat2_id).unwrap();
 
-        assert_eq!(as_str((*chat2).name), as_str((*chat).name));
+        assert_eq!(as_str(chat2.name), as_str(chat.name));
     }
 }
 

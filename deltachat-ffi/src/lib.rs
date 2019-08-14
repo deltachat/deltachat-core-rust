@@ -570,7 +570,10 @@ pub unsafe extern "C" fn dc_get_chat<'a>(
     assert!(!context.is_null());
     let context = &*context;
 
-    chat::dc_get_chat(context, chat_id)
+    match chat::dc_get_chat(context, chat_id) {
+        Ok(chat) => Box::into_raw(Box::new(chat)),
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -1239,7 +1242,9 @@ pub unsafe extern "C" fn dc_chatlist_get_summary<'a>(
 ) -> *mut dc_lot::dc_lot_t {
     assert!(!chatlist.is_null());
 
+    let chat = if chat.is_null() { None } else { Some(&*chat) };
     let list = &*chatlist;
+
     list.get_summary(index as usize, chat)
 }
 
@@ -1262,12 +1267,13 @@ pub type dc_chat_t<'a> = chat::Chat<'a>;
 pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat_t) {
     assert!(!chat.is_null());
 
-    chat::dc_chat_unref(chat)
+    Box::from_raw(chat);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat_t) -> u32 {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_get_id(chat)
 }
@@ -1275,6 +1281,7 @@ pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat_t) -> u32 {
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_get_type(chat) as libc::c_int
 }
@@ -1282,6 +1289,7 @@ pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_char {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_get_name(chat)
 }
@@ -1289,6 +1297,7 @@ pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc::c_char {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_get_subtitle(chat)
 }
@@ -1296,6 +1305,7 @@ pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut libc::c_char {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_get_profile_image(chat)
 }
@@ -1303,6 +1313,7 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_get_color(chat)
 }
@@ -1310,6 +1321,7 @@ pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_get_archived(chat) as libc::c_int
 }
@@ -1317,6 +1329,7 @@ pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_i
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_is_unpromoted(chat)
 }
@@ -1324,6 +1337,7 @@ pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat_t) -> libc::c_
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_self_talk(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_is_self_talk(chat)
 }
@@ -1331,6 +1345,7 @@ pub unsafe extern "C" fn dc_chat_is_self_talk(chat: *mut dc_chat_t) -> libc::c_i
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_is_verified(chat)
 }
@@ -1338,6 +1353,7 @@ pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_in
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
     chat::dc_chat_is_sending_locations(chat) as libc::c_int
 }
@@ -1500,6 +1516,7 @@ pub unsafe extern "C" fn dc_msg_get_summary<'a>(
     chat: *mut dc_chat_t<'a>,
 ) -> *mut dc_lot::dc_lot_t {
     assert!(!msg.is_null());
+    let chat = if chat.is_null() { None } else { Some(&*chat) };
 
     dc_msg::dc_msg_get_summary(msg, chat)
 }

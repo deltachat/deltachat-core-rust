@@ -745,35 +745,35 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
 
 pub unsafe fn dc_msg_get_summary<'a>(
     msg: *mut dc_msg_t<'a>,
-    mut chat: *const Chat<'a>,
+    chat: Option<&Chat<'a>>,
 ) -> *mut dc_lot_t {
-    let mut ok_to_continue = true;
-    let ret: *mut dc_lot_t = dc_lot_new();
-    let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
+    let ret = dc_lot_new();
 
-    if !msg.is_null() {
-        if chat.is_null() {
-            chat_to_delete = dc_get_chat((*msg).context, (*msg).chat_id);
-            if chat_to_delete.is_null() {
-                ok_to_continue = false;
-            } else {
-                chat = chat_to_delete;
-            }
-        }
-        if ok_to_continue {
-            let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
-                && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
-            {
-                Contact::get_by_id((*chat).context, (*msg).from_id).ok()
-            } else {
-                None
-            };
-
-            dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
-        }
+    if msg.is_null() {
+        return ret;
     }
 
-    dc_chat_unref(chat_to_delete);
+    let chat_loaded: Chat;
+    let chat = if let Some(chat) = chat {
+        chat
+    } else {
+        if let Ok(chat) = dc_get_chat((*msg).context, (*msg).chat_id) {
+            chat_loaded = chat;
+            &chat_loaded
+        } else {
+            return ret;
+        }
+    };
+
+    let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
+        && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
+    {
+        Contact::get_by_id((*chat).context, (*msg).from_id).ok()
+    } else {
+        None
+    };
+
+    dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
 
     ret
 }

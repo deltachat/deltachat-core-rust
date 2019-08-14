@@ -103,7 +103,7 @@ fn main() {
         let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();
 
         for i in 0..chats.len() {
-            let summary = chats.get_summary(0, std::ptr::null_mut());
+            let summary = chats.get_summary(0, None);
             let text1 = dc_lot_get_text1(summary);
             let text2 = dc_lot_get_text2(summary);
 

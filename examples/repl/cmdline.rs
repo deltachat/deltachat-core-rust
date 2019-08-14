@@ -349,16 +349,16 @@ pub unsafe fn dc_cmdline_skip_auth() {
     S_IS_AUTH = 1;
 }
 
-unsafe fn chat_prefix(chat: *const Chat) -> &'static str {
-    (*chat).typ.into()
+fn chat_prefix(chat: &Chat) -> &'static str {
+    chat.typ.into()
 }
 
 pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::Error> {
     let chat_id = *context.cmdline_sel_chat_id.read().unwrap();
     let mut sel_chat = if chat_id > 0 {
-        dc_get_chat(context, chat_id)
+        dc_get_chat(context, chat_id).ok()
     } else {
-        std::ptr::null_mut()
+        None
     };
 
     let mut args = line.splitn(3, ' ');
@@ -606,23 +606,23 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 );
 
                 for i in (0..cnt).rev() {
-                    let chat = dc_get_chat(context, chatlist.get_chat_id(i));
-                    let temp_subtitle = dc_chat_get_subtitle(chat);
-                    let temp_name = dc_chat_get_name(chat);
+                    let chat = dc_get_chat(context, chatlist.get_chat_id(i))?;
+                    let temp_subtitle = dc_chat_get_subtitle(&chat);
+                    let temp_name = dc_chat_get_name(&chat);
                     info!(
                         context,
                         0,
                         "{}#{}: {} [{}] [{} fresh]",
-                        chat_prefix(chat),
-                        dc_chat_get_id(chat) as libc::c_int,
+                        chat_prefix(&chat),
+                        dc_chat_get_id(&chat) as libc::c_int,
                         as_str(temp_name),
                         as_str(temp_subtitle),
-                        dc_get_fresh_msg_cnt(context, dc_chat_get_id(chat)) as libc::c_int,
+                        dc_get_fresh_msg_cnt(context, dc_chat_get_id(&chat)) as libc::c_int,
                     );
                     free(temp_subtitle as *mut libc::c_void);
                     free(temp_name as *mut libc::c_void);
-                    let lot = chatlist.get_summary(i, chat);
-                    let statestr = if dc_chat_get_archived(chat) {
+                    let lot = chatlist.get_summary(i, Some(&chat));
+                    let statestr = if dc_chat_get_archived(&chat) {
                         " [Archived]"
                     } else {
                         match dc_lot_get_state(lot) {
@@ -645,7 +645,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         to_string(text2),
                         statestr,
                         &timestr,
-                        if dc_chat_is_sending_locations(chat) {
+                        if dc_chat_is_sending_locations(&chat) {
                             "📍"
                         } else {
                             ""
@@ -654,7 +654,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     free(text1 as *mut libc::c_void);
                     free(text2 as *mut libc::c_void);
                     dc_lot_unref(lot);
-                    dc_chat_unref(chat);
                     info!(
                         context, 0,
                         "================================================================================"
@@ -667,20 +666,18 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!("{} chats", cnt);
         }
         "chat" => {
-            if sel_chat.is_null() && arg1.is_empty() {
+            if sel_chat.is_none() && arg1.is_empty() {
                 bail!("Argument [chat-id] is missing.");
-            }
-            if !sel_chat.is_null() && !arg1.is_empty() {
-                dc_chat_unref(sel_chat);
             }
             if !arg1.is_empty() {
                 let chat_id = arg1.parse()?;
                 println!("Selecting chat #{}", chat_id);
-                sel_chat = dc_get_chat(context, chat_id);
+                sel_chat = Some(dc_get_chat(context, chat_id)?);
                 *context.cmdline_sel_chat_id.write().unwrap() = chat_id;
             }
 
-            ensure!(!sel_chat.is_null(), "Failed to select chat");
+            ensure!(sel_chat.is_some(), "Failed to select chat");
+            let sel_chat = sel_chat.as_ref().unwrap();
 
             let msglist = dc_get_chat_msgs(context, dc_chat_get_id(sel_chat), 0x1, 0);
             let temp2 = dc_chat_get_subtitle(sel_chat);
@@ -730,16 +727,10 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "createchatbymsg" => {
             ensure!(!arg1.is_empty(), "Argument <msg-id> missing");
             let msg_id_0: libc::c_int = arg1.parse()?;
-            let chat_id_0: libc::c_int =
-                dc_create_chat_by_msg_id(context, msg_id_0 as uint32_t) as libc::c_int;
+            let chat_id_0 = dc_create_chat_by_msg_id(context, msg_id_0 as uint32_t) as libc::c_int;
             if chat_id_0 != 0 {
-                let chat_0: *mut Chat = dc_get_chat(context, chat_id_0 as uint32_t);
-                println!(
-                    "{}#{} created successfully.",
-                    chat_prefix(chat_0),
-                    chat_id_0,
-                );
-                dc_chat_unref(chat_0);
+                let chat = dc_get_chat(context, chat_id_0 as uint32_t)?;
+                println!("{}#{} created successfully.", chat_prefix(&chat), chat_id_0,);
             } else {
                 bail!("");
             }
@@ -763,13 +754,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "addmember" => {
-            ensure!(!sel_chat.is_null(), "No chat selected");
+            ensure!(sel_chat.is_some(), "No chat selected");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
             let contact_id_0: libc::c_int = arg1.parse()?;
             if 0 != dc_add_contact_to_chat(
                 context,
-                dc_chat_get_id(sel_chat),
+                dc_chat_get_id(sel_chat.as_ref().unwrap()),
                 contact_id_0 as uint32_t,
             ) {
                 println!("Contact added to chat.");
@@ -778,12 +769,12 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "removemember" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             let contact_id_1: libc::c_int = arg1.parse()?;
             if 0 != dc_remove_contact_from_chat(
                 context,
-                dc_chat_get_id(sel_chat),
+                dc_chat_get_id(sel_chat.as_ref().unwrap()),
                 contact_id_1 as uint32_t,
             ) {
                 println!("Contact added to chat.");
@@ -792,21 +783,21 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "groupname" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            if 0 != dc_set_chat_name(context, dc_chat_get_id(sel_chat), arg1_c) {
+            if 0 != dc_set_chat_name(context, dc_chat_get_id(sel_chat.as_ref().unwrap()), arg1_c) {
                 println!("Chat name set");
             } else {
                 bail!("Failed to set chat name");
             }
         }
         "groupimage" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <image> missing.");
 
             if 0 != dc_set_chat_profile_image(
                 context,
-                dc_chat_get_id(sel_chat),
+                dc_chat_get_id(sel_chat.as_ref().unwrap()),
                 if !arg1.is_empty() {
                     arg1_c
                 } else {
@@ -819,21 +810,33 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "chatinfo" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
 
-            let contacts = dc_get_chat_contacts(context, dc_chat_get_id(sel_chat));
+            let contacts =
+                dc_get_chat_contacts(context, dc_chat_get_id(sel_chat.as_ref().unwrap()));
             info!(context, 0, "Memberlist:");
 
             log_contactlist(context, &contacts);
             println!(
                 "{} contacts\nLocation streaming: {}",
                 contacts.len(),
-                dc_is_sending_locations_to_chat(context, dc_chat_get_id(sel_chat)),
+                dc_is_sending_locations_to_chat(
+                    context,
+                    dc_chat_get_id(sel_chat.as_ref().unwrap())
+                ),
             );
         }
         "getlocations" => {
+            ensure!(sel_chat.is_some(), "No chat selected.");
+
             let contact_id = arg1.parse().unwrap_or_default();
-            let locations = dc_get_locations(context, dc_chat_get_id(sel_chat), contact_id, 0, 0);
+            let locations = dc_get_locations(
+                context,
+                dc_chat_get_id(sel_chat.as_ref().unwrap()),
+                contact_id,
+                0,
+                0,
+            );
             let default_marker = "-".to_string();
             for location in &locations {
                 let marker = location.marker.as_ref().unwrap_or(&default_marker);
@@ -857,12 +860,16 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "sendlocations" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No timeout given.");
 
             let seconds = arg1.parse()?;
-            dc_send_locations_to_chat(context, dc_chat_get_id(sel_chat), seconds);
-            println!("Locations will be sent to Chat#{} for {} seconds. Use 'setlocation <lat> <lng>' to play around.", dc_chat_get_id(sel_chat), seconds);
+            dc_send_locations_to_chat(context, dc_chat_get_id(sel_chat.as_ref().unwrap()), seconds);
+            println!(
+                "Locations will be sent to Chat#{} for {} seconds. Use 'setlocation <lat> <lng>' to play around.",
+                dc_chat_get_id(sel_chat.as_ref().unwrap()),
+                seconds
+            );
         }
         "setlocation" => {
             ensure!(
@@ -883,27 +890,31 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             dc_delete_all_locations(context);
         }
         "send" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No message text given.");
 
             let msg = format!("{} {}", arg1, arg2);
 
-            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), msg) {
+            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat.as_ref().unwrap()), msg) {
                 println!("Message sent.");
             } else {
                 bail!("Sending failed.");
             }
         }
         "sendempty" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
-            if 0 != dc_send_text_msg(context, dc_chat_get_id(sel_chat), "".into()) {
+            ensure!(sel_chat.is_some(), "No chat selected.");
+            if 0 != dc_send_text_msg(
+                context,
+                dc_chat_get_id(sel_chat.as_ref().unwrap()),
+                "".into(),
+            ) {
                 println!("Message sent.");
             } else {
                 bail!("Sending failed.");
             }
         }
         "sendimage" | "sendfile" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty() && !arg2.is_empty(), "No file given.");
 
             let msg_0 = dc_msg_new(
@@ -916,13 +927,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             );
             dc_msg_set_file(msg_0, arg1_c, 0 as *const libc::c_char);
             dc_msg_set_text(msg_0, arg2_c);
-            dc_send_msg(context, dc_chat_get_id(sel_chat), msg_0);
+            dc_send_msg(context, dc_chat_get_id(sel_chat.as_ref().unwrap()), msg_0);
             dc_msg_unref(msg_0);
         }
         "listmsgs" => {
             ensure!(!arg1.is_empty(), "Argument <query> missing.");
 
-            let chat = if !sel_chat.is_null() {
+            let chat = if let Some(ref sel_chat) = sel_chat {
                 dc_chat_get_id(sel_chat)
             } else {
                 0 as libc::c_uint
@@ -937,25 +948,29 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "draft" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
 
             if !arg1.is_empty() {
                 let draft_0 = dc_msg_new(context, Viewtype::Text);
                 dc_msg_set_text(draft_0, arg1_c);
-                dc_set_draft(context, dc_chat_get_id(sel_chat), draft_0);
+                dc_set_draft(context, dc_chat_get_id(sel_chat.as_ref().unwrap()), draft_0);
                 dc_msg_unref(draft_0);
                 println!("Draft saved.");
             } else {
-                dc_set_draft(context, dc_chat_get_id(sel_chat), 0 as *mut dc_msg_t);
+                dc_set_draft(
+                    context,
+                    dc_chat_get_id(sel_chat.as_ref().unwrap()),
+                    0 as *mut dc_msg_t,
+                );
                 println!("Draft deleted.");
             }
         }
         "listmedia" => {
-            ensure!(!sel_chat.is_null(), "No chat selected.");
+            ensure!(sel_chat.is_some(), "No chat selected.");
 
             let images = dc_get_chat_media(
                 context,
-                dc_chat_get_id(sel_chat),
+                dc_chat_get_id(sel_chat.as_ref().unwrap()),
                 Viewtype::Image,
                 Viewtype::Gif,
                 Viewtype::Video,
@@ -1076,9 +1091,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     if 0 != i {
                         res += ", ";
                     }
-                    let chat = dc_get_chat(context, chatlist.get_chat_id(i));
-                    res += &format!("{}#{}", chat_prefix(chat), dc_chat_get_id(chat));
-                    dc_chat_unref(chat);
+                    let chat = dc_get_chat(context, chatlist.get_chat_id(i))?;
+                    res += &format!("{}#{}", chat_prefix(&chat), dc_chat_get_id(&chat));
                 }
             }
 
@@ -1122,10 +1136,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "" => (),
         _ => bail!("Unknown command: \"{}\" type ? for help.", arg0),
-    }
-
-    if !sel_chat.is_null() {
-        dc_chat_unref(sel_chat);
     }
 
     free(arg1_c as *mut _);

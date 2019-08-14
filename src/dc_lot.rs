@@ -124,7 +124,7 @@ pub unsafe fn dc_lot_get_timestamp(lot: *const dc_lot_t) -> i64 {
 pub unsafe fn dc_lot_fill(
     mut lot: *mut dc_lot_t,
     msg: *mut dc_msg_t,
-    chat: *const Chat,
+    chat: &Chat,
     contact: Option<&Contact>,
     context: &Context,
 ) {
@@ -142,15 +142,12 @@ pub unsafe fn dc_lot_fill(
             (*lot).text1 = context.stock_str(StockMessage::SelfMsg).strdup();
             (*lot).text1_meaning = 3i32
         }
-    } else if chat.is_null() {
-        (*lot).text1 = 0 as *mut libc::c_char;
-        (*lot).text1_meaning = 0i32
-    } else if (*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup {
+    } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
         if 0 != dc_msg_is_info(msg) || contact.is_none() {
             (*lot).text1 = 0 as *mut libc::c_char;
             (*lot).text1_meaning = 0i32
         } else {
-            if !chat.is_null() && (*chat).id == 1i32 as libc::c_uint {
+            if chat.id == 1 {
                 if let Some(contact) = contact {
                     (*lot).text1 = contact.get_display_name().strdup();
                 } else {
