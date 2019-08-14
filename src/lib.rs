@@ -16,8 +16,6 @@ extern crate rusqlite;
 extern crate strum;
 #[macro_use]
 extern crate strum_macros;
-#[macro_use]
-extern crate maplit;
 
 #[macro_use]
 mod log;
