@@ -13,7 +13,7 @@ use std::ptr;
 
 use crate::constants::*;
 use crate::contact::*;
-use crate::context::Context;
+use crate::context::{dc_get_version_str, Context};
 use crate::dc_chat::*;
 use crate::dc_e2ee::*;
 use crate::dc_location::*;
@@ -478,18 +478,19 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             .map(|s| format!("/{}", s))
             .unwrap_or_default();
         let os_part = CString::new(os_part).expect("String -> CString conversion failed");
-
+        let version = dc_get_version_str();
         mailimf_fields_add(
             imf_fields,
             mailimf_field_new_custom(
                 strdup(b"X-Mailer\x00" as *const u8 as *const libc::c_char),
                 dc_mprintf(
                     b"Delta Chat Core %s%s\x00" as *const u8 as *const libc::c_char,
-                    DC_VERSION_STR as *const u8 as *const libc::c_char,
+                    version,
                     os_part.as_ptr(),
                 ),
             ),
         );
+        free(version.cast());
 
         mailimf_fields_add(
             imf_fields,
@@ -960,12 +961,14 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             message_text = format!("{}\r\n", p2).strdup();
             let human_mime_part: *mut mailmime = build_body_text(message_text);
             mailmime_add_part(multipart, human_mime_part);
+            let version = dc_get_version_str();
             message_text2 =
                 dc_mprintf(b"Reporting-UA: Delta Chat %s\r\nOriginal-Recipient: rfc822;%s\r\nFinal-Recipient: rfc822;%s\r\nOriginal-Message-ID: <%s>\r\nDisposition: manual-action/MDN-sent-automatically; displayed\r\n\x00"
                                as *const u8 as *const libc::c_char,
-                           DC_VERSION_STR as *const u8 as *const libc::c_char,
+                           version,
                            (*factory).from_addr, (*factory).from_addr,
                            (*(*factory).msg).rfc724_mid);
+            free(version.cast());
             let content_type_0: *mut mailmime_content = mailmime_content_new_with_str(
                 b"message/disposition-notification\x00" as *const u8 as *const libc::c_char,
             );

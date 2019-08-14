@@ -437,7 +437,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
          public_key_count={}\n\
          fingerprint={}\n\
          level=awesome\n",
-        as_str(DC_VERSION_STR as *const u8 as *const _),
+        &*DC_VERSION_STR,
         rusqlite::version(),
         sqlite3_threadsafe(),
         // arch
@@ -479,7 +479,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
 }
 
 pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
-    dc_strdup(DC_VERSION_STR as *const u8 as *const libc::c_char)
+    (&*DC_VERSION_STR).strdup()
 }
 
 pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
