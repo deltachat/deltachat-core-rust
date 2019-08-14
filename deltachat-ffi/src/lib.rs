@@ -1065,22 +1065,10 @@ pub unsafe extern "C" fn dc_array_unref(a: *mut dc_array::dc_array_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_add_uint(array: *mut dc_array_t, item: libc::uintptr_t) {
-    assert!(!array.is_null());
-
-    dc_array::dc_array_add_uint(array, item)
-}
-#[no_mangle]
 pub unsafe extern "C" fn dc_array_add_id(array: *mut dc_array_t, item: libc::c_uint) {
     assert!(!array.is_null());
 
     dc_array::dc_array_add_id(array, item)
-}
-#[no_mangle]
-pub unsafe extern "C" fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut libc::c_void) {
-    assert!(!array.is_null());
-
-    dc_array::dc_array_add_ptr(array, item)
 }
 
 #[no_mangle]
@@ -1090,15 +1078,6 @@ pub unsafe extern "C" fn dc_array_get_cnt(array: *const dc_array_t) -> libc::siz
     dc_array::dc_array_get_cnt(array)
 }
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_get_uint(
-    array: *const dc_array_t,
-    index: libc::size_t,
-) -> libc::uintptr_t {
-    assert!(!array.is_null());
-
-    dc_array::dc_array_get_uint(array, index)
-}
-#[no_mangle]
 pub unsafe extern "C" fn dc_array_get_id(
     array: *const dc_array_t,
     index: libc::size_t,
@@ -1106,15 +1085,6 @@ pub unsafe extern "C" fn dc_array_get_id(
     assert!(!array.is_null());
 
     dc_array::dc_array_get_id(array, index)
-}
-#[no_mangle]
-pub unsafe extern "C" fn dc_array_get_ptr(
-    array: *const dc_array_t,
-    index: libc::size_t,
-) -> *mut libc::c_void {
-    assert!(!array.is_null());
-
-    dc_array::dc_array_get_ptr(array, index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_latitude(
