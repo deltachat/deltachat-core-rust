@@ -15,6 +15,7 @@ use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
+use phf::phf_map;
 use std::ptr;
 
 /* * the structure behind dc_msg_t */
@@ -286,7 +287,7 @@ pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
 }
 
 pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
-    let known = hashmap! {
+    static KNOWN: phf::Map<&'static str, (Viewtype, &'static str)> = phf_map! {
         "mp3"   => (Viewtype::Audio, "audio/mpeg"),
         "aac"   => (Viewtype::Audio, "audio/aac"),
         "mp4"   => (Viewtype::Video, "video/mp4"),
@@ -300,7 +301,7 @@ pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
     };
     let extension = path.extension()?.to_str()?;
 
-    known.get(extension).map(|x| *x)
+    KNOWN.get(extension).map(|x| *x)
 }
 
 pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
