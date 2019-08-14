@@ -426,24 +426,17 @@ unsafe fn prepare_msg_common<'a>(
                 Typical conversions:
                 - from FILE to AUDIO/VIDEO/IMAGE
                 - from FILE/IMAGE to GIF */
-                let mut better_type = Viewtype::Unknown;
-                let mut better_mime = std::ptr::null_mut();
 
-                dc_msg_guess_msgtype_from_suffix(pathNfilename, &mut better_type, &mut better_mime);
-                if Viewtype::Unknown != better_type && !better_mime.is_null() {
-                    (*msg).type_0 = better_type;
-                    (*msg).param.set(Param::MimeType, as_str(better_mime));
+                if let Some((type_, mime)) =
+                    dc_msg_guess_msgtype_from_suffix(as_path(pathNfilename))
+                {
+                    (*msg).type_0 = type_;
+                    (*msg).param.set(Param::MimeType, mime);
                 }
-                free(better_mime as *mut libc::c_void);
             } else if !(*msg).param.exists(Param::MimeType) {
-                let mut better_mime = std::ptr::null_mut();
-
-                dc_msg_guess_msgtype_from_suffix(pathNfilename, ptr::null_mut(), &mut better_mime);
-
-                if !better_mime.is_null() {
-                    (*msg).param.set(Param::MimeType, as_str(better_mime));
+                if let Some((_, mime)) = dc_msg_guess_msgtype_from_suffix(as_path(pathNfilename)) {
+                    (*msg).param.set(Param::MimeType, mime);
                 }
-                free(better_mime as *mut _);
             }
             info!(
                 context,
