@@ -1,6 +1,6 @@
 [package]
 name = "deltachat_ffi"
-version = "1.0.0-alpha.3"
+version = "1.0.0-alpha.4"
 description = "Deltachat FFI"
 authors = ["dignifiedquire <dignifiedquire@gmail.com>"]
 edition = "2018"
@@ -25,4 +25,3 @@ default = ["vendored", "nightly", "ringbuf"]
 vendored = ["deltachat/vendored"]
 nightly = ["deltachat/nightly"]
 ringbuf = ["deltachat/ringbuf"]
-

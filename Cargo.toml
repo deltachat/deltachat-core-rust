@@ -1,6 +1,6 @@
 [package]
 name = "deltachat"
-version = "1.0.0-alpha.3"
+version = "1.0.0-alpha.4"
 authors = ["dignifiedquire <dignifiedquire@gmail.com>"]
 edition = "2018"
 license = "MPL"
