@@ -187,13 +187,12 @@ pub fn dc_chat_load_from_db(chat: *mut Chat, chat_id: u32) -> bool {
                             let mut chat_name = "Err [Name not found]".to_owned();
                             if !(*contacts).is_empty() {
                                 if let Ok(contact) =
-                                    Contact::get_by_id((*chat).context, (*contacts).get_id(0))
+                                    Contact::get_by_id((*chat).context, contacts[0])
                                 {
                                     chat_name = contact.get_display_name().to_owned();
                                 }
                             }
                             (*chat).name = (&chat_name).strdup();
-                            dc_array_unref(contacts);
                         }
                     }
 
