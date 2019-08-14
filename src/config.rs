@@ -71,7 +71,7 @@ impl Context {
                 let rel_path = self.sql.get_config(self, key);
                 rel_path.map(|p| dc_get_abs_path_safe(self, &p).to_str().unwrap().to_string())
             }
-            Config::SysVersion => Some(std::str::from_utf8(DC_VERSION_STR).unwrap().into()),
+            Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", 24 * 1024 * 1024 / 4 * 3)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
             _ => self.sql.get_config(self, key),
