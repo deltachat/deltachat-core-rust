@@ -8,8 +8,7 @@ Playing around on the commandline
 ----------------------------------
 
 Once you have :doc:`installed deltachat bindings <install>`
-you can start playing from the python interpreter commandline::
-
+you can start playing from the python interpreter commandline.
 For example you can type ``python`` and then::
 
     # instantiate and configure deltachat account
