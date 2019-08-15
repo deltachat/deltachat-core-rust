@@ -168,7 +168,7 @@ pub unsafe fn dc_trim(buf: *mut libc::c_char) {
 }
 
 /* the result must be free()'d */
-pub unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
+unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
     to_string(in_0).to_lowercase().strdup()
 }
 
