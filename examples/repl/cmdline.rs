@@ -839,36 +839,28 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "getlocations" => {
             let contact_id = arg1.parse().unwrap_or_default();
-            let loc = dc_get_locations(context, dc_chat_get_id(sel_chat), contact_id, 0, 0);
-            let mut j = 0;
-            while j < dc_array_get_cnt(loc) {
-                let timestr_0 = dc_timestamp_to_str(dc_array_get_timestamp(loc, j as size_t));
-                let marker = dc_array_get_marker(loc, j as size_t);
+            let locations = dc_get_locations(context, dc_chat_get_id(sel_chat), contact_id, 0, 0);
+            let default_marker = "-".to_string();
+            for location in &locations {
+                let marker = location.marker.as_ref().unwrap_or(&default_marker);
                 info!(
                     context,
                     0,
                     "Loc#{}: {}: lat={} lng={} acc={} Chat#{} Contact#{} Msg#{} {}",
-                    dc_array_get_id(loc, j as size_t),
-                    &timestr_0,
-                    dc_array_get_latitude(loc, j as size_t),
-                    dc_array_get_longitude(loc, j as size_t),
-                    dc_array_get_accuracy(loc, j as size_t),
-                    dc_array_get_chat_id(loc, j as size_t),
-                    dc_array_get_contact_id(loc, j as size_t),
-                    dc_array_get_msg_id(loc, j as size_t),
-                    if !marker.is_null() {
-                        as_str(marker)
-                    } else {
-                        "-"
-                    },
+                    location.location_id,
+                    dc_timestamp_to_str(location.timestamp),
+                    location.latitude,
+                    location.longitude,
+                    location.accuracy,
+                    location.chat_id,
+                    location.contact_id,
+                    location.msg_id,
+                    marker
                 );
-                free(marker as *mut libc::c_void);
-                j += 1
             }
-            if dc_array_get_cnt(loc) == 0 {
+            if locations.is_empty() {
                 info!(context, 0, "No locations.");
             }
-            dc_array_unref(loc);
         }
         "sendlocations" => {
             ensure!(!sel_chat.is_null(), "No chat selected.");
