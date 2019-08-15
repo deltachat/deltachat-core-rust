@@ -615,12 +615,10 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         "{}#{}: {} [{}] [{} fresh]",
                         chat_prefix(&chat),
                         chat.get_id(),
-                        as_str(temp_name),
-                        as_str(temp_subtitle),
+                        temp_name,
+                        temp_subtitle,
                         chat::get_fresh_msg_cnt(context, chat.get_id()),
                     );
-                    free(temp_subtitle as *mut libc::c_void);
-                    free(temp_name as *mut libc::c_void);
                     let lot = chatlist.get_summary(i, Some(&chat));
                     let statestr = if chat.is_archived() {
                         " [Archived]"
@@ -688,16 +686,14 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 "{}#{}: {} [{}]{}",
                 chat_prefix(sel_chat),
                 sel_chat.get_id(),
-                as_str(temp_name),
-                as_str(temp2),
+                temp_name,
+                temp2,
                 if sel_chat.is_sending_locations() {
                     "📍"
                 } else {
                     ""
                 },
             );
-            free(temp_name as *mut libc::c_void);
-            free(temp2 as *mut libc::c_void);
             if !msglist.is_null() {
                 log_msglist(context, msglist);
                 dc_array_unref(msglist);
@@ -772,7 +768,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         "groupname" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            if 0 != chat::set_chat_name(context, sel_chat.as_ref().unwrap().get_id(), arg1_c) {
+            if 0 != chat::set_chat_name(context, sel_chat.as_ref().unwrap().get_id(), arg1) {
                 println!("Chat name set");
             } else {
                 bail!("Failed to set chat name");

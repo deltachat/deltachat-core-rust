@@ -767,7 +767,7 @@ fn test_chat() {
         assert_eq!(chat2_id, chat_id);
         let chat2 = Chat::load_from_db(&context.ctx, chat2_id).unwrap();
 
-        assert_eq!(as_str(chat2.name), as_str(chat.name));
+        assert_eq!(chat2.name, chat.name);
     }
 }
 

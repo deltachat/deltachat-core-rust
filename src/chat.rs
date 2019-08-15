@@ -26,9 +26,9 @@ pub struct Chat<'a> {
     pub context: &'a Context,
     pub id: u32,
     pub typ: Chattype,
-    pub name: *mut libc::c_char,
+    pub name: String,
     archived: bool,
-    pub grpid: *mut libc::c_char,
+    pub grpid: String,
     blocked: Blocked,
     pub param: Params,
     pub gossiped_timestamp: i64,
@@ -43,29 +43,18 @@ impl<'a> Chat<'a> {
              FROM chats c WHERE c.id=?;",
             params![chat_id as i32],
             |row| {
-                let mut c = Chat {
+                let c = Chat {
                     context,
-                    id: 0,
-                    typ: Chattype::Undefined,
-                    name: std::ptr::null_mut(),
-                    archived: false,
-                    grpid: std::ptr::null_mut(),
-                    blocked: Blocked::Not,
-                    param: Params::new(),
-                    gossiped_timestamp: 0,
-                    is_sending_locations: false,
+                    id: row.get(0)?,
+                    typ: row.get(1)?,
+                    name: row.get::<_, String>(2)?,
+                    grpid: row.get::<_, String>(3)?,
+                    param: row.get::<_, String>(4)?.parse().unwrap_or_default(),
+                    archived: row.get(5)?,
+                    blocked: row.get::<_, Option<_>>(6)?.unwrap_or_default(),
+                    gossiped_timestamp: row.get(7)?,
+                    is_sending_locations: row.get(8)?,
                 };
-
-                c.id = row.get(0)?;
-                c.typ = row.get(1)?;
-                c.name = unsafe { row.get::<_, String>(2)?.strdup() };
-                c.grpid = unsafe { row.get::<_, String>(3)?.strdup() };
-
-                c.param = row.get::<_, String>(4)?.parse().unwrap_or_default();
-                c.archived = row.get(5)?;
-                c.blocked = row.get::<_, Option<_>>(6)?.unwrap_or_default();
-                c.gossiped_timestamp = row.get(7)?;
-                c.is_sending_locations = row.get(8)?;
 
                 Ok(c)
             },
@@ -84,44 +73,33 @@ impl<'a> Chat<'a> {
             },
             Ok(mut chat) => {
                 match chat.id {
-                    1 => unsafe {
-                        free(chat.name.cast());
-                        chat.name = chat.context.stock_str(StockMessage::DeadDrop).strdup();
-                    },
-                    6 => unsafe {
-                        free(chat.name.cast());
+                    1 => {
+                        chat.name = chat.context.stock_str(StockMessage::DeadDrop).into();
+                    }
+                    6 => {
                         let tempname = chat.context.stock_str(StockMessage::ArchivedChats);
                         let cnt = dc_get_archived_cnt(chat.context);
-                        chat.name = format!("{} ({})", tempname, cnt).strdup();
-                    },
-                    5 => unsafe {
-                        free(chat.name.cast());
-                        chat.name = chat.context.stock_str(StockMessage::StarredMsgs).strdup();
-                    },
+                        chat.name = format!("{} ({})", tempname, cnt);
+                    }
+                    5 => {
+                        chat.name = chat.context.stock_str(StockMessage::StarredMsgs).into();
+                    }
                     _ => {
-                        unsafe {
-                            if chat.typ == Chattype::Single {
-                                free(chat.name.cast());
-                                let contacts = get_chat_contacts(chat.context, chat.id);
-                                let mut chat_name = "Err [Name not found]".to_owned();
+                        if chat.typ == Chattype::Single {
+                            let contacts = get_chat_contacts(chat.context, chat.id);
+                            let mut chat_name = "Err [Name not found]".to_owned();
 
-                                if !(*contacts).is_empty() {
-                                    if let Ok(contact) =
-                                        Contact::get_by_id(chat.context, contacts[0])
-                                    {
-                                        chat_name = contact.get_display_name().to_owned();
-                                    }
+                            if !(*contacts).is_empty() {
+                                if let Ok(contact) = Contact::get_by_id(chat.context, contacts[0]) {
+                                    chat_name = contact.get_display_name().to_owned();
                                 }
-
-                                chat.name = (&chat_name).strdup();
                             }
+
+                            chat.name = chat_name;
                         }
 
                         if chat.param.exists(Param::Selftalk) {
-                            unsafe {
-                                free(chat.name as *mut libc::c_void);
-                                chat.name = chat.context.stock_str(StockMessage::SelfMsg).strdup();
-                            }
+                            chat.name = chat.context.stock_str(StockMessage::SelfMsg).into();
                         }
                     }
                 }
@@ -143,29 +121,30 @@ impl<'a> Chat<'a> {
         )
     }
 
-    pub unsafe fn get_id(&self) -> u32 {
+    pub fn get_id(&self) -> u32 {
         self.id
     }
 
-    pub unsafe fn get_type(&self) -> Chattype {
+    pub fn get_type(&self) -> Chattype {
         self.typ
     }
 
-    pub unsafe fn get_name(&self) -> *mut libc::c_char {
-        dc_strdup(self.name)
+    pub fn get_name(&self) -> &str {
+        &self.name
     }
 
-    pub unsafe fn get_subtitle(&self) -> *mut libc::c_char {
-        /* returns either the address or the number of chat members */
+    pub fn get_subtitle(&self) -> String {
+        // returns either the address or the number of chat members
 
-        let mut ret: *mut libc::c_char = std::ptr::null_mut();
         if self.typ == Chattype::Single && self.param.exists(Param::Selftalk) {
-            ret = self
+            return self
                 .context
                 .stock_str(StockMessage::SelfTalkSubTitle)
-                .strdup();
-        } else if self.typ == Chattype::Single {
-            let ret_raw: String = self
+                .into();
+        }
+
+        if self.typ == Chattype::Single {
+            return self
                 .context
                 .sql
                 .query_row_col(
@@ -177,24 +156,22 @@ impl<'a> Chat<'a> {
                     0,
                 )
                 .unwrap_or_else(|| "Err".into());
-            ret = ret_raw.strdup();
-        } else if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
+        }
+
+        if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
             if self.id == 1 {
-                ret = self.context.stock_str(StockMessage::DeadDrop).strdup();
-            } else {
-                let cnt = get_chat_contact_cnt(self.context, self.id);
-                ret = self
-                    .context
-                    .stock_string_repl_int(StockMessage::Member, cnt)
-                    .strdup();
+                return self.context.stock_str(StockMessage::DeadDrop).into();
             }
+            let cnt = get_chat_contact_cnt(self.context, self.id);
+            return self
+                .context
+                .stock_string_repl_int(StockMessage::Member, cnt)
+                .into();
         }
-        if !ret.is_null() {
-            ret
-        } else {
-            dc_strdup(b"Err\x00" as *const u8 as *const libc::c_char)
-        }
+
+        return "Err".into();
     }
+
     unsafe fn get_parent_mime_headers(
         &self,
         parent_rfc724_mid: *mut *mut libc::c_char,
@@ -264,7 +241,7 @@ impl<'a> Chat<'a> {
     }
 
     pub fn get_color(&self) -> u32 {
-        let mut color: u32 = 0i32 as u32;
+        let mut color = 0;
 
         if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(self.context, self.id);
@@ -274,7 +251,7 @@ impl<'a> Chat<'a> {
                 }
             }
         } else {
-            color = unsafe { dc_str_to_color(self.name) } as u32
+            color = dc_str_to_color(&self.name);
         }
 
         color
@@ -338,7 +315,7 @@ impl<'a> Chat<'a> {
                 let from_c = CString::yolo(from.unwrap());
                 new_rfc724_mid = dc_create_outgoing_rfc724_mid(
                     if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
-                        self.grpid
+                        self.grpid.strdup()
                     } else {
                         ptr::null_mut()
                     },
@@ -1663,7 +1640,7 @@ pub unsafe fn remove_contact_from_chat(
                 if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                     (*msg).type_0 = Viewtype::Text;
                     if contact.id == DC_CONTACT_ID_SELF as u32 {
-                        set_group_explicitly_left(context, chat.grpid);
+                        set_group_explicitly_left(context, chat.grpid).unwrap();
                         (*msg).text = Some(context.stock_system_msg(
                             StockMessage::MsgGroupLeft,
                             "",
@@ -1707,41 +1684,38 @@ pub unsafe fn remove_contact_from_chat(
     success
 }
 
-// Should return Result
-fn set_group_explicitly_left(context: &Context, grpid: *const libc::c_char) {
-    if 0 == is_group_explicitly_left(context, grpid) {
+fn set_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Result<(), Error> {
+    if !is_group_explicitly_left(context, grpid.as_ref())? {
         sql::execute(
             context,
             &context.sql,
             "INSERT INTO leftgrps (grpid) VALUES(?);",
-            params![as_str(grpid)],
-        )
-        .ok();
+            params![grpid.as_ref()],
+        )?;
     }
+
+    Ok(())
 }
 
 // TODO should return bool /rtn
-pub fn is_group_explicitly_left(context: &Context, grpid: *const libc::c_char) -> libc::c_int {
-    context
-        .sql
-        .exists(
-            "SELECT id FROM leftgrps WHERE grpid=?;",
-            params![as_str(grpid)],
-        )
-        .unwrap_or_default() as libc::c_int
+pub fn is_group_explicitly_left(context: &Context, grpid: impl AsRef<str>) -> Result<bool, Error> {
+    context.sql.exists(
+        "SELECT id FROM leftgrps WHERE grpid=?;",
+        params![grpid.as_ref()],
+    )
 }
 
 // TODO should return bool /rtn
 pub unsafe fn set_chat_name(
     context: &Context,
     chat_id: u32,
-    new_name: *const libc::c_char,
+    new_name: impl AsRef<str>,
 ) -> libc::c_int {
     /* the function only sets the names of group chats; normal chats get their names from the contacts */
     let mut success: libc::c_int = 0i32;
     let mut msg = dc_msg_new_untyped(context);
 
-    if new_name.is_null() || *new_name.offset(0isize) as libc::c_int == 0 || chat_id <= 9 {
+    if new_name.as_ref().is_empty() || chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
         return 0;
     }
 
@@ -1749,9 +1723,9 @@ pub unsafe fn set_chat_name(
 
     if !(0i32 == real_group_exists(context, chat_id) || chat.is_err()) {
         let chat = chat.unwrap();
-        if strcmp(chat.name, new_name) == 0i32 {
-            success = 1i32
-        } else if !(is_contact_in_chat(context, chat_id, 1i32 as u32) == 1i32) {
+        if &chat.name == new_name.as_ref() {
+            success = 1;
+        } else if !(is_contact_in_chat(context, chat_id, 1) == 1) {
             log_event!(
                 context,
                 Event::ERROR_SELF_NOT_IN_GROUP,
@@ -1765,7 +1739,7 @@ pub unsafe fn set_chat_name(
                 &context.sql,
                 format!(
                     "UPDATE chats SET name='{}' WHERE id={};",
-                    as_str(new_name),
+                    new_name.as_ref(),
                     chat_id as i32
                 ),
                 params![],
@@ -1776,13 +1750,13 @@ pub unsafe fn set_chat_name(
                     (*msg).type_0 = Viewtype::Text;
                     (*msg).text = Some(context.stock_system_msg(
                         StockMessage::MsgGrpName,
-                        as_str(chat.name),
-                        as_str(new_name),
+                        &chat.name,
+                        new_name.as_ref(),
                         DC_CONTACT_ID_SELF as u32,
                     ));
                     (*msg).param.set_int(Param::Cmd, 2);
-                    if !chat.name.is_null() {
-                        (*msg).param.set(Param::Arg, as_str(chat.name));
+                    if !chat.name.is_empty() {
+                        (*msg).param.set(Param::Arg, &chat.name);
                     }
                     (*msg).id = send_msg(context, chat_id, msg).unwrap_or_default();
                     context.call_cb(
@@ -2087,13 +2061,4 @@ pub fn add_device_msg(context: &Context, chat_id: u32, text: *const libc::c_char
         chat_id as uintptr_t,
         msg_id as uintptr_t,
     );
-}
-
-impl<'a> Drop for Chat<'a> {
-    fn drop(&mut self) {
-        unsafe {
-            free(self.name.cast());
-            free(self.grpid.cast());
-        }
-    }
 }

@@ -548,14 +548,15 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
                     imf_fields,
                     mailimf_field_new_custom(
                         strdup(b"Chat-Group-ID\x00" as *const u8 as *const libc::c_char),
-                        dc_strdup(chat.grpid),
+                        chat.grpid.strdup(),
                     ),
                 );
+                let name = CString::yolo(chat.name.as_bytes());
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
                         strdup(b"Chat-Group-Name\x00" as *const u8 as *const libc::c_char),
-                        dc_encode_header_words(chat.name),
+                        dc_encode_header_words(name.as_ptr()),
                     ),
                 );
                 if command == 5 {
@@ -1090,12 +1091,13 @@ unsafe fn get_subject(
     if (*msg).param.get_int(Param::Cmd).unwrap_or_default() == 6 {
         ret = context.stock_str(StockMessage::AcSetupMsgSubject).strdup()
     } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-        ret = dc_mprintf(
-            b"Chat: %s: %s%s\x00" as *const u8 as *const libc::c_char,
+        ret = format!(
+            "Chat: {}: {}{}",
             chat.name,
-            fwd,
-            raw_subject,
+            to_string(fwd),
+            to_string(raw_subject),
         )
+        .strdup()
     } else {
         ret = dc_mprintf(
             b"Chat: %s%s\x00" as *const u8 as *const libc::c_char,

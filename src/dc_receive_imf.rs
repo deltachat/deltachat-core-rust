@@ -1041,7 +1041,7 @@ unsafe fn create_or_lookup_group(
     ret_chat_id: *mut uint32_t,
     ret_chat_id_blocked: &mut Blocked,
 ) {
-    let group_explicitly_left: libc::c_int;
+    let group_explicitly_left: bool;
     let mut chat_id = 0;
     let mut chat_id_blocked = Blocked::Not;
     let mut chat_id_verified = 0;
@@ -1252,7 +1252,8 @@ unsafe fn create_or_lookup_group(
     }
 
     // check if the group does not exist but should be created
-    group_explicitly_left = chat::is_group_explicitly_left(context, grpid);
+    group_explicitly_left =
+        chat::is_group_explicitly_left(context, as_str(grpid)).unwrap_or_default();
 
     let self_addr = context
         .sql
@@ -1265,7 +1266,7 @@ unsafe fn create_or_lookup_group(
             // otherwise, a pending "quit" message may pop up
             && X_MrRemoveFromGrp.is_null()
             // re-create explicitly left groups only if ourself is re-added
-            && (0 == group_explicitly_left
+            && (!group_explicitly_left
                 || !X_MrAddToGrp.is_null() && addr_cmp(&self_addr, as_str(X_MrAddToGrp)))
     {
         let mut create_verified: libc::c_int = 0;
@@ -1301,7 +1302,7 @@ unsafe fn create_or_lookup_group(
     // again, check chat_id
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
         chat_id = 0;
-        if 0 != group_explicitly_left {
+        if group_explicitly_left {
             chat_id = DC_CHAT_ID_TRASH as u32;
         } else {
             create_or_lookup_adhoc_group(

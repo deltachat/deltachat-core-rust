@@ -532,7 +532,7 @@ const COLORS: [u32; 16] = [
     0x39b249, 0xbb243b, 0x964078, 0x66874f, 0x308ab9, 0x127ed0, 0xbe450c,
 ];
 
-pub fn dc_str_to_color_safe(s: impl AsRef<str>) -> u32 {
+pub fn dc_str_to_color(s: impl AsRef<str>) -> u32 {
     let str_lower = s.as_ref().to_lowercase();
     let mut checksum = 0;
     let bytes = str_lower.as_bytes();
@@ -543,10 +543,6 @@ pub fn dc_str_to_color_safe(s: impl AsRef<str>) -> u32 {
     let color_index = checksum % COLORS.len();
 
     COLORS[color_index]
-}
-
-pub unsafe fn dc_str_to_color(str: *const libc::c_char) -> libc::c_int {
-    dc_str_to_color_safe(as_str(str)) as libc::c_int
 }
 
 /* clist tools */

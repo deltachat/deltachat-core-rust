@@ -791,7 +791,7 @@ impl<'a> Contact<'a> {
     /// and can be used for an fallback avatar with white initials
     /// as well as for headlines in bubbles of group chats.
     pub fn get_color(&self) -> u32 {
-        dc_str_to_color_safe(&self.addr)
+        dc_str_to_color(&self.addr)
     }
 
     /// Check if a contact was verified. E.g. by a secure-join QR code scan

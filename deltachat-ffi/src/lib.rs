@@ -654,7 +654,7 @@ pub unsafe extern "C" fn dc_set_chat_name(
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let context = &*context;
 
-    chat::set_chat_name(context, chat_id, name)
+    chat::set_chat_name(context, chat_id, as_str(name))
 }
 
 #[no_mangle]
@@ -1309,7 +1309,7 @@ pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_
     assert!(!chat.is_null());
     let chat = &*chat;
 
-    chat.get_name()
+    chat.get_name().strdup()
 }
 
 #[no_mangle]
@@ -1317,7 +1317,7 @@ pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc
     assert!(!chat.is_null());
     let chat = &*chat;
 
-    chat.get_subtitle()
+    chat.get_subtitle().strdup()
 }
 
 #[no_mangle]
