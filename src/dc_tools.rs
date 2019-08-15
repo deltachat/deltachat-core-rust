@@ -557,21 +557,7 @@ pub fn dc_str_to_color_safe(s: impl AsRef<str>) -> u32 {
 }
 
 pub unsafe fn dc_str_to_color(str: *const libc::c_char) -> libc::c_int {
-    let str_lower = dc_strlower(str);
-    let mut checksum = 0;
-    let str_len = strlen(str_lower) as usize;
-    for i in 0..str_len {
-        checksum += (i + 1) * *str_lower.add(i) as usize;
-        checksum %= 0xffffff;
-    }
-
-    let color_index: libc::c_int = (checksum as libc::c_ulong).wrapping_rem(
-        (::std::mem::size_of::<[uint32_t; 16]>() as libc::c_ulong)
-            .wrapping_div(::std::mem::size_of::<uint32_t>() as libc::c_ulong),
-    ) as libc::c_int;
-    free(str_lower as *mut libc::c_void);
-
-    COLORS[color_index as usize] as libc::c_int
+    dc_str_to_color_safe(as_str(str)) as libc::c_int
 }
 
 /* clist tools */
