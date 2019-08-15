@@ -887,10 +887,11 @@ pub fn dc_msg_get_summarytext_by_raw(
         }
         _ => {
             if param.get_int(Param::Cmd) != Some(9) {
-                return "".to_string();
+                "".to_string()
+            } else {
+                append_text = false;
+                context.stock_str(StockMessage::Location).to_string()
             }
-            append_text = false;
-            context.stock_str(StockMessage::Location).to_string()
         }
     };
     let ret = if append_text && text.is_some() {
