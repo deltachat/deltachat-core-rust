@@ -755,35 +755,28 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
             let contact_id_1: libc::c_int = arg1.parse()?;
-            if 0 != chat::remove_contact_from_chat(
+            chat::remove_contact_from_chat(
                 context,
                 sel_chat.as_ref().unwrap().get_id(),
                 contact_id_1 as uint32_t,
-            ) {
-                println!("Contact added to chat.");
-            } else {
-                bail!("Cannot remove member from chat.");
-            }
+            )?;
+
+            println!("Contact added to chat.");
         }
         "groupname" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            if 0 != chat::set_chat_name(context, sel_chat.as_ref().unwrap().get_id(), arg1) {
-                println!("Chat name set");
-            } else {
-                bail!("Failed to set chat name");
-            }
+            chat::set_chat_name(context, sel_chat.as_ref().unwrap().get_id(), arg1)?;
+
+            println!("Chat name set");
         }
         "groupimage" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <image> missing.");
 
-            if 0 != chat::set_chat_profile_image(context, sel_chat.as_ref().unwrap().get_id(), arg1)
-            {
-                println!("Chat image set");
-            } else {
-                bail!("Failed to set chat image");
-            }
+            chat::set_chat_profile_image(context, sel_chat.as_ref().unwrap().get_id(), arg1)?;
+
+            println!("Chat image set");
         }
         "chatinfo" => {
             ensure!(sel_chat.is_some(), "No chat selected.");

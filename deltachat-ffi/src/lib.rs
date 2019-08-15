@@ -642,6 +642,8 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
     let context = &*context;
 
     chat::remove_contact_from_chat(context, chat_id, contact_id)
+        .map(|_| 1)
+        .unwrap_or_log_default(context, "Failed to remove contact")
 }
 
 #[no_mangle]
@@ -656,6 +658,8 @@ pub unsafe extern "C" fn dc_set_chat_name(
     let context = &*context;
 
     chat::set_chat_name(context, chat_id, as_str(name))
+        .map(|_| 1)
+        .unwrap_or_log_default(context, "Failed to set chat name")
 }
 
 #[no_mangle]
@@ -669,6 +673,8 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     let context = &*context;
 
     chat::set_chat_profile_image(context, chat_id, as_str(image))
+        .map(|_| 1)
+        .unwrap_or_log_default(context, "Failed to set profile image")
 }
 
 #[no_mangle]
