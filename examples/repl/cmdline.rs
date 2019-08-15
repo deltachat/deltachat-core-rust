@@ -726,13 +726,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "creategroup" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            let chat_id = chat::create_group_chat(context, VerifiedStatus::Unverified, arg1_c)?;
+            let chat_id = chat::create_group_chat(context, VerifiedStatus::Unverified, arg1)?;
 
             println!("Group#{} created successfully.", chat_id);
         }
         "createverified" => {
             ensure!(!arg1.is_empty(), "Argument <name> missing.");
-            let chat_id = chat::create_group_chat(context, VerifiedStatus::Verified, arg1_c)?;
+            let chat_id = chat::create_group_chat(context, VerifiedStatus::Verified, arg1)?;
 
             println!("VerifiedGroup#{} created successfully.", chat_id);
         }
@@ -778,15 +778,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <image> missing.");
 
-            if 0 != chat::set_chat_profile_image(
-                context,
-                sel_chat.as_ref().unwrap().get_id(),
-                if !arg1.is_empty() {
-                    arg1_c
-                } else {
-                    std::ptr::null_mut()
-                },
-            ) {
+            if 0 != chat::set_chat_profile_image(context, sel_chat.as_ref().unwrap().get_id(), arg1)
+            {
                 println!("Chat image set");
             } else {
                 bail!("Failed to set chat image");

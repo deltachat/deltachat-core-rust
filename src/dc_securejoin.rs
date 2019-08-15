@@ -1,5 +1,3 @@
-use std::ffi::CString;
-
 use mmime::mailimf_types::*;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
@@ -187,9 +185,9 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         (*qr_scan).auth,
                         own_fingerprint,
                         if 0 != join_vg {
-                            (*qr_scan).text2
+                            as_str((*qr_scan).text2)
                         } else {
-                            0 as *mut libc::c_char
+                            ""
                         },
                     );
                     free(own_fingerprint as *mut libc::c_void);
@@ -205,7 +203,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         },
                         (*qr_scan).invitenumber,
                         0 as *const libc::c_char,
-                        0 as *const libc::c_char,
+                        "",
                     );
                 }
 
@@ -228,9 +226,12 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
     bob.expects = 0;
     if bob.status == 1 {
         if 0 != join_vg {
-            ret_chat_id =
-                chat::get_chat_id_by_grpid(context, (*qr_scan).text2, None, 0 as *mut libc::c_int)
-                    as libc::c_int
+            ret_chat_id = chat::get_chat_id_by_grpid(
+                context,
+                to_string((*qr_scan).text2),
+                None,
+                0 as *mut libc::c_int,
+            ) as libc::c_int
         } else {
             ret_chat_id = contact_chat_id as libc::c_int
         }
@@ -250,7 +251,7 @@ unsafe fn send_handshake_msg(
     step: *const libc::c_char,
     param2: *const libc::c_char,
     fingerprint: *const libc::c_char,
-    grpid: *const libc::c_char,
+    grpid: impl AsRef<str>,
 ) {
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
     (*msg).type_0 = Viewtype::Text;
@@ -268,8 +269,8 @@ unsafe fn send_handshake_msg(
     if !fingerprint.is_null() {
         (*msg).param.set(Param::Arg3, as_str(fingerprint));
     }
-    if !grpid.is_null() {
-        (*msg).param.set(Param::Arg4, as_str(grpid));
+    if !grpid.as_ref().is_empty() {
+        (*msg).param.set(Param::Arg4, grpid.as_ref());
     }
     if strcmp(step, b"vg-request\x00" as *const u8 as *const libc::c_char) == 0i32
         || strcmp(step, b"vc-request\x00" as *const u8 as *const libc::c_char) == 0i32
@@ -339,7 +340,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut own_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     let contact_chat_id: u32;
     let contact_chat_id_blocked: Blocked;
-    let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut grpid = "".to_string();
     let mut ret: libc::c_int = 0i32;
 
     if !(contact_id <= 9i32 as libc::c_uint) {
@@ -399,7 +400,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         },
                         0 as *const libc::c_char,
                         0 as *const libc::c_char,
-                        0 as *const libc::c_char,
+                        "",
                     );
                     current_block = 10256747982273457880;
                 }
@@ -429,7 +430,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
                         auth = dc_strdup((*scan).auth);
                         if 0 != join_vg {
-                            grpid = dc_strdup((*scan).text2)
+                            grpid = to_string((*scan).text2);
                         }
                     }
                     if !encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
@@ -569,15 +570,15 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             600i32 as uintptr_t,
                         );
                         if 0 != join_vg {
-                            grpid = dc_strdup(lookup_field(mimeparser, "Secure-Join-Group"));
+                            grpid = to_string(lookup_field(mimeparser, "Secure-Join-Group"));
                             let group_chat_id: uint32_t = chat::get_chat_id_by_grpid(
                                 context,
-                                grpid,
+                                &grpid,
                                 None,
                                 0 as *mut libc::c_int,
                             );
                             if group_chat_id == 0i32 as libc::c_uint {
-                                error!(context, 0, "Chat {} not found.", as_str(grpid),);
+                                error!(context, 0, "Chat {} not found.", &grpid);
                                 current_block = 4378276786830486580;
                             } else {
                                 chat::add_contact_to_chat_ex(
@@ -595,7 +596,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 b"vc-contact-confirm\x00" as *const u8 as *const libc::c_char,
                                 0 as *const libc::c_char,
                                 0 as *const libc::c_char,
-                                0 as *const libc::c_char,
+                                "",
                             );
                             context.call_cb(
                                 Event::SECUREJOIN_INVITER_PROGRESS,
@@ -637,7 +638,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             let scan = context.bob.clone().read().unwrap().qr_scan;
                             scanned_fingerprint_of_alice = dc_strdup((*scan).fingerprint);
                             if 0 != join_vg {
-                                grpid = dc_strdup((*scan).text2)
+                                grpid = to_string((*scan).text2);
                             }
                         }
                         let mut vg_expect_encrypted: libc::c_int = 1i32;
@@ -725,7 +726,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                                         as *const libc::c_char,
                                                     0 as *const libc::c_char,
                                                     0 as *const libc::c_char,
-                                                    0 as *const libc::c_char,
+                                                    "",
                                                 );
                                             }
                                             end_bobs_joining(context, 1i32);
@@ -784,7 +785,6 @@ pub unsafe fn dc_handle_securejoin_handshake(
     free(scanned_fingerprint_of_alice as *mut libc::c_void);
     free(auth as *mut libc::c_void);
     free(own_fingerprint as *mut libc::c_void);
-    free(grpid as *mut libc::c_void);
 
     ret
 }
@@ -802,9 +802,8 @@ unsafe fn secure_connection_established(context: &Context, contact_chat_id: uint
     } else {
         "?"
     };
-    let msg =
-        CString::new(context.stock_string_repl_str(StockMessage::ContactVerified, addr)).unwrap();
-    chat::add_device_msg(context, contact_chat_id, msg.as_ptr());
+    let msg = context.stock_string_repl_str(StockMessage::ContactVerified, addr);
+    chat::add_device_msg(context, contact_chat_id, msg);
     context.call_cb(
         Event::CHAT_MODIFIED,
         contact_chat_id as uintptr_t,
@@ -844,9 +843,9 @@ unsafe fn could_not_establish_secure_connection(
             "?"
         },
     );
-    let msg_c = CString::new(msg.as_str()).unwrap();
-    chat::add_device_msg(context, contact_chat_id, msg_c.as_ptr());
-    error!(context, 0, "{} ({})", msg, as_str(details));
+
+    chat::add_device_msg(context, contact_chat_id, &msg);
+    error!(context, 0, "{} ({})", &msg, as_str(details));
 }
 
 unsafe fn mark_peer_as_verified(
@@ -931,11 +930,9 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
                 Some(ref addr) => &addr,
                 None => "",
             };
-            let msg = CString::new(
-                context.stock_string_repl_str(StockMessage::ContactSetupChanged, peeraddr),
-            )
-            .unwrap();
-            chat::add_device_msg(context, contact_chat_id, msg.as_ptr());
+            let msg = context.stock_string_repl_str(StockMessage::ContactSetupChanged, peeraddr);
+
+            chat::add_device_msg(context, contact_chat_id, msg);
             context.call_cb(
                 Event::CHAT_MODIFIED,
                 contact_chat_id as uintptr_t,

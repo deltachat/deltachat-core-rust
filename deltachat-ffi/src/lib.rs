@@ -13,6 +13,7 @@ extern crate num_traits;
 
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::convert::TryInto;
+use std::ptr;
 use std::str::FromStr;
 
 use deltachat::contact::Contact;
@@ -603,7 +604,7 @@ pub unsafe extern "C" fn dc_create_group_chat(
         return 0;
     };
 
-    chat::create_group_chat(context, verified, name)
+    chat::create_group_chat(context, verified, as_str(name))
         .unwrap_or_log_default(context, "Failed to create group chat")
 }
 
@@ -667,7 +668,7 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let context = &*context;
 
-    chat::set_chat_profile_image(context, chat_id, image)
+    chat::set_chat_profile_image(context, chat_id, as_str(image))
 }
 
 #[no_mangle]
@@ -1325,7 +1326,10 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
     assert!(!chat.is_null());
     let chat = &*chat;
 
-    chat.get_profile_image()
+    match chat.get_profile_image() {
+        Some(i) => i.strdup(),
+        None => ptr::null_mut(),
+    }
 }
 
 #[no_mangle]

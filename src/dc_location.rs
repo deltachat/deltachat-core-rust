@@ -1,5 +1,3 @@
-use std::ffi::CString;
-
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
@@ -106,14 +104,9 @@ pub unsafe fn dc_send_locations_to_chat(
                 (*msg).param.set_int(Param::Cmd, 8);
                 chat::send_msg(context, chat_id, msg).unwrap();
             } else if 0 == seconds && is_sending_locations_before {
-                let stock_str = CString::new(context.stock_system_msg(
-                    StockMessage::MsgLocationDisabled,
-                    "",
-                    "",
-                    0,
-                ))
-                .unwrap();
-                chat::add_device_msg(context, chat_id, stock_str.as_ptr());
+                let stock_str =
+                    context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
+                chat::add_device_msg(context, chat_id, stock_str);
             }
             context.call_cb(
                 Event::CHAT_MODIFIED,
@@ -736,8 +729,8 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
                     "UPDATE chats    SET locations_send_begin=0, locations_send_until=0  WHERE id=?",
                     params![chat_id as i32],
                 ).is_ok() {
-                    let stock_str = CString::new(context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)).unwrap();
-                    chat::add_device_msg(context, chat_id, stock_str.as_ptr());
+                    let stock_str = context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
+                    chat::add_device_msg(context, chat_id, stock_str);
                     context.call_cb(
                         Event::CHAT_MODIFIED,
                         chat_id as usize,

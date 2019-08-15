@@ -219,25 +219,21 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
-    pub unsafe fn get_profile_image(&self) -> *mut libc::c_char {
-        let mut image_abs: *mut libc::c_char = 0 as *mut libc::c_char;
-
+    pub unsafe fn get_profile_image(&self) -> Option<String> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                image_abs = dc_get_abs_path(self.context, image_rel);
+                return Some(to_string(dc_get_abs_path(self.context, image_rel)));
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(self.context, self.id);
             if !contacts.is_empty() {
                 if let Ok(contact) = Contact::get_by_id(self.context, contacts[0]) {
-                    if let Some(img) = contact.get_profile_image() {
-                        image_abs = img.strdup();
-                    }
+                    return contact.get_profile_image();
                 }
             }
         }
 
-        image_abs
+        None
     }
 
     pub fn get_color(&self) -> u32 {
@@ -1391,15 +1387,12 @@ pub fn get_chat_contacts(context: &Context, chat_id: u32) -> Vec<u32> {
 pub unsafe fn create_group_chat(
     context: &Context,
     verified: VerifiedStatus,
-    chat_name: *const libc::c_char,
+    chat_name: impl AsRef<str>,
 ) -> Result<u32, Error> {
-    ensure!(
-        !chat_name.is_null() && *chat_name.offset(0) as libc::c_int != 0,
-        "Invalid chat name"
-    );
+    ensure!(!chat_name.as_ref().is_empty(), "Invalid chat name");
 
     let draft_txt =
-        CString::new(context.stock_string_repl_str(StockMessage::NewGroupDraft, as_str(chat_name)))
+        CString::new(context.stock_string_repl_str(StockMessage::NewGroupDraft, &chat_name))
             .unwrap();
     let grpid = dc_create_id();
 
@@ -1413,7 +1406,7 @@ pub unsafe fn create_group_chat(
             } else {
                 Chattype::Group
             },
-            as_str(chat_name),
+            chat_name.as_ref(),
             grpid
         ],
     )?;
@@ -1785,7 +1778,7 @@ pub unsafe fn set_chat_name(
 pub unsafe fn set_chat_profile_image(
     context: &Context,
     chat_id: u32,
-    new_image: *const libc::c_char,
+    new_image: impl AsRef<str>,
 ) -> libc::c_int {
     let mut OK_TO_CONTINUE = true;
     let mut success: libc::c_int = 0i32;
@@ -1809,8 +1802,8 @@ pub unsafe fn set_chat_profile_image(
                 );
             } else {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-                if !new_image.is_null() {
-                    let mut img = to_string(new_image);
+                if !new_image.as_ref().is_empty() {
+                    let mut img = new_image.as_ref().to_string();
                     if !dc_make_rel_and_copy(context, &mut img) {
                         OK_TO_CONTINUE = false;
                     }
@@ -1991,7 +1984,7 @@ pub fn get_chat_cnt(context: &Context) -> usize {
 
 pub unsafe fn get_chat_id_by_grpid(
     context: &Context,
-    grpid: *const libc::c_char,
+    grpid: impl AsRef<str>,
     ret_blocked: Option<&mut Blocked>,
     ret_verified: *mut libc::c_int,
 ) -> u32 {
@@ -2003,7 +1996,7 @@ pub unsafe fn get_chat_id_by_grpid(
         .sql
         .query_row(
             "SELECT id, blocked, type FROM chats WHERE grpid=?;",
-            params![as_str(grpid)],
+            params![grpid.as_ref()],
             |row| {
                 let chat_id = row.get(0)?;
 
@@ -2020,10 +2013,7 @@ pub unsafe fn get_chat_id_by_grpid(
         .unwrap_or_default()
 }
 
-pub fn add_device_msg(context: &Context, chat_id: u32, text: *const libc::c_char) {
-    if text.is_null() {
-        return;
-    }
+pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
     let rfc724_mid = unsafe {
         dc_create_outgoing_rfc724_mid(
             ptr::null(),
@@ -2040,7 +2030,7 @@ pub fn add_device_msg(context: &Context, chat_id: u32, text: *const libc::c_char
             dc_create_smeared_timestamp(context),
             Viewtype::Text,
             DC_STATE_IN_NOTICED,
-            as_str(text),
+            text.as_ref(),
             as_str(rfc724_mid),
         ]
     ).is_err() {
