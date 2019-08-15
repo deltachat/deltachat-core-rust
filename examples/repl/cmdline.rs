@@ -810,15 +810,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!sel_chat.is_null(), "No chat selected.");
             ensure!(!arg1.is_empty(), "Argument <image> missing.");
 
-            if 0 != dc_set_chat_profile_image(
-                context,
-                dc_chat_get_id(sel_chat),
-                if !arg1.is_empty() {
-                    arg1_c
-                } else {
-                    std::ptr::null_mut()
-                },
-            ) {
+            if dc_set_chat_profile_image(context, dc_chat_get_id(sel_chat), arg1) {
                 println!("Chat image set");
             } else {
                 bail!("Failed to set chat image");

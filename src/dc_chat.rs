@@ -1548,7 +1548,7 @@ pub unsafe fn dc_add_contact_to_chat_ex(
         let contact = contact.unwrap();
 
         /*this also makes sure, not contacts are added to special or normal chats*/
-        if !(0 == real_group_exists(context, chat_id)
+        if !(!real_group_exists(context, chat_id)
             || !Contact::real_exists_by_id(context, contact_id)
                 && contact_id != DC_CONTACT_ID_SELF as u32
             || !dc_chat_load_from_db(chat, chat_id))
@@ -1630,11 +1630,10 @@ pub unsafe fn dc_add_contact_to_chat_ex(
     success
 }
 
-// TODO should return bool /rtn
-fn real_group_exists(context: &Context, chat_id: u32) -> libc::c_int {
+fn real_group_exists(context: &Context, chat_id: u32) -> bool {
     // check if a group or a verified group exists under the given ID
     if !context.sql.is_open() || chat_id <= 9 {
-        return 02;
+        return false;
     }
 
     context
@@ -1643,7 +1642,7 @@ fn real_group_exists(context: &Context, chat_id: u32) -> libc::c_int {
             "SELECT id FROM chats  WHERE id=?    AND (type=120 OR type=130);",
             params![chat_id as i32],
         )
-        .unwrap_or_default() as libc::c_int
+        .unwrap_or_default()
 }
 
 pub fn dc_reset_gossiped_timestamp(context: &Context, chat_id: u32) {
@@ -1695,7 +1694,7 @@ pub unsafe fn dc_remove_contact_from_chat(
     {
         /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
         /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
-        if !(0 == real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
+        if !(!real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
             if !(dc_is_contact_in_chat(context, chat_id, 1 as uint32_t) == 1) {
                 log_event!(
                     context,
@@ -1794,7 +1793,7 @@ pub unsafe fn dc_set_chat_name(
         || *new_name.offset(0isize) as libc::c_int == 0i32
         || chat_id <= 9i32 as libc::c_uint)
     {
-        if !(0i32 == real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
+        if !(!real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
             if strcmp((*chat).name, new_name) == 0i32 {
                 success = 1i32
             } else if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
@@ -1854,78 +1853,62 @@ pub unsafe fn dc_set_chat_name(
     success
 }
 
-// TODO should return bool /rtn
-#[allow(non_snake_case)]
 pub unsafe fn dc_set_chat_profile_image(
     context: &Context,
     chat_id: uint32_t,
-    new_image: *const libc::c_char,
-) -> libc::c_int {
-    let mut OK_TO_CONTINUE = true;
-    let mut success: libc::c_int = 0i32;
+    new_image: impl AsRef<str>,
+) -> bool {
+    if chat_id <= 9 {
+        return false;
+    }
     let chat: *mut Chat = dc_chat_new(context);
     let mut msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    let mut new_image_rel: *mut libc::c_char = ptr::null_mut();
-    if !(chat_id <= 9i32 as libc::c_uint) {
-        if !(0i32 == real_group_exists(context, chat_id) || !dc_chat_load_from_db(chat, chat_id)) {
-            if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
-                log_event!(
-                    context,
-                    Event::ERROR_SELF_NOT_IN_GROUP,
-                    0,
-                    "Cannot set chat profile image; self not in group.",
+    let mut success = false;
+
+    if real_group_exists(context, chat_id) && dc_chat_load_from_db(chat, chat_id) {
+        if !(dc_is_contact_in_chat(context, chat_id, 1i32 as uint32_t) == 1i32) {
+            log_event!(
+                context,
+                Event::ERROR_SELF_NOT_IN_GROUP,
+                0,
+                "Cannot set chat profile image; self not in group.",
+            );
+        } else {
+            (*chat).param.set(Param::ProfileImage, new_image.as_ref());
+            if !(0 == dc_chat_update_param(chat)) {
+                if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
+                    (*msg).param.set_int(Param::Cmd, 3);
+                    (*msg).param.set(Param::Arg, new_image.as_ref());
+                    (*msg).type_0 = Viewtype::Text;
+                    (*msg).text = Some(context.stock_system_msg(
+                        if new_image.as_ref().is_empty() {
+                            StockMessage::MsgGrpImgDeleted
+                        } else {
+                            StockMessage::MsgGrpImgChanged
+                        },
+                        "",
+                        "",
+                        DC_CONTACT_ID_SELF as uint32_t,
+                    ));
+                    (*msg).id = dc_send_msg(context, chat_id, msg);
+                    context.call_cb(
+                        Event::MSGS_CHANGED,
+                        chat_id as uintptr_t,
+                        (*msg).id as uintptr_t,
+                    );
+                }
+                context.call_cb(
+                    Event::CHAT_MODIFIED,
+                    chat_id as uintptr_t,
+                    0i32 as uintptr_t,
                 );
-            } else {
-                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-                if !new_image.is_null() {
-                    new_image_rel = dc_strdup(new_image);
-                    if !dc_make_rel_and_copy(context, &mut new_image_rel) {
-                        OK_TO_CONTINUE = false;
-                    }
-                } else {
-                    OK_TO_CONTINUE = false;
-                }
-                if OK_TO_CONTINUE {
-                    (*chat)
-                        .param
-                        .set(Param::ProfileImage, as_str(new_image_rel));
-                    if !(0 == dc_chat_update_param(chat)) {
-                        if (*chat).param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                            (*msg).param.set_int(Param::Cmd, 3);
-                            (*msg).param.set(Param::Arg, as_str(new_image_rel));
-                            (*msg).type_0 = Viewtype::Text;
-                            (*msg).text = Some(context.stock_system_msg(
-                                if !new_image_rel.is_null() {
-                                    StockMessage::MsgGrpImgChanged
-                                } else {
-                                    StockMessage::MsgGrpImgDeleted
-                                },
-                                "",
-                                "",
-                                DC_CONTACT_ID_SELF as uint32_t,
-                            ));
-                            (*msg).id = dc_send_msg(context, chat_id, msg);
-                            context.call_cb(
-                                Event::MSGS_CHANGED,
-                                chat_id as uintptr_t,
-                                (*msg).id as uintptr_t,
-                            );
-                        }
-                        context.call_cb(
-                            Event::CHAT_MODIFIED,
-                            chat_id as uintptr_t,
-                            0i32 as uintptr_t,
-                        );
-                        success = 1i32
-                    }
-                }
+                success = true;
             }
         }
     }
 
     dc_chat_unref(chat);
     dc_msg_unref(msg);
-    free(new_image_rel as *mut libc::c_void);
 
     success
 }

@@ -645,7 +645,7 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let context = &*context;
 
-    dc_chat::dc_set_chat_profile_image(context, chat_id, image)
+    dc_chat::dc_set_chat_profile_image(context, chat_id, &dc_tools::to_string(image)) as libc::c_int
 }
 
 #[no_mangle]
