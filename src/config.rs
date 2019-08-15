@@ -48,11 +48,14 @@ pub enum Config {
     ConfiguredMailUser,
     ConfiguredMailPw,
     ConfiguredMailPort,
+    ConfiguredMailSecurity,
     ConfiguredSendServer,
     ConfiguredSendUser,
     ConfiguredSendPw,
     ConfiguredSendPort,
     ConfiguredServerFlags,
+    ConfiguredSendSecurity,
+    ConfiguredE2EEEnabled,
     Configured,
     // Deprecated
     #[strum(serialize = "sys.version")]
