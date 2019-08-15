@@ -1035,13 +1035,14 @@ pub unsafe extern "C" fn dc_get_locations(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_location::dc_get_locations(
+    let res = dc_location::dc_get_locations(
         context,
         chat_id,
         contact_id,
         timestamp_begin as i64,
         timestamp_end as i64,
-    )
+    );
+    dc_array_t::from(res).into_raw()
 }
 
 #[no_mangle]
