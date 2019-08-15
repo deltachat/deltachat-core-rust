@@ -1882,6 +1882,8 @@ pub unsafe fn dc_set_chat_profile_image(
                     if !dc_make_rel_and_copy(context, &mut new_image_rel) {
                         OK_TO_CONTINUE = false;
                     }
+                } else {
+                    OK_TO_CONTINUE = false;
                 }
                 if OK_TO_CONTINUE {
                     (*chat)

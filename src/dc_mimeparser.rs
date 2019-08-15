@@ -1415,16 +1415,15 @@ unsafe fn do_add_single_file_part(
             part.param.set(Param::File, as_str(pathNfilename));
             part.param.set(Param::MimeType, as_str(raw_mime));
             if mime_type == 80 {
-                let mut w = 0;
-                let mut h = 0;
-                if 0 != dc_get_filemeta(
-                    decoded_data as *const libc::c_void,
-                    decoded_data_bytes,
-                    &mut w,
-                    &mut h,
-                ) {
-                    part.param.set_int(Param::Width, w as i32);
-                    part.param.set_int(Param::Height, h as i32);
+                assert!(!decoded_data.is_null(), "invalid image data");
+                let data = std::slice::from_raw_parts(
+                    decoded_data as *const u8,
+                    decoded_data_bytes as usize,
+                );
+
+                if let Ok((width, height)) = dc_get_filemeta(data) {
+                    part.param.set_int(Param::Width, width as i32);
+                    part.param.set_int(Param::Height, height as i32);
                 }
             }
             do_add_single_part(parser, part);

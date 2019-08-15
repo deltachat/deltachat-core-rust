@@ -7,7 +7,7 @@ use crate::types::*;
 #[allow(non_camel_case_types)]
 pub enum dc_array_t {
     Locations(Vec<dc_location>),
-    Uint(Vec<uintptr_t>),
+    Uint(Vec<u32>),
 }
 
 impl dc_array_t {
@@ -24,16 +24,12 @@ impl dc_array_t {
         Box::into_raw(Box::new(self))
     }
 
-    pub fn add_uint(&mut self, item: uintptr_t) {
+    pub fn add_id(&mut self, item: uint32_t) {
         if let Self::Uint(array) = self {
             array.push(item);
         } else {
-            panic!("Attempt to add uint to array of other type");
+            panic!("Attempt to add id to array of other type");
         }
-    }
-
-    pub fn add_id(&mut self, item: uint32_t) {
-        self.add_uint(item as uintptr_t);
     }
 
     pub fn add_location(&mut self, location: dc_location) {
@@ -44,26 +40,10 @@ impl dc_array_t {
         }
     }
 
-    pub fn get_uint(&self, index: usize) -> uintptr_t {
-        if let Self::Uint(array) = self {
-            array[index]
-        } else {
-            panic!("Attempt to get uint from array of other type");
-        }
-    }
-
     pub fn get_id(&self, index: usize) -> uint32_t {
         match self {
             Self::Locations(array) => array[index].location_id,
             Self::Uint(array) => array[index] as uint32_t,
-        }
-    }
-
-    pub fn get_ptr(&self, index: size_t) -> *mut libc::c_void {
-        if let Self::Uint(array) = self {
-            array[index] as *mut libc::c_void
-        } else {
-            panic!("Not an array of pointers");
         }
     }
 
@@ -125,7 +105,7 @@ impl dc_array_t {
         }
     }
 
-    pub fn search_id(&self, needle: uintptr_t) -> Option<usize> {
+    pub fn search_id(&self, needle: u32) -> Option<usize> {
         if let Self::Uint(array) = self {
             for (i, &u) in array.iter().enumerate() {
                 if u == needle {
@@ -149,7 +129,7 @@ impl dc_array_t {
 
 impl From<Vec<u32>> for dc_array_t {
     fn from(array: Vec<u32>) -> Self {
-        dc_array_t::Uint(array.iter().map(|&x| x as uintptr_t).collect())
+        dc_array_t::Uint(array)
     }
 }
 
@@ -164,18 +144,9 @@ pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
     Box::from_raw(array);
 }
 
-pub unsafe fn dc_array_add_uint(array: *mut dc_array_t, item: uintptr_t) {
-    assert!(!array.is_null());
-    (*array).add_uint(item);
-}
-
 pub unsafe fn dc_array_add_id(array: *mut dc_array_t, item: uint32_t) {
     assert!(!array.is_null());
     (*array).add_id(item);
-}
-
-pub unsafe fn dc_array_add_ptr(array: *mut dc_array_t, item: *mut libc::c_void) {
-    dc_array_add_uint(array, item as uintptr_t);
 }
 
 pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
@@ -183,19 +154,9 @@ pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
     (*array).len()
 }
 
-pub unsafe fn dc_array_get_uint(array: *const dc_array_t, index: size_t) -> uintptr_t {
-    assert!(!array.is_null());
-    (*array).get_uint(index)
-}
-
 pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32_t {
     assert!(!array.is_null());
     (*array).get_id(index)
-}
-
-pub unsafe fn dc_array_get_ptr(array: *const dc_array_t, index: size_t) -> *mut libc::c_void {
-    assert!(!array.is_null());
-    (*array).get_ptr(index)
 }
 
 pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
@@ -274,7 +235,7 @@ pub unsafe fn dc_array_search_id(
 ) -> bool {
     assert!(!array.is_null());
 
-    if let Some(i) = (*array).search_id(needle as uintptr_t) {
+    if let Some(i) = (*array).search_id(needle) {
         if !ret_index.is_null() {
             *ret_index = i
         }
@@ -284,7 +245,7 @@ pub unsafe fn dc_array_search_id(
     }
 }
 
-pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const uintptr_t {
+pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const u32 {
     assert!(!array.is_null());
 
     if let dc_array_t::Uint(v) = &*array {
