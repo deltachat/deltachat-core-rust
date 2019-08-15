@@ -299,7 +299,7 @@ pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
         "vcf"   => (Viewtype::File,  "text/vcard"),
         "vcard" => (Viewtype::File,  "text/vcard"),
     };
-    let extension = path.extension()?.to_str()?;
+    let extension: &str = &path.extension()?.to_str()?.to_lowercase();
 
     KNOWN.get(extension).map(|x| *x)
 }
