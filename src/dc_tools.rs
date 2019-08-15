@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
+use std::path::Path;
 use std::str::FromStr;
 use std::time::SystemTime;
 use std::{fmt, fs, ptr};
@@ -637,7 +638,7 @@ pub unsafe fn dc_smeared_time(context: &Context) -> i64 {
     now
 }
 
-pub unsafe fn dc_create_smeared_timestamp(context: &Context) -> i64 {
+pub fn dc_create_smeared_timestamp(context: &Context) -> i64 {
     let now = time();
     let mut ret = now;
 
@@ -652,7 +653,7 @@ pub unsafe fn dc_create_smeared_timestamp(context: &Context) -> i64 {
     ret
 }
 
-pub unsafe fn dc_create_smeared_timestamps(context: &Context, count: libc::c_int) -> i64 {
+pub fn dc_create_smeared_timestamps(context: &Context, count: libc::c_int) -> i64 {
     /* get a range to timestamps that can be used uniquely */
     let now = time();
     let start = now + (if count < 5 { count } else { 5 }) as i64 - count as i64;
@@ -848,17 +849,11 @@ unsafe fn dc_validate_filename(filename: *mut libc::c_char) {
     }
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_get_filename(pathNfilename: *const libc::c_char) -> *mut libc::c_char {
-    let mut p: *const libc::c_char = strrchr(pathNfilename, '/' as i32);
-    if p.is_null() {
-        p = strrchr(pathNfilename, '\\' as i32)
-    }
-    if !p.is_null() {
-        p = p.offset(1isize);
-        dc_strdup(p)
+pub unsafe fn dc_get_filename(path_filename: impl AsRef<str>) -> *mut libc::c_char {
+    if let Some(p) = Path::new(path_filename.as_ref()).file_name() {
+        p.to_string_lossy().strdup()
     } else {
-        dc_strdup(pathNfilename)
+        ptr::null_mut()
     }
 }
 
@@ -869,12 +864,15 @@ unsafe fn dc_split_filename(
     ret_basename: *mut *mut libc::c_char,
     ret_all_suffixes_incl_dot: *mut *mut libc::c_char,
 ) {
+    if pathNfilename.is_null() {
+        return;
+    }
     /* splits a filename into basename and all suffixes, eg. "/path/foo.tar.gz" is split into "foo.tar" and ".gz",
     (we use the _last_ dot which allows the usage inside the filename which are very usual;
     maybe the detection could be more intelligent, however, for the moment, it is just file)
     - if there is no suffix, the returned suffix string is empty, eg. "/path/foobar" is split into "foobar" and ""
     - the case of the returned suffix is preserved; this is to allow reconstruction of (similar) names */
-    let basename: *mut libc::c_char = dc_get_filename(pathNfilename);
+    let basename: *mut libc::c_char = dc_get_filename(as_str(pathNfilename));
     let suffix: *mut libc::c_char;
     let p1: *mut libc::c_char = strrchr(basename, '.' as i32);
     if !p1.is_null() {
@@ -897,16 +895,12 @@ unsafe fn dc_split_filename(
 
 // the returned suffix is lower-case
 #[allow(non_snake_case)]
-pub unsafe fn dc_get_filesuffix_lc(pathNfilename: *const libc::c_char) -> *mut libc::c_char {
-    if !pathNfilename.is_null() {
-        let mut p: *const libc::c_char = strrchr(pathNfilename, '.' as i32);
-        if !p.is_null() {
-            p = p.offset(1isize);
-            return dc_strlower(p);
-        }
+pub unsafe fn dc_get_filesuffix_lc(path_filename: impl AsRef<str>) -> *mut libc::c_char {
+    if let Some(p) = Path::new(path_filename.as_ref()).extension() {
+        p.to_string_lossy().to_lowercase().strdup()
+    } else {
+        ptr::null_mut()
     }
-
-    ptr::null_mut()
 }
 
 /// Returns the `(width, height)` of the given image buffer.
@@ -936,34 +930,25 @@ pub fn dc_get_abs_path_safe<P: AsRef<std::path::Path>>(
     }
 }
 
-#[allow(non_snake_case)]
 pub unsafe fn dc_get_abs_path(
     context: &Context,
-    pathNfilename: *const libc::c_char,
+    path_filename: impl AsRef<str>,
 ) -> *mut libc::c_char {
-    if pathNfilename.is_null() {
-        return ptr::null_mut();
-    }
-
-    let starts = strncmp(
-        pathNfilename,
-        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-        8,
-    ) == 0;
+    let starts = path_filename.as_ref().starts_with("$BLOBDIR");
 
     if starts && !context.has_blobdir() {
         return ptr::null_mut();
     }
 
-    let mut pathNfilename_abs: *mut libc::c_char = dc_strdup(pathNfilename);
+    let mut path_filename_abs = path_filename.as_ref().strdup();
     if starts && context.has_blobdir() {
         dc_str_replace(
-            &mut pathNfilename_abs,
+            &mut path_filename_abs,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
             context.get_blobdir(),
         );
     }
-    pathNfilename_abs
+    path_filename_abs
 }
 
 pub fn dc_file_exist(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
@@ -1159,56 +1144,49 @@ pub unsafe fn dc_get_fine_pathNfilename(
     ret
 }
 
-pub unsafe fn dc_is_blobdir_path(context: &Context, path: *const libc::c_char) -> bool {
-    strncmp(path, context.get_blobdir(), strlen(context.get_blobdir())) == 0
-        || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0
+pub fn dc_is_blobdir_path(context: &Context, path: impl AsRef<str>) -> bool {
+    path.as_ref().starts_with(as_str(context.get_blobdir()))
+        || path.as_ref().starts_with("$BLOBDIR")
 }
 
-unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) {
-    if path.is_null() || (*path).is_null() {
-        return;
+fn dc_make_rel_path(context: &Context, path: &mut String) {
+    if path.starts_with(as_str(context.get_blobdir())) {
+        *path = path.replace("$BLOBDIR", as_str(context.get_blobdir()));
     }
-    if strncmp(*path, context.get_blobdir(), strlen(context.get_blobdir())) == 0 {
-        dc_str_replace(
-            path,
-            context.get_blobdir(),
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-        );
-    };
 }
 
-pub unsafe fn dc_make_rel_and_copy(context: &Context, path: *mut *mut libc::c_char) -> bool {
+pub fn dc_make_rel_and_copy(context: &Context, path: &mut String) -> bool {
     let mut success = false;
-    let mut filename: *mut libc::c_char = ptr::null_mut();
-    let mut blobdir_path: *mut libc::c_char = ptr::null_mut();
-    if !(path.is_null() || (*path).is_null()) {
-        if dc_is_blobdir_path(context, *path) {
-            dc_make_rel_path(context, path);
-            success = true;
-        } else {
-            filename = dc_get_filename(*path);
-            if !(filename.is_null()
-                || {
-                    blobdir_path = dc_get_fine_pathNfilename(
+    let mut filename = ptr::null_mut();
+    let mut blobdir_path = ptr::null_mut();
+    if dc_is_blobdir_path(context, &path) {
+        dc_make_rel_path(context, path);
+        success = true;
+    } else {
+        filename = unsafe { dc_get_filename(&path) };
+        if !(filename.is_null()
+            || {
+                blobdir_path = unsafe {
+                    dc_get_fine_pathNfilename(
                         context,
                         b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
                         filename,
-                    );
-                    blobdir_path.is_null()
-                }
-                || !dc_copy_file(context, as_path(*path), as_path(blobdir_path)))
-            {
-                free(*path as *mut libc::c_void);
-                *path = blobdir_path;
-                blobdir_path = ptr::null_mut();
-                dc_make_rel_path(context, path);
-                success = true;
+                    )
+                };
+                blobdir_path.is_null()
             }
+            || !dc_copy_file(context, &path, as_path(blobdir_path)))
+        {
+            *path = to_string(blobdir_path);
+            blobdir_path = ptr::null_mut();
+            dc_make_rel_path(context, path);
+            success = true;
         }
     }
-    free(blobdir_path as *mut libc::c_void);
-    free(filename as *mut libc::c_void);
-
+    unsafe {
+        free(blobdir_path.cast());
+        free(filename.cast());
+    }
     success
 }
 

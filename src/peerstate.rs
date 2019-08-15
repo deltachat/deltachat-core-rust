@@ -466,7 +466,7 @@ impl<'a> Peerstate<'a> {
         }
 
         if self.to_save == Some(ToSave::All) || create {
-            dc_reset_gossiped_timestamp(self.context, 0);
+            reset_gossiped_timestamp(self.context, 0);
         }
 
         success

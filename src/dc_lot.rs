@@ -135,7 +135,7 @@ pub unsafe fn dc_lot_fill(
         (*lot).text1 = context.stock_str(StockMessage::Draft).strdup();
         (*lot).text1_meaning = 1i32
     } else if (*msg).from_id == 1i32 as libc::c_uint {
-        if 0 != dc_msg_is_info(msg) || 0 != dc_chat_is_self_talk(chat) {
+        if 0 != dc_msg_is_info(msg) || chat.is_self_talk() {
             (*lot).text1 = 0 as *mut libc::c_char;
             (*lot).text1_meaning = 0i32
         } else {

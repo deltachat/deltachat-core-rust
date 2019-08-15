@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
 
-use deltachat::chat::*;
+use deltachat::chat;
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::Event;
@@ -96,8 +96,8 @@ fn main() {
         println!("sending a message");
         let contact_id =
             Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com").unwrap();
-        let chat_id = dc_create_chat_by_contact_id(&ctx, contact_id);
-        dc_send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into());
+        let chat_id = chat::create_by_contact_id(&ctx, contact_id).unwrap();
+        chat::send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into()).unwrap();
 
         println!("fetching chats..");
         let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();

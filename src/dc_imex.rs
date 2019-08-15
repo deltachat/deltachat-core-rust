@@ -6,7 +6,7 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 use rand::{thread_rng, Rng};
 
-use crate::chat::*;
+use crate::chat;
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
@@ -138,8 +138,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                         setup_file_content_c.as_bytes().len(),
                     ))
                 {
-                    let chat_id = dc_create_chat_by_contact_id(context, 1i32 as uint32_t);
-                    if !(chat_id == 0i32 as libc::c_uint) {
+                    if let Ok(chat_id) = chat::create_by_contact_id(context, 1) {
                         msg = dc_msg_new_untyped(context);
                         (*msg).type_0 = Viewtype::File;
                         (*msg).param.set(Param::File, as_str(setup_file_name));
@@ -157,8 +156,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                             .unwrap()
                             .shall_stop_ongoing
                         {
-                            let msg_id = dc_send_msg(context, chat_id, msg);
-                            if msg_id != 0 {
+                            if let Ok(msg_id) = chat::send_msg(context, chat_id, msg) {
                                 dc_msg_unref(msg);
                                 msg = ptr::null_mut();
                                 info!(context, 0, "Wait for setup message being sent ...",);
@@ -970,7 +968,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 free(suffix as *mut libc::c_void);
                 let name_f = entry.file_name();
                 let name_c = name_f.to_c_string().unwrap();
-                suffix = dc_get_filesuffix_lc(name_c.as_ptr());
+                suffix = dc_get_filesuffix_lc(name_f.to_string_lossy());
                 if suffix.is_null()
                     || strcmp(suffix, b"asc\x00" as *const u8 as *const libc::c_char) != 0
                 {

@@ -6,7 +6,7 @@ use std::ffi::CString;
 use mmime::mailimf_types::*;
 use tempfile::{tempdir, TempDir};
 
-use deltachat::chat::*;
+use deltachat::chat::{self, Chat};
 use deltachat::config;
 use deltachat::constants::*;
 use deltachat::contact::*;
@@ -66,15 +66,9 @@ unsafe fn stress_functions(context: &Context) {
             context.get_blobdir(),
             b"foobar\x00" as *const u8 as *const libc::c_char,
         );
-        assert!(dc_is_blobdir_path(context, abs_path));
-        assert!(dc_is_blobdir_path(
-            context,
-            b"$BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
-        ));
-        assert!(!dc_is_blobdir_path(
-            context,
-            b"/BLOBDIR/fofo\x00" as *const u8 as *const libc::c_char,
-        ));
+        assert!(dc_is_blobdir_path(context, as_str(abs_path)));
+        assert!(dc_is_blobdir_path(context, "$BLOBDIR/fofo",));
+        assert!(!dc_is_blobdir_path(context, "/BLOBDIR/fofo",));
         assert!(dc_file_exist(context, as_path(abs_path)));
         free(abs_path as *mut libc::c_void);
         assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
@@ -765,13 +759,13 @@ fn test_chat() {
         let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
         assert_ne!(contact1, 0);
 
-        let chat_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
+        let chat_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
         assert!(chat_id > 9, "chat_id too small {}", chat_id);
-        let chat = dc_chat_load_from_db(&context.ctx, chat_id).unwrap();
+        let chat = Chat::load_from_db(&context.ctx, chat_id).unwrap();
 
-        let chat2_id = dc_create_chat_by_contact_id(&context.ctx, contact1);
+        let chat2_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
         assert_eq!(chat2_id, chat_id);
-        let chat2 = dc_chat_load_from_db(&context.ctx, chat2_id).unwrap();
+        let chat2 = Chat::load_from_db(&context.ctx, chat2_id).unwrap();
 
         assert_eq!(as_str(chat2.name), as_str(chat.name));
     }

@@ -1,6 +1,6 @@
 use percent_encoding::percent_decode_str;
 
-use crate::chat::*;
+use crate::chat;
 use crate::constants::Blocked;
 use crate::contact::*;
 use crate::context::Context;
@@ -231,13 +231,13 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                             Contact::add_or_lookup(context, "", addr, Origin::UnhandledQrScan)
                                 .map(|(id, _)| id)
                                 .unwrap_or_default();
-                        dc_create_or_lookup_nchat_by_contact_id(
+                        let (id, _) = chat::create_or_lookup_by_contact_id(
                             context,
                             (*qr_parsed).id,
                             Blocked::Deaddrop,
-                            &mut chat_id,
-                            None,
-                        );
+                        )
+                        .unwrap_or_default();
+                        chat_id = id;
                         device_msg = dc_mprintf(
                             b"%s verified.\x00" as *const u8 as *const libc::c_char,
                             peerstate.addr,
@@ -288,7 +288,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 (*qr_parsed).text1 = dc_strdup(qr)
             }
             if !device_msg.is_null() {
-                dc_add_device_msg(context, chat_id, device_msg);
+                chat::add_device_msg(context, chat_id, device_msg);
             }
         }
     }

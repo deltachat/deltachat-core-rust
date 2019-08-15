@@ -10,7 +10,7 @@ use mmime::mmapstring::*;
 use mmime::other::*;
 use sha2::{Digest, Sha256};
 
-use crate::chat::*;
+use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
@@ -408,15 +408,9 @@ unsafe fn add_parts(
                 state = DC_STATE_IN_SEEN;
             }
         }
-        let mut test_normal_chat_id = 0;
-        let mut test_normal_chat_id_blocked = Blocked::Not;
 
-        dc_lookup_real_nchat_by_contact_id(
-            context,
-            *from_id,
-            &mut test_normal_chat_id,
-            &mut test_normal_chat_id_blocked,
-        );
+        let (test_normal_chat_id, test_normal_chat_id_blocked) =
+            chat::lookup_by_contact_id(context, *from_id).unwrap_or_default();
 
         // get the chat_id - a chat_id here is no indicator that the chat is displayed in the normal list,
         // it might also be blocked and displayed in the deaddrop as a result
@@ -444,7 +438,7 @@ unsafe fn add_parts(
                 &mut chat_id_blocked,
             );
             if 0 != *chat_id && Blocked::Not != chat_id_blocked && create_blocked == Blocked::Not {
-                dc_unblock_chat(context, *chat_id);
+                chat::unblock(context, *chat_id);
                 chat_id_blocked = Blocked::Not;
             }
         }
@@ -472,17 +466,15 @@ unsafe fn add_parts(
                 *chat_id = test_normal_chat_id;
                 chat_id_blocked = test_normal_chat_id_blocked;
             } else if 0 != allow_creation {
-                dc_create_or_lookup_nchat_by_contact_id(
-                    context,
-                    *from_id,
-                    create_blocked,
-                    chat_id,
-                    Some(&mut chat_id_blocked),
-                );
+                let (id, bl) =
+                    chat::create_or_lookup_by_contact_id(context, *from_id, create_blocked)
+                        .unwrap_or_default();
+                *chat_id = id;
+                chat_id_blocked = bl;
             }
             if 0 != *chat_id && Blocked::Not != chat_id_blocked {
                 if Blocked::Not == create_blocked {
-                    dc_unblock_chat(context, *chat_id);
+                    chat::unblock(context, *chat_id);
                     chat_id_blocked = Blocked::Not;
                 } else if 0 != dc_is_reply_to_known_message(context, mime_parser) {
                     //  we do not want any chat to be created implicitly.  Because of the origin-scale-up,
@@ -532,7 +524,7 @@ unsafe fn add_parts(
                     &mut chat_id_blocked,
                 );
                 if 0 != *chat_id && Blocked::Not != chat_id_blocked {
-                    dc_unblock_chat(context, *chat_id);
+                    chat::unblock(context, *chat_id);
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -542,18 +534,17 @@ unsafe fn add_parts(
                 } else {
                     Blocked::Deaddrop
                 };
-                dc_create_or_lookup_nchat_by_contact_id(
-                    context,
-                    *to_id,
-                    create_blocked,
-                    chat_id,
-                    Some(&mut chat_id_blocked),
-                );
+                let (id, bl) =
+                    chat::create_or_lookup_by_contact_id(context, *to_id, create_blocked)
+                        .unwrap_or_default();
+                *chat_id = id;
+                chat_id_blocked = bl;
+
                 if 0 != *chat_id
                     && Blocked::Not != chat_id_blocked
                     && Blocked::Not == create_blocked
                 {
-                    dc_unblock_chat(context, *chat_id);
+                    chat::unblock(context, *chat_id);
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -562,15 +553,13 @@ unsafe fn add_parts(
             if to_ids.is_empty() && 0 != to_self {
                 // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
                 // maybe an Autocrypt Setup Messag
-                dc_create_or_lookup_nchat_by_contact_id(
-                    context,
-                    1,
-                    Blocked::Not,
-                    chat_id,
-                    Some(&mut chat_id_blocked),
-                );
+                let (id, bl) = chat::create_or_lookup_by_contact_id(context, 1, Blocked::Not)
+                    .unwrap_or_default();
+                *chat_id = id;
+                chat_id_blocked = bl;
+
                 if 0 != *chat_id && Blocked::Not != chat_id_blocked {
-                    dc_unblock_chat(context, *chat_id);
+                    chat::unblock(context, *chat_id);
                     chat_id_blocked = Blocked::Not;
                 }
             }
@@ -593,7 +582,7 @@ unsafe fn add_parts(
     );
 
     // unarchive chat
-    dc_unarchive_chat(context, *chat_id);
+    chat::unarchive(context, *chat_id).unwrap();
 
     // if the mime-headers should be saved, find out its size
     // (the mime-header ends with an empty line)
@@ -1236,7 +1225,7 @@ unsafe fn create_or_lookup_group(
     set_better_msg(mime_parser, &better_msg);
 
     // check, if we have a chat with this group ID
-    chat_id = dc_get_chat_id_by_grpid(
+    chat_id = chat::get_chat_id_by_grpid(
         context,
         grpid,
         Some(&mut chat_id_blocked),
@@ -1258,12 +1247,12 @@ unsafe fn create_or_lookup_group(
 
     // check if the sender is a member of the existing group -
     // if not, we'll recreate the group list
-    if chat_id != 0 && 0 == dc_is_contact_in_chat(context, chat_id, from_id as u32) {
+    if chat_id != 0 && 0 == chat::is_contact_in_chat(context, chat_id, from_id as u32) {
         recreate_member_list = 1;
     }
 
     // check if the group does not exist but should be created
-    group_explicitly_left = dc_is_group_explicitly_left(context, grpid);
+    group_explicitly_left = chat::is_group_explicitly_left(context, grpid);
 
     let self_addr = context
         .sql
@@ -1385,13 +1374,13 @@ unsafe fn create_or_lookup_group(
                     to_string(grpimage)
                 },
             );
-            if let Ok(mut chat) = dc_chat_load_from_db(context, chat_id) {
+            if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
                 if grpimage.is_null() {
                     chat.param.remove(Param::ProfileImage);
                 } else {
                     chat.param.set(Param::ProfileImage, as_str(grpimage));
                 }
-                dc_chat_update_param(&mut chat);
+                chat.update_param().unwrap();
                 send_EVENT_CHAT_MODIFIED = 1;
             }
 
@@ -1419,14 +1408,14 @@ unsafe fn create_or_lookup_group(
         )
         .ok();
         if skip.is_null() || !addr_cmp(&self_addr, as_str(skip)) {
-            dc_add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF as u32);
+            chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF as u32);
         }
         if from_id > DC_CHAT_ID_LAST_SPECIAL as u32 {
             if !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
                 && (skip.is_null()
                     || !Contact::addr_equals_contact(context, to_string(skip), from_id as u32))
             {
-                dc_add_to_chat_contacts_table(context, chat_id, from_id as u32);
+                chat::add_to_chat_contacts_table(context, chat_id, from_id as u32);
             }
         }
         for &to_id in to_ids.iter() {
@@ -1434,11 +1423,11 @@ unsafe fn create_or_lookup_group(
                 && (skip.is_null()
                     || !Contact::addr_equals_contact(context, to_string(skip), to_id))
             {
-                dc_add_to_chat_contacts_table(context, chat_id, to_id);
+                chat::add_to_chat_contacts_table(context, chat_id, to_id);
             }
         }
         send_EVENT_CHAT_MODIFIED = 1;
-        dc_reset_gossiped_timestamp(context, chat_id);
+        chat::reset_gossiped_timestamp(context, chat_id);
     }
 
     if 0 != send_EVENT_CHAT_MODIFIED {
@@ -1448,7 +1437,7 @@ unsafe fn create_or_lookup_group(
     // check the number of receivers -
     // the only critical situation is if the user hits "Reply" instead of "Reply all" in a non-messenger-client */
     if to_ids_cnt == 1 && mime_parser.is_send_by_messenger == 0 {
-        let is_contact_cnt = dc_get_chat_contact_cnt(context, chat_id);
+        let is_contact_cnt = chat::get_chat_contact_cnt(context, chat_id);
         if is_contact_cnt > 3 {
             // to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt.
             // So everything up to 3 is no error.
@@ -1617,7 +1606,7 @@ unsafe fn create_or_lookup_adhoc_group(
     chat_id = create_group_record(context, grpid, grpname, create_blocked, 0);
     chat_id_blocked = create_blocked;
     for &member_id in &member_ids {
-        dc_add_to_chat_contacts_table(context, chat_id, member_id);
+        chat::add_to_chat_contacts_table(context, chat_id, member_id);
     }
 
     context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);

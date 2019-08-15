@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use rand::{thread_rng, Rng};
 
-use crate::chat::*;
+use crate::chat;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_configure::*;
@@ -1035,7 +1035,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         );
     } else {
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
-        if msgtype_has_file((*mimefactory.msg).type_0) {
+        if chat::msgtype_has_file((*mimefactory.msg).type_0) {
             if let Some(pathNfilename) = (*mimefactory.msg).param.get(Param::File) {
                 if ((*mimefactory.msg).type_0 == Viewtype::Image
                     || (*mimefactory.msg).type_0 == Viewtype::Gif)
@@ -1096,7 +1096,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 );
             }
             if 0 != mimefactory.out_gossiped {
-                dc_set_gossiped_timestamp(context, (*mimefactory.msg).chat_id, time());
+                chat::set_gossiped_timestamp(context, (*mimefactory.msg).chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
                 dc_set_kml_sent_timestamp(context, (*mimefactory.msg).chat_id, time());

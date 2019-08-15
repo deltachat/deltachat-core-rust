@@ -10,7 +10,7 @@ use mmime::mailmime_write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
-use crate::chat::*;
+use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{dc_get_version_str, Context};
@@ -112,14 +112,14 @@ pub unsafe fn dc_mimefactory_load_msg(
     (*factory).msg = dc_msg_new_untyped(context);
 
     if dc_msg_load_from_db((*factory).msg, context, msg_id) {
-        if let Ok(chat) = dc_chat_load_from_db(context, (*(*factory).msg).chat_id) {
+        if let Ok(chat) = Chat::load_from_db(context, (*(*factory).msg).chat_id) {
             (*factory).chat = Some(chat);
 
             let chat = (*factory).chat.as_ref().unwrap();
 
             load_from(factory);
             (*factory).req_mdn = 0;
-            if 0 != dc_chat_is_self_talk(chat) {
+            if chat.is_self_talk() {
                 clist_insert_after(
                     (*factory).recipients_names,
                     (*(*factory).recipients_names).last,
@@ -830,7 +830,7 @@ pub unsafe fn dc_mimefactory_render(mut factory: *mut dc_mimefactory_t) -> libc:
             free(placeholdertext as *mut libc::c_void);
 
             /* add attachment part */
-            if msgtype_has_file((*msg).type_0) {
+            if chat::msgtype_has_file((*msg).type_0) {
                 if !is_file_size_okay(msg) {
                     let error: *mut libc::c_char = dc_mprintf(
                         b"Message exceeds the recommended %i MB.\x00" as *const u8
@@ -1146,22 +1146,20 @@ unsafe fn build_body_file(
     let mime_fields: *mut mailmime_fields;
     let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
     let content: *mut mailmime_content;
-    let pathNfilename = (*msg)
-        .param
-        .get(Param::File)
-        .map(|s| s.strdup())
-        .unwrap_or_else(|| std::ptr::null_mut());
+    let path_filename = (*msg).param.get(Param::File);
+
     let mut mimetype = (*msg)
         .param
         .get(Param::MimeType)
         .map(|s| s.strdup())
         .unwrap_or_else(|| std::ptr::null_mut());
 
-    let suffix = dc_get_filesuffix_lc(pathNfilename);
     let mut filename_to_send = 0 as *mut libc::c_char;
     let mut filename_encoded = 0 as *mut libc::c_char;
 
-    if !pathNfilename.is_null() {
+    if let Some(ref path_filename) = path_filename {
+        let suffix = dc_get_filesuffix_lc(path_filename);
+
         if (*msg).type_0 == Viewtype::Voice {
             let ts = chrono::Utc.timestamp((*msg).timestamp_sort as i64, 0);
 
@@ -1175,7 +1173,7 @@ unsafe fn build_body_file(
                 .to_string();
             filename_to_send = res.strdup();
         } else if (*msg).type_0 == Viewtype::Audio {
-            filename_to_send = dc_get_filename(pathNfilename)
+            filename_to_send = dc_get_filename(path_filename)
         } else if (*msg).type_0 == Viewtype::Image || (*msg).type_0 == Viewtype::Gif {
             if base_name.is_null() {
                 base_name = b"image\x00" as *const u8 as *const libc::c_char
@@ -1199,7 +1197,7 @@ unsafe fn build_body_file(
                 },
             )
         } else {
-            filename_to_send = dc_get_filename(pathNfilename)
+            filename_to_send = dc_get_filename(path_filename)
         }
         if mimetype.is_null() {
             if suffix.is_null() {
@@ -1292,17 +1290,16 @@ unsafe fn build_body_file(
                 ) as *mut libc::c_void,
             );
             mime_sub = mailmime_new_empty(content, mime_fields);
-            mailmime_set_body_file(mime_sub, dc_get_abs_path((*msg).context, pathNfilename));
+            mailmime_set_body_file(mime_sub, dc_get_abs_path((*msg).context, path_filename));
             if !ret_file_name_as_sent.is_null() {
                 *ret_file_name_as_sent = dc_strdup(filename_to_send)
             }
         }
     }
-    free(pathNfilename as *mut libc::c_void);
+
     free(mimetype as *mut libc::c_void);
     free(filename_to_send as *mut libc::c_void);
     free(filename_encoded as *mut libc::c_void);
-    free(suffix as *mut libc::c_void);
 
     mime_sub
 }

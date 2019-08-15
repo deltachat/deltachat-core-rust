@@ -4,7 +4,7 @@ use mmime::mailimf_types::*;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::aheader::EncryptPreference;
-use crate::chat::*;
+use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
@@ -88,8 +88,8 @@ pub unsafe fn dc_get_securejoin_qr(
     let self_name_urlencoded = utf8_percent_encode(&self_name, NON_ALPHANUMERIC).to_string();
 
     qr = if 0 != group_chat_id {
-        if let Ok(chat) = dc_get_chat(context, group_chat_id) {
-            group_name = dc_chat_get_name(&chat);
+        if let Ok(chat) = Chat::load_from_db(context, group_chat_id) {
+            group_name = chat.get_name();
             group_name_urlencoded = dc_urlencode(group_name);
 
             Some(format!(
@@ -152,7 +152,8 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
         if qr_scan.is_null() || (*qr_scan).state != 200i32 && (*qr_scan).state != 202i32 {
             error!(context, 0, "Unknown QR code.",);
         } else {
-            contact_chat_id = dc_create_chat_by_contact_id(context, (*qr_scan).id);
+            contact_chat_id =
+                chat::create_by_contact_id(context, (*qr_scan).id).unwrap_or_default();
             if contact_chat_id == 0i32 as libc::c_uint {
                 error!(context, 0, "Unknown contact.",);
             } else if !(context
@@ -232,7 +233,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
     if bob.status == 1 {
         if 0 != join_vg {
             ret_chat_id =
-                dc_get_chat_id_by_grpid(context, (*qr_scan).text2, None, 0 as *mut libc::c_int)
+                chat::get_chat_id_by_grpid(context, (*qr_scan).text2, None, 0 as *mut libc::c_int)
                     as libc::c_int
         } else {
             ret_chat_id = contact_chat_id as libc::c_int
@@ -284,12 +285,13 @@ unsafe fn send_handshake_msg(
     } else {
         (*msg).param.set_int(Param::GuranteeE2ee, 1);
     }
-    dc_send_msg(context, contact_chat_id, msg);
+    // TODO. handle cleanup on error
+    chat::send_msg(context, contact_chat_id, msg).unwrap();
     dc_msg_unref(msg);
 }
 
 unsafe fn chat_id_2_contact_id(context: &Context, contact_chat_id: uint32_t) -> uint32_t {
-    let contacts = dc_get_chat_contacts(context, contact_chat_id);
+    let contacts = chat::get_chat_contacts(context, contact_chat_id);
     if contacts.len() == 1 {
         contacts[0]
     } else {
@@ -306,7 +308,7 @@ unsafe fn fingerprint_equals_sender(
         return 0;
     }
     let mut fingerprint_equal: libc::c_int = 0i32;
-    let contacts = dc_get_chat_contacts(context, contact_chat_id);
+    let contacts = chat::get_chat_contacts(context, contact_chat_id);
 
     if contacts.len() == 1 {
         if let Ok(contact) = Contact::load_from_db(context, contacts[0]) {
@@ -339,8 +341,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut scanned_fingerprint_of_alice: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut own_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut contact_chat_id: uint32_t = 0i32 as uint32_t;
-    let mut contact_chat_id_blocked = Blocked::Not;
+    let contact_chat_id: u32;
+    let contact_chat_id_blocked: Blocked;
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut ret: libc::c_int = 0i32;
 
@@ -355,15 +357,13 @@ pub unsafe fn dc_handle_securejoin_handshake(
             );
             join_vg = (strncmp(step, b"vg-\x00" as *const u8 as *const libc::c_char, 3) == 0)
                 as libc::c_int;
-            dc_create_or_lookup_nchat_by_contact_id(
-                context,
-                contact_id,
-                Blocked::Not,
-                &mut contact_chat_id,
-                Some(&mut contact_chat_id_blocked),
-            );
+            let (id, bl) = chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not)
+                .unwrap_or_default();
+            contact_chat_id = id;
+            contact_chat_id_blocked = bl;
+
             if Blocked::Not != contact_chat_id_blocked {
-                dc_unblock_chat(context, contact_chat_id);
+                chat::unblock(context, contact_chat_id);
             }
             ret = 0x2i32;
             if strcmp(step, b"vg-request\x00" as *const u8 as *const libc::c_char) == 0i32
@@ -574,7 +574,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         );
                         if 0 != join_vg {
                             grpid = dc_strdup(lookup_field(mimeparser, "Secure-Join-Group"));
-                            let group_chat_id: uint32_t = dc_get_chat_id_by_grpid(
+                            let group_chat_id: uint32_t = chat::get_chat_id_by_grpid(
                                 context,
                                 grpid,
                                 None,
@@ -584,7 +584,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 error!(context, 0, "Chat {} not found.", as_str(grpid),);
                                 current_block = 4378276786830486580;
                             } else {
-                                dc_add_contact_to_chat_ex(
+                                chat::add_contact_to_chat_ex(
                                     context,
                                     group_chat_id,
                                     contact_id,
@@ -647,7 +647,12 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         let mut vg_expect_encrypted: libc::c_int = 1i32;
                         if 0 != join_vg {
                             let mut is_verified_group: libc::c_int = 0i32;
-                            dc_get_chat_id_by_grpid(context, grpid, None, &mut is_verified_group);
+                            chat::get_chat_id_by_grpid(
+                                context,
+                                grpid,
+                                None,
+                                &mut is_verified_group,
+                            );
                             if 0 == is_verified_group {
                                 vg_expect_encrypted = 0i32
                             }
@@ -803,7 +808,7 @@ unsafe fn secure_connection_established(context: &Context, contact_chat_id: uint
     };
     let msg =
         CString::new(context.stock_string_repl_str(StockMessage::ContactVerified, addr)).unwrap();
-    dc_add_device_msg(context, contact_chat_id, msg.as_ptr());
+    chat::add_device_msg(context, contact_chat_id, msg.as_ptr());
     context.call_cb(
         Event::CHAT_MODIFIED,
         contact_chat_id as uintptr_t,
@@ -844,7 +849,7 @@ unsafe fn could_not_establish_secure_connection(
         },
     );
     let msg_c = CString::new(msg.as_str()).unwrap();
-    dc_add_device_msg(context, contact_chat_id, msg_c.as_ptr());
+    chat::add_device_msg(context, contact_chat_id, msg_c.as_ptr());
     error!(context, 0, "{} ({})", msg, as_str(details));
 }
 
@@ -906,8 +911,6 @@ unsafe fn encrypted_and_signed(
 }
 
 pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) {
-    let mut contact_chat_id = 0;
-
     // - we do not issue an warning for DC_DE_ENCRYPTION_PAUSED as this is quite normal
     // - currently, we do not issue an extra warning for DC_DE_VERIFICATION_LOST - this always comes
     //   together with DC_DE_FINGERPRINT_CHANGED which is logged, the idea is not to bother
@@ -924,13 +927,10 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
             )
             .unwrap_or_default();
         if contact_id > 0 {
-            dc_create_or_lookup_nchat_by_contact_id(
-                context,
-                contact_id as u32,
-                Blocked::Deaddrop,
-                &mut contact_chat_id,
-                None,
-            );
+            let (contact_chat_id, _) =
+                chat::create_or_lookup_by_contact_id(context, contact_id as u32, Blocked::Deaddrop)
+                    .unwrap_or_default();
+
             let peeraddr: &str = match peerstate.addr {
                 Some(ref addr) => &addr,
                 None => "",
@@ -939,7 +939,7 @@ pub unsafe fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) 
                 context.stock_string_repl_str(StockMessage::ContactSetupChanged, peeraddr),
             )
             .unwrap();
-            dc_add_device_msg(context, contact_chat_id, msg.as_ptr());
+            chat::add_device_msg(context, contact_chat_id, msg.as_ptr());
             context.call_cb(
                 Event::CHAT_MODIFIED,
                 contact_chat_id as uintptr_t,

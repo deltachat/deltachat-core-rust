@@ -3,7 +3,7 @@ use std::ffi::CString;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
-use crate::chat::*;
+use crate::chat;
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::*;
@@ -104,7 +104,7 @@ pub unsafe fn dc_send_locations_to_chat(
                 (*msg).text =
                     Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
                 (*msg).param.set_int(Param::Cmd, 8);
-                dc_send_msg(context, chat_id, msg);
+                chat::send_msg(context, chat_id, msg).unwrap();
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str = CString::new(context.stock_system_msg(
                     StockMessage::MsgLocationDisabled,
@@ -113,7 +113,7 @@ pub unsafe fn dc_send_locations_to_chat(
                     0,
                 ))
                 .unwrap();
-                dc_add_device_msg(context, chat_id, stock_str.as_ptr());
+                chat::add_device_msg(context, chat_id, stock_str.as_ptr());
             }
             context.call_cb(
                 Event::CHAT_MODIFIED,
@@ -697,7 +697,8 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
                             let mut msg = dc_msg_new(context, Viewtype::Text);
                             (*msg).hidden = 1;
                             (*msg).param.set_int(Param::Cmd, 9);
-                            dc_send_msg(context, chat_id as u32, msg);
+                            // TODO: handle cleanup on error
+                            chat::send_msg(context, chat_id as u32, msg).unwrap();
                             dc_msg_unref(msg);
                         }
                         Ok(())
@@ -736,7 +737,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
                     params![chat_id as i32],
                 ).is_ok() {
                     let stock_str = CString::new(context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0)).unwrap();
-                    dc_add_device_msg(context, chat_id, stock_str.as_ptr());
+                    chat::add_device_msg(context, chat_id, stock_str.as_ptr());
                     context.call_cb(
                         Event::CHAT_MODIFIED,
                         chat_id as usize,

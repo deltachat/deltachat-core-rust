@@ -138,7 +138,7 @@ pub enum Modifier {
     Created,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, FromPrimitive)]
 #[repr(u8)]
 pub enum VerifiedStatus {
     /// Contact is not verified.

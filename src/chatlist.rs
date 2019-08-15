@@ -265,7 +265,7 @@ impl<'a> Chatlist<'a> {
         let chat = if let Some(chat) = chat {
             chat
         } else {
-            if let Ok(chat) = dc_get_chat(self.context, self.ids[index].0) {
+            if let Ok(chat) = Chat::load_from_db(self.context, self.ids[index].0) {
                 chat_loaded = chat;
                 &chat_loaded
             } else {
