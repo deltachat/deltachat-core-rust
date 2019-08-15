@@ -322,11 +322,7 @@ pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, ms
     assert!(!context.is_null());
     let context = &*context;
 
-    log_err_default(
-        chat::create_by_msg_id(context, msg_id),
-        context,
-        "Failed to create chat",
-    )
+    chat::create_by_msg_id(context, msg_id).unwrap_or_log_default(context, "Failed to create chat")
 }
 
 #[no_mangle]
@@ -337,11 +333,8 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     assert!(!context.is_null());
     let context = &*context;
 
-    log_err_default(
-        chat::create_by_contact_id(context, contact_id),
-        context,
-        "Failed to create chat",
-    )
+    chat::create_by_contact_id(context, contact_id)
+        .unwrap_or_log_default(context, "Failed to create chat")
 }
 
 #[no_mangle]
@@ -352,11 +345,8 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     assert!(!context.is_null());
     let context = &*context;
 
-    log_err_default(
-        chat::get_by_contact_id(context, contact_id),
-        context,
-        "Failed to get chat",
-    )
+    chat::get_by_contact_id(context, contact_id)
+        .unwrap_or_log_default(context, "Failed to get chat")
 }
 
 #[no_mangle]
@@ -369,11 +359,8 @@ pub unsafe extern "C" fn dc_prepare_msg(
     assert!(!msg.is_null());
     let context = &*context;
 
-    log_err_default(
-        chat::prepare_msg(context, chat_id, msg),
-        context,
-        "Failed to prepare message",
-    )
+    chat::prepare_msg(context, chat_id, msg)
+        .unwrap_or_log_default(context, "Failed to prepare message")
 }
 
 #[no_mangle]
@@ -386,11 +373,7 @@ pub unsafe extern "C" fn dc_send_msg(
     assert!(!msg.is_null());
     let context = &*context;
 
-    log_err_default(
-        chat::send_msg(context, chat_id, msg),
-        context,
-        "Failed to send message",
-    )
+    chat::send_msg(context, chat_id, msg).unwrap_or_log_default(context, "Failed to send message")
 }
 
 #[no_mangle]
@@ -404,11 +387,8 @@ pub unsafe extern "C" fn dc_send_text_msg(
     let context = &*context;
     let text_to_send = dc_tools::to_string_lossy(text_to_send);
 
-    log_err_default(
-        chat::send_text_msg(context, chat_id, text_to_send),
-        context,
-        "Failed to send text message",
-    )
+    chat::send_text_msg(context, chat_id, text_to_send)
+        .unwrap_or_log_default(context, "Failed to send text message")
 }
 
 #[no_mangle]
@@ -481,11 +461,7 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
     assert!(!context.is_null());
     let context = &*context;
 
-    log_err(
-        chat::marknoticed_chat(context, chat_id),
-        context,
-        "Failed marknoticed chat",
-    );
+    chat::marknoticed_chat(context, chat_id).log_err(context, "Failed marknoticed chat");
 }
 
 #[no_mangle]
@@ -493,11 +469,7 @@ pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    log_err(
-        chat::marknoticed_all_chats(context),
-        context,
-        "Failed marknoticed all chats",
-    );
+    chat::marknoticed_all_chats(context).log_err(context, "Failed marknoticed all chats");
 }
 
 fn from_prim<S, T>(s: S) -> Option<T>
@@ -566,11 +538,7 @@ pub unsafe extern "C" fn dc_archive_chat(
         return;
     };
 
-    log_err(
-        chat::archive(context, chat_id, archive),
-        context,
-        "Failed archive chat",
-    );
+    chat::archive(context, chat_id, archive).log_err(context, "Failed archive chat");
 }
 
 #[no_mangle]
@@ -578,12 +546,7 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
     assert!(!context.is_null());
     let context = &*context;
 
-    // TODO: update to indicate public api success/failure of deletion
-    log_err(
-        chat::delete(context, chat_id),
-        context,
-        "Failed chat delete",
-    );
+    chat::delete(context, chat_id).log_err(context, "Failed chat delete");
 }
 
 #[no_mangle]
@@ -640,11 +603,8 @@ pub unsafe extern "C" fn dc_create_group_chat(
         return 0;
     };
 
-    log_err_default(
-        chat::create_group_chat(context, verified, name),
-        context,
-        "Failed to create group chat",
-    )
+    chat::create_group_chat(context, verified, name)
+        .unwrap_or_log_default(context, "Failed to create group chat")
 }
 
 #[no_mangle]
@@ -1895,22 +1855,25 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
     Some(dc_tools::as_str(s))
 }
 
-fn log_err<T>(res: Result<T, error::Error>, context: &context::Context, msg: &str) {
-    if let Err(err) = res {
-        error!(context, 0, "{}: {}", msg, err);
-    }
+pub trait ResultExt<T: Default> {
+    fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
+    fn log_err(&self, context: &context::Context, message: &str);
 }
 
-fn log_err_default<T: Default>(
-    res: Result<T, error::Error>,
-    context: &context::Context,
-    msg: &str,
-) -> T {
-    match res {
-        Ok(t) => t,
-        Err(err) => {
-            error!(context, 0, "{}: {}", msg, err);
-            Default::default()
+impl<T: Default, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
+    fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T {
+        match self {
+            Ok(t) => t,
+            Err(err) => {
+                error!(context, 0, "{}: {}", message, err);
+                Default::default()
+            }
+        }
+    }
+
+    fn log_err(&self, context: &context::Context, message: &str) {
+        if let Err(err) = self {
+            error!(context, 0, "{}: {}", message, err);
         }
     }
 }
