@@ -178,29 +178,6 @@ pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
     memcpy(in_0 as *mut _, raw.as_ptr() as *const _, strlen(in_0));
 }
 
-pub unsafe fn dc_str_contains(
-    haystack: *const libc::c_char,
-    needle: *const libc::c_char,
-) -> libc::c_int {
-    if haystack.is_null() || needle.is_null() {
-        return 0;
-    }
-    if !strstr(haystack, needle).is_null() {
-        return 1;
-    }
-    let haystack_lower: *mut libc::c_char = dc_strlower(haystack);
-    let needle_lower: *mut libc::c_char = dc_strlower(needle);
-    let ret = if !strstr(haystack_lower, needle_lower).is_null() {
-        1
-    } else {
-        0
-    };
-    free(haystack_lower as *mut libc::c_void);
-    free(needle_lower as *mut libc::c_void);
-
-    ret
-}
-
 /* the result must be free()'d */
 pub unsafe fn dc_null_terminate(
     in_0: *const libc::c_char,
