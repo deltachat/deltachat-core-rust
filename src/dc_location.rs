@@ -1,12 +1,14 @@
 use std::ffi::CString;
 
+use quick_xml;
+use quick_xml::events::{BytesEnd, BytesStart, BytesText};
+
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::*;
 use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
-use crate::dc_saxparser::*;
 use crate::dc_tools::*;
 use crate::param::*;
 use crate::sql;
@@ -478,161 +480,153 @@ pub unsafe fn dc_kml_parse(
     content_bytes: size_t,
 ) -> dc_kml_t {
     let mut kml = dc_kml_t::new();
-    let mut content_nullterminated: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut saxparser: dc_saxparser_t = dc_saxparser_t {
-        starttag_cb: None,
-        endtag_cb: None,
-        text_cb: None,
-        userdata: 0 as *mut libc::c_void,
-    };
 
     if content_bytes > (1 * 1024 * 1024) {
         warn!(
             context,
             0, "A kml-files with {} bytes is larger than reasonably expected.", content_bytes,
         );
-    } else {
-        content_nullterminated = dc_null_terminate(content, content_bytes as libc::c_int);
-        if !content_nullterminated.is_null() {
-            kml.locations = Some(Vec::with_capacity(100));
-            dc_saxparser_init(
-                &mut saxparser,
-                &mut kml as *mut dc_kml_t as *mut libc::c_void,
-            );
-            dc_saxparser_set_tag_handler(
-                &mut saxparser,
-                Some(kml_starttag_cb),
-                Some(kml_endtag_cb),
-            );
-            dc_saxparser_set_text_handler(&mut saxparser, Some(kml_text_cb));
-            dc_saxparser_parse(&mut saxparser, content_nullterminated);
+        return kml;
+    }
+
+    let content_null = dc_null_terminate(content, content_bytes as libc::c_int);
+    if !content_null.is_null() {
+        let mut reader = quick_xml::Reader::from_str(as_str(content_null));
+        reader.trim_text(true);
+
+        kml.locations = Some(Vec::with_capacity(100));
+
+        let mut buf = Vec::new();
+
+        loop {
+            match reader.read_event(&mut buf) {
+                Ok(quick_xml::events::Event::Start(ref e)) => kml_starttag_cb(e, &mut kml, &reader),
+                Ok(quick_xml::events::Event::End(ref e)) => kml_endtag_cb(e, &mut kml),
+                Ok(quick_xml::events::Event::Text(ref e)) => kml_text_cb(e, &mut kml, &reader),
+                Err(e) => {
+                    panic!(
+                        "Location parsing: Error at position {}: {:?}",
+                        reader.buffer_position(),
+                        e
+                    );
+                }
+                Ok(quick_xml::events::Event::Eof) => break,
+                _ => (),
+            }
+            buf.clear();
         }
     }
 
-    free(content_nullterminated as *mut libc::c_void);
+    free(content_null.cast());
 
     kml
 }
 
-unsafe fn kml_text_cb(userdata: *mut libc::c_void, text: *const libc::c_char, _len: libc::c_int) {
-    let mut kml: *mut dc_kml_t = userdata as *mut dc_kml_t;
-    if 0 != (*kml).tag & (0x4 | 0x10) {
-        let mut val: *mut libc::c_char = dc_strdup(text);
-        dc_str_replace(
-            &mut val,
-            b"\n\x00" as *const u8 as *const libc::c_char,
-            b"\x00" as *const u8 as *const libc::c_char,
-        );
-        dc_str_replace(
-            &mut val,
-            b"\r\x00" as *const u8 as *const libc::c_char,
-            b"\x00" as *const u8 as *const libc::c_char,
-        );
-        dc_str_replace(
-            &mut val,
-            b"\t\x00" as *const u8 as *const libc::c_char,
-            b"\x00" as *const u8 as *const libc::c_char,
-        );
-        dc_str_replace(
-            &mut val,
-            b" \x00" as *const u8 as *const libc::c_char,
-            b"\x00" as *const u8 as *const libc::c_char,
-        );
-        if 0 != (*kml).tag & 0x4 && strlen(val) >= 19 {
+fn kml_text_cb<B: std::io::BufRead>(
+    event: &BytesText,
+    kml: &mut dc_kml_t,
+    reader: &quick_xml::Reader<B>,
+) {
+    if 0 != kml.tag & (0x4 | 0x10) {
+        let val = event.unescape_and_decode(reader).unwrap_or_default();
+
+        let val = val
+            .replace("\n", "")
+            .replace("\r", "")
+            .replace("\t", "")
+            .replace(" ", "");
+
+        if 0 != kml.tag & 0x4 && val.len() >= 19 {
             // YYYY-MM-DDTHH:MM:SSZ
             // 0   4  7  10 13 16 19
-            let val_r = as_str(val);
-            match chrono::NaiveDateTime::parse_from_str(val_r, "%Y-%m-%dT%H:%M:%SZ") {
+            match chrono::NaiveDateTime::parse_from_str(&val, "%Y-%m-%dT%H:%M:%SZ") {
                 Ok(res) => {
-                    (*kml).curr.timestamp = res.timestamp();
-                    if (*kml).curr.timestamp > time() {
-                        (*kml).curr.timestamp = time();
+                    kml.curr.timestamp = res.timestamp();
+                    if kml.curr.timestamp > time() {
+                        kml.curr.timestamp = time();
                     }
                 }
                 Err(_err) => {
-                    (*kml).curr.timestamp = time();
+                    kml.curr.timestamp = time();
                 }
             }
-        } else if 0 != (*kml).tag & 0x10 {
-            let mut comma: *mut libc::c_char = strchr(val, ',' as i32);
-            if !comma.is_null() {
-                let longitude: *mut libc::c_char = val;
-                let latitude: *mut libc::c_char = comma.offset(1isize);
-                *comma = 0 as libc::c_char;
-                comma = strchr(latitude, ',' as i32);
-                if !comma.is_null() {
-                    *comma = 0 as libc::c_char
-                }
-                (*kml).curr.latitude = dc_atof(latitude);
-                (*kml).curr.longitude = dc_atof(longitude)
+        } else if 0 != kml.tag & 0x10 {
+            let parts = val.splitn(2, ',').collect::<Vec<_>>();
+            if parts.len() == 2 {
+                kml.curr.longitude = parts[0].parse().unwrap_or_default();
+                kml.curr.latitude = parts[1].parse().unwrap_or_default();
             }
         }
-        free(val as *mut libc::c_void);
-    };
+    }
 }
 
-unsafe fn kml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
-    let mut kml: *mut dc_kml_t = userdata as *mut dc_kml_t;
-    if strcmp(tag, b"placemark\x00" as *const u8 as *const libc::c_char) == 0 {
-        if 0 != (*kml).tag & 0x1
-            && 0 != (*kml).curr.timestamp
-            && 0. != (*kml).curr.latitude
-            && 0. != (*kml).curr.longitude
+fn kml_endtag_cb(event: &BytesEnd, kml: &mut dc_kml_t) {
+    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+
+    if tag == "placemark" {
+        if 0 != kml.tag & 0x1
+            && 0 != kml.curr.timestamp
+            && 0. != kml.curr.latitude
+            && 0. != kml.curr.longitude
         {
-            let location = (*kml).curr.clone();
-            ((*kml).locations.as_mut().unwrap()).push(location);
+            if let Some(ref mut locations) = kml.locations {
+                locations.push(std::mem::replace(&mut kml.curr, dc_location::new()));
+            }
         }
-        (*kml).tag = 0
+        kml.tag = 0
     };
 }
 
-/*******************************************************************************
- * parse kml-files
- ******************************************************************************/
-unsafe fn kml_starttag_cb(
-    userdata: *mut libc::c_void,
-    tag: *const libc::c_char,
-    attr: *mut *mut libc::c_char,
+fn kml_starttag_cb<B: std::io::BufRead>(
+    event: &BytesStart,
+    kml: &mut dc_kml_t,
+    reader: &quick_xml::Reader<B>,
 ) {
-    let mut kml: *mut dc_kml_t = userdata as *mut dc_kml_t;
-    if strcmp(tag, b"document\x00" as *const u8 as *const libc::c_char) == 0 {
-        let addr: *const libc::c_char =
-            dc_attr_find(attr, b"addr\x00" as *const u8 as *const libc::c_char);
-        if !addr.is_null() {
-            (*kml).addr = dc_strdup(addr)
+    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+    if tag == "document" {
+        if let Some(addr) = event.attributes().find(|attr| {
+            attr.as_ref()
+                .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "addr")
+                .unwrap_or_default()
+        }) {
+            kml.addr = unsafe {
+                addr.unwrap()
+                    .unescape_and_decode_value(reader)
+                    .unwrap_or_default()
+                    .strdup()
+            };
         }
-    } else if strcmp(tag, b"placemark\x00" as *const u8 as *const libc::c_char) == 0 {
-        (*kml).tag = 0x1;
-        (*kml).curr.timestamp = 0;
-        (*kml).curr.latitude = 0 as libc::c_double;
-        (*kml).curr.longitude = 0.0f64;
-        (*kml).curr.accuracy = 0.0f64
-    } else if strcmp(tag, b"timestamp\x00" as *const u8 as *const libc::c_char) == 0
-        && 0 != (*kml).tag & 0x1
-    {
-        (*kml).tag = 0x1 | 0x2
-    } else if strcmp(tag, b"when\x00" as *const u8 as *const libc::c_char) == 0
-        && 0 != (*kml).tag & 0x2
-    {
-        (*kml).tag = 0x1 | 0x2 | 0x4
-    } else if strcmp(tag, b"point\x00" as *const u8 as *const libc::c_char) == 0
-        && 0 != (*kml).tag & 0x1
-    {
-        (*kml).tag = 0x1 | 0x8
-    } else if strcmp(tag, b"coordinates\x00" as *const u8 as *const libc::c_char) == 0
-        && 0 != (*kml).tag & 0x8
-    {
-        (*kml).tag = 0x1 | 0x8 | 0x10;
-        let accuracy: *const libc::c_char =
-            dc_attr_find(attr, b"accuracy\x00" as *const u8 as *const libc::c_char);
-        if !accuracy.is_null() {
-            (*kml).curr.accuracy = dc_atof(accuracy)
+    } else if tag == "placemark" {
+        kml.tag = 0x1;
+        kml.curr.timestamp = 0;
+        kml.curr.latitude = 0 as libc::c_double;
+        kml.curr.longitude = 0.0f64;
+        kml.curr.accuracy = 0.0f64
+    } else if tag == "timestamp" && 0 != kml.tag & 0x1 {
+        kml.tag = 0x1 | 0x2
+    } else if tag == "when" && 0 != kml.tag & 0x2 {
+        kml.tag = 0x1 | 0x2 | 0x4
+    } else if tag == "point" && 0 != kml.tag & 0x1 {
+        kml.tag = 0x1 | 0x8
+    } else if tag == "coordinates" && 0 != kml.tag & 0x8 {
+        kml.tag = 0x1 | 0x8 | 0x10;
+        if let Some(acc) = event.attributes().find(|attr| {
+            attr.as_ref()
+                .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "accuracy")
+                .unwrap_or_default()
+        }) {
+            let v = acc
+                .unwrap()
+                .unescape_and_decode_value(reader)
+                .unwrap_or_default();
+
+            kml.curr.accuracy = v.trim().parse().unwrap_or_default();
         }
-    };
+    }
 }
 
 pub unsafe fn dc_kml_unref(kml: &mut dc_kml_t) {
-    free((*kml).addr as *mut libc::c_void);
+    free(kml.addr as *mut libc::c_void);
 }
 
 #[allow(non_snake_case)]
@@ -748,6 +742,49 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut
                     );
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::dummy_context;
+
+    #[test]
+    fn test_dc_kml_parse() {
+        unsafe {
+            let context = dummy_context();
+
+            let xml =
+                b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</WHEN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></PlaceMARK>\n</Document>\n</kml>\x00"
+                as *const u8 as *const libc::c_char;
+
+            let mut kml = dc_kml_parse(&context.ctx, xml, strlen(xml));
+
+            assert!(!kml.addr.is_null());
+            assert_eq!(as_str(kml.addr as *const libc::c_char), "user@example.org",);
+
+            let locations_ref = &kml.locations.as_ref().unwrap();
+            assert_eq!(locations_ref.len(), 2);
+
+            assert!(locations_ref[0].latitude > 53.6f64);
+            assert!(locations_ref[0].latitude < 53.8f64);
+            assert!(locations_ref[0].longitude > 9.3f64);
+            assert!(locations_ref[0].longitude < 9.5f64);
+            assert!(locations_ref[0].accuracy > 31.9f64);
+            assert!(locations_ref[0].accuracy < 32.1f64);
+            assert_eq!(locations_ref[0].timestamp, 1551906597);
+
+            assert!(locations_ref[1].latitude > 63.6f64);
+            assert!(locations_ref[1].latitude < 63.8f64);
+            assert!(locations_ref[1].longitude > 19.3f64);
+            assert!(locations_ref[1].longitude < 19.5f64);
+            assert!(locations_ref[1].accuracy > 2.4f64);
+            assert!(locations_ref[1].accuracy < 2.6f64);
+            assert_eq!(locations_ref[1].timestamp, 1544739072);
+
+            dc_kml_unref(&mut kml);
         }
     }
 }
