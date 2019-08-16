@@ -167,11 +167,6 @@ pub unsafe fn dc_trim(buf: *mut libc::c_char) {
     dc_rtrim(buf);
 }
 
-/* the result must be free()'d */
-unsafe fn dc_strlower(in_0: *const libc::c_char) -> *mut libc::c_char {
-    to_string(in_0).to_lowercase().strdup()
-}
-
 pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
     let raw = CString::yolo(to_string(in_0).to_lowercase());
     assert_eq!(strlen(in_0), strlen(raw.as_ptr()));
