@@ -9,7 +9,6 @@ use mmime::mailmime_types_helper::*;
 use mmime::mailmime_write_mem::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
-use std::ptr;
 
 use crate::constants::*;
 use crate::contact::*;
@@ -1075,13 +1074,14 @@ unsafe fn get_subject(
     let ret: *mut libc::c_char;
 
     let raw_subject = {
-        let msgtext_c = (*msg)
-            .text
-            .as_ref()
-            .map(|s| CString::yolo(String::as_str(s)));
-        let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
-
-        dc_msg_get_summarytext_by_raw((*msg).type_0, msgtext_ptr, &mut (*msg).param, 32, context)
+        dc_msg_get_summarytext_by_raw(
+            (*msg).type_0,
+            (*msg).text.as_ref(),
+            &mut (*msg).param,
+            32,
+            context,
+        )
+        .strdup()
     };
 
     let fwd = if 0 != afwd_email {

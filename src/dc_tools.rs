@@ -14,8 +14,6 @@ use crate::error::Error;
 use crate::types::*;
 use crate::x::*;
 
-const ELLIPSE: &str = "[...]";
-
 /* Some tools and enhancements to the used libraries, there should be
 no references to Context and other "larger" classes here. */
 /* ** library-private **********************************************************/
@@ -311,12 +309,25 @@ unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
     j
 }
 
-pub fn dc_truncate_str(buf: &str, approx_chars: usize) -> Cow<str> {
-    if approx_chars > 0 && buf.len() > approx_chars + ELLIPSE.len() {
+/// Shortens a string to a specified length and adds "..." or "[...]" to the end of
+/// the shortened string.
+///
+/// # Examples
+/// ```
+/// use deltachat::dc_tools::dc_truncate;
+///
+/// let s = "this is a little test string";
+/// assert_eq!(dc_truncate(s, 16, false), "this is a [...]");
+/// assert_eq!(dc_truncate(s, 16, true), "this is a ...");
+/// ```
+pub fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow<str> {
+    let ellipse = if do_unwrap { "..." } else { "[...]" };
+
+    if approx_chars > 0 && buf.len() > approx_chars + ellipse.len() {
         if let Some(index) = buf[..approx_chars].rfind(|c| c == ' ' || c == '\n') {
-            Cow::Owned(format!("{}{}", &buf[..index + 1], ELLIPSE))
+            Cow::Owned(format!("{}{}", &buf[..index + 1], ellipse))
         } else {
-            Cow::Owned(format!("{}{}", &buf[..approx_chars], ELLIPSE))
+            Cow::Owned(format!("{}{}", &buf[..approx_chars], ellipse))
         }
     } else {
         Cow::Borrowed(buf)
@@ -1640,25 +1651,28 @@ mod tests {
     }
 
     #[test]
-    fn test_dc_str_truncate_1() {
+    fn test_dc_truncate_1() {
         let s = "this is a little test string";
-        assert_eq!(dc_truncate_str(s, 16), "this is a [...]");
+        assert_eq!(dc_truncate(s, 16, false), "this is a [...]");
+        assert_eq!(dc_truncate(s, 16, true), "this is a ...");
     }
 
     #[test]
-    fn test_dc_str_truncate_2() {
-        assert_eq!(dc_truncate_str("1234", 2), "1234");
+    fn test_dc_truncate_2() {
+        assert_eq!(dc_truncate("1234", 2, false), "1234");
+        assert_eq!(dc_truncate("1234", 2, true), "1234");
     }
 
-    // This test seems wrong
-    // #[test]
-    // fn test_dc_str_truncate_3() {
-    //     assert_eq!(dc_truncate_str("1234567", 3), "1[...]");
-    // }
+    #[test]
+    fn test_dc_truncate_3() {
+        assert_eq!(dc_truncate("1234567", 1, false), "1[...]");
+        assert_eq!(dc_truncate("1234567", 1, true), "1...");
+    }
 
     #[test]
-    fn test_dc_str_truncate_4() {
-        assert_eq!(dc_truncate_str("123456", 4), "123456");
+    fn test_dc_truncate_4() {
+        assert_eq!(dc_truncate("123456", 4, false), "123456");
+        assert_eq!(dc_truncate("123456", 4, true), "123456");
     }
 
     #[test]

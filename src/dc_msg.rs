@@ -67,7 +67,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         return ret.strdup();
     }
     let rawtxt = rawtxt.unwrap();
-    let rawtxt = dc_truncate_str(rawtxt.trim(), 100000);
+    let rawtxt = dc_truncate(rawtxt.trim(), 100000, false);
 
     let fts = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
     ret += &format!("Sent: {}", fts);
@@ -669,7 +669,7 @@ pub unsafe fn dc_msg_get_text(msg: *const dc_msg_t) -> *mut libc::c_char {
         return dc_strdup(0 as *const libc::c_char);
     }
     if let Some(ref text) = (*msg).text {
-        dc_truncate_str(text, 30000).strdup()
+        dc_truncate(text, 30000, false).strdup()
     } else {
         ptr::null_mut()
     }
@@ -780,105 +780,82 @@ pub unsafe fn dc_msg_get_summary<'a>(
 
 pub unsafe fn dc_msg_get_summarytext(
     msg: *mut dc_msg_t,
-    approx_characters: libc::c_int,
+    approx_characters: usize,
 ) -> *mut libc::c_char {
     if msg.is_null() {
         return dc_strdup(0 as *const libc::c_char);
     }
 
-    let msgtext_c = (*msg)
-        .text
-        .as_ref()
-        .map(|s| CString::yolo(String::as_str(s)));
-    let msgtext_ptr = msgtext_c.map_or(ptr::null(), |s| s.as_ptr());
-
     dc_msg_get_summarytext_by_raw(
         (*msg).type_0,
-        msgtext_ptr,
+        (*msg).text.as_ref(),
         &mut (*msg).param,
         approx_characters,
         (*msg).context,
     )
+    .strdup()
 }
 
-/* the returned value must be free()'d */
-#[allow(non_snake_case)]
-pub unsafe fn dc_msg_get_summarytext_by_raw(
-    type_0: Viewtype,
-    text: *const libc::c_char,
+/// Returns a summary test.
+pub fn dc_msg_get_summarytext_by_raw(
+    viewtype: Viewtype,
+    text: Option<impl AsRef<str>>,
     param: &mut Params,
-    approx_characters: libc::c_int,
+    approx_characters: usize,
     context: &Context,
-) -> *mut libc::c_char {
-    /* get a summary text, result must be free()'d, never returns NULL. */
-    let mut ret;
-    let mut prefix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut pathNfilename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut value: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut append_text: libc::c_int = 1i32;
-    match type_0 {
-        Viewtype::Image => prefix = context.stock_str(StockMessage::Image).strdup(),
-        Viewtype::Gif => prefix = context.stock_str(StockMessage::Gif).strdup(),
-        Viewtype::Video => prefix = context.stock_str(StockMessage::Video).strdup(),
-        Viewtype::Voice => prefix = context.stock_str(StockMessage::VoiceMessage).strdup(),
+) -> String {
+    let mut append_text = true;
+    let prefix = match viewtype {
+        Viewtype::Image => context.stock_str(StockMessage::Image).into_owned(),
+        Viewtype::Gif => context.stock_str(StockMessage::Gif).into_owned(),
+        Viewtype::Video => context.stock_str(StockMessage::Video).into_owned(),
+        Viewtype::Voice => context.stock_str(StockMessage::VoiceMessage).into_owned(),
         Viewtype::Audio | Viewtype::File => {
             if param.get_int(Param::Cmd) == Some(6) {
-                prefix = context.stock_str(StockMessage::AcSetupMsgSubject).strdup();
-                append_text = 0i32
+                append_text = false;
+                context
+                    .stock_str(StockMessage::AcSetupMsgSubject)
+                    .to_string()
             } else {
-                pathNfilename = param
-                    .get(Param::File)
-                    .unwrap_or_else(|| "ErrFilename")
-                    .strdup();
-                value = dc_get_filename(pathNfilename);
-                let label = CString::new(
-                    context
-                        .stock_str(if type_0 == Viewtype::Audio {
-                            StockMessage::Audio
-                        } else {
-                            StockMessage::File
-                        })
-                        .as_ref(),
-                )
-                .unwrap();
-                prefix = dc_mprintf(
-                    b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-                    label.as_ptr(),
-                    value,
-                )
+                let file_name: String = if let Some(file_path) = param.get(Param::File) {
+                    if let Some(file_name) = Path::new(file_path).file_name() {
+                        Some(file_name.to_string_lossy().into_owned())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+                .unwrap_or("ErrFileName".to_string());
+
+                let label = context.stock_str(if viewtype == Viewtype::Audio {
+                    StockMessage::Audio
+                } else {
+                    StockMessage::File
+                });
+                format!("{} – {}", label, file_name)
             }
         }
         _ => {
-            if param.get_int(Param::Cmd) == Some(9) {
-                prefix = context.stock_str(StockMessage::Location).strdup();
-                append_text = 0;
+            if param.get_int(Param::Cmd) != Some(9) {
+                "".to_string()
+            } else {
+                append_text = false;
+                context.stock_str(StockMessage::Location).to_string()
             }
         }
-    }
-    if 0 != append_text
-        && !prefix.is_null()
-        && !text.is_null()
-        && 0 != *text.offset(0isize) as libc::c_int
-    {
-        ret = dc_mprintf(
-            b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-            prefix,
-            text,
-        );
-        dc_truncate_n_unwrap_str(ret, approx_characters, 1i32);
-    } else if 0 != append_text && !text.is_null() && 0 != *text.offset(0isize) as libc::c_int {
-        ret = dc_strdup(text);
-        dc_truncate_n_unwrap_str(ret, approx_characters, 1i32);
+    };
+    let ret = if append_text && text.is_some() {
+        let text = text.unwrap();
+        if !prefix.is_empty() {
+            let tmp = format!("{} – {}", prefix, text.as_ref());
+            dc_truncate(&tmp, approx_characters, true).to_string()
+        } else {
+            dc_truncate(text.as_ref(), approx_characters, true).to_string()
+        }
     } else {
-        ret = prefix;
-        prefix = 0 as *mut libc::c_char
-    }
-    free(prefix as *mut libc::c_void);
-    free(pathNfilename as *mut libc::c_void);
-    free(value as *mut libc::c_void);
-    if ret.is_null() {
-        ret = dc_strdup(0 as *const libc::c_char)
-    }
+        prefix
+    };
 
     ret
 }
