@@ -1,5 +1,5 @@
 //! Constants
-#![allow(non_camel_case_types)]
+#![allow(non_camel_case_types, dead_code)]
 
 use lazy_static::lazy_static;
 
@@ -19,20 +19,20 @@ pub enum MoveState {
 }
 
 // some defaults
-pub const DC_E2EE_DEFAULT_ENABLED: i32 = 1;
+const DC_E2EE_DEFAULT_ENABLED: i32 = 1;
 pub const DC_MDNS_DEFAULT_ENABLED: i32 = 1;
-pub const DC_INBOX_WATCH_DEFAULT: i32 = 1;
-pub const DC_SENTBOX_WATCH_DEFAULT: i32 = 1;
-pub const DC_MVBOX_WATCH_DEFAULT: i32 = 1;
-pub const DC_MVBOX_MOVE_DEFAULT: i32 = 1;
+const DC_INBOX_WATCH_DEFAULT: i32 = 1;
+const DC_SENTBOX_WATCH_DEFAULT: i32 = 1;
+const DC_MVBOX_WATCH_DEFAULT: i32 = 1;
+const DC_MVBOX_MOVE_DEFAULT: i32 = 1;
 
 pub const DC_CHAT_NOT_BLOCKED: i32 = 0;
-pub const DC_CHAT_MANUALLY_BLOCKED: i32 = 1;
+const DC_CHAT_MANUALLY_BLOCKED: i32 = 1;
 pub const DC_CHAT_DEADDROP_BLOCKED: i32 = 2;
 
 pub const DC_IMAP_SEEN: u32 = 0x1;
 
-pub const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
+const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
 pub const DC_HANDSHAKE_STOP_NORMAL_PROCESSING: i32 = 0x02;
 pub const DC_HANDSHAKE_ADD_DELETE_JOB: i32 = 0x04;
 
@@ -40,47 +40,47 @@ pub const DC_GCL_ARCHIVED_ONLY: usize = 0x01;
 pub const DC_GCL_NO_SPECIALS: usize = 0x02;
 pub const DC_GCL_ADD_ALLDONE_HINT: usize = 0x04;
 
-pub const DC_GCM_ADDDAYMARKER: usize = 0x01;
+const DC_GCM_ADDDAYMARKER: usize = 0x01;
 
-pub const DC_GCL_VERIFIED_ONLY: usize = 0x01;
+const DC_GCL_VERIFIED_ONLY: usize = 0x01;
 pub const DC_GCL_ADD_SELF: usize = 0x02;
 
 /// param1 is a directory where the keys are written to
-pub const DC_IMEX_EXPORT_SELF_KEYS: usize = 1;
+const DC_IMEX_EXPORT_SELF_KEYS: usize = 1;
 /// param1 is a directory where the keys are searched in and read from
-pub const DC_IMEX_IMPORT_SELF_KEYS: usize = 2;
+const DC_IMEX_IMPORT_SELF_KEYS: usize = 2;
 /// param1 is a directory where the backup is written to
-pub const DC_IMEX_EXPORT_BACKUP: usize = 11;
+const DC_IMEX_EXPORT_BACKUP: usize = 11;
 /// param1 is the file with the backup to import
-pub const DC_IMEX_IMPORT_BACKUP: usize = 12;
+const DC_IMEX_IMPORT_BACKUP: usize = 12;
 
 /// id=contact
-pub const DC_QR_ASK_VERIFYCONTACT: usize = 200;
+const DC_QR_ASK_VERIFYCONTACT: usize = 200;
 /// text1=groupname
-pub const DC_QR_ASK_VERIFYGROUP: usize = 202;
+const DC_QR_ASK_VERIFYGROUP: usize = 202;
 /// id=contact
-pub const DC_QR_FPR_OK: usize = 210;
+const DC_QR_FPR_OK: usize = 210;
 /// id=contact
-pub const DC_QR_FPR_MISMATCH: usize = 220;
+const DC_QR_FPR_MISMATCH: usize = 220;
 /// test1=formatted fingerprint
-pub const DC_QR_FPR_WITHOUT_ADDR: usize = 230;
+const DC_QR_FPR_WITHOUT_ADDR: usize = 230;
 /// id=contact
-pub const DC_QR_ADDR: usize = 320;
+const DC_QR_ADDR: usize = 320;
 /// text1=text
-pub const DC_QR_TEXT: usize = 330;
+const DC_QR_TEXT: usize = 330;
 /// text1=URL
-pub const DC_QR_URL: usize = 332;
+const DC_QR_URL: usize = 332;
 /// text1=error string
-pub const DC_QR_ERROR: usize = 400;
+const DC_QR_ERROR: usize = 400;
 
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
-pub const DC_CHAT_ID_DEADDROP: usize = 1;
+const DC_CHAT_ID_DEADDROP: usize = 1;
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
 pub const DC_CHAT_ID_TRASH: usize = 3;
 /// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
-pub const DC_CHAT_ID_MSGS_IN_CREATION: usize = 4;
+const DC_CHAT_ID_MSGS_IN_CREATION: usize = 4;
 /// virtual chat showing all messages flagged with msgs.starred=2
-pub const DC_CHAT_ID_STARRED: usize = 5;
+const DC_CHAT_ID_STARRED: usize = 5;
 /// only an indicator in a chatlist
 pub const DC_CHAT_ID_ARCHIVED_LINK: usize = 6;
 /// only an indicator in a chatlist
@@ -88,16 +88,16 @@ pub const DC_CHAT_ID_ALLDONE_HINT: usize = 7;
 /// larger chat IDs are "real" chats, their messages are "real" messages.
 pub const DC_CHAT_ID_LAST_SPECIAL: usize = 9;
 
-pub const DC_CHAT_TYPE_UNDEFINED: i32 = 0;
+const DC_CHAT_TYPE_UNDEFINED: i32 = 0;
 pub const DC_CHAT_TYPE_SINGLE: i32 = 100;
 pub const DC_CHAT_TYPE_GROUP: i32 = 120;
 pub const DC_CHAT_TYPE_VERIFIED_GROUP: i32 = 130;
 
 pub const DC_MSG_ID_MARKER1: usize = 1;
-pub const DC_MSG_ID_DAYMARKER: usize = 9;
+const DC_MSG_ID_DAYMARKER: usize = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: usize = 9;
 
-pub const DC_STATE_UNDEFINED: i32 = 0;
+const DC_STATE_UNDEFINED: i32 = 0;
 pub const DC_STATE_IN_FRESH: i32 = 10;
 pub const DC_STATE_IN_NOTICED: i32 = 13;
 pub const DC_STATE_IN_SEEN: i32 = 16;
@@ -110,18 +110,18 @@ pub const DC_STATE_OUT_DELIVERED: i32 = 26;
 pub const DC_STATE_OUT_MDN_RCVD: i32 = 28;
 
 /// approx. max. length returned by dc_msg_get_text()
-pub const DC_MAX_GET_TEXT_LEN: usize = 30000;
+const DC_MAX_GET_TEXT_LEN: usize = 30000;
 /// approx. max. length returned by dc_get_msg_info()
-pub const DC_MAX_GET_INFO_LEN: usize = 100000;
+const DC_MAX_GET_INFO_LEN: usize = 100000;
 
 pub const DC_CONTACT_ID_UNDEFINED: usize = 0;
 pub const DC_CONTACT_ID_SELF: usize = 1;
-pub const DC_CONTACT_ID_DEVICE: usize = 2;
+const DC_CONTACT_ID_DEVICE: usize = 2;
 pub const DC_CONTACT_ID_LAST_SPECIAL: usize = 9;
 
-pub const DC_TEXT1_DRAFT: usize = 1;
-pub const DC_TEXT1_USERNAME: usize = 2;
-pub const DC_TEXT1_SELF: usize = 3;
+const DC_TEXT1_DRAFT: usize = 1;
+const DC_TEXT1_USERNAME: usize = 2;
+const DC_TEXT1_SELF: usize = 3;
 
 pub const DC_CREATE_MVBOX: usize = 1;
 
@@ -137,7 +137,7 @@ pub const DC_LP_AUTH_OAUTH2: usize = 0x2;
 
 /// Force NORMAL authorization, this is the default.
 /// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_AUTH_NORMAL: usize = 0x4;
+const DC_LP_AUTH_NORMAL: usize = 0x4;
 
 /// Connect to IMAP via STARTTLS.
 /// If this flag is set, automatic configuration is skipped.
@@ -145,7 +145,7 @@ pub const DC_LP_IMAP_SOCKET_STARTTLS: usize = 0x100;
 
 /// Connect to IMAP via SSL.
 /// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_IMAP_SOCKET_SSL: usize = 0x200;
+const DC_LP_IMAP_SOCKET_SSL: usize = 0x200;
 
 /// Connect to IMAP unencrypted, this should not be used.
 /// If this flag is set, automatic configuration is skipped.
@@ -157,19 +157,19 @@ pub const DC_LP_SMTP_SOCKET_STARTTLS: usize = 0x10000;
 
 /// Connect to SMTP via SSL.
 /// If this flag is set, automatic configuration is skipped.
-pub const DC_LP_SMTP_SOCKET_SSL: usize = 0x20000;
+const DC_LP_SMTP_SOCKET_SSL: usize = 0x20000;
 
 /// Connect to SMTP unencrypted, this should not be used.
 /// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_SMTP_SOCKET_PLAIN: usize = 0x40000;
 
 /// if none of these flags are set, the default is chosen
-pub const DC_LP_AUTH_FLAGS: usize = (DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL);
+const DC_LP_AUTH_FLAGS: usize = (DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL);
 /// if none of these flags are set, the default is chosen
-pub const DC_LP_IMAP_SOCKET_FLAGS: usize =
+const DC_LP_IMAP_SOCKET_FLAGS: usize =
     (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_SSL | DC_LP_IMAP_SOCKET_PLAIN);
 /// if none of these flags are set, the default is chosen
-pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
+const DC_LP_SMTP_SOCKET_FLAGS: usize =
     (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
@@ -468,65 +468,65 @@ pub enum Event {
     GET_STRING = 2091,
 }
 
-pub const DC_EVENT_FILE_COPIED: usize = 2055; // deprecated;
-pub const DC_EVENT_IS_OFFLINE: usize = 2081; // deprecated;
-pub const DC_ERROR_SEE_STRING: usize = 0; // deprecated;
-pub const DC_ERROR_SELF_NOT_IN_GROUP: usize = 1; // deprecated;
-pub const DC_STR_SELFNOTINGRP: usize = 21; // deprecated;
+const DC_EVENT_FILE_COPIED: usize = 2055; // deprecated;
+const DC_EVENT_IS_OFFLINE: usize = 2081; // deprecated;
+const DC_ERROR_SEE_STRING: usize = 0; // deprecated;
+const DC_ERROR_SELF_NOT_IN_GROUP: usize = 1; // deprecated;
+const DC_STR_SELFNOTINGRP: usize = 21; // deprecated;
 
 /// Values for dc_get|set_config("show_emails")
-pub const DC_SHOW_EMAILS_OFF: usize = 0;
-pub const DC_SHOW_EMAILS_ACCEPTED_CONTACTS: usize = 1;
-pub const DC_SHOW_EMAILS_ALL: usize = 2;
+const DC_SHOW_EMAILS_OFF: usize = 0;
+const DC_SHOW_EMAILS_ACCEPTED_CONTACTS: usize = 1;
+const DC_SHOW_EMAILS_ALL: usize = 2;
 
 // TODO: Strings need some doumentation about used placeholders.
 // These constants are used to request strings using #DC_EVENT_GET_STRING.
 
-pub const DC_STR_NOMESSAGES: usize = 1;
-pub const DC_STR_SELF: usize = 2;
-pub const DC_STR_DRAFT: usize = 3;
-pub const DC_STR_MEMBER: usize = 4;
-pub const DC_STR_CONTACT: usize = 6;
-pub const DC_STR_VOICEMESSAGE: usize = 7;
-pub const DC_STR_DEADDROP: usize = 8;
-pub const DC_STR_IMAGE: usize = 9;
-pub const DC_STR_VIDEO: usize = 10;
-pub const DC_STR_AUDIO: usize = 11;
-pub const DC_STR_FILE: usize = 12;
-pub const DC_STR_STATUSLINE: usize = 13;
-pub const DC_STR_NEWGROUPDRAFT: usize = 14;
-pub const DC_STR_MSGGRPNAME: usize = 15;
-pub const DC_STR_MSGGRPIMGCHANGED: usize = 16;
-pub const DC_STR_MSGADDMEMBER: usize = 17;
-pub const DC_STR_MSGDELMEMBER: usize = 18;
-pub const DC_STR_MSGGROUPLEFT: usize = 19;
-pub const DC_STR_GIF: usize = 23;
-pub const DC_STR_ENCRYPTEDMSG: usize = 24;
-pub const DC_STR_E2E_AVAILABLE: usize = 25;
-pub const DC_STR_ENCR_TRANSP: usize = 27;
-pub const DC_STR_ENCR_NONE: usize = 28;
-pub const DC_STR_CANTDECRYPT_MSG_BODY: usize = 29;
-pub const DC_STR_FINGERPRINTS: usize = 30;
-pub const DC_STR_READRCPT: usize = 31;
-pub const DC_STR_READRCPT_MAILBODY: usize = 32;
-pub const DC_STR_MSGGRPIMGDELETED: usize = 33;
-pub const DC_STR_E2E_PREFERRED: usize = 34;
-pub const DC_STR_CONTACT_VERIFIED: usize = 35;
-pub const DC_STR_CONTACT_NOT_VERIFIED: usize = 36;
-pub const DC_STR_CONTACT_SETUP_CHANGED: usize = 37;
-pub const DC_STR_ARCHIVEDCHATS: usize = 40;
-pub const DC_STR_STARREDMSGS: usize = 41;
-pub const DC_STR_AC_SETUP_MSG_SUBJECT: usize = 42;
-pub const DC_STR_AC_SETUP_MSG_BODY: usize = 43;
-pub const DC_STR_SELFTALK_SUBTITLE: usize = 50;
-pub const DC_STR_CANNOT_LOGIN: usize = 60;
-pub const DC_STR_SERVER_RESPONSE: usize = 61;
-pub const DC_STR_MSGACTIONBYUSER: usize = 62;
-pub const DC_STR_MSGACTIONBYME: usize = 63;
-pub const DC_STR_MSGLOCATIONENABLED: usize = 64;
-pub const DC_STR_MSGLOCATIONDISABLED: usize = 65;
-pub const DC_STR_LOCATION: usize = 66;
-pub const DC_STR_COUNT: usize = 66;
+const DC_STR_NOMESSAGES: usize = 1;
+const DC_STR_SELF: usize = 2;
+const DC_STR_DRAFT: usize = 3;
+const DC_STR_MEMBER: usize = 4;
+const DC_STR_CONTACT: usize = 6;
+const DC_STR_VOICEMESSAGE: usize = 7;
+const DC_STR_DEADDROP: usize = 8;
+const DC_STR_IMAGE: usize = 9;
+const DC_STR_VIDEO: usize = 10;
+const DC_STR_AUDIO: usize = 11;
+const DC_STR_FILE: usize = 12;
+const DC_STR_STATUSLINE: usize = 13;
+const DC_STR_NEWGROUPDRAFT: usize = 14;
+const DC_STR_MSGGRPNAME: usize = 15;
+const DC_STR_MSGGRPIMGCHANGED: usize = 16;
+const DC_STR_MSGADDMEMBER: usize = 17;
+const DC_STR_MSGDELMEMBER: usize = 18;
+const DC_STR_MSGGROUPLEFT: usize = 19;
+const DC_STR_GIF: usize = 23;
+const DC_STR_ENCRYPTEDMSG: usize = 24;
+const DC_STR_E2E_AVAILABLE: usize = 25;
+const DC_STR_ENCR_TRANSP: usize = 27;
+const DC_STR_ENCR_NONE: usize = 28;
+const DC_STR_CANTDECRYPT_MSG_BODY: usize = 29;
+const DC_STR_FINGERPRINTS: usize = 30;
+const DC_STR_READRCPT: usize = 31;
+const DC_STR_READRCPT_MAILBODY: usize = 32;
+const DC_STR_MSGGRPIMGDELETED: usize = 33;
+const DC_STR_E2E_PREFERRED: usize = 34;
+const DC_STR_CONTACT_VERIFIED: usize = 35;
+const DC_STR_CONTACT_NOT_VERIFIED: usize = 36;
+const DC_STR_CONTACT_SETUP_CHANGED: usize = 37;
+const DC_STR_ARCHIVEDCHATS: usize = 40;
+const DC_STR_STARREDMSGS: usize = 41;
+const DC_STR_AC_SETUP_MSG_SUBJECT: usize = 42;
+const DC_STR_AC_SETUP_MSG_BODY: usize = 43;
+const DC_STR_SELFTALK_SUBTITLE: usize = 50;
+const DC_STR_CANNOT_LOGIN: usize = 60;
+const DC_STR_SERVER_RESPONSE: usize = 61;
+const DC_STR_MSGACTIONBYUSER: usize = 62;
+const DC_STR_MSGACTIONBYME: usize = 63;
+const DC_STR_MSGLOCATIONENABLED: usize = 64;
+const DC_STR_MSGLOCATIONDISABLED: usize = 65;
+const DC_STR_LOCATION: usize = 66;
+const DC_STR_COUNT: usize = 66;
 
 pub const DC_JOB_DELETE_MSG_ON_IMAP: i32 = 110;
 
@@ -542,6 +542,6 @@ pub const DC_CMD_GROUPIMAGE_CHANGED: libc::c_int = 3;
 pub const DC_CMD_MEMBER_ADDED_TO_GROUP: libc::c_int = 4;
 pub const DC_CMD_MEMBER_REMOVED_FROM_GROUP: libc::c_int = 5;
 pub const DC_CMD_AUTOCRYPT_SETUP_MESSAGE: libc::c_int = 6;
-pub const DC_CMD_SECUREJOIN_MESSAGE: libc::c_int = 7;
+const DC_CMD_SECUREJOIN_MESSAGE: libc::c_int = 7;
 pub const DC_CMD_LOCATION_STREAMING_ENABLED: libc::c_int = 8;
-pub const DC_CMD_LOCATION_ONLY: libc::c_int = 9;
+const DC_CMD_LOCATION_ONLY: libc::c_int = 9;

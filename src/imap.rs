@@ -13,13 +13,13 @@ use crate::dc_tools::CStringExt;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
 
-pub const DC_IMAP_SEEN: usize = 0x0001;
-pub const DC_REGENERATE: usize = 0x01;
+const DC_IMAP_SEEN: usize = 0x0001;
+const DC_REGENERATE: usize = 0x01;
 
-pub const DC_SUCCESS: usize = 3;
-pub const DC_ALREADY_DONE: usize = 2;
-pub const DC_RETRY_LATER: usize = 1;
-pub const DC_FAILED: usize = 0;
+const DC_SUCCESS: usize = 3;
+const DC_ALREADY_DONE: usize = 2;
+const DC_RETRY_LATER: usize = 1;
+const DC_FAILED: usize = 0;
 
 const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
@@ -60,13 +60,13 @@ impl imap::Authenticator for OAuth2 {
 }
 
 #[derive(Debug)]
-pub enum FolderMeaning {
+enum FolderMeaning {
     Unknown,
     SentObjects,
     Other,
 }
 
-pub enum Client {
+enum Client {
     Secure(
         imap::Client<native_tls::TlsStream<net::TcpStream>>,
         net::TcpStream,
@@ -74,12 +74,12 @@ pub enum Client {
     Insecure(imap::Client<net::TcpStream>, net::TcpStream),
 }
 
-pub enum Session {
+enum Session {
     Secure(imap::Session<native_tls::TlsStream<net::TcpStream>>),
     Insecure(imap::Session<net::TcpStream>),
 }
 
-pub enum IdleHandle<'a> {
+enum IdleHandle<'a> {
     Secure(imap::extensions::idle::Handle<'a, native_tls::TlsStream<net::TcpStream>>),
     Insecure(imap::extensions::idle::Handle<'a, net::TcpStream>),
 }
@@ -308,7 +308,7 @@ impl Session {
     }
 }
 
-pub struct ImapConfig {
+struct ImapConfig {
     pub addr: String,
     pub imap_server: String,
     pub imap_port: u16,

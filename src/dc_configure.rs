@@ -33,7 +33,7 @@ macro_rules! progress {
  ******************************************************************************/
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct dc_imapfolder_t {
+struct dc_imapfolder_t {
     pub name_to_select: *mut libc::c_char,
     pub name_utf8: *mut libc::c_char,
     pub meaning: libc::c_int,
@@ -43,7 +43,7 @@ pub struct dc_imapfolder_t {
  ******************************************************************************/
 /* documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
 #[repr(C)]
-pub struct moz_autoconfigure_t<'a> {
+struct moz_autoconfigure_t<'a> {
     pub in_0: &'a dc_loginparam_t,
     pub in_emaildomain: *mut libc::c_char,
     pub in_emaillocalpart: *mut libc::c_char,
@@ -58,7 +58,7 @@ pub struct moz_autoconfigure_t<'a> {
  * Outlook's Autodiscover
  ******************************************************************************/
 #[repr(C)]
-pub struct outlk_autodiscover_t<'a> {
+struct outlk_autodiscover_t<'a> {
     pub in_0: &'a dc_loginparam_t,
     pub out: dc_loginparam_t,
     pub out_imap_set: libc::c_int,
@@ -80,7 +80,7 @@ pub unsafe fn dc_configure(context: &Context) {
     dc_job_add(context, 900, 0, Params::new(), 0);
 }
 
-pub unsafe fn dc_has_ongoing(context: &Context) -> libc::c_int {
+unsafe fn dc_has_ongoing(context: &Context) -> libc::c_int {
     let s_a = context.running_state.clone();
     let s = s_a.read().unwrap();
 

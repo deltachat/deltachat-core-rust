@@ -903,7 +903,7 @@ impl<'a> Contact<'a> {
     }
 }
 
-pub fn get_first_name<'a>(full_name: &'a str) -> &'a str {
+fn get_first_name<'a>(full_name: &'a str) -> &'a str {
     full_name.splitn(2, ' ').next().unwrap_or_default()
 }
 

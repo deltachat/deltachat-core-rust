@@ -20,52 +20,50 @@ extern crate strum_macros;
 #[macro_use]
 mod log;
 #[macro_use]
-pub mod error;
+mod error;
 
-pub mod aheader;
+mod aheader;
 pub mod chatlist;
 pub mod config;
 pub mod constants;
 pub mod contact;
 pub mod context;
-pub mod imap;
+mod imap;
 pub mod key;
 pub mod keyring;
 pub mod oauth2;
-pub mod param;
+mod param;
 pub mod peerstate;
 pub mod pgp;
-pub mod smtp;
+mod smtp;
 pub mod sql;
-pub mod stock;
+mod stock;
 pub mod types;
 pub mod x;
 
 pub mod dc_array;
 pub mod dc_chat;
 pub mod dc_configure;
-pub mod dc_dehtml;
-pub mod dc_e2ee;
+mod dc_dehtml;
+mod dc_e2ee;
 pub mod dc_imex;
 pub mod dc_job;
-pub mod dc_jobthread;
+mod dc_jobthread;
 pub mod dc_location;
-pub mod dc_loginparam;
+mod dc_loginparam;
 pub mod dc_lot;
-pub mod dc_mimefactory;
+mod dc_mimefactory;
 pub mod dc_mimeparser;
-pub mod dc_move;
+mod dc_move;
 pub mod dc_msg;
 pub mod dc_qr;
 pub mod dc_receive_imf;
 pub mod dc_saxparser;
 pub mod dc_securejoin;
-pub mod dc_simplify;
-pub mod dc_strencode;
-pub mod dc_token;
+mod dc_simplify;
+mod dc_strencode;
+mod dc_token;
 pub mod dc_tools;
 
-pub use self::constants::*;
-
 #[cfg(test)]
-pub mod test_utils;
+mod test_utils;

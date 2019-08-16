@@ -61,11 +61,6 @@ pub struct dc_mimeparser_t<'a> {
     pub message_kml: Option<dc_kml_t>,
 }
 
-// deprecated
-pub unsafe fn dc_no_compound_msgs() {
-    S_GENERATE_COMPOUND_MSGS = 0i32;
-}
-
 // deprecated: flag to switch generation of compound messages on and off.
 static mut S_GENERATE_COMPOUND_MSGS: libc::c_int = 1i32;
 
@@ -93,7 +88,7 @@ pub unsafe fn dc_mimeparser_unref(mimeparser: &mut dc_mimeparser_t) {
     dc_mimeparser_empty(mimeparser);
 }
 
-pub unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
+unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     for part in mimeparser.parts.drain(..) {
         dc_mimepart_unref(part);
     }

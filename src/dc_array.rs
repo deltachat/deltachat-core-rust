@@ -224,11 +224,8 @@ pub fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
     dc_array_t::new(initsize).into_raw()
 }
 
-pub fn dc_array_new_locations(initsize: size_t) -> *mut dc_array_t {
-    dc_array_t::new_locations(initsize).into_raw()
-}
-
-pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
+#[cfg(test)]
+unsafe fn dc_array_empty(array: *mut dc_array_t) {
     assert!(!array.is_null());
 
     (*array).clear()
