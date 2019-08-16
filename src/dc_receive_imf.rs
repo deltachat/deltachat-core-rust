@@ -13,7 +13,6 @@ use std::ptr;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_location::*;
@@ -86,20 +85,15 @@ pub unsafe fn dc_receive_imf(
     let mut create_event_to_send = Some(Event::MSGS_CHANGED);
     let mut rr_event_to_send = Vec::new();
 
-    // XXX converting the below "to_ids" to a Vec quickly leads to lots of changes
-    // so we keep it as a dc_array for now
-    let to_ids = dc_array_new(16);
-    assert!(!to_ids.is_null());
+    let mut to_ids = Vec::with_capacity(16);
 
     // helper method to handle early exit and memory cleanup
     let cleanup = |context: &Context,
                    rfc724_mid: *mut libc::c_char,
-                   to_ids: *mut dc_array_t,
                    create_event_to_send: &Option<Event>,
                    created_db_entries: &Vec<(usize, usize)>,
                    rr_event_to_send: &Vec<(u32, u32)>| {
         free(rfc724_mid.cast());
-        dc_array_unref(to_ids);
 
         if let Some(create_event_to_send) = create_event_to_send {
             for (msg_id, insert_id) in created_db_entries {
@@ -126,12 +120,12 @@ pub unsafe fn dc_receive_imf(
         let fld_from = (*field).fld_data.fld_from;
         if !fld_from.is_null() {
             let mut check_self = 0;
-            let from_list = dc_array_new(16 as size_t);
+            let mut from_list = Vec::with_capacity(16);
             dc_add_or_lookup_contacts_by_mailbox_list(
                 context,
                 (*fld_from).frm_mb_list,
                 Origin::IncomingUnknownFrom,
-                from_list,
+                &mut from_list,
                 &mut check_self,
             );
             if 0 != check_self {
@@ -139,14 +133,13 @@ pub unsafe fn dc_receive_imf(
                 if 0 != dc_mimeparser_sender_equals_recipient(&mime_parser) {
                     from_id = DC_CONTACT_ID_SELF as u32;
                 }
-            } else if dc_array_get_cnt(from_list) >= 1 {
+            } else if from_list.len() >= 1 {
                 // if there is no from given, from_id stays 0 which is just fine. These messages
                 // are very rare, however, we have to add them to the database (they go to the
                 // "deaddrop" chat) to avoid a re-download from the server. See also [**]
-                from_id = dc_array_get_id(from_list, 0);
+                from_id = from_list[0];
                 incoming_origin = Contact::get_origin_by_id(context, from_id, &mut from_id_blocked)
             }
-            dc_array_unref(from_list);
         }
     }
 
@@ -164,7 +157,7 @@ pub unsafe fn dc_receive_imf(
                 } else {
                     Origin::IncomingUnknownTo
                 },
-                to_ids,
+                &mut to_ids,
                 &mut to_self,
             );
         }
@@ -181,7 +174,7 @@ pub unsafe fn dc_receive_imf(
             &mut incoming_origin,
             server_folder.as_ref(),
             server_uid,
-            to_ids,
+            &mut to_ids,
             rfc724_mid,
             &mut sent_timestamp,
             &mut from_id,
@@ -201,7 +194,6 @@ pub unsafe fn dc_receive_imf(
             cleanup(
                 context,
                 rfc724_mid,
-                to_ids,
                 &create_event_to_send,
                 &created_db_entries,
                 &rr_event_to_send,
@@ -260,7 +252,6 @@ pub unsafe fn dc_receive_imf(
     cleanup(
         context,
         rfc724_mid,
-        to_ids,
         &create_event_to_send,
         &created_db_entries,
         &rr_event_to_send,
@@ -276,7 +267,7 @@ unsafe fn add_parts(
     incoming_origin: &mut Origin,
     server_folder: impl AsRef<str>,
     server_uid: u32,
-    to_ids: *mut dc_array_t,
+    to_ids: &mut Vec<u32>,
     mut rfc724_mid: *mut libc::c_char,
     sent_timestamp: &mut i64,
     from_id: &mut u32,
@@ -447,7 +438,7 @@ unsafe fn add_parts(
                 &mut mime_parser,
                 allow_creation,
                 create_blocked,
-                *from_id as i32,
+                *from_id,
                 to_ids,
                 chat_id,
                 &mut chat_id_blocked,
@@ -527,15 +518,15 @@ unsafe fn add_parts(
         // We cannot recreate other states (read, error).
         state = DC_STATE_OUT_DELIVERED;
         *from_id = DC_CONTACT_ID_SELF as u32;
-        if dc_array_get_cnt(to_ids) >= 1 {
-            *to_id = dc_array_get_id(to_ids, 0);
+        if !to_ids.is_empty() {
+            *to_id = to_ids[0];
             if *chat_id == 0 {
                 create_or_lookup_group(
                     context,
                     &mut mime_parser,
                     allow_creation,
                     0,
-                    *from_id as i32,
+                    *from_id,
                     to_ids,
                     chat_id,
                     &mut chat_id_blocked,
@@ -565,7 +556,7 @@ unsafe fn add_parts(
             }
         }
         if *chat_id == 0 {
-            if dc_array_get_cnt(to_ids) == 0 && 0 != to_self {
+            if to_ids.is_empty() && 0 != to_self {
                 // from_id==to_id==DC_CONTACT_ID_SELF - this is a self-sent messages,
                 // maybe an Autocrypt Setup Messag
                 dc_create_or_lookup_nchat_by_contact_id(
@@ -1053,8 +1044,8 @@ unsafe fn create_or_lookup_group(
     mime_parser: &mut dc_mimeparser_t,
     allow_creation: libc::c_int,
     create_blocked: libc::c_int,
-    from_id: int32_t,
-    to_ids: *const dc_array_t,
+    from_id: u32,
+    to_ids: &mut Vec<u32>,
     ret_chat_id: *mut uint32_t,
     ret_chat_id_blocked: *mut libc::c_int,
 ) {
@@ -1064,7 +1055,7 @@ unsafe fn create_or_lookup_group(
     let mut chat_id_verified = 0;
     let mut grpid = std::ptr::null_mut();
     let mut grpname = std::ptr::null_mut();
-    let to_ids_cnt = dc_array_get_cnt(to_ids);
+    let to_ids_cnt = to_ids.len();
     let mut recreate_member_list = 0;
     let mut send_EVENT_CHAT_MODIFIED = 0;
     // pointer somewhere into mime_parser, must not be freed
@@ -1420,7 +1411,7 @@ unsafe fn create_or_lookup_group(
         if skip.is_null() || !addr_cmp(&self_addr, as_str(skip)) {
             dc_add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF as u32);
         }
-        if from_id > DC_CHAT_ID_LAST_SPECIAL as i32 {
+        if from_id > DC_CHAT_ID_LAST_SPECIAL as u32 {
             if !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
                 && (skip.is_null()
                     || !Contact::addr_equals_contact(context, to_string(skip), from_id as u32))
@@ -1428,8 +1419,7 @@ unsafe fn create_or_lookup_group(
                 dc_add_to_chat_contacts_table(context, chat_id, from_id as u32);
             }
         }
-        for i in 0..to_ids_cnt {
-            let to_id = dc_array_get_id(to_ids, i as size_t);
+        for &to_id in to_ids.iter() {
             if !Contact::addr_equals_contact(context, &self_addr, to_id)
                 && (skip.is_null()
                     || !Contact::addr_equals_contact(context, to_string(skip), to_id))
@@ -1483,37 +1473,24 @@ unsafe fn create_or_lookup_adhoc_group(
     mime_parser: &dc_mimeparser_t,
     allow_creation: libc::c_int,
     create_blocked: libc::c_int,
-    from_id: int32_t,
-    to_ids: *const dc_array_t,
+    from_id: u32,
+    to_ids: &mut Vec<u32>,
     ret_chat_id: *mut uint32_t,
     ret_chat_id_blocked: *mut libc::c_int,
 ) {
     // if we're here, no grpid was found, check there is an existing ad-hoc
     // group matching the to-list or if we can create one
-    let mut member_ids = 0 as *mut dc_array_t;
     let mut chat_id = 0;
     let mut chat_id_blocked = 0;
-    let mut chat_ids = 0 as *mut dc_array_t;
-    let mut chat_ids_str = 0 as *mut libc::c_char;
     let mut grpid = 0 as *mut libc::c_char;
     let mut grpname = 0 as *mut libc::c_char;
 
     let cleanup = |grpid: *mut libc::c_char,
                    grpname: *mut libc::c_char,
-                   chat_ids_str: *mut libc::c_char,
-                   member_ids: *mut dc_array_t,
-                   chat_ids: *mut dc_array_t,
                    ret_chat_id: *mut uint32_t,
                    ret_chat_id_blocked: *mut libc::c_int,
                    chat_id: u32,
                    chat_id_blocked: i32| {
-        if !member_ids.is_null() {
-            dc_array_unref(member_ids);
-        }
-        if !chat_ids.is_null() {
-            dc_array_unref(chat_ids);
-        }
-        free(chat_ids_str as *mut libc::c_void);
         free(grpid as *mut libc::c_void);
         free(grpname as *mut libc::c_void);
 
@@ -1526,14 +1503,11 @@ unsafe fn create_or_lookup_adhoc_group(
     };
 
     // build member list from the given ids
-    if dc_array_get_cnt(to_ids) == 0 || 0 != dc_mimeparser_is_mailinglist_message(mime_parser) {
+    if to_ids.is_empty() || 0 != dc_mimeparser_is_mailinglist_message(mime_parser) {
         // too few contacts or a mailinglist
         cleanup(
             grpid,
             grpname,
-            chat_ids_str,
-            member_ids,
-            chat_ids,
             ret_chat_id,
             ret_chat_id_blocked,
             chat_id,
@@ -1542,21 +1516,18 @@ unsafe fn create_or_lookup_adhoc_group(
         return;
     }
 
-    member_ids = dc_array_duplicate(to_ids);
-    if !dc_array_search_id(member_ids, from_id as uint32_t, 0 as *mut size_t) {
-        dc_array_add_id(member_ids, from_id as uint32_t);
+    let mut member_ids = to_ids.clone();
+    if !member_ids.contains(&from_id) {
+        member_ids.push(from_id);
     }
-    if !dc_array_search_id(member_ids, 1 as uint32_t, 0 as *mut size_t) {
-        dc_array_add_id(member_ids, 1 as uint32_t);
+    if !member_ids.contains(&1) {
+        member_ids.push(1);
     }
-    if dc_array_get_cnt(member_ids) < 3 {
+    if member_ids.len() < 3 {
         // too few contacts given
         cleanup(
             grpid,
             grpname,
-            chat_ids_str,
-            member_ids,
-            chat_ids,
             ret_chat_id,
             ret_chat_id_blocked,
             chat_id,
@@ -1565,14 +1536,14 @@ unsafe fn create_or_lookup_adhoc_group(
         return;
     }
 
-    chat_ids = search_chat_ids_by_contact_ids(context, member_ids);
-    if dc_array_get_cnt(chat_ids) > 0 {
-        chat_ids_str = dc_array_get_string(chat_ids, b",\x00" as *const u8 as *const _);
+    let chat_ids = search_chat_ids_by_contact_ids(context, &member_ids);
+    if !chat_ids.is_empty() {
+        let chat_ids_str = join(chat_ids.iter().map(|x| x.to_string()), ",");
         let res = context.sql.query_row(
             format!(
                 "SELECT c.id, c.blocked  FROM chats c  \
                  LEFT JOIN msgs m ON m.chat_id=c.id  WHERE c.id IN({})  ORDER BY m.timestamp DESC, m.id DESC  LIMIT 1;",
-                as_str(chat_ids_str),
+                chat_ids_str
             ),
             params![],
             |row| {
@@ -1587,9 +1558,6 @@ unsafe fn create_or_lookup_adhoc_group(
             cleanup(
                 grpid,
                 grpname,
-                chat_ids_str,
-                member_ids,
-                chat_ids,
                 ret_chat_id,
                 ret_chat_id_blocked,
                 chat_id,
@@ -1603,9 +1571,6 @@ unsafe fn create_or_lookup_adhoc_group(
         cleanup(
             grpid,
             grpname,
-            chat_ids_str,
-            member_ids,
-            chat_ids,
             ret_chat_id,
             ret_chat_id_blocked,
             chat_id,
@@ -1618,14 +1583,11 @@ unsafe fn create_or_lookup_adhoc_group(
 
     // create a new ad-hoc group
     // - there is no need to check if this group exists; otherwise we would have caught it above
-    grpid = create_adhoc_grp_id(context, member_ids);
+    grpid = create_adhoc_grp_id(context, &member_ids);
     if grpid.is_null() {
         cleanup(
             grpid,
             grpname,
-            chat_ids_str,
-            member_ids,
-            chat_ids,
             ret_chat_id,
             ret_chat_id_blocked,
             chat_id,
@@ -1639,18 +1601,15 @@ unsafe fn create_or_lookup_adhoc_group(
         grpname = dc_strdup(mime_parser.subject)
     } else {
         grpname = context
-            .stock_string_repl_int(
-                StockMessage::Member,
-                dc_array_get_cnt(member_ids) as libc::c_int,
-            )
+            .stock_string_repl_int(StockMessage::Member, member_ids.len() as libc::c_int)
             .strdup();
     }
 
     // create group record
     chat_id = create_group_record(context, grpid, grpname, create_blocked, 0);
     chat_id_blocked = create_blocked;
-    for i in 0..dc_array_get_cnt(member_ids) {
-        dc_add_to_chat_contacts_table(context, chat_id, dc_array_get_id(member_ids, i as size_t));
+    for &member_id in &member_ids {
+        dc_add_to_chat_contacts_table(context, chat_id, member_id);
     }
 
     context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
@@ -1658,9 +1617,6 @@ unsafe fn create_or_lookup_adhoc_group(
     cleanup(
         grpid,
         grpname,
-        chat_ids_str,
-        member_ids,
-        chat_ids,
         ret_chat_id,
         ret_chat_id_blocked,
         chat_id,
@@ -1694,14 +1650,14 @@ fn create_group_record(
     sql::get_rowid(context, &context.sql, "chats", "grpid", as_str(grpid))
 }
 
-unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) -> *mut libc::c_char {
+unsafe fn create_adhoc_grp_id(context: &Context, member_ids: &Vec<u32>) -> *mut libc::c_char {
     /* algorithm:
     - sort normalized, lowercased, e-mail addresses alphabetically
     - put all e-mail addresses into a single string, separate the address by a single comma
     - sha-256 this string (without possibly terminating null-characters)
     - encode the first 64 bits of the sha-256 output as lowercase hex (results in 16 characters from the set [0-9a-f])
      */
-    let member_ids_str = dc_array_get_string(member_ids, b",\x00" as *const u8 as *const _);
+    let member_ids_str = join(member_ids.iter().map(|x| x.to_string()), ",");
     let member_cs = context
         .sql
         .get_config(context, "configured_addr")
@@ -1713,7 +1669,7 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
         .query_map(
             format!(
                 "SELECT addr FROM contacts WHERE id IN({}) AND id!=1",
-                as_str(member_ids_str)
+                member_ids_str
             ),
             params![],
             |row| row.get::<_, String>(0),
@@ -1729,7 +1685,6 @@ unsafe fn create_adhoc_grp_id(context: &Context, member_ids: *mut dc_array_t) ->
             },
         )
         .unwrap_or_else(|_| member_cs);
-    free(member_ids_str as *mut libc::c_void);
 
     hex_hash(&members) as *mut _
 }
@@ -1744,23 +1699,18 @@ fn hex_hash(s: impl AsRef<str>) -> *const libc::c_char {
 #[allow(non_snake_case)]
 unsafe fn search_chat_ids_by_contact_ids(
     context: &Context,
-    unsorted_contact_ids: *const dc_array_t,
-) -> *mut dc_array_t {
+    unsorted_contact_ids: &Vec<u32>,
+) -> Vec<u32> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut contact_ids = Vec::with_capacity(23);
     let mut chat_ids = Vec::with_capacity(23);
 
     /* copy array, remove duplicates and SELF, sort by ID */
-    let mut i: libc::c_int;
-    let iCnt: libc::c_int = dc_array_get_cnt(unsorted_contact_ids) as libc::c_int;
-    if !(iCnt <= 0) {
-        i = 0;
-        while i < iCnt {
-            let curr_id: uint32_t = dc_array_get_id(unsorted_contact_ids, i as size_t);
-            if curr_id != 1 as libc::c_uint && !contact_ids.contains(&curr_id) {
+    if !unsorted_contact_ids.is_empty() {
+        for &curr_id in unsorted_contact_ids {
+            if curr_id != 1 && !contact_ids.contains(&curr_id) {
                 contact_ids.push(curr_id);
             }
-            i += 1
         }
         if !contact_ids.is_empty() {
             contact_ids.sort();
@@ -1771,7 +1721,7 @@ unsafe fn search_chat_ids_by_contact_ids(
                     contact_ids_str
                 ),
                 params![],
-                |row| Ok((row.get::<_, i32>(0)?, row.get::<_, i32>(1)?)),
+                |row| Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1)?)),
                 |rows| {
                     let mut last_chat_id = 0;
                     let mut matches = 0;
@@ -1787,7 +1737,7 @@ unsafe fn search_chat_ids_by_contact_ids(
                             matches = 0;
                             mismatches = 0;
                         }
-                        if contact_id as u32 == contact_ids[matches] {
+                        if contact_id == contact_ids[matches] {
                             matches += 1;
                         } else {
                             mismatches += 1;
@@ -1803,14 +1753,14 @@ unsafe fn search_chat_ids_by_contact_ids(
         }
     }
 
-    dc_array_t::from(chat_ids).into_raw()
+    chat_ids
 }
 
 unsafe fn check_verified_properties(
     context: &Context,
     mimeparser: &dc_mimeparser_t,
-    from_id: uint32_t,
-    to_ids: *const dc_array_t,
+    from_id: u32,
+    to_ids: &Vec<u32>,
     failure_reason: *mut *mut libc::c_char,
 ) -> libc::c_int {
     let verify_fail = |reason: String| {
@@ -1853,15 +1803,13 @@ unsafe fn check_verified_properties(
         }
     }
 
-    let to_ids_str_c = dc_array_get_string(to_ids, b",\x00" as *const u8 as *const libc::c_char);
-    let to_ids_str = to_string(to_ids_str_c);
-    free(to_ids_str_c as *mut libc::c_void);
+    let to_ids_str = join(to_ids.iter().map(|x| x.to_string()), ",");
 
     let rows = context.sql.query_map(
         format!(
             "SELECT c.addr, LENGTH(ps.verified_key_fingerprint)  FROM contacts c  \
              LEFT JOIN acpeerstates ps ON c.addr=ps.addr  WHERE c.id IN({}) ",
-            &to_ids_str,
+            to_ids_str,
         ),
         params![],
         |row| Ok((row.get::<_, String>(0)?, row.get::<_, i32>(1)?)),
@@ -2085,7 +2033,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
     context: &Context,
     adr_list: *const mailimf_address_list,
     origin: Origin,
-    ids: *mut dc_array_t,
+    ids: &mut Vec<u32>,
     check_self: *mut libc::c_int,
 ) {
     if adr_list.is_null() {
@@ -2136,7 +2084,7 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
     context: &Context,
     mb_list: *const mailimf_mailbox_list,
     origin: Origin,
-    ids: *mut dc_array_t,
+    ids: &mut Vec<u32>,
     check_self: *mut libc::c_int,
 ) {
     if mb_list.is_null() {
@@ -2173,7 +2121,7 @@ unsafe fn add_or_lookup_contact_by_addr(
     display_name_enc: *const libc::c_char,
     addr_spec: *const libc::c_char,
     origin: Origin,
-    ids: *mut dc_array_t,
+    ids: &mut Vec<u32>,
     mut check_self: *mut libc::c_int,
 ) {
     /* is addr_spec equal to SELF? */
@@ -2208,8 +2156,8 @@ unsafe fn add_or_lookup_contact_by_addr(
         .map(|(id, _)| id)
         .unwrap_or_default();
     if 0 != row_id {
-        if !dc_array_search_id(ids, row_id, 0 as *mut size_t) {
-            dc_array_add_id(ids, row_id);
+        if !ids.contains(&row_id) {
+            ids.push(row_id);
         }
     };
 }
