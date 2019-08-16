@@ -237,38 +237,9 @@ pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
     (*array).clone().into_raw()
 }
 
-pub unsafe fn dc_array_get_string(
-    array: *const dc_array_t,
-    sep: *const libc::c_char,
-) -> *mut libc::c_char {
-    assert!(!array.is_null());
-    assert!(!sep.is_null());
-
-    if let dc_array_t::Uint(v) = &*array {
-        let cnt = v.len();
-        let sep = as_str(sep);
-
-        let res = v
-            .iter()
-            .enumerate()
-            .fold(String::with_capacity(2 * cnt), |res, (i, n)| {
-                if i == 0 {
-                    res + &n.to_string()
-                } else {
-                    res + sep + &n.to_string()
-                }
-            });
-        res.strdup()
-    } else {
-        panic!("Attempt to get string from array of other type");
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::x::*;
-    use std::ffi::CStr;
 
     #[test]
     fn test_dc_array() {
@@ -305,13 +276,6 @@ mod tests {
             assert_eq!(dc_array_get_id(arr, 1 as size_t), 7);
             assert_eq!(dc_array_get_id(arr, 2 as size_t), 13);
             assert_eq!(dc_array_get_id(arr, 3 as size_t), 666);
-
-            let str = dc_array_get_string(arr, b"-\x00" as *const u8 as *const libc::c_char);
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "0-7-13-666-5000"
-            );
-            free(str as *mut libc::c_void);
 
             dc_array_unref(arr);
         }
