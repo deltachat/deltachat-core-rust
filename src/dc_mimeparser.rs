@@ -1150,38 +1150,35 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     as_str(charset),
                                 );
                             }
-                        } 
+                        }
                         if ok_to_continue {
-                                /* check header directly as is_send_by_messenger is not yet set up */
-                                let is_msgrmsg = (!dc_mimeparser_lookup_optional_field(
-                                    &mimeparser,
-                                    "Chat-Version",
-                                )
-                                .is_null())
-                                    as libc::c_int;
+                            /* check header directly as is_send_by_messenger is not yet set up */
+                            let is_msgrmsg =
+                                (!dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Version")
+                                    .is_null()) as libc::c_int;
 
-                                let simplified_txt = simplifier.unwrap().simplify(
-                                    decoded_data,
-                                    decoded_data_bytes as libc::c_int,
-                                    mime_type == 70i32,
-                                    is_msgrmsg,
-                                );
-                                if !simplified_txt.is_null()
-                                    && 0 != *simplified_txt.offset(0isize) as libc::c_int
-                                {
-                                    let mut part = dc_mimepart_new();
-                                    part.type_0 = 10i32;
-                                    part.int_mimetype = mime_type;
-                                    part.msg = simplified_txt;
-                                    part.msg_raw =
-                                        strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
-                                    do_add_single_part(mimeparser, part);
-                                } else {
-                                    free(simplified_txt as *mut libc::c_void);
-                                }
-                                if simplifier.unwrap().is_forwarded {
-                                    mimeparser.is_forwarded = 1i32
-                                }
+                            let simplified_txt = simplifier.unwrap().simplify(
+                                decoded_data,
+                                decoded_data_bytes as libc::c_int,
+                                mime_type == 70i32,
+                                is_msgrmsg,
+                            );
+                            if !simplified_txt.is_null()
+                                && 0 != *simplified_txt.offset(0isize) as libc::c_int
+                            {
+                                let mut part = dc_mimepart_new();
+                                part.type_0 = 10i32;
+                                part.int_mimetype = mime_type;
+                                part.msg = simplified_txt;
+                                part.msg_raw =
+                                    strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
+                                do_add_single_part(mimeparser, part);
+                            } else {
+                                free(simplified_txt as *mut libc::c_void);
+                            }
+                            if simplifier.unwrap().is_forwarded {
+                                mimeparser.is_forwarded = 1i32
+                            }
                         }
                     }
                     80 | 90 | 100 | 110 | 111 => {
@@ -1286,56 +1283,56 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                             } else {
                                 ok_to_continue = false;
                             }
-                        } 
+                        }
                         if ok_to_continue {
-                                if strncmp(
-                                    desired_filename,
-                                    b"location\x00" as *const u8 as *const libc::c_char,
-                                    8,
+                            if strncmp(
+                                desired_filename,
+                                b"location\x00" as *const u8 as *const libc::c_char,
+                                8,
+                            ) == 0i32
+                                && strncmp(
+                                    desired_filename
+                                        .offset(strlen(desired_filename) as isize)
+                                        .offset(-4isize),
+                                    b".kml\x00" as *const u8 as *const libc::c_char,
+                                    4,
                                 ) == 0i32
-                                    && strncmp(
-                                        desired_filename
-                                            .offset(strlen(desired_filename) as isize)
-                                            .offset(-4isize),
-                                        b".kml\x00" as *const u8 as *const libc::c_char,
-                                        4,
-                                    ) == 0i32
-                                {
-                                    mimeparser.location_kml = Some(dc_kml_parse(
-                                        mimeparser.context,
-                                        decoded_data,
-                                        decoded_data_bytes,
-                                    ));
-                                } else if strncmp(
-                                    desired_filename,
-                                    b"message\x00" as *const u8 as *const libc::c_char,
-                                    7,
+                            {
+                                mimeparser.location_kml = Some(dc_kml_parse(
+                                    mimeparser.context,
+                                    decoded_data,
+                                    decoded_data_bytes,
+                                ));
+                            } else if strncmp(
+                                desired_filename,
+                                b"message\x00" as *const u8 as *const libc::c_char,
+                                7,
+                            ) == 0i32
+                                && strncmp(
+                                    desired_filename
+                                        .offset(strlen(desired_filename) as isize)
+                                        .offset(-4isize),
+                                    b".kml\x00" as *const u8 as *const libc::c_char,
+                                    4,
                                 ) == 0i32
-                                    && strncmp(
-                                        desired_filename
-                                            .offset(strlen(desired_filename) as isize)
-                                            .offset(-4isize),
-                                        b".kml\x00" as *const u8 as *const libc::c_char,
-                                        4,
-                                    ) == 0i32
-                                {
-                                    mimeparser.message_kml = Some(dc_kml_parse(
-                                        mimeparser.context,
-                                        decoded_data,
-                                        decoded_data_bytes,
-                                    ));
-                                } else {
-                                    dc_replace_bad_utf8_chars(desired_filename);
-                                    do_add_single_file_part(
-                                        mimeparser,
-                                        msg_type,
-                                        mime_type,
-                                        raw_mime,
-                                        decoded_data,
-                                        decoded_data_bytes,
-                                        desired_filename,
-                                    );
-                                }
+                            {
+                                mimeparser.message_kml = Some(dc_kml_parse(
+                                    mimeparser.context,
+                                    decoded_data,
+                                    decoded_data_bytes,
+                                ));
+                            } else {
+                                dc_replace_bad_utf8_chars(desired_filename);
+                                do_add_single_file_part(
+                                    mimeparser,
+                                    msg_type,
+                                    mime_type,
+                                    raw_mime,
+                                    decoded_data,
+                                    decoded_data_bytes,
+                                    desired_filename,
+                                );
+                            }
                         }
                     }
                     _ => {}
