@@ -311,8 +311,7 @@ mod tests {
             let html: *const libc::c_char =
                 b"<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>\x00"
                 as *const u8 as *const libc::c_char;
-            let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
+            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -329,17 +328,16 @@ mod tests {
     fn test_simplify_html_encoded() {
         unsafe {
             let mut simplify = Simplify::new();
-            let html: *const libc::c_char =
-                b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&noent;&lrm;&rlm;&zwnj;&zwj;\x00"
+            let html =
+                b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;\x00"
                 as *const u8 as *const libc::c_char;
-            let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
+            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
 
             assert_eq!(
-                strcmp(plain,
-                       b"<>\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\x00"
-                       as *const u8 as *const libc::c_char),
-                0,
+                CStr::from_ptr(plain as *const libc::c_char)
+                    .to_str()
+                    .unwrap(),
+                "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
             );
 
             free(plain as *mut libc::c_void);

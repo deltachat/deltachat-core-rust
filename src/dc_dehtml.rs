@@ -1,9 +1,9 @@
 use lazy_static::lazy_static;
+use quick_xml;
+use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
-use crate::dc_saxparser::*;
 use crate::dc_tools::*;
 use crate::x::*;
-use std::ptr;
 
 lazy_static! {
     static ref LINE_RE: regex::Regex = regex::Regex::new(r"(\r?\n)+").unwrap();
@@ -35,56 +35,67 @@ pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char 
         add_text: AddText::YesRemoveLineEnds,
         last_href: None,
     };
-    let mut saxparser = dc_saxparser_t {
-        starttag_cb: None,
-        endtag_cb: None,
-        text_cb: None,
-        userdata: ptr::null_mut(),
-    };
-    dc_saxparser_init(
-        &mut saxparser,
-        &mut dehtml as *mut Dehtml as *mut libc::c_void,
-    );
-    dc_saxparser_set_tag_handler(
-        &mut saxparser,
-        Some(dehtml_starttag_cb),
-        Some(dehtml_endtag_cb),
-    );
-    dc_saxparser_set_text_handler(&mut saxparser, Some(dehtml_text_cb));
-    dc_saxparser_parse(&mut saxparser, buf_terminated);
+
+    let mut reader = quick_xml::Reader::from_str(as_str(buf_terminated));
+
+    let mut buf = Vec::new();
+
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(quick_xml::events::Event::Start(ref e)) => {
+                dehtml_starttag_cb(e, &mut dehtml, &reader)
+            }
+            Ok(quick_xml::events::Event::End(ref e)) => dehtml_endtag_cb(e, &mut dehtml),
+            Ok(quick_xml::events::Event::Text(ref e)) => dehtml_text_cb(e, &mut dehtml),
+            Ok(quick_xml::events::Event::CData(ref e)) => dehtml_cdata_cb(e, &mut dehtml),
+            Err(e) => {
+                eprintln!(
+                    "Parse html error: Error at position {}: {:?}",
+                    reader.buffer_position(),
+                    e
+                );
+            }
+            Ok(quick_xml::events::Event::Eof) => break,
+            _ => (),
+        }
+        buf.clear();
+    }
 
     dehtml.strbuilder.strdup()
 }
 
-unsafe fn dehtml_text_cb(
-    userdata: *mut libc::c_void,
-    text: *const libc::c_char,
-    _len: libc::c_int,
-) {
-    let dehtml = &mut *(userdata as *mut Dehtml);
-
+fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
     if dehtml.add_text == AddText::YesPreserveLineEnds
         || dehtml.add_text == AddText::YesRemoveLineEnds
     {
-        let last_added = std::ffi::CStr::from_ptr(text)
-            .to_str()
-            .expect("invalid utf8");
-        // TODO: why does len does not match?
-        // assert_eq!(last_added.len(), len as usize);
+        let last_added = escaper::decode_html_buf_sloppy(event.escaped()).unwrap_or_default();
 
         if dehtml.add_text == AddText::YesRemoveLineEnds {
-            dehtml.strbuilder += LINE_RE.replace_all(last_added.as_ref(), "\r").as_ref();
+            dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
         } else {
-            dehtml.strbuilder += last_added.as_ref();
+            dehtml.strbuilder += &last_added;
         }
     }
 }
 
-unsafe fn dehtml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char) {
-    let mut dehtml = &mut *(userdata as *mut Dehtml);
-    let tag = std::ffi::CStr::from_ptr(tag).to_string_lossy();
+fn dehtml_cdata_cb(event: &BytesText, dehtml: &mut Dehtml) {
+    if dehtml.add_text == AddText::YesPreserveLineEnds
+        || dehtml.add_text == AddText::YesRemoveLineEnds
+    {
+        let last_added = escaper::decode_html_buf_sloppy(event.escaped()).unwrap_or_default();
 
-    match tag.as_ref() {
+        if dehtml.add_text == AddText::YesRemoveLineEnds {
+            dehtml.strbuilder += LINE_RE.replace_all(&last_added, "\r").as_ref();
+        } else {
+            dehtml.strbuilder += &last_added;
+        }
+    }
+}
+
+fn dehtml_endtag_cb(event: &BytesEnd, dehtml: &mut Dehtml) {
+    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+
+    match tag.as_str() {
         "p" | "div" | "table" | "td" | "style" | "script" | "title" | "pre" => {
             dehtml.strbuilder += "\n\n";
             dehtml.add_text = AddText::YesRemoveLineEnds;
@@ -106,15 +117,14 @@ unsafe fn dehtml_endtag_cb(userdata: *mut libc::c_void, tag: *const libc::c_char
     }
 }
 
-unsafe fn dehtml_starttag_cb(
-    userdata: *mut libc::c_void,
-    tag: *const libc::c_char,
-    attr: *mut *mut libc::c_char,
+fn dehtml_starttag_cb<B: std::io::BufRead>(
+    event: &BytesStart,
+    dehtml: &mut Dehtml,
+    reader: &quick_xml::Reader<B>,
 ) {
-    let mut dehtml = &mut *(userdata as *mut Dehtml);
-    let tag = std::ffi::CStr::from_ptr(tag).to_string_lossy();
+    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
-    match tag.as_ref() {
+    match tag.as_str() {
         "p" | "div" | "table" | "td" => {
             dehtml.strbuilder += "\n\n";
             dehtml.add_text = AddText::YesRemoveLineEnds;
@@ -131,14 +141,21 @@ unsafe fn dehtml_starttag_cb(
             dehtml.add_text = AddText::YesPreserveLineEnds;
         }
         "a" => {
-            let text_c = std::ffi::CStr::from_ptr(dc_attr_find(
-                attr,
-                b"href\x00" as *const u8 as *const libc::c_char,
-            ));
-            let text_r = text_c.to_str().expect("invalid utf8");
-            if !text_r.is_empty() {
-                dehtml.last_href = Some(text_r.to_string());
-                dehtml.strbuilder += "[";
+            if let Some(href) = event.html_attributes().find(|attr| {
+                attr.as_ref()
+                    .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "href")
+                    .unwrap_or_default()
+            }) {
+                let href = href
+                    .unwrap()
+                    .unescape_and_decode_value(reader)
+                    .unwrap_or_default()
+                    .to_lowercase();
+
+                if !href.is_empty() {
+                    dehtml.last_href = Some(href);
+                    dehtml.strbuilder += "[";
+                }
             }
         }
         "b" | "strong" => {
