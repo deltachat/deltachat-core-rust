@@ -189,122 +189,107 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
             }
         }
         if ok_to_continue {
-                /* check the parameters
-                ---------------------- */
-                if !addr.is_null() {
-                    /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
-                    let mut temp: *mut libc::c_char = dc_urldecode(addr);
-                    free(addr as *mut libc::c_void);
-                    addr = temp;
-                    temp = addr_normalize(as_str(addr)).strdup();
-                    free(addr as *mut libc::c_void);
-                    addr = temp;
-                    if !may_be_valid_addr(as_str(addr)) {
-                        (*qr_parsed).state = 400i32;
-                        (*qr_parsed).text1 = dc_strdup(
-                            b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char,
-                        );
-                        ok_to_continue = false;
-                    } 
-                } 
-        }
-                if ok_to_continue && !fingerprint.is_null() && strlen(fingerprint) != 40 {
-                                (*qr_parsed).state = 400i32;
-                                (*qr_parsed).text1 = dc_strdup(
-                                    b"Bad fingerprint length in QR code.\x00" as *const u8
-                                        as *const libc::c_char,
-                                );
-                                ok_to_continue = false;
+            /* check the parameters
+            ---------------------- */
+            if !addr.is_null() {
+                /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
+                let mut temp: *mut libc::c_char = dc_urldecode(addr);
+                free(addr as *mut libc::c_void);
+                addr = temp;
+                temp = addr_normalize(as_str(addr)).strdup();
+                free(addr as *mut libc::c_void);
+                addr = temp;
+                if !may_be_valid_addr(as_str(addr)) {
+                    (*qr_parsed).state = 400i32;
+                    (*qr_parsed).text1 =
+                        dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
+                    ok_to_continue = false;
                 }
-                        if ok_to_continue {
-                                if !fingerprint.is_null() {
-                                    let peerstate = Peerstate::from_fingerprint(
-                                        context,
-                                        &context.sql,
-                                        as_str(fingerprint),
-                                    );
-                                    if addr.is_null() || invitenumber.is_null() || auth.is_null() {
-                                        if let Some(peerstate) = peerstate {
-                                            (*qr_parsed).state = 210i32;
-                                            let addr = peerstate
-                                                .addr
-                                                .as_ref()
-                                                .map(|s| s.as_str())
-                                                .unwrap_or_else(|| "");
-                                            (*qr_parsed).id = Contact::add_or_lookup(
-                                                context,
-                                                "",
-                                                addr,
-                                                Origin::UnhandledQrScan,
-                                            )
-                                            .map(|(id, _)| id)
-                                            .unwrap_or_default();
-                                            dc_create_or_lookup_nchat_by_contact_id(
-                                                context,
-                                                (*qr_parsed).id,
-                                                2i32,
-                                                &mut chat_id,
-                                                0 as *mut libc::c_int,
-                                            );
-                                            device_msg = dc_mprintf(
-                                                b"%s verified.\x00" as *const u8
-                                                    as *const libc::c_char,
-                                                peerstate.addr,
-                                            )
-                                        } else {
-                                            (*qr_parsed).text1 =
-                                                dc_format_fingerprint_c(fingerprint);
-                                            (*qr_parsed).state = 230i32
-                                        }
-                                    } else {
-                                        if !grpid.is_null() && !grpname.is_null() {
-                                            (*qr_parsed).state = 202i32;
-                                            (*qr_parsed).text1 = dc_strdup(grpname);
-                                            (*qr_parsed).text2 = dc_strdup(grpid)
-                                        } else {
-                                            (*qr_parsed).state = 200i32
-                                        }
-                                        (*qr_parsed).id = Contact::add_or_lookup(
-                                            context,
-                                            as_str(name),
-                                            as_str(addr),
-                                            Origin::UnhandledQrScan,
-                                        )
-                                        .map(|(id, _)| id)
-                                        .unwrap_or_default();
-                                        (*qr_parsed).fingerprint = dc_strdup(fingerprint);
-                                        (*qr_parsed).invitenumber = dc_strdup(invitenumber);
-                                        (*qr_parsed).auth = dc_strdup(auth)
-                                    }
-                                } else if !addr.is_null() {
-                                    (*qr_parsed).state = 320i32;
-                                    (*qr_parsed).id = Contact::add_or_lookup(
-                                        context,
-                                        as_str(name),
-                                        as_str(addr),
-                                        Origin::UnhandledQrScan,
-                                    )
-                                    .map(|(id, _)| id)
-                                    .unwrap_or_default();
-                                } else if strstr(
-                                    qr,
-                                    b"http://\x00" as *const u8 as *const libc::c_char,
-                                ) == qr as *mut libc::c_char
-                                    || strstr(
-                                        qr,
-                                        b"https://\x00" as *const u8 as *const libc::c_char,
-                                    ) == qr as *mut libc::c_char
-                                {
-                                    (*qr_parsed).state = 332i32;
-                                    (*qr_parsed).text1 = dc_strdup(qr)
-                                } else {
-                                    (*qr_parsed).state = 330i32;
-                                    (*qr_parsed).text1 = dc_strdup(qr)
-                                }
-                                if !device_msg.is_null() {
-                                    dc_add_device_msg(context, chat_id, device_msg);
-                                }
-                        }
+            }
+        }
+        if ok_to_continue && !fingerprint.is_null() && strlen(fingerprint) != 40 {
+            (*qr_parsed).state = 400i32;
+            (*qr_parsed).text1 = dc_strdup(
+                b"Bad fingerprint length in QR code.\x00" as *const u8 as *const libc::c_char,
+            );
+            ok_to_continue = false;
+        }
+        if ok_to_continue {
+            if !fingerprint.is_null() {
+                let peerstate =
+                    Peerstate::from_fingerprint(context, &context.sql, as_str(fingerprint));
+                if addr.is_null() || invitenumber.is_null() || auth.is_null() {
+                    if let Some(peerstate) = peerstate {
+                        (*qr_parsed).state = 210i32;
+                        let addr = peerstate
+                            .addr
+                            .as_ref()
+                            .map(|s| s.as_str())
+                            .unwrap_or_else(|| "");
+                        (*qr_parsed).id =
+                            Contact::add_or_lookup(context, "", addr, Origin::UnhandledQrScan)
+                                .map(|(id, _)| id)
+                                .unwrap_or_default();
+                        dc_create_or_lookup_nchat_by_contact_id(
+                            context,
+                            (*qr_parsed).id,
+                            2i32,
+                            &mut chat_id,
+                            0 as *mut libc::c_int,
+                        );
+                        device_msg = dc_mprintf(
+                            b"%s verified.\x00" as *const u8 as *const libc::c_char,
+                            peerstate.addr,
+                        )
+                    } else {
+                        (*qr_parsed).text1 = dc_format_fingerprint_c(fingerprint);
+                        (*qr_parsed).state = 230i32
+                    }
+                } else {
+                    if !grpid.is_null() && !grpname.is_null() {
+                        (*qr_parsed).state = 202i32;
+                        (*qr_parsed).text1 = dc_strdup(grpname);
+                        (*qr_parsed).text2 = dc_strdup(grpid)
+                    } else {
+                        (*qr_parsed).state = 200i32
+                    }
+                    (*qr_parsed).id = Contact::add_or_lookup(
+                        context,
+                        as_str(name),
+                        as_str(addr),
+                        Origin::UnhandledQrScan,
+                    )
+                    .map(|(id, _)| id)
+                    .unwrap_or_default();
+                    (*qr_parsed).fingerprint = dc_strdup(fingerprint);
+                    (*qr_parsed).invitenumber = dc_strdup(invitenumber);
+                    (*qr_parsed).auth = dc_strdup(auth)
+                }
+            } else if !addr.is_null() {
+                (*qr_parsed).state = 320i32;
+                (*qr_parsed).id = Contact::add_or_lookup(
+                    context,
+                    as_str(name),
+                    as_str(addr),
+                    Origin::UnhandledQrScan,
+                )
+                .map(|(id, _)| id)
+                .unwrap_or_default();
+            } else if strstr(qr, b"http://\x00" as *const u8 as *const libc::c_char)
+                == qr as *mut libc::c_char
+                || strstr(qr, b"https://\x00" as *const u8 as *const libc::c_char)
+                    == qr as *mut libc::c_char
+            {
+                (*qr_parsed).state = 332i32;
+                (*qr_parsed).text1 = dc_strdup(qr)
+            } else {
+                (*qr_parsed).state = 330i32;
+                (*qr_parsed).text1 = dc_strdup(qr)
+            }
+            if !device_msg.is_null() {
+                dc_add_device_msg(context, chat_id, device_msg);
+            }
+        }
     }
     free(addr as *mut libc::c_void);
     free(fingerprint as *mut libc::c_void);
