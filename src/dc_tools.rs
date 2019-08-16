@@ -193,6 +193,7 @@ pub unsafe fn dc_null_terminate(
     out
 }
 
+#[cfg(test)]
 unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut libc::c_char {
     if buf.is_null() || bytes == 0 {
         return std::ptr::null_mut();
@@ -223,10 +224,6 @@ pub unsafe fn dc_remove_cr_chars(buf: *mut libc::c_char) {
         p1 = p1.offset(1isize)
     }
     *p2 = 0 as libc::c_char;
-}
-
-unsafe fn dc_unify_lineends(buf: *mut libc::c_char) {
-    dc_remove_cr_chars(buf);
 }
 
 /* replace bad UTF-8 characters by sequences of `_` (to avoid problems in filenames, we do not use eg. `?`) the function is useful if strings are unexpectingly encoded eg. as ISO-8859-1 */
@@ -295,6 +292,7 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
     }
 }
 
+#[cfg(test)]
 unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
     if s.is_null() {
         return 0;
@@ -413,6 +411,7 @@ pub unsafe fn dc_free_splitted_lines(lines: Vec<*mut libc::c_char>) {
 }
 
 /* insert a break every n characters, the return must be free()'d */
+#[cfg(test)]
 unsafe fn dc_insert_breaks(
     in_0: *const libc::c_char,
     break_every: libc::c_int,

@@ -1,5 +1,5 @@
 //! Constants
-#![allow(non_camel_case_types)]
+#![allow(non_camel_case_types, dead_code)]
 
 use lazy_static::lazy_static;
 

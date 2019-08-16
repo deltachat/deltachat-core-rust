@@ -65,7 +65,5 @@ mod dc_strencode;
 mod dc_token;
 pub mod dc_tools;
 
-use self::constants::*;
-
 #[cfg(test)]
 mod test_utils;
