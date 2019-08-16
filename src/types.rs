@@ -34,14 +34,9 @@ pub type dc_precheck_imf_t =
 pub type dc_set_config_t = fn(_: &Context, _: &str, _: Option<&str>) -> ();
 pub type dc_get_config_t = fn(_: &Context, _: &str) -> Option<String>;
 
-pub type sqlite_int64 = i64;
-pub type sqlite3_int64 = sqlite_int64;
-
 pub type int32_t = i32;
-pub type int64_t = i64;
 pub type uintptr_t = libc::uintptr_t;
 pub type size_t = libc::size_t;
-pub type ssize_t = libc::ssize_t;
 pub type uint32_t = libc::c_uint;
 pub type uint8_t = libc::c_uchar;
 pub type uint16_t = libc::c_ushort;

@@ -159,41 +159,6 @@ pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32
     (*array).get_id(index)
 }
 
-pub unsafe fn dc_array_get_latitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
-    assert!(!array.is_null());
-    (*array).get_latitude(index)
-}
-
-pub unsafe fn dc_array_get_longitude(array: *const dc_array_t, index: size_t) -> libc::c_double {
-    assert!(!array.is_null());
-    (*array).get_longitude(index)
-}
-
-pub unsafe fn dc_array_get_accuracy(array: *const dc_array_t, index: size_t) -> libc::c_double {
-    assert!(!array.is_null());
-    (*array).get_accuracy(index)
-}
-
-pub unsafe fn dc_array_get_timestamp(array: *const dc_array_t, index: size_t) -> i64 {
-    assert!(!array.is_null());
-    (*array).get_timestamp(index)
-}
-
-pub unsafe fn dc_array_get_chat_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    assert!(!array.is_null());
-    (*array).get_chat_id(index)
-}
-
-pub unsafe fn dc_array_get_contact_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    assert!(!array.is_null());
-    (*array).get_contact_id(index)
-}
-
-pub unsafe fn dc_array_get_msg_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    assert!(!array.is_null());
-    (*array).get_msg_id(index)
-}
-
 pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *mut libc::c_char {
     assert!(!array.is_null());
 
@@ -259,11 +224,8 @@ pub fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
     dc_array_t::new(initsize).into_raw()
 }
 
-pub fn dc_array_new_locations(initsize: size_t) -> *mut dc_array_t {
-    dc_array_t::new_locations(initsize).into_raw()
-}
-
-pub unsafe fn dc_array_empty(array: *mut dc_array_t) {
+#[cfg(test)]
+unsafe fn dc_array_empty(array: *mut dc_array_t) {
     assert!(!array.is_null());
 
     (*array).clear()

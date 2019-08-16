@@ -594,7 +594,7 @@ int             dc_contact_is_verified       (dc_contact_t*);
 #define         DC_TEXT1_SELF      3
 
 
-dc_lot_t*       dc_lot_new               ();
+dc_lot_t*       dc_lot_new               (void);
 void            dc_lot_empty             (dc_lot_t*);
 void            dc_lot_unref             (dc_lot_t*);
 char*           dc_lot_get_text1         (const dc_lot_t*);

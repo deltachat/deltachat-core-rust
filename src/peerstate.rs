@@ -85,7 +85,7 @@ pub enum DegradeEvent {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum VerifiedKey {
+enum VerifiedKey {
     Gossip,
     Public,
     None,

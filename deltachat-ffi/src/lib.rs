@@ -1036,13 +1036,14 @@ pub unsafe extern "C" fn dc_get_locations(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_location::dc_get_locations(
+    let res = dc_location::dc_get_locations(
         context,
         chat_id,
         contact_id,
         timestamp_begin as i64,
         timestamp_end as i64,
-    )
+    );
+    dc_array_t::from(res).into_raw()
 }
 
 #[no_mangle]
@@ -1094,7 +1095,7 @@ pub unsafe extern "C" fn dc_array_get_latitude(
 ) -> libc::c_double {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_latitude(array, index)
+    (*array).get_latitude(index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_longitude(
@@ -1103,7 +1104,7 @@ pub unsafe extern "C" fn dc_array_get_longitude(
 ) -> libc::c_double {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_longitude(array, index)
+    (*array).get_longitude(index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_accuracy(
@@ -1112,7 +1113,7 @@ pub unsafe extern "C" fn dc_array_get_accuracy(
 ) -> libc::c_double {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_accuracy(array, index)
+    (*array).get_accuracy(index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_timestamp(
@@ -1121,7 +1122,7 @@ pub unsafe extern "C" fn dc_array_get_timestamp(
 ) -> i64 {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_timestamp(array, index)
+    (*array).get_timestamp(index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_chat_id(
@@ -1130,7 +1131,7 @@ pub unsafe extern "C" fn dc_array_get_chat_id(
 ) -> libc::c_uint {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_chat_id(array, index)
+    (*array).get_chat_id(index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_contact_id(
@@ -1139,7 +1140,7 @@ pub unsafe extern "C" fn dc_array_get_contact_id(
 ) -> libc::c_uint {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_contact_id(array, index)
+    (*array).get_contact_id(index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_msg_id(
@@ -1148,7 +1149,7 @@ pub unsafe extern "C" fn dc_array_get_msg_id(
 ) -> libc::c_uint {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_msg_id(array, index)
+    (*array).get_msg_id(index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_marker(

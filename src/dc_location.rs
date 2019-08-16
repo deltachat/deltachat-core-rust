@@ -3,7 +3,6 @@ use std::ffi::CString;
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::*;
-use crate::dc_array::*;
 use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
@@ -201,7 +200,7 @@ pub fn dc_get_locations(
     contact_id: uint32_t,
     timestamp_from: i64,
     mut timestamp_to: i64,
-) -> *mut dc_array_t {
+) -> Vec<dc_location> {
     if timestamp_to == 0 {
         timestamp_to = time() + 10;
     }
@@ -252,10 +251,10 @@ pub fn dc_get_locations(
                 for location in locations {
                     ret.push(location?);
                 }
-                Ok(dc_array_t::from(ret).into_raw())
+                Ok(ret)
             },
         )
-        .unwrap_or_else(|_| std::ptr::null_mut())
+        .unwrap_or_default()
 }
 
 fn is_marker(txt: &str) -> bool {

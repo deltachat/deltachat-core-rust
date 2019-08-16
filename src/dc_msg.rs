@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::path::Path;
 
 use crate::constants::*;
 use crate::contact::*;
@@ -15,6 +16,7 @@ use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 use std::path::Path;
+use phf::phf_map;
 use std::ptr;
 
 /* * the structure behind dc_msg_t */
@@ -270,87 +272,37 @@ pub unsafe fn dc_msg_empty(mut msg: *mut dc_msg_t) {
 }
 
 pub unsafe fn dc_msg_get_filemime(msg: *const dc_msg_t) -> *mut libc::c_char {
-    let mut ret = 0 as *mut libc::c_char;
+    if msg.is_null() {
+        return dc_strdup(0 as *const libc::c_char);
+    }
 
-    if !msg.is_null() {
-        match (*msg).param.get(Param::MimeType) {
-            Some(m) => {
-                ret = m.strdup();
-            }
-            None => {
-                if let Some(file) = (*msg).param.get(Param::File) {
-                    let file_c = CString::yolo(file);
-                    dc_msg_guess_msgtype_from_suffix(file_c.as_ptr(), 0 as *mut Viewtype, &mut ret);
-                    if ret.is_null() {
-                        ret = dc_strdup(
-                            b"application/octet-stream\x00" as *const u8 as *const libc::c_char,
-                        )
-                    }
-                }
-            }
+    if let Some(m) = (*msg).param.get(Param::MimeType) {
+        return m.strdup();
+    } else if let Some(file) = (*msg).param.get(Param::File) {
+        if let Some((_, mime)) = dc_msg_guess_msgtype_from_suffix(Path::new(file)) {
+            return mime.strdup();
         }
     }
 
-    if !ret.is_null() {
-        return ret;
-    }
-
-    dc_strdup(0 as *const libc::c_char)
+    "application/octet-stream".strdup()
 }
 
-#[allow(non_snake_case)]
-pub unsafe fn dc_msg_guess_msgtype_from_suffix(
-    pathNfilename: *const libc::c_char,
-    mut ret_msgtype: *mut Viewtype,
-    mut ret_mime: *mut *mut libc::c_char,
-) {
-    let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut dummy_msgtype = Viewtype::Unknown;
-    let mut dummy_buf: *mut libc::c_char = 0 as *mut libc::c_char;
-    if !pathNfilename.is_null() {
-        if ret_msgtype.is_null() {
-            ret_msgtype = &mut dummy_msgtype
-        }
-        if ret_mime.is_null() {
-            ret_mime = &mut dummy_buf
-        }
-        *ret_msgtype = Viewtype::Unknown;
-        *ret_mime = 0 as *mut libc::c_char;
-        suffix = dc_get_filesuffix_lc(pathNfilename);
-        if !suffix.is_null() {
-            if strcmp(suffix, b"mp3\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = Viewtype::Audio;
-                *ret_mime = dc_strdup(b"audio/mpeg\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"aac\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = Viewtype::Audio;
-                *ret_mime = dc_strdup(b"audio/aac\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"mp4\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = Viewtype::Video;
-                *ret_mime = dc_strdup(b"video/mp4\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"jpg\x00" as *const u8 as *const libc::c_char) == 0i32
-                || strcmp(suffix, b"jpeg\x00" as *const u8 as *const libc::c_char) == 0i32
-            {
-                *ret_msgtype = Viewtype::Image;
-                *ret_mime = dc_strdup(b"image/jpeg\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"png\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = Viewtype::Image;
-                *ret_mime = dc_strdup(b"image/png\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"webp\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = Viewtype::Image;
-                *ret_mime = dc_strdup(b"image/webp\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"gif\x00" as *const u8 as *const libc::c_char) == 0i32 {
-                *ret_msgtype = Viewtype::Gif;
-                *ret_mime = dc_strdup(b"image/gif\x00" as *const u8 as *const libc::c_char)
-            } else if strcmp(suffix, b"vcf\x00" as *const u8 as *const libc::c_char) == 0i32
-                || strcmp(suffix, b"vcard\x00" as *const u8 as *const libc::c_char) == 0i32
-            {
-                *ret_msgtype = Viewtype::File;
-                *ret_mime = dc_strdup(b"text/vcard\x00" as *const u8 as *const libc::c_char)
-            }
-        }
-    }
-    free(suffix as *mut libc::c_void);
-    free(dummy_buf as *mut libc::c_void);
+pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
+    static KNOWN: phf::Map<&'static str, (Viewtype, &'static str)> = phf_map! {
+        "mp3"   => (Viewtype::Audio, "audio/mpeg"),
+        "aac"   => (Viewtype::Audio, "audio/aac"),
+        "mp4"   => (Viewtype::Video, "video/mp4"),
+        "jpg"   => (Viewtype::Image, "image/jpeg"),
+        "jpeg"  => (Viewtype::Image, "image/jpeg"),
+        "png"   => (Viewtype::Image, "image/png"),
+        "webp"  => (Viewtype::Image, "image/webp"),
+        "gif"   => (Viewtype::Gif,   "image/gif"),
+        "vcf"   => (Viewtype::File,  "text/vcard"),
+        "vcard" => (Viewtype::File,  "text/vcard"),
+    };
+    let extension: &str = &path.extension()?.to_str()?.to_lowercase();
+
+    KNOWN.get(extension).map(|x| *x)
 }
 
 pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
@@ -547,7 +499,7 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
     };
 }
 
-pub fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
+fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
     sql::execute(
         context,
         &context.sql,
@@ -1418,125 +1370,13 @@ pub fn dc_update_server_uid(
 mod tests {
     use super::*;
     use crate::test_utils as test;
-    use std::ffi::CStr;
 
     #[test]
     fn test_dc_msg_guess_msgtype_from_suffix() {
-        unsafe {
-            let mut type_0 = Viewtype::Unknown;
-            let mut mime_0: *mut libc::c_char = 0 as *mut libc::c_char;
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.mp3\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::Audio);
-            assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/mpeg");
-            free(mime_0 as *mut libc::c_void);
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.aac\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::Audio);
-            assert_eq!(as_str(mime_0 as *const libc::c_char), "audio/aac");
-            free(mime_0 as *mut libc::c_void);
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.mp4\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::Video);
-            assert_eq!(as_str(mime_0 as *const libc::c_char), "video/mp4");
-            free(mime_0 as *mut libc::c_void);
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.jpg\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::Image);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "image/jpeg"
-            );
-            free(mime_0 as *mut libc::c_void);
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.jpeg\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::Image);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "image/jpeg"
-            );
-            free(mime_0 as *mut libc::c_void);
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.png\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::Image);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "image/png"
-            );
-            free(mime_0 as *mut libc::c_void);
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.webp\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::Image);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "image/webp"
-            );
-            free(mime_0 as *mut libc::c_void);
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.gif\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::Gif);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "image/gif"
-            );
-            free(mime_0 as *mut libc::c_void);
-
-            dc_msg_guess_msgtype_from_suffix(
-                b"foo/bar-sth.vcf\x00" as *const u8 as *const libc::c_char,
-                &mut type_0,
-                &mut mime_0,
-            );
-            assert_eq!(type_0, Viewtype::File);
-            assert_eq!(
-                CStr::from_ptr(mime_0 as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "text/vcard"
-            );
-            free(mime_0 as *mut libc::c_void);
-        }
+        assert_eq!(
+            dc_msg_guess_msgtype_from_suffix(Path::new("foo/bar-sth.mp3")),
+            Some((Viewtype::Audio, "audio/mpeg"))
+        );
     }
 
     #[test]

@@ -51,8 +51,8 @@ pub struct dc_mimefactory_t<'a> {
 }
 
 #[allow(non_camel_case_types)]
-pub type dc_mimefactory_loaded_t = libc::c_uint;
-pub const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
+type dc_mimefactory_loaded_t = libc::c_uint;
+const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
 pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;
 pub const DC_MF_NOTHING_LOADED: dc_mimefactory_loaded_t = 0;
 

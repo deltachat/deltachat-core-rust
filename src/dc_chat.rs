@@ -88,7 +88,7 @@ pub unsafe fn dc_chat_unref(chat: *mut Chat) {
     Box::from_raw(chat);
 }
 
-pub unsafe fn dc_chat_empty(mut chat: *mut Chat) {
+unsafe fn dc_chat_empty(mut chat: *mut Chat) {
     if chat.is_null() {
         return;
     }
@@ -107,7 +107,7 @@ pub unsafe fn dc_unblock_chat(context: &Context, chat_id: uint32_t) {
     dc_block_chat(context, chat_id, 0i32);
 }
 
-pub fn dc_block_chat(context: &Context, chat_id: u32, new_blocking: libc::c_int) -> bool {
+fn dc_block_chat(context: &Context, chat_id: u32, new_blocking: libc::c_int) -> bool {
     sql::execute(
         context,
         &context.sql,
@@ -426,24 +426,17 @@ unsafe fn prepare_msg_common<'a>(
                 Typical conversions:
                 - from FILE to AUDIO/VIDEO/IMAGE
                 - from FILE/IMAGE to GIF */
-                let mut better_type = Viewtype::Unknown;
-                let mut better_mime = std::ptr::null_mut();
 
-                dc_msg_guess_msgtype_from_suffix(pathNfilename, &mut better_type, &mut better_mime);
-                if Viewtype::Unknown != better_type && !better_mime.is_null() {
-                    (*msg).type_0 = better_type;
-                    (*msg).param.set(Param::MimeType, as_str(better_mime));
+                if let Some((type_, mime)) =
+                    dc_msg_guess_msgtype_from_suffix(as_path(pathNfilename))
+                {
+                    (*msg).type_0 = type_;
+                    (*msg).param.set(Param::MimeType, mime);
                 }
-                free(better_mime as *mut libc::c_void);
             } else if !(*msg).param.exists(Param::MimeType) {
-                let mut better_mime = std::ptr::null_mut();
-
-                dc_msg_guess_msgtype_from_suffix(pathNfilename, ptr::null_mut(), &mut better_mime);
-
-                if !better_mime.is_null() {
-                    (*msg).param.set(Param::MimeType, as_str(better_mime));
+                if let Some((_, mime)) = dc_msg_guess_msgtype_from_suffix(as_path(pathNfilename)) {
+                    (*msg).param.set(Param::MimeType, mime);
                 }
-                free(better_mime as *mut _);
             }
             info!(
                 context,
@@ -1756,7 +1749,7 @@ pub unsafe fn dc_remove_contact_from_chat(
 }
 
 // Should return Result
-pub fn dc_set_group_explicitly_left(context: &Context, grpid: *const libc::c_char) {
+fn dc_set_group_explicitly_left(context: &Context, grpid: *const libc::c_char) {
     if 0 == dc_is_group_explicitly_left(context, grpid) {
         sql::execute(
             context,
