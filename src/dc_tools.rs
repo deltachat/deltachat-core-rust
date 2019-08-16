@@ -9,10 +9,11 @@ use mmime::mailimf_types::*;
 use rand::{thread_rng, Rng};
 
 use crate::context::Context;
-use crate::dc_array::*;
 use crate::error::Error;
 use crate::types::*;
 use crate::x::*;
+
+use itertools::max;
 
 /* Some tools and enhancements to the used libraries, there should be
 no references to Context and other "larger" classes here. */
@@ -707,29 +708,20 @@ fn encode_66bits_as_base64(v1: u32, v2: u32, fill: u32) -> String {
 
 pub unsafe fn dc_create_incoming_rfc724_mid(
     message_timestamp: i64,
-    contact_id_from: uint32_t,
-    contact_ids_to: *mut dc_array_t,
+    contact_id_from: u32,
+    contact_ids_to: &Vec<u32>,
 ) -> *mut libc::c_char {
-    if contact_ids_to.is_null() || dc_array_get_cnt(contact_ids_to) == 0 {
+    if contact_ids_to.is_empty() {
         return ptr::null_mut();
     }
     /* find out the largest receiver ID (we could also take the smallest, but it should be unique) */
-    let mut i = 0;
-    let icnt = dc_array_get_cnt(contact_ids_to);
-    let mut largest_id_to = 0;
-    while i < icnt {
-        let cur_id: uint32_t = dc_array_get_id(contact_ids_to, i);
-        if cur_id > largest_id_to {
-            largest_id_to = cur_id
-        }
-        i = i.wrapping_add(1)
-    }
+    let largest_id_to = max(contact_ids_to.iter());
 
     dc_mprintf(
         b"%lu-%lu-%lu@stub\x00" as *const u8 as *const libc::c_char,
         message_timestamp as libc::c_ulong,
         contact_id_from as libc::c_ulong,
-        largest_id_to as libc::c_ulong,
+        *largest_id_to.unwrap() as libc::c_ulong,
     )
 }
 
