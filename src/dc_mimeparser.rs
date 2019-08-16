@@ -1077,7 +1077,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     mimeparser: &mut dc_mimeparser_t,
     mime: *mut mailmime,
 ) -> libc::c_int {
-    let mut current_block: u64;
+    let mut ok_to_continue = true;
     let old_part_count = mimeparser.parts.len();
     let mime_type: libc::c_int;
     let mime_data: *mut mailmime_data;
@@ -1134,14 +1134,12 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 info!(mimeparser.context, 0, "decoded message: '{}'", res);
                                 if res.is_empty() {
                                     /* no error - but nothing to add */
-                                    current_block = 8795901732489102124;
+                                    ok_to_continue = false;
                                 } else {
                                     let b = res.as_bytes();
                                     decoded_data = b.as_ptr() as *const libc::c_char;
                                     decoded_data_bytes = b.len();
                                     std::mem::forget(res);
-
-                                    current_block = 17788412896529399552;
                                 }
                             } else {
                                 warn!(
@@ -1151,14 +1149,9 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     decoded_data_bytes as libc::c_int,
                                     as_str(charset),
                                 );
-                                current_block = 17788412896529399552;
                             }
-                        } else {
-                            current_block = 17788412896529399552;
-                        }
-                        match current_block {
-                            8795901732489102124 => {}
-                            _ => {
+                        } 
+                        if ok_to_continue {
                                 /* check header directly as is_send_by_messenger is not yet set up */
                                 let is_msgrmsg = (!dc_mimeparser_lookup_optional_field(
                                     &mimeparser,
@@ -1189,8 +1182,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 if simplifier.unwrap().is_forwarded {
                                     mimeparser.is_forwarded = 1i32
                                 }
-                                current_block = 10261677128829721533;
-                            }
                         }
                     }
                     80 | 90 | 100 | 110 | 111 => {
@@ -1292,16 +1283,11 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     b"file.%s\x00" as *const u8 as *const libc::c_char,
                                     (*(*mime).mm_content_type).ct_subtype,
                                 );
-                                current_block = 17019156190352891614;
                             } else {
-                                current_block = 8795901732489102124;
+                                ok_to_continue = false;
                             }
-                        } else {
-                            current_block = 17019156190352891614;
-                        }
-                        match current_block {
-                            8795901732489102124 => {}
-                            _ => {
+                        } 
+                        if ok_to_continue {
                                 if strncmp(
                                     desired_filename,
                                     b"location\x00" as *const u8 as *const libc::c_char,
@@ -1320,7 +1306,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         decoded_data,
                                         decoded_data_bytes,
                                     ));
-                                    current_block = 8795901732489102124;
                                 } else if strncmp(
                                     desired_filename,
                                     b"message\x00" as *const u8 as *const libc::c_char,
@@ -1339,7 +1324,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         decoded_data,
                                         decoded_data_bytes,
                                     ));
-                                    current_block = 8795901732489102124;
                                 } else {
                                     dc_replace_bad_utf8_chars(desired_filename);
                                     do_add_single_file_part(
@@ -1351,17 +1335,9 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                         decoded_data_bytes,
                                         desired_filename,
                                     );
-                                    current_block = 10261677128829721533;
                                 }
-                            }
                         }
                     }
-                    _ => {
-                        current_block = 10261677128829721533;
-                    }
-                }
-                match current_block {
-                    8795901732489102124 => {}
                     _ => {}
                 }
             }
