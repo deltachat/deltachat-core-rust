@@ -16,7 +16,6 @@ use deltachat::dc_imex::*;
 use deltachat::dc_lot::*;
 use deltachat::dc_mimeparser::*;
 use deltachat::dc_qr::*;
-use deltachat::dc_saxparser::*;
 use deltachat::dc_securejoin::*;
 use deltachat::dc_tools::*;
 use deltachat::key::*;
@@ -38,22 +37,6 @@ static mut S_EM_SETUPFILE: *const libc::c_char =
         as *const u8 as *const libc::c_char;
 
 unsafe fn stress_functions(context: &Context) {
-    let mut saxparser: dc_saxparser_t = dc_saxparser_t {
-        starttag_cb: None,
-        endtag_cb: None,
-        text_cb: None,
-        userdata: 0 as *mut libc::c_void,
-    };
-    dc_saxparser_init(&mut saxparser, 0 as *mut libc::c_void);
-    dc_saxparser_parse(
-        &mut saxparser,
-        b"<tag attr=val=\x00" as *const u8 as *const libc::c_char,
-    );
-    dc_saxparser_parse(
-        &mut saxparser,
-        b"<tag attr=\"val\"=\x00" as *const u8 as *const libc::c_char,
-    );
-
     if 0 != dc_is_open(context) {
         if dc_file_exist(context, "$BLOBDIR/foobar")
             || dc_file_exist(context, "$BLOBDIR/dada")
