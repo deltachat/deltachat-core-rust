@@ -13,7 +13,6 @@ use deltachat::context::*;
 use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
-use deltachat::dc_location::*;
 use deltachat::dc_lot::*;
 use deltachat::dc_mimeparser::*;
 use deltachat::dc_qr::*;
@@ -687,43 +686,6 @@ unsafe fn create_test_context() -> TestContext {
         dbfile.display()
     );
     TestContext { ctx: ctx, dir: dir }
-}
-
-#[test]
-fn test_dc_kml_parse() {
-    unsafe {
-        let context = create_test_context();
-
-        let xml: *const libc::c_char =
-        b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</wHeN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></Placemark>\n</Document>\n</kml>\x00"
-            as *const u8 as *const libc::c_char;
-
-        let mut kml = dc_kml_parse(&context.ctx, xml, strlen(xml));
-
-        assert!(!kml.addr.is_null());
-        assert_eq!(as_str(kml.addr as *const libc::c_char), "user@example.org",);
-
-        let locations_ref = &kml.locations.as_ref().unwrap();
-        assert_eq!(locations_ref.len(), 2);
-
-        assert!(locations_ref[0].latitude > 53.6f64);
-        assert!(locations_ref[0].latitude < 53.8f64);
-        assert!(locations_ref[0].longitude > 9.3f64);
-        assert!(locations_ref[0].longitude < 9.5f64);
-        assert!(locations_ref[0].accuracy > 31.9f64);
-        assert!(locations_ref[0].accuracy < 32.1f64);
-        assert_eq!(locations_ref[0].timestamp, 1551906597);
-
-        assert!(locations_ref[1].latitude > 63.6f64);
-        assert!(locations_ref[1].latitude < 63.8f64);
-        assert!(locations_ref[1].longitude > 19.3f64);
-        assert!(locations_ref[1].longitude < 19.5f64);
-        assert!(locations_ref[1].accuracy > 2.4f64);
-        assert!(locations_ref[1].accuracy < 2.6f64);
-        assert_eq!(locations_ref[1].timestamp, 1544739072);
-
-        dc_kml_unref(&mut kml);
-    }
 }
 
 #[test]
