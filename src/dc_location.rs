@@ -504,7 +504,9 @@ pub unsafe fn dc_kml_parse(
                 Ok(quick_xml::events::Event::End(ref e)) => kml_endtag_cb(e, &mut kml),
                 Ok(quick_xml::events::Event::Text(ref e)) => kml_text_cb(e, &mut kml, &reader),
                 Err(e) => {
-                    panic!(
+                    error!(
+                        context,
+                        0,
                         "Location parsing: Error at position {}: {:?}",
                         reader.buffer_position(),
                         e
