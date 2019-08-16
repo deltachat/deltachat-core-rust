@@ -58,7 +58,6 @@ mod dc_move;
 pub mod dc_msg;
 pub mod dc_qr;
 pub mod dc_receive_imf;
-pub mod dc_saxparser;
 pub mod dc_securejoin;
 mod dc_simplify;
 mod dc_strencode;
