@@ -10,7 +10,7 @@ use crate::types::*;
 use crate::x::*;
 
 #[inline]
-pub fn isalnum(c: libc::c_int) -> libc::c_int {
+fn isalnum(c: libc::c_int) -> libc::c_int {
     if c < std::u8::MAX as libc::c_int {
         (c as u8 as char).is_ascii_alphanumeric() as libc::c_int
     } else {
@@ -331,7 +331,7 @@ pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_
     out
 }
 
-pub unsafe fn dc_encode_modified_utf7(
+unsafe fn dc_encode_modified_utf7(
     mut to_encode: *const libc::c_char,
     change_spaces: libc::c_int,
 ) -> *mut libc::c_char {
@@ -481,7 +481,7 @@ static mut BASE64CHARS: [libc::c_char; 65] = [
     115, 116, 117, 118, 119, 120, 121, 122, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 43, 44, 0,
 ];
 
-pub unsafe fn dc_decode_modified_utf7(
+unsafe fn dc_decode_modified_utf7(
     to_decode: *const libc::c_char,
     change_spaces: libc::c_int,
 ) -> *mut libc::c_char {

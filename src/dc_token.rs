@@ -4,7 +4,7 @@ use crate::sql;
 
 // Token namespaces
 #[allow(non_camel_case_types)]
-pub type dc_tokennamespc_t = usize;
+type dc_tokennamespc_t = usize;
 pub const DC_TOKEN_AUTH: dc_tokennamespc_t = 110;
 pub const DC_TOKEN_INVITENUMBER: dc_tokennamespc_t = 100;
 

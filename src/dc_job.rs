@@ -389,7 +389,7 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
 }
 
 // this value does not increase the number of tries
-pub unsafe fn dc_job_try_again_later(
+unsafe fn dc_job_try_again_later(
     job: &mut dc_job_t,
     try_again: libc::c_int,
     pending_error: *const libc::c_char,

@@ -62,7 +62,7 @@ pub struct dc_mimeparser_t<'a> {
 }
 
 // deprecated
-pub unsafe fn dc_no_compound_msgs() {
+unsafe fn dc_no_compound_msgs() {
     S_GENERATE_COMPOUND_MSGS = 0i32;
 }
 
@@ -93,7 +93,7 @@ pub unsafe fn dc_mimeparser_unref(mimeparser: &mut dc_mimeparser_t) {
     dc_mimeparser_empty(mimeparser);
 }
 
-pub unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
+unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     for part in mimeparser.parts.drain(..) {
         dc_mimepart_unref(part);
     }

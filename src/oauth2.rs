@@ -23,7 +23,7 @@ const OAUTH2_YANDEX: Oauth2 = Oauth2 {
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Oauth2 {
+struct Oauth2 {
     client_id: &'static str,
     get_code: &'static str,
     init_token: &'static str,

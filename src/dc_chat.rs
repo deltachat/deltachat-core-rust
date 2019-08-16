@@ -88,7 +88,7 @@ pub unsafe fn dc_chat_unref(chat: *mut Chat) {
     Box::from_raw(chat);
 }
 
-pub unsafe fn dc_chat_empty(mut chat: *mut Chat) {
+unsafe fn dc_chat_empty(mut chat: *mut Chat) {
     if chat.is_null() {
         return;
     }
@@ -107,7 +107,7 @@ pub unsafe fn dc_unblock_chat(context: &Context, chat_id: uint32_t) {
     dc_block_chat(context, chat_id, 0i32);
 }
 
-pub fn dc_block_chat(context: &Context, chat_id: u32, new_blocking: libc::c_int) -> bool {
+fn dc_block_chat(context: &Context, chat_id: u32, new_blocking: libc::c_int) -> bool {
     sql::execute(
         context,
         &context.sql,
@@ -1756,7 +1756,7 @@ pub unsafe fn dc_remove_contact_from_chat(
 }
 
 // Should return Result
-pub fn dc_set_group_explicitly_left(context: &Context, grpid: *const libc::c_char) {
+fn dc_set_group_explicitly_left(context: &Context, grpid: *const libc::c_char) {
     if 0 == dc_is_group_explicitly_left(context, grpid) {
         sql::execute(
             context,

@@ -546,7 +546,7 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
     };
 }
 
-pub fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
+fn dc_update_msg_chat_id(context: &Context, msg_id: u32, chat_id: u32) -> bool {
     sql::execute(
         context,
         &context.sql,

@@ -120,7 +120,7 @@ pub unsafe fn dc_ftoa(f: libc::c_double) -> *mut libc::c_char {
     str
 }
 
-pub unsafe fn dc_ltrim(buf: *mut libc::c_char) {
+unsafe fn dc_ltrim(buf: *mut libc::c_char) {
     let mut len: size_t;
     let mut cur: *const libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
@@ -140,7 +140,7 @@ pub unsafe fn dc_ltrim(buf: *mut libc::c_char) {
     };
 }
 
-pub unsafe fn dc_rtrim(buf: *mut libc::c_char) {
+unsafe fn dc_rtrim(buf: *mut libc::c_char) {
     let mut len: size_t;
     let mut cur: *mut libc::c_uchar;
     if !buf.is_null() && 0 != *buf as libc::c_int {
@@ -193,7 +193,7 @@ pub unsafe fn dc_null_terminate(
     out
 }
 
-pub unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut libc::c_char {
+unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut libc::c_char {
     if buf.is_null() || bytes == 0 {
         return std::ptr::null_mut();
     }
@@ -225,7 +225,7 @@ pub unsafe fn dc_remove_cr_chars(buf: *mut libc::c_char) {
     *p2 = 0 as libc::c_char;
 }
 
-pub unsafe fn dc_unify_lineends(buf: *mut libc::c_char) {
+unsafe fn dc_unify_lineends(buf: *mut libc::c_char) {
     dc_remove_cr_chars(buf);
 }
 
@@ -295,7 +295,7 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
     }
 }
 
-pub unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
+unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
     if s.is_null() {
         return 0;
     }
@@ -413,7 +413,7 @@ pub unsafe fn dc_free_splitted_lines(lines: Vec<*mut libc::c_char>) {
 }
 
 /* insert a break every n characters, the return must be free()'d */
-pub unsafe fn dc_insert_breaks(
+unsafe fn dc_insert_breaks(
     in_0: *const libc::c_char,
     break_every: libc::c_int,
     break_chars: *const libc::c_char,
@@ -816,7 +816,7 @@ pub unsafe fn dc_extract_grpid_from_rfc724_mid_list(list: *const clist) -> *mut 
 }
 
 #[allow(non_snake_case)]
-pub unsafe fn dc_ensure_no_slash(pathNfilename: *mut libc::c_char) {
+unsafe fn dc_ensure_no_slash(pathNfilename: *mut libc::c_char) {
     let path_len = strlen(pathNfilename);
     if path_len > 0 && *pathNfilename.add(path_len - 1) as libc::c_int == '/' as i32
         || *pathNfilename.add(path_len - 1) as libc::c_int == '\\' as i32
@@ -832,7 +832,7 @@ pub fn dc_ensure_no_slash_safe(path: &str) -> &str {
     path
 }
 
-pub unsafe fn dc_validate_filename(filename: *mut libc::c_char) {
+unsafe fn dc_validate_filename(filename: *mut libc::c_char) {
     /* function modifies the given buffer and replaces all characters not valid in filenames by a "-" */
     let mut p1: *mut libc::c_char = filename;
     while 0 != *p1 {
@@ -862,7 +862,7 @@ pub unsafe fn dc_get_filename(pathNfilename: *const libc::c_char) -> *mut libc::
 
 // the case of the suffix is preserved
 #[allow(non_snake_case)]
-pub unsafe fn dc_split_filename(
+unsafe fn dc_split_filename(
     pathNfilename: *const libc::c_char,
     ret_basename: *mut *mut libc::c_char,
     ret_all_suffixes_incl_dot: *mut *mut libc::c_char,
@@ -1162,7 +1162,7 @@ pub unsafe fn dc_is_blobdir_path(context: &Context, path: *const libc::c_char) -
         || strncmp(path, b"$BLOBDIR\x00" as *const u8 as *const libc::c_char, 8) == 0
 }
 
-pub unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) {
+unsafe fn dc_make_rel_path(context: &Context, path: *mut *mut libc::c_char) {
     if path.is_null() || (*path).is_null() {
         return;
     }
@@ -1387,7 +1387,7 @@ pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
     as_str_safe(s).unwrap_or_else(|err| panic!("{}", err))
 }
 
-pub fn as_str_safe<'a>(s: *const libc::c_char) -> Result<&'a str, Error> {
+fn as_str_safe<'a>(s: *const libc::c_char) -> Result<&'a str, Error> {
     assert!(!s.is_null(), "cannot be used on null pointers");
 
     let cstr = unsafe { CStr::from_ptr(s) };
