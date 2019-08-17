@@ -9,6 +9,7 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_e2ee::*;
 use crate::dc_loginparam::*;
+use crate::dc_msg::MessageState;
 use crate::dc_tools::*;
 use crate::error::Result;
 use crate::key::*;
@@ -250,7 +251,7 @@ impl<'a> Contact<'a> {
             context,
             &context.sql,
             "UPDATE msgs SET state=? WHERE from_id=? AND state=?;",
-            params![DC_STATE_IN_NOTICED, id as i32, DC_STATE_IN_FRESH],
+            params![MessageState::InNoticed, id as i32, MessageState::InFresh],
         )
         .is_ok()
         {
@@ -327,7 +328,7 @@ impl<'a> Contact<'a> {
                     "<unset>"
                 },
             );
-            bail!("Bad address supplied");
+            bail!("Bad address supplied: {:?}", addr);
         }
 
         let mut update_addr = false;
@@ -909,7 +910,9 @@ fn get_first_name<'a>(full_name: &'a str) -> &'a str {
 
 /// Returns false if addr is an invalid address, otherwise true.
 pub fn may_be_valid_addr(addr: &str) -> bool {
-    addr.parse::<EmailAddress>().is_ok()
+    let res = addr.parse::<EmailAddress>();
+    println!("{:?}", res);
+    res.is_ok()
 }
 
 pub fn addr_normalize(addr: &str) -> &str {

@@ -282,7 +282,7 @@ unsafe fn add_parts(
     created_db_entries: &mut Vec<(usize, usize)>,
     create_event_to_send: &mut Option<Event>,
 ) -> Result<()> {
-    let mut state: libc::c_int;
+    let mut state: MessageState;
     let mut msgrmsg: libc::c_int;
     let mut chat_id_blocked = Blocked::Not;
     let mut sort_timestamp = 0;
@@ -389,9 +389,9 @@ unsafe fn add_parts(
     // (of course, the user can add other chats manually later)
     if 0 != incoming {
         state = if 0 != flags & DC_IMAP_SEEN {
-            DC_STATE_IN_SEEN
+            MessageState::InSeen
         } else {
-            DC_STATE_IN_FRESH
+            MessageState::InFresh
         };
         *to_id = 1;
         // handshake messages must be processed _before_ chats are created
@@ -405,7 +405,7 @@ unsafe fn add_parts(
             if 0 != handshake & DC_HANDSHAKE_STOP_NORMAL_PROCESSING {
                 *hidden = 1;
                 *add_delete_job = handshake & DC_HANDSHAKE_ADD_DELETE_JOB;
-                state = DC_STATE_IN_SEEN;
+                state = MessageState::InSeen;
             }
         }
 
@@ -498,9 +498,9 @@ unsafe fn add_parts(
         // if the chat_id is blocked,
         // for unknown senders and non-delta messages set the state to NOTICED
         // to not result in a contact request (this would require the state FRESH)
-        if Blocked::Not != chat_id_blocked && state == DC_STATE_IN_FRESH {
+        if Blocked::Not != chat_id_blocked && state == MessageState::InFresh {
             if !incoming_origin.is_verified() && msgrmsg == 0 {
-                state = DC_STATE_IN_NOTICED;
+                state = MessageState::InNoticed;
             }
         }
     } else {
@@ -508,7 +508,7 @@ unsafe fn add_parts(
 
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
-        state = DC_STATE_OUT_DELIVERED;
+        state = MessageState::OutDelivered;
         *from_id = DC_CONTACT_ID_SELF as u32;
         if !to_ids.is_empty() {
             *to_id = to_ids[0];
@@ -640,8 +640,8 @@ unsafe fn add_parts(
                             || *part.msg.offset(0) as libc::c_int == 0)
                     {
                         *hidden = 1;
-                        if state == DC_STATE_IN_FRESH {
-                            state = DC_STATE_IN_NOTICED;
+                        if state == MessageState::InFresh {
+                            state = MessageState::InNoticed;
                         }
                     }
                     if part.type_0 == Viewtype::Text as i32 {
@@ -732,7 +732,7 @@ unsafe fn add_parts(
     // check event to send
     if *chat_id == DC_CHAT_ID_TRASH as u32 {
         *create_event_to_send = None;
-    } else if 0 != incoming && state == DC_STATE_IN_FRESH {
+    } else if 0 != incoming && state == MessageState::InFresh {
         if 0 != from_id_blocked {
             *create_event_to_send = None;
         } else if Blocked::Not != chat_id_blocked {

@@ -730,7 +730,7 @@ pub fn prepare_msg<'a>(
         "Cannot prepare message for special chat"
     );
 
-    unsafe { (*msg).state = DC_STATE_OUT_PREPARING };
+    unsafe { (*msg).state = MessageState::OutPreparing };
     let msg_id = prepare_msg_common(context, chat_id, msg)?;
     context.call_cb(
         Event::MSGS_CHANGED,
@@ -778,7 +778,7 @@ fn prepare_msg_common<'a>(
 
         let mut path_filename = path_filename.unwrap().to_string();
 
-        if msg.state == DC_STATE_OUT_PREPARING && !dc_is_blobdir_path(context, &path_filename) {
+        if msg.state == MessageState::OutPreparing && !dc_is_blobdir_path(context, &path_filename) {
             bail!("Files must be created in the blob-directory.");
         }
 
@@ -817,8 +817,8 @@ fn prepare_msg_common<'a>(
     unarchive(context, chat_id)?;
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
-    if msg.state != DC_STATE_OUT_PREPARING {
-        msg.state = DC_STATE_OUT_PENDING;
+    if msg.state != MessageState::OutPreparing {
+        msg.state = MessageState::OutPending;
     }
 
     msg.id = unsafe { chat.prepare_msg_raw(context, msg, dc_create_smeared_timestamp(context))? };
@@ -886,7 +886,7 @@ pub unsafe fn send_msg<'a>(
 ) -> Result<u32, Error> {
     ensure!(!msg.is_null(), "Invalid message");
 
-    if (*msg).state != DC_STATE_OUT_PREPARING {
+    if (*msg).state != MessageState::OutPreparing {
         // automatically prepare normal messages
         prepare_msg_common(context, chat_id, msg)?;
     } else {
@@ -895,7 +895,7 @@ pub unsafe fn send_msg<'a>(
             chat_id == 0 || chat_id == (*msg).chat_id,
             "Inconsistent chat ID"
         );
-        dc_update_msg_state(context, (*msg).id, DC_STATE_OUT_PENDING);
+        dc_update_msg_state(context, (*msg).id, MessageState::OutPending);
     }
 
     ensure!(
@@ -1004,7 +1004,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: *mut dc_msg_t) -> 
                     1,
                     time(),
                     (*msg).type_0,
-                    DC_STATE_OUT_DRAFT,
+                    MessageState::OutDraft,
                     (*msg).text.as_ref().map(String::as_str).unwrap_or(""),
                     (*msg).param.to_string(),
                     1,
@@ -1026,7 +1026,7 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
         .query_row_col::<_, i32>(
             context,
             "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
-            params![chat_id as i32, DC_STATE_OUT_DRAFT],
+            params![chat_id as i32, MessageState::OutDraft],
             0,
         )
         .unwrap_or_default() as u32
@@ -1154,7 +1154,7 @@ pub fn get_fresh_msg_cnt(context: &Context, chat_id: u32) -> usize {
 pub fn marknoticed_chat(context: &Context, chat_id: u32) -> Result<(), Error> {
     if !context.sql.exists(
         "SELECT id FROM msgs  WHERE chat_id=? AND state=?;",
-        params![chat_id as i32, DC_STATE_IN_FRESH],
+        params![chat_id as i32, MessageState::InFresh],
     )? {
         return Ok(());
     }
@@ -1294,7 +1294,11 @@ pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Err
             context,
             &context.sql,
             "UPDATE msgs SET state=? WHERE chat_id=? AND state=?;",
-            params![DC_STATE_IN_NOTICED, chat_id as i32, DC_STATE_IN_FRESH],
+            params![
+                MessageState::InNoticed,
+                chat_id as i32,
+                MessageState::InFresh
+            ],
         )?;
     }
 
@@ -1909,7 +1913,7 @@ pub unsafe fn forward_msgs(
             (*msg).param.remove(Param::Cmd);
 
             let new_msg_id: u32;
-            if (*msg).state == DC_STATE_OUT_PREPARING {
+            if (*msg).state == MessageState::OutPreparing {
                 let fresh9 = curr_timestamp;
                 curr_timestamp = curr_timestamp + 1;
                 new_msg_id = chat
@@ -1931,7 +1935,7 @@ pub unsafe fn forward_msgs(
                 dc_msg_save_param_to_disk(msg);
                 (*msg).param = save_param;
             } else {
-                (*msg).state = DC_STATE_OUT_PENDING;
+                (*msg).state = MessageState::OutPending;
                 let fresh10 = curr_timestamp;
                 curr_timestamp = curr_timestamp + 1;
                 new_msg_id = chat
@@ -2030,7 +2034,7 @@ pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
             2,
             dc_create_smeared_timestamp(context),
             Viewtype::Text,
-            DC_STATE_IN_NOTICED,
+            MessageState::InNoticed,
             text.as_ref(),
             as_str(rfc724_mid),
         ]

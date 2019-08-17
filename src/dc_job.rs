@@ -363,7 +363,11 @@ unsafe fn dc_job_do_DC_JOB_SEND(context: &Context, job: &mut dc_job_t) {
                     } else {
                         dc_delete_file(context, filename_s);
                         if 0 != job.foreign_id {
-                            dc_update_msg_state(context, job.foreign_id, DC_STATE_OUT_DELIVERED);
+                            dc_update_msg_state(
+                                context,
+                                job.foreign_id,
+                                MessageState::OutDelivered,
+                            );
                             let chat_id: i32 = context
                                 .sql
                                 .query_row_col(

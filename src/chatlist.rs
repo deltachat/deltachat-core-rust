@@ -3,11 +3,9 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
 use crate::dc_msg::*;
-use crate::dc_tools::*;
 use crate::error::Result;
 use crate::lot::Lot;
 use crate::stock::StockMessage;
-use std::ptr;
 
 /// An object representing a single chatlist in memory.
 ///
@@ -257,7 +255,7 @@ impl<'a> Chatlist<'a> {
 
         let mut ret = Lot::new();
         if index >= self.ids.len() {
-            ret.text2 = "ErrBadChatlistIndex".strdup();
+            ret.text2 = Some("ErrBadChatlistIndex".to_string());
             return ret;
         }
 
@@ -291,9 +289,9 @@ impl<'a> Chatlist<'a> {
         };
 
         if chat.id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
-            ret.text2 = dc_strdup(ptr::null())
+            ret.text2 = None;
         } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_UNDEFINED as u32 {
-            ret.text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
+            ret.text2 = Some(self.context.stock_str(StockMessage::NoMessages).to_string());
         } else {
             ret.fill(lastmsg, chat, lastcontact.as_ref(), self.context);
         }

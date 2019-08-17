@@ -64,27 +64,8 @@ const DC_IMEX_EXPORT_BACKUP: usize = 11;
 /// param1 is the file with the backup to import
 const DC_IMEX_IMPORT_BACKUP: usize = 12;
 
-/// id=contact
-const DC_QR_ASK_VERIFYCONTACT: usize = 200;
-/// text1=groupname
-const DC_QR_ASK_VERIFYGROUP: usize = 202;
-/// id=contact
-const DC_QR_FPR_OK: usize = 210;
-/// id=contact
-const DC_QR_FPR_MISMATCH: usize = 220;
-/// test1=formatted fingerprint
-const DC_QR_FPR_WITHOUT_ADDR: usize = 230;
-/// id=contact
-const DC_QR_ADDR: usize = 320;
-/// text1=text
-const DC_QR_TEXT: usize = 330;
-/// text1=URL
-const DC_QR_URL: usize = 332;
-/// text1=error string
-const DC_QR_ERROR: usize = 400;
-
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
-const DC_CHAT_ID_DEADDROP: usize = 1;
+pub(crate) const DC_CHAT_ID_DEADDROP: usize = 1;
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
 pub const DC_CHAT_ID_TRASH: usize = 3;
 /// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
@@ -129,18 +110,6 @@ pub const DC_MSG_ID_MARKER1: usize = 1;
 const DC_MSG_ID_DAYMARKER: usize = 9;
 pub const DC_MSG_ID_LAST_SPECIAL: usize = 9;
 
-const DC_STATE_UNDEFINED: i32 = 0;
-pub const DC_STATE_IN_FRESH: i32 = 10;
-pub const DC_STATE_IN_NOTICED: i32 = 13;
-pub const DC_STATE_IN_SEEN: i32 = 16;
-pub const DC_STATE_OUT_PREPARING: i32 = 18;
-pub const DC_STATE_OUT_DRAFT: i32 = 19;
-pub const DC_STATE_OUT_PENDING: i32 = 20;
-pub const DC_STATE_OUT_FAILED: i32 = 24;
-/// to check if a mail was sent, use dc_msg_is_sent()
-pub const DC_STATE_OUT_DELIVERED: i32 = 26;
-pub const DC_STATE_OUT_MDN_RCVD: i32 = 28;
-
 /// approx. max. length returned by dc_msg_get_text()
 const DC_MAX_GET_TEXT_LEN: usize = 30000;
 /// approx. max. length returned by dc_get_msg_info()
@@ -150,10 +119,6 @@ pub const DC_CONTACT_ID_UNDEFINED: usize = 0;
 pub const DC_CONTACT_ID_SELF: usize = 1;
 const DC_CONTACT_ID_DEVICE: usize = 2;
 pub const DC_CONTACT_ID_LAST_SPECIAL: usize = 9;
-
-const DC_TEXT1_DRAFT: usize = 1;
-const DC_TEXT1_USERNAME: usize = 2;
-const DC_TEXT1_SELF: usize = 3;
 
 pub const DC_CREATE_MVBOX: usize = 1;
 

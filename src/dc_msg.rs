@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::path::Path;
 use std::ptr;
 
+use deltachat_derive::{FromSql, ToSql};
 use phf::phf_map;
 
 use crate::chat::{self, Chat};
@@ -10,13 +11,122 @@ use crate::contact::*;
 use crate::context::*;
 use crate::dc_job::*;
 use crate::dc_tools::*;
-use crate::lot::Lot;
+use crate::lot::{Lot, LotState, Meaning};
 use crate::param::*;
 use crate::pgp::*;
 use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
+
+/// In practice, the user additionally cuts the string himself pixel-accurate.
+const SUMMARY_CHARACTERS: usize = 160;
+
+#[repr(i32)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+pub enum MessageState {
+    Undefined = 0,
+    InFresh = 10,
+    InNoticed = 13,
+    InSeen = 16,
+    OutPreparing = 18,
+    OutDraft = 19,
+    OutPending = 20,
+    OutFailed = 24,
+    OutDelivered = 26,
+    OutMdnRcvd = 28,
+}
+
+impl From<MessageState> for LotState {
+    fn from(s: MessageState) -> Self {
+        use MessageState::*;
+        match s {
+            Undefined => LotState::Undefined,
+            InFresh => LotState::MsgInFresh,
+            InNoticed => LotState::MsgInNoticed,
+            InSeen => LotState::MsgInSeen,
+            OutPreparing => LotState::MsgOutPreparing,
+            OutDraft => LotState::MsgOutDraft,
+            OutPending => LotState::MsgOutPending,
+            OutFailed => LotState::MsgOutFailed,
+            OutDelivered => LotState::MsgOutDelivered,
+            OutMdnRcvd => LotState::MsgOutMdnRcvd,
+        }
+    }
+}
+
+impl MessageState {
+    pub fn can_fail(self) -> bool {
+        match self {
+            MessageState::OutPreparing | MessageState::OutPending | MessageState::OutDelivered => {
+                true
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Lot {
+    /* library-internal */
+    /* in practice, the user additionally cuts the string himself pixel-accurate */
+    pub fn fill(
+        &mut self,
+        msg: *mut dc_msg_t,
+        chat: &Chat,
+        contact: Option<&Contact>,
+        context: &Context,
+    ) {
+        if msg.is_null() {
+            return;
+        }
+
+        let msg = unsafe { &mut *msg };
+
+        if msg.state == MessageState::OutDraft {
+            self.text1 = Some(context.stock_str(StockMessage::Draft).to_owned().into());
+            self.text1_meaning = Meaning::Text1Draft;
+        } else if msg.from_id == DC_CONTACT_ID_SELF as u32 {
+            if 0 != unsafe { dc_msg_is_info(msg) } || chat.is_self_talk() {
+                self.text1 = None;
+                self.text1_meaning = Meaning::None;
+            } else {
+                self.text1 = Some(context.stock_str(StockMessage::SelfMsg).to_owned().into());
+                self.text1_meaning = Meaning::Text1Self;
+            }
+        } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
+            if 0 != unsafe { dc_msg_is_info(msg) } || contact.is_none() {
+                self.text1 = None;
+                self.text1_meaning = Meaning::None;
+            } else {
+                if chat.id == DC_CHAT_ID_DEADDROP as u32 {
+                    if let Some(contact) = contact {
+                        self.text1 = Some(contact.get_display_name().into());
+                    } else {
+                        self.text1 = None;
+                    }
+                } else {
+                    if let Some(contact) = contact {
+                        self.text1 = Some(contact.get_first_name().into());
+                    } else {
+                        self.text1 = None;
+                    }
+                }
+                self.text1_meaning = Meaning::Text1Username;
+            }
+        }
+
+        self.text2 = Some(dc_msg_get_summarytext_by_raw(
+            msg.type_0,
+            msg.text.as_ref(),
+            &mut msg.param,
+            SUMMARY_CHARACTERS,
+            context,
+        ));
+
+        self.timestamp = unsafe { dc_msg_get_timestamp(msg) };
+        self.state = msg.state.into();
+    }
+}
 
 /* * the structure behind dc_msg_t */
 #[derive(Clone)]
@@ -28,7 +138,7 @@ pub struct dc_msg_t<'a> {
     pub chat_id: uint32_t,
     pub move_state: MoveState,
     pub type_0: Viewtype,
-    pub state: libc::c_int,
+    pub state: MessageState,
     pub hidden: libc::c_int,
     pub timestamp_sort: i64,
     pub timestamp_sent: i64,
@@ -124,15 +234,16 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         .unwrap(); // TODO: better error handling
 
     ret += "State: ";
+    use MessageState::*;
     match (*msg).state {
-        DC_STATE_IN_FRESH => ret += "Fresh",
-        DC_STATE_IN_NOTICED => ret += "Noticed",
-        DC_STATE_IN_SEEN => ret += "Seen",
-        DC_STATE_OUT_DELIVERED => ret += "Delivered",
-        DC_STATE_OUT_FAILED => ret += "Failed",
-        DC_STATE_OUT_MDN_RCVD => ret += "Read",
-        DC_STATE_OUT_PENDING => ret += "Pending",
-        DC_STATE_OUT_PREPARING => ret += "Preparing",
+        InFresh => ret += "Fresh",
+        InNoticed => ret += "Noticed",
+        InSeen => ret += "Seen",
+        OutDelivered => ret += "Delivered",
+        OutFailed => ret += "Failed",
+        OutMdnRcvd => ret += "Read",
+        OutPending => ret += "Pending",
+        OutPreparing => ret += "Preparing",
         _ => ret += &format!("{}", (*msg).state),
     }
 
@@ -229,7 +340,7 @@ pub unsafe fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> *mut d
         chat_id: 0,
         move_state: MoveState::Undefined,
         type_0: viewtype,
-        state: 0,
+        state: MessageState::Undefined,
         hidden: 0,
         timestamp_sort: 0,
         timestamp_sent: 0,
@@ -518,7 +629,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
             for i in 0..msg_cnt {
                 let id = unsafe { *msg_ids.offset(i as isize) };
                 let query_res = stmt.query_row(params![id as i32], |row| {
-                    Ok((row.get::<_, i32>(0)?, row.get::<_, Option<i32>>(1)?.unwrap_or_default()))
+                    Ok((row.get::<_, MessageState>(0)?, row.get::<_, Option<Blocked>>(1)?.unwrap_or_default()))
                 });
                 if let Err(rusqlite::Error::QueryReturnedNoRows) = query_res {
                     continue;
@@ -538,16 +649,16 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     let msgs = msgs.unwrap();
 
     for (id, curr_state, curr_blocked) in msgs.into_iter() {
-        if curr_blocked == 0 {
-            if curr_state == 10 || curr_state == 13 {
-                dc_update_msg_state(context, id, DC_STATE_IN_SEEN);
+        if curr_blocked == Blocked::Not {
+            if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
+                dc_update_msg_state(context, id, MessageState::InSeen);
                 info!(context, 0, "Seen message #{}.", id);
 
                 unsafe { dc_job_add(context, 130, id as i32, Params::new(), 0) };
                 send_event = true;
             }
-        } else if curr_state == DC_STATE_IN_FRESH {
-            dc_update_msg_state(context, id, DC_STATE_IN_NOTICED);
+        } else if curr_state == MessageState::InFresh {
+            dc_update_msg_state(context, id, MessageState::InNoticed);
             send_event = true;
         }
     }
@@ -559,7 +670,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     true
 }
 
-pub fn dc_update_msg_state(context: &Context, msg_id: uint32_t, state: libc::c_int) -> bool {
+pub fn dc_update_msg_state(context: &Context, msg_id: uint32_t, state: MessageState) -> bool {
     sql::execute(
         context,
         &context.sql,
@@ -639,9 +750,9 @@ pub unsafe fn dc_msg_get_viewtype(msg: *const dc_msg_t) -> Viewtype {
     (*msg).type_0
 }
 
-pub unsafe fn dc_msg_get_state(msg: *const dc_msg_t) -> libc::c_int {
+pub unsafe fn dc_msg_get_state(msg: *const dc_msg_t) -> MessageState {
     if msg.is_null() {
-        return 0i32;
+        return MessageState::Undefined;
     }
 
     (*msg).state
@@ -868,7 +979,7 @@ pub unsafe fn dc_msg_is_sent(msg: *const dc_msg_t) -> libc::c_int {
     if msg.is_null() {
         return 0;
     }
-    if (*msg).state >= DC_STATE_OUT_DELIVERED {
+    if (*msg).state as i32 >= MessageState::OutDelivered as i32 {
         1
     } else {
         0
@@ -916,7 +1027,7 @@ pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
         return 0;
     }
 
-    if chat::msgtype_has_file((*msg).type_0) && (*msg).state == DC_STATE_OUT_PREPARING {
+    if chat::msgtype_has_file((*msg).type_0) && (*msg).state == MessageState::OutPreparing {
         1
     } else {
         0
@@ -1124,18 +1235,12 @@ pub fn dc_update_msg_move_state(
     .is_ok()
 }
 
-fn msgstate_can_fail(state: i32) -> bool {
-    DC_STATE_OUT_PREPARING == state
-        || DC_STATE_OUT_PENDING == state
-        || DC_STATE_OUT_DELIVERED == state
-}
-
 pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *const libc::c_char) {
     let mut msg = dc_msg_new_untyped(context);
 
     if dc_msg_load_from_db(msg, context, msg_id) {
-        if msgstate_can_fail((*msg).state) {
-            (*msg).state = DC_STATE_OUT_FAILED;
+        if (*msg).state.can_fail() {
+            (*msg).state = MessageState::OutFailed;
         }
         if !error.is_null() {
             (*msg).param.set(Param::Error, as_str(error));
@@ -1192,8 +1297,8 @@ pub unsafe fn dc_mdn_from_ext(
             Ok((
                 row.get::<_, i32>(0)?,
                 row.get::<_, i32>(1)?,
-                row.get::<_, i32>(2)?,
-                row.get::<_, i32>(3)?,
+                row.get::<_, Chattype>(2)?,
+                row.get::<_, MessageState>(3)?,
             ))
         },
     ) {
@@ -1203,7 +1308,7 @@ pub unsafe fn dc_mdn_from_ext(
         /* if already marked as MDNS_RCVD msgstate_can_fail() returns false.
         however, it is important, that ret_msg_id is set above as this
         will allow the caller eg. to move the message away */
-        if msgstate_can_fail(msg_state) {
+        if msg_state.can_fail() {
             let mdn_already_in_table = context
                 .sql
                 .exists(
@@ -1220,8 +1325,8 @@ pub unsafe fn dc_mdn_from_ext(
             }
 
             // Normal chat? that's quite easy.
-            if chat_type == 100 {
-                dc_update_msg_state(context, *ret_msg_id, DC_STATE_OUT_MDN_RCVD);
+            if chat_type == Chattype::Single {
+                dc_update_msg_state(context, *ret_msg_id, MessageState::OutMdnRcvd);
                 read_by_all = 1;
             } else {
                 /* send event about new state */
@@ -1249,7 +1354,7 @@ pub unsafe fn dc_mdn_from_ext(
                 // for rounding, SELF is already included!
                 let soll_cnt = (chat::get_chat_contact_cnt(context, *ret_chat_id) + 1) / 2;
                 if ist_cnt >= soll_cnt {
-                    dc_update_msg_state(context, *ret_msg_id, DC_STATE_OUT_MDN_RCVD);
+                    dc_update_msg_state(context, *ret_msg_id, MessageState::OutMdnRcvd);
                     read_by_all = 1;
                 } /* else wait for more receipts */
             }

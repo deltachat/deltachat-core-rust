@@ -306,7 +306,7 @@ pub fn dc_key_save_self_keypair(
 }
 
 /// Make a fingerprint human-readable, in hex format.
-fn dc_format_fingerprint(fingerprint: &str) -> String {
+pub fn dc_format_fingerprint(fingerprint: &str) -> String {
     // split key into chunks of 4 with space, and 20 newline
     let mut res = String::new();
 
