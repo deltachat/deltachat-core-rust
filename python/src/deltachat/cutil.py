@@ -19,6 +19,6 @@ def from_dc_charpointer(obj):
     # already creates a copy in python land
     s = ffi.string(obj).decode("utf8")
     # free the cstring
-    lib.dc_str_unref(obj)
+    return ffi.gc(obj, lib.dc_str_unref).decode("utf8") 
     # return python string
     return s
