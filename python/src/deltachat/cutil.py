@@ -16,4 +16,9 @@ def iter_array(dc_array_t, constructor):
 
 
 def from_dc_charpointer(obj):
-    return ffi.string(obj).decode("utf8")
+    # already creates a copy in python land
+    s = ffi.string(obj).decode("utf8")
+    # free the cstring
+    lib.dc_str_unref(obj)
+    # return python string
+    return s
