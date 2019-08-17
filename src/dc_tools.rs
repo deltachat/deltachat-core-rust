@@ -167,12 +167,6 @@ pub unsafe fn dc_trim(buf: *mut libc::c_char) {
     dc_rtrim(buf);
 }
 
-pub unsafe fn dc_strlower_in_place(in_0: *mut libc::c_char) {
-    let raw = CString::yolo(to_string(in_0).to_lowercase());
-    assert_eq!(strlen(in_0), strlen(raw.as_ptr()));
-    memcpy(in_0 as *mut _, raw.as_ptr() as *const _, strlen(in_0));
-}
-
 /* the result must be free()'d */
 pub unsafe fn dc_null_terminate(
     in_0: *const libc::c_char,
@@ -186,17 +180,6 @@ pub unsafe fn dc_null_terminate(
     *out.offset(bytes as isize) = 0 as libc::c_char;
 
     out
-}
-
-#[cfg(test)]
-unsafe fn dc_binary_to_uc_hex(buf: *const uint8_t, bytes: size_t) -> *mut libc::c_char {
-    if buf.is_null() || bytes == 0 {
-        return std::ptr::null_mut();
-    }
-
-    let buf = std::slice::from_raw_parts(buf, bytes);
-    let raw = hex::encode_upper(buf);
-    raw.strdup()
 }
 
 /* remove all \r characters from string */
@@ -285,25 +268,6 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
         }
         return;
     }
-}
-
-#[cfg(test)]
-unsafe fn dc_utf8_strlen(s: *const libc::c_char) -> size_t {
-    if s.is_null() {
-        return 0;
-    }
-
-    let mut i = 0;
-    let mut j: size_t = 0;
-
-    while 0 != *s.add(i) {
-        if *s.offset(i as isize) as libc::c_int & 0xc0 != 0x80 {
-            j = j.wrapping_add(1)
-        }
-        i += 1;
-    }
-
-    j
 }
 
 /// Shortens a string to a specified length and adds "..." or "[...]" to the end of
@@ -416,44 +380,6 @@ pub unsafe fn dc_free_splitted_lines(lines: Vec<*mut libc::c_char>) {
     for s in lines {
         free(s as *mut libc::c_void);
     }
-}
-
-/* insert a break every n characters, the return must be free()'d */
-#[cfg(test)]
-unsafe fn dc_insert_breaks(
-    in_0: *const libc::c_char,
-    break_every: libc::c_int,
-    break_chars: *const libc::c_char,
-) -> *mut libc::c_char {
-    if in_0.is_null() || break_every <= 0 || break_chars.is_null() {
-        return dc_strdup(in_0);
-    }
-    let mut out_len = strlen(in_0);
-    let mut chars_added = 0;
-    let break_chars_len = strlen(break_chars);
-    out_len += (out_len / break_every as usize + 1) * break_chars_len + 1;
-    let out: *mut libc::c_char = malloc(out_len) as *mut libc::c_char;
-    if out.is_null() {
-        return ptr::null_mut();
-    }
-    let mut i: *const libc::c_char = in_0;
-    let mut o: *mut libc::c_char = out;
-    while 0 != *i {
-        let fresh1 = o;
-        o = o.offset(1);
-        let fresh0 = i;
-        i = i.offset(1);
-        *fresh1 = *fresh0;
-        chars_added += 1;
-        if chars_added == break_every && 0 != *i as libc::c_int {
-            strcpy(o, break_chars);
-            o = o.add(break_chars_len);
-            chars_added = 0
-        }
-    }
-    *o = 0 as libc::c_char;
-
-    out
 }
 
 pub unsafe fn dc_str_from_clist(
@@ -1637,70 +1563,6 @@ mod tests {
     }
 
     #[test]
-    fn test_dc_insert_breaks_1() {
-        unsafe {
-            let str = dc_insert_breaks(
-                b"just1234test\x00" as *const u8 as *const libc::c_char,
-                4,
-                b" \x00" as *const u8 as *const libc::c_char,
-            );
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "just 1234 test"
-            );
-            free(str as *mut libc::c_void);
-        }
-    }
-
-    #[test]
-    fn test_dc_insert_breaks_2() {
-        unsafe {
-            let str: *mut libc::c_char = dc_insert_breaks(
-                b"just1234tes\x00" as *const u8 as *const libc::c_char,
-                4,
-                b"--\x00" as *const u8 as *const libc::c_char,
-            );
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "just--1234--tes"
-            );
-            free(str as *mut libc::c_void);
-        }
-    }
-
-    #[test]
-    fn test_dc_insert_breaks_3() {
-        unsafe {
-            let str: *mut libc::c_char = dc_insert_breaks(
-                b"just1234t\x00" as *const u8 as *const libc::c_char,
-                4,
-                b"\x00" as *const u8 as *const libc::c_char,
-            );
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                "just1234t"
-            );
-            free(str as *mut libc::c_void);
-        }
-    }
-
-    #[test]
-    fn test_dc_insert_breaks_4() {
-        unsafe {
-            let str: *mut libc::c_char = dc_insert_breaks(
-                b"\x00" as *const u8 as *const libc::c_char,
-                4,
-                b"---\x00" as *const u8 as *const libc::c_char,
-            );
-            assert_eq!(
-                CStr::from_ptr(str as *const libc::c_char).to_str().unwrap(),
-                ""
-            );
-            free(str as *mut libc::c_void);
-        }
-    }
-
-    #[test]
     fn test_dc_null_terminate_1() {
         unsafe {
             let str: *mut libc::c_char =
@@ -1798,17 +1660,6 @@ mod tests {
     }
 
     #[test]
-    fn test_dc_binary_to_uc_hex() {
-        let buf = vec![0, 1, 2, 3, 255];
-
-        let raw = unsafe { dc_binary_to_uc_hex(buf.as_ptr(), buf.len()) };
-        let res = to_string(raw);
-        assert_eq!(res, "00010203FF");
-
-        unsafe { free(raw as *mut _) };
-    }
-
-    #[test]
     fn test_dc_replace_bad_utf8_chars_1() {
         unsafe {
             let buf1 = strdup(b"ol\xc3\xa1 mundo <>\"\'& \xc3\xa4\xc3\x84\xc3\xb6\xc3\x96\xc3\xbc\xc3\x9c\xc3\x9f foo\xc3\x86\xc3\xa7\xc3\x87 \xe2\x99\xa6&noent;\x00" as *const u8 as *const libc::c_char);
@@ -1889,20 +1740,6 @@ mod tests {
             encode_66bits_as_base64(0x01234567, 0x89abcdef, 3),
             "ASNFZ4mrze_"
         );
-    }
-
-    #[test]
-    fn test_dc_utf8_strlen() {
-        unsafe {
-            assert_eq!(
-                dc_utf8_strlen(b"c\x00" as *const u8 as *const libc::c_char),
-                1
-            );
-            assert_eq!(
-                dc_utf8_strlen(b"\xc3\xa4\x00" as *const u8 as *const libc::c_char),
-                1
-            );
-        }
     }
 
     #[test]
