@@ -1792,11 +1792,11 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
 // dc_lot_t
 
 #[no_mangle]
-pub type dc_lot_t = dc_lot::Lot;
+pub type dc_lot_t = lot::Lot;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_lot_new() -> *mut dc_lot_t {
-    Box::into_raw(Box::new(dc_lot::Lot::new()))
+    Box::into_raw(Box::new(lot::Lot::new()))
 }
 
 #[no_mangle]
@@ -1804,7 +1804,7 @@ pub unsafe extern "C" fn dc_lot_empty(lot: *mut dc_lot_t) {
     assert!(!lot.is_null());
 
     let _lot = Box::from_raw(lot);
-    *lot = dc_lot::Lot::new();
+    *lot = lot::Lot::new();
 }
 
 #[no_mangle]
