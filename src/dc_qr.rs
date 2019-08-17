@@ -1,8 +1,9 @@
 use percent_encoding::percent_decode_str;
 
+use crate::chat;
+use crate::constants::Blocked;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_chat::*;
 use crate::dc_lot::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
@@ -34,7 +35,7 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
     let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut qr_parsed: *mut dc_lot_t = dc_lot_new();
     let mut chat_id: uint32_t = 0i32 as uint32_t;
-    let mut device_msg: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut device_msg = "".to_string();
     let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
     (*qr_parsed).state = 0i32;
@@ -230,20 +231,17 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                             Contact::add_or_lookup(context, "", addr, Origin::UnhandledQrScan)
                                 .map(|(id, _)| id)
                                 .unwrap_or_default();
-                        dc_create_or_lookup_nchat_by_contact_id(
+                        let (id, _) = chat::create_or_lookup_by_contact_id(
                             context,
                             (*qr_parsed).id,
-                            2i32,
-                            &mut chat_id,
-                            0 as *mut libc::c_int,
-                        );
-                        device_msg = dc_mprintf(
-                            b"%s verified.\x00" as *const u8 as *const libc::c_char,
-                            peerstate.addr,
+                            Blocked::Deaddrop,
                         )
+                        .unwrap_or_default();
+                        chat_id = id;
+                        device_msg = format!("{} verified.", peerstate.addr.unwrap_or_default());
                     } else {
                         (*qr_parsed).text1 = dc_format_fingerprint_c(fingerprint);
-                        (*qr_parsed).state = 230i32
+                        (*qr_parsed).state = 230i32;
                     }
                 } else {
                     if !grpid.is_null() && !grpname.is_null() {
@@ -286,8 +284,8 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
                 (*qr_parsed).state = 330i32;
                 (*qr_parsed).text1 = dc_strdup(qr)
             }
-            if !device_msg.is_null() {
-                dc_add_device_msg(context, chat_id, device_msg);
+            if !device_msg.is_empty() {
+                chat::add_device_msg(context, chat_id, device_msg);
             }
         }
     }
@@ -297,7 +295,6 @@ pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> *mut dc
     free(name as *mut libc::c_void);
     free(invitenumber as *mut libc::c_void);
     free(auth as *mut libc::c_void);
-    free(device_msg as *mut libc::c_void);
     free(grpname as *mut libc::c_void);
     free(grpid as *mut libc::c_void);
 

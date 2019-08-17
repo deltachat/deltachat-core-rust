@@ -1,9 +1,9 @@
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
+use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::dc_array::*;
-use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_jobthread::*;
 use crate::dc_loginparam::*;
@@ -338,7 +338,7 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let l = dc_loginparam_read(context, &context.sql, "");
     let l2 = dc_loginparam_read(context, &context.sql, "configured_");
     let displayname = context.sql.get_config(context, "displayname");
-    let chats = dc_get_chat_cnt(context) as usize;
+    let chats = get_chat_cnt(context) as usize;
     let real_msgs = dc_get_real_msg_cnt(context) as usize;
     let deaddrop_msgs = dc_get_deaddrop_msg_cnt(context) as usize;
     let contacts = Contact::get_real_cnt(context) as usize;

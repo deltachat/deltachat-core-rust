@@ -26,9 +26,19 @@ const DC_SENTBOX_WATCH_DEFAULT: i32 = 1;
 const DC_MVBOX_WATCH_DEFAULT: i32 = 1;
 const DC_MVBOX_MOVE_DEFAULT: i32 = 1;
 
-pub const DC_CHAT_NOT_BLOCKED: i32 = 0;
-const DC_CHAT_MANUALLY_BLOCKED: i32 = 1;
-pub const DC_CHAT_DEADDROP_BLOCKED: i32 = 2;
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
+#[repr(u8)]
+pub enum Blocked {
+    Not = 0,
+    Manually = 1,
+    Deaddrop = 2,
+}
+
+impl Default for Blocked {
+    fn default() -> Self {
+        Blocked::Not
+    }
+}
 
 pub const DC_IMAP_SEEN: u32 = 0x1;
 
@@ -88,10 +98,32 @@ pub const DC_CHAT_ID_ALLDONE_HINT: usize = 7;
 /// larger chat IDs are "real" chats, their messages are "real" messages.
 pub const DC_CHAT_ID_LAST_SPECIAL: usize = 9;
 
-const DC_CHAT_TYPE_UNDEFINED: i32 = 0;
-pub const DC_CHAT_TYPE_SINGLE: i32 = 100;
-pub const DC_CHAT_TYPE_GROUP: i32 = 120;
-pub const DC_CHAT_TYPE_VERIFIED_GROUP: i32 = 130;
+#[derive(
+    Debug,
+    Display,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    FromPrimitive,
+    ToPrimitive,
+    FromSql,
+    ToSql,
+    IntoStaticStr,
+)]
+#[repr(u32)]
+pub enum Chattype {
+    Undefined = 0,
+    Single = 100,
+    Group = 120,
+    VerifiedGroup = 130,
+}
+
+impl Default for Chattype {
+    fn default() -> Self {
+        Chattype::Undefined
+    }
+}
 
 pub const DC_MSG_ID_MARKER1: usize = 1;
 const DC_MSG_ID_DAYMARKER: usize = 9;

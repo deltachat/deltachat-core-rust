@@ -4,9 +4,9 @@ use std::fmt;
 use num_traits::FromPrimitive;
 
 use crate::aheader::*;
+use crate::chat::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_chat::*;
 use crate::key::*;
 use crate::sql::{self, Sql};
 
@@ -466,7 +466,7 @@ impl<'a> Peerstate<'a> {
         }
 
         if self.to_save == Some(ToSave::All) || create {
-            dc_reset_gossiped_timestamp(self.context, 0);
+            reset_gossiped_timestamp(self.context, 0);
         }
 
         success

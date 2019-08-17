@@ -18,48 +18,6 @@ fn isalnum(c: libc::c_int) -> libc::c_int {
     }
 }
 
-pub unsafe fn dc_urlencode(to_encode: *const libc::c_char) -> *mut libc::c_char {
-    let mut pstr: *const libc::c_char = to_encode;
-    if to_encode.is_null() {
-        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
-    }
-    let buf: *mut libc::c_char =
-        malloc(strlen(to_encode).wrapping_mul(3).wrapping_add(1)) as *mut libc::c_char;
-    let mut pbuf: *mut libc::c_char = buf;
-    assert!(!buf.is_null());
-
-    while 0 != *pstr {
-        if 0 != isalnum(*pstr as libc::c_int)
-            || *pstr as libc::c_int == '-' as i32
-            || *pstr as libc::c_int == '_' as i32
-            || *pstr as libc::c_int == '.' as i32
-            || *pstr as libc::c_int == '~' as i32
-        {
-            let fresh0 = pbuf;
-            pbuf = pbuf.offset(1);
-            *fresh0 = *pstr
-        } else if *pstr as libc::c_int == ' ' as i32 {
-            let fresh1 = pbuf;
-            pbuf = pbuf.offset(1);
-            *fresh1 = '+' as i32 as libc::c_char
-        } else {
-            let fresh2 = pbuf;
-            pbuf = pbuf.offset(1);
-            *fresh2 = '%' as i32 as libc::c_char;
-            let fresh3 = pbuf;
-            pbuf = pbuf.offset(1);
-            *fresh3 = int_2_uppercase_hex((*pstr as libc::c_int >> 4i32) as libc::c_char);
-            let fresh4 = pbuf;
-            pbuf = pbuf.offset(1);
-            *fresh4 = int_2_uppercase_hex((*pstr as libc::c_int & 15i32) as libc::c_char)
-        }
-        pstr = pstr.offset(1isize)
-    }
-    *pbuf = '\u{0}' as i32 as libc::c_char;
-
-    buf
-}
-
 /* ******************************************************************************
  * URL encoding and decoding, RFC 3986
  ******************************************************************************/
@@ -713,6 +671,7 @@ unsafe fn print_hex(target: *mut libc::c_char, cur: *const libc::c_char) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use percent_encoding::{percent_encode, NON_ALPHANUMERIC};
     use std::ffi::CStr;
 
     #[test]
@@ -892,14 +851,15 @@ mod tests {
     #[test]
     fn test_dc_urlencode_urldecode() {
         unsafe {
-            let buf1 =
-                dc_urlencode(b"Bj\xc3\xb6rn Petersen\x00" as *const u8 as *const libc::c_char);
+            let buf1 = percent_encode(b"Bj\xc3\xb6rn Petersen", NON_ALPHANUMERIC)
+                .to_string()
+                .strdup();
 
             assert_eq!(
                 CStr::from_ptr(buf1 as *const libc::c_char)
                     .to_str()
                     .unwrap(),
-                "Bj%C3%B6rn+Petersen"
+                "Bj%C3%B6rn%20Petersen"
             );
 
             let buf2 = dc_urldecode(buf1);

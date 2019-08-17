@@ -1,10 +1,10 @@
 use std::ffi::CString;
 use std::path::Path;
 
+use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_chat::*;
 use crate::dc_job::*;
 use crate::dc_lot::dc_lot_t;
 use crate::dc_lot::*;
@@ -309,8 +309,7 @@ pub unsafe fn dc_msg_get_file(msg: *const dc_msg_t) -> *mut libc::c_char {
 
     if !msg.is_null() {
         if let Some(file_rel) = (*msg).param.get(Param::File) {
-            let file_rel_c = CString::yolo(file_rel);
-            file_abs = dc_get_abs_path((*msg).context, file_rel_c.as_ptr());
+            file_abs = dc_get_abs_path((*msg).context, file_rel);
         }
     }
     if !file_abs.is_null() {
@@ -681,8 +680,7 @@ pub unsafe fn dc_msg_get_filename(msg: *const dc_msg_t) -> *mut libc::c_char {
 
     if !msg.is_null() {
         if let Some(file) = (*msg).param.get(Param::File) {
-            let file_c = CString::yolo(file);
-            ret = dc_get_filename(file_c.as_ptr());
+            ret = dc_get_filename(file);
         }
     }
     if !ret.is_null() {
@@ -745,35 +743,35 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
 
 pub unsafe fn dc_msg_get_summary<'a>(
     msg: *mut dc_msg_t<'a>,
-    mut chat: *const Chat<'a>,
+    chat: Option<&Chat<'a>>,
 ) -> *mut dc_lot_t {
-    let mut ok_to_continue = true;
-    let ret: *mut dc_lot_t = dc_lot_new();
-    let mut chat_to_delete: *mut Chat = 0 as *mut Chat;
+    let ret = dc_lot_new();
 
-    if !msg.is_null() {
-        if chat.is_null() {
-            chat_to_delete = dc_get_chat((*msg).context, (*msg).chat_id);
-            if chat_to_delete.is_null() {
-                ok_to_continue = false;
-            } else {
-                chat = chat_to_delete;
-            }
-        }
-        if ok_to_continue {
-            let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
-                && ((*chat).type_0 == 120 || (*chat).type_0 == 130)
-            {
-                Contact::get_by_id((*chat).context, (*msg).from_id).ok()
-            } else {
-                None
-            };
-
-            dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
-        }
+    if msg.is_null() {
+        return ret;
     }
 
-    dc_chat_unref(chat_to_delete);
+    let chat_loaded: Chat;
+    let chat = if let Some(chat) = chat {
+        chat
+    } else {
+        if let Ok(chat) = Chat::load_from_db((*msg).context, (*msg).chat_id) {
+            chat_loaded = chat;
+            &chat_loaded
+        } else {
+            return ret;
+        }
+    };
+
+    let contact = if (*msg).from_id != DC_CONTACT_ID_SELF as libc::c_uint
+        && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
+    {
+        Contact::get_by_id((*chat).context, (*msg).from_id).ok()
+    } else {
+        None
+    };
+
+    dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
 
     ret
 }
@@ -921,7 +919,7 @@ pub unsafe fn dc_msg_is_increation(msg: *const dc_msg_t) -> libc::c_int {
         return 0;
     }
 
-    if msgtype_has_file((*msg).type_0) && (*msg).state == DC_STATE_OUT_PREPARING {
+    if chat::msgtype_has_file((*msg).type_0) && (*msg).state == DC_STATE_OUT_PREPARING {
         1
     } else {
         0
@@ -1252,7 +1250,7 @@ pub unsafe fn dc_mdn_from_ext(
                 (S=Sender, R=Recipient)
                  */
                 // for rounding, SELF is already included!
-                let soll_cnt = (dc_get_chat_contact_cnt(context, *ret_chat_id) + 1) / 2;
+                let soll_cnt = (chat::get_chat_contact_cnt(context, *ret_chat_id) + 1) / 2;
                 if ist_cnt >= soll_cnt {
                     dc_update_msg_state(context, *ret_msg_id, DC_STATE_OUT_MDN_RCVD);
                     read_by_all = 1;
@@ -1392,14 +1390,12 @@ mod tests {
             let res = ctx.set_config(Config::ConfiguredAddr, Some("self@example.com"));
             assert!(res.is_ok());
 
-            let chat = dc_create_chat_by_contact_id(ctx, contact);
-            assert!(chat != 0);
+            let chat = chat::create_by_contact_id(ctx, contact).unwrap();
 
             let msg = dc_msg_new(ctx, Viewtype::Text);
             assert!(!msg.is_null());
 
-            let msg_id = dc_prepare_msg(ctx, chat, msg);
-            assert!(msg_id != 0);
+            let msg_id = chat::prepare_msg(ctx, chat, msg).unwrap();
 
             let msg2 = dc_get_msg(ctx, msg_id);
             assert!(!msg2.is_null());

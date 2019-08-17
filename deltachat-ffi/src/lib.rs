@@ -13,6 +13,7 @@ extern crate num_traits;
 
 use num_traits::{FromPrimitive, ToPrimitive};
 use std::convert::TryInto;
+use std::ptr;
 use std::str::FromStr;
 
 use deltachat::contact::Contact;
@@ -322,7 +323,7 @@ pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, ms
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_create_chat_by_msg_id(context, msg_id)
+    chat::create_by_msg_id(context, msg_id).unwrap_or_log_default(context, "Failed to create chat")
 }
 
 #[no_mangle]
@@ -333,7 +334,8 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_create_chat_by_contact_id(context, contact_id)
+    chat::create_by_contact_id(context, contact_id)
+        .unwrap_or_log_default(context, "Failed to create chat")
 }
 
 #[no_mangle]
@@ -344,7 +346,8 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_chat_id_by_contact_id(context, contact_id)
+    chat::get_by_contact_id(context, contact_id)
+        .unwrap_or_log_default(context, "Failed to get chat")
 }
 
 #[no_mangle]
@@ -357,7 +360,8 @@ pub unsafe extern "C" fn dc_prepare_msg(
     assert!(!msg.is_null());
     let context = &*context;
 
-    dc_chat::dc_prepare_msg(context, chat_id, msg)
+    chat::prepare_msg(context, chat_id, msg)
+        .unwrap_or_log_default(context, "Failed to prepare message")
 }
 
 #[no_mangle]
@@ -370,7 +374,7 @@ pub unsafe extern "C" fn dc_send_msg(
     assert!(!msg.is_null());
     let context = &*context;
 
-    dc_chat::dc_send_msg(context, chat_id, msg)
+    chat::send_msg(context, chat_id, msg).unwrap_or_log_default(context, "Failed to send message")
 }
 
 #[no_mangle]
@@ -384,7 +388,8 @@ pub unsafe extern "C" fn dc_send_text_msg(
     let context = &*context;
     let text_to_send = dc_tools::to_string_lossy(text_to_send);
 
-    dc_chat::dc_send_text_msg(context, chat_id, text_to_send)
+    chat::send_text_msg(context, chat_id, text_to_send)
+        .unwrap_or_log_default(context, "Failed to send text message")
 }
 
 #[no_mangle]
@@ -396,7 +401,7 @@ pub unsafe extern "C" fn dc_set_draft(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_set_draft(context, chat_id, msg)
+    chat::set_draft(context, chat_id, msg)
 }
 
 #[no_mangle]
@@ -407,7 +412,7 @@ pub unsafe extern "C" fn dc_get_draft<'a>(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_draft(context, chat_id)
+    chat::get_draft(context, chat_id)
 }
 
 #[no_mangle]
@@ -420,7 +425,7 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_chat_msgs(context, chat_id, flags, marker1before)
+    chat::get_chat_msgs(context, chat_id, flags, marker1before)
 }
 
 #[no_mangle]
@@ -428,7 +433,7 @@ pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_msg_cnt(context, chat_id)
+    chat::get_msg_cnt(context, chat_id) as libc::c_int
 }
 
 #[no_mangle]
@@ -439,7 +444,7 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_fresh_msg_cnt(context, chat_id)
+    chat::get_fresh_msg_cnt(context, chat_id) as libc::c_int
 }
 
 #[no_mangle]
@@ -457,7 +462,7 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_marknoticed_chat(context, chat_id);
+    chat::marknoticed_chat(context, chat_id).log_err(context, "Failed marknoticed chat");
 }
 
 #[no_mangle]
@@ -465,7 +470,7 @@ pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_marknoticed_all_chats(context);
+    chat::marknoticed_all_chats(context).log_err(context, "Failed marknoticed all chats");
 }
 
 fn from_prim<S, T>(s: S) -> Option<T>
@@ -493,7 +498,7 @@ pub unsafe extern "C" fn dc_get_chat_media(
     let or_msg_type3 =
         from_prim(or_msg_type3).expect(&format!("incorrect or_msg_type3 = {}", or_msg_type3));
 
-    dc_chat::dc_get_chat_media(context, chat_id, msg_type, or_msg_type2, or_msg_type3)
+    chat::get_chat_media(context, chat_id, msg_type, or_msg_type2, or_msg_type3)
 }
 
 #[no_mangle]
@@ -514,7 +519,7 @@ pub unsafe extern "C" fn dc_get_next_media(
     let or_msg_type3 =
         from_prim(or_msg_type3).expect(&format!("incorrect or_msg_type3 = {}", or_msg_type3));
 
-    dc_chat::dc_get_next_media(context, msg_id, dir, msg_type, or_msg_type2, or_msg_type3)
+    chat::get_next_media(context, msg_id, dir, msg_type, or_msg_type2, or_msg_type3)
 }
 
 #[no_mangle]
@@ -526,7 +531,15 @@ pub unsafe extern "C" fn dc_archive_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_archive_chat(context, chat_id, archive);
+    let archive = if archive == 0 {
+        false
+    } else if archive == 1 {
+        true
+    } else {
+        return;
+    };
+
+    chat::archive(context, chat_id, archive).log_err(context, "Failed archive chat");
 }
 
 #[no_mangle]
@@ -534,8 +547,7 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
     assert!(!context.is_null());
     let context = &*context;
 
-    // TODO: update to indicate public api success/failure of deletion
-    dc_chat::dc_delete_chat(context, chat_id);
+    chat::delete(context, chat_id).log_err(context, "Failed chat delete");
 }
 
 #[no_mangle]
@@ -546,7 +558,7 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_array_t::from(dc_chat::dc_get_chat_contacts(context, chat_id)).into_raw()
+    dc_array_t::from(chat::get_chat_contacts(context, chat_id)).into_raw()
 }
 
 #[no_mangle]
@@ -570,7 +582,10 @@ pub unsafe extern "C" fn dc_get_chat<'a>(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_get_chat(context, chat_id)
+    match chat::Chat::load_from_db(context, chat_id) {
+        Ok(chat) => Box::into_raw(Box::new(chat)),
+        Err(_) => std::ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
@@ -583,7 +598,14 @@ pub unsafe extern "C" fn dc_create_group_chat(
     assert!(!name.is_null());
     let context = &*context;
 
-    dc_chat::dc_create_group_chat(context, verified, name)
+    let verified = if let Some(s) = contact::VerifiedStatus::from_i32(verified) {
+        s
+    } else {
+        return 0;
+    };
+
+    chat::create_group_chat(context, verified, as_str(name))
+        .unwrap_or_log_default(context, "Failed to create group chat")
 }
 
 #[no_mangle]
@@ -595,7 +617,7 @@ pub unsafe extern "C" fn dc_is_contact_in_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_is_contact_in_chat(context, chat_id, contact_id)
+    chat::is_contact_in_chat(context, chat_id, contact_id)
 }
 
 #[no_mangle]
@@ -607,7 +629,7 @@ pub unsafe extern "C" fn dc_add_contact_to_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_add_contact_to_chat(context, chat_id, contact_id)
+    chat::add_contact_to_chat(context, chat_id, contact_id)
 }
 
 #[no_mangle]
@@ -619,7 +641,9 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_chat::dc_remove_contact_from_chat(context, chat_id, contact_id)
+    chat::remove_contact_from_chat(context, chat_id, contact_id)
+        .map(|_| 1)
+        .unwrap_or_log_default(context, "Failed to remove contact")
 }
 
 #[no_mangle]
@@ -633,7 +657,9 @@ pub unsafe extern "C" fn dc_set_chat_name(
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let context = &*context;
 
-    dc_chat::dc_set_chat_name(context, chat_id, name)
+    chat::set_chat_name(context, chat_id, as_str(name))
+        .map(|_| 1)
+        .unwrap_or_log_default(context, "Failed to set chat name")
 }
 
 #[no_mangle]
@@ -646,7 +672,9 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let context = &*context;
 
-    dc_chat::dc_set_chat_profile_image(context, chat_id, image)
+    chat::set_chat_profile_image(context, chat_id, as_str(image))
+        .map(|_| 1)
+        .unwrap_or_log_default(context, "Failed to set profile image")
 }
 
 #[no_mangle]
@@ -698,7 +726,7 @@ pub unsafe extern "C" fn dc_forward_msgs(
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let context = &*context;
 
-    dc_chat::dc_forward_msgs(context, msg_ids, msg_cnt, chat_id)
+    chat::forward_msgs(context, msg_ids, msg_cnt, chat_id)
 }
 
 #[no_mangle]
@@ -1239,7 +1267,9 @@ pub unsafe extern "C" fn dc_chatlist_get_summary<'a>(
 ) -> *mut dc_lot::dc_lot_t {
     assert!(!chatlist.is_null());
 
+    let chat = if chat.is_null() { None } else { Some(&*chat) };
     let list = &*chatlist;
+
     list.get_summary(index as usize, chat)
 }
 
@@ -1256,90 +1286,104 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
 // dc_chat_t
 
 #[no_mangle]
-pub type dc_chat_t<'a> = dc_chat::Chat<'a>;
+pub type dc_chat_t<'a> = chat::Chat<'a>;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat_t) {
     assert!(!chat.is_null());
 
-    dc_chat::dc_chat_unref(chat)
+    Box::from_raw(chat);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat_t) -> u32 {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_get_id(chat)
+    chat.get_id()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_get_type(chat)
+    chat.get_type() as libc::c_int
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_char {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_get_name(chat)
+    chat.get_name().strdup()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc::c_char {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_get_subtitle(chat)
+    chat.get_subtitle().strdup()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut libc::c_char {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_get_profile_image(chat)
+    match chat.get_profile_image() {
+        Some(i) => i.strdup(),
+        None => ptr::null_mut(),
+    }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_get_color(chat)
+    chat.get_color()
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_get_archived(chat)
+    chat.is_archived() as libc::c_int
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_is_unpromoted(chat)
+    chat.is_unpromoted() as libc::c_int
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_self_talk(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_is_self_talk(chat)
+    chat.is_self_talk() as libc::c_int
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_is_verified(chat)
+    chat.is_verified() as libc::c_int
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> libc::c_int {
     assert!(!chat.is_null());
+    let chat = &*chat;
 
-    dc_chat::dc_chat_is_sending_locations(chat)
+    chat.is_sending_locations() as libc::c_int
 }
 
 // dc_msg_t
@@ -1500,6 +1544,7 @@ pub unsafe extern "C" fn dc_msg_get_summary<'a>(
     chat: *mut dc_chat_t<'a>,
 ) -> *mut dc_lot::dc_lot_t {
     assert!(!msg.is_null());
+    let chat = if chat.is_null() { None } else { Some(&*chat) };
 
     dc_msg::dc_msg_get_summary(msg, chat)
 }
@@ -1818,4 +1863,27 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
     }
 
     Some(dc_tools::as_str(s))
+}
+
+pub trait ResultExt<T: Default> {
+    fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
+    fn log_err(&self, context: &context::Context, message: &str);
+}
+
+impl<T: Default, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
+    fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T {
+        match self {
+            Ok(t) => t,
+            Err(err) => {
+                error!(context, 0, "{}: {}", message, err);
+                Default::default()
+            }
+        }
+    }
+
+    fn log_err(&self, context: &context::Context, message: &str) {
+        if let Err(err) = self {
+            error!(context, 0, "{}: {}", message, err);
+        }
+    }
 }

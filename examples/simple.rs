@@ -5,12 +5,12 @@ use std::sync::{Arc, RwLock};
 use std::{thread, time};
 use tempfile::tempdir;
 
+use deltachat::chat;
 use deltachat::chatlist::*;
 use deltachat::config;
 use deltachat::constants::Event;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_chat::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_job::{
     dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs, dc_perform_smtp_idle,
@@ -96,14 +96,14 @@ fn main() {
         println!("sending a message");
         let contact_id =
             Contact::create(&ctx, "dignifiedquire", "dignifiedquire@gmail.com").unwrap();
-        let chat_id = dc_create_chat_by_contact_id(&ctx, contact_id);
-        dc_send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into());
+        let chat_id = chat::create_by_contact_id(&ctx, contact_id).unwrap();
+        chat::send_text_msg(&ctx, chat_id, "Hi, here is my first message!".into()).unwrap();
 
         println!("fetching chats..");
         let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();
 
         for i in 0..chats.len() {
-            let summary = chats.get_summary(0, std::ptr::null_mut());
+            let summary = chats.get_summary(0, None);
             let text1 = dc_lot_get_text1(summary);
             let text2 = dc_lot_get_text2(summary);
 

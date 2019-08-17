@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use rand::{thread_rng, Rng};
 
+use crate::chat;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_chat::*;
 use crate::dc_configure::*;
 use crate::dc_imex::*;
 use crate::dc_jobthread::*;
@@ -565,7 +565,7 @@ unsafe fn dc_job_do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context: &Context, job: &mut dc_
     dc_msg_unref(msg);
 }
 unsafe fn dc_send_mdn(context: &Context, msg_id: uint32_t) {
-    let mut mimefactory: dc_mimefactory_t = dc_mimefactory_t {
+    let mut mimefactory = dc_mimefactory_t {
         from_addr: ptr::null_mut(),
         from_displayname: ptr::null_mut(),
         selfstatus: ptr::null_mut(),
@@ -575,7 +575,7 @@ unsafe fn dc_send_mdn(context: &Context, msg_id: uint32_t) {
         rfc724_mid: ptr::null_mut(),
         loaded: DC_MF_NOTHING_LOADED,
         msg: ptr::null_mut(),
-        chat: ptr::null_mut(),
+        chat: None,
         increation: 0,
         in_reply_to: ptr::null_mut(),
         references: ptr::null_mut(),
@@ -587,7 +587,7 @@ unsafe fn dc_send_mdn(context: &Context, msg_id: uint32_t) {
         error: ptr::null_mut(),
         context,
     };
-    dc_mimefactory_init(&mut mimefactory, context);
+
     if !(0 == dc_mimefactory_load_mdn(&mut mimefactory, msg_id)
         || 0 == dc_mimefactory_render(&mut mimefactory))
     {
@@ -1014,7 +1014,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         rfc724_mid: 0 as *mut libc::c_char,
         loaded: DC_MF_NOTHING_LOADED,
         msg: 0 as *mut dc_msg_t,
-        chat: 0 as *mut Chat,
+        chat: None,
         increation: 0,
         in_reply_to: 0 as *mut libc::c_char,
         references: 0 as *mut libc::c_char,
@@ -1026,7 +1026,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         error: 0 as *mut libc::c_char,
         context,
     };
-    dc_mimefactory_init(&mut mimefactory, context);
+
     /* load message data */
     if 0 == dc_mimefactory_load_msg(&mut mimefactory, msg_id) || mimefactory.from_addr.is_null() {
         warn!(
@@ -1035,7 +1035,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
         );
     } else {
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
-        if msgtype_has_file((*mimefactory.msg).type_0) {
+        if chat::msgtype_has_file((*mimefactory.msg).type_0) {
             if let Some(pathNfilename) = (*mimefactory.msg).param.get(Param::File) {
                 if ((*mimefactory.msg).type_0 == Viewtype::Image
                     || (*mimefactory.msg).type_0 == Viewtype::Gif)
@@ -1096,7 +1096,7 @@ pub unsafe fn dc_job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_in
                 );
             }
             if 0 != mimefactory.out_gossiped {
-                dc_set_gossiped_timestamp(context, (*mimefactory.msg).chat_id, time());
+                chat::set_gossiped_timestamp(context, (*mimefactory.msg).chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
                 dc_set_kml_sent_timestamp(context, (*mimefactory.msg).chat_id, time());
