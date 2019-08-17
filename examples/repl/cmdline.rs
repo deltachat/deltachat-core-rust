@@ -261,11 +261,9 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
     free(msgtext as *mut libc::c_void);
 }
 
-unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
-    let cnt = dc_array_get_cnt(msglist) as usize;
+unsafe fn log_msglist(context: &Context, msglist: &Vec<u32>) {
     let mut lines_out = 0;
-    for i in 0..cnt {
-        let msg_id = dc_array_get_id(msglist, i as size_t);
+    for &msg_id in msglist {
         if msg_id == 9 as libc::c_uint {
             info!(
                 context,
@@ -274,7 +272,7 @@ unsafe fn log_msglist(context: &Context, msglist: *mut dc_array_t) {
             );
 
             lines_out += 1
-        } else if msg_id > 0 as libc::c_uint {
+        } else if msg_id > 0 {
             if lines_out == 0 {
                 info!(
                     context, 0,
@@ -694,10 +692,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     ""
                 },
             );
-            if !msglist.is_null() {
-                log_msglist(context, msglist);
-                dc_array_unref(msglist);
-            }
+            log_msglist(context, &msglist);
             let draft = chat::get_draft(context, sel_chat.get_id());
             if !draft.is_null() {
                 log_msg(context, "Draft", draft);
@@ -892,13 +887,10 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 0 as libc::c_uint
             };
 
-            let msglist_0 = dc_search_msgs(context, chat, arg1_c);
+            let msglist = dc_search_msgs(context, chat, arg1_c);
 
-            if !msglist_0.is_null() {
-                log_msglist(context, msglist_0);
-                println!("{} messages.", dc_array_get_cnt(msglist_0));
-                dc_array_unref(msglist_0);
-            }
+            log_msglist(context, &msglist);
+            println!("{} messages.", msglist.len());
         }
         "draft" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
@@ -963,11 +955,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "listfresh" => {
             let msglist = dc_get_fresh_msgs(context);
-            ensure!(!msglist.is_null(), "Failed to retrieve messages");
 
-            log_msglist(context, msglist);
-            print!("{} fresh messages.", dc_array_get_cnt(msglist));
-            dc_array_unref(msglist);
+            log_msglist(context, &msglist);
+            print!("{} fresh messages.", msglist.len());
         }
         "forward" => {
             ensure!(

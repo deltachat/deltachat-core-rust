@@ -1049,12 +1049,7 @@ pub unsafe fn get_draft(context: &Context, chat_id: u32) -> *mut dc_msg_t {
     draft_msg
 }
 
-pub fn get_chat_msgs(
-    context: &Context,
-    chat_id: u32,
-    flags: u32,
-    marker1before: u32,
-) -> *mut dc_array_t {
+pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before: u32) -> Vec<u32> {
     let mut ret = Vec::new();
 
     let mut last_day = 0;
@@ -1123,9 +1118,9 @@ pub fn get_chat_msgs(
     };
 
     if success.is_ok() {
-        dc_array_t::from(ret).into_raw()
+        ret
     } else {
-        0 as *mut dc_array_t
+        Vec::new()
     }
 }
 

@@ -3,7 +3,6 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_array::*;
 use crate::dc_job::*;
 use crate::dc_jobthread::*;
 use crate::dc_loginparam::*;
@@ -484,7 +483,7 @@ pub unsafe fn dc_get_version_str() -> *mut libc::c_char {
     (&*DC_VERSION_STR).strdup()
 }
 
-pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
+pub fn dc_get_fresh_msgs(context: &Context) -> Vec<u32> {
     let show_deaddrop = 0;
 
     context
@@ -504,7 +503,7 @@ pub fn dc_get_fresh_msgs(context: &Context) -> *mut dc_array_t {
                     let id: u32 = row?;
                     ret.push(id);
                 }
-                Ok(dc_array_t::from(ret).into_raw())
+                Ok(ret)
             },
         )
         .unwrap()
@@ -515,14 +514,14 @@ pub fn dc_search_msgs(
     context: &Context,
     chat_id: uint32_t,
     query: *const libc::c_char,
-) -> *mut dc_array_t {
+) -> Vec<u32> {
     if query.is_null() {
-        return std::ptr::null_mut();
+        return Vec::new();
     }
 
     let real_query = to_string(query).trim().to_string();
     if real_query.is_empty() {
-        return std::ptr::null_mut();
+        return Vec::new();
     }
     let strLikeInText = format!("%{}%", &real_query);
     let strLikeBeg = format!("{}%", &real_query);
@@ -538,28 +537,21 @@ pub fn dc_search_msgs(
          AND ct.blocked=0 AND (m.txt LIKE ? OR ct.name LIKE ?) ORDER BY m.timestamp DESC,m.id DESC;"
     };
 
-    let mut ret = Vec::new();
-
-    let success = context
+    context
         .sql
         .query_map(
             query,
             params![chat_id as libc::c_int, &strLikeInText, &strLikeBeg],
             |row| row.get::<_, i32>(0),
             |rows| {
+                let mut ret = Vec::new();
                 for id in rows {
                     ret.push(id? as u32);
                 }
-                Ok(())
+                Ok(ret)
             },
         )
-        .is_ok();
-
-    if success {
-        return dc_array_t::from(ret).into_raw();
-    }
-
-    std::ptr::null_mut()
+        .unwrap_or_default()
 }
 
 pub fn dc_is_inbox(_context: &Context, folder_name: impl AsRef<str>) -> bool {
