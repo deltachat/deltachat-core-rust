@@ -2,10 +2,10 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_lot::Lot;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::error::Result;
+use crate::lot::Lot;
 use crate::stock::StockMessage;
 use std::ptr;
 
