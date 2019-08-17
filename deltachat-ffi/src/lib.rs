@@ -425,7 +425,7 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
     assert!(!context.is_null());
     let context = &*context;
 
-    chat::get_chat_msgs(context, chat_id, flags, marker1before)
+    dc_array_t::from(chat::get_chat_msgs(context, chat_id, flags, marker1before)).into_raw()
 }
 
 #[no_mangle]
@@ -454,7 +454,7 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
     assert!(!context.is_null());
     let context = &*context;
 
-    context::dc_get_fresh_msgs(context)
+    dc_array_t::from(context::dc_get_fresh_msgs(context)).into_raw()
 }
 
 #[no_mangle]
@@ -571,7 +571,7 @@ pub unsafe extern "C" fn dc_search_msgs(
     assert!(!query.is_null());
     let context = &*context;
 
-    context::dc_search_msgs(context, chat_id, query)
+    dc_array_t::from(context::dc_search_msgs(context, chat_id, query)).into_raw()
 }
 
 #[no_mangle]
