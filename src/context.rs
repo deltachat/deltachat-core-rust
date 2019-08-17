@@ -6,7 +6,7 @@ use crate::contact::*;
 use crate::dc_job::*;
 use crate::dc_jobthread::*;
 use crate::dc_loginparam::*;
-use crate::dc_lot::dc_lot_t;
+use crate::dc_lot::Lot;
 use crate::dc_move::*;
 use crate::dc_msg::*;
 use crate::dc_receive_imf::*;
@@ -99,21 +99,11 @@ impl Default for RunningState {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Default)]
 pub struct BobStatus {
     pub expects: i32,
     pub status: i32,
-    pub qr_scan: *mut dc_lot_t,
-}
-
-impl Default for BobStatus {
-    fn default() -> Self {
-        BobStatus {
-            expects: 0,
-            status: 0,
-            qr_scan: std::ptr::null_mut(),
-        }
-    }
+    pub qr_scan: Option<Lot>,
 }
 
 #[derive(Default, Debug)]

@@ -2,7 +2,7 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_lot::*;
+use crate::dc_lot::Lot;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::error::Result;
@@ -249,15 +249,15 @@ impl<'a> Chatlist<'a> {
     /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
     /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
     //    0 if not applicable.
-    pub unsafe fn get_summary(&self, index: usize, chat: Option<&Chat<'a>>) -> *mut dc_lot_t {
+    pub unsafe fn get_summary(&self, index: usize, chat: Option<&Chat<'a>>) -> Lot {
         // The summary is created by the chat, not by the last message.
         // This is because we may want to display drafts here or stuff as
         // "is typing".
         // Also, sth. as "No messages" would not work if the summary comes from a message.
 
-        let mut ret = dc_lot_new();
+        let mut ret = Lot::new();
         if index >= self.ids.len() {
-            (*ret).text2 = "ErrBadChatlistIndex".strdup();
+            ret.text2 = "ErrBadChatlistIndex".strdup();
             return ret;
         }
 
@@ -291,11 +291,11 @@ impl<'a> Chatlist<'a> {
         };
 
         if chat.id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
-            (*ret).text2 = dc_strdup(ptr::null())
+            ret.text2 = dc_strdup(ptr::null())
         } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_UNDEFINED as u32 {
-            (*ret).text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
+            ret.text2 = self.context.stock_str(StockMessage::NoMessages).strdup();
         } else {
-            dc_lot_fill(ret, lastmsg, chat, lastcontact.as_ref(), self.context);
+            ret.fill(lastmsg, chat, lastcontact.as_ref(), self.context);
         }
 
         dc_msg_unref(lastmsg);

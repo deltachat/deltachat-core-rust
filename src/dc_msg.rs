@@ -1,13 +1,15 @@
 use std::ffi::CString;
 use std::path::Path;
+use std::ptr;
+
+use phf::phf_map;
 
 use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
 use crate::dc_job::*;
-use crate::dc_lot::dc_lot_t;
-use crate::dc_lot::*;
+use crate::dc_lot::Lot;
 use crate::dc_tools::*;
 use crate::param::*;
 use crate::pgp::*;
@@ -15,8 +17,6 @@ use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
-use phf::phf_map;
-use std::ptr;
 
 /* * the structure behind dc_msg_t */
 #[derive(Clone)]
@@ -741,11 +741,8 @@ pub unsafe fn dc_msg_get_showpadlock(msg: *const dc_msg_t) -> libc::c_int {
     0
 }
 
-pub unsafe fn dc_msg_get_summary<'a>(
-    msg: *mut dc_msg_t<'a>,
-    chat: Option<&Chat<'a>>,
-) -> *mut dc_lot_t {
-    let ret = dc_lot_new();
+pub unsafe fn dc_msg_get_summary<'a>(msg: *mut dc_msg_t<'a>, chat: Option<&Chat<'a>>) -> Lot {
+    let mut ret = Lot::new();
 
     if msg.is_null() {
         return ret;
@@ -771,7 +768,7 @@ pub unsafe fn dc_msg_get_summary<'a>(
         None
     };
 
-    dc_lot_fill(ret, msg, chat, contact.as_ref(), (*msg).context);
+    ret.fill(msg, chat, contact.as_ref(), (*msg).context);
 
     ret
 }

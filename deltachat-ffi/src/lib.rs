@@ -986,12 +986,13 @@ pub unsafe extern "C" fn dc_stop_ongoing_process(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_check_qr(
     context: *mut dc_context_t,
     qr: *mut libc::c_char,
-) -> *mut dc_lot::dc_lot_t {
+) -> *mut dc_lot_t {
     assert!(!context.is_null());
     assert!(!qr.is_null());
     let context = &*context;
 
-    dc_qr::dc_check_qr(context, qr)
+    let lot = dc_qr::dc_check_qr(context, qr);
+    Box::into_raw(Box::new(lot))
 }
 
 #[no_mangle]
@@ -1264,13 +1265,14 @@ pub unsafe extern "C" fn dc_chatlist_get_summary<'a>(
     chatlist: *mut dc_chatlist_t<'a>,
     index: libc::size_t,
     chat: *mut dc_chat_t<'a>,
-) -> *mut dc_lot::dc_lot_t {
+) -> *mut dc_lot_t {
     assert!(!chatlist.is_null());
 
     let chat = if chat.is_null() { None } else { Some(&*chat) };
     let list = &*chatlist;
 
-    list.get_summary(index as usize, chat)
+    let lot = list.get_summary(index as usize, chat);
+    Box::into_raw(Box::new(lot))
 }
 
 #[no_mangle]
@@ -1542,11 +1544,12 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg::dc_msg_t) -> l
 pub unsafe extern "C" fn dc_msg_get_summary<'a>(
     msg: *mut dc_msg::dc_msg_t<'a>,
     chat: *mut dc_chat_t<'a>,
-) -> *mut dc_lot::dc_lot_t {
+) -> *mut dc_lot_t {
     assert!(!msg.is_null());
     let chat = if chat.is_null() { None } else { Some(&*chat) };
 
-    dc_msg::dc_msg_get_summary(msg, chat)
+    let lot = dc_msg::dc_msg_get_summary(msg, chat);
+    Box::into_raw(Box::new(lot))
 }
 
 #[no_mangle]
@@ -1789,67 +1792,74 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
 // dc_lot_t
 
 #[no_mangle]
-pub type dc_lot_t = dc_lot::dc_lot_t;
+pub type dc_lot_t = dc_lot::Lot;
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_new() -> *mut dc_lot::dc_lot_t {
-    dc_lot::dc_lot_new()
+pub unsafe extern "C" fn dc_lot_new() -> *mut dc_lot_t {
+    Box::into_raw(Box::new(dc_lot::Lot::new()))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_empty(lot: *mut dc_lot::dc_lot_t) {
+pub unsafe extern "C" fn dc_lot_empty(lot: *mut dc_lot_t) {
     assert!(!lot.is_null());
 
-    dc_lot::dc_lot_empty(lot)
+    let _lot = Box::from_raw(lot);
+    *lot = dc_lot::Lot::new();
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_unref(lot: *mut dc_lot::dc_lot_t) {
+pub unsafe extern "C" fn dc_lot_unref(lot: *mut dc_lot_t) {
     assert!(!lot.is_null());
 
-    dc_lot::dc_lot_unref(lot)
+    Box::from_raw(lot);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_text1(lot: *mut dc_lot::dc_lot_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_lot_get_text1(lot: *mut dc_lot_t) -> *mut libc::c_char {
     assert!(!lot.is_null());
 
-    dc_lot::dc_lot_get_text1(lot)
+    let lot = &*lot;
+    lot.get_text1()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_text2(lot: *mut dc_lot::dc_lot_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_lot_get_text2(lot: *mut dc_lot_t) -> *mut libc::c_char {
     assert!(!lot.is_null());
 
-    dc_lot::dc_lot_get_text2(lot)
+    let lot = &*lot;
+    lot.get_text2()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_text1_meaning(lot: *mut dc_lot::dc_lot_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_lot_get_text1_meaning(lot: *mut dc_lot_t) -> libc::c_int {
     assert!(!lot.is_null());
 
-    dc_lot::dc_lot_get_text1_meaning(lot)
+    let lot = &*lot;
+    lot.get_text1_meaning()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_state(lot: *mut dc_lot::dc_lot_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_lot_get_state(lot: *mut dc_lot_t) -> libc::c_int {
     assert!(!lot.is_null());
 
-    dc_lot::dc_lot_get_state(lot)
+    let lot = &*lot;
+    lot.get_state()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_id(lot: *mut dc_lot::dc_lot_t) -> u32 {
+pub unsafe extern "C" fn dc_lot_get_id(lot: *mut dc_lot_t) -> u32 {
     assert!(!lot.is_null());
 
-    dc_lot::dc_lot_get_id(lot)
+    let lot = &*lot;
+    lot.get_id()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot::dc_lot_t) -> i64 {
+pub unsafe extern "C" fn dc_lot_get_timestamp(lot: *mut dc_lot_t) -> i64 {
     assert!(!lot.is_null());
 
-    dc_lot::dc_lot_get_timestamp(lot)
+    let lot = &*lot;
+    lot.get_timestamp()
 }
 
 #[no_mangle]
