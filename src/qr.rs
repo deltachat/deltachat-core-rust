@@ -34,7 +34,7 @@ impl Into<Lot> for Error {
 /// Check a scanned QR code.
 /// The function should be called after a QR code is scanned.
 /// The function takes the raw text scanned and checks what can be done with it.
-pub fn dc_check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
+pub fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
     let qr = qr.as_ref();
 
     info!(context, 0, "Scanned QR code: {}", qr);
@@ -335,7 +335,7 @@ mod tests {
     fn test_decode_http() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(&ctx.ctx, "http://www.hello.com");
+        let res = check_qr(&ctx.ctx, "http://www.hello.com");
 
         assert_eq!(res.get_state(), LotState::QrUrl);
         assert_eq!(res.get_id(), 0);
@@ -347,7 +347,7 @@ mod tests {
     fn test_decode_https() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(&ctx.ctx, "https://www.hello.com");
+        let res = check_qr(&ctx.ctx, "https://www.hello.com");
 
         assert_eq!(res.get_state(), LotState::QrUrl);
         assert_eq!(res.get_id(), 0);
@@ -359,7 +359,7 @@ mod tests {
     fn test_decode_text() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(&ctx.ctx, "I am so cool");
+        let res = check_qr(&ctx.ctx, "I am so cool");
 
         assert_eq!(res.get_state(), LotState::QrText);
         assert_eq!(res.get_id(), 0);
@@ -371,7 +371,7 @@ mod tests {
     fn test_decode_vcard() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(
+        let res = check_qr(
             &ctx.ctx,
             "BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD"
         );
@@ -389,7 +389,7 @@ mod tests {
     fn test_decode_matmsg() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(
+        let res = check_qr(
             &ctx.ctx,
             "MATMSG:TO:\n\nstress@test.local ; \n\nSUB:\n\nSubject here\n\nBODY:\n\nhelloworld\n;;",
         );
@@ -406,7 +406,7 @@ mod tests {
     fn test_decode_mailto() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(
+        let res = check_qr(
             &ctx.ctx,
             "mailto:stress@test.local?subject=hello&body=world",
         );
@@ -423,7 +423,7 @@ mod tests {
     fn test_decode_smtp() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld");
+        let res = check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld");
 
         println!("{:?}", res);
         assert_eq!(res.get_state(), LotState::QrAddr);
@@ -437,7 +437,7 @@ mod tests {
     fn test_decode_openpgp_group() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(
+        let res = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=testtesttest&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
         );
@@ -454,7 +454,7 @@ mod tests {
     fn test_decode_openpgp_secure_join() {
         let ctx = dummy_context();
 
-        let res = dc_check_qr(
+        let res = check_qr(
             &ctx.ctx,
             "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
         );

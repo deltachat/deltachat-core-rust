@@ -10,13 +10,13 @@ use crate::dc_configure::*;
 use crate::dc_e2ee::*;
 use crate::dc_mimeparser::*;
 use crate::dc_msg::*;
-use crate::dc_qr::*;
 use crate::dc_token::*;
 use crate::dc_tools::*;
 use crate::key::*;
 use crate::lot::LotState;
 use crate::param::*;
 use crate::peerstate::*;
+use crate::qr::check_qr;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
@@ -143,7 +143,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
     ongoing_allocated = dc_alloc_ongoing(context);
 
     if !(ongoing_allocated == 0i32) {
-        let qr_scan = dc_check_qr(context, as_str(qr));
+        let qr_scan = check_qr(context, as_str(qr));
         if qr_scan.state != LotState::QrAskVerifyContact
             && qr_scan.state != LotState::QrAskVerifyGroup
         {
