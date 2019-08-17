@@ -991,7 +991,7 @@ pub unsafe extern "C" fn dc_check_qr(
     assert!(!qr.is_null());
     let context = &*context;
 
-    let lot = dc_qr::dc_check_qr(context, as_str(qr));
+    let lot = qr::check_qr(context, as_str(qr));
     Box::into_raw(Box::new(lot))
 }
 

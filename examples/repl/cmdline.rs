@@ -13,11 +13,11 @@ use deltachat::dc_imex::*;
 use deltachat::dc_job::*;
 use deltachat::dc_location::*;
 use deltachat::dc_msg::*;
-use deltachat::dc_qr::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
 use deltachat::lot::LotState;
 use deltachat::peerstate::*;
+use deltachat::qr::*;
 use deltachat::sql;
 use deltachat::types::*;
 use deltachat::x::*;
@@ -1048,7 +1048,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "checkqr" => {
             ensure!(!arg1.is_empty(), "Argument <qr-content> missing.");
-            let res = dc_check_qr(context, arg1);
+            let res = check_qr(context, arg1);
             println!(
                 "state={}, id={}, text1={:?}, text2={:?}",
                 res.get_state(),
