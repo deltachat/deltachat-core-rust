@@ -16,7 +16,6 @@ use deltachat::dc_job::{
     dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs, dc_perform_smtp_idle,
     dc_perform_smtp_jobs,
 };
-use deltachat::dc_lot::*;
 
 extern "C" fn cb(_ctx: &Context, event: Event, data1: usize, data2: usize) -> usize {
     println!("[{:?}]", event);
@@ -104,8 +103,8 @@ fn main() {
 
         for i in 0..chats.len() {
             let summary = chats.get_summary(0, None);
-            let text1 = dc_lot_get_text1(summary);
-            let text2 = dc_lot_get_text2(summary);
+            let text1 = summary.get_text1();
+            let text2 = summary.get_text2();
 
             let text1_s = if !text1.is_null() {
                 Some(CStr::from_ptr(text1))
@@ -118,7 +117,6 @@ fn main() {
                 None
             };
             println!("chat: {} - {:?} - {:?}", i, text1_s, text2_s,);
-            dc_lot_unref(summary);
         }
 
         thread::sleep(duration);

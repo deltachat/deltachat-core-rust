@@ -12,7 +12,6 @@ use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_job::*;
 use deltachat::dc_location::*;
-use deltachat::dc_lot::*;
 use deltachat::dc_msg::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_receive_imf::*;
@@ -621,7 +620,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     let statestr = if chat.is_archived() {
                         " [Archived]"
                     } else {
-                        match dc_lot_get_state(lot) {
+                        match lot.get_state() {
                             20 => " o",
                             26 => " √",
                             28 => " √√",
@@ -629,9 +628,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                             _ => "",
                         }
                     };
-                    let timestr = dc_timestamp_to_str(dc_lot_get_timestamp(lot));
-                    let text1 = dc_lot_get_text1(lot);
-                    let text2 = dc_lot_get_text2(lot);
+                    let timestr = dc_timestamp_to_str(lot.get_timestamp());
+                    let text1 = lot.get_text1();
+                    let text2 = lot.get_text2();
                     info!(
                         context,
                         0,
@@ -649,7 +648,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     );
                     free(text1 as *mut libc::c_void);
                     free(text2 as *mut libc::c_void);
-                    dc_lot_unref(lot);
                     info!(
                         context, 0,
                         "================================================================================"
@@ -1054,12 +1052,11 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let res = dc_check_qr(context, arg1_c);
             println!(
                 "state={}, id={}, text1={}, text2={}",
-                (*res).state as libc::c_int,
-                (*res).id,
-                to_string((*res).text1),
-                to_string((*res).text2)
+                res.get_state(),
+                res.get_id(),
+                to_string(res.get_text1()),
+                to_string(res.get_text2())
             );
-            dc_lot_unref(res);
         }
         "event" => {
             ensure!(!arg1.is_empty(), "Argument <id> missing.");

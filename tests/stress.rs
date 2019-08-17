@@ -13,7 +13,6 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
-use deltachat::dc_lot::*;
 use deltachat::dc_mimeparser::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_securejoin::*;
@@ -455,20 +454,18 @@ unsafe fn stress_functions(context: &Context) {
                     3,
                 ) == 0i32)
         );
-        let mut res: *mut dc_lot_t = dc_check_qr(context, qr);
-        assert!(res.is_null());
-        assert!(!((*res).state == 200i32 || (*res).state == 220i32 || (*res).state == 230i32));
+        let mut res = dc_check_qr(context, qr);
+        assert!(
+            !(res.get_state() == 200i32 || res.get_state() == 220i32 || res.get_state() == 230i32)
+        );
 
-        dc_lot_unref(res);
         free(qr as *mut libc::c_void);
         res =
             dc_check_qr(context,
                         b"BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD\x00"
                             as *const u8 as *const libc::c_char);
-        assert!(res.is_null());
-        assert!(!((*res).state == 320i32));
-        assert!(!((*res).id != 0i32 as libc::c_uint));
-        dc_lot_unref(res);
+        assert!(!(res.get_state() == 320i32));
+        assert!(!(res.get_id() != 0i32 as libc::c_uint));
     };
 }
 
