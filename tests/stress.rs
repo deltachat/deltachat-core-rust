@@ -11,11 +11,8 @@ use deltachat::config;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_mimeparser::*;
-use deltachat::dc_qr::*;
-use deltachat::dc_securejoin::*;
 use deltachat::dc_tools::*;
 use deltachat::key::*;
 use deltachat::keyring::*;
@@ -412,61 +409,55 @@ unsafe fn stress_functions(context: &Context) {
         0
     );
     free(buf_1 as *mut libc::c_void);
-    if 0 != dc_is_configured(context) {
-        let setupcode = dc_create_setup_code(context);
-        let setupcode_c = CString::yolo(setupcode.clone());
-        let setupfile = dc_render_setup_file(context, &setupcode).unwrap();
-        let setupfile_c = CString::yolo(setupfile);
-        let payload: *mut libc::c_char;
-        let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
-        payload = dc_decrypt_setup_file(context, setupcode_c.as_ptr(), setupfile_c.as_ptr());
-        assert!(payload.is_null());
-        assert!(!dc_split_armored_data(
-            payload,
-            &mut headerline_2,
-            0 as *mut *const libc::c_char,
-            0 as *mut *const libc::c_char,
-            0 as *mut *const libc::c_char,
-        ));
-        assert!(!headerline_2.is_null());
-        assert_eq!(
-            strcmp(
-                headerline_2,
-                b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
-            ),
-            0
-        );
-        free(payload as *mut libc::c_void);
-    }
 
-    if 0 != dc_is_configured(context) {
-        let qr: *mut libc::c_char = dc_get_securejoin_qr(context, 0i32 as uint32_t);
-        assert!(
-            !(strlen(qr) > 55
-                && strncmp(
-                    qr,
-                    b"OPENPGP4FPR:\x00" as *const u8 as *const libc::c_char,
-                    12,
-                ) == 0i32
-                && strncmp(
-                    &mut *qr.offset(52isize),
-                    b"#a=\x00" as *const u8 as *const libc::c_char,
-                    3,
-                ) == 0i32)
-        );
-        let mut res = dc_check_qr(context, qr);
-        assert!(
-            !(res.get_state() == 200i32 || res.get_state() == 220i32 || res.get_state() == 230i32)
-        );
+    // Cant check, no configured context
+    // assert!(dc_is_configured(context) != 0, "Missing configured context");
 
-        free(qr as *mut libc::c_void);
-        res =
-            dc_check_qr(context,
-                        b"BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD\x00"
-                            as *const u8 as *const libc::c_char);
-        assert!(!(res.get_state() == 320i32));
-        assert!(!(res.get_id() != 0i32 as libc::c_uint));
-    };
+    // let setupcode = dc_create_setup_code(context);
+    // let setupcode_c = CString::yolo(setupcode.clone());
+    // let setupfile = dc_render_setup_file(context, &setupcode).unwrap();
+    // let setupfile_c = CString::yolo(setupfile);
+    // let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
+    // let payload = dc_decrypt_setup_file(context, setupcode_c.as_ptr(), setupfile_c.as_ptr());
+
+    // assert!(payload.is_null());
+    // assert!(!dc_split_armored_data(
+    //     payload,
+    //     &mut headerline_2,
+    //     0 as *mut *const libc::c_char,
+    //     0 as *mut *const libc::c_char,
+    //     0 as *mut *const libc::c_char,
+    // ));
+    // assert!(!headerline_2.is_null());
+    // assert_eq!(
+    //     strcmp(
+    //         headerline_2,
+    //         b"-----BEGIN PGP PRIVATE KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
+    //     ),
+    //     0
+    // );
+    // free(payload as *mut libc::c_void);
+
+    // Cant check, no configured context
+    // assert!(dc_is_configured(context) != 0, "missing configured context");
+
+    // let qr = dc_get_securejoin_qr(context, 0);
+    // assert!(!qr.is_null(), "Invalid qr code generated");
+    // let qr_r = as_str(qr);
+
+    // assert!(qr_r.len() > 55);
+    // assert!(qr_r.starts_with("OPENPGP4FPR:"));
+
+    // let res = dc_check_qr(context, qr);
+    // let s = res.get_state();
+
+    // assert!(
+    //     s == QrState::AskVerifyContact
+    //         || s == QrState::FprMissmatch
+    //         || s == QrState::FprWithoutAddr
+    // );
+
+    // free(qr.cast());
 }
 
 #[test]

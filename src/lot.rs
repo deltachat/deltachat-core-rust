@@ -1,11 +1,4 @@
-use crate::chat::*;
-use crate::constants::Chattype;
-use crate::contact::*;
-use crate::context::Context;
-use crate::dc_msg::*;
-use crate::dc_tools::*;
-use crate::stock::StockMessage;
-use crate::x::*;
+use deltachat_derive::{FromSql, ToSql};
 
 /// An object containing a set of values.
 /// The meaning of the values is defined by the function returning the object.
@@ -13,46 +6,52 @@ use crate::x::*;
 /// eg. by chatlist.get_summary() or dc_msg_get_summary().
 ///
 /// _Lot_ is used in the meaning _heap_ here.
-#[derive(Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Lot {
-    pub(crate) text1_meaning: i32,
-    pub(crate) text1: *mut libc::c_char,
-    pub(crate) text2: *mut libc::c_char,
+    pub(crate) text1_meaning: Meaning,
+    pub(crate) text1: Option<String>,
+    pub(crate) text2: Option<String>,
     pub(crate) timestamp: i64,
-    pub(crate) state: i32,
+    pub(crate) state: LotState,
     pub(crate) id: u32,
-    pub(crate) fingerprint: *mut libc::c_char,
-    pub(crate) invitenumber: *mut libc::c_char,
-    pub(crate) auth: *mut libc::c_char,
+    pub(crate) fingerprint: Option<String>,
+    pub(crate) invitenumber: Option<String>,
+    pub(crate) auth: Option<String>,
+}
+
+#[repr(u8)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+pub enum Meaning {
+    None = 0,
+    Text1Draft = 1,
+    Text1Username = 2,
+    Text1Self = 3,
+}
+
+impl Default for Meaning {
+    fn default() -> Self {
+        Meaning::None
+    }
 }
 
 impl Lot {
     pub fn new() -> Self {
-        Lot {
-            text1_meaning: 0,
-            text1: std::ptr::null_mut(),
-            text2: std::ptr::null_mut(),
-            timestamp: 0,
-            state: 0,
-            id: 0,
-            fingerprint: std::ptr::null_mut(),
-            invitenumber: std::ptr::null_mut(),
-            auth: std::ptr::null_mut(),
-        }
-    }
-    pub unsafe fn get_text1(&self) -> *mut libc::c_char {
-        dc_strdup_keep_null(self.text1)
+        Default::default()
     }
 
-    pub unsafe fn get_text2(&self) -> *mut libc::c_char {
-        dc_strdup_keep_null(self.text2)
+    pub fn get_text1(&self) -> Option<&str> {
+        self.text1.as_ref().map(|s| s.as_str())
     }
 
-    pub fn get_text1_meaning(&self) -> i32 {
+    pub fn get_text2(&self) -> Option<&str> {
+        self.text2.as_ref().map(|s| s.as_str())
+    }
+
+    pub fn get_text1_meaning(&self) -> Meaning {
         self.text1_meaning
     }
 
-    pub fn get_state(&self) -> i32 {
+    pub fn get_state(&self) -> LotState {
         self.state
     }
 
@@ -63,74 +62,48 @@ impl Lot {
     pub fn get_timestamp(&self) -> i64 {
         self.timestamp
     }
-
-    /* library-internal */
-    /* in practice, the user additionally cuts the string himself pixel-accurate */
-    pub unsafe fn fill(
-        &mut self,
-        msg: *mut dc_msg_t,
-        chat: &Chat,
-        contact: Option<&Contact>,
-        context: &Context,
-    ) {
-        if msg.is_null() {
-            return;
-        }
-        if (*msg).state == 19i32 {
-            self.text1 = context.stock_str(StockMessage::Draft).strdup();
-            self.text1_meaning = 1i32
-        } else if (*msg).from_id == 1i32 as libc::c_uint {
-            if 0 != dc_msg_is_info(msg) || chat.is_self_talk() {
-                self.text1 = 0 as *mut libc::c_char;
-                self.text1_meaning = 0i32
-            } else {
-                self.text1 = context.stock_str(StockMessage::SelfMsg).strdup();
-                self.text1_meaning = 3i32
-            }
-        } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-            if 0 != dc_msg_is_info(msg) || contact.is_none() {
-                self.text1 = 0 as *mut libc::c_char;
-                self.text1_meaning = 0i32
-            } else {
-                if chat.id == 1 {
-                    if let Some(contact) = contact {
-                        self.text1 = contact.get_display_name().strdup();
-                    } else {
-                        self.text1 = std::ptr::null_mut();
-                    }
-                } else {
-                    if let Some(contact) = contact {
-                        self.text1 = contact.get_first_name().strdup();
-                    } else {
-                        self.text1 = std::ptr::null_mut();
-                    }
-                }
-                self.text1_meaning = 2i32;
-            }
-        }
-
-        self.text2 = dc_msg_get_summarytext_by_raw(
-            (*msg).type_0,
-            (*msg).text.as_ref(),
-            &mut (*msg).param,
-            160,
-            context,
-        )
-        .strdup();
-
-        self.timestamp = dc_msg_get_timestamp(msg);
-        self.state = (*msg).state;
-    }
 }
 
-impl Drop for Lot {
-    fn drop(&mut self) {
-        unsafe {
-            free(self.text1.cast());
-            free(self.text2.cast());
-            free(self.fingerprint.cast());
-            free(self.invitenumber.cast());
-            free(self.auth.cast());
-        }
+#[repr(i32)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+pub enum LotState {
+    // Default
+    Undefined = 0,
+
+    // Qr States
+    /// id=contact
+    QrAskVerifyContact = 200,
+    /// text1=groupname
+    QrAskVerifyGroup = 202,
+    /// id=contact
+    QrFprOk = 210,
+    /// id=contact
+    QrFprMissmatch = 220,
+    /// test1=formatted fingerprint
+    QrFprWithoutAddr = 230,
+    /// id=contact
+    QrAddr = 320,
+    /// text1=text
+    QrText = 330,
+    /// text1=URL
+    QrUrl = 332,
+    /// text1=error string
+    QrError = 400,
+
+    // Message States
+    MsgInFresh = 10,
+    MsgInNoticed = 13,
+    MsgInSeen = 16,
+    MsgOutPreparing = 18,
+    MsgOutDraft = 19,
+    MsgOutPending = 20,
+    MsgOutFailed = 24,
+    MsgOutDelivered = 26,
+    MsgOutMdnRcvd = 28,
+}
+
+impl Default for LotState {
+    fn default() -> Self {
+        LotState::Undefined
     }
 }

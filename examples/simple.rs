@@ -105,18 +105,7 @@ fn main() {
             let summary = chats.get_summary(0, None);
             let text1 = summary.get_text1();
             let text2 = summary.get_text2();
-
-            let text1_s = if !text1.is_null() {
-                Some(CStr::from_ptr(text1))
-            } else {
-                None
-            };
-            let text2_s = if !text2.is_null() {
-                Some(CStr::from_ptr(text2))
-            } else {
-                None
-            };
-            println!("chat: {} - {:?} - {:?}", i, text1_s, text2_s,);
+            println!("chat: {} - {:?} - {:?}", i, text1, text2,);
         }
 
         thread::sleep(duration);

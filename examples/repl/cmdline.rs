@@ -16,6 +16,7 @@ use deltachat::dc_msg::*;
 use deltachat::dc_qr::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
+use deltachat::lot::LotState;
 use deltachat::peerstate::*;
 use deltachat::sql;
 use deltachat::types::*;
@@ -216,10 +217,10 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
     let contact_id = contact.get_id();
 
     let statestr = match dc_msg_get_state(msg) {
-        DC_STATE_OUT_PENDING => " o",
-        DC_STATE_OUT_DELIVERED => " √",
-        DC_STATE_OUT_MDN_RCVD => " √√",
-        DC_STATE_OUT_FAILED => " !!",
+        MessageState::OutPending => " o",
+        MessageState::OutDelivered => " √",
+        MessageState::OutMdnRcvd => " √√",
+        MessageState::OutFailed => " !!",
         _ => "",
     };
     let temp2 = dc_timestamp_to_str(dc_msg_get_timestamp(msg));
@@ -242,9 +243,9 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: *mut dc_msg_t
         if dc_msg_is_starred(msg) { "★" } else { "" },
         if dc_msg_get_from_id(msg) == 1 as libc::c_uint {
             ""
-        } else if dc_msg_get_state(msg) == DC_STATE_IN_SEEN {
+        } else if dc_msg_get_state(msg) == MessageState::InSeen {
             "[SEEN]"
-        } else if dc_msg_get_state(msg) == DC_STATE_IN_NOTICED {
+        } else if dc_msg_get_state(msg) == MessageState::InNoticed {
             "[NOTICED]"
         } else {
             "[FRESH]"
@@ -621,10 +622,10 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         " [Archived]"
                     } else {
                         match lot.get_state() {
-                            20 => " o",
-                            26 => " √",
-                            28 => " √√",
-                            24 => " !!",
+                            LotState::MsgOutPending => " o",
+                            LotState::MsgOutDelivered => " √",
+                            LotState::MsgOutMdnRcvd => " √√",
+                            LotState::MsgOutFailed => " !!",
                             _ => "",
                         }
                     };
@@ -635,9 +636,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         context,
                         0,
                         "{}{}{}{} [{}]{}",
-                        to_string(text1),
-                        if !text1.is_null() { ": " } else { "" },
-                        to_string(text2),
+                        text1.unwrap_or(""),
+                        if text1.is_some() { ": " } else { "" },
+                        text2.unwrap_or(""),
                         statestr,
                         &timestr,
                         if chat.is_sending_locations() {
@@ -646,8 +647,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                             ""
                         },
                     );
-                    free(text1 as *mut libc::c_void);
-                    free(text2 as *mut libc::c_void);
                     info!(
                         context, 0,
                         "================================================================================"
@@ -1049,13 +1048,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "checkqr" => {
             ensure!(!arg1.is_empty(), "Argument <qr-content> missing.");
-            let res = dc_check_qr(context, arg1_c);
+            let res = dc_check_qr(context, arg1);
             println!(
-                "state={}, id={}, text1={}, text2={}",
+                "state={}, id={}, text1={:?}, text2={:?}",
                 res.get_state(),
                 res.get_id(),
-                to_string(res.get_text1()),
-                to_string(res.get_text2())
+                res.get_text1(),
+                res.get_text2()
             );
         }
         "event" => {

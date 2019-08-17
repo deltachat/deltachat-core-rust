@@ -14,6 +14,7 @@ use crate::dc_qr::*;
 use crate::dc_token::*;
 use crate::dc_tools::*;
 use crate::key::*;
+use crate::lot::LotState;
 use crate::param::*;
 use crate::peerstate::*;
 use crate::stock::StockMessage;
@@ -142,8 +143,10 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
     ongoing_allocated = dc_alloc_ongoing(context);
 
     if !(ongoing_allocated == 0i32) {
-        let qr_scan = dc_check_qr(context, qr);
-        if qr_scan.state != 200i32 && qr_scan.state != 202i32 {
+        let qr_scan = dc_check_qr(context, as_str(qr));
+        if qr_scan.state != LotState::QrAskVerifyContact
+            && qr_scan.state != LotState::QrAskVerifyGroup
+        {
             error!(context, 0, "Unknown QR code.",);
         } else {
             contact_chat_id = chat::create_by_contact_id(context, qr_scan.id).unwrap_or_default();
@@ -156,7 +159,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                 .unwrap()
                 .shall_stop_ongoing)
             {
-                join_vg = (qr_scan.state == 202i32) as libc::c_int;
+                join_vg = (qr_scan.get_state() == LotState::QrAskVerifyGroup) as libc::c_int;
                 {
                     let mut bob = context.bob.write().unwrap();
                     bob.status = 0;
@@ -171,7 +174,9 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         .qr_scan
                         .as_ref()
                         .unwrap()
-                        .fingerprint,
+                        .fingerprint
+                        .as_ref()
+                        .unwrap(),
                     contact_chat_id,
                 ) {
                     info!(context, 0, "Taking protocol shortcut.");
@@ -190,12 +195,32 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                         } else {
                             b"vc-request-with-auth\x00" as *const u8 as *const libc::c_char
                         },
-                        context.bob.read().unwrap().qr_scan.as_ref().unwrap().auth,
+                        context
+                            .bob
+                            .read()
+                            .unwrap()
+                            .qr_scan
+                            .as_ref()
+                            .unwrap()
+                            .auth
+                            .as_ref()
+                            .unwrap()
+                            .to_string(),
                         own_fingerprint,
                         if 0 != join_vg {
-                            as_str(context.bob.read().unwrap().qr_scan.as_ref().unwrap().text2)
+                            context
+                                .bob
+                                .read()
+                                .unwrap()
+                                .qr_scan
+                                .as_ref()
+                                .unwrap()
+                                .text2
+                                .as_ref()
+                                .unwrap()
+                                .to_string()
                         } else {
-                            ""
+                            "".to_string()
                         },
                     );
                     free(own_fingerprint as *mut libc::c_void);
@@ -216,7 +241,9 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                             .qr_scan
                             .as_ref()
                             .unwrap()
-                            .invitenumber,
+                            .invitenumber
+                            .as_ref()
+                            .unwrap(),
                         0 as *const libc::c_char,
                         "",
                     );
@@ -241,7 +268,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
         if 0 != join_vg {
             ret_chat_id = chat::get_chat_id_by_grpid(
                 context,
-                to_string(bob.qr_scan.as_ref().unwrap().text2),
+                bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap(),
                 None,
                 0 as *mut libc::c_int,
             ) as libc::c_int
@@ -262,7 +289,7 @@ unsafe fn send_handshake_msg(
     context: &Context,
     contact_chat_id: uint32_t,
     step: *const libc::c_char,
-    param2: *const libc::c_char,
+    param2: impl AsRef<str>,
     fingerprint: *const libc::c_char,
     grpid: impl AsRef<str>,
 ) {
@@ -276,8 +303,8 @@ unsafe fn send_handshake_msg(
     } else {
         (*msg).param.set(Param::Arg, as_str(step));
     }
-    if !param2.is_null() {
-        (*msg).param.set(Param::Arg2, as_str(param2));
+    if !param2.as_ref().is_empty() {
+        (*msg).param.set(Param::Arg2, param2);
     }
     if !fingerprint.is_null() {
         (*msg).param.set(Param::Arg3, as_str(fingerprint));
@@ -311,20 +338,17 @@ unsafe fn chat_id_2_contact_id(context: &Context, contact_chat_id: uint32_t) -> 
 
 unsafe fn fingerprint_equals_sender(
     context: &Context,
-    fingerprint: *const libc::c_char,
-    contact_chat_id: uint32_t,
+    fingerprint: impl AsRef<str>,
+    contact_chat_id: u32,
 ) -> libc::c_int {
-    if fingerprint.is_null() {
-        return 0;
-    }
-    let mut fingerprint_equal: libc::c_int = 0i32;
+    let mut fingerprint_equal = 0;
     let contacts = chat::get_chat_contacts(context, contact_chat_id);
 
     if contacts.len() == 1 {
         if let Ok(contact) = Contact::load_from_db(context, contacts[0]) {
             if let Some(peerstate) = Peerstate::from_addr(context, &context.sql, contact.get_addr())
             {
-                let fingerprint_normalized = dc_normalize_fingerprint(as_str(fingerprint));
+                let fingerprint_normalized = dc_normalize_fingerprint(fingerprint.as_ref());
                 if peerstate.public_key_fingerprint.is_some()
                     && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
                 {
@@ -348,8 +372,6 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut current_block: u64;
     let step: *const libc::c_char;
     let join_vg: libc::c_int;
-    let mut scanned_fingerprint_of_alice: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut own_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
     let contact_chat_id: u32;
     let contact_chat_id_blocked: Blocked;
@@ -411,7 +433,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         } else {
                             b"vc-auth-required\x00" as *const u8 as *const libc::c_char
                         },
-                        0 as *const libc::c_char,
+                        "",
                         0 as *const libc::c_char,
                         "",
                     );
@@ -429,7 +451,9 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 let cond = {
                     let bob = context.bob.read().unwrap();
                     let scan = bob.qr_scan.as_ref();
-                    scan.is_none() || bob.expects != 2 || 0 != join_vg && scan.unwrap().state != 202
+                    scan.is_none()
+                        || bob.expects != 2
+                        || 0 != join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
                 };
 
                 if cond {
@@ -437,26 +461,44 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     // no error, just aborted somehow or a mail from another handshake
                     current_block = 4378276786830486580;
                 } else {
-                    {
-                        scanned_fingerprint_of_alice = dc_strdup(
-                            context
-                                .bob
-                                .read()
-                                .unwrap()
-                                .qr_scan
-                                .as_ref()
-                                .unwrap()
-                                .fingerprint,
-                        );
-                        auth =
-                            dc_strdup(context.bob.read().unwrap().qr_scan.as_ref().unwrap().auth);
-                        if 0 != join_vg {
-                            grpid = to_string(
-                                context.bob.read().unwrap().qr_scan.as_ref().unwrap().text2,
-                            );
-                        }
+                    let scanned_fingerprint_of_alice = context
+                        .bob
+                        .read()
+                        .unwrap()
+                        .qr_scan
+                        .as_ref()
+                        .unwrap()
+                        .fingerprint
+                        .as_ref()
+                        .unwrap()
+                        .to_string();
+
+                    let auth = context
+                        .bob
+                        .read()
+                        .unwrap()
+                        .qr_scan
+                        .as_ref()
+                        .unwrap()
+                        .auth
+                        .as_ref()
+                        .unwrap()
+                        .to_string();
+                    if 0 != join_vg {
+                        grpid = context
+                            .bob
+                            .read()
+                            .unwrap()
+                            .qr_scan
+                            .as_ref()
+                            .unwrap()
+                            .text2
+                            .as_ref()
+                            .unwrap()
+                            .to_string();
                     }
-                    if !encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
+
+                    if !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice) {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
@@ -471,7 +513,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     } else if 0
                         == fingerprint_equals_sender(
                             context,
-                            scanned_fingerprint_of_alice,
+                            &scanned_fingerprint_of_alice,
                             contact_chat_id,
                         )
                     {
@@ -523,8 +565,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 ====  Step 6 in "Out-of-band verified groups" protocol  ====
                 ============================================================ */
                 // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-                let fingerprint: *const libc::c_char;
-                fingerprint = lookup_field(mimeparser, "Secure-Join-Fingerprint");
+                let fingerprint = lookup_field(mimeparser, "Secure-Join-Fingerprint");
                 if fingerprint.is_null() {
                     could_not_establish_secure_connection(
                         context,
@@ -532,14 +573,16 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         b"Fingerprint not provided.\x00" as *const u8 as *const libc::c_char,
                     );
                     current_block = 4378276786830486580;
-                } else if !encrypted_and_signed(mimeparser, fingerprint) {
+                } else if !encrypted_and_signed(mimeparser, as_str(fingerprint)) {
                     could_not_establish_secure_connection(
                         context,
                         contact_chat_id,
                         b"Auth not encrypted.\x00" as *const u8 as *const libc::c_char,
                     );
                     current_block = 4378276786830486580;
-                } else if 0 == fingerprint_equals_sender(context, fingerprint, contact_chat_id) {
+                } else if 0
+                    == fingerprint_equals_sender(context, as_str(fingerprint), contact_chat_id)
+                {
                     could_not_establish_secure_connection(
                         context,
                         contact_chat_id,
@@ -566,7 +609,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Auth invalid.\x00" as *const u8 as *const libc::c_char,
                         );
                         current_block = 4378276786830486580;
-                    } else if 0 == mark_peer_as_verified(context, fingerprint) {
+                    } else if 0 == mark_peer_as_verified(context, as_str(fingerprint)) {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
@@ -617,7 +660,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 context,
                                 contact_chat_id,
                                 b"vc-contact-confirm\x00" as *const u8 as *const libc::c_char,
-                                0 as *const libc::c_char,
+                                "",
                                 0 as *const libc::c_char,
                                 "",
                             );
@@ -649,7 +692,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     let cond = {
                         let bob = context.bob.read().unwrap();
                         let scan = bob.qr_scan.as_ref();
-                        scan.is_none() || 0 != join_vg && scan.unwrap().state != 202
+                        scan.is_none()
+                            || 0 != join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
                     };
                     if cond {
                         warn!(
@@ -658,23 +702,32 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         );
                         current_block = 4378276786830486580;
                     } else {
-                        {
-                            scanned_fingerprint_of_alice = dc_strdup(
-                                context
-                                    .bob
-                                    .read()
-                                    .unwrap()
-                                    .qr_scan
-                                    .as_ref()
-                                    .unwrap()
-                                    .fingerprint,
-                            );
-                            if 0 != join_vg {
-                                grpid = to_string(
-                                    context.bob.read().unwrap().qr_scan.as_ref().unwrap().text2,
-                                );
-                            }
+                        let scanned_fingerprint_of_alice = context
+                            .bob
+                            .read()
+                            .unwrap()
+                            .qr_scan
+                            .as_ref()
+                            .unwrap()
+                            .fingerprint
+                            .as_ref()
+                            .unwrap()
+                            .to_string();
+
+                        if 0 != join_vg {
+                            grpid = context
+                                .bob
+                                .read()
+                                .unwrap()
+                                .qr_scan
+                                .as_ref()
+                                .unwrap()
+                                .text2
+                                .as_ref()
+                                .unwrap()
+                                .to_string();
                         }
+
                         let mut vg_expect_encrypted: libc::c_int = 1i32;
                         if 0 != join_vg {
                             let mut is_verified_group: libc::c_int = 0i32;
@@ -689,7 +742,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             }
                         }
                         if 0 != vg_expect_encrypted {
-                            if !encrypted_and_signed(mimeparser, scanned_fingerprint_of_alice) {
+                            if !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice) {
                                 could_not_establish_secure_connection(
                                     context,
                                     contact_chat_id,
@@ -707,8 +760,10 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         match current_block {
                             4378276786830486580 => {}
                             _ => {
-                                if 0 == mark_peer_as_verified(context, scanned_fingerprint_of_alice)
-                                {
+                                if 0 == mark_peer_as_verified(
+                                    context,
+                                    &scanned_fingerprint_of_alice,
+                                ) {
                                     could_not_establish_secure_connection(
                                         context,
                                         contact_chat_id,
@@ -758,7 +813,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                                     contact_chat_id,
                                                     b"vg-member-added-received\x00" as *const u8
                                                         as *const libc::c_char,
-                                                    0 as *const libc::c_char,
+                                                    "",
                                                     0 as *const libc::c_char,
                                                     "",
                                                 );
@@ -816,8 +871,6 @@ pub unsafe fn dc_handle_securejoin_handshake(
         }
     }
 
-    free(scanned_fingerprint_of_alice as *mut libc::c_void);
-    free(auth as *mut libc::c_void);
     free(own_fingerprint as *mut libc::c_void);
 
     ret
@@ -882,16 +935,13 @@ unsafe fn could_not_establish_secure_connection(
     error!(context, 0, "{} ({})", &msg, as_str(details));
 }
 
-unsafe fn mark_peer_as_verified(
-    context: &Context,
-    fingerprint: *const libc::c_char,
-) -> libc::c_int {
+unsafe fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> libc::c_int {
     let mut success = 0;
 
     if let Some(ref mut peerstate) =
-        Peerstate::from_fingerprint(context, &context.sql, as_str(fingerprint))
+        Peerstate::from_fingerprint(context, &context.sql, fingerprint.as_ref())
     {
-        if peerstate.set_verified(1, as_str(fingerprint), 2) {
+        if peerstate.set_verified(1, fingerprint.as_ref(), 2) {
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = Some(ToSave::All);
             peerstate.save_to_db(&context.sql, false);
@@ -908,7 +958,7 @@ unsafe fn mark_peer_as_verified(
 
 unsafe fn encrypted_and_signed(
     mimeparser: &dc_mimeparser_t,
-    expected_fingerprint: *const libc::c_char,
+    expected_fingerprint: impl AsRef<str>,
 ) -> bool {
     if 0 == mimeparser.e2ee_helper.encrypted {
         warn!(mimeparser.context, 0, "Message not encrypted.",);
@@ -918,20 +968,20 @@ unsafe fn encrypted_and_signed(
         warn!(mimeparser.context, 0, "Message not signed.",);
         return false;
     }
-    if expected_fingerprint.is_null() {
+    if expected_fingerprint.as_ref().is_empty() {
         warn!(mimeparser.context, 0, "Fingerprint for comparison missing.",);
         return false;
     }
     if !mimeparser
         .e2ee_helper
         .signatures
-        .contains(as_str(expected_fingerprint))
+        .contains(expected_fingerprint.as_ref())
     {
         warn!(
             mimeparser.context,
             0,
             "Message does not match expected fingerprint {}.",
-            as_str(expected_fingerprint),
+            expected_fingerprint.as_ref(),
         );
         return false;
     }

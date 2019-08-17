@@ -991,7 +991,7 @@ pub unsafe extern "C" fn dc_check_qr(
     assert!(!qr.is_null());
     let context = &*context;
 
-    let lot = dc_qr::dc_check_qr(context, qr);
+    let lot = dc_qr::dc_check_qr(context, as_str(qr));
     Box::into_raw(Box::new(lot))
 }
 
@@ -1453,7 +1453,7 @@ pub unsafe extern "C" fn dc_msg_get_viewtype(msg: *mut dc_msg::dc_msg_t) -> libc
 pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_state(msg)
+    dc_msg::dc_msg_get_state(msg) as libc::c_int
 }
 
 #[no_mangle]
@@ -1795,19 +1795,6 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
 pub type dc_lot_t = lot::Lot;
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_lot_new() -> *mut dc_lot_t {
-    Box::into_raw(Box::new(lot::Lot::new()))
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_lot_empty(lot: *mut dc_lot_t) {
-    assert!(!lot.is_null());
-
-    let _lot = Box::from_raw(lot);
-    *lot = lot::Lot::new();
-}
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_lot_unref(lot: *mut dc_lot_t) {
     assert!(!lot.is_null());
 
@@ -1819,7 +1806,7 @@ pub unsafe extern "C" fn dc_lot_get_text1(lot: *mut dc_lot_t) -> *mut libc::c_ch
     assert!(!lot.is_null());
 
     let lot = &*lot;
-    lot.get_text1()
+    strdup_opt(lot.get_text1())
 }
 
 #[no_mangle]
@@ -1827,7 +1814,7 @@ pub unsafe extern "C" fn dc_lot_get_text2(lot: *mut dc_lot_t) -> *mut libc::c_ch
     assert!(!lot.is_null());
 
     let lot = &*lot;
-    lot.get_text2()
+    strdup_opt(lot.get_text2())
 }
 
 #[no_mangle]
@@ -1835,7 +1822,7 @@ pub unsafe extern "C" fn dc_lot_get_text1_meaning(lot: *mut dc_lot_t) -> libc::c
     assert!(!lot.is_null());
 
     let lot = &*lot;
-    lot.get_text1_meaning()
+    lot.get_text1_meaning() as libc::c_int
 }
 
 #[no_mangle]
@@ -1843,7 +1830,7 @@ pub unsafe extern "C" fn dc_lot_get_state(lot: *mut dc_lot_t) -> libc::c_int {
     assert!(!lot.is_null());
 
     let lot = &*lot;
-    lot.get_state()
+    lot.get_state().to_i64().expect("impossible") as libc::c_int
 }
 
 #[no_mangle]
@@ -1895,5 +1882,12 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
         if let Err(err) = self {
             error!(context, 0, "{}: {}", message, err);
         }
+    }
+}
+
+unsafe fn strdup_opt(s: Option<impl AsRef<str>>) -> *mut libc::c_char {
+    match s {
+        Some(s) => s.as_ref().strdup(),
+        None => ptr::null_mut(),
     }
 }

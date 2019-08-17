@@ -1,302 +1,469 @@
+use lazy_static::lazy_static;
 use percent_encoding::percent_decode_str;
 
 use crate::chat;
 use crate::constants::Blocked;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_strencode::*;
-use crate::dc_tools::*;
+use crate::error::Error;
+use crate::key::dc_format_fingerprint;
 use crate::key::*;
-use crate::lot::Lot;
+use crate::lot::{Lot, LotState};
 use crate::param::*;
 use crate::peerstate::*;
-use crate::types::*;
-use crate::x::*;
 
-// out-of-band verification
-// id=contact
-// text1=groupname
-// id=contact
-// id=contact
-// test1=formatted fingerprint
-// id=contact
-// text1=text
-// text1=URL
-// text1=error string
-pub unsafe fn dc_check_qr(context: &Context, qr: *const libc::c_char) -> Lot {
-    let mut ok_to_continue = true;
-    let mut payload: *mut libc::c_char = 0 as *mut libc::c_char;
-    // must be normalized, if set
-    let mut addr: *mut libc::c_char = 0 as *mut libc::c_char;
-    // must be normalized, if set
-    let mut fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut name: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut invitenumber: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut auth: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut qr_parsed = Lot::new();
-    let mut chat_id: uint32_t = 0i32 as uint32_t;
-    let mut device_msg = "".to_string();
-    let mut grpid: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut grpname: *mut libc::c_char = 0 as *mut libc::c_char;
-    qr_parsed.state = 0i32;
-    if !qr.is_null() {
-        info!(context, 0, "Scanned QR code: {}", as_str(qr),);
-        /* split parameters from the qr code
-        ------------------------------------ */
-        if strncasecmp(
-            qr,
-            b"OPENPGP4FPR:\x00" as *const u8 as *const libc::c_char,
-            strlen(b"OPENPGP4FPR:\x00" as *const u8 as *const libc::c_char),
-        ) == 0i32
-        {
-            payload =
-                dc_strdup(&*qr.offset(strlen(
-                    b"OPENPGP4FPR:\x00" as *const u8 as *const libc::c_char,
-                ) as isize));
-            let mut fragment: *mut libc::c_char = strchr(payload, '#' as i32);
-            if !fragment.is_null() {
-                *fragment = 0i32 as libc::c_char;
-                fragment = fragment.offset(1isize);
-                let param: Params = as_str(fragment).parse().expect("invalid params");
-                addr = param
-                    .get(Param::Forwarded)
-                    .map(|s| s.strdup())
-                    .unwrap_or_else(|| std::ptr::null_mut());
-                if !addr.is_null() {
-                    if let Some(ref name_enc) = param.get(Param::SetLongitude) {
-                        let name_r = percent_decode_str(name_enc)
-                            .decode_utf8()
-                            .expect("invalid name");
-                        name = normalize_name(name_r).strdup();
-                    }
-                    invitenumber = param
-                        .get(Param::ProfileImage)
-                        .map(|s| s.strdup())
-                        .unwrap_or_else(|| std::ptr::null_mut());
-                    auth = param
-                        .get(Param::Auth)
-                        .map(|s| s.strdup())
-                        .unwrap_or_else(|| std::ptr::null_mut());
-                    grpid = param
-                        .get(Param::GroupId)
-                        .map(|s| s.strdup())
-                        .unwrap_or_else(|| std::ptr::null_mut());
-                    if !grpid.is_null() {
-                        if let Some(grpname_enc) = param.get(Param::GroupName) {
-                            let grpname_r = percent_decode_str(grpname_enc)
-                                .decode_utf8()
-                                .expect("invalid groupname");
-                            grpname = grpname_r.strdup();
-                        }
-                    }
-                }
-            }
-            fingerprint = dc_normalize_fingerprint_c(payload);
-        } else if strncasecmp(
-            qr,
-            b"mailto:\x00" as *const u8 as *const libc::c_char,
-            strlen(b"mailto:\x00" as *const u8 as *const libc::c_char),
-        ) == 0i32
-        {
-            payload = dc_strdup(
-                &*qr.offset(strlen(b"mailto:\x00" as *const u8 as *const libc::c_char) as isize),
-            );
-            let query: *mut libc::c_char = strchr(payload, '?' as i32);
-            if !query.is_null() {
-                *query = 0i32 as libc::c_char
-            }
-            addr = dc_strdup(payload);
-        } else if strncasecmp(
-            qr,
-            b"SMTP:\x00" as *const u8 as *const libc::c_char,
-            strlen(b"SMTP:\x00" as *const u8 as *const libc::c_char),
-        ) == 0i32
-        {
-            payload = dc_strdup(
-                &*qr.offset(strlen(b"SMTP:\x00" as *const u8 as *const libc::c_char) as isize),
-            );
-            let colon: *mut libc::c_char = strchr(payload, ':' as i32);
-            if !colon.is_null() {
-                *colon = 0i32 as libc::c_char
-            }
-            addr = dc_strdup(payload);
-        } else if strncasecmp(
-            qr,
-            b"MATMSG:\x00" as *const u8 as *const libc::c_char,
-            strlen(b"MATMSG:\x00" as *const u8 as *const libc::c_char),
-        ) == 0i32
-        {
-            /* scheme: `MATMSG:TO:addr...;SUB:subject...;BODY:body...;` - there may or may not be linebreaks after the fields */
-            /* does not work when the text `TO:` is used in subject/body _and_ TO: is not the first field. we ignore this case. */
-            let to: *mut libc::c_char = strstr(qr, b"TO:\x00" as *const u8 as *const libc::c_char);
-            if !to.is_null() {
-                addr = dc_strdup(&mut *to.offset(3isize));
-                let semicolon: *mut libc::c_char = strchr(addr, ';' as i32);
-                if !semicolon.is_null() {
-                    *semicolon = 0i32 as libc::c_char
-                }
-            } else {
-                qr_parsed.state = 400i32;
-                qr_parsed.text1 =
-                    dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
-                ok_to_continue = false;
+const OPENPGP4FPR_SCHEME: &str = "OPENPGP4FPR:"; // yes: uppercase
+const MAILTO_SCHEME: &str = "mailto:";
+const MATMSG_SCHEME: &str = "MATMSG:";
+const VCARD_SCHEME: &str = "BEGIN:VCARD";
+const SMTP_SCHEME: &str = "SMTP:";
+const HTTP_SCHEME: &str = "http://";
+const HTTPS_SCHEME: &str = "https://";
+
+// Make it easy to convert errors into the final `Lot`.
+impl Into<Lot> for Error {
+    fn into(self) -> Lot {
+        let mut l = Lot::new();
+        l.state = LotState::QrError;
+        l.text1 = Some(self.to_string());
+
+        l
+    }
+}
+
+/// Check a scanned QR code.
+/// The function should be called after a QR code is scanned.
+/// The function takes the raw text scanned and checks what can be done with it.
+pub fn dc_check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
+    let qr = qr.as_ref();
+
+    info!(context, 0, "Scanned QR code: {}", qr);
+
+    if qr.starts_with(OPENPGP4FPR_SCHEME) {
+        decode_openpgp(context, qr)
+    } else if qr.starts_with(MAILTO_SCHEME) {
+        decode_mailto(context, qr)
+    } else if qr.starts_with(SMTP_SCHEME) {
+        decode_smtp(context, qr)
+    } else if qr.starts_with(MATMSG_SCHEME) {
+        decode_matmsg(context, qr)
+    } else if qr.starts_with(VCARD_SCHEME) {
+        decode_vcard(context, qr)
+    } else if qr.starts_with(HTTP_SCHEME) || qr.starts_with(HTTPS_SCHEME) {
+        Lot::from_url(qr)
+    } else {
+        Lot::from_text(qr)
+    }
+}
+
+/// scheme: `OPENPGP4FPR:FINGERPRINT#a=ADDR&n=NAME&i=INVITENUMBER&s=AUTH`
+///     or: `OPENPGP4FPR:FINGERPRINT#a=ADDR&g=GROUPNAME&x=GROUPID&i=INVITENUMBER&s=AUTH`
+fn decode_openpgp(context: &Context, qr: &str) -> Lot {
+    let payload = &qr[OPENPGP4FPR_SCHEME.len()..];
+
+    let (fingerprint, fragment) = match payload.find('#').map(|offset| {
+        let (fp, rest) = payload.split_at(offset);
+        // need to remove the # from the fragment
+        (fp, &rest[1..])
+    }) {
+        Some(pair) => pair,
+        None => return format_err!("Invalid OPENPGP4FPR found").into(),
+    };
+
+    dbg!(fingerprint);
+    dbg!(fragment);
+
+    // replace & with \n to match expected param format
+    let fragment = fragment.replace('&', "\n");
+    dbg!(&fragment);
+
+    // Then parse the parameters
+    let param: Params = match fragment.parse() {
+        Ok(params) => params,
+        Err(err) => return err.into(),
+    };
+    dbg!(&param);
+
+    let addr = if let Some(addr) = param.get(Param::Forwarded) {
+        match normalize_address(addr) {
+            Ok(addr) => addr,
+            Err(err) => return err.into(),
+        }
+    } else {
+        return format_err!("Missing address").into();
+    };
+
+    // what is up with that param name?
+    let name = if let Some(encoded_name) = param.get(Param::SetLongitude) {
+        match percent_decode_str(encoded_name).decode_utf8() {
+            Ok(name) => name.to_string(),
+            Err(err) => return format_err!("Invalid name: {}", err).into(),
+        }
+    } else {
+        "".to_string()
+    };
+
+    let invitenumber = param.get(Param::ProfileImage).map(|s| s.to_string());
+    let auth = param.get(Param::Auth).map(|s| s.to_string());
+    let grpid = param.get(Param::GroupId).map(|s| s.to_string());
+
+    let grpname = if grpid.is_some() {
+        if let Some(encoded_name) = param.get(Param::GroupName) {
+            match percent_decode_str(encoded_name).decode_utf8() {
+                Ok(name) => Some(name.to_string()),
+                Err(err) => return format_err!("Invalid group name: {}", err).into(),
             }
         } else {
-            if strncasecmp(
-                qr,
-                b"BEGIN:VCARD\x00" as *const u8 as *const libc::c_char,
-                strlen(b"BEGIN:VCARD\x00" as *const u8 as *const libc::c_char),
-            ) == 0i32
-            {
-                let lines = dc_split_into_lines(qr);
-                for &key in &lines {
-                    dc_trim(key);
-                    let mut value: *mut libc::c_char = strchr(key, ':' as i32);
-                    if !value.is_null() {
-                        *value = 0i32 as libc::c_char;
-                        value = value.offset(1isize);
-                        let mut semicolon_0: *mut libc::c_char = strchr(key, ';' as i32);
-                        if !semicolon_0.is_null() {
-                            *semicolon_0 = 0i32 as libc::c_char
-                        }
-                        if strcasecmp(key, b"EMAIL\x00" as *const u8 as *const libc::c_char) == 0i32
-                        {
-                            semicolon_0 = strchr(value, ';' as i32);
-                            if !semicolon_0.is_null() {
-                                *semicolon_0 = 0i32 as libc::c_char
-                            }
-                            addr = dc_strdup(value)
-                        } else if strcasecmp(key, b"N\x00" as *const u8 as *const libc::c_char)
-                            == 0i32
-                        {
-                            semicolon_0 = strchr(value, ';' as i32);
-                            if !semicolon_0.is_null() {
-                                semicolon_0 = strchr(semicolon_0.offset(1isize), ';' as i32);
-                                if !semicolon_0.is_null() {
-                                    *semicolon_0 = 0i32 as libc::c_char
-                                }
-                            }
-                            name = dc_strdup(value);
-                            dc_str_replace(
-                                &mut name,
-                                b";\x00" as *const u8 as *const libc::c_char,
-                                b",\x00" as *const u8 as *const libc::c_char,
-                            );
-                            name = normalize_name(as_str(name)).strdup();
-                        }
-                    }
-                }
-                dc_free_splitted_lines(lines);
-            }
+            None
         }
-        if ok_to_continue {
-            /* check the parameters
-            ---------------------- */
-            if !addr.is_null() {
-                /* urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases */
-                let mut temp: *mut libc::c_char = dc_urldecode(addr);
-                free(addr as *mut libc::c_void);
-                addr = temp;
-                temp = addr_normalize(as_str(addr)).strdup();
-                free(addr as *mut libc::c_void);
-                addr = temp;
-                if !may_be_valid_addr(as_str(addr)) {
-                    qr_parsed.state = 400i32;
-                    qr_parsed.text1 =
-                        dc_strdup(b"Bad e-mail address.\x00" as *const u8 as *const libc::c_char);
-                    ok_to_continue = false;
-                }
-            }
-        }
-        if ok_to_continue && !fingerprint.is_null() && strlen(fingerprint) != 40 {
-            qr_parsed.state = 400i32;
-            qr_parsed.text1 = dc_strdup(
-                b"Bad fingerprint length in QR code.\x00" as *const u8 as *const libc::c_char,
-            );
-            ok_to_continue = false;
-        }
-        if ok_to_continue {
-            if !fingerprint.is_null() {
-                let peerstate =
-                    Peerstate::from_fingerprint(context, &context.sql, as_str(fingerprint));
-                if addr.is_null() || invitenumber.is_null() || auth.is_null() {
-                    if let Some(peerstate) = peerstate {
-                        qr_parsed.state = 210i32;
-                        let addr = peerstate
-                            .addr
-                            .as_ref()
-                            .map(|s| s.as_str())
-                            .unwrap_or_else(|| "");
-                        qr_parsed.id =
-                            Contact::add_or_lookup(context, "", addr, Origin::UnhandledQrScan)
-                                .map(|(id, _)| id)
-                                .unwrap_or_default();
-                        let (id, _) = chat::create_or_lookup_by_contact_id(
-                            context,
-                            qr_parsed.id,
-                            Blocked::Deaddrop,
-                        )
-                        .unwrap_or_default();
-                        chat_id = id;
-                        device_msg = format!("{} verified.", peerstate.addr.unwrap_or_default());
-                    } else {
-                        qr_parsed.text1 = dc_format_fingerprint_c(fingerprint);
-                        qr_parsed.state = 230i32;
-                    }
-                } else {
-                    if !grpid.is_null() && !grpname.is_null() {
-                        qr_parsed.state = 202i32;
-                        qr_parsed.text1 = dc_strdup(grpname);
-                        qr_parsed.text2 = dc_strdup(grpid)
-                    } else {
-                        qr_parsed.state = 200i32
-                    }
-                    qr_parsed.id = Contact::add_or_lookup(
-                        context,
-                        as_str(name),
-                        as_str(addr),
-                        Origin::UnhandledQrScan,
-                    )
-                    .map(|(id, _)| id)
-                    .unwrap_or_default();
-                    qr_parsed.fingerprint = dc_strdup(fingerprint);
-                    qr_parsed.invitenumber = dc_strdup(invitenumber);
-                    qr_parsed.auth = dc_strdup(auth)
-                }
-            } else if !addr.is_null() {
-                qr_parsed.state = 320i32;
-                qr_parsed.id = Contact::add_or_lookup(
-                    context,
-                    as_str(name),
-                    as_str(addr),
-                    Origin::UnhandledQrScan,
-                )
+    } else {
+        None
+    };
+
+    let fingerprint = dc_normalize_fingerprint(fingerprint);
+
+    // ensure valid fingerprint
+    if fingerprint.len() != 40 {
+        return format_err!("Bad fingerprint length in QR code").into();
+    }
+
+    println!(
+        "{:?} {:?} {:?} {:?} {:?} {:?} {:?}",
+        addr, name, invitenumber, auth, grpid, grpname, fingerprint
+    );
+
+    let mut lot = Lot::new();
+
+    // retrieve known state for this fingerprint
+    let peerstate = Peerstate::from_fingerprint(context, &context.sql, &fingerprint);
+
+    if invitenumber.is_none() || auth.is_none() {
+        if let Some(peerstate) = peerstate {
+            lot.state = LotState::QrFprOk;
+            let addr = peerstate
+                .addr
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or_else(|| "");
+
+            lot.id = Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan)
                 .map(|(id, _)| id)
                 .unwrap_or_default();
-            } else if strstr(qr, b"http://\x00" as *const u8 as *const libc::c_char)
-                == qr as *mut libc::c_char
-                || strstr(qr, b"https://\x00" as *const u8 as *const libc::c_char)
-                    == qr as *mut libc::c_char
-            {
-                qr_parsed.state = 332i32;
-                qr_parsed.text1 = dc_strdup(qr)
-            } else {
-                qr_parsed.state = 330i32;
-                qr_parsed.text1 = dc_strdup(qr)
-            }
-            if !device_msg.is_empty() {
-                chat::add_device_msg(context, chat_id, device_msg);
-            }
-        }
-    }
-    free(addr as *mut libc::c_void);
-    free(fingerprint as *mut libc::c_void);
-    free(payload as *mut libc::c_void);
-    free(name as *mut libc::c_void);
-    free(invitenumber as *mut libc::c_void);
-    free(auth as *mut libc::c_void);
-    free(grpname as *mut libc::c_void);
-    free(grpid as *mut libc::c_void);
 
-    qr_parsed
+            let (id, _) = chat::create_or_lookup_by_contact_id(context, lot.id, Blocked::Deaddrop)
+                .unwrap_or_default();
+
+            chat::add_device_msg(
+                context,
+                id,
+                format!("{} verified.", peerstate.addr.unwrap_or_default()),
+            );
+        } else {
+            lot.state = LotState::QrFprWithoutAddr;
+            lot.text1 = Some(dc_format_fingerprint(&fingerprint));
+        }
+    } else {
+        if grpid.is_some() && grpname.is_some() {
+            lot.state = LotState::QrAskVerifyGroup;
+            lot.text1 = grpname;
+            lot.text2 = grpid
+        } else {
+            lot.state = LotState::QrAskVerifyContact;
+        }
+        lot.id = Contact::add_or_lookup(context, &name, &addr, Origin::UnhandledQrScan)
+            .map(|(id, _)| id)
+            .unwrap_or_default();
+
+        lot.fingerprint = Some(fingerprint);
+        lot.invitenumber = invitenumber;
+        lot.auth = auth;
+    }
+
+    lot
+}
+
+/// Extract address for the mailto scheme.
+///
+/// Scheme: `mailto:addr...?subject=...&body=..`
+fn decode_mailto(context: &Context, qr: &str) -> Lot {
+    let payload = &qr[MAILTO_SCHEME.len()..];
+
+    let addr = if let Some(query_index) = payload.find('?') {
+        &payload[..query_index]
+    } else {
+        return format_err!("Invalid mailto found").into();
+    };
+
+    let addr = match normalize_address(addr) {
+        Ok(addr) => addr,
+        Err(err) => return err.into(),
+    };
+
+    let name = "".to_string();
+    Lot::from_address(context, name, addr)
+}
+
+/// Extract address for the smtp scheme.
+///
+/// Scheme: `SMTP:addr...:subject...:body...`
+fn decode_smtp(context: &Context, qr: &str) -> Lot {
+    let payload = &qr[SMTP_SCHEME.len()..];
+
+    let addr = if let Some(query_index) = payload.find(':') {
+        &payload[..query_index]
+    } else {
+        return format_err!("Invalid SMTP found").into();
+    };
+
+    let addr = match normalize_address(addr) {
+        Ok(addr) => addr,
+        Err(err) => return err.into(),
+    };
+
+    let name = "".to_string();
+    Lot::from_address(context, name, addr)
+}
+
+/// Extract address for the matmsg scheme.
+///
+/// Scheme: `MATMSG:TO:addr...;SUB:subject...;BODY:body...;`
+///
+/// There may or may not be linebreaks after the fields.
+fn decode_matmsg(context: &Context, qr: &str) -> Lot {
+    // Does not work when the text `TO:` is used in subject/body _and_ TO: is not the first field.
+    // we ignore this case.
+    let addr = if let Some(to_index) = qr.find("TO:") {
+        let addr = qr[to_index + 3..].trim();
+        if let Some(semi_index) = addr.find(';') {
+            addr[..semi_index].trim()
+        } else {
+            addr
+        }
+    } else {
+        return format_err!("Invalid MATMSG found").into();
+    };
+
+    let addr = match normalize_address(addr) {
+        Ok(addr) => addr,
+        Err(err) => return err.into(),
+    };
+
+    let name = "".to_string();
+    Lot::from_address(context, name, addr)
+}
+
+lazy_static! {
+    static ref VCARD_NAME_RE: regex::Regex =
+        regex::Regex::new(r"(?m)^N:([^;]*);([^;\n]*)").unwrap();
+    static ref VCARD_EMAIL_RE: regex::Regex =
+        regex::Regex::new(r"(?m)^EMAIL([^:\n]*):([^;\n]*)").unwrap();
+}
+
+/// Extract address for the matmsg scheme.
+///
+/// Scheme: `VCARD:BEGIN\nN:last name;first name;...;\nEMAIL;<type>:addr...;
+fn decode_vcard(context: &Context, qr: &str) -> Lot {
+    let name = VCARD_NAME_RE
+        .captures(qr)
+        .map(|caps| {
+            let last_name = &caps[1];
+            let first_name = &caps[2];
+
+            format!("{} {}", first_name.trim(), last_name.trim())
+        })
+        .unwrap_or_default();
+
+    let addr = if let Some(caps) = VCARD_EMAIL_RE.captures(qr) {
+        match normalize_address(caps[2].trim()) {
+            Ok(addr) => addr,
+            Err(err) => return err.into(),
+        }
+    } else {
+        return format_err!("Bad e-mail address").into();
+    };
+
+    Lot::from_address(context, name, addr)
+}
+
+impl Lot {
+    pub fn from_text(text: impl AsRef<str>) -> Self {
+        let mut l = Lot::new();
+        l.state = LotState::QrText;
+        l.text1 = Some(text.as_ref().to_string());
+
+        l
+    }
+
+    pub fn from_url(url: impl AsRef<str>) -> Self {
+        let mut l = Lot::new();
+        l.state = LotState::QrUrl;
+        l.text1 = Some(url.as_ref().to_string());
+
+        l
+    }
+
+    pub fn from_address(context: &Context, name: String, addr: String) -> Self {
+        let mut l = Lot::new();
+        l.state = LotState::QrAddr;
+        l.id = match Contact::add_or_lookup(context, name, addr, Origin::UnhandledQrScan) {
+            Ok((id, _)) => id,
+            Err(err) => return err.into(),
+        };
+
+        l
+    }
+}
+
+/// URL decodes a given address, does basic email validation on the result.
+fn normalize_address(addr: &str) -> Result<String, Error> {
+    // urldecoding is needed at least for OPENPGP4FPR but should not hurt in the other cases
+    let new_addr = percent_decode_str(addr).decode_utf8()?;
+    let new_addr = addr_normalize(&new_addr);
+
+    ensure!(may_be_valid_addr(&new_addr), "Bad e-mail address");
+
+    Ok(new_addr.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::test_utils::dummy_context;
+
+    #[test]
+    fn test_decode_http() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(&ctx.ctx, "http://www.hello.com");
+
+        assert_eq!(res.get_state(), LotState::QrUrl);
+        assert_eq!(res.get_id(), 0);
+        assert_eq!(res.get_text1().unwrap(), "http://www.hello.com");
+        assert!(res.get_text2().is_none());
+    }
+
+    #[test]
+    fn test_decode_https() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(&ctx.ctx, "https://www.hello.com");
+
+        assert_eq!(res.get_state(), LotState::QrUrl);
+        assert_eq!(res.get_id(), 0);
+        assert_eq!(res.get_text1().unwrap(), "https://www.hello.com");
+        assert!(res.get_text2().is_none());
+    }
+
+    #[test]
+    fn test_decode_text() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(&ctx.ctx, "I am so cool");
+
+        assert_eq!(res.get_state(), LotState::QrText);
+        assert_eq!(res.get_id(), 0);
+        assert_eq!(res.get_text1().unwrap(), "I am so cool");
+        assert!(res.get_text2().is_none());
+    }
+
+    #[test]
+    fn test_decode_vcard() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(
+            &ctx.ctx,
+            "BEGIN:VCARD\nVERSION:3.0\nN:Last;First\nEMAIL;TYPE=INTERNET:stress@test.local\nEND:VCARD"
+        );
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAddr);
+        assert_ne!(res.get_id(), 0);
+
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        assert_eq!(contact.get_addr(), "stress@test.local");
+        assert_eq!(contact.get_name(), "First Last");
+    }
+
+    #[test]
+    fn test_decode_matmsg() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(
+            &ctx.ctx,
+            "MATMSG:TO:\n\nstress@test.local ; \n\nSUB:\n\nSubject here\n\nBODY:\n\nhelloworld\n;;",
+        );
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAddr);
+        assert_ne!(res.get_id(), 0);
+
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        assert_eq!(contact.get_addr(), "stress@test.local");
+    }
+
+    #[test]
+    fn test_decode_mailto() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(
+            &ctx.ctx,
+            "mailto:stress@test.local?subject=hello&body=world",
+        );
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAddr);
+        assert_ne!(res.get_id(), 0);
+
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        assert_eq!(contact.get_addr(), "stress@test.local");
+    }
+
+    #[test]
+    fn test_decode_smtp() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(&ctx.ctx, "SMTP:stress@test.local:subjecthello:bodyworld");
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAddr);
+        assert_ne!(res.get_id(), 0);
+
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        assert_eq!(contact.get_addr(), "stress@test.local");
+    }
+
+    #[test]
+    fn test_decode_openpgp_group() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(
+            &ctx.ctx,
+            "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&g=testtesttest&x=h-0oKQf2CDK&i=9JEXlxAqGM0&s=0V7LzL9cxRL"
+        );
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAskVerifyGroup);
+        assert_ne!(res.get_id(), 0);
+
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        assert_eq!(contact.get_addr(), "cli@deltachat.de");
+    }
+
+    #[test]
+    fn test_decode_openpgp_secure_join() {
+        let ctx = dummy_context();
+
+        let res = dc_check_qr(
+            &ctx.ctx,
+            "OPENPGP4FPR:79252762C34C5096AF57958F4FC3D21A81B0F0A7#a=cli%40deltachat.de&n=&i=TbnwJ6lSvD5&s=0ejvbdFSQxB"
+        );
+
+        println!("{:?}", res);
+        assert_eq!(res.get_state(), LotState::QrAskVerifyContact);
+        assert_ne!(res.get_id(), 0);
+
+        let contact = Contact::get_by_id(&ctx.ctx, res.get_id()).unwrap();
+        assert_eq!(contact.get_addr(), "cli@deltachat.de");
+    }
 }

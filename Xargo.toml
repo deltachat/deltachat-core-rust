@@ -1,0 +1,6 @@
+[dependencies.std]
+features = ["panic-unwind"]
+
+# if using `cargo test`
+[dependencies.test]
+stage = 1

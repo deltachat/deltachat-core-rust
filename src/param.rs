@@ -113,7 +113,7 @@ impl str::FromStr for Params {
                 continue;
             }
             // TODO: probably nicer using a regex
-            ensure!(pair.len() > 2, "Invalid key pair: '{}'", pair);
+            ensure!(pair.len() > 1, "Invalid key pair: '{}'", pair);
             let mut split = pair.splitn(2, '=');
             let key = split.next();
             let value = split.next();
@@ -234,5 +234,13 @@ mod tests {
 
         assert!(p1.is_empty());
         assert_eq!(p1.len(), 0)
+    }
+
+    #[test]
+    fn test_regression() {
+        let p1: Params = "a=cli%40deltachat.de\nn=\ni=TbnwJ6lSvD5\ns=0ejvbdFSQxB"
+            .parse()
+            .unwrap();
+        assert_eq!(p1.get(Param::Forwarded).unwrap(), "cli%40deltachat.de");
     }
 }
