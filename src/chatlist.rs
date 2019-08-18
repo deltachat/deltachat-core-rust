@@ -2,9 +2,9 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_msg::*;
 use crate::error::Result;
 use crate::lot::Lot;
+use crate::message::*;
 use crate::stock::StockMessage;
 
 /// An object representing a single chatlist in memory.

@@ -1,7 +1,7 @@
 use crate::constants::*;
 use crate::context::*;
-use crate::dc_msg::*;
 use crate::job::*;
+use crate::message::*;
 use crate::param::Params;
 
 pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u32) {
