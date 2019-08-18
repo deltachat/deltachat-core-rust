@@ -1,6 +1,4 @@
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
-use quick_xml;
-use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::constants::Event;
 use crate::context::Context;
@@ -12,8 +10,11 @@ use crate::job::*;
 use crate::oauth2::*;
 use crate::param::Params;
 use crate::types::*;
-use crate::x::*;
-use std::ptr;
+
+mod auto_outlk;
+use auto_outlk::outlk_autodiscover;
+mod auto_moz;
+use auto_moz::moz_autoconfigure;
 
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
@@ -39,35 +40,7 @@ struct dc_imapfolder_t {
     pub name_utf8: *mut libc::c_char,
     pub meaning: libc::c_int,
 }
-/* ******************************************************************************
- * Thunderbird's Autoconfigure
- ******************************************************************************/
-/* documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
-#[repr(C)]
-struct moz_autoconfigure_t<'a> {
-    pub in_0: &'a dc_loginparam_t,
-    pub in_emaildomain: *mut libc::c_char,
-    pub in_emaillocalpart: *mut libc::c_char,
-    pub out: dc_loginparam_t,
-    pub out_imap_set: libc::c_int,
-    pub out_smtp_set: libc::c_int,
-    pub tag_server: libc::c_int,
-    pub tag_config: libc::c_int,
-}
 
-/* ******************************************************************************
- * Outlook's Autodiscover
- ******************************************************************************/
-#[repr(C)]
-struct outlk_autodiscover_t<'a> {
-    pub in_0: &'a dc_loginparam_t,
-    pub out: dc_loginparam_t,
-    pub out_imap_set: libc::c_int,
-    pub out_smtp_set: libc::c_int,
-    pub tag_config: libc::c_int,
-    pub config: [*mut libc::c_char; 6],
-    pub redirect: *mut libc::c_char,
-}
 // connect
 pub unsafe fn dc_configure(context: &Context) {
     if 0 != dc_has_ongoing(context) {
@@ -692,413 +665,6 @@ pub unsafe fn dc_free_ongoing(context: &Context) {
     s.shall_stop_ongoing = true;
 }
 
-unsafe fn moz_autoconfigure(
-    context: &Context,
-    url: &str,
-    param_in: &dc_loginparam_t,
-) -> Option<dc_loginparam_t> {
-    let mut moz_ac = moz_autoconfigure_t {
-        in_0: param_in,
-        in_emaildomain: std::ptr::null_mut(),
-        in_emaillocalpart: std::ptr::null_mut(),
-        out: dc_loginparam_new(),
-        out_imap_set: 0,
-        out_smtp_set: 0,
-        tag_server: 0,
-        tag_config: 0,
-    };
-
-    let url_c = url.strdup();
-    let xml_raw = read_autoconf_file(context, url_c);
-    free(url_c as *mut libc::c_void);
-    if xml_raw.is_null() {
-        return None;
-    }
-
-    moz_ac.in_emaillocalpart = param_in.addr.strdup();
-    let p = strchr(moz_ac.in_emaillocalpart, '@' as i32);
-
-    if p.is_null() {
-        free(xml_raw as *mut libc::c_void);
-        free(moz_ac.in_emaildomain as *mut libc::c_void);
-        free(moz_ac.in_emaillocalpart as *mut libc::c_void);
-        return None;
-    }
-
-    *p = 0 as libc::c_char;
-    moz_ac.in_emaildomain = dc_strdup(p.offset(1isize));
-
-    let mut reader = quick_xml::Reader::from_str(as_str(xml_raw));
-    reader.trim_text(true);
-
-    let mut buf = Vec::new();
-
-    loop {
-        match reader.read_event(&mut buf) {
-            Ok(quick_xml::events::Event::Start(ref e)) => {
-                moz_autoconfigure_starttag_cb(e, &mut moz_ac, &reader)
-            }
-            Ok(quick_xml::events::Event::End(ref e)) => moz_autoconfigure_endtag_cb(e, &mut moz_ac),
-            Ok(quick_xml::events::Event::Text(ref e)) => {
-                moz_autoconfigure_text_cb(e, &mut moz_ac, &reader)
-            }
-            Err(e) => {
-                error!(
-                    context,
-                    0,
-                    "Configure xml: Error at position {}: {:?}",
-                    reader.buffer_position(),
-                    e
-                );
-            }
-            Ok(quick_xml::events::Event::Eof) => break,
-            _ => (),
-        }
-        buf.clear();
-    }
-
-    if moz_ac.out.mail_server.is_empty()
-        || moz_ac.out.mail_port == 0
-        || moz_ac.out.send_server.is_empty()
-        || moz_ac.out.send_port == 0
-    {
-        let r = dc_loginparam_get_readable(&moz_ac.out);
-        warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
-        free(xml_raw as *mut libc::c_void);
-        free(moz_ac.in_emaildomain as *mut libc::c_void);
-        free(moz_ac.in_emaillocalpart as *mut libc::c_void);
-        return None;
-    }
-
-    free(xml_raw as *mut libc::c_void);
-    free(moz_ac.in_emaildomain as *mut libc::c_void);
-    free(moz_ac.in_emaillocalpart as *mut libc::c_void);
-    Some(moz_ac.out)
-}
-
-fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
-    event: &BytesText,
-    moz_ac: &mut moz_autoconfigure_t,
-    reader: &quick_xml::Reader<B>,
-) {
-    let val = event.unescape_and_decode(reader).unwrap_or_default();
-
-    let addr = &moz_ac.in_0.addr;
-    let email_local = as_str(moz_ac.in_emaillocalpart);
-    let email_domain = as_str(moz_ac.in_emaildomain);
-
-    let val = val
-        .trim()
-        .replace("%EMAILADDRESS%", addr)
-        .replace("%EMAILLOCALPART%", email_local)
-        .replace("%EMAILDOMAIN%", email_domain);
-
-    if moz_ac.tag_server == 1 {
-        match moz_ac.tag_config {
-            10 => moz_ac.out.mail_server = val,
-            11 => moz_ac.out.mail_port = val.parse().unwrap_or_default(),
-            12 => moz_ac.out.mail_user = val,
-            13 => {
-                let val_lower = val.to_lowercase();
-                if val_lower == "ssl" {
-                    moz_ac.out.server_flags |= 0x200
-                }
-                if val_lower == "starttls" {
-                    moz_ac.out.server_flags |= 0x100
-                }
-                if val_lower == "plain" {
-                    moz_ac.out.server_flags |= 0x400
-                }
-            }
-            _ => {}
-        }
-    } else if moz_ac.tag_server == 2 {
-        match moz_ac.tag_config {
-            10 => moz_ac.out.send_server = val,
-            11 => moz_ac.out.send_port = val.parse().unwrap_or_default(),
-            12 => moz_ac.out.send_user = val,
-            13 => {
-                let val_lower = val.to_lowercase();
-                if val_lower == "ssl" {
-                    moz_ac.out.server_flags |= 0x20000
-                }
-                if val_lower == "starttls" {
-                    moz_ac.out.server_flags |= 0x10000
-                }
-                if val_lower == "plain" {
-                    moz_ac.out.server_flags |= 0x40000
-                }
-            }
-            _ => {}
-        }
-    }
-}
-
-fn moz_autoconfigure_endtag_cb(event: &BytesEnd, moz_ac: &mut moz_autoconfigure_t) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-
-    if tag == "incomingserver" {
-        moz_ac.tag_server = 0;
-        moz_ac.tag_config = 0;
-        moz_ac.out_imap_set = 1;
-    } else if tag == "outgoingserver" {
-        moz_ac.tag_server = 0;
-        moz_ac.tag_config = 0;
-        moz_ac.out_smtp_set = 1;
-    } else {
-        moz_ac.tag_config = 0;
-    }
-}
-
-fn moz_autoconfigure_starttag_cb<B: std::io::BufRead>(
-    event: &BytesStart,
-    moz_ac: &mut moz_autoconfigure_t,
-    reader: &quick_xml::Reader<B>,
-) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-
-    if tag == "incomingserver" {
-        moz_ac.tag_server = if let Some(typ) = event.attributes().find(|attr| {
-            attr.as_ref()
-                .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "type")
-                .unwrap_or_default()
-        }) {
-            let typ = typ
-                .unwrap()
-                .unescape_and_decode_value(reader)
-                .unwrap_or_default()
-                .to_lowercase();
-
-            if typ == "imap" && moz_ac.out_imap_set == 0 {
-                1
-            } else {
-                0
-            }
-        } else {
-            0
-        };
-        moz_ac.tag_config = 0;
-    } else if tag == "outgoingserver" {
-        moz_ac.tag_server = if moz_ac.out_smtp_set == 0 { 2 } else { 0 };
-        moz_ac.tag_config = 0;
-    } else if tag == "hostname" {
-        moz_ac.tag_config = 10;
-    } else if tag == "port" {
-        moz_ac.tag_config = 11;
-    } else if tag == "sockettype" {
-        moz_ac.tag_config = 13;
-    } else if tag == "username" {
-        moz_ac.tag_config = 12;
-    }
-}
-
-fn read_autoconf_file(context: &Context, url: *const libc::c_char) -> *mut libc::c_char {
-    info!(context, 0, "Testing {} ...", to_string(url));
-
-    match reqwest::Client::new()
-        .get(as_str(url))
-        .send()
-        .and_then(|mut res| res.text())
-    {
-        Ok(res) => unsafe { res.strdup() },
-        Err(_err) => {
-            info!(context, 0, "Can\'t read file.",);
-
-            std::ptr::null_mut()
-        }
-    }
-}
-
-unsafe fn outlk_autodiscover(
-    context: &Context,
-    url__: &str,
-    param_in: &dc_loginparam_t,
-) -> Option<dc_loginparam_t> {
-    let mut xml_raw: *mut libc::c_char = ptr::null_mut();
-    let mut url = url__.strdup();
-    let mut outlk_ad = outlk_autodiscover_t {
-        in_0: param_in,
-        out: dc_loginparam_new(),
-        out_imap_set: 0,
-        out_smtp_set: 0,
-        tag_config: 0,
-        config: [ptr::null_mut(); 6],
-        redirect: ptr::null_mut(),
-    };
-    let ok_to_continue;
-    let mut i = 0;
-    loop {
-        if !(i < 10) {
-            ok_to_continue = true;
-            break;
-        }
-        memset(
-            &mut outlk_ad as *mut outlk_autodiscover_t as *mut libc::c_void,
-            0,
-            ::std::mem::size_of::<outlk_autodiscover_t>(),
-        );
-        xml_raw = read_autoconf_file(context, url);
-        if xml_raw.is_null() {
-            ok_to_continue = false;
-            break;
-        }
-
-        let mut reader = quick_xml::Reader::from_str(as_str(xml_raw));
-        reader.trim_text(true);
-
-        let mut buf = Vec::new();
-
-        loop {
-            match reader.read_event(&mut buf) {
-                Ok(quick_xml::events::Event::Start(ref e)) => {
-                    outlk_autodiscover_starttag_cb(e, &mut outlk_ad)
-                }
-                Ok(quick_xml::events::Event::End(ref e)) => {
-                    outlk_autodiscover_endtag_cb(e, &mut outlk_ad)
-                }
-                Ok(quick_xml::events::Event::Text(ref e)) => {
-                    outlk_autodiscover_text_cb(e, &mut outlk_ad, &reader)
-                }
-                Err(e) => {
-                    error!(
-                        context,
-                        0,
-                        "Configure xml: Error at position {}: {:?}",
-                        reader.buffer_position(),
-                        e
-                    );
-                }
-                Ok(quick_xml::events::Event::Eof) => break,
-                _ => (),
-            }
-            buf.clear();
-        }
-
-        if !(!outlk_ad.config[5].is_null()
-            && 0 != *outlk_ad.config[5usize].offset(0isize) as libc::c_int)
-        {
-            ok_to_continue = true;
-            break;
-        }
-        free(url as *mut libc::c_void);
-        url = dc_strdup(outlk_ad.config[5usize]);
-
-        outlk_clean_config(&mut outlk_ad);
-        free(xml_raw as *mut libc::c_void);
-        xml_raw = ptr::null_mut();
-        i += 1;
-    }
-
-    if ok_to_continue {
-        if outlk_ad.out.mail_server.is_empty()
-            || outlk_ad.out.mail_port == 0
-            || outlk_ad.out.send_server.is_empty()
-            || outlk_ad.out.send_port == 0
-        {
-            let r = dc_loginparam_get_readable(&outlk_ad.out);
-            warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
-            free(url as *mut libc::c_void);
-            free(xml_raw as *mut libc::c_void);
-            outlk_clean_config(&mut outlk_ad);
-
-            return None;
-        }
-    }
-    free(url as *mut libc::c_void);
-    free(xml_raw as *mut libc::c_void);
-    outlk_clean_config(&mut outlk_ad);
-    Some(outlk_ad.out)
-}
-
-unsafe fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
-    for i in 0..6 {
-        free((*outlk_ad).config[i] as *mut libc::c_void);
-        (*outlk_ad).config[i] = 0 as *mut libc::c_char;
-    }
-}
-
-fn outlk_autodiscover_text_cb<B: std::io::BufRead>(
-    event: &BytesText,
-    outlk_ad: &mut outlk_autodiscover_t,
-    reader: &quick_xml::Reader<B>,
-) {
-    let val = event.unescape_and_decode(reader).unwrap_or_default();
-
-    unsafe {
-        free(outlk_ad.config[outlk_ad.tag_config as usize].cast());
-        outlk_ad.config[outlk_ad.tag_config as usize] = val.trim().strdup();
-    }
-}
-
-unsafe fn outlk_autodiscover_endtag_cb(event: &BytesEnd, outlk_ad: &mut outlk_autodiscover_t) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-
-    if tag == "protocol" {
-        if !outlk_ad.config[1].is_null() {
-            let port = dc_atoi_null_is_0(outlk_ad.config[3]);
-            let ssl_on = (!outlk_ad.config[4].is_null()
-                && strcasecmp(
-                    outlk_ad.config[4],
-                    b"on\x00" as *const u8 as *const libc::c_char,
-                ) == 0) as libc::c_int;
-            let ssl_off = (!outlk_ad.config[4].is_null()
-                && strcasecmp(
-                    outlk_ad.config[4],
-                    b"off\x00" as *const u8 as *const libc::c_char,
-                ) == 0) as libc::c_int;
-            if strcasecmp(
-                outlk_ad.config[1],
-                b"imap\x00" as *const u8 as *const libc::c_char,
-            ) == 0
-                && outlk_ad.out_imap_set == 0
-            {
-                outlk_ad.out.mail_server = to_string(outlk_ad.config[2]);
-                outlk_ad.out.mail_port = port;
-                if 0 != ssl_on {
-                    outlk_ad.out.server_flags |= 0x200
-                } else if 0 != ssl_off {
-                    outlk_ad.out.server_flags |= 0x400
-                }
-                outlk_ad.out_imap_set = 1
-            } else if strcasecmp(
-                outlk_ad.config[1usize],
-                b"smtp\x00" as *const u8 as *const libc::c_char,
-            ) == 0
-                && outlk_ad.out_smtp_set == 0
-            {
-                outlk_ad.out.send_server = to_string(outlk_ad.config[2]);
-                outlk_ad.out.send_port = port;
-                if 0 != ssl_on {
-                    outlk_ad.out.server_flags |= 0x20000
-                } else if 0 != ssl_off {
-                    outlk_ad.out.server_flags |= 0x40000
-                }
-                outlk_ad.out_smtp_set = 1
-            }
-        }
-        outlk_clean_config(outlk_ad);
-    }
-    outlk_ad.tag_config = 0;
-}
-
-fn outlk_autodiscover_starttag_cb(event: &BytesStart, outlk_ad: &mut outlk_autodiscover_t) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-
-    if tag == "protocol" {
-        unsafe { outlk_clean_config(outlk_ad) };
-    } else if tag == "type" {
-        outlk_ad.tag_config = 1
-    } else if tag == "server" {
-        outlk_ad.tag_config = 2
-    } else if tag == "port" {
-        outlk_ad.tag_config = 3
-    } else if tag == "ssl" {
-        outlk_ad.tag_config = 4
-    } else if tag == "redirecturl" {
-        outlk_ad.tag_config = 5
-    };
-}
-
 pub unsafe fn dc_alloc_ongoing(context: &Context) -> libc::c_int {
     if 0 != dc_has_ongoing(context) {
         warn!(
@@ -1138,4 +704,21 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
     }
 
     ret_connected
+}
+
+pub fn read_autoconf_file(context: &Context, url: *const libc::c_char) -> *mut libc::c_char {
+    info!(context, 0, "Testing {} ...", to_string(url));
+
+    match reqwest::Client::new()
+        .get(as_str(url))
+        .send()
+        .and_then(|mut res| res.text())
+    {
+        Ok(res) => unsafe { res.strdup() },
+        Err(_err) => {
+            info!(context, 0, "Can\'t read file.",);
+
+            std::ptr::null_mut()
+        }
+    }
 }
