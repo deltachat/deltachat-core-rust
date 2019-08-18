@@ -425,7 +425,8 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_array_t::from(chat::get_chat_msgs(context, chat_id, flags, marker1before)).into_raw()
+    let arr = dc_array_t::from(chat::get_chat_msgs(context, chat_id, flags, marker1before));
+    Box::into_raw(Box::new(arr))
 }
 
 #[no_mangle]
@@ -454,7 +455,8 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_array_t::from(context::dc_get_fresh_msgs(context)).into_raw()
+    let arr = dc_array_t::from(context::dc_get_fresh_msgs(context));
+    Box::into_raw(Box::new(arr))
 }
 
 #[no_mangle]
@@ -498,14 +500,14 @@ pub unsafe extern "C" fn dc_get_chat_media(
     let or_msg_type3 =
         from_prim(or_msg_type3).expect(&format!("incorrect or_msg_type3 = {}", or_msg_type3));
 
-    dc_array_t::from(chat::get_chat_media(
+    let arr = dc_array_t::from(chat::get_chat_media(
         context,
         chat_id,
         msg_type,
         or_msg_type2,
         or_msg_type3,
-    ))
-    .into_raw()
+    ));
+    Box::into_raw(Box::new(arr))
 }
 
 #[no_mangle]
@@ -565,7 +567,8 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_array_t::from(chat::get_chat_contacts(context, chat_id)).into_raw()
+    let arr = dc_array_t::from(chat::get_chat_contacts(context, chat_id));
+    Box::into_raw(Box::new(arr))
 }
 
 #[no_mangle]
@@ -578,7 +581,8 @@ pub unsafe extern "C" fn dc_search_msgs(
     assert!(!query.is_null());
     let context = &*context;
 
-    dc_array_t::from(context::dc_search_msgs(context, chat_id, query)).into_raw()
+    let arr = dc_array_t::from(context::dc_search_msgs(context, chat_id, query));
+    Box::into_raw(Box::new(arr))
 }
 
 #[no_mangle]
@@ -853,7 +857,7 @@ pub unsafe extern "C" fn dc_get_contacts(
     };
 
     match Contact::get_all(context, flags, query) {
-        Ok(contacts) => dc_array_t::from(contacts).into_raw(),
+        Ok(contacts) => Box::into_raw(Box::new(dc_array_t::from(contacts))),
         Err(_) => std::ptr::null_mut(),
     }
 }
@@ -873,7 +877,9 @@ pub unsafe extern "C" fn dc_get_blocked_contacts(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_array_t::from(Contact::get_all_blocked(context)).into_raw()
+    Box::into_raw(Box::new(dc_array_t::from(Contact::get_all_blocked(
+        context,
+    ))))
 }
 
 #[no_mangle]
@@ -1079,7 +1085,7 @@ pub unsafe extern "C" fn dc_get_locations(
         timestamp_begin as i64,
         timestamp_end as i64,
     );
-    dc_array_t::from(res).into_raw()
+    Box::into_raw(Box::new(dc_array_t::from(res)))
 }
 
 #[no_mangle]
@@ -1099,30 +1105,27 @@ pub type dc_array_t = dc_array::dc_array_t;
 pub unsafe extern "C" fn dc_array_unref(a: *mut dc_array::dc_array_t) {
     assert!(!a.is_null());
 
-    dc_array::dc_array_unref(a)
+    Box::from_raw(a);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_add_id(array: *mut dc_array_t, item: libc::c_uint) {
     assert!(!array.is_null());
 
-    dc_array::dc_array_add_id(array, item)
+    (*array).add_id(item);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_cnt(array: *const dc_array_t) -> libc::size_t {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_cnt(array)
+    (*array).len()
 }
 #[no_mangle]
-pub unsafe extern "C" fn dc_array_get_id(
-    array: *const dc_array_t,
-    index: libc::size_t,
-) -> libc::c_uint {
+pub unsafe extern "C" fn dc_array_get_id(array: *const dc_array_t, index: libc::size_t) -> u32 {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_id(array, index)
+    (*array).get_id(index)
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_latitude(
@@ -1131,7 +1134,7 @@ pub unsafe extern "C" fn dc_array_get_latitude(
 ) -> libc::c_double {
     assert!(!array.is_null());
 
-    (*array).get_latitude(index)
+    (*array).get_location(index).latitude
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_longitude(
@@ -1140,7 +1143,7 @@ pub unsafe extern "C" fn dc_array_get_longitude(
 ) -> libc::c_double {
     assert!(!array.is_null());
 
-    (*array).get_longitude(index)
+    (*array).get_location(index).longitude
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_accuracy(
@@ -1149,7 +1152,7 @@ pub unsafe extern "C" fn dc_array_get_accuracy(
 ) -> libc::c_double {
     assert!(!array.is_null());
 
-    (*array).get_accuracy(index)
+    (*array).get_location(index).accuracy
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_timestamp(
@@ -1158,7 +1161,7 @@ pub unsafe extern "C" fn dc_array_get_timestamp(
 ) -> i64 {
     assert!(!array.is_null());
 
-    (*array).get_timestamp(index)
+    (*array).get_location(index).timestamp
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_chat_id(
@@ -1167,7 +1170,7 @@ pub unsafe extern "C" fn dc_array_get_chat_id(
 ) -> libc::c_uint {
     assert!(!array.is_null());
 
-    (*array).get_chat_id(index)
+    (*array).get_location(index).chat_id
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_contact_id(
@@ -1176,7 +1179,7 @@ pub unsafe extern "C" fn dc_array_get_contact_id(
 ) -> libc::c_uint {
     assert!(!array.is_null());
 
-    (*array).get_contact_id(index)
+    (*array).get_location(index).contact_id
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_msg_id(
@@ -1185,7 +1188,7 @@ pub unsafe extern "C" fn dc_array_get_msg_id(
 ) -> libc::c_uint {
     assert!(!array.is_null());
 
-    (*array).get_msg_id(index)
+    (*array).get_location(index).msg_id
 }
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_marker(
@@ -1194,7 +1197,11 @@ pub unsafe extern "C" fn dc_array_get_marker(
 ) -> *mut libc::c_char {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_marker(array, index)
+    if let Some(s) = &(*array).get_location(index).marker {
+        s.strdup()
+    } else {
+        std::ptr::null_mut()
+    }
 }
 
 #[no_mangle]
@@ -1205,16 +1212,27 @@ pub unsafe extern "C" fn dc_array_search_id(
 ) -> libc::c_int {
     assert!(!array.is_null());
 
-    dc_array::dc_array_search_id(array, needle, ret_index) as libc::c_int
+    if let Some(i) = (*array).search_id(needle) {
+        if !ret_index.is_null() {
+            *ret_index = i
+        }
+        1
+    } else {
+        0
+    }
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_array_get_raw(array: *const dc_array_t) -> *const u32 {
     assert!(!array.is_null());
 
-    dc_array::dc_array_get_raw(array)
+    (*array).as_ptr()
 }
 
+// Return the independent-state of the location at the given index.
+// Independent locations do not belong to the track of the user.
+// Returns 1 if location belongs to the track of the user,
+// 0 if location was reported independently.
 #[no_mangle]
 pub unsafe fn dc_array_is_independent(
     array: *const dc_array_t,
@@ -1222,7 +1240,7 @@ pub unsafe fn dc_array_is_independent(
 ) -> libc::c_int {
     assert!(!array.is_null());
 
-    dc_array::dc_array_is_independent(array, index)
+    (*array).get_location(index).independent as libc::c_int
 }
 
 // dc_chatlist_t
