@@ -5,7 +5,6 @@ use crate::chatlist::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_array::*;
 use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
@@ -1200,7 +1199,7 @@ pub fn get_chat_media(
     msg_type: Viewtype,
     msg_type2: Viewtype,
     msg_type3: Viewtype,
-) -> *mut dc_array_t {
+) -> Vec<u32> {
     context.sql.query_map(
         "SELECT id FROM msgs WHERE chat_id=? AND (type=? OR type=? OR type=?) ORDER BY timestamp, id;",
         params![
@@ -1222,9 +1221,9 @@ pub fn get_chat_media(
             for id in ids {
                 ret.push(id? as u32);
             }
-            Ok(dc_array_t::from(ret).into_raw())
+            Ok(ret)
         }
-    ).unwrap_or_else(|_| std::ptr::null_mut())
+    ).unwrap_or_default()
 }
 
 pub unsafe fn get_next_media(
@@ -1235,14 +1234,10 @@ pub unsafe fn get_next_media(
     msg_type2: Viewtype,
     msg_type3: Viewtype,
 ) -> u32 {
-    let mut ret_msg_id: u32 = 0i32 as u32;
+    let mut ret = 0;
     let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    let mut list: *mut dc_array_t = ptr::null_mut();
-    let mut i: libc::c_int;
-    let cnt: libc::c_int;
-
     if dc_msg_load_from_db(msg, context, curr_msg_id) {
-        list = get_chat_media(
+        let list = get_chat_media(
             context,
             (*msg).chat_id,
             if msg_type != Viewtype::Unknown {
@@ -1253,33 +1248,24 @@ pub unsafe fn get_next_media(
             msg_type2,
             msg_type3,
         );
-        if !list.is_null() {
-            cnt = dc_array_get_cnt(list) as libc::c_int;
-            i = 0i32;
-            while i < cnt {
-                if curr_msg_id == dc_array_get_id(list, i as size_t) {
-                    if dir > 0i32 {
-                        if i + 1i32 < cnt {
-                            ret_msg_id = dc_array_get_id(list, (i + 1i32) as size_t)
-                        }
-                    } else if dir < 0i32 {
-                        if i - 1i32 >= 0i32 {
-                            ret_msg_id = dc_array_get_id(list, (i - 1i32) as size_t)
-                        }
+        for i in 0..list.len() {
+            if curr_msg_id == list[i] {
+                if dir > 0 {
+                    if i + 1 < list.len() {
+                        ret = list[i + 1]
                     }
-                    break;
-                } else {
-                    i += 1
+                } else if dir < 0 {
+                    if i >= 1 {
+                        ret = list[i - 1];
+                    }
                 }
+                break;
             }
         }
     }
-
-    if !list.is_null() {
-        dc_array_unref(list);
-    }
     dc_msg_unref(msg);
-    ret_msg_id
+
+    ret
 }
 
 pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Error> {
