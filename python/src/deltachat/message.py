@@ -142,7 +142,7 @@ class Message(object):
         import email.parser
         mime_headers = lib.dc_get_mime_headers(self._dc_context, self.id)
         if mime_headers:
-            s = ffi.string(mime_headers)
+            s = ffi.string(ffi.gc(mime_headers, lib.dc_str_unref))
             if isinstance(s, bytes):
                 s = s.decode("ascii")
             return email.message_from_string(s)

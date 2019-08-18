@@ -16,4 +16,4 @@ def iter_array(dc_array_t, constructor):
 
 
 def from_dc_charpointer(obj):
-    return ffi.string(obj).decode("utf8")
+    return ffi.string(ffi.gc(obj, lib.dc_str_unref)).decode("utf8")
