@@ -6,7 +6,7 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_configure::*;
+use crate::configure::*;
 use crate::dc_e2ee::*;
 use crate::dc_mimeparser::*;
 use crate::dc_msg::*;

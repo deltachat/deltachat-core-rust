@@ -11,7 +11,7 @@ use deltachat::config;
 use deltachat::constants::Event;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_configure::*;
+use deltachat::configure::*;
 use deltachat::job::{
     perform_imap_fetch, perform_imap_idle, perform_imap_jobs, perform_smtp_idle, perform_smtp_jobs,
 };
@@ -87,7 +87,7 @@ fn main() {
         ctx.set_config(config::Config::Addr, Some("d@testrun.org"))
             .unwrap();
         ctx.set_config(config::Config::MailPw, Some(&pw)).unwrap();
-        dc_configure(&ctx);
+        configure(&ctx);
 
         thread::sleep(duration);
 

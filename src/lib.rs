@@ -26,6 +26,7 @@ mod aheader;
 pub mod chat;
 pub mod chatlist;
 pub mod config;
+pub mod configure;
 pub mod constants;
 pub mod contact;
 pub mod context;
@@ -47,7 +48,6 @@ pub mod types;
 pub mod x;
 
 pub mod dc_array;
-pub mod dc_configure;
 mod dc_dehtml;
 mod dc_e2ee;
 pub mod dc_imex;

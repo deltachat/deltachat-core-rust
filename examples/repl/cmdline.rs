@@ -7,7 +7,7 @@ use deltachat::config;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_configure::*;
+use deltachat::configure::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_location::*;
 use deltachat::dc_msg::*;

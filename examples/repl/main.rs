@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use deltachat::config;
 use deltachat::constants::*;
 use deltachat::context::*;
-use deltachat::dc_configure::*;
+use deltachat::configure::*;
 use deltachat::dc_securejoin::*;
 use deltachat::dc_tools::*;
 use deltachat::job::*;
@@ -495,7 +495,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
         }
         "configure" => {
             start_threads(ctx.clone());
-            dc_configure(&ctx.read().unwrap());
+            configure(&ctx.read().unwrap());
         }
         "oauth2" => {
             if let Some(addr) = ctx.read().unwrap().get_config(config::Config::Addr) {

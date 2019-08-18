@@ -11,10 +11,10 @@ use crate::oauth2::*;
 use crate::param::Params;
 use crate::types::*;
 
-mod auto_outlk;
-use auto_outlk::outlk_autodiscover;
-mod auto_moz;
-use auto_moz::moz_autoconfigure;
+mod auto_outlook;
+use auto_outlook::outlk_autodiscover;
+mod auto_mozilla;
+use auto_mozilla::moz_autoconfigure;
 
 macro_rules! progress {
     ($context:tt, $progress:expr) => {
@@ -31,7 +31,7 @@ macro_rules! progress {
 }
 
 // connect
-pub unsafe fn dc_configure(context: &Context) {
+pub unsafe fn configure(context: &Context) {
     if 0 != dc_has_ongoing(context) {
         warn!(
             context,
