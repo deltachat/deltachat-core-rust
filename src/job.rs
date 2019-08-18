@@ -226,7 +226,6 @@ impl Job {
     #[allow(non_snake_case)]
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
         let ok_to_continue;
-        let msg = unsafe { dc_msg_new_untyped(context) };
         let mut dest_uid = 0;
 
         let inbox = context.inbox.read().unwrap();
@@ -243,7 +242,7 @@ impl Job {
             ok_to_continue = true;
         }
         if ok_to_continue {
-            if dc_msg_load_from_db(msg, context, self.foreign_id) {
+            if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
                 if context
                     .sql
                     .get_config_int(context, "folders_configured")
@@ -253,8 +252,6 @@ impl Job {
                     inbox.configure_folders(context, 0x1i32);
                 }
                 let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
-
-                let msg = unsafe { &mut *msg };
 
                 if let Some(dest_folder) = dest_folder {
                     let server_folder = msg.server_folder.as_ref().unwrap();
@@ -278,71 +275,65 @@ impl Job {
                 }
             }
         }
-
-        unsafe { dc_msg_unref(msg) };
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context) {
         let mut delete_from_server = 1;
-        let msg = unsafe { dc_msg_new_untyped(context) };
         let inbox = context.inbox.read().unwrap();
 
-        if !(!dc_msg_load_from_db(msg, context, self.foreign_id)
-            || unsafe { (*msg).rfc724_mid.is_null() }
-            || unsafe { *(*msg).rfc724_mid.offset(0isize) as libc::c_int == 0 })
-        {
-            let ok_to_continue1;
-            /* eg. device messages have no Message-ID */
-            if dc_rfc724_mid_cnt(context, unsafe { (*msg).rfc724_mid }) != 1 {
-                info!(
-                    context,
-                    0, "The message is deleted from the server when all parts are deleted.",
-                );
-                delete_from_server = 0i32
-            }
-            /* if this is the last existing part of the message, we delete the message from the server */
-            if 0 != delete_from_server {
-                let ok_to_continue;
-                if !inbox.is_connected() {
-                    connect_to_inbox(context, &inbox);
+        if let Ok(mut msg) = dc_msg_load_from_db(context, self.foreign_id) {
+            if !(msg.rfc724_mid.is_null()
+                || unsafe { *msg.rfc724_mid.offset(0isize) as libc::c_int == 0 })
+            {
+                let ok_to_continue1;
+                /* eg. device messages have no Message-ID */
+                if dc_rfc724_mid_cnt(context, msg.rfc724_mid) != 1 {
+                    info!(
+                        context,
+                        0, "The message is deleted from the server when all parts are deleted.",
+                    );
+                    delete_from_server = 0i32
+                }
+                /* if this is the last existing part of the message, we delete the message from the server */
+                if 0 != delete_from_server {
+                    let ok_to_continue;
                     if !inbox.is_connected() {
-                        self.try_again_later(3i32, None);
-                        ok_to_continue = false;
+                        connect_to_inbox(context, &inbox);
+                        if !inbox.is_connected() {
+                            self.try_again_later(3i32, None);
+                            ok_to_continue = false;
+                        } else {
+                            ok_to_continue = true;
+                        }
                     } else {
                         ok_to_continue = true;
                     }
-                } else {
-                    ok_to_continue = true;
-                }
-                if ok_to_continue {
-                    let mid = unsafe { CStr::from_ptr((*msg).rfc724_mid).to_str().unwrap() };
-                    let server_folder = unsafe { (*msg).server_folder.as_ref().unwrap() };
-                    if 0 == inbox.delete_msg(context, mid, server_folder, unsafe {
-                        &mut (*msg).server_uid
-                    }) {
-                        self.try_again_later(-1i32, None);
-                        ok_to_continue1 = false;
+                    if ok_to_continue {
+                        let mid = unsafe { CStr::from_ptr(msg.rfc724_mid).to_str().unwrap() };
+                        let server_folder = msg.server_folder.as_ref().unwrap();
+                        if 0 == inbox.delete_msg(context, mid, server_folder, &mut msg.server_uid) {
+                            self.try_again_later(-1i32, None);
+                            ok_to_continue1 = false;
+                        } else {
+                            ok_to_continue1 = true;
+                        }
                     } else {
-                        ok_to_continue1 = true;
+                        ok_to_continue1 = false;
                     }
                 } else {
-                    ok_to_continue1 = false;
+                    ok_to_continue1 = true;
                 }
-            } else {
-                ok_to_continue1 = true;
-            }
-            if ok_to_continue1 {
-                unsafe { dc_delete_msg_from_db(context, (*msg).id) };
+                if ok_to_continue1 {
+                    dc_delete_msg_from_db(context, msg.id);
+                }
             }
         }
-        unsafe { dc_msg_unref(msg) }
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
         let ok_to_continue;
-        let msg = unsafe { dc_msg_new_untyped(context) };
         let inbox = context.inbox.read().unwrap();
 
         if !inbox.is_connected() {
@@ -357,32 +348,29 @@ impl Job {
             ok_to_continue = true;
         }
         if ok_to_continue {
-            if dc_msg_load_from_db(msg, context, self.foreign_id) {
-                let server_folder = unsafe { (*msg).server_folder.as_ref().unwrap() };
-                match inbox.set_seen(context, server_folder, unsafe { (*msg).server_uid })
-                    as libc::c_uint
-                {
+            if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
+                let server_folder = msg.server_folder.as_ref().unwrap();
+                match inbox.set_seen(context, server_folder, msg.server_uid) as libc::c_uint {
                     0 => {}
                     1 => {
                         self.try_again_later(3i32, None);
                     }
                     _ => {
-                        if 0 != unsafe { (*msg).param.get_int(Param::WantsMdn).unwrap_or_default() }
+                        if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
                             && 0 != context
                                 .sql
                                 .get_config_int(context, "mdns_enabled")
                                 .unwrap_or_else(|| 1)
                         {
-                            let folder = unsafe { (*msg).server_folder.as_ref().unwrap() };
+                            let folder = msg.server_folder.as_ref().unwrap();
 
-                            match inbox.set_mdnsent(context, folder, unsafe { (*msg).server_uid })
-                                as libc::c_uint
+                            match inbox.set_mdnsent(context, folder, msg.server_uid) as libc::c_uint
                             {
                                 1 => {
                                     self.try_again_later(3i32, None);
                                 }
                                 3 => {
-                                    send_mdn(context, unsafe { (*msg).id });
+                                    send_mdn(context, msg.id);
                                 }
                                 0 | 2 | _ => {}
                             }
@@ -391,7 +379,6 @@ impl Job {
                 }
             }
         }
-        unsafe { dc_msg_unref(msg) };
     }
 
     #[allow(non_snake_case)]
@@ -674,55 +661,38 @@ pub fn job_action_exists(context: &Context, action: Action) -> bool {
 #[allow(non_snake_case)]
 pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
     let mut success = 0;
-    let mut mimefactory = dc_mimefactory_t {
-        from_addr: ptr::null_mut(),
-        from_displayname: ptr::null_mut(),
-        selfstatus: ptr::null_mut(),
-        recipients_names: ptr::null_mut(),
-        recipients_addr: ptr::null_mut(),
-        timestamp: 0,
-        rfc724_mid: ptr::null_mut(),
-        loaded: DC_MF_NOTHING_LOADED,
-        msg: ptr::null_mut(),
-        chat: None,
-        increation: 0,
-        in_reply_to: ptr::null_mut(),
-        references: ptr::null_mut(),
-        req_mdn: 0,
-        out: ptr::null_mut(),
-        out_encrypted: 0,
-        out_gossiped: 0,
-        out_last_added_location_id: 0,
-        error: ptr::null_mut(),
-        context,
-    };
 
     /* load message data */
-    if 0 == dc_mimefactory_load_msg(&mut mimefactory, msg_id) || mimefactory.from_addr.is_null() {
+    let mimefactory = dc_mimefactory_load_msg(context, msg_id);
+    if mimefactory.is_err() || mimefactory.as_ref().unwrap().from_addr.is_null() {
         warn!(
             context,
             0, "Cannot load data to send, maybe the message is deleted in between.",
         );
     } else {
+        let mut mimefactory = mimefactory.unwrap();
         // no redo, no IMAP. moreover, as the data does not exist, there is no need in calling dc_set_msg_failed()
-        if chat::msgtype_has_file((*mimefactory.msg).type_0) {
-            if let Some(pathNfilename) = (*mimefactory.msg).param.get(Param::File) {
-                if ((*mimefactory.msg).type_0 == Viewtype::Image
-                    || (*mimefactory.msg).type_0 == Viewtype::Gif)
-                    && !(*mimefactory.msg).param.exists(Param::Width)
+        if chat::msgtype_has_file(mimefactory.msg.type_0) {
+            let file_param = mimefactory
+                .msg
+                .param
+                .get(Param::File)
+                .map(|s| s.to_string());
+            if let Some(pathNfilename) = file_param {
+                if (mimefactory.msg.type_0 == Viewtype::Image
+                    || mimefactory.msg.type_0 == Viewtype::Gif)
+                    && !mimefactory.msg.param.exists(Param::Width)
                 {
-                    (*mimefactory.msg).param.set_int(Param::Width, 0);
-                    (*mimefactory.msg).param.set_int(Param::Height, 0);
+                    mimefactory.msg.param.set_int(Param::Width, 0);
+                    mimefactory.msg.param.set_int(Param::Height, 0);
 
                     if let Some(buf) = dc_read_file_safe(context, pathNfilename) {
                         if let Ok((width, height)) = dc_get_filemeta(&buf) {
-                            (*mimefactory.msg).param.set_int(Param::Width, width as i32);
-                            (*mimefactory.msg)
-                                .param
-                                .set_int(Param::Height, height as i32);
+                            mimefactory.msg.param.set_int(Param::Width, width as i32);
+                            mimefactory.msg.param.set_int(Param::Height, height as i32);
                         }
                     }
-                    dc_msg_save_param_to_disk(mimefactory.msg);
+                    dc_msg_save_param_to_disk(&mut mimefactory.msg);
                 }
             }
         }
@@ -730,7 +700,8 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
         if 0 == dc_mimefactory_render(&mut mimefactory) {
             dc_set_msg_failed(context, msg_id, as_opt_str(mimefactory.error));
         } else if 0
-            != (*mimefactory.msg)
+            != mimefactory
+                .msg
                 .param
                 .get_int(Param::GuranteeE2ee)
                 .unwrap_or_default()
@@ -741,7 +712,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
                 0,
                 "e2e encryption unavailable {} - {:?}",
                 msg_id,
-                (*mimefactory.msg).param.get_int(Param::GuranteeE2ee),
+                mimefactory.msg.param.get_int(Param::GuranteeE2ee),
             );
             dc_set_msg_failed(
                 context,
@@ -765,32 +736,32 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
                 );
             }
             if 0 != mimefactory.out_gossiped {
-                chat::set_gossiped_timestamp(context, (*mimefactory.msg).chat_id, time());
+                chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
-                dc_set_kml_sent_timestamp(context, (*mimefactory.msg).chat_id, time());
-                if 0 == (*mimefactory.msg).hidden {
+                dc_set_kml_sent_timestamp(context, mimefactory.msg.chat_id, time());
+                if !mimefactory.msg.hidden {
                     dc_set_msg_location_id(
                         context,
-                        (*mimefactory.msg).id,
+                        mimefactory.msg.id,
                         mimefactory.out_last_added_location_id,
                     );
                 }
             }
             if 0 != mimefactory.out_encrypted
-                && (*mimefactory.msg)
+                && mimefactory
+                    .msg
                     .param
                     .get_int(Param::GuranteeE2ee)
                     .unwrap_or_default()
                     == 0
             {
-                (*mimefactory.msg).param.set_int(Param::GuranteeE2ee, 1);
-                dc_msg_save_param_to_disk(mimefactory.msg);
+                mimefactory.msg.param.set_int(Param::GuranteeE2ee, 1);
+                dc_msg_save_param_to_disk(&mut mimefactory.msg);
             }
             success = add_smtp_job(context, Action::SendMsgToSmtp, &mut mimefactory);
         }
     }
-    dc_mimefactory_empty(&mut mimefactory);
 
     success
 }
@@ -979,9 +950,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 }
             } else {
                 if job.action == Action::SendMsgToSmtp {
-                    unsafe {
-                        dc_set_msg_failed(context, job.foreign_id, job.pending_error.as_ref())
-                    };
+                    dc_set_msg_failed(context, job.foreign_id, job.pending_error.as_ref());
                 }
                 job.delete(context);
             }
@@ -1034,33 +1003,10 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
 }
 
 fn send_mdn(context: &Context, msg_id: uint32_t) {
-    let mut mimefactory = dc_mimefactory_t {
-        from_addr: ptr::null_mut(),
-        from_displayname: ptr::null_mut(),
-        selfstatus: ptr::null_mut(),
-        recipients_names: ptr::null_mut(),
-        recipients_addr: ptr::null_mut(),
-        timestamp: 0,
-        rfc724_mid: ptr::null_mut(),
-        loaded: DC_MF_NOTHING_LOADED,
-        msg: ptr::null_mut(),
-        chat: None,
-        increation: 0,
-        in_reply_to: ptr::null_mut(),
-        references: ptr::null_mut(),
-        req_mdn: 0,
-        out: ptr::null_mut(),
-        out_encrypted: 0,
-        out_gossiped: 0,
-        out_last_added_location_id: 0,
-        error: ptr::null_mut(),
-        context,
-    };
-
-    if !(0 == unsafe { dc_mimefactory_load_mdn(&mut mimefactory, msg_id) }
-        || 0 == unsafe { dc_mimefactory_render(&mut mimefactory) })
-    {
-        add_smtp_job(context, Action::SendMdn, &mut mimefactory);
+    if let Ok(mut mimefactory) = unsafe { dc_mimefactory_load_mdn(context, msg_id) } {
+        if 0 != unsafe { dc_mimefactory_render(&mut mimefactory) } {
+            add_smtp_job(context, Action::SendMdn, &mut mimefactory);
+        }
     }
 }
 
@@ -1116,7 +1062,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_
             (if mimefactory.loaded as libc::c_uint
                 == DC_MF_MSG_LOADED as libc::c_int as libc::c_uint
             {
-                unsafe { (*mimefactory.msg).id }
+                mimefactory.msg.id
             } else {
                 0
             }) as libc::c_int,

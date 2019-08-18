@@ -20,7 +20,7 @@ extern crate strum_macros;
 #[macro_use]
 mod log;
 #[macro_use]
-mod error;
+pub mod error;
 
 mod aheader;
 pub mod chat;
