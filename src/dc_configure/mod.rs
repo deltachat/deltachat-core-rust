@@ -30,17 +30,6 @@ macro_rules! progress {
     };
 }
 
-/* ******************************************************************************
- * Configure folders
- ******************************************************************************/
-#[derive(Copy, Clone)]
-#[repr(C)]
-struct dc_imapfolder_t {
-    pub name_to_select: *mut libc::c_char,
-    pub name_utf8: *mut libc::c_char,
-    pub meaning: libc::c_int,
-}
-
 // connect
 pub unsafe fn dc_configure(context: &Context) {
     if 0 != dc_has_ongoing(context) {
