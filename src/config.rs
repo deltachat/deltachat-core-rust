@@ -107,12 +107,12 @@ impl Context {
             }
             Config::SentboxWatch => {
                 let ret = self.sql.set_config(self, key, value);
-                unsafe { dc_interrupt_sentbox_idle(self) };
+                dc_interrupt_sentbox_idle(self);
                 ret
             }
             Config::MvboxWatch => {
                 let ret = self.sql.set_config(self, key, value);
-                unsafe { dc_interrupt_mvbox_idle(self) };
+                dc_interrupt_mvbox_idle(self);
                 ret
             }
             Config::Selfstatus => {

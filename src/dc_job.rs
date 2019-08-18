@@ -11,7 +11,6 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_configure::*;
 use crate::dc_imex::*;
-use crate::dc_jobthread::*;
 use crate::dc_location::*;
 use crate::dc_loginparam::*;
 use crate::dc_mimefactory::*;
@@ -132,8 +131,18 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
         // - they can be re-executed one time AT_ONCE, but they are not save in the database for later execution
         if 900 == job.action || 910 == job.action {
             dc_job_kill_action(context, job.action);
-            dc_jobthread_suspend(context, &context.sentbox_thread.clone().read().unwrap(), 1);
-            dc_jobthread_suspend(context, &context.mvbox_thread.clone().read().unwrap(), 1);
+            &context
+                .sentbox_thread
+                .clone()
+                .read()
+                .unwrap()
+                .suspend(context);
+            &context
+                .mvbox_thread
+                .clone()
+                .read()
+                .unwrap()
+                .suspend(context);
             dc_suspend_smtp_thread(context, true);
         }
 
@@ -162,16 +171,18 @@ unsafe fn dc_job_perform(context: &Context, thread: libc::c_int, probe_network: 
             tries += 1
         }
         if 900 == job.action || 910 == job.action {
-            dc_jobthread_suspend(
-                context,
-                &mut context.sentbox_thread.clone().read().unwrap(),
-                0,
-            );
-            dc_jobthread_suspend(
-                context,
-                &mut context.mvbox_thread.clone().read().unwrap(),
-                0,
-            );
+            context
+                .sentbox_thread
+                .clone()
+                .read()
+                .unwrap()
+                .unsuspend(context);
+            context
+                .mvbox_thread
+                .clone()
+                .read()
+                .unwrap()
+                .unsuspend(context);
             dc_suspend_smtp_thread(context, false);
             break;
         } else if job.try_again == 2 {
@@ -795,9 +806,9 @@ pub fn dc_job_kill_action(context: &Context, action: libc::c_int) -> bool {
     .is_ok()
 }
 
-pub unsafe fn dc_perform_imap_fetch(context: &Context) {
+pub fn dc_perform_imap_fetch(context: &Context) {
     let inbox = context.inbox.read().unwrap();
-    let start = clock();
+    let start = std::time::Instant::now();
 
     if 0 == connect_to_inbox(context, &inbox) {
         return;
@@ -821,7 +832,7 @@ pub unsafe fn dc_perform_imap_fetch(context: &Context) {
         context,
         0,
         "INBOX-fetch done in {:.4} ms.",
-        clock().wrapping_sub(start) as libc::c_double * 1000.0f64 / 1000000 as libc::c_double,
+        start.elapsed().as_millis(),
     );
 }
 
@@ -842,61 +853,68 @@ pub fn dc_perform_imap_idle(context: &Context) {
     info!(context, 0, "INBOX-IDLE ended.");
 }
 
-pub unsafe fn dc_perform_mvbox_fetch(context: &Context) {
-    let use_network = context
-        .sql
-        .get_config_int(context, "mvbox_watch")
-        .unwrap_or_else(|| 1);
-    dc_jobthread_fetch(
-        context,
-        &mut context.mvbox_thread.clone().write().unwrap(),
-        use_network,
-    );
-}
-
-pub unsafe fn dc_perform_mvbox_idle(context: &Context) {
+pub fn dc_perform_mvbox_fetch(context: &Context) {
     let use_network = context
         .sql
         .get_config_int(context, "mvbox_watch")
         .unwrap_or_else(|| 1);
 
-    dc_jobthread_idle(
-        context,
-        &context.mvbox_thread.clone().read().unwrap(),
-        use_network,
-    );
+    context
+        .mvbox_thread
+        .write()
+        .unwrap()
+        .fetch(context, use_network == 1);
 }
 
-pub unsafe fn dc_interrupt_mvbox_idle(context: &Context) {
-    dc_jobthread_interrupt_idle(context, &context.mvbox_thread.clone().read().unwrap());
+pub fn dc_perform_mvbox_idle(context: &Context) {
+    let use_network = context
+        .sql
+        .get_config_int(context, "mvbox_watch")
+        .unwrap_or_else(|| 1);
+
+    context
+        .mvbox_thread
+        .read()
+        .unwrap()
+        .idle(context, use_network == 1);
 }
 
-pub unsafe fn dc_perform_sentbox_fetch(context: &Context) {
+pub fn dc_interrupt_mvbox_idle(context: &Context) {
+    context.mvbox_thread.read().unwrap().interrupt_idle(context);
+}
+
+pub fn dc_perform_sentbox_fetch(context: &Context) {
     let use_network = context
         .sql
         .get_config_int(context, "sentbox_watch")
         .unwrap_or_else(|| 1);
-    dc_jobthread_fetch(
-        context,
-        &mut context.sentbox_thread.clone().write().unwrap(),
-        use_network,
-    );
+
+    context
+        .sentbox_thread
+        .write()
+        .unwrap()
+        .fetch(context, use_network == 1);
 }
 
-pub unsafe fn dc_perform_sentbox_idle(context: &Context) {
+pub fn dc_perform_sentbox_idle(context: &Context) {
     let use_network = context
         .sql
         .get_config_int(context, "sentbox_watch")
         .unwrap_or_else(|| 1);
-    dc_jobthread_idle(
-        context,
-        &context.sentbox_thread.clone().read().unwrap(),
-        use_network,
-    );
+
+    context
+        .sentbox_thread
+        .read()
+        .unwrap()
+        .idle(context, use_network == 1);
 }
 
-pub unsafe fn dc_interrupt_sentbox_idle(context: &Context) {
-    dc_jobthread_interrupt_idle(context, &context.sentbox_thread.clone().read().unwrap());
+pub fn dc_interrupt_sentbox_idle(context: &Context) {
+    context
+        .sentbox_thread
+        .read()
+        .unwrap()
+        .interrupt_idle(context);
 }
 
 pub unsafe fn dc_perform_smtp_jobs(context: &Context) {

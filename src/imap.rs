@@ -25,7 +25,6 @@ const PREFETCH_FLAGS: &str = "(UID ENVELOPE)";
 const BODY_FLAGS: &str = "(FLAGS BODY.PEEK[])";
 const FETCH_FLAGS: &str = "(FLAGS)";
 
-#[repr(C)]
 pub struct Imap {
     config: Arc<RwLock<ImapConfig>>,
     watch: Arc<(Mutex<bool>, Condvar)>,

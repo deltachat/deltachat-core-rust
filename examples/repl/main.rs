@@ -186,9 +186,9 @@ fn start_threads(c: Arc<RwLock<Context>>) {
     let ctx = c.clone();
     let handle_mvbox = std::thread::spawn(move || loop {
         while_running!({
-            unsafe { dc_perform_mvbox_fetch(&ctx.read().unwrap()) };
+            dc_perform_mvbox_fetch(&ctx.read().unwrap());
             while_running!({
-                unsafe { dc_perform_mvbox_idle(&ctx.read().unwrap()) };
+                dc_perform_mvbox_idle(&ctx.read().unwrap());
             });
         });
     });
@@ -196,9 +196,9 @@ fn start_threads(c: Arc<RwLock<Context>>) {
     let ctx = c.clone();
     let handle_sentbox = std::thread::spawn(move || loop {
         while_running!({
-            unsafe { dc_perform_sentbox_fetch(&ctx.read().unwrap()) };
+            dc_perform_sentbox_fetch(&ctx.read().unwrap());
             while_running!({
-                unsafe { dc_perform_sentbox_idle(&ctx.read().unwrap()) };
+                dc_perform_sentbox_idle(&ctx.read().unwrap());
             });
         });
     });
