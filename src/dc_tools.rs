@@ -1284,6 +1284,14 @@ pub fn as_str<'a>(s: *const libc::c_char) -> &'a str {
     as_str_safe(s).unwrap_or_else(|err| panic!("{}", err))
 }
 
+/// Converts a C string to either a Rust `&str` or `None` if  it is a null pointer.
+pub fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
+    if s.is_null() {
+        return None;
+    }
+    Some(as_str(s))
+}
+
 fn as_str_safe<'a>(s: *const libc::c_char) -> Result<&'a str, Error> {
     assert!(!s.is_null(), "cannot be used on null pointers");
 

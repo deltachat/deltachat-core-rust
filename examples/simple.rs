@@ -12,9 +12,8 @@ use deltachat::constants::Event;
 use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_job::{
-    dc_perform_imap_fetch, dc_perform_imap_idle, dc_perform_imap_jobs, dc_perform_smtp_idle,
-    dc_perform_smtp_jobs,
+use deltachat::job::{
+    perform_imap_fetch, perform_imap_idle, perform_imap_jobs, perform_smtp_idle, perform_smtp_jobs,
 };
 
 extern "C" fn cb(_ctx: &Context, event: Event, data1: usize, data2: usize) -> usize {
@@ -52,12 +51,12 @@ fn main() {
         let r1 = running.clone();
         let t1 = thread::spawn(move || {
             while *r1.read().unwrap() {
-                dc_perform_imap_jobs(&ctx1);
+                perform_imap_jobs(&ctx1);
                 if *r1.read().unwrap() {
-                    dc_perform_imap_fetch(&ctx1);
+                    perform_imap_fetch(&ctx1);
 
                     if *r1.read().unwrap() {
-                        dc_perform_imap_idle(&ctx1);
+                        perform_imap_idle(&ctx1);
                     }
                 }
             }
@@ -67,9 +66,9 @@ fn main() {
         let r1 = running.clone();
         let t2 = thread::spawn(move || {
             while *r1.read().unwrap() {
-                dc_perform_smtp_jobs(&ctx1);
+                perform_smtp_jobs(&ctx1);
                 if *r1.read().unwrap() {
-                    dc_perform_smtp_idle(&ctx1);
+                    perform_smtp_idle(&ctx1);
                 }
             }
         });
@@ -123,8 +122,8 @@ fn main() {
         println!("stopping threads");
 
         *running.clone().write().unwrap() = false;
-        deltachat::dc_job::dc_interrupt_imap_idle(&ctx);
-        deltachat::dc_job::dc_interrupt_smtp_idle(&ctx);
+        deltachat::job::interrupt_imap_idle(&ctx);
+        deltachat::job::interrupt_smtp_idle(&ctx);
 
         println!("joining");
         t1.join().unwrap();

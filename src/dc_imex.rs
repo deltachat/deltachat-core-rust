@@ -12,10 +12,10 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_configure::*;
 use crate::dc_e2ee::*;
-use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::error::*;
+use crate::job::*;
 use crate::key::*;
 use crate::param::*;
 use crate::pgp::*;
@@ -44,8 +44,8 @@ pub unsafe fn dc_imex(
         param.set(Param::Arg2, as_str(param2));
     }
 
-    dc_job_kill_action(context, 910);
-    dc_job_add(context, 910, 0, param, 0);
+    job_kill_action(context, Action::ImexImap);
+    job_add(context, Action::ImexImap, 0, param, 0);
 }
 
 /// Returns the filename of the backup if found, nullptr otherwise.
@@ -506,7 +506,7 @@ pub unsafe fn dc_normalize_setup_code(
 }
 
 #[allow(non_snake_case)]
-pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
     let mut ok_to_continue = true;
     let mut success: libc::c_int = 0;
     let mut ongoing_allocated_here: libc::c_int = 0;
@@ -514,10 +514,10 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: *mut dc_job_t) 
 
     if !(0 == dc_alloc_ongoing(context)) {
         ongoing_allocated_here = 1;
-        what = (*job).param.get_int(Param::Cmd).unwrap_or_default();
-        let param1_s = (*job).param.get(Param::Arg).unwrap_or_default();
+        what = job.param.get_int(Param::Cmd).unwrap_or_default();
+        let param1_s = job.param.get(Param::Arg).unwrap_or_default();
         let param1 = CString::yolo(param1_s);
-        let _param2 = CString::yolo((*job).param.get(Param::Arg2).unwrap_or_default());
+        let _param2 = CString::yolo(job.param.get(Param::Arg2).unwrap_or_default());
 
         if strlen(param1.as_ptr()) == 0 {
             error!(context, 0, "No Import/export dir/file given.",);

@@ -21,9 +21,9 @@ use deltachat::config;
 use deltachat::constants::*;
 use deltachat::context::*;
 use deltachat::dc_configure::*;
-use deltachat::dc_job::*;
 use deltachat::dc_securejoin::*;
 use deltachat::dc_tools::*;
+use deltachat::job::*;
 use deltachat::oauth2::*;
 use deltachat::types::*;
 use deltachat::x::*;
@@ -172,13 +172,11 @@ fn start_threads(c: Arc<RwLock<Context>>) {
     let ctx = c.clone();
     let handle_imap = std::thread::spawn(move || loop {
         while_running!({
-            unsafe {
-                dc_perform_imap_jobs(&ctx.read().unwrap());
-                dc_perform_imap_fetch(&ctx.read().unwrap());
-            }
+            perform_imap_jobs(&ctx.read().unwrap());
+            perform_imap_fetch(&ctx.read().unwrap());
             while_running!({
                 let context = ctx.read().unwrap();
-                dc_perform_imap_idle(&context);
+                perform_imap_idle(&context);
             });
         });
     });
@@ -186,9 +184,9 @@ fn start_threads(c: Arc<RwLock<Context>>) {
     let ctx = c.clone();
     let handle_mvbox = std::thread::spawn(move || loop {
         while_running!({
-            dc_perform_mvbox_fetch(&ctx.read().unwrap());
+            perform_mvbox_fetch(&ctx.read().unwrap());
             while_running!({
-                dc_perform_mvbox_idle(&ctx.read().unwrap());
+                perform_mvbox_idle(&ctx.read().unwrap());
             });
         });
     });
@@ -196,9 +194,9 @@ fn start_threads(c: Arc<RwLock<Context>>) {
     let ctx = c.clone();
     let handle_sentbox = std::thread::spawn(move || loop {
         while_running!({
-            dc_perform_sentbox_fetch(&ctx.read().unwrap());
+            perform_sentbox_fetch(&ctx.read().unwrap());
             while_running!({
-                dc_perform_sentbox_idle(&ctx.read().unwrap());
+                perform_sentbox_idle(&ctx.read().unwrap());
             });
         });
     });
@@ -206,9 +204,9 @@ fn start_threads(c: Arc<RwLock<Context>>) {
     let ctx = c;
     let handle_smtp = std::thread::spawn(move || loop {
         while_running!({
-            unsafe { dc_perform_smtp_jobs(&ctx.read().unwrap()) };
+            perform_smtp_jobs(&ctx.read().unwrap());
             while_running!({
-                unsafe { dc_perform_smtp_idle(&ctx.read().unwrap()) };
+                perform_smtp_idle(&ctx.read().unwrap());
             });
         });
     });
@@ -226,12 +224,10 @@ fn stop_threads(context: &Context) {
         println!("Stopping threads");
         IS_RUNNING.store(false, Ordering::Relaxed);
 
-        unsafe {
-            dc_interrupt_imap_idle(context);
-            dc_interrupt_mvbox_idle(context);
-            dc_interrupt_sentbox_idle(context);
-            dc_interrupt_smtp_idle(context);
-        }
+        interrupt_imap_idle(context);
+        interrupt_mvbox_idle(context);
+        interrupt_sentbox_idle(context);
+        interrupt_smtp_idle(context);
 
         handle.handle_imap.take().unwrap().join().unwrap();
         handle.handle_mvbox.take().unwrap().join().unwrap();
@@ -487,14 +483,14 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             if HANDLE.clone().lock().unwrap().is_some() {
                 println!("smtp-jobs are already running in a thread.",);
             } else {
-                dc_perform_smtp_jobs(&ctx.read().unwrap());
+                perform_smtp_jobs(&ctx.read().unwrap());
             }
         }
         "imap-jobs" => {
             if HANDLE.clone().lock().unwrap().is_some() {
                 println!("imap-jobs are already running in a thread.");
             } else {
-                dc_perform_imap_jobs(&ctx.read().unwrap());
+                perform_imap_jobs(&ctx.read().unwrap());
             }
         }
         "configure" => {

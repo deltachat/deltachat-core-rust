@@ -10,11 +10,11 @@ use deltachat::context::*;
 use deltachat::dc_array::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
-use deltachat::dc_job::*;
 use deltachat::dc_location::*;
 use deltachat::dc_msg::*;
 use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
+use deltachat::job::*;
 use deltachat::lot::LotState;
 use deltachat::peerstate::*;
 use deltachat::qr::*;
@@ -582,7 +582,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!("{}", to_string(dc_get_info(context)));
         }
         "maybenetwork" => {
-            dc_maybe_network(context);
+            maybe_network(context);
         }
         "housekeeping" => {
             sql::housekeeping(context);

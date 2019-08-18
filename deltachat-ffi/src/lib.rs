@@ -189,7 +189,7 @@ pub unsafe extern "C" fn dc_perform_imap_jobs(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_imap_jobs(context)
+    job::perform_imap_jobs(context)
 }
 
 #[no_mangle]
@@ -197,7 +197,7 @@ pub unsafe extern "C" fn dc_perform_imap_fetch(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_imap_fetch(context)
+    job::perform_imap_fetch(context)
 }
 
 #[no_mangle]
@@ -205,7 +205,7 @@ pub unsafe extern "C" fn dc_perform_imap_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_imap_idle(context)
+    job::perform_imap_idle(context)
 }
 
 #[no_mangle]
@@ -213,7 +213,7 @@ pub unsafe extern "C" fn dc_interrupt_imap_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_interrupt_imap_idle(context)
+    job::interrupt_imap_idle(context)
 }
 
 #[no_mangle]
@@ -221,7 +221,7 @@ pub unsafe extern "C" fn dc_perform_mvbox_fetch(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_mvbox_fetch(context)
+    job::perform_mvbox_fetch(context)
 }
 
 #[no_mangle]
@@ -229,7 +229,7 @@ pub unsafe extern "C" fn dc_perform_mvbox_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_mvbox_idle(context)
+    job::perform_mvbox_idle(context)
 }
 
 #[no_mangle]
@@ -237,7 +237,7 @@ pub unsafe extern "C" fn dc_interrupt_mvbox_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_interrupt_mvbox_idle(context)
+    job::interrupt_mvbox_idle(context)
 }
 
 #[no_mangle]
@@ -245,7 +245,7 @@ pub unsafe extern "C" fn dc_perform_sentbox_fetch(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_sentbox_fetch(context)
+    job::perform_sentbox_fetch(context)
 }
 
 #[no_mangle]
@@ -253,7 +253,7 @@ pub unsafe extern "C" fn dc_perform_sentbox_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_sentbox_idle(context)
+    job::perform_sentbox_idle(context)
 }
 
 #[no_mangle]
@@ -261,7 +261,7 @@ pub unsafe extern "C" fn dc_interrupt_sentbox_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_interrupt_sentbox_idle(context)
+    job::interrupt_sentbox_idle(context)
 }
 
 #[no_mangle]
@@ -269,7 +269,7 @@ pub unsafe extern "C" fn dc_perform_smtp_jobs(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_smtp_jobs(context)
+    job::perform_smtp_jobs(context)
 }
 
 #[no_mangle]
@@ -277,7 +277,7 @@ pub unsafe extern "C" fn dc_perform_smtp_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_perform_smtp_idle(context)
+    job::perform_smtp_idle(context)
 }
 
 #[no_mangle]
@@ -285,7 +285,7 @@ pub unsafe extern "C" fn dc_interrupt_smtp_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_interrupt_smtp_idle(context)
+    job::interrupt_smtp_idle(context)
 }
 
 #[no_mangle]
@@ -293,7 +293,7 @@ pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_job::dc_maybe_network(context)
+    job::maybe_network(context)
 }
 
 #[no_mangle]
@@ -1027,7 +1027,7 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_location::dc_send_locations_to_chat(context, chat_id, seconds)
+    dc_location::dc_send_locations_to_chat(context, chat_id, seconds as i64)
 }
 
 #[no_mangle]
