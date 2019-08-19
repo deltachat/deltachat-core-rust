@@ -5,8 +5,8 @@ use crate::x::*;
 #[derive(Copy, Clone)]
 pub struct Simplify {
     pub is_forwarded: bool,
-    pub is_cut_at_begin: bool,
-    pub is_cut_at_end: bool,
+    is_cut_at_begin: bool,
+    is_cut_at_end: bool,
 }
 
 impl Simplify {
