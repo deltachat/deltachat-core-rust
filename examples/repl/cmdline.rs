@@ -7,7 +7,6 @@ use deltachat::config;
 use deltachat::constants::*;
 use deltachat::contact::*;
 use deltachat::context::*;
-use deltachat::dc_array::*;
 use deltachat::dc_configure::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_job::*;
@@ -917,10 +916,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 Viewtype::Gif,
                 Viewtype::Video,
             );
-            let icnt: libc::c_int = dc_array_get_cnt(images) as libc::c_int;
-            println!("{} images or videos: ", icnt);
-            for i in 0..icnt {
-                let data = dc_array_get_id(images, i as size_t);
+            println!("{} images or videos: ", images.len());
+            for (i, data) in images.iter().enumerate() {
                 if 0 == i {
                     print!("Msg#{}", data);
                 } else {
@@ -928,7 +925,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 }
             }
             print!("\n");
-            dc_array_unref(images);
         }
         "archive" | "unarchive" => {
             ensure!(!arg1.is_empty(), "Argument <chat-id> missing.");
