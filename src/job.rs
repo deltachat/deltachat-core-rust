@@ -6,9 +6,9 @@ use deltachat_derive::{FromSql, ToSql};
 use rand::{thread_rng, Rng};
 
 use crate::chat;
+use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_configure::*;
 use crate::dc_imex::*;
 use crate::dc_location::*;
 use crate::dc_loginparam::*;

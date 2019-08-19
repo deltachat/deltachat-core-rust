@@ -173,7 +173,7 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_configure::dc_configure(context)
+    configure::configure(context)
 }
 
 #[no_mangle]
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_configure::dc_is_configured(context)
+    configure::dc_is_configured(context)
 }
 
 #[no_mangle]
@@ -989,7 +989,7 @@ pub unsafe extern "C" fn dc_stop_ongoing_process(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_configure::dc_stop_ongoing_process(context)
+    configure::dc_stop_ongoing_process(context)
 }
 
 #[no_mangle]
