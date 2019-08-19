@@ -26,7 +26,7 @@ impl Simplify {
         in_unterminated: *const libc::c_char,
         in_bytes: libc::c_int,
         is_html: bool,
-        is_msgrmsg: libc::c_int,
+        is_msgrmsg: bool,
     ) -> *mut libc::c_char {
         if in_bytes <= 0 {
             return "".strdup();
@@ -70,7 +70,7 @@ impl Simplify {
     unsafe fn simplify_plain_text(
         &mut self,
         buf_terminated: *const libc::c_char,
-        is_msgrmsg: libc::c_int,
+        is_msgrmsg: bool,
     ) -> *mut libc::c_char {
         /* This function ...
         ... removes all text after the line `-- ` (footer mark)
@@ -132,7 +132,7 @@ impl Simplify {
                 break;
             }
         }
-        if 0 == is_msgrmsg {
+        if !is_msgrmsg {
             let mut l_lastQuotedLine = None;
             for l in (l_first..l_last).rev() {
                 line = lines[l];
@@ -158,7 +158,7 @@ impl Simplify {
                 }
             }
         }
-        if 0 == is_msgrmsg {
+        if !is_msgrmsg {
             let mut l_lastQuotedLine_0 = None;
             let mut hasQuotedHeadline = 0;
             for l in l_first..l_last {
@@ -271,7 +271,7 @@ mod tests {
             let html: *const libc::c_char =
                 b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, true, false);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -291,7 +291,7 @@ mod tests {
             let html: *const libc::c_char =
                 b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
             let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
+                simplify.simplify(html, strlen(html) as libc::c_int, true, false);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -311,7 +311,7 @@ mod tests {
             let html: *const libc::c_char =
                 b"<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>\x00"
                 as *const u8 as *const libc::c_char;
-            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
+            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)
@@ -331,7 +331,7 @@ mod tests {
             let html =
                 b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;\x00"
                 as *const u8 as *const libc::c_char;
-            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, 0);
+            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
 
             assert_eq!(
                 CStr::from_ptr(plain as *const libc::c_char)

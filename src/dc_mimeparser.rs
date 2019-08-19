@@ -1154,8 +1154,8 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                         if ok_to_continue {
                             /* check header directly as is_send_by_messenger is not yet set up */
                             let is_msgrmsg =
-                                (!dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Version")
-                                    .is_null()) as libc::c_int;
+                                !dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Version")
+                                    .is_null();
 
                             let simplified_txt = simplifier.unwrap().simplify(
                                 decoded_data,
