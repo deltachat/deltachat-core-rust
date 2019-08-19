@@ -5,9 +5,9 @@ use crate::chat;
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::*;
-use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
+use crate::job::*;
 use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -68,15 +68,11 @@ impl dc_kml_t {
 }
 
 // location streaming
-pub unsafe fn dc_send_locations_to_chat(
-    context: &Context,
-    chat_id: uint32_t,
-    seconds: libc::c_int,
-) {
+pub unsafe fn dc_send_locations_to_chat(context: &Context, chat_id: uint32_t, seconds: i64) {
     let now = time();
     let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
     let is_sending_locations_before: bool;
-    if !(seconds < 0i32 || chat_id <= 9i32 as libc::c_uint) {
+    if !(seconds < 0 || chat_id <= 9i32 as libc::c_uint) {
         is_sending_locations_before = dc_is_sending_locations_to_chat(context, chat_id);
         if sql::execute(
             context,
@@ -87,11 +83,7 @@ pub unsafe fn dc_send_locations_to_chat(
              WHERE id=?",
             params![
                 if 0 != seconds { now } else { 0 },
-                if 0 != seconds {
-                    now + seconds as i64
-                } else {
-                    0
-                },
+                if 0 != seconds { now + seconds } else { 0 },
                 chat_id as i32,
             ],
         )
@@ -115,12 +107,12 @@ pub unsafe fn dc_send_locations_to_chat(
             );
             if 0 != seconds {
                 schedule_MAYBE_SEND_LOCATIONS(context, 0i32);
-                dc_job_add(
+                job_add(
                     context,
-                    5007i32,
+                    Action::MaybeSendLocationsEnded,
                     chat_id as libc::c_int,
                     Params::new(),
-                    seconds + 1i32,
+                    seconds + 1,
                 );
             }
         }
@@ -133,8 +125,8 @@ pub unsafe fn dc_send_locations_to_chat(
  ******************************************************************************/
 #[allow(non_snake_case)]
 unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: libc::c_int) {
-    if 0 != flags & 0x1 || !dc_job_action_exists(context, 5005) {
-        dc_job_add(context, 5005, 0, Params::new(), 60);
+    if 0 != flags & 0x1 || !job_action_exists(context, Action::MaybeSendLocations) {
+        job_add(context, Action::MaybeSendLocations, 0, Params::new(), 60);
     };
 }
 
@@ -625,7 +617,7 @@ pub unsafe fn dc_kml_unref(kml: &mut dc_kml_t) {
 }
 
 #[allow(non_snake_case)]
-pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
     let now = time();
     let mut continue_streaming: libc::c_int = 1;
     info!(
@@ -707,7 +699,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: *mu
 }
 
 #[allow(non_snake_case)]
-pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut Job) {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.

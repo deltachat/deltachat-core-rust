@@ -3,14 +3,14 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_job::*;
-use crate::dc_jobthread::*;
 use crate::dc_loginparam::*;
 use crate::dc_move::*;
 use crate::dc_msg::*;
 use crate::dc_receive_imf::*;
 use crate::dc_tools::*;
 use crate::imap::*;
+use crate::job::*;
+use crate::job_thread::JobThread;
 use crate::key::*;
 use crate::lot::Lot;
 use crate::param::Params;
@@ -30,8 +30,8 @@ pub struct Context {
     pub inbox: Arc<RwLock<Imap>>,
     pub perform_inbox_jobs_needed: Arc<RwLock<bool>>,
     pub probe_imap_network: Arc<RwLock<bool>>,
-    pub sentbox_thread: Arc<RwLock<dc_jobthread_t>>,
-    pub mvbox_thread: Arc<RwLock<dc_jobthread_t>>,
+    pub sentbox_thread: Arc<RwLock<JobThread>>,
+    pub mvbox_thread: Arc<RwLock<JobThread>>,
     pub smtp: Arc<Mutex<Smtp>>,
     pub smtp_state: Arc<(Mutex<SmtpState>, Condvar)>,
     pub oauth2_critical: Arc<Mutex<()>>,
@@ -143,7 +143,7 @@ pub fn dc_context_new(
         bob: Arc::new(RwLock::new(Default::default())),
         last_smeared_timestamp: Arc::new(RwLock::new(0)),
         cmdline_sel_chat_id: Arc::new(RwLock::new(0)),
-        sentbox_thread: Arc::new(RwLock::new(dc_jobthread_init(
+        sentbox_thread: Arc::new(RwLock::new(JobThread::new(
             "SENTBOX",
             "configured_sentbox_folder",
             Imap::new(
@@ -153,7 +153,7 @@ pub fn dc_context_new(
                 cb_receive_imf,
             ),
         ))),
-        mvbox_thread: Arc::new(RwLock::new(dc_jobthread_init(
+        mvbox_thread: Arc::new(RwLock::new(JobThread::new(
             "MVBOX",
             "configured_mvbox_folder",
             Imap::new(
@@ -230,7 +230,13 @@ unsafe fn cb_precheck_imf(
         }
         dc_do_heuristics_moves(context, server_folder, msg_id);
         if 0 != mark_seen {
-            dc_job_add(context, 130, msg_id as libc::c_int, Params::new(), 0);
+            job_add(
+                context,
+                Action::MarkseenMsgOnImap,
+                msg_id as libc::c_int,
+                Params::new(),
+                0,
+            );
         }
     }
     free(old_server_folder as *mut libc::c_void);

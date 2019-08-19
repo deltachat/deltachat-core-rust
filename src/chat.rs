@@ -5,10 +5,10 @@ use crate::chatlist::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_job::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::error::Error;
+use crate::job::*;
 use crate::param::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
@@ -898,7 +898,7 @@ pub unsafe fn send_msg<'a>(
     }
 
     ensure!(
-        dc_job_send_msg(context, (*msg).id) != 0,
+        job_send_msg(context, (*msg).id) != 0,
         "Failed to initiate send job"
     );
 
@@ -1339,8 +1339,8 @@ pub fn delete(context: &Context, chat_id: u32) -> Result<(), Error> {
 
     context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
 
-    dc_job_kill_action(context, 105);
-    unsafe { dc_job_add(context, 105, 0, Params::new(), 10) };
+    job_kill_action(context, Action::Housekeeping);
+    job_add(context, Action::Housekeeping, 0, Params::new(), 10);
 
     Ok(())
 }
@@ -1927,7 +1927,7 @@ pub unsafe fn forward_msgs(
                 new_msg_id = chat
                     .prepare_msg_raw(context, msg, fresh10)
                     .unwrap_or_default();
-                dc_job_send_msg(context, new_msg_id);
+                job_send_msg(context, new_msg_id);
             }
             created_db_entries.push(chat_id);
             created_db_entries.push(new_msg_id);

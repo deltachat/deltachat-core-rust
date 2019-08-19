@@ -14,7 +14,6 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_job::*;
 use crate::dc_location::*;
 use crate::dc_mimeparser::*;
 use crate::dc_move::*;
@@ -23,6 +22,7 @@ use crate::dc_securejoin::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::error::Result;
+use crate::job::*;
 use crate::param::*;
 use crate::peerstate::*;
 use crate::sql;
@@ -232,9 +232,9 @@ pub unsafe fn dc_receive_imf(
     }
 
     if 0 != add_delete_job && !created_db_entries.is_empty() {
-        dc_job_add(
+        job_add(
             context,
-            DC_JOB_DELETE_MSG_ON_IMAP,
+            Action::DeleteMsgOnImap,
             created_db_entries[0].1 as i32,
             Params::new(),
             0,
@@ -920,7 +920,7 @@ unsafe fn handle_reports(
                 {
                     param.set_int(Param::AlsoMove, 1);
                 }
-                dc_job_add(context, 120, 0, param, 0);
+                job_add(context, Action::MarkseenMdnOnImap, 0, param, 0);
             }
         }
     }

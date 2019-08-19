@@ -911,7 +911,6 @@ fn get_first_name<'a>(full_name: &'a str) -> &'a str {
 /// Returns false if addr is an invalid address, otherwise true.
 pub fn may_be_valid_addr(addr: &str) -> bool {
     let res = addr.parse::<EmailAddress>();
-    println!("{:?}", res);
     res.is_ok()
 }
 

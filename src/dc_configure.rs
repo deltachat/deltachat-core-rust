@@ -5,10 +5,10 @@ use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 use crate::constants::Event;
 use crate::context::Context;
 use crate::dc_e2ee::*;
-use crate::dc_job::*;
 use crate::dc_loginparam::*;
 use crate::dc_tools::*;
 use crate::imap::*;
+use crate::job::*;
 use crate::oauth2::*;
 use crate::param::Params;
 use crate::types::*;
@@ -77,8 +77,8 @@ pub unsafe fn dc_configure(context: &Context) {
         );
         return;
     }
-    dc_job_kill_action(context, 900);
-    dc_job_add(context, 900, 0, Params::new(), 0);
+    job_kill_action(context, Action::ConfigureImap);
+    job_add(context, Action::ConfigureImap, 0, Params::new(), 0);
 }
 
 unsafe fn dc_has_ongoing(context: &Context) -> libc::c_int {
@@ -118,7 +118,7 @@ pub fn dc_stop_ongoing_process(context: &Context) {
 
 // the other dc_job_do_DC_JOB_*() functions are declared static in the c-file
 #[allow(non_snake_case, unused_must_use)]
-pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: *mut dc_job_t) {
+pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
     let flags: libc::c_int;
     let mut success = false;
     let mut imap_connected_here = false;

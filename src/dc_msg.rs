@@ -9,8 +9,8 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_job::*;
 use crate::dc_tools::*;
+use crate::job::*;
 use crate::lot::{Lot, LotState, Meaning};
 use crate::param::*;
 use crate::pgp::*;
@@ -591,9 +591,9 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
     let mut i: libc::c_int = 0i32;
     while i < msg_cnt {
         dc_update_msg_chat_id(context, *msg_ids.offset(i as isize), 3i32 as uint32_t);
-        dc_job_add(
+        job_add(
             context,
-            110,
+            Action::DeleteMsgOnImap,
             *msg_ids.offset(i as isize) as libc::c_int,
             Params::new(),
             0,
@@ -603,8 +603,8 @@ pub unsafe fn dc_delete_msgs(context: &Context, msg_ids: *const uint32_t, msg_cn
 
     if 0 != msg_cnt {
         context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
-        dc_job_kill_action(context, 105);
-        dc_job_add(context, 105, 0, Params::new(), 10);
+        job_kill_action(context, Action::Housekeeping);
+        job_add(context, Action::Housekeeping, 0, Params::new(), 10);
     };
 }
 
@@ -654,7 +654,13 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
                 dc_update_msg_state(context, id, MessageState::InSeen);
                 info!(context, 0, "Seen message #{}.", id);
 
-                unsafe { dc_job_add(context, 130, id as i32, Params::new(), 0) };
+                job_add(
+                    context,
+                    Action::MarkseenMsgOnImap,
+                    id as i32,
+                    Params::new(),
+                    0,
+                );
                 send_event = true;
             }
         } else if curr_state == MessageState::InFresh {
@@ -1150,16 +1156,17 @@ pub unsafe fn dc_msg_latefiling_mediasize(
     };
 }
 
-pub unsafe fn dc_msg_save_param_to_disk(msg: *mut dc_msg_t) -> bool {
+pub fn dc_msg_save_param_to_disk(msg: *mut dc_msg_t) -> bool {
     if msg.is_null() {
         return false;
     }
 
+    let msg = unsafe { &*msg };
     sql::execute(
-        (*msg).context,
-        &(*msg).context.sql,
+        msg.context,
+        &msg.context.sql,
         "UPDATE msgs SET param=? WHERE id=?;",
-        params![(*msg).param.to_string(), (*msg).id as i32],
+        params![msg.param.to_string(), msg.id as i32],
     )
     .is_ok()
 }
@@ -1235,16 +1242,16 @@ pub fn dc_update_msg_move_state(
     .is_ok()
 }
 
-pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: uint32_t, error: *const libc::c_char) {
+pub unsafe fn dc_set_msg_failed(context: &Context, msg_id: u32, error: Option<impl AsRef<str>>) {
     let mut msg = dc_msg_new_untyped(context);
 
     if dc_msg_load_from_db(msg, context, msg_id) {
         if (*msg).state.can_fail() {
             (*msg).state = MessageState::OutFailed;
         }
-        if !error.is_null() {
-            (*msg).param.set(Param::Error, as_str(error));
-            error!(context, 0, "{}", as_str(error),);
+        if let Some(error) = error {
+            (*msg).param.set(Param::Error, error.as_ref());
+            error!(context, 0, "{}", error.as_ref());
         }
 
         if sql::execute(
