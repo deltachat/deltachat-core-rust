@@ -480,7 +480,7 @@ pub fn perform_imap_fetch(context: &Context) {
         context,
         0,
         "INBOX-fetch done in {:.4} ms.",
-        start.elapsed().as_millis(),
+        start.elapsed().as_nanos() as f64 / 1000.0,
     );
 }
 
