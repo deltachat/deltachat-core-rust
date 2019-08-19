@@ -46,7 +46,7 @@ impl Simplify {
             return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
         }
         if is_html {
-            temp = dc_dehtml(out);
+            temp = dc_dehtml(&to_string(out)).strdup();
             if !temp.is_null() {
                 free(out as *mut libc::c_void);
                 out = temp

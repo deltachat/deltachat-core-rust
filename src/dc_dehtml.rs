@@ -2,9 +2,6 @@ use lazy_static::lazy_static;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
-use crate::dc_tools::*;
-use crate::x::*;
-
 lazy_static! {
     static ref LINE_RE: regex::Regex = regex::Regex::new(r"(\r?\n)+").unwrap();
 }
@@ -24,19 +21,20 @@ enum AddText {
 
 // dc_dehtml() returns way too many lineends; however, an optimisation on this issue is not needed as
 // the lineends are typically remove in further processing by the caller
-pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char {
-    dc_trim(buf_terminated);
-    if *buf_terminated.offset(0isize) as libc::c_int == 0i32 {
-        return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
+pub fn dc_dehtml(buf_terminated: &str) -> String {
+    let buf_terminated = buf_terminated.trim();
+
+    if buf_terminated.is_empty() {
+        return "".into();
     }
 
     let mut dehtml = Dehtml {
-        strbuilder: String::with_capacity(strlen(buf_terminated)),
+        strbuilder: String::with_capacity(buf_terminated.len()),
         add_text: AddText::YesRemoveLineEnds,
         last_href: None,
     };
 
-    let mut reader = quick_xml::Reader::from_str(as_str(buf_terminated));
+    let mut reader = quick_xml::Reader::from_str(buf_terminated);
 
     let mut buf = Vec::new();
 
@@ -61,7 +59,7 @@ pub unsafe fn dc_dehtml(buf_terminated: *mut libc::c_char) -> *mut libc::c_char 
         buf.clear();
     }
 
-    dehtml.strbuilder.strdup()
+    dehtml.strbuilder
 }
 
 fn dehtml_text_cb(event: &BytesText, dehtml: &mut Dehtml) {
