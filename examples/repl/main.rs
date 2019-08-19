@@ -18,9 +18,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
 use deltachat::config;
+use deltachat::configure::*;
 use deltachat::constants::*;
 use deltachat::context::*;
-use deltachat::configure::*;
 use deltachat::dc_securejoin::*;
 use deltachat::dc_tools::*;
 use deltachat::job::*;

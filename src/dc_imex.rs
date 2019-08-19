@@ -8,9 +8,9 @@ use rand::{thread_rng, Rng};
 
 use crate::chat;
 use crate::config::Config;
+use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::configure::*;
 use crate::dc_e2ee::*;
 use crate::dc_msg::*;
 use crate::dc_tools::*;

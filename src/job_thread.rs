@@ -1,7 +1,7 @@
 use std::sync::{Arc, Condvar, Mutex};
 
-use crate::context::Context;
 use crate::configure::*;
+use crate::context::Context;
 use crate::imap::Imap;
 
 pub struct JobThread {
