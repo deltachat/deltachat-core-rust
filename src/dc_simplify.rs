@@ -7,6 +7,25 @@ pub struct Simplify {
     pub is_forwarded: bool,
 }
 
+/// Return index of footer line in vector of message lines, or vector length if
+/// no footer is found.
+///
+/// Also return whether not-standard (rfc3676, §4.3) footer is found.
+fn find_message_footer(lines: &[*mut libc::c_char]) -> (usize, bool) {
+    for ix in 0..lines.len() {
+        let line = to_string_lossy(lines[ix]);
+
+        // quoted-printable may encode `-- ` to `-- =20` which is converted
+        // back to `--  `
+        match line.as_ref() {
+            "-- " | "--  " => return (ix, false),
+            "--" | "---" | "----" => return (ix, true),
+            _ => (),
+        }
+    }
+    return (lines.len(), false);
+}
+
 impl Simplify {
     pub fn new() -> Self {
         Simplify {
@@ -74,32 +93,10 @@ impl Simplify {
         /* split the given buffer into lines */
         let lines = dc_split_into_lines(buf_terminated);
         let mut l_first: usize = 0;
-        let mut l_last = lines.len();
         let mut line: *mut libc::c_char;
-        let mut footer_mark = false;
         let mut is_cut_at_begin = false;
-        let mut is_cut_at_end = false;
+        let (mut l_last, mut is_cut_at_end) = find_message_footer(&lines);
 
-        for l in l_first..l_last {
-            line = lines[l];
-            if strcmp(line, b"-- \x00" as *const u8 as *const libc::c_char) == 0i32
-                || strcmp(line, b"--  \x00" as *const u8 as *const libc::c_char) == 0i32
-            {
-                footer_mark = true;
-            }
-            if strcmp(line, b"--\x00" as *const u8 as *const libc::c_char) == 0i32
-                || strcmp(line, b"---\x00" as *const u8 as *const libc::c_char) == 0i32
-                || strcmp(line, b"----\x00" as *const u8 as *const libc::c_char) == 0i32
-            {
-                footer_mark = true;
-                is_cut_at_end = true
-            }
-            if footer_mark {
-                l_last = l;
-                /* done */
-                break;
-            }
-        }
         if l_last > l_first + 2 {
             let line0: *mut libc::c_char = lines[l_first];
             let line1: *mut libc::c_char = lines[l_first + 1];
