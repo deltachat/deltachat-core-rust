@@ -5,16 +5,12 @@ use crate::x::*;
 #[derive(Copy, Clone)]
 pub struct Simplify {
     pub is_forwarded: bool,
-    is_cut_at_begin: bool,
-    is_cut_at_end: bool,
 }
 
 impl Simplify {
     pub fn new() -> Self {
         Simplify {
             is_forwarded: false,
-            is_cut_at_begin: false,
-            is_cut_at_end: false,
         }
     }
 
@@ -36,8 +32,6 @@ impl Simplify {
         let mut out: *mut libc::c_char;
         let mut temp: *mut libc::c_char;
         self.is_forwarded = false;
-        self.is_cut_at_begin = false;
-        self.is_cut_at_end = false;
         out = strndup(
             in_unterminated as *mut libc::c_char,
             in_bytes as libc::c_ulong,
@@ -83,6 +77,9 @@ impl Simplify {
         let mut l_last = lines.len();
         let mut line: *mut libc::c_char;
         let mut footer_mark = false;
+        let mut is_cut_at_begin = false;
+        let mut is_cut_at_end = false;
+
         for l in l_first..l_last {
             line = lines[l];
             if strcmp(line, b"-- \x00" as *const u8 as *const libc::c_char) == 0i32
@@ -95,7 +92,7 @@ impl Simplify {
                 || strcmp(line, b"----\x00" as *const u8 as *const libc::c_char) == 0i32
             {
                 footer_mark = true;
-                self.is_cut_at_end = true
+                is_cut_at_end = true
             }
             if footer_mark {
                 l_last = l;
@@ -127,7 +124,7 @@ impl Simplify {
                 || strncmp(line, b"~~~~~\x00" as *const u8 as *const libc::c_char, 5) == 0i32
             {
                 l_last = l;
-                self.is_cut_at_end = true;
+                is_cut_at_end = true;
                 /* done */
                 break;
             }
@@ -144,7 +141,7 @@ impl Simplify {
             }
             if l_lastQuotedLine.is_some() {
                 l_last = l_lastQuotedLine.unwrap();
-                self.is_cut_at_end = true;
+                is_cut_at_end = true;
                 if l_last > 1 {
                     if is_empty_line(lines[l_last - 1]) {
                         l_last -= 1
@@ -179,12 +176,12 @@ impl Simplify {
             }
             if l_lastQuotedLine_0.is_some() {
                 l_first = l_lastQuotedLine_0.unwrap() + 1;
-                self.is_cut_at_begin = true
+                is_cut_at_begin = true
             }
         }
         /* re-create buffer from the remaining lines */
         let mut ret = String::new();
-        if self.is_cut_at_begin {
+        if is_cut_at_begin {
             ret += "[...]";
         }
         /* we write empty lines only in case and non-empty line follows */
@@ -210,7 +207,7 @@ impl Simplify {
                 pending_linebreaks = 1i32
             }
         }
-        if self.is_cut_at_end && (!self.is_cut_at_begin || 0 != content_lines_added) {
+        if is_cut_at_end && (!is_cut_at_begin || 0 != content_lines_added) {
             ret += " [...]";
         }
         dc_free_splitted_lines(lines);
