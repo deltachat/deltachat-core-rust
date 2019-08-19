@@ -1284,13 +1284,7 @@ impl Imap {
                 }
             }
         }
-        // All non-connection states are treated as success - the mail may
-        // already be deleted or moved away on the server.
-        if !self.should_reconnect() {
-            true
-        } else {
-            false
-        }
+        false
     }
 
     pub fn set_seen<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> ImapResult {
@@ -1333,7 +1327,6 @@ impl Imap {
         if uid == 0 {
             return ImapResult::Failed;
         }
-
         let mut res = ImapResult::RetryLater;
         if self.is_connected() {
             info!(
@@ -1405,38 +1398,30 @@ impl Imap {
                             })
                             .unwrap_or_else(|| false);
 
-                        res = if flag_set {
-                            ImapResult::AlreadyDone
-                        } else if self.add_flag(context, uid, "$MDNSent") {
-                            ImapResult::Success
-                        } else {
-                            assert!(res == ImapResult::RetryLater);
-                            res
-                        };
-
-                        if res == ImapResult::Success {
-                            info!(context, 0, "$MDNSent just set and MDN will be sent.");
-                        } else {
+                        if flag_set {
                             info!(context, 0, "$MDNSent already set and MDN already sent.");
+                            res = ImapResult::AlreadyDone;
+                        } else if self.add_flag(context, uid, "$MDNSent") {
+                            info!(context, 0, "$MDNSent just set and MDN will be sent.");
+                            res = ImapResult::Success;
+                        } else if self.should_reconnect() {
+                            res = ImapResult::RetryLater;
+                        } else {
+                            res = ImapResult::Failed;
                         }
                     }
                 } else {
-                    res = ImapResult::Success;
                     info!(
                         context,
-                        0, "Cannot store $MDNSent flags, risk sending duplicate MDN.",
+                        0, "Cannot store $MDNSent flags, ignoring to prevent duplicate MDN.",
                     );
+                    res = ImapResult::Success;
                 }
             }
-        }
-
-        if res == ImapResult::RetryLater && !self.should_reconnect() {
-            res = ImapResult::Failed
         }
         res
     }
 
-    // only returns 0 on connection problems; we should try later again in this case *
     pub fn delete_msg<S1: AsRef<str>, S2: AsRef<str>>(
         &self,
         context: &Context,
