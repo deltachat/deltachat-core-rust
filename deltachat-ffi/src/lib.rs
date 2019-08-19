@@ -498,7 +498,14 @@ pub unsafe extern "C" fn dc_get_chat_media(
     let or_msg_type3 =
         from_prim(or_msg_type3).expect(&format!("incorrect or_msg_type3 = {}", or_msg_type3));
 
-    chat::get_chat_media(context, chat_id, msg_type, or_msg_type2, or_msg_type3)
+    dc_array_t::from(chat::get_chat_media(
+        context,
+        chat_id,
+        msg_type,
+        or_msg_type2,
+        or_msg_type3,
+    ))
+    .into_raw()
 }
 
 #[no_mangle]
