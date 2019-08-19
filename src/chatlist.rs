@@ -2,9 +2,9 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::*;
-use crate::dc_msg::*;
 use crate::error::Result;
 use crate::lot::Lot;
+use crate::message::*;
 use crate::stock::StockMessage;
 
 /// An object representing a single chatlist in memory.
@@ -275,28 +275,35 @@ impl<'a> Chatlist<'a> {
         let mut lastcontact = None;
 
         let lastmsg = if 0 != lastmsg_id {
-            let lastmsg = dc_msg_new_untyped(self.context);
-            dc_msg_load_from_db(lastmsg, self.context, lastmsg_id);
+            if let Ok(lastmsg) = dc_msg_load_from_db(self.context, lastmsg_id) {
+                if lastmsg.from_id != 1 as libc::c_uint
+                    && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
+                {
+                    lastcontact = Contact::load_from_db(self.context, lastmsg.from_id).ok();
+                }
 
-            if (*lastmsg).from_id != 1 as libc::c_uint
-                && (chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup)
-            {
-                lastcontact = Contact::load_from_db(self.context, (*lastmsg).from_id).ok();
+                Some(lastmsg)
+            } else {
+                None
             }
-            lastmsg
         } else {
-            std::ptr::null_mut()
+            None
         };
 
         if chat.id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
             ret.text2 = None;
-        } else if lastmsg.is_null() || (*lastmsg).from_id == DC_CONTACT_ID_UNDEFINED as u32 {
+        } else if lastmsg.is_none()
+            || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED as u32
+        {
             ret.text2 = Some(self.context.stock_str(StockMessage::NoMessages).to_string());
         } else {
-            ret.fill(lastmsg, chat, lastcontact.as_ref(), self.context);
+            ret.fill(
+                &mut lastmsg.unwrap(),
+                chat,
+                lastcontact.as_ref(),
+                self.context,
+            );
         }
-
-        dc_msg_unref(lastmsg);
 
         ret
     }

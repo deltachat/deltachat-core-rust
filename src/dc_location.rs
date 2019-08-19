@@ -5,9 +5,9 @@ use crate::chat;
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::*;
-use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::job::*;
+use crate::message::*;
 use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
@@ -70,7 +70,7 @@ impl dc_kml_t {
 // location streaming
 pub unsafe fn dc_send_locations_to_chat(context: &Context, chat_id: uint32_t, seconds: i64) {
     let now = time();
-    let mut msg: *mut dc_msg_t = 0 as *mut dc_msg_t;
+    let mut msg: Message;
     let is_sending_locations_before: bool;
     if !(seconds < 0 || chat_id <= 9i32 as libc::c_uint) {
         is_sending_locations_before = dc_is_sending_locations_to_chat(context, chat_id);
@@ -91,10 +91,10 @@ pub unsafe fn dc_send_locations_to_chat(context: &Context, chat_id: uint32_t, se
         {
             if 0 != seconds && !is_sending_locations_before {
                 msg = dc_msg_new(context, Viewtype::Text);
-                (*msg).text =
+                msg.text =
                     Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
-                (*msg).param.set_int(Param::Cmd, 8);
-                chat::send_msg(context, chat_id, msg).unwrap();
+                msg.param.set_int(Param::Cmd, 8);
+                chat::send_msg(context, chat_id, &mut msg).unwrap();
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str =
                     context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
@@ -117,7 +117,6 @@ pub unsafe fn dc_send_locations_to_chat(context: &Context, chat_id: uint32_t, se
             }
         }
     }
-    dc_msg_unref(msg);
 }
 
 /*******************************************************************************
@@ -680,11 +679,10 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Jo
                             // (might not be 100%, however, as positions are sent combined later
                             // and dc_set_location() is typically called periodically, this is ok)
                             let mut msg = dc_msg_new(context, Viewtype::Text);
-                            (*msg).hidden = 1;
-                            (*msg).param.set_int(Param::Cmd, 9);
+                            msg.hidden = true;
+                            msg.param.set_int(Param::Cmd, 9);
                             // TODO: handle cleanup on error
-                            chat::send_msg(context, chat_id as u32, msg).unwrap();
-                            dc_msg_unref(msg);
+                            chat::send_msg(context, chat_id as u32, &mut msg).unwrap();
                         }
                         Ok(())
                     },

@@ -20,7 +20,7 @@ extern crate strum_macros;
 #[macro_use]
 mod log;
 #[macro_use]
-mod error;
+pub mod error;
 
 mod aheader;
 pub mod chat;
@@ -35,6 +35,7 @@ mod job_thread;
 pub mod key;
 pub mod keyring;
 pub mod lot;
+pub mod message;
 pub mod oauth2;
 mod param;
 pub mod peerstate;
@@ -56,7 +57,6 @@ mod dc_loginparam;
 mod dc_mimefactory;
 pub mod dc_mimeparser;
 mod dc_move;
-pub mod dc_msg;
 pub mod dc_receive_imf;
 pub mod dc_securejoin;
 mod dc_simplify;

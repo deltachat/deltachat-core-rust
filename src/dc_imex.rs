@@ -12,11 +12,11 @@ use crate::constants::*;
 use crate::context::Context;
 use crate::dc_configure::*;
 use crate::dc_e2ee::*;
-use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::error::*;
 use crate::job::*;
 use crate::key::*;
+use crate::message::*;
 use crate::param::*;
 use crate::pgp::*;
 use crate::sql::{self, Sql};
@@ -102,7 +102,7 @@ pub unsafe fn dc_imex_has_backup(
 
 pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
     let mut setup_file_name: *mut libc::c_char = ptr::null_mut();
-    let mut msg: *mut dc_msg_t = ptr::null_mut();
+    let mut msg: Message;
     if dc_alloc_ongoing(context) == 0 {
         return std::ptr::null_mut();
     }
@@ -140,14 +140,13 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                 {
                     if let Ok(chat_id) = chat::create_by_contact_id(context, 1) {
                         msg = dc_msg_new_untyped(context);
-                        (*msg).type_0 = Viewtype::File;
-                        (*msg).param.set(Param::File, as_str(setup_file_name));
+                        msg.type_0 = Viewtype::File;
+                        msg.param.set(Param::File, as_str(setup_file_name));
 
-                        (*msg)
-                            .param
+                        msg.param
                             .set(Param::MimeType, "application/autocrypt-setup");
-                        (*msg).param.set_int(Param::Cmd, 6);
-                        (*msg).param.set_int(Param::ForcePlaintext, 2);
+                        msg.param.set_int(Param::Cmd, 6);
+                        msg.param.set_int(Param::ForcePlaintext, 2);
 
                         if !context
                             .running_state
@@ -156,9 +155,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                             .unwrap()
                             .shall_stop_ongoing
                         {
-                            if let Ok(msg_id) = chat::send_msg(context, chat_id, msg) {
-                                dc_msg_unref(msg);
-                                msg = ptr::null_mut();
+                            if let Ok(msg_id) = chat::send_msg(context, chat_id, &mut msg) {
                                 info!(context, 0, "Wait for setup message being sent ...",);
                                 loop {
                                     if context
@@ -171,13 +168,12 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                         break;
                                     }
                                     std::thread::sleep(std::time::Duration::from_secs(1));
-                                    msg = dc_get_msg(context, msg_id);
-                                    if 0 != dc_msg_is_sent(msg) {
-                                        info!(context, 0, "... setup message sent.",);
-                                        break;
+                                    if let Ok(msg) = dc_get_msg(context, msg_id) {
+                                        if 0 != dc_msg_is_sent(&msg) {
+                                            info!(context, 0, "... setup message sent.",);
+                                            break;
+                                        }
                                     }
-                                    dc_msg_unref(msg);
-                                    msg = 0 as *mut dc_msg_t
                                 }
                             }
                         }
@@ -187,7 +183,6 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
         }
     }
     free(setup_file_name as *mut libc::c_void);
-    dc_msg_unref(msg);
     dc_free_ongoing(context);
 
     setup_code.strdup()
@@ -284,18 +279,17 @@ pub unsafe fn dc_continue_key_transfer(
     setup_code: *const libc::c_char,
 ) -> libc::c_int {
     let mut success: libc::c_int = 0i32;
-    let mut msg: *mut dc_msg_t = ptr::null_mut();
     let mut filename: *mut libc::c_char = ptr::null_mut();
     let mut filecontent: *mut libc::c_char = ptr::null_mut();
     let mut filebytes: size_t = 0i32 as size_t;
     let mut armored_key: *mut libc::c_char = ptr::null_mut();
     let mut norm_sc: *mut libc::c_char = ptr::null_mut();
     if !(msg_id <= 9i32 as libc::c_uint || setup_code.is_null()) {
-        msg = dc_get_msg(context, msg_id);
-        if msg.is_null()
-            || !dc_msg_is_setupmessage(msg)
+        let msg = dc_get_msg(context, msg_id);
+        if msg.is_err()
+            || !dc_msg_is_setupmessage(msg.as_ref().unwrap())
             || {
-                filename = dc_msg_get_file(msg);
+                filename = dc_msg_get_file(msg.as_ref().unwrap());
                 filename.is_null()
             }
             || *filename.offset(0isize) as libc::c_int == 0i32
@@ -331,7 +325,6 @@ pub unsafe fn dc_continue_key_transfer(
     free(armored_key as *mut libc::c_void);
     free(filecontent as *mut libc::c_void);
     free(filename as *mut libc::c_void);
-    dc_msg_unref(msg);
     free(norm_sc as *mut libc::c_void);
 
     success

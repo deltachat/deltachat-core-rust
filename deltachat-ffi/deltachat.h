@@ -505,7 +505,6 @@ int             dc_chat_is_sending_locations (const dc_chat_t*);
 
 dc_msg_t*       dc_msg_new                    (dc_context_t*, int viewtype);
 void            dc_msg_unref                  (dc_msg_t*);
-void            dc_msg_empty                  (dc_msg_t*);
 uint32_t        dc_msg_get_id                 (const dc_msg_t*);
 uint32_t        dc_msg_get_from_id            (const dc_msg_t*);
 uint32_t        dc_msg_get_chat_id            (const dc_msg_t*);

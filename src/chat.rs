@@ -5,10 +5,10 @@ use crate::chatlist::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_msg::*;
 use crate::dc_tools::*;
 use crate::error::Error;
 use crate::job::*;
+use crate::message::*;
 use crate::param::*;
 use crate::sql::{self, Sql};
 use crate::stock::StockMessage;
@@ -272,7 +272,7 @@ impl<'a> Chat<'a> {
     unsafe fn prepare_msg_raw(
         &mut self,
         context: &Context,
-        msg: *mut dc_msg_t,
+        msg: &mut Message,
         timestamp: i64,
     ) -> Result<u32, Error> {
         let mut do_guarantee_e2ee: libc::c_int;
@@ -351,11 +351,7 @@ impl<'a> Chat<'a> {
                         .get_config_int(context, "e2ee_enabled")
                         .unwrap_or_else(|| 1);
                     if 0 != e2ee_enabled
-                        && (*msg)
-                            .param
-                            .get_int(Param::ForcePlaintext)
-                            .unwrap_or_default()
-                            == 0
+                        && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0
                     {
                         let mut can_encrypt = 1;
                         let mut all_mutual = 1;
@@ -409,9 +405,9 @@ impl<'a> Chat<'a> {
                         }
                     }
                     if 0 != do_guarantee_e2ee {
-                        (*msg).param.set_int(Param::GuranteeE2ee, 1);
+                        msg.param.set_int(Param::GuranteeE2ee, 1);
                     }
-                    (*msg).param.remove(Param::ErroneousE2ee);
+                    msg.param.remove(Param::ErroneousE2ee);
                     if !self.is_self_talk()
                         && self
                             .get_parent_mime_headers(
@@ -466,7 +462,7 @@ impl<'a> Chat<'a> {
 
                     // add independent location to database
 
-                    if (*msg).param.exists(Param::SetLatitude) {
+                    if msg.param.exists(Param::SetLatitude) {
                         if sql::execute(
                             context,
                             &context.sql,
@@ -477,14 +473,8 @@ impl<'a> Chat<'a> {
                                 timestamp,
                                 DC_CONTACT_ID_SELF as i32,
                                 self.id as i32,
-                                (*msg)
-                                    .param
-                                    .get_float(Param::SetLatitude)
-                                    .unwrap_or_default(),
-                                (*msg)
-                                    .param
-                                    .get_float(Param::SetLongitude)
-                                    .unwrap_or_default(),
+                                msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
+                                msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
                             ],
                         )
                         .is_ok()
@@ -513,11 +503,11 @@ impl<'a> Chat<'a> {
                             1i32,
                             to_id as i32,
                             timestamp,
-                            (*msg).type_0,
-                            (*msg).state,
-                            (*msg).text,
-                            (*msg).param.to_string(),
-                            (*msg).hidden,
+                            msg.type_0,
+                            msg.state,
+                            msg.text,
+                            msg.param.to_string(),
+                            msg.hidden,
                             to_string(new_in_reply_to),
                             to_string(new_references),
                             location_id as i32,
@@ -574,26 +564,19 @@ impl<'a> Chat<'a> {
 pub fn create_by_msg_id(context: &Context, msg_id: u32) -> Result<u32, Error> {
     let mut chat_id = 0;
     let mut send_event = false;
-    let msg = unsafe { dc_msg_new_untyped(context) };
 
-    if dc_msg_load_from_db(msg, context, msg_id) {
-        if let Ok(chat) = Chat::load_from_db(context, unsafe { (*msg).chat_id }) {
+    if let Ok(msg) = dc_msg_load_from_db(context, msg_id) {
+        if let Ok(chat) = Chat::load_from_db(context, msg.chat_id) {
             if chat.id > DC_CHAT_ID_LAST_SPECIAL as u32 {
                 chat_id = chat.id;
                 if chat.blocked != Blocked::Not {
                     unblock(context, chat.id);
                     send_event = true;
                 }
-                Contact::scaleup_origin_by_id(
-                    context,
-                    unsafe { (*msg).from_id },
-                    Origin::CreateChat,
-                );
+                Contact::scaleup_origin_by_id(context, msg.from_id, Origin::CreateChat);
             }
         }
     }
-
-    unsafe { dc_msg_unref(msg) };
 
     if send_event {
         context.call_cb(Event::MSGS_CHANGED, 0, 0);
@@ -721,20 +704,19 @@ pub fn get_by_contact_id(context: &Context, contact_id: u32) -> Result<u32, Erro
 pub fn prepare_msg<'a>(
     context: &'a Context,
     chat_id: u32,
-    mut msg: *mut dc_msg_t<'a>,
+    msg: &mut Message<'a>,
 ) -> Result<u32, Error> {
-    ensure!(!msg.is_null(), "No message provided");
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL as u32,
         "Cannot prepare message for special chat"
     );
 
-    unsafe { (*msg).state = MessageState::OutPreparing };
+    msg.state = MessageState::OutPreparing;
     let msg_id = prepare_msg_common(context, chat_id, msg)?;
     context.call_cb(
         Event::MSGS_CHANGED,
-        unsafe { (*msg).chat_id as uintptr_t },
-        unsafe { (*msg).id as uintptr_t },
+        msg.chat_id as uintptr_t,
+        msg.id as uintptr_t,
     );
 
     Ok(msg_id)
@@ -755,12 +737,8 @@ pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
 fn prepare_msg_common<'a>(
     context: &'a Context,
     chat_id: u32,
-    msg: *mut dc_msg_t<'a>,
+    msg: &mut Message<'a>,
 ) -> Result<u32, Error> {
-    ensure!(!msg.is_null(), "No message provided");
-
-    let msg = unsafe { &mut *msg };
-
     msg.id = 0;
     msg.context = context;
 
@@ -881,39 +859,37 @@ pub fn unarchive(context: &Context, chat_id: u32) -> Result<(), Error> {
 pub unsafe fn send_msg<'a>(
     context: &'a Context,
     chat_id: u32,
-    msg: *mut dc_msg_t<'a>,
+    msg: &mut Message<'a>,
 ) -> Result<u32, Error> {
-    ensure!(!msg.is_null(), "Invalid message");
-
-    if (*msg).state != MessageState::OutPreparing {
+    if msg.state != MessageState::OutPreparing {
         // automatically prepare normal messages
         prepare_msg_common(context, chat_id, msg)?;
     } else {
         // update message state of separately prepared messages
         ensure!(
-            chat_id == 0 || chat_id == (*msg).chat_id,
+            chat_id == 0 || chat_id == msg.chat_id,
             "Inconsistent chat ID"
         );
-        dc_update_msg_state(context, (*msg).id, MessageState::OutPending);
+        dc_update_msg_state(context, msg.id, MessageState::OutPending);
     }
 
     ensure!(
-        job_send_msg(context, (*msg).id) != 0,
+        job_send_msg(context, msg.id) != 0,
         "Failed to initiate send job"
     );
 
     context.call_cb(
         Event::MSGS_CHANGED,
-        (*msg).chat_id as uintptr_t,
-        (*msg).id as uintptr_t,
+        msg.chat_id as uintptr_t,
+        msg.id as uintptr_t,
     );
 
-    if (*msg).param.exists(Param::SetLatitude) {
+    if msg.param.exists(Param::SetLatitude) {
         context.call_cb(Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF, 0);
     }
 
     if 0 == chat_id {
-        let forwards = (*msg).param.get(Param::PrepForwards);
+        let forwards = msg.param.get(Param::PrepForwards);
         if let Some(forwards) = forwards {
             for forward in forwards.split(' ') {
                 let id: i32 = forward.parse().unwrap_or_default();
@@ -921,20 +897,18 @@ pub unsafe fn send_msg<'a>(
                     // avoid hanging if user tampers with db
                     break;
                 } else {
-                    let copy = dc_get_msg(context, id as u32);
-                    if !copy.is_null() {
+                    if let Ok(mut copy) = dc_get_msg(context, id as u32) {
                         // TODO: handle cleanup and return early instead
-                        send_msg(context, 0, copy).unwrap();
+                        send_msg(context, 0, &mut copy).unwrap();
                     }
-                    dc_msg_unref(copy);
                 }
             }
-            (*msg).param.remove(Param::PrepForwards);
+            msg.param.remove(Param::PrepForwards);
             dc_msg_save_param_to_disk(msg);
         }
     }
 
-    Ok((*msg).id)
+    Ok(msg.id)
 }
 
 pub unsafe fn send_text_msg(
@@ -949,11 +923,12 @@ pub unsafe fn send_text_msg(
     );
 
     let mut msg = dc_msg_new(context, Viewtype::Text);
-    (*msg).text = Some(text_to_send);
-    send_msg(context, chat_id, msg)
+    msg.text = Some(text_to_send);
+    send_msg(context, chat_id, &mut msg)
 }
 
-pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: *mut dc_msg_t) {
+// passing `None` as message jsut deletes the draft
+pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Message>) {
     if chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
         return;
     }
@@ -962,31 +937,32 @@ pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: *mut dc_msg_t) {
     };
 }
 
+// similar to as dc_set_draft() but does not emit an event
 #[allow(non_snake_case)]
-unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: *mut dc_msg_t) -> bool {
+unsafe fn set_draft_raw(context: &Context, chat_id: u32, mut msg: Option<&mut Message>) -> bool {
     let mut OK_TO_CONTINUE = true;
-    // similar to as dc_set_draft() but does not emit an event
-    let prev_draft_msg_id: u32;
+
     let mut sth_changed = false;
 
-    prev_draft_msg_id = get_draft_msg_id(context, chat_id);
+    let prev_draft_msg_id = get_draft_msg_id(context, chat_id);
     if 0 != prev_draft_msg_id {
         dc_delete_msg_from_db(context, prev_draft_msg_id);
         sth_changed = true;
     }
-    // save new draft
-    if !msg.is_null() {
-        if (*msg).type_0 == Viewtype::Text {
-            OK_TO_CONTINUE = (*msg).text.as_ref().map_or(false, |s| !s.is_empty());
-        } else if msgtype_has_file((*msg).type_0) {
-            if let Some(path_filename) = (*msg).param.get(Param::File) {
+
+    if let Some(ref mut msg) = msg {
+        // save new draft
+        if msg.type_0 == Viewtype::Text {
+            OK_TO_CONTINUE = msg.text.as_ref().map_or(false, |s| !s.is_empty());
+        } else if msgtype_has_file(msg.type_0) {
+            if let Some(path_filename) = msg.param.get(Param::File) {
                 let mut path_filename = path_filename.to_string();
                 if 0 != dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
                     OK_TO_CONTINUE = false;
                 } else if !dc_make_rel_and_copy(context, &mut path_filename) {
                     OK_TO_CONTINUE = false;
                 } else {
-                    (*msg).param.set(Param::File, path_filename);
+                    msg.param.set(Param::File, path_filename);
                 }
             }
         } else {
@@ -1002,10 +978,10 @@ unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: *mut dc_msg_t) -> 
                     chat_id as i32,
                     1,
                     time(),
-                    (*msg).type_0,
+                    msg.type_0,
                     MessageState::OutDraft,
-                    (*msg).text.as_ref().map(String::as_str).unwrap_or(""),
-                    (*msg).param.to_string(),
+                    msg.text.as_ref().map(String::as_str).unwrap_or(""),
+                    msg.param.to_string(),
                     1,
                 ],
             )
@@ -1015,7 +991,6 @@ unsafe fn set_draft_raw(context: &Context, chat_id: u32, msg: *mut dc_msg_t) -> 
             }
         }
     }
-
     sth_changed
 }
 
@@ -1031,21 +1006,12 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
         .unwrap_or_default() as u32
 }
 
-pub unsafe fn get_draft(context: &Context, chat_id: u32) -> *mut dc_msg_t {
-    if chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
-        return ptr::null_mut();
-    }
+pub unsafe fn get_draft(context: &Context, chat_id: u32) -> Result<Message, Error> {
+    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL as u32, "Invalid chat ID");
     let draft_msg_id = get_draft_msg_id(context, chat_id);
-    if draft_msg_id == 0 {
-        return ptr::null_mut();
-    }
-    let draft_msg = dc_msg_new_untyped(context);
-    if !dc_msg_load_from_db(draft_msg, context, draft_msg_id) {
-        dc_msg_unref(draft_msg);
-        return ptr::null_mut();
-    }
+    ensure!(draft_msg_id != 0, "Invalid draft message ID");
 
-    draft_msg
+    dc_msg_load_from_db(context, draft_msg_id)
 }
 
 pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before: u32) -> Vec<u32> {
@@ -1235,15 +1201,15 @@ pub unsafe fn get_next_media(
     msg_type3: Viewtype,
 ) -> u32 {
     let mut ret = 0;
-    let msg: *mut dc_msg_t = dc_msg_new_untyped(context);
-    if dc_msg_load_from_db(msg, context, curr_msg_id) {
+
+    if let Ok(msg) = dc_msg_load_from_db(context, curr_msg_id) {
         let list = get_chat_media(
             context,
-            (*msg).chat_id,
+            msg.chat_id,
             if msg_type != Viewtype::Unknown {
                 msg_type
             } else {
-                (*msg).type_0
+                msg.type_0
             },
             msg_type2,
             msg_type3,
@@ -1263,8 +1229,6 @@ pub unsafe fn get_next_media(
             }
         }
     }
-    dc_msg_unref(msg);
-
     ret
 }
 
@@ -1400,10 +1364,9 @@ pub unsafe fn create_group_chat(
 
     if chat_id != 0 {
         if 0 != add_to_chat_contacts_table(context, chat_id, 1) {
-            let draft_msg = dc_msg_new(context, Viewtype::Text);
-            dc_msg_set_text(draft_msg, draft_txt.as_ptr());
-            set_draft_raw(context, chat_id, draft_msg);
-            dc_msg_unref(draft_msg);
+            let mut draft_msg = dc_msg_new(context, Viewtype::Text);
+            dc_msg_set_text(&mut draft_msg, draft_txt.as_ptr());
+            set_draft_raw(context, chat_id, Some(&mut draft_msg));
         }
 
         context.call_cb(Event::MSGS_CHANGED, 0 as uintptr_t, 0 as uintptr_t);
@@ -1506,21 +1469,21 @@ pub unsafe fn add_contact_to_chat_ex(
                 }
                 if OK_TO_CONTINUE {
                     if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                        (*msg).type_0 = Viewtype::Text;
-                        (*msg).text = Some(context.stock_system_msg(
+                        msg.type_0 = Viewtype::Text;
+                        msg.text = Some(context.stock_system_msg(
                             StockMessage::MsgAddMember,
                             contact.get_addr(),
                             "",
                             DC_CONTACT_ID_SELF as u32,
                         ));
-                        (*msg).param.set_int(Param::Cmd, 4);
-                        (*msg).param.set(Param::Arg, contact.get_addr());
-                        (*msg).param.set_int(Param::Arg2, flags);
-                        (*msg).id = send_msg(context, chat_id, msg).unwrap_or_default();
+                        msg.param.set_int(Param::Cmd, 4);
+                        msg.param.set(Param::Arg, contact.get_addr());
+                        msg.param.set_int(Param::Arg2, flags);
+                        msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
                         context.call_cb(
                             Event::MSGS_CHANGED,
                             chat_id as uintptr_t,
-                            (*msg).id as uintptr_t,
+                            msg.id as uintptr_t,
                         );
                     }
                     context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0 as uintptr_t);
@@ -1529,8 +1492,6 @@ pub unsafe fn add_contact_to_chat_ex(
             }
         }
     }
-
-    dc_msg_unref(msg);
 
     success
 }
@@ -1619,30 +1580,30 @@ pub unsafe fn remove_contact_from_chat(
             /* we should respect this - whatever we send to the group, it gets discarded anyway! */
             if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                 if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                    (*msg).type_0 = Viewtype::Text;
+                    msg.type_0 = Viewtype::Text;
                     if contact.id == DC_CONTACT_ID_SELF as u32 {
                         set_group_explicitly_left(context, chat.grpid).unwrap();
-                        (*msg).text = Some(context.stock_system_msg(
+                        msg.text = Some(context.stock_system_msg(
                             StockMessage::MsgGroupLeft,
                             "",
                             "",
                             DC_CONTACT_ID_SELF as u32,
                         ));
                     } else {
-                        (*msg).text = Some(context.stock_system_msg(
+                        msg.text = Some(context.stock_system_msg(
                             StockMessage::MsgDelMember,
                             contact.get_addr(),
                             "",
                             DC_CONTACT_ID_SELF as u32,
                         ));
                     }
-                    (*msg).param.set_int(Param::Cmd, 5);
-                    (*msg).param.set(Param::Arg, contact.get_addr());
-                    (*msg).id = send_msg(context, chat_id, msg).unwrap_or_default();
+                    msg.param.set_int(Param::Cmd, 5);
+                    msg.param.set(Param::Arg, contact.get_addr());
+                    msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
                     context.call_cb(
                         Event::MSGS_CHANGED,
                         chat_id as uintptr_t,
-                        (*msg).id as uintptr_t,
+                        msg.id as uintptr_t,
                     );
                 }
             }
@@ -1659,8 +1620,6 @@ pub unsafe fn remove_contact_from_chat(
             }
         }
     }
-
-    dc_msg_unref(msg);
 
     if !success {
         bail!("Failed to remove contact");
@@ -1728,22 +1687,22 @@ pub unsafe fn set_chat_name(
             .is_ok()
             {
                 if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                    (*msg).type_0 = Viewtype::Text;
-                    (*msg).text = Some(context.stock_system_msg(
+                    msg.type_0 = Viewtype::Text;
+                    msg.text = Some(context.stock_system_msg(
                         StockMessage::MsgGrpName,
                         &chat.name,
                         new_name.as_ref(),
                         DC_CONTACT_ID_SELF as u32,
                     ));
-                    (*msg).param.set_int(Param::Cmd, 2);
+                    msg.param.set_int(Param::Cmd, 2);
                     if !chat.name.is_empty() {
-                        (*msg).param.set(Param::Arg, &chat.name);
+                        msg.param.set(Param::Arg, &chat.name);
                     }
-                    (*msg).id = send_msg(context, chat_id, msg).unwrap_or_default();
+                    msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
                     context.call_cb(
                         Event::MSGS_CHANGED,
                         chat_id as uintptr_t,
-                        (*msg).id as uintptr_t,
+                        msg.id as uintptr_t,
                     );
                 }
                 context.call_cb(
@@ -1755,8 +1714,6 @@ pub unsafe fn set_chat_name(
             }
         }
     }
-
-    dc_msg_unref(msg);
 
     if !success {
         bail!("Failed to set name");
@@ -1806,12 +1763,12 @@ pub unsafe fn set_chat_profile_image(
             }
             if chat.update_param().is_ok() {
                 if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                    (*msg).param.set_int(Param::Cmd, 3);
+                    msg.param.set_int(Param::Cmd, 3);
                     if let Some(ref new_image_rel) = new_image_rel {
-                        (*msg).param.set(Param::Arg, new_image_rel);
+                        msg.param.set(Param::Arg, new_image_rel);
                     }
-                    (*msg).type_0 = Viewtype::Text;
-                    (*msg).text = Some(context.stock_system_msg(
+                    msg.type_0 = Viewtype::Text;
+                    msg.text = Some(context.stock_system_msg(
                         if new_image_rel.is_some() {
                             StockMessage::MsgGrpImgChanged
                         } else {
@@ -1821,11 +1778,11 @@ pub unsafe fn set_chat_profile_image(
                         "",
                         DC_CONTACT_ID_SELF as u32,
                     ));
-                    (*msg).id = send_msg(context, chat_id, msg).unwrap_or_default();
+                    msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
                     context.call_cb(
                         Event::MSGS_CHANGED,
                         chat_id as uintptr_t,
-                        (*msg).id as uintptr_t,
+                        msg.id as uintptr_t,
                     );
                 }
                 context.call_cb(
@@ -1837,8 +1794,6 @@ pub unsafe fn set_chat_profile_image(
             }
         }
     }
-
-    dc_msg_unref(msg);
 
     if !success {
         bail!("Failed to set profile image");
@@ -1857,7 +1812,6 @@ pub unsafe fn forward_msgs(
         return;
     }
 
-    let msg = dc_msg_new_untyped(context);
     let mut created_db_entries = Vec::new();
     let mut curr_timestamp: i64;
 
@@ -1887,45 +1841,45 @@ pub unsafe fn forward_msgs(
 
         for id in ids {
             let src_msg_id = id;
-            if !dc_msg_load_from_db(msg, context, src_msg_id as u32) {
+            let msg = dc_msg_load_from_db(context, src_msg_id as u32);
+            if msg.is_err() {
                 break;
             }
-            let original_param = (*msg).param.clone();
-            if (*msg).from_id != DC_CONTACT_ID_SELF as u32 {
-                (*msg).param.set_int(Param::Forwarded, 1);
+            let mut msg = msg.unwrap();
+            let original_param = msg.param.clone();
+            if msg.from_id != DC_CONTACT_ID_SELF as u32 {
+                msg.param.set_int(Param::Forwarded, 1);
             }
-            (*msg).param.remove(Param::GuranteeE2ee);
-            (*msg).param.remove(Param::ForcePlaintext);
-            (*msg).param.remove(Param::Cmd);
+            msg.param.remove(Param::GuranteeE2ee);
+            msg.param.remove(Param::ForcePlaintext);
+            msg.param.remove(Param::Cmd);
 
             let new_msg_id: u32;
-            if (*msg).state == MessageState::OutPreparing {
+            if msg.state == MessageState::OutPreparing {
                 let fresh9 = curr_timestamp;
                 curr_timestamp = curr_timestamp + 1;
                 new_msg_id = chat
-                    .prepare_msg_raw(context, msg, fresh9)
+                    .prepare_msg_raw(context, &mut msg, fresh9)
                     .unwrap_or_default();
-                let save_param = (*msg).param.clone();
-                (*msg).param = original_param;
-                (*msg).id = src_msg_id as u32;
+                let save_param = msg.param.clone();
+                msg.param = original_param;
+                msg.id = src_msg_id as u32;
 
-                if let Some(old_fwd) = (*msg).param.get(Param::PrepForwards) {
+                if let Some(old_fwd) = msg.param.get(Param::PrepForwards) {
                     let new_fwd = format!("{} {}", old_fwd, new_msg_id);
-                    (*msg).param.set(Param::PrepForwards, new_fwd);
+                    msg.param.set(Param::PrepForwards, new_fwd);
                 } else {
-                    (*msg)
-                        .param
-                        .set(Param::PrepForwards, new_msg_id.to_string());
+                    msg.param.set(Param::PrepForwards, new_msg_id.to_string());
                 }
 
-                dc_msg_save_param_to_disk(msg);
-                (*msg).param = save_param;
+                dc_msg_save_param_to_disk(&mut msg);
+                msg.param = save_param;
             } else {
-                (*msg).state = MessageState::OutPending;
+                msg.state = MessageState::OutPending;
                 let fresh10 = curr_timestamp;
                 curr_timestamp = curr_timestamp + 1;
                 new_msg_id = chat
-                    .prepare_msg_raw(context, msg, fresh10)
+                    .prepare_msg_raw(context, &mut msg, fresh10)
                     .unwrap_or_default();
                 job_send_msg(context, new_msg_id);
             }
@@ -1941,7 +1895,6 @@ pub unsafe fn forward_msgs(
             created_db_entries[i + 1] as uintptr_t,
         );
     }
-    dc_msg_unref(msg);
 }
 
 pub fn get_chat_contact_cnt(context: &Context, chat_id: u32) -> libc::c_int {

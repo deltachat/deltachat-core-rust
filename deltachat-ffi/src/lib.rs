@@ -354,12 +354,13 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
 pub unsafe extern "C" fn dc_prepare_msg(
     context: *mut dc_context_t,
     chat_id: u32,
-    msg: *mut dc_msg::dc_msg_t,
+    msg: *mut dc_msg_t,
 ) -> u32 {
     assert!(!context.is_null());
     assert!(!msg.is_null());
-    let context = &*context;
+    let context = &mut *context;
 
+    let msg = &mut *msg;
     chat::prepare_msg(context, chat_id, msg)
         .unwrap_or_log_default(context, "Failed to prepare message")
 }
@@ -368,11 +369,12 @@ pub unsafe extern "C" fn dc_prepare_msg(
 pub unsafe extern "C" fn dc_send_msg(
     context: *mut dc_context_t,
     chat_id: u32,
-    msg: *mut dc_msg::dc_msg_t,
+    msg: *mut dc_msg_t,
 ) -> u32 {
     assert!(!context.is_null());
     assert!(!msg.is_null());
-    let context = &*context;
+    let context = &mut *context;
+    let msg = &mut *msg;
 
     chat::send_msg(context, chat_id, msg).unwrap_or_log_default(context, "Failed to send message")
 }
@@ -396,10 +398,11 @@ pub unsafe extern "C" fn dc_send_text_msg(
 pub unsafe extern "C" fn dc_set_draft(
     context: *mut dc_context_t,
     chat_id: u32,
-    msg: *mut dc_msg::dc_msg_t,
+    msg: *mut dc_msg_t,
 ) {
     assert!(!context.is_null());
     let context = &*context;
+    let msg = if msg.is_null() { None } else { Some(&mut *msg) };
 
     chat::set_draft(context, chat_id, msg)
 }
@@ -408,11 +411,11 @@ pub unsafe extern "C" fn dc_set_draft(
 pub unsafe extern "C" fn dc_get_draft<'a>(
     context: *mut dc_context_t,
     chat_id: u32,
-) -> *mut dc_msg::dc_msg_t<'a> {
+) -> *mut dc_msg_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
 
-    chat::get_draft(context, chat_id)
+    chat::get_draft(context, chat_id).into_raw()
 }
 
 #[no_mangle]
@@ -692,7 +695,7 @@ pub unsafe extern "C" fn dc_get_msg_info(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_msg::dc_get_msg_info(context, msg_id)
+    message::dc_get_msg_info(context, msg_id)
 }
 
 #[no_mangle]
@@ -703,7 +706,7 @@ pub unsafe extern "C" fn dc_get_mime_headers(
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_msg::dc_get_mime_headers(context, msg_id)
+    message::dc_get_mime_headers(context, msg_id)
 }
 
 #[no_mangle]
@@ -717,7 +720,7 @@ pub unsafe extern "C" fn dc_delete_msgs(
     assert!(msg_cnt > 0);
     let context = &*context;
 
-    dc_msg::dc_delete_msgs(context, msg_ids, msg_cnt)
+    message::dc_delete_msgs(context, msg_ids, msg_cnt)
 }
 
 #[no_mangle]
@@ -755,7 +758,7 @@ pub unsafe extern "C" fn dc_markseen_msgs(
     assert!(msg_cnt > 0);
     let context = &*context;
 
-    dc_msg::dc_markseen_msgs(context, msg_ids, msg_cnt as usize);
+    message::dc_markseen_msgs(context, msg_ids, msg_cnt as usize);
 }
 
 #[no_mangle]
@@ -771,18 +774,18 @@ pub unsafe extern "C" fn dc_star_msgs(
 
     let context = &*context;
 
-    dc_msg::dc_star_msgs(context, msg_ids, msg_cnt, star);
+    message::dc_star_msgs(context, msg_ids, msg_cnt, star);
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_get_msg<'a>(
     context: *mut dc_context_t,
     msg_id: u32,
-) -> *mut dc_msg::dc_msg_t<'a> {
+) -> *mut dc_msg_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
 
-    dc_msg::dc_get_msg(context, msg_id)
+    message::dc_get_msg(context, msg_id).into_raw()
 }
 
 #[no_mangle]
@@ -1398,300 +1401,326 @@ pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> l
 // dc_msg_t
 
 #[no_mangle]
-pub type dc_msg_t<'a> = dc_msg::dc_msg_t<'a>;
+pub type dc_msg_t<'a> = message::Message<'a>;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_new<'a>(
     context: *mut dc_context_t,
     viewtype: libc::c_int,
-) -> *mut dc_msg::dc_msg_t<'a> {
+) -> *mut dc_msg_t<'a> {
     assert!(!context.is_null());
     let context = &*context;
     let viewtype = from_prim(viewtype).expect(&format!("invalid viewtype = {}", viewtype));
 
-    dc_msg::dc_msg_new(context, viewtype)
+    Box::into_raw(Box::new(message::dc_msg_new(context, viewtype)))
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_unref(msg: *mut dc_msg::dc_msg_t) {
+pub unsafe extern "C" fn dc_msg_unref(msg: *mut dc_msg_t) {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_unref(msg)
+    Box::from_raw(msg);
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_empty(msg: *mut dc_msg::dc_msg_t) {
+pub unsafe extern "C" fn dc_msg_get_id(msg: *mut dc_msg_t) -> u32 {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_empty(msg)
+    let msg = &*msg;
+    message::dc_msg_get_id(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_id(msg: *mut dc_msg::dc_msg_t) -> u32 {
+pub unsafe extern "C" fn dc_msg_get_from_id(msg: *mut dc_msg_t) -> u32 {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_id(msg)
+    let msg = &*msg;
+    message::dc_msg_get_from_id(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_from_id(msg: *mut dc_msg::dc_msg_t) -> u32 {
+pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg_t) -> u32 {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_from_id(msg)
+    let msg = &*msg;
+    message::dc_msg_get_chat_id(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg::dc_msg_t) -> u32 {
+pub unsafe extern "C" fn dc_msg_get_viewtype(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_chat_id(msg)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_viewtype(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
-    assert!(!msg.is_null());
-
-    dc_msg::dc_msg_get_viewtype(msg)
+    let msg = &*msg;
+    message::dc_msg_get_viewtype(msg)
         .to_i64()
         .expect("impossible: Viewtype -> i64 conversion failed") as libc::c_int
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_state(msg) as libc::c_int
+    let msg = &*msg;
+    message::dc_msg_get_state(msg) as libc::c_int
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
+pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg_t) -> i64 {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_timestamp(msg)
+    let msg = &*msg;
+    message::dc_msg_get_timestamp(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_received_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
+pub unsafe extern "C" fn dc_msg_get_received_timestamp(msg: *mut dc_msg_t) -> i64 {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_received_timestamp(msg)
+    let msg = &*msg;
+    message::dc_msg_get_received_timestamp(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg::dc_msg_t) -> i64 {
+pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg_t) -> i64 {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_sort_timestamp(msg)
+    let msg = &*msg;
+    message::dc_msg_get_sort_timestamp(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_char {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_text(msg)
+    let msg = &*msg;
+    message::dc_msg_get_text(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_char {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_file(msg)
+    let msg = &*msg;
+    message::dc_msg_get_file(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c_char {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_filename(msg)
+    let msg = &*msg;
+    message::dc_msg_get_filename(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg::dc_msg_t) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c_char {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_filemime(msg)
+    let msg = &*msg;
+    message::dc_msg_get_filemime(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg::dc_msg_t) -> u64 {
+pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg_t) -> u64 {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_filebytes(msg)
+    let msg = &*msg;
+    message::dc_msg_get_filebytes(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_width(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_get_width(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_width(msg)
+    let msg = &*msg;
+    message::dc_msg_get_width(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_height(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_get_height(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_height(msg)
+    let msg = &*msg;
+    message::dc_msg_get_height(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_duration(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_get_duration(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_duration(msg)
+    let msg = &*msg;
+    message::dc_msg_get_duration(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_showpadlock(msg)
+    let msg = &*msg;
+    message::dc_msg_get_showpadlock(msg)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_summary<'a>(
-    msg: *mut dc_msg::dc_msg_t<'a>,
+    msg: *mut dc_msg_t<'a>,
     chat: *mut dc_chat_t<'a>,
 ) -> *mut dc_lot_t {
     assert!(!msg.is_null());
     let chat = if chat.is_null() { None } else { Some(&*chat) };
 
-    let lot = dc_msg::dc_msg_get_summary(msg, chat);
+    let msg = &mut *msg;
+
+    let lot = message::dc_msg_get_summary(msg, chat);
     Box::into_raw(Box::new(lot))
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_summarytext(
-    msg: *mut dc_msg::dc_msg_t,
+    msg: *mut dc_msg_t,
     approx_characters: libc::c_int,
 ) -> *mut libc::c_char {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_summarytext(msg, approx_characters.try_into().unwrap())
+    let msg = &mut *msg;
+    message::dc_msg_get_summarytext(msg, approx_characters.try_into().unwrap())
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_has_deviating_timestamp(msg)
+    let msg = &*msg;
+    message::dc_msg_has_deviating_timestamp(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_has_location(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_has_location(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_has_location(msg) as libc::c_int
+    let msg = &*msg;
+    message::dc_msg_has_location(msg) as libc::c_int
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_is_sent(msg)
+    let msg = &*msg;
+    message::dc_msg_is_sent(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_starred(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_is_starred(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_is_starred(msg).into()
+    let msg = &*msg;
+    message::dc_msg_is_starred(msg).into()
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_forwarded(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_is_forwarded(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_is_forwarded(msg)
+    let msg = &*msg;
+    message::dc_msg_is_forwarded(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_info(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_is_info(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_is_info(msg)
+    let msg = &*msg;
+    message::dc_msg_is_info(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_is_increation(msg)
+    let msg = &*msg;
+    message::dc_msg_is_increation(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg::dc_msg_t) -> libc::c_int {
+pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg_t) -> libc::c_int {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_is_setupmessage(msg) as libc::c_int
+    let msg = &*msg;
+    message::dc_msg_is_setupmessage(msg) as libc::c_int
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_setupcodebegin(
-    msg: *mut dc_msg::dc_msg_t,
-) -> *mut libc::c_char {
+pub unsafe extern "C" fn dc_msg_get_setupcodebegin(msg: *mut dc_msg_t) -> *mut libc::c_char {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_get_setupcodebegin(msg)
+    let msg = &*msg;
+    message::dc_msg_get_setupcodebegin(msg)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg::dc_msg_t, text: *mut libc::c_char) {
+pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *mut libc::c_char) {
     assert!(!msg.is_null());
 
+    let msg = &mut *msg;
     // TODO: {text} equal to NULL is treated as "", which is strange. Does anyone rely on it?
-    dc_msg::dc_msg_set_text(msg, text)
+    message::dc_msg_set_text(msg, text)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_file(
-    msg: *mut dc_msg::dc_msg_t,
+    msg: *mut dc_msg_t,
     file: *mut libc::c_char,
     filemime: *mut libc::c_char,
 ) {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_set_file(msg, file, filemime)
+    let msg = &mut *msg;
+    message::dc_msg_set_file(msg, file, filemime)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_dimension(
-    msg: *mut dc_msg::dc_msg_t,
+    msg: *mut dc_msg_t,
     width: libc::c_int,
     height: libc::c_int,
 ) {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_set_dimension(msg, width, height)
+    let msg = &mut *msg;
+    message::dc_msg_set_dimension(msg, width, height)
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_set_duration(msg: *mut dc_msg::dc_msg_t, duration: libc::c_int) {
+pub unsafe extern "C" fn dc_msg_set_duration(msg: *mut dc_msg_t, duration: libc::c_int) {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_set_duration(msg, duration)
+    let msg = &mut *msg;
+    message::dc_msg_set_duration(msg, duration)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_set_location(
-    msg: *mut dc_msg::dc_msg_t,
+    msg: *mut dc_msg_t,
     latitude: libc::c_double,
     longitude: libc::c_double,
 ) {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_set_location(msg, latitude, longitude)
+    let msg = &mut *msg;
+    message::dc_msg_set_location(msg, latitude, longitude)
 }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
-    msg: *mut dc_msg::dc_msg_t,
+    msg: *mut dc_msg_t,
     width: libc::c_int,
     height: libc::c_int,
     duration: libc::c_int,
 ) {
     assert!(!msg.is_null());
 
-    dc_msg::dc_msg_latefiling_mediasize(msg, width, height, duration)
+    let msg = &mut *msg;
+    message::dc_msg_latefiling_mediasize(msg, width, height, duration)
 }
 
 // dc_contact_t
@@ -1869,7 +1898,7 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
     Some(dc_tools::as_str(s))
 }
 
-pub trait ResultExt<T: Default> {
+pub trait ResultExt<T> {
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
     fn log_err(&self, context: &context::Context, message: &str);
 }
@@ -1896,5 +1925,18 @@ unsafe fn strdup_opt(s: Option<impl AsRef<str>>) -> *mut libc::c_char {
     match s {
         Some(s) => s.as_ref().strdup(),
         None => ptr::null_mut(),
+    }
+}
+
+pub trait ResultNullableExt<T> {
+    fn into_raw(self) -> *mut T;
+}
+
+impl<T, E> ResultNullableExt<T> for Result<T, E> {
+    fn into_raw(self) -> *mut T {
+        match self {
+            Ok(t) => Box::into_raw(Box::new(t)),
+            Err(_) => ptr::null_mut(),
+        }
     }
 }
