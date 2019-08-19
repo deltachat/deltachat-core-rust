@@ -82,22 +82,22 @@ impl Simplify {
         let mut l_first: usize = 0;
         let mut l_last = lines.len();
         let mut line: *mut libc::c_char;
-        let mut footer_mark: libc::c_int = 0i32;
+        let mut footer_mark = false;
         for l in l_first..l_last {
             line = lines[l];
             if strcmp(line, b"-- \x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(line, b"--  \x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                footer_mark = 1i32
+                footer_mark = true;
             }
             if strcmp(line, b"--\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(line, b"---\x00" as *const u8 as *const libc::c_char) == 0i32
                 || strcmp(line, b"----\x00" as *const u8 as *const libc::c_char) == 0i32
             {
-                footer_mark = 1i32;
+                footer_mark = true;
                 self.is_cut_at_end = true
             }
-            if 0 != footer_mark {
+            if footer_mark {
                 l_last = l;
                 /* done */
                 break;
