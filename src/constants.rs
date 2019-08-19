@@ -122,6 +122,15 @@ pub const DC_CONTACT_ID_LAST_SPECIAL: usize = 9;
 
 pub const DC_CREATE_MVBOX: usize = 1;
 
+#[repr(i32)]
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+pub enum Delay {
+    DoNotTryAgain = 0,
+    AtOnce = -1,
+    Standard = 3,
+    IncreationPoll = 2,
+}
+
 // Flags for configuring IMAP and SMTP servers.
 // These flags are optional
 // and may be set together with the username, password etc.

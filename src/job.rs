@@ -1,5 +1,4 @@
 use std::ffi::CStr;
-use std::ptr;
 use std::time::Duration;
 
 use deltachat_derive::{FromSql, ToSql};
@@ -82,7 +81,7 @@ pub struct Job {
     pub added_timestamp: i64,
     pub tries: i32,
     pub param: Params,
-    pub try_again: i32,
+    pub try_again: Delay,
     pub pending_error: Option<String>,
 }
 
@@ -111,121 +110,91 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_SEND(&mut self, context: &Context) {
-        let ok_to_continue;
-        let mut filename = ptr::null_mut();
-        let mut buf = ptr::null_mut();
-        let mut buf_bytes = 0;
-
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
             let loginparam = dc_loginparam_read(context, &context.sql, "configured_");
             let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
 
             if !connected {
-                self.try_again_later(3i32, None);
-                ok_to_continue = false;
-            } else {
-                ok_to_continue = true;
+                self.try_again_later(Delay::Standard, None);
+                return;
             }
-        } else {
-            ok_to_continue = true;
         }
-        if ok_to_continue {
-            let filename_s = self.param.get(Param::File).unwrap_or_default();
-            filename = unsafe { filename_s.strdup() };
-            if unsafe { strlen(filename) } == 0 {
-                warn!(context, 0, "Missing file name for job {}", self.job_id,);
-            } else if 0 != unsafe { dc_read_file(context, filename, &mut buf, &mut buf_bytes) } {
-                let recipients = self.param.get(Param::Recipients);
-                if recipients.is_none() {
-                    warn!(context, 0, "Missing recipients for job {}", self.job_id,);
-                } else {
-                    let recipients_list = recipients
-                        .unwrap()
-                        .split("\x1e")
-                        .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
-                            Ok(addr) => Some(addr),
-                            Err(err) => {
-                                eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
-                                None
-                            }
-                        })
-                        .collect::<Vec<_>>();
-                    /* if there is a msg-id and it does not exist in the db, cancel sending.
-                    this happends if dc_delete_msgs() was called
-                    before the generated mime was sent out */
-                    let ok_to_continue1;
-                    if 0 != self.foreign_id {
-                        if 0 == unsafe { dc_msg_exists(context, self.foreign_id) } {
-                            warn!(
-                                context,
-                                0,
-                                "Message {} for job {} does not exist",
-                                self.foreign_id,
-                                self.job_id,
-                            );
-                            ok_to_continue1 = false;
-                        } else {
-                            ok_to_continue1 = true;
-                        }
-                    } else {
-                        ok_to_continue1 = true;
-                    }
-                    if ok_to_continue1 {
-                        /* send message */
-                        let body = unsafe {
-                            std::slice::from_raw_parts(buf as *const u8, buf_bytes).to_vec()
-                        };
+        let filename = self.param.get(Param::File).unwrap_or_default();
+        let body = match dc_read_file_safe(context, filename) {
+            Some(bytes) => bytes,
+            None => {
+                warn!(context, 0, "job {} error", self.job_id);
+                return;
+            }
+        };
 
-                        // hold the smtp lock during sending of a job and
-                        // its ok/error response processing. Note that if a message
-                        // was sent we need to mark it in the database as we
-                        // otherwise might send it twice.
-                        let mut sock = context.smtp.lock().unwrap();
-                        if 0 == sock.send(context, recipients_list, body) {
-                            sock.disconnect();
-                            self.try_again_later(-1i32, Some(as_str(sock.error)));
-                        } else {
-                            dc_delete_file(context, filename_s);
-                            if 0 != self.foreign_id {
-                                dc_update_msg_state(
-                                    context,
-                                    self.foreign_id,
-                                    MessageState::OutDelivered,
-                                );
-                                let chat_id: i32 = context
-                                    .sql
-                                    .query_row_col(
-                                        context,
-                                        "SELECT chat_id FROM msgs WHERE id=?",
-                                        params![self.foreign_id as i32],
-                                        0,
-                                    )
-                                    .unwrap_or_default();
-                                context.call_cb(
-                                    Event::MSG_DELIVERED,
-                                    chat_id as uintptr_t,
-                                    self.foreign_id as uintptr_t,
-                                );
-                            }
-                        }
-                    }
+        let recipients = self.param.get(Param::Recipients);
+        if recipients.is_none() {
+            error!(context, 0, "Missing recipients for job {}", self.job_id,);
+            return;
+        }
+        let recipients_list = recipients
+            .unwrap()
+            .split("\x1e")
+            .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
+                Ok(addr) => Some(addr),
+                Err(err) => {
+                    eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
+                    None
                 }
+            })
+            .collect::<Vec<_>>();
+        /* if there is a msg-id and it does not exist in the db, cancel sending.
+        this happends if dc_delete_msgs() was called
+        before the generated mime was sent out */
+        if 0 != self.foreign_id {
+            if 0 == unsafe { dc_msg_exists(context, self.foreign_id) } {
+                warn!(
+                    context,
+                    0, "Message {} for job {} does not exist", self.foreign_id, self.job_id,
+                );
+                return;
             }
         }
-        unsafe { free(buf) };
-        unsafe { free(filename.cast()) };
+        /* send message while holding the smtp lock long enough
+           to also mark success in the database, to reduce chances
+           of a message getting sent twice.
+        */
+        let mut sock = context.smtp.lock().unwrap();
+        if 0 == sock.send(context, recipients_list, body) {
+            sock.disconnect();
+            self.try_again_later(Delay::AtOnce, Some(as_str(sock.error)));
+            return;
+        }
+        dc_delete_file(context, filename);
+        if 0 != self.foreign_id {
+            dc_update_msg_state(context, self.foreign_id, MessageState::OutDelivered);
+            let chat_id: i32 = context
+                .sql
+                .query_row_col(
+                    context,
+                    "SELECT chat_id FROM msgs WHERE id=?",
+                    params![self.foreign_id as i32],
+                    0,
+                )
+                .unwrap_or_default();
+            context.call_cb(
+                Event::MSG_DELIVERED,
+                chat_id as uintptr_t,
+                self.foreign_id as uintptr_t,
+            );
+        }
     }
 
     // this value does not increase the number of tries
-    fn try_again_later(&mut self, try_again: libc::c_int, pending_error: Option<&str>) {
+    fn try_again_later(&mut self, try_again: Delay, pending_error: Option<&str>) {
         self.try_again = try_again;
         self.pending_error = pending_error.map(|s| s.to_string());
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
-        let ok_to_continue;
         let mut dest_uid = 0;
 
         let inbox = context.inbox.read().unwrap();
@@ -233,45 +202,38 @@ impl Job {
         if !inbox.is_connected() {
             connect_to_inbox(context, &inbox);
             if !inbox.is_connected() {
-                self.try_again_later(3, None);
-                ok_to_continue = false;
-            } else {
-                ok_to_continue = true;
+                self.try_again_later(Delay::Standard, None);
+                return;
             }
-        } else {
-            ok_to_continue = true;
         }
-        if ok_to_continue {
-            if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
-                if context
-                    .sql
-                    .get_config_int(context, "folders_configured")
-                    .unwrap_or_default()
-                    < 3
-                {
-                    inbox.configure_folders(context, 0x1i32);
-                }
-                let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
+        if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
+            if context
+                .sql
+                .get_config_int(context, "folders_configured")
+                .unwrap_or_default()
+                < 3
+            {
+                inbox.configure_folders(context, 0x1i32);
+            }
+            let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
 
-                if let Some(dest_folder) = dest_folder {
-                    let server_folder = msg.server_folder.as_ref().unwrap();
+            if let Some(dest_folder) = dest_folder {
+                let server_folder = msg.server_folder.as_ref().unwrap();
 
-                    match inbox.mv(
-                        context,
-                        server_folder,
-                        msg.server_uid,
-                        &dest_folder,
-                        &mut dest_uid,
-                    ) as libc::c_uint
-                    {
-                        1 => {
-                            self.try_again_later(3i32, None);
-                        }
-                        3 => {
-                            dc_update_server_uid(context, msg.rfc724_mid, &dest_folder, dest_uid);
-                        }
-                        0 | 2 | _ => {}
+                match inbox.mv(
+                    context,
+                    server_folder,
+                    msg.server_uid,
+                    &dest_folder,
+                    &mut dest_uid,
+                ) {
+                    ImapResult::RetryLater => {
+                        self.try_again_later(Delay::Standard, None);
                     }
+                    ImapResult::Success => {
+                        dc_update_server_uid(context, msg.rfc724_mid, &dest_folder, dest_uid);
+                    }
+                    _ => {}
                 }
             }
         }
@@ -279,53 +241,37 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_DELETE_MSG_ON_IMAP(&mut self, context: &Context) {
-        let mut delete_from_server = 1;
         let inbox = context.inbox.read().unwrap();
 
         if let Ok(mut msg) = dc_msg_load_from_db(context, self.foreign_id) {
             if !(msg.rfc724_mid.is_null()
                 || unsafe { *msg.rfc724_mid.offset(0isize) as libc::c_int == 0 })
             {
-                let ok_to_continue1;
                 /* eg. device messages have no Message-ID */
                 if dc_rfc724_mid_cnt(context, msg.rfc724_mid) != 1 {
                     info!(
                         context,
                         0, "The message is deleted from the server when all parts are deleted.",
                     );
-                    delete_from_server = 0i32
+                    return;
                 }
                 /* if this is the last existing part of the message, we delete the message from the server */
-                if 0 != delete_from_server {
-                    let ok_to_continue;
+                if !inbox.is_connected() {
+                    connect_to_inbox(context, &inbox);
                     if !inbox.is_connected() {
-                        connect_to_inbox(context, &inbox);
-                        if !inbox.is_connected() {
-                            self.try_again_later(3i32, None);
-                            ok_to_continue = false;
-                        } else {
-                            ok_to_continue = true;
-                        }
-                    } else {
-                        ok_to_continue = true;
+                        self.try_again_later(Delay::Standard, None);
+                        return;
                     }
-                    if ok_to_continue {
-                        let mid = unsafe { CStr::from_ptr(msg.rfc724_mid).to_str().unwrap() };
-                        let server_folder = msg.server_folder.as_ref().unwrap();
-                        if 0 == inbox.delete_msg(context, mid, server_folder, &mut msg.server_uid) {
-                            self.try_again_later(-1i32, None);
-                            ok_to_continue1 = false;
-                        } else {
-                            ok_to_continue1 = true;
-                        }
-                    } else {
-                        ok_to_continue1 = false;
-                    }
-                } else {
-                    ok_to_continue1 = true;
                 }
-                if ok_to_continue1 {
-                    dc_delete_msg_from_db(context, msg.id);
+                let mid = unsafe { CStr::from_ptr(msg.rfc724_mid).to_str().unwrap() };
+                let server_folder = msg.server_folder.as_ref().unwrap();
+                match inbox.delete_msg(context, mid, server_folder, &mut msg.server_uid) {
+                    ImapResult::RetryLater => {
+                        self.try_again_later(Delay::AtOnce, None);
+                    }
+                    _ => {
+                        dc_delete_msg_from_db(context, msg.id);
+                    }
                 }
             }
         }
@@ -333,57 +279,51 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
-        let ok_to_continue;
         let inbox = context.inbox.read().unwrap();
 
         if !inbox.is_connected() {
             connect_to_inbox(context, &inbox);
             if !inbox.is_connected() {
-                self.try_again_later(3i32, None);
-                ok_to_continue = false;
-            } else {
-                ok_to_continue = true;
+                self.try_again_later(Delay::Standard, None);
+                return;
             }
-        } else {
-            ok_to_continue = true;
         }
-        if ok_to_continue {
-            if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
-                let server_folder = msg.server_folder.as_ref().unwrap();
-                match inbox.set_seen(context, server_folder, msg.server_uid) as libc::c_uint {
-                    0 => {}
-                    1 => {
-                        self.try_again_later(3i32, None);
-                    }
-                    _ => {
-                        if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
-                            && 0 != context
-                                .sql
-                                .get_config_int(context, "mdns_enabled")
-                                .unwrap_or_else(|| 1)
-                        {
-                            let folder = msg.server_folder.as_ref().unwrap();
-
-                            match inbox.set_mdnsent(context, folder, msg.server_uid) as libc::c_uint
-                            {
-                                1 => {
-                                    self.try_again_later(3i32, None);
-                                }
-                                3 => {
-                                    send_mdn(context, msg.id);
-                                }
-                                0 | 2 | _ => {}
-                            }
-                        }
-                    }
+        if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
+            let server_folder = msg.server_folder.as_ref().unwrap();
+            match inbox.set_seen(context, server_folder, msg.server_uid) {
+                ImapResult::Failed => {
+                    return;
                 }
+                ImapResult::RetryLater => {
+                    self.try_again_later(Delay::Standard, None);
+                    return;
+                }
+                _ => {}
+            };
+            if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
+                && 0 != context
+                    .sql
+                    .get_config_int(context, "mdns_enabled")
+                    .unwrap_or_else(|| 1)
+            {
+                let folder = msg.server_folder.as_ref().unwrap();
+
+                match inbox.set_mdnsent(context, folder, msg.server_uid) {
+                    ImapResult::RetryLater => {
+                        self.try_again_later(Delay::Standard, None);
+                    }
+                    ImapResult::Success => {
+                        send_mdn(context, msg.id);
+                    }
+                    ImapResult::AlreadyDone => {}
+                    ImapResult::Failed => {}
+                };
             }
         }
     }
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MARKSEEN_MDN_ON_IMAP(&mut self, context: &Context) {
-        let ok_to_continue;
         let folder = self
             .param
             .get(Param::ServerFolder)
@@ -396,34 +336,37 @@ impl Job {
         if !inbox.is_connected() {
             connect_to_inbox(context, &inbox);
             if !inbox.is_connected() {
-                self.try_again_later(3, None);
-                ok_to_continue = false;
-            } else {
-                ok_to_continue = true;
+                self.try_again_later(Delay::Standard, None);
+                return;
             }
-        } else {
-            ok_to_continue = true;
         }
-        if ok_to_continue {
-            if inbox.set_seen(context, &folder, uid) == 0 {
-                self.try_again_later(3i32, None);
+
+        match inbox.set_seen(context, &folder, uid) {
+            ImapResult::RetryLater => {
+                self.try_again_later(Delay::Standard, None);
+                return;
             }
-            if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
-                if context
-                    .sql
-                    .get_config_int(context, "folders_configured")
-                    .unwrap_or_default()
-                    < 3
-                {
-                    inbox.configure_folders(context, 0x1i32);
-                }
-                let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
-                if let Some(dest_folder) = dest_folder {
-                    if 1 == inbox.mv(context, folder, uid, dest_folder, &mut dest_uid)
-                        as libc::c_uint
-                    {
-                        self.try_again_later(3, None);
+            ImapResult::Failed => {
+                return;
+            }
+            _ => {}
+        };
+        if 0 != self.param.get_int(Param::AlsoMove).unwrap_or_default() {
+            if context
+                .sql
+                .get_config_int(context, "folders_configured")
+                .unwrap_or_default()
+                < 3
+            {
+                inbox.configure_folders(context, 0x1i32);
+            }
+            let dest_folder = context.sql.get_config(context, "configured_mvbox_folder");
+            if let Some(dest_folder) = dest_folder {
+                match inbox.mv(context, folder, uid, dest_folder, &mut dest_uid) {
+                    ImapResult::RetryLater => {
+                        self.try_again_later(Delay::Standard, None);
                     }
+                    _ => {}
                 }
             }
         }
@@ -811,7 +754,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 added_timestamp: row.get(4)?,
                 tries: row.get(6)?,
                 param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                try_again: 0,
+                try_again: Delay::DoNotTryAgain,
                 pending_error: None,
             };
 
@@ -843,7 +786,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         // some configuration jobs are "exclusive":
         // - they are always executed in the imap-thread and the smtp-thread is suspended during execution
         // - they may change the database handle change the database handle; we do not keep old pointers therefore
-        // - they can be re-executed one time AT_ONCE, but they are not save in the database for later execution
+        // - they can be re-executed one time AtOnce, but they are not save in the database for later execution
         if Action::ConfigureImap == job.action || Action::ImexImap == job.action {
             job_kill_action(context, job.action);
             &context
@@ -864,7 +807,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
         let mut tries = 0;
         while tries <= 1 {
             // this can be modified by a job using dc_job_try_again_later()
-            job.try_again = 0;
+            job.try_again = Delay::DoNotTryAgain;
 
             match job.action {
                 Action::SendMsgToSmtp => job.do_DC_JOB_SEND(context),
@@ -885,7 +828,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 Action::SendMdnOld => {}
                 Action::SendMsgToSmtpOld => {}
             }
-            if job.try_again != -1 {
+            if job.try_again != Delay::AtOnce {
                 break;
             }
             tries += 1
@@ -905,7 +848,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 .unsuspend(context);
             suspend_smtp_thread(context, false);
             break;
-        } else if job.try_again == 2 {
+        } else if job.try_again == Delay::IncreationPoll {
             // just try over next loop unconditionally, the ui typically interrupts idle when the file (video) is ready
             info!(
                 context,
@@ -918,7 +861,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 },
                 job.job_id
             );
-        } else if job.try_again == -1 || job.try_again == 3 {
+        } else if job.try_again == Delay::AtOnce || job.try_again == Delay::Standard {
             let tries = job.tries + 1;
             if tries < 17 {
                 job.tries = tries;
