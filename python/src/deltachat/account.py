@@ -176,7 +176,7 @@ class Account(object):
                       whose name or e-mail matches query.
         :param only_verified: if true only return verified contacts.
         :param with_self: if true the self-contact is also returned.
-        :returns: list of :class:`deltachat.message.Message` objects.
+        :returns: list of :class:`deltachat.chatting.Contact` objects.
         """
         flags = 0
         query = as_dc_charpointer(query)
