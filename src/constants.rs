@@ -137,7 +137,7 @@ pub enum Delay {
 // via dc_set_config() using the key "server_flags".
 
 /// Force OAuth2 authorization. This flag does not skip automatic configuration.
-/// Before calling dc_configure() with DC_LP_AUTH_OAUTH2 set,
+/// Before calling configure() with DC_LP_AUTH_OAUTH2 set,
 /// the user has to confirm access at the URL returned by dc_get_oauth2_url().
 pub const DC_LP_AUTH_OAUTH2: usize = 0x2;
 
@@ -291,7 +291,7 @@ pub enum Event {
     /// As most things are asynchronous, things may go wrong at any time and the user
     /// should not be disturbed by a dialog or so.  Instead, use a bubble or so.
     ///
-    /// However, for ongoing processes (eg. dc_configure())
+    /// However, for ongoing processes (eg. configure())
     /// or for functions that are expected to fail (eg. dc_continue_key_transfer())
     /// it might be better to delay showing these events until the function has really
     /// failed (returned false). It should be sufficient to report only the _last_ error
@@ -409,7 +409,7 @@ pub enum Event {
     /// @return 0
     LOCATION_CHANGED = 2035,
 
-    /// Inform about the configuration progress started by dc_configure().
+    /// Inform about the configuration progress started by configure().
     ///
     /// @param data1 (int) 0=error, 1-999=progress in permille, 1000=success and done
     /// @param data2 0
