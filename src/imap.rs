@@ -637,13 +637,13 @@ impl Imap {
         }
     }
 
-    fn select_folder<S: AsRef<str>>(&self, context: &Context, folder: Option<S>) -> usize {
+    fn select_folder<S: AsRef<str>>(&self, context: &Context, folder: Option<S>) -> bool {
         if self.session.lock().unwrap().is_none() {
             // we are in termination, noting useful to be done anymore
             let mut cfg = self.config.write().unwrap();
             cfg.selected_folder = None;
             cfg.selected_folder_needs_expunge = false;
-            return 0;
+            return false;
         }
 
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
@@ -651,7 +651,7 @@ impl Imap {
         if let Some(ref folder) = folder {
             if let Some(ref selected_folder) = self.config.read().unwrap().selected_folder {
                 if folder.as_ref() == selected_folder {
-                    return 1;
+                    return true;
                 }
             }
         }
@@ -697,15 +697,14 @@ impl Imap {
 
                         self.config.write().unwrap().selected_folder = None;
                         self.should_reconnect.store(true, Ordering::Relaxed);
-                        return 0;
+                        return false;
                     }
                 }
             } else {
-                return 0;
+                unreachable!();
             }
         }
-
-        1
+        true
     }
 
     fn get_config_last_seen_uid<S: AsRef<str>>(&self, context: &Context, folder: S) -> (u32, u32) {
@@ -734,7 +733,7 @@ impl Imap {
             return 0;
         }
 
-        if self.select_folder(context, Some(&folder)) == 0 {
+        if !self.select_folder(context, Some(&folder)) {
             info!(
                 context,
                 0,
@@ -1012,7 +1011,7 @@ impl Imap {
         self.setup_handle_if_needed(context);
 
         let watch_folder = self.config.read().unwrap().watch_folder.clone();
-        if self.select_folder(context, watch_folder.as_ref()) == 0 {
+        if !self.select_folder(context, watch_folder.as_ref()) {
             warn!(context, 0, "IMAP-IDLE not setup.",);
 
             return self.fake_idle(context);
@@ -1193,7 +1192,7 @@ impl Imap {
                 dest_folder.as_ref()
             );
 
-            if self.select_folder(context, Some(folder.as_ref())) == 0 {
+            if !self.select_folder(context, Some(folder.as_ref())) {
                 warn!(
                     context,
                     0,
@@ -1285,7 +1284,7 @@ impl Imap {
                 uid,
             );
 
-            if self.select_folder(context, Some(folder.as_ref())) == 0 {
+            if !self.select_folder(context, Some(folder.as_ref())) {
                 warn!(
                     context,
                     0,
@@ -1322,7 +1321,7 @@ impl Imap {
                 uid,
             );
 
-            if self.select_folder(context, Some(folder.as_ref())) == 0 {
+            if !self.select_folder(context, Some(folder.as_ref())) {
                 warn!(
                     context,
                     0,
@@ -1420,7 +1419,6 @@ impl Imap {
         if !self.is_connected() {
             return ImapResult::RetryLater
         } 
-        {
             info!(
                 context,
                 0,
@@ -1430,7 +1428,7 @@ impl Imap {
                 server_uid,
             );
 
-            if self.select_folder(context, Some(&folder)) == 0 {
+            if !self.select_folder(context, Some(&folder)) {
                 warn!(
                     context,
                     0,
@@ -1490,7 +1488,6 @@ impl Imap {
                     return ImapResult::Success;
                 }
             }
-        } 
     }
 
     pub fn configure_folders(&self, context: &Context, flags: libc::c_int) {
