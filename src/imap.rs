@@ -1312,95 +1312,94 @@ impl Imap {
         if !self.is_connected() {
             return ImapResult::RetryLater;
         }
-            info!(
+        info!(
+            context,
+            0,
+            "Marking message {}/{} as $MDNSent...",
+            folder.as_ref(),
+            uid,
+        );
+
+        if !self.select_folder(context, Some(folder.as_ref())) {
+            warn!(
                 context,
                 0,
-                "Marking message {}/{} as $MDNSent...",
-                folder.as_ref(),
-                uid,
+                "Cannot select folder {} for setting $MDNSent flag.",
+                folder.as_ref()
             );
+            return ImapResult::Failed;
+        }
+        // Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not
+        // set: set the flags and return this information.
+        // If the folder cannot handle the `$MDNSent` flag, we risk duplicated MDNs; it's up
+        // to the receiving MUA to handle this then (eg. Delta Chat has no problem with this).
 
-            if !self.select_folder(context, Some(folder.as_ref())) {
-                warn!(
-                    context,
-                    0,
-                    "Cannot select folder {} for setting $MDNSent flag.",
-                    folder.as_ref()
-                );
-                return ImapResult::Failed;
-            }
-                // Check if the folder can handle the `$MDNSent` flag (see RFC 3503).  If so, and not
-                // set: set the flags and return this information.
-                // If the folder cannot handle the `$MDNSent` flag, we risk duplicated MDNs; it's up
-                // to the receiving MUA to handle this then (eg. Delta Chat has no problem with this).
+        let can_create_flag = self
+            .config
+            .read()
+            .unwrap()
+            .selected_mailbox
+            .as_ref()
+            .map(|mbox| {
+                // empty means, everything can be stored
+                mbox.permanent_flags.is_empty()
+                    || mbox
+                        .permanent_flags
+                        .iter()
+                        .find(|flag| match flag {
+                            imap::types::Flag::Custom(s) => s == "$MDNSent",
+                            _ => false,
+                        })
+                        .is_some()
+            })
+            .expect("just selected folder");
 
-                let can_create_flag = self
-                    .config
-                    .read()
-                    .unwrap()
-                    .selected_mailbox
-                    .as_ref()
-                    .map(|mbox| {
-                        // empty means, everything can be stored
-                        mbox.permanent_flags.is_empty()
-                            || mbox
-                                .permanent_flags
-                                .iter()
-                                .find(|flag| match flag {
-                                    imap::types::Flag::Custom(s) => s == "$MDNSent",
-                                    _ => false,
-                                })
-                                .is_some()
-                    })
-                    .expect("just selected folder");
+        if !can_create_flag {
+            info!(
+                context,
+                0, "Cannot store $MDNSent flags, ignoring to prevent duplicate MDN.",
+            );
+            return ImapResult::Success;
+        }
 
-                if !can_create_flag {
-                    info!(
-                        context,
-                        0, "Cannot store $MDNSent flags, ignoring to prevent duplicate MDN.",
-                    );
-                    return ImapResult::Success;
+        let set = format!("{}", uid);
+
+        let fetched_msgs = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+            match session.uid_fetch(set, FETCH_FLAGS) {
+                Ok(res) => res,
+                Err(err) => {
+                    eprintln!("fetch error: {:?}", err);
+                    return ImapResult::Failed;
                 }
+            }
+        } else {
+            unreachable!();
+        };
 
-                    let set = format!("{}", uid);
+        let flag_set = fetched_msgs
+            .first()
+            .map(|msg| {
+                msg.flags()
+                    .iter()
+                    .find(|flag| match flag {
+                        imap::types::Flag::Custom(s) => s == "$MDNSent",
+                        _ => false,
+                    })
+                    .is_some()
+            })
+            .unwrap_or_else(|| false);
 
-                    let fetched_msgs =
-                        if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
-                            match session.uid_fetch(set, FETCH_FLAGS) {
-                                Ok(res) => res,
-                                Err(err) => {
-                                    eprintln!("fetch error: {:?}", err);
-                                    return ImapResult::Failed
-                                }
-                            }
-                        } else {
-                            unreachable!();
-                        };
-
-                        let flag_set = fetched_msgs 
-                            .first()
-                            .map(|msg| {
-                                msg.flags()
-                                    .iter()
-                                    .find(|flag| match flag {
-                                        imap::types::Flag::Custom(s) => s == "$MDNSent",
-                                        _ => false,
-                                    })
-                                    .is_some()
-                            })
-                            .unwrap_or_else(|| false);
-
-                        if flag_set {
-                            info!(context, 0, "$MDNSent already set and MDN already sent.");
-                            ImapResult::AlreadyDone
-                        } else if self.add_flag(context, uid, "$MDNSent") {
-                            info!(context, 0, "$MDNSent just set and MDN will be sent.");
-                            ImapResult::Success
-                        } else if self.should_reconnect() {
-                            ImapResult::RetryLater
-                        } else {
-                            ImapResult::Failed
-                        }
+        if flag_set {
+            info!(context, 0, "$MDNSent already set and MDN already sent.");
+            ImapResult::AlreadyDone
+        } else if self.add_flag(context, uid, "$MDNSent") {
+            info!(context, 0, "$MDNSent just set and MDN will be sent.");
+            ImapResult::Success
+        } else if self.should_reconnect() {
+            ImapResult::RetryLater
+        } else {
+            ImapResult::Failed
+        }
     }
 
     pub fn delete_msg<S1: AsRef<str>, S2: AsRef<str>>(
@@ -1434,55 +1433,55 @@ impl Imap {
             );
             return ImapResult::RetryLater;
         }
-            let set = format!("{}", server_uid);
-            if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
-                match session.uid_fetch(set, PREFETCH_FLAGS) {
-                    Ok(msgs) => {
-                        if msgs.is_empty()
-                            || msgs
-                                .first()
-                                .unwrap()
-                                .envelope()
-                                .expect("missing envelope")
-                                .message_id
-                                .expect("missing message id")
-                                != message_id.as_ref()
-                        {
-                            warn!(
-                                context,
-                                0,
-                                "Cannot delete on IMAP, {}/{} does not match {}.",
-                                folder.as_ref(),
-                                server_uid,
-                                message_id.as_ref(),
-                            );
-                            *server_uid = 0;
-                            return ImapResult::Failed;
-                        }
-                    }
-                    Err(err) => {
+        let set = format!("{}", server_uid);
+        if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+            match session.uid_fetch(set, PREFETCH_FLAGS) {
+                Ok(msgs) => {
+                    if msgs.is_empty()
+                        || msgs
+                            .first()
+                            .unwrap()
+                            .envelope()
+                            .expect("missing envelope")
+                            .message_id
+                            .expect("missing message id")
+                            != message_id.as_ref()
+                    {
                         warn!(
                             context,
                             0,
-                            "Cannot delete on IMAP, {}/{}, fetch error {:?}.",
+                            "Cannot delete on IMAP, {}/{} does not match {}.",
                             folder.as_ref(),
                             server_uid,
-                            err
+                            message_id.as_ref(),
                         );
                         *server_uid = 0;
                         return ImapResult::Failed;
                     }
                 }
+                Err(err) => {
+                    warn!(
+                        context,
+                        0,
+                        "Cannot delete on IMAP, {}/{}, fetch error {:?}.",
+                        folder.as_ref(),
+                        server_uid,
+                        err
+                    );
+                    *server_uid = 0;
+                    return ImapResult::Failed;
+                }
             }
-            // mark the message for deletion
-            if !self.add_flag(context, *server_uid, "\\Deleted") {
-                warn!(context, 0, "Cannot mark message as \"Deleted\".");
-                *server_uid = 0;
-                ImapResult::Failed
-            } else {
-                self.config.write().unwrap().selected_folder_needs_expunge = true;
-                ImapResult::Success
-            }
+        }
+        // mark the message for deletion
+        if !self.add_flag(context, *server_uid, "\\Deleted") {
+            warn!(context, 0, "Cannot mark message as \"Deleted\".");
+            *server_uid = 0;
+            ImapResult::Failed
+        } else {
+            self.config.write().unwrap().selected_folder_needs_expunge = true;
+            ImapResult::Success
+        }
     }
 
     pub fn configure_folders(&self, context: &Context, flags: libc::c_int) {
