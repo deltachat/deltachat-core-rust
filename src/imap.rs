@@ -1182,71 +1182,71 @@ impl Imap {
                 dest_folder.as_ref()
             );
             return ImapResult::AlreadyDone;
-        } 
-            info!(
+        }
+        info!(
+            context,
+            0,
+            "Moving message {}/{} to {}...",
+            folder.as_ref(),
+            uid,
+            dest_folder.as_ref()
+        );
+
+        if !self.select_folder(context, Some(folder.as_ref())) {
+            warn!(
                 context,
                 0,
-                "Moving message {}/{} to {}...",
-                folder.as_ref(),
-                uid,
-                dest_folder.as_ref()
+                "Cannot select folder {} for moving message.",
+                folder.as_ref()
             );
-
-            if !self.select_folder(context, Some(folder.as_ref())) {
-                warn!(
-                    context,
-                    0,
-                    "Cannot select folder {} for moving message.",
-                    folder.as_ref()
-                );
-                return if !self.should_reconnect() {
-                    ImapResult::Failed
-                } else {
-                    ImapResult::RetryLater
+            return if !self.should_reconnect() {
+                ImapResult::Failed
+            } else {
+                ImapResult::RetryLater
+            };
+        }
+        let set = format!("{}", uid);
+        if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+            match session.uid_mv(&set, &dest_folder) {
+                Ok(_) => {
+                    // XXX set dest_uid properly (like it was done in C)
+                    return ImapResult::Success;
                 }
-            } 
-                let set = format!("{}", uid);
-                if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
-                    match session.uid_mv(&set, &dest_folder) {
-                        Ok(_) => {
-                            // XXX set dest_uid properly (like it was done in C) 
-                            return ImapResult::Success;
-                        }
-                        Err(err) => {
-                            info!(
-                                context,
-                                0,
-                                "Cannot move message, fallback to COPY/DELETE {}/{} to {}: {}",
-                                folder.as_ref(),
-                                uid,
-                                dest_folder.as_ref(),
-                                err
-                            );
-                        }
-                    }
-                } else {
-                    unreachable!();
-                };
+                Err(err) => {
+                    info!(
+                        context,
+                        0,
+                        "Cannot move message, fallback to COPY/DELETE {}/{} to {}: {}",
+                        folder.as_ref(),
+                        uid,
+                        dest_folder.as_ref(),
+                        err
+                    );
+                }
+            }
+        } else {
+            unreachable!();
+        };
 
-                // message was NOT moved, let's try copy 
-                    if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
-                        match session.uid_copy(&set, &dest_folder) {
-                            Ok(_) => {},
-                            Err(err) => {
-                                info!(context, 0, "Cannot copy message. {:?}", err);
-                                return ImapResult::Failed;
-                            }
-                        }
-                    } else {
-                        unreachable!();
-                    };
-
-                    if self.add_flag(context, uid, "\\Deleted") {
-                        self.config.write().unwrap().selected_folder_needs_expunge = true;
-                        return ImapResult::Success;
-                    }
-                    warn!(context, 0, "Cannot mark message as \"Deleted\".",);
+        // message was NOT moved, let's try copy
+        if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+            match session.uid_copy(&set, &dest_folder) {
+                Ok(_) => {}
+                Err(err) => {
+                    info!(context, 0, "Cannot copy message. {:?}", err);
                     return ImapResult::Failed;
+                }
+            }
+        } else {
+            unreachable!();
+        };
+
+        if self.add_flag(context, uid, "\\Deleted") {
+            self.config.write().unwrap().selected_folder_needs_expunge = true;
+            return ImapResult::Success;
+        }
+        warn!(context, 0, "Cannot mark message as \"Deleted\".",);
+        return ImapResult::Failed;
     }
 
     fn add_flag<S: AsRef<str>>(&self, context: &Context, server_uid: u32, flag: S) -> bool {
@@ -1414,80 +1414,80 @@ impl Imap {
         server_uid: &mut u32,
     ) -> ImapResult {
         if *server_uid == 0 {
-            return ImapResult::Failed
+            return ImapResult::Failed;
         }
         if !self.is_connected() {
-            return ImapResult::RetryLater
-        } 
-            info!(
+            return ImapResult::RetryLater;
+        }
+        info!(
+            context,
+            0,
+            "Marking message \"{}\", {}/{} for deletion...",
+            message_id.as_ref(),
+            folder.as_ref(),
+            server_uid,
+        );
+
+        if !self.select_folder(context, Some(&folder)) {
+            warn!(
                 context,
                 0,
-                "Marking message \"{}\", {}/{} for deletion...",
-                message_id.as_ref(),
-                folder.as_ref(),
-                server_uid,
+                "Cannot select folder {} for deleting message.",
+                folder.as_ref()
             );
-
-            if !self.select_folder(context, Some(&folder)) {
-                warn!(
-                    context,
-                    0,
-                    "Cannot select folder {} for deleting message.",
-                    folder.as_ref()
-                );
-                return ImapResult::RetryLater
-            }
-            {
-                let set = format!("{}", server_uid);
-                if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
-                    match session.uid_fetch(set, PREFETCH_FLAGS) {
-                        Ok(msgs) => {
-                            if msgs.is_empty()
-                                || msgs
-                                    .first()
-                                    .unwrap()
-                                    .envelope()
-                                    .expect("missing envelope")
-                                    .message_id
-                                    .expect("missing message id")
-                                    != message_id.as_ref()
-                            {
-                                warn!(
-                                    context,
-                                    0,
-                                    "Cannot delete on IMAP, {}/{} does not match {}.",
-                                    folder.as_ref(),
-                                    server_uid,
-                                    message_id.as_ref(),
-                                );
-                                *server_uid = 0;
-                                return ImapResult::Failed;
-                            }
-                        }
-                        Err(err) => {
-                            eprintln!("fetch error: {:?}", err);
-
+            return ImapResult::RetryLater;
+        }
+        {
+            let set = format!("{}", server_uid);
+            if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+                match session.uid_fetch(set, PREFETCH_FLAGS) {
+                    Ok(msgs) => {
+                        if msgs.is_empty()
+                            || msgs
+                                .first()
+                                .unwrap()
+                                .envelope()
+                                .expect("missing envelope")
+                                .message_id
+                                .expect("missing message id")
+                                != message_id.as_ref()
+                        {
                             warn!(
                                 context,
                                 0,
-                                "Cannot delete on IMAP, {}/{} not found.",
+                                "Cannot delete on IMAP, {}/{} does not match {}.",
                                 folder.as_ref(),
                                 server_uid,
+                                message_id.as_ref(),
                             );
                             *server_uid = 0;
                             return ImapResult::Failed;
                         }
                     }
-                }
-                // mark the message for deletion
-                if !self.add_flag(context, *server_uid, "\\Deleted") {
-                    warn!(context, 0, "Cannot mark message as \"Deleted\".");
-                    return ImapResult::Failed;
-                } else {
-                    self.config.write().unwrap().selected_folder_needs_expunge = true;
-                    return ImapResult::Success;
+                    Err(err) => {
+                        eprintln!("fetch error: {:?}", err);
+
+                        warn!(
+                            context,
+                            0,
+                            "Cannot delete on IMAP, {}/{} not found.",
+                            folder.as_ref(),
+                            server_uid,
+                        );
+                        *server_uid = 0;
+                        return ImapResult::Failed;
+                    }
                 }
             }
+            // mark the message for deletion
+            if !self.add_flag(context, *server_uid, "\\Deleted") {
+                warn!(context, 0, "Cannot mark message as \"Deleted\".");
+                return ImapResult::Failed;
+            } else {
+                self.config.write().unwrap().selected_folder_needs_expunge = true;
+                return ImapResult::Success;
+            }
+        }
     }
 
     pub fn configure_folders(&self, context: &Context, flags: libc::c_int) {
