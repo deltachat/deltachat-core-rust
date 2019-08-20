@@ -754,7 +754,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 added_timestamp: row.get(4)?,
                 tries: row.get(6)?,
                 param: row.get::<_, String>(3)?.parse().unwrap_or_default(),
-                try_again: Delay::DoNotTryAgain,
+                try_again: Delay::Default,
                 pending_error: None,
             };
 
@@ -806,8 +806,8 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
 
         let mut tries = 0;
         while tries <= 1 {
-            // this can be modified by a job using dc_job_try_again_later()
-            job.try_again = Delay::DoNotTryAgain;
+            // this can be modified by a job using try_again_later()
+            job.try_again = Delay::Default;
 
             match job.action {
                 Action::SendMsgToSmtp => job.do_DC_JOB_SEND(context),

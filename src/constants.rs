@@ -125,7 +125,7 @@ pub const DC_CREATE_MVBOX: usize = 1;
 #[repr(i32)]
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
 pub enum Delay {
-    DoNotTryAgain = 0,
+    Default = 0,
     AtOnce = -1,
     Standard = 3,
     IncreationPoll = 2,
