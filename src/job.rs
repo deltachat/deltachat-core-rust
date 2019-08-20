@@ -195,8 +195,6 @@ impl Job {
 
     #[allow(non_snake_case)]
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
-        let mut dest_uid = 0;
-
         let inbox = context.inbox.read().unwrap();
 
         if !inbox.is_connected() {
@@ -219,6 +217,7 @@ impl Job {
 
             if let Some(dest_folder) = dest_folder {
                 let server_folder = msg.server_folder.as_ref().unwrap();
+                let mut dest_uid = 0;
 
                 match inbox.mv(
                     context,
@@ -231,6 +230,7 @@ impl Job {
                         self.try_again_later(Delay::Standard, None);
                     }
                     ImapResult::Success => {
+                        // TODO: dest_uid is not (yet) set by mv() so remains 0
                         dc_update_server_uid(context, msg.rfc724_mid, &dest_folder, dest_uid);
                     }
                     _ => {}

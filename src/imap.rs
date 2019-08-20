@@ -639,6 +639,7 @@ impl Imap {
 
     fn select_folder<S: AsRef<str>>(&self, context: &Context, folder: Option<S>) -> usize {
         if self.session.lock().unwrap().is_none() {
+            // we are in termination, noting useful to be done anymore
             let mut cfg = self.config.write().unwrap();
             cfg.selected_folder = None;
             cfg.selected_folder_needs_expunge = false;
@@ -670,7 +671,7 @@ impl Imap {
                         }
                     }
                 } else {
-                    return 0;
+                    unreachable!();
                 }
                 self.config.write().unwrap().selected_folder_needs_expunge = true;
             }
@@ -1170,11 +1171,8 @@ impl Imap {
         dest_folder: S2,
         dest_uid: &mut u32,
     ) -> ImapResult {
-        let mut res = ImapResult::RetryLater;
-        let set = format!("{}", uid);
-
         if uid == 0 {
-            res = ImapResult::Failed;
+            return ImapResult::Failed;
         } else if folder.as_ref() == dest_folder.as_ref() {
             info!(
                 context,
@@ -1184,9 +1182,8 @@ impl Imap {
                 uid,
                 dest_folder.as_ref()
             );
-
-            res = ImapResult::AlreadyDone;
-        } else {
+            return ImapResult::AlreadyDone;
+        } 
             info!(
                 context,
                 0,
@@ -1203,12 +1200,18 @@ impl Imap {
                     "Cannot select folder {} for moving message.",
                     folder.as_ref()
                 );
-            } else {
-                let moved = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+                return if !self.should_reconnect() {
+                    ImapResult::Failed
+                } else {
+                    ImapResult::RetryLater
+                }
+            } 
+                let set = format!("{}", uid);
+                if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                     match session.uid_mv(&set, &dest_folder) {
                         Ok(_) => {
-                            res = ImapResult::Success;
-                            true
+                            // XXX set dest_uid properly (like it was done in C) 
+                            return ImapResult::Success;
                         }
                         Err(err) => {
                             info!(
@@ -1220,49 +1223,31 @@ impl Imap {
                                 dest_folder.as_ref(),
                                 err
                             );
-
-                            false
                         }
                     }
                 } else {
                     unreachable!();
                 };
 
-                if !moved {
-                    let copied = if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+                // message was NOT moved, let's try copy 
+                    if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                         match session.uid_copy(&set, &dest_folder) {
-                            Ok(_) => true,
+                            Ok(_) => {},
                             Err(err) => {
-                                eprintln!("error copy: {:?}", err);
-                                info!(context, 0, "Cannot copy message.",);
-
-                                false
+                                info!(context, 0, "Cannot copy message. {:?}", err);
+                                return ImapResult::Failed;
                             }
                         }
                     } else {
                         unreachable!();
                     };
 
-                    if copied {
-                        if !self.add_flag(context, uid, "\\Deleted") {
-                            warn!(context, 0, "Cannot mark message as \"Deleted\".",);
-                        }
+                    if self.add_flag(context, uid, "\\Deleted") {
                         self.config.write().unwrap().selected_folder_needs_expunge = true;
-                        res = ImapResult::Success;
+                        return ImapResult::Success;
                     }
-                }
-            }
-        }
-
-        if res == ImapResult::Success {
-            // TODO: is this correct?
-            *dest_uid = uid;
-        }
-
-        if res == ImapResult::RetryLater && !self.should_reconnect() {
-            res = ImapResult::Failed;
-        }
-        res
+                    warn!(context, 0, "Cannot mark message as \"Deleted\".",);
+                    return ImapResult::Failed;
     }
 
     fn add_flag<S: AsRef<str>>(&self, context: &Context, server_uid: u32, flag: S) -> bool {
@@ -1430,8 +1415,11 @@ impl Imap {
         server_uid: &mut u32,
     ) -> ImapResult {
         if *server_uid == 0 {
-            return ImapResult::Success;
+            return ImapResult::Failed
         }
+        if !self.is_connected() {
+            return ImapResult::RetryLater
+        } 
         {
             info!(
                 context,
@@ -1449,7 +1437,9 @@ impl Imap {
                     "Cannot select folder {} for deleting message.",
                     folder.as_ref()
                 );
-            } else {
+                return ImapResult::RetryLater
+            }
+            {
                 let set = format!("{}", server_uid);
                 if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
                     match session.uid_fetch(set, PREFETCH_FLAGS) {
@@ -1473,6 +1463,7 @@ impl Imap {
                                     message_id.as_ref(),
                                 );
                                 *server_uid = 0;
+                                return ImapResult::Failed;
                             }
                         }
                         Err(err) => {
@@ -1486,26 +1477,20 @@ impl Imap {
                                 server_uid,
                             );
                             *server_uid = 0;
+                            return ImapResult::Failed;
                         }
                     }
                 }
-
                 // mark the message for deletion
                 if !self.add_flag(context, *server_uid, "\\Deleted") {
                     warn!(context, 0, "Cannot mark message as \"Deleted\".");
+                    return ImapResult::Failed;
                 } else {
                     self.config.write().unwrap().selected_folder_needs_expunge = true;
                     return ImapResult::Success;
                 }
             }
-        }
-        // deletion was not successful or message was deleted already
-        return if self.is_connected() {
-            ImapResult::Failed
-        } else {
-            // we are not connected so the caller may retry
-            ImapResult::RetryLater
-        };
+        } 
     }
 
     pub fn configure_folders(&self, context: &Context, flags: libc::c_int) {
