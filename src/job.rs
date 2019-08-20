@@ -149,7 +149,7 @@ impl Job {
         this happends if dc_delete_msgs() was called
         before the generated mime was sent out */
         if 0 != self.foreign_id {
-            if 0 == unsafe { dc_msg_exists(context, self.foreign_id) } {
+            if !dc_msg_exists(context, self.foreign_id) {
                 warn!(
                     context,
                     0, "Message {} for job {} does not exist", self.foreign_id, self.job_id,
@@ -197,12 +197,9 @@ impl Job {
     fn do_DC_JOB_MOVE_MSG(&mut self, context: &Context) {
         let inbox = context.inbox.read().unwrap();
 
-        if !inbox.is_connected() {
-            connect_to_inbox(context, &inbox);
-            if !inbox.is_connected() {
-                self.try_again_later(Delay::Standard, None);
-                return;
-            }
+        if !connect_to_inbox(context, &inbox) {
+            self.try_again_later(Delay::Standard, None);
+            return;
         }
         if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
             if context
@@ -256,12 +253,9 @@ impl Job {
                     return;
                 }
                 /* if this is the last existing part of the message, we delete the message from the server */
-                if !inbox.is_connected() {
-                    connect_to_inbox(context, &inbox);
-                    if !inbox.is_connected() {
-                        self.try_again_later(Delay::Standard, None);
-                        return;
-                    }
+                if !connect_to_inbox(context, &inbox) {
+                    self.try_again_later(Delay::Standard, None);
+                    return;
                 }
                 let mid = unsafe { CStr::from_ptr(msg.rfc724_mid).to_str().unwrap() };
                 let server_folder = msg.server_folder.as_ref().unwrap();
@@ -281,12 +275,9 @@ impl Job {
     fn do_DC_JOB_MARKSEEN_MSG_ON_IMAP(&mut self, context: &Context) {
         let inbox = context.inbox.read().unwrap();
 
-        if !inbox.is_connected() {
-            connect_to_inbox(context, &inbox);
-            if !inbox.is_connected() {
-                self.try_again_later(Delay::Standard, None);
-                return;
-            }
+        if !connect_to_inbox(context, &inbox) {
+            self.try_again_later(Delay::Standard, None);
+            return;
         }
         if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
             let server_folder = msg.server_folder.as_ref().unwrap();
@@ -333,12 +324,9 @@ impl Job {
         let mut dest_uid = 0;
         let inbox = context.inbox.read().unwrap();
 
-        if !inbox.is_connected() {
-            connect_to_inbox(context, &inbox);
-            if !inbox.is_connected() {
-                self.try_again_later(Delay::Standard, None);
-                return;
-            }
+        if !connect_to_inbox(context, &inbox) {
+            self.try_again_later(Delay::Standard, None);
+            return;
         }
 
         match inbox.set_seen(context, &folder, uid) {
@@ -388,7 +376,7 @@ pub fn perform_imap_fetch(context: &Context) {
     let inbox = context.inbox.read().unwrap();
     let start = std::time::Instant::now();
 
-    if 0 == connect_to_inbox(context, &inbox) {
+    if !connect_to_inbox(context, &inbox) {
         return;
     }
     if context
@@ -937,12 +925,18 @@ fn suspend_smtp_thread(context: &Context, suspend: bool) {
     }
 }
 
-fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
-    let ret_connected = dc_connect_to_configured_imap(context, inbox);
-    if 0 != ret_connected {
-        inbox.set_watch_folder("INBOX".into());
+fn connect_to_inbox(context: &Context, inbox: &Imap) -> bool {
+    if inbox.is_connected() {
+        true
+    } else {
+        let ret_connected = dc_connect_to_configured_imap(context, inbox);
+        if 0 != ret_connected {
+            inbox.set_watch_folder("INBOX".into());
+            true
+        } else {
+            false
+        }
     }
-    ret_connected
 }
 
 fn send_mdn(context: &Context, msg_id: uint32_t) {

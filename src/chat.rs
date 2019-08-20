@@ -1031,7 +1031,7 @@ pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before:
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = (curr_local_timestamp / 86400) as libc::c_int;
                 if curr_day != last_day {
-                    ret.push(DC_MSG_ID_LAST_SPECIAL as u32);
+                    ret.push(DC_MSG_ID_LAST_SPECIAL);
                     last_day = curr_day;
                 }
             }

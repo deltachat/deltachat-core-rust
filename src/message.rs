@@ -1033,25 +1033,22 @@ The value is also used for CC:-summaries */
 
 // Context functions to work with messages
 
-pub unsafe fn dc_msg_exists(context: &Context, msg_id: u32) -> libc::c_int {
-    if msg_id <= 9 {
-        return 0;
-    }
+pub fn dc_msg_exists(context: &Context, msg_id: u32) -> bool {
+    if msg_id > DC_MSG_ID_LAST_SPECIAL {
+        let chat_id: Option<i32> = context.sql.query_row_col(
+            context,
+            "SELECT chat_id FROM msgs WHERE id=?;",
+            params![msg_id as i32],
+            0,
+        );
 
-    let chat_id: Option<i32> = context.sql.query_row_col(
-        context,
-        "SELECT chat_id FROM msgs WHERE id=?;",
-        params![msg_id as i32],
-        0,
-    );
-
-    if let Some(chat_id) = chat_id {
-        if chat_id != 3 {
-            return 1;
+        if let Some(chat_id) = chat_id {
+            if chat_id != 3 {
+                return true;
+            }
         }
     }
-
-    0
+    false
 }
 
 pub fn dc_update_msg_move_state(

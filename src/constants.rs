@@ -108,7 +108,7 @@ impl Default for Chattype {
 
 pub const DC_MSG_ID_MARKER1: usize = 1;
 const DC_MSG_ID_DAYMARKER: usize = 9;
-pub const DC_MSG_ID_LAST_SPECIAL: usize = 9;
+pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 
 /// approx. max. length returned by dc_msg_get_text()
 const DC_MAX_GET_TEXT_LEN: usize = 30000;
