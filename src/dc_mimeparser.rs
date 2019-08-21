@@ -1157,12 +1157,17 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 !dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Version")
                                     .is_null();
 
-                            let simplified_txt = simplifier.unwrap().simplify(
-                                decoded_data,
-                                decoded_data_bytes as libc::c_int,
-                                mime_type == 70i32,
-                                is_msgrmsg,
-                            );
+                            let simplified_txt =
+                                if decoded_data_bytes <= 0 || decoded_data.is_null() {
+                                    "".into()
+                                } else {
+                                    let input_c = strndup(decoded_data, decoded_data_bytes as _);
+                                    let input = to_string_lossy(input_c);
+                                    let is_html = mime_type == 70;
+                                    free(input_c as *mut _);
+
+                                    simplifier.unwrap().simplify(&input, is_html, is_msgrmsg)
+                                };
                             if !simplified_txt.is_empty() {
                                 let mut part = dc_mimepart_new();
                                 part.type_0 = 10i32;

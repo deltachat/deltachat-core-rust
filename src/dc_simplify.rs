@@ -1,6 +1,4 @@
 use crate::dc_dehtml::*;
-use crate::dc_tools::*;
-use crate::x::*;
 
 #[derive(Copy, Clone)]
 pub struct Simplify {
@@ -36,23 +34,8 @@ impl Simplify {
     /// Simplify and normalise text: Remove quotes, signatures, unnecessary
     /// lineends etc.
     /// The data returned from simplify() must be free()'d when no longer used.
-    pub unsafe fn simplify(
-        &mut self,
-        in_unterminated: *const libc::c_char,
-        in_bytes: libc::c_int,
-        is_html: bool,
-        is_msgrmsg: bool,
-    ) -> String {
-        if in_bytes <= 0 || in_unterminated.is_null() {
-            return "".into();
-        }
-        let out_c = strndup(
-            in_unterminated as *mut libc::c_char,
-            in_bytes as libc::c_ulong,
-        );
-
-        let mut out = to_string_lossy(out_c);
-        free(out_c as *mut _);
+    pub fn simplify(&mut self, input: &str, is_html: bool, is_msgrmsg: bool) -> String {
+        let mut out = input.to_string();
 
         if is_html {
             out = dc_dehtml(&out);
@@ -225,54 +208,42 @@ mod tests {
 
     #[test]
     fn test_simplify_trim() {
-        unsafe {
-            let mut simplify = Simplify::new();
-            let html: *const libc::c_char =
-                b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
+        let mut simplify = Simplify::new();
+        let html = "\r\r\nline1<br>\r\n\r\n\r\rline2\n\r";
+        let plain = simplify.simplify(html, true, false);
 
-            assert_eq!(plain, "line1\nline2");
-        }
+        assert_eq!(plain, "line1\nline2");
     }
 
     #[test]
     fn test_simplify_parse_href() {
-        unsafe {
-            let mut simplify = Simplify::new();
-            let html: *const libc::c_char =
-                b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
-            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
+        let mut simplify = Simplify::new();
+        let html = "<a href=url>text</a";
+        let plain = simplify.simplify(html, true, false);
 
-            assert_eq!(plain, "[text](url)");
-        }
+        assert_eq!(plain, "[text](url)");
     }
 
     #[test]
     fn test_simplify_bold_text() {
-        unsafe {
-            let mut simplify = Simplify::new();
-            let html: *const libc::c_char =
-                b"<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>\x00"
-                as *const u8 as *const libc::c_char;
-            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
+        let mut simplify = Simplify::new();
+        let html = "<!DOCTYPE name [<!DOCTYPE ...>]><!-- comment -->text <b><?php echo ... ?>bold</b><![CDATA[<>]]>";
+        let plain = simplify.simplify(html, true, false);
 
-            assert_eq!(plain, "text *bold*<>");
-        }
+        assert_eq!(plain, "text *bold*<>");
     }
 
     #[test]
     fn test_simplify_html_encoded() {
-        unsafe {
-            let mut simplify = Simplify::new();
-            let html =
-                b"&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;\x00"
-                as *const u8 as *const libc::c_char;
-            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
+        let mut simplify = Simplify::new();
+        let html =
+                "&lt;&gt;&quot;&apos;&amp; &auml;&Auml;&ouml;&Ouml;&uuml;&Uuml;&szlig; foo&AElig;&ccedil;&Ccedil; &diams;&lrm;&rlm;&zwnj;&noent;&zwj;";
 
-            assert_eq!(
-                plain,
-                "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
-            );
-        }
+        let plain = simplify.simplify(html, true, false);
+
+        assert_eq!(
+            plain,
+            "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
+        );
     }
 }
