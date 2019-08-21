@@ -66,7 +66,9 @@ impl Simplify {
             }
         }
         dc_remove_cr_chars(out);
-        temp = self.simplify_plain_text(out, is_msgrmsg);
+        temp = self
+            .simplify_plain_text(&to_string_lossy(out), is_msgrmsg)
+            .strdup();
         if !temp.is_null() {
             free(out as *mut libc::c_void);
             out = temp
@@ -80,18 +82,13 @@ impl Simplify {
      * Simplify Plain Text
      */
     #[allow(non_snake_case)]
-    unsafe fn simplify_plain_text(
-        &mut self,
-        buf_terminated: *const libc::c_char,
-        is_msgrmsg: bool,
-    ) -> *mut libc::c_char {
+    fn simplify_plain_text(&mut self, buf_terminated: &str, is_msgrmsg: bool) -> String {
         /* This function ...
         ... removes all text after the line `-- ` (footer mark)
         ... removes full quotes at the beginning and at the end of the text -
             these are all lines starting with the character `>`
         ... remove a non-empty line before the removed quote (contains sth. like "On 2.9.2016, Bjoern wrote:" in different formats and lanugages) */
         /* split the given buffer into lines */
-        let buf_terminated = to_string_lossy(buf_terminated);
         let lines: Vec<_> = buf_terminated.split('\n').collect();
         let mut l_first: usize = 0;
         let mut is_cut_at_begin = false;
@@ -205,7 +202,7 @@ impl Simplify {
             ret += " [...]";
         }
 
-        ret.strdup()
+        ret
     }
 }
 
