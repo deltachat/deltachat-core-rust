@@ -43,39 +43,26 @@ impl Simplify {
         is_html: bool,
         is_msgrmsg: bool,
     ) -> String {
-        if in_bytes <= 0 {
+        if in_bytes <= 0 || in_unterminated.is_null() {
             return "".into();
         }
-
-        /* create a copy of the given buffer */
-        let mut out: *mut libc::c_char;
-        let mut temp: *mut libc::c_char;
-        self.is_forwarded = false;
-        out = strndup(
+        let out_c = strndup(
             in_unterminated as *mut libc::c_char,
             in_bytes as libc::c_ulong,
         );
-        if out.is_null() {
-            return "".into();
-        }
-        if is_html {
-            temp = dc_dehtml(&to_string(out)).strdup();
-            if !temp.is_null() {
-                free(out as *mut libc::c_void);
-                out = temp
-            }
-        }
-        dc_remove_cr_chars(out);
-        temp = self
-            .simplify_plain_text(&to_string_lossy(out), is_msgrmsg)
-            .strdup();
-        if !temp.is_null() {
-            free(out as *mut libc::c_void);
-            out = temp
-        }
-        dc_remove_cr_chars(out);
 
-        to_string(out)
+        let mut out = to_string_lossy(out_c);
+        free(out_c as *mut _);
+
+        if is_html {
+            out = dc_dehtml(&out);
+        }
+
+        out.retain(|c| c != '\r');
+        out = self.simplify_plain_text(&out, is_msgrmsg);
+        out.retain(|c| c != '\r');
+
+        out
     }
 
     /**
