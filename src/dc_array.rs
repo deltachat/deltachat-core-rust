@@ -1,5 +1,4 @@
 use crate::dc_location::dc_location;
-use crate::dc_tools::*;
 use crate::types::*;
 
 /* * the structure behind dc_array_t */
@@ -18,10 +17,6 @@ impl dc_array_t {
     /// Constructs a new, empty `dc_array_t` holding locations with specified `capacity`.
     pub fn new_locations(capacity: usize) -> Self {
         dc_array_t::Locations(Vec::with_capacity(capacity))
-    }
-
-    pub fn into_raw(self) -> *mut Self {
-        Box::into_raw(Box::new(self))
     }
 
     pub fn add_id(&mut self, item: uint32_t) {
@@ -53,34 +48,6 @@ impl dc_array_t {
         } else {
             panic!("Not an array of locations")
         }
-    }
-
-    pub fn get_latitude(&self, index: usize) -> libc::c_double {
-        self.get_location(index).latitude
-    }
-
-    pub fn get_longitude(&self, index: size_t) -> libc::c_double {
-        self.get_location(index).longitude
-    }
-
-    pub fn get_accuracy(&self, index: size_t) -> libc::c_double {
-        self.get_location(index).accuracy
-    }
-
-    pub fn get_timestamp(&self, index: size_t) -> i64 {
-        self.get_location(index).timestamp
-    }
-
-    pub fn get_chat_id(&self, index: size_t) -> uint32_t {
-        self.get_location(index).chat_id
-    }
-
-    pub fn get_contact_id(&self, index: size_t) -> uint32_t {
-        self.get_location(index).contact_id
-    }
-
-    pub fn get_msg_id(&self, index: size_t) -> uint32_t {
-        self.get_location(index).msg_id
     }
 
     pub fn is_empty(&self) -> bool {
@@ -125,6 +92,14 @@ impl dc_array_t {
             panic!("Attempt to sort array of something other than uints");
         }
     }
+
+    pub fn as_ptr(&self) -> *const u32 {
+        if let dc_array_t::Uint(v) = self {
+            v.as_ptr()
+        } else {
+            panic!("Attempt to convert array of something other than uints to raw");
+        }
+    }
 }
 
 impl From<Vec<u32>> for dc_array_t {
@@ -139,155 +114,50 @@ impl From<Vec<dc_location>> for dc_array_t {
     }
 }
 
-pub unsafe fn dc_array_unref(array: *mut dc_array_t) {
-    assert!(!array.is_null());
-    Box::from_raw(array);
-}
-
-pub unsafe fn dc_array_add_id(array: *mut dc_array_t, item: uint32_t) {
-    assert!(!array.is_null());
-    (*array).add_id(item);
-}
-
-pub unsafe fn dc_array_get_cnt(array: *const dc_array_t) -> size_t {
-    assert!(!array.is_null());
-    (*array).len()
-}
-
-pub unsafe fn dc_array_get_id(array: *const dc_array_t, index: size_t) -> uint32_t {
-    assert!(!array.is_null());
-    (*array).get_id(index)
-}
-
-pub unsafe fn dc_array_get_marker(array: *const dc_array_t, index: size_t) -> *mut libc::c_char {
-    assert!(!array.is_null());
-
-    if let dc_array_t::Locations(v) = &*array {
-        if let Some(s) = &v[index].marker {
-            s.strdup()
-        } else {
-            std::ptr::null_mut()
-        }
-    } else {
-        panic!("Not an array of locations");
-    }
-}
-
-/**
- * Return the independent-state of the location at the given index.
- * Independent locations do not belong to the track of the user.
- *
- * @memberof dc_array_t
- * @param array The array object.
- * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
- * @return 0=Location belongs to the track of the user,
- *     1=Location was reported independently.
- */
-pub unsafe fn dc_array_is_independent(array: *const dc_array_t, index: size_t) -> libc::c_int {
-    assert!(!array.is_null());
-
-    if let dc_array_t::Locations(v) = &*array {
-        v[index].independent as libc::c_int
-    } else {
-        panic!("Attempt to get location independent field from array of something other than locations");
-    }
-}
-
-pub unsafe fn dc_array_search_id(
-    array: *const dc_array_t,
-    needle: uint32_t,
-    ret_index: *mut size_t,
-) -> bool {
-    assert!(!array.is_null());
-
-    if let Some(i) = (*array).search_id(needle) {
-        if !ret_index.is_null() {
-            *ret_index = i
-        }
-        true
-    } else {
-        false
-    }
-}
-
-pub unsafe fn dc_array_get_raw(array: *const dc_array_t) -> *const u32 {
-    assert!(!array.is_null());
-
-    if let dc_array_t::Uint(v) = &*array {
-        v.as_ptr()
-    } else {
-        panic!("Attempt to convert array of something other than uints to raw");
-    }
-}
-
-pub fn dc_array_new(initsize: size_t) -> *mut dc_array_t {
-    dc_array_t::new(initsize).into_raw()
-}
-
-#[cfg(test)]
-unsafe fn dc_array_empty(array: *mut dc_array_t) {
-    assert!(!array.is_null());
-
-    (*array).clear()
-}
-
-pub unsafe fn dc_array_duplicate(array: *const dc_array_t) -> *mut dc_array_t {
-    assert!(!array.is_null());
-
-    (*array).clone().into_raw()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_dc_array() {
-        unsafe {
-            let arr = dc_array_new(7 as size_t);
-            assert_eq!(dc_array_get_cnt(arr), 0);
+        let mut arr = dc_array_t::new(7);
+        assert!(arr.is_empty());
 
-            for i in 0..1000 {
-                dc_array_add_id(arr, (i + 2) as uint32_t);
-            }
-
-            assert_eq!(dc_array_get_cnt(arr), 1000);
-
-            for i in 0..1000 {
-                assert_eq!(
-                    dc_array_get_id(arr, i as size_t),
-                    (i + 1i32 * 2i32) as libc::c_uint
-                );
-            }
-
-            dc_array_empty(arr);
-
-            assert_eq!(dc_array_get_cnt(arr), 0);
-
-            dc_array_add_id(arr, 13 as uint32_t);
-            dc_array_add_id(arr, 7 as uint32_t);
-            dc_array_add_id(arr, 666 as uint32_t);
-            dc_array_add_id(arr, 0 as uint32_t);
-            dc_array_add_id(arr, 5000 as uint32_t);
-
-            (*arr).sort_ids();
-
-            assert_eq!(dc_array_get_id(arr, 0 as size_t), 0);
-            assert_eq!(dc_array_get_id(arr, 1 as size_t), 7);
-            assert_eq!(dc_array_get_id(arr, 2 as size_t), 13);
-            assert_eq!(dc_array_get_id(arr, 3 as size_t), 666);
-
-            dc_array_unref(arr);
+        for i in 0..1000 {
+            arr.add_id(i + 2);
         }
+
+        assert_eq!(arr.len(), 1000);
+
+        for i in 0..1000 {
+            assert_eq!(arr.get_id(i), (i + 2) as u32);
+        }
+
+        arr.clear();
+
+        assert!(arr.is_empty());
+
+        arr.add_id(13);
+        arr.add_id(7);
+        arr.add_id(666);
+        arr.add_id(0);
+        arr.add_id(5000);
+
+        arr.sort_ids();
+
+        assert_eq!(arr.get_id(0), 0);
+        assert_eq!(arr.get_id(1), 7);
+        assert_eq!(arr.get_id(2), 13);
+        assert_eq!(arr.get_id(3), 666);
     }
 
     #[test]
     #[should_panic]
     fn test_dc_array_out_of_bounds() {
-        let arr = dc_array_new(7);
+        let mut arr = dc_array_t::new(7);
         for i in 0..1000 {
-            unsafe { dc_array_add_id(arr, (i + 2) as uint32_t) };
+            arr.add_id(i + 2);
         }
-        unsafe { dc_array_get_id(arr, 1000) };
+        arr.get_id(1000);
     }
 }
