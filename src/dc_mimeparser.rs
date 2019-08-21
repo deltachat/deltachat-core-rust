@@ -1163,19 +1163,16 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 mime_type == 70i32,
                                 is_msgrmsg,
                             );
-                            if !simplified_txt.is_null()
-                                && 0 != *simplified_txt.offset(0isize) as libc::c_int
-                            {
+                            if !simplified_txt.is_empty() {
                                 let mut part = dc_mimepart_new();
                                 part.type_0 = 10i32;
                                 part.int_mimetype = mime_type;
-                                part.msg = simplified_txt;
+                                part.msg = simplified_txt.strdup();
                                 part.msg_raw =
                                     strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
                                 do_add_single_part(mimeparser, part);
-                            } else {
-                                free(simplified_txt as *mut libc::c_void);
                             }
+
                             if simplifier.unwrap().is_forwarded {
                                 mimeparser.is_forwarded = 1i32
                             }

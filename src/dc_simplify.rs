@@ -42,9 +42,9 @@ impl Simplify {
         in_bytes: libc::c_int,
         is_html: bool,
         is_msgrmsg: bool,
-    ) -> *mut libc::c_char {
+    ) -> String {
         if in_bytes <= 0 {
-            return "".strdup();
+            return "".into();
         }
 
         /* create a copy of the given buffer */
@@ -56,7 +56,7 @@ impl Simplify {
             in_bytes as libc::c_ulong,
         );
         if out.is_null() {
-            return dc_strdup(b"\x00" as *const u8 as *const libc::c_char);
+            return "".into();
         }
         if is_html {
             temp = dc_dehtml(&to_string(out)).strdup();
@@ -75,7 +75,7 @@ impl Simplify {
         }
         dc_remove_cr_chars(out);
 
-        out
+        to_string(out)
     }
 
     /**
@@ -235,7 +235,6 @@ fn is_plain_quote(buf: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::ffi::CStr;
 
     #[test]
     fn test_simplify_trim() {
@@ -243,17 +242,9 @@ mod tests {
             let mut simplify = Simplify::new();
             let html: *const libc::c_char =
                 b"\r\r\nline1<br>\r\n\r\n\r\rline2\n\r\x00" as *const u8 as *const libc::c_char;
-            let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, true, false);
+            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
 
-            assert_eq!(
-                CStr::from_ptr(plain as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "line1\nline2",
-            );
-
-            free(plain as *mut libc::c_void);
+            assert_eq!(plain, "line1\nline2");
         }
     }
 
@@ -263,17 +254,9 @@ mod tests {
             let mut simplify = Simplify::new();
             let html: *const libc::c_char =
                 b"<a href=url>text</a\x00" as *const u8 as *const libc::c_char;
-            let plain: *mut libc::c_char =
-                simplify.simplify(html, strlen(html) as libc::c_int, true, false);
+            let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
 
-            assert_eq!(
-                CStr::from_ptr(plain as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "[text](url)",
-            );
-
-            free(plain as *mut libc::c_void);
+            assert_eq!(plain, "[text](url)");
         }
     }
 
@@ -286,14 +269,7 @@ mod tests {
                 as *const u8 as *const libc::c_char;
             let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
 
-            assert_eq!(
-                CStr::from_ptr(plain as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
-                "text *bold*<>",
-            );
-
-            free(plain as *mut libc::c_void);
+            assert_eq!(plain, "text *bold*<>");
         }
     }
 
@@ -307,13 +283,9 @@ mod tests {
             let plain = simplify.simplify(html, strlen(html) as libc::c_int, true, false);
 
             assert_eq!(
-                CStr::from_ptr(plain as *const libc::c_char)
-                    .to_str()
-                    .unwrap(),
+                plain,
                 "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
             );
-
-            free(plain as *mut libc::c_void);
         }
     }
 }
