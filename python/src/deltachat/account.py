@@ -377,12 +377,15 @@ class IOThreads:
     def is_started(self):
         return len(self._name2thread) > 0
 
-    def start(self, imap=True, smtp=True):
+    def start(self, imap=True, smtp=True, mvbox=True):
         assert not self.is_started()
         if imap:
-            self._start_one_thread("imap", self.imap_thread_run)
+            self._start_one_thread("inbox", self.inbox_thread_run)
         if smtp:
             self._start_one_thread("smtp", self.smtp_thread_run)
+        if mvbox:
+            self._start_one_thread("mvbox", self.mvbox_thread_run)
+
 
     def _start_one_thread(self, name, func):
         self._name2thread[name] = t = threading.Thread(target=func, name=name)
@@ -397,13 +400,20 @@ class IOThreads:
             for name, thread in self._name2thread.items():
                 thread.join()
 
-    def imap_thread_run(self):
-        self._log_event("py-bindings-info", 0, "IMAP THREAD START")
+    def inbox_thread_run(self):
+        self._log_event("py-bindings-info", 0, "INBOX IMAP THREAD START")
         while not self._thread_quitflag:
             lib.dc_perform_imap_jobs(self._dc_context)
             lib.dc_perform_imap_fetch(self._dc_context)
             lib.dc_perform_imap_idle(self._dc_context)
-        self._log_event("py-bindings-info", 0, "IMAP THREAD FINISHED")
+        self._log_event("py-bindings-info", 0, "INBOX IMAP THREAD FINISHED")
+
+    def mvbox_thread_run(self):
+        self._log_event("py-bindings-info", 0, "MVBOX IMAP THREAD START")
+        while not self._thread_quitflag:
+            lib.dc_perform_mvbox_fetch(self._dc_context)
+            lib.dc_perform_mvbox_idle(self._dc_context)
+        self._log_event("py-bindings-info", 0, "MVBOX IMAP THREAD FINISHED")
 
     def smtp_thread_run(self):
         self._log_event("py-bindings-info", 0, "SMTP THREAD START")

@@ -673,7 +673,7 @@ impl Imap {
                 } else {
                     unreachable!();
                 }
-                self.config.write().unwrap().selected_folder_needs_expunge = true;
+                self.config.write().unwrap().selected_folder_needs_expunge = false;
             }
         }
 
