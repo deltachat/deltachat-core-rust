@@ -193,43 +193,47 @@ unsafe fn cb_precheck_imf(
     server_folder: &str,
     server_uid: uint32_t,
 ) -> libc::c_int {
-    let mut rfc724_mid_exists: libc::c_int = 0i32;
-    let msg_id: uint32_t;
-    let mut old_server_folder: *mut libc::c_char = ptr::null_mut();
-    let mut old_server_uid: uint32_t = 0i32 as uint32_t;
-    let mut mark_seen: libc::c_int = 0i32;
-    msg_id = dc_rfc724_mid_exists(
+    let rfc724_mid = as_str(rfc724_mid)
+        .trim_start_matches("<")
+        .trim_end_matches(">");
+
+    let mut mark_seen = false;
+    info!(
         context,
+        0,
+        "cb_precheck_imf rfc724_mid={:?}, server_folder={}, server_uid={}",
         rfc724_mid,
-        &mut old_server_folder,
-        &mut old_server_uid,
+        server_folder,
+        server_uid
     );
-    if msg_id != 0i32 as libc::c_uint {
-        rfc724_mid_exists = 1i32;
-        if *old_server_folder.offset(0isize) as libc::c_int == 0i32
-            && old_server_uid == 0i32 as libc::c_uint
-        {
-            info!(
-                context,
-                0,
-                "[move] detected bbc-self {}",
-                as_str(rfc724_mid),
-            );
-            mark_seen = 1i32
-        } else if as_str(old_server_folder) != server_folder {
-            info!(
-                context,
-                0,
-                "[move] detected moved message {}",
-                as_str(rfc724_mid),
-            );
+    if let Some(res) = dc_rfc724_mid_exists_with_msg_state(context, rfc724_mid) {
+        let (msg_id, msg_state, old_server_folder, old_server_uid) = res;
+        if msg_id != 0 {
+            if old_server_folder.is_empty() {
+                info!(context, 0, "[move] detected bbc-self {}", rfc724_mid,);
+                mark_seen = true;
+            } else if old_server_folder != server_folder {
+                info!(context, 0, "[move] detected moved message {}", rfc724_mid,);
+            }
             dc_update_msg_move_state(context, rfc724_mid, MoveState::Stay);
+            if msg_state == MessageState::InSeen {
+                // Message is maybe moved from another folder.
+                // trigger MDN receipts
+                info!(
+                    context,
+                    0,
+                    "InSeen msgid={} server_uid={} server_folder={}",
+                    msg_id,
+                    server_uid,
+                    server_folder,
+                );
+            }
         }
-        if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
+        if old_server_folder != server_folder || old_server_uid != server_uid {
             dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
         }
         dc_do_heuristics_moves(context, server_folder, msg_id);
-        if 0 != mark_seen {
+        if mark_seen {
             job_add(
                 context,
                 Action::MarkseenMsgOnImap,
@@ -238,9 +242,9 @@ unsafe fn cb_precheck_imf(
                 0,
             );
         }
+        return msg_id as i32;
     }
-    free(old_server_folder as *mut libc::c_void);
-    rfc724_mid_exists
+    0
 }
 
 fn cb_set_config(context: &Context, key: &str, value: Option<&str>) {

@@ -1,5 +1,6 @@
 use crate::constants::*;
 use crate::context::*;
+use crate::dc_tools::as_str;
 use crate::job::*;
 use crate::message::*;
 use crate::param::Params;
@@ -26,7 +27,7 @@ pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u3
         }
 
         if dc_is_mvbox(context, folder) {
-            dc_update_msg_move_state(context, msg.rfc724_mid, MoveState::Stay);
+            dc_update_msg_move_state(context, as_str(msg.rfc724_mid), MoveState::Stay);
         }
 
         // 1 = dc message, 2 = reply to dc message
@@ -38,7 +39,7 @@ pub unsafe fn dc_do_heuristics_moves(context: &Context, folder: &str, msg_id: u3
                 Params::new(),
                 0,
             );
-            dc_update_msg_move_state(context, msg.rfc724_mid, MoveState::Moving);
+            dc_update_msg_move_state(context, as_str(msg.rfc724_mid), MoveState::Moving);
         }
     }
 }

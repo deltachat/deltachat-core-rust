@@ -30,6 +30,7 @@ pub enum MessageState {
     InFresh = 10,
     InNoticed = 13,
     InSeen = 16,
+    InMDNSent = 17,
     OutPreparing = 18,
     OutDraft = 19,
     OutPending = 20,
@@ -46,6 +47,7 @@ impl From<MessageState> for LotState {
             InFresh => LotState::MsgInFresh,
             InNoticed => LotState::MsgInNoticed,
             InSeen => LotState::MsgInSeen,
+            InMDNSent => LotState::MsgInMDNSent,
             OutPreparing => LotState::MsgOutPreparing,
             OutDraft => LotState::MsgOutDraft,
             OutPending => LotState::MsgOutPending,
@@ -1051,18 +1053,14 @@ pub fn dc_msg_exists(context: &Context, msg_id: u32) -> bool {
     false
 }
 
-pub fn dc_update_msg_move_state(
-    context: &Context,
-    rfc724_mid: *const libc::c_char,
-    state: MoveState,
-) -> bool {
+pub fn dc_update_msg_move_state(context: &Context, rfc724_mid: &str, state: MoveState) -> bool {
     // we update the move_state for all messages belonging to a given Message-ID
     // so that the state stay intact when parts are deleted
     sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET move_state=? WHERE rfc724_mid=?;",
-        params![state as i32, as_str(rfc724_mid)],
+        params![state as i32, rfc724_mid],
     )
     .is_ok()
 }
@@ -1240,6 +1238,29 @@ pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: *const libc::c_char) -> 
     }
 }
 
+pub fn dc_rfc724_mid_exists_with_msg_state(
+    context: &Context,
+    rfc724_mid: &str,
+) -> Option<(u32, MessageState, String, u32)> {
+    if rfc724_mid.is_empty() {
+        return None;
+    }
+    match context.sql.query_row(
+        "SELECT id, state, server_folder, server_uid FROM msgs WHERE rfc724_mid=?",
+        &[rfc724_mid],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    ) {
+        Ok(res) => Some(res),
+        Err(_err) => {
+            info!(
+                context,
+                0, "dc_rfc724_mid_exists_with_msg_state ERR={:?}", _err
+            );
+            None
+        }
+    }
+}
+
 pub fn dc_rfc724_mid_exists(
     context: &Context,
     rfc724_mid: *const libc::c_char,
@@ -1278,13 +1299,13 @@ pub fn dc_rfc724_mid_exists(
 
 pub fn dc_update_server_uid(
     context: &Context,
-    rfc724_mid: *const libc::c_char,
+    rfc724_mid: &str,
     server_folder: impl AsRef<str>,
     server_uid: u32,
 ) {
     match context.sql.execute(
         "UPDATE msgs SET server_folder=?, server_uid=? WHERE rfc724_mid=?;",
-        params![server_folder.as_ref(), server_uid, as_str(rfc724_mid)],
+        params![server_folder.as_ref(), server_uid, rfc724_mid],
     ) {
         Ok(_) => {}
         Err(err) => {

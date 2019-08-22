@@ -94,6 +94,7 @@ pub enum LotState {
     MsgInFresh = 10,
     MsgInNoticed = 13,
     MsgInSeen = 16,
+    MsgInMDNSent = 17,
     MsgOutPreparing = 18,
     MsgOutDraft = 19,
     MsgOutPending = 20,

@@ -343,23 +343,7 @@ unsafe fn add_parts(
     // check, if the mail is already in our database - if so, just update the folder/uid
     // (if the mail was moved around) and finish. (we may get a mail twice eg. if it is
     // moved between folders. make sure, this check is done eg. before securejoin-processing) */
-    let mut old_server_folder = std::ptr::null_mut();
-    let mut old_server_uid = 0;
-
-    if 0 != dc_rfc724_mid_exists(
-        context,
-        rfc724_mid,
-        &mut old_server_folder,
-        &mut old_server_uid,
-    ) {
-        if as_str(old_server_folder) != server_folder.as_ref() || old_server_uid != server_uid {
-            dc_update_server_uid(context, rfc724_mid, server_folder.as_ref(), server_uid);
-        }
-
-        free(old_server_folder.cast());
-        cleanup(mime_in_reply_to, mime_references, txt_raw);
-        bail!("Message already in DB");
-    }
+    // XXX call precheck?
 
     // 1 or 0 for yes/no
     msgrmsg = mime_parser.is_send_by_messenger;

@@ -228,7 +228,12 @@ impl Job {
                     }
                     ImapResult::Success => {
                         // TODO: dest_uid is not (yet) set by mv() so remains 0
-                        dc_update_server_uid(context, msg.rfc724_mid, &dest_folder, dest_uid);
+                        dc_update_server_uid(
+                            context,
+                            as_str(msg.rfc724_mid),
+                            &dest_folder,
+                            dest_uid,
+                        );
                     }
                     _ => {}
                 }
@@ -281,21 +286,37 @@ impl Job {
         }
         if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
             let server_folder = msg.server_folder.as_ref().unwrap();
+            info!(context, 0, "job_markseen_msg db id={}", self.foreign_id);
             match inbox.set_seen(context, server_folder, msg.server_uid) {
                 ImapResult::Failed => {
+                    info!(context, 0, "job_markseen_msg failed");
                     return;
                 }
                 ImapResult::RetryLater => {
+                    info!(context, 0, "job_markseen_msg retry-later");
                     self.try_again_later(Delay::Standard, None);
                     return;
                 }
                 _ => {}
             };
+            info!(
+                context,
+                0,
+                "set_mdnsent wantsmdn={} mdns_enabled={}",
+                msg.param.get_int(Param::WantsMdn).unwrap_or_default(),
+                context
+                    .sql
+                    .get_config_int(context, "mdns_enabled")
+                    .unwrap_or_else(|| 1)
+            );
+
+            /*
             if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
                 && 0 != context
                     .sql
                     .get_config_int(context, "mdns_enabled")
                     .unwrap_or_else(|| 1)
+            */
             {
                 let folder = msg.server_folder.as_ref().unwrap();
 

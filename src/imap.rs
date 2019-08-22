@@ -638,6 +638,7 @@ impl Imap {
     }
 
     fn select_folder<S: AsRef<str>>(&self, context: &Context, folder: Option<S>) -> bool {
+        info!(context, 0, "select_folder0");
         if self.session.lock().unwrap().is_none() {
             // we are in termination, noting useful to be done anymore
             let mut cfg = self.config.write().unwrap();
@@ -645,7 +646,7 @@ impl Imap {
             cfg.selected_folder_needs_expunge = false;
             return false;
         }
-
+        info!(context, 0, "select_folder1");
         // if there is a new folder and the new folder is equal to the selected one, there's nothing to do.
         // if there is _no_ new folder, we continue as we might want to expunge below.
         if let Some(ref folder) = folder {
@@ -655,9 +656,11 @@ impl Imap {
                 }
             }
         }
+        info!(context, 0, "select_folder2");
 
         // deselect existing folder, if needed (it's also done implicitly by SELECT, however, without EXPUNGE then)
         if self.config.read().unwrap().selected_folder_needs_expunge {
+            info!(context, 0, "select_folder3");
             if let Some(ref folder) = self.config.read().unwrap().selected_folder {
                 info!(context, 0, "Expunge messages in \"{}\".", folder);
 
@@ -676,17 +679,21 @@ impl Imap {
                 self.config.write().unwrap().selected_folder_needs_expunge = false;
             }
         }
+        info!(context, 0, "select_folder4");
 
         // select new folder
         if let Some(ref folder) = folder {
             if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
+                info!(context, 0, "select_folder5");
                 match session.select(folder) {
                     Ok(mailbox) => {
+                        info!(context, 0, "select_folder6");
                         let mut config = self.config.write().unwrap();
                         config.selected_folder = Some(folder.as_ref().to_string());
                         config.selected_mailbox = Some(mailbox);
                     }
                     Err(err) => {
+                        info!(context, 0, "select_folder7");
                         info!(
                             context,
                             0,
@@ -1039,14 +1046,17 @@ impl Imap {
                     // if needed, the ui can call dc_imap_interrupt_idle() to trigger a reconnect.
                     idle.set_keepalive(Duration::from_secs(23 * 60));
                     let res = idle.wait_keepalive();
+                    eprintln!("idle wait_keepalive returned");
 
                     // Ignoring the error, as this happens when we try sending after the drop
                     let _send_res = sender.send(res);
+                    eprintln!("idle sending result");
 
                     // Trigger condvar
                     let mut watch = lock.lock().unwrap();
                     *watch = true;
                     cvar.notify_one();
+                    eprintln!("idle spawn thread ending");
                 }
             });
             receiver
@@ -1209,7 +1219,7 @@ impl Imap {
         if let Some(ref mut session) = &mut *self.session.lock().unwrap() {
             match session.uid_mv(&set, &dest_folder) {
                 Ok(_) => {
-                    // XXX set dest_uid properly (like it was done in C)
+                    *dest_uid = 0;
                     return ImapResult::Success;
                 }
                 Err(err) => {
@@ -1273,6 +1283,13 @@ impl Imap {
 
     pub fn set_seen<S: AsRef<str>>(&self, context: &Context, folder: S, uid: u32) -> ImapResult {
         if uid == 0 {
+            info!(
+                context,
+                0,
+                "set_seen folder={} uid={}",
+                folder.as_ref(),
+                uid
+            );
             return ImapResult::Failed;
         }
         if self.is_connected() {
@@ -1294,6 +1311,13 @@ impl Imap {
             } else if !self.add_flag(context, uid, "\\Seen") {
                 warn!(context, 0, "Cannot mark message as seen.",);
             } else {
+                info!(
+                    context,
+                    0,
+                    "success marking message {}/{} as seen...",
+                    folder.as_ref(),
+                    uid,
+                );
                 return ImapResult::Success;
             }
         }
