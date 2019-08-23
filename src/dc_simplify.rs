@@ -246,4 +246,16 @@ mod tests {
             "<>\"\'& äÄöÖüÜß fooÆçÇ \u{2666}\u{200e}\u{200f}\u{200c}&noent;\u{200d}"
         );
     }
+
+    #[test]
+    fn test_simplify_utilities() {
+        assert!(is_empty_line(" \t"));
+        assert!(is_empty_line(""));
+        assert!(is_empty_line(" \r"));
+        assert!(!is_empty_line(" x"));
+        assert!(is_plain_quote("> hello world"));
+        assert!(is_plain_quote(">>"));
+        assert!(!is_plain_quote("Life is pain"));
+        assert!(!is_plain_quote(""));
+    }
 }
