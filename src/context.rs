@@ -207,7 +207,8 @@ unsafe fn cb_precheck_imf(
         server_uid
     );
     if let Some(res) = dc_rfc724_mid_exists_with_msg_state(context, rfc724_mid) {
-        let (msg_id, msg_state, old_server_folder, old_server_uid) = res;
+        let (msg_id, _, old_server_folder, old_server_uid) = res;
+        info!(context, 0, "precheck msg_id={}", msg_id);
         if msg_id != 0 {
             if old_server_folder.is_empty() {
                 info!(context, 0, "[move] detected bbc-self {}", rfc724_mid,);
@@ -216,21 +217,14 @@ unsafe fn cb_precheck_imf(
                 info!(context, 0, "[move] detected moved message {}", rfc724_mid,);
             }
             dc_update_msg_move_state(context, rfc724_mid, MoveState::Stay);
-            if msg_state == MessageState::InSeen {
-                // Message is maybe moved from another folder.
-                // trigger MDN receipts
-                info!(
-                    context,
-                    0,
-                    "InSeen msgid={} server_uid={} server_folder={}",
-                    msg_id,
-                    server_uid,
-                    server_folder,
-                );
-            }
         }
         if old_server_folder != server_folder || old_server_uid != server_uid {
+            info!(
+                context,
+                0, "precheck updated server_uid for msg_id={}", msg_id
+            );
             dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
+            job_retry_msg_actions_at_once(context, msg_id);
         }
         dc_do_heuristics_moves(context, server_folder, msg_id);
         if mark_seen {

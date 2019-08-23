@@ -284,7 +284,14 @@ impl Job {
             self.try_again_later(Delay::Standard, None);
             return;
         }
+
         if let Ok(msg) = dc_msg_load_from_db(context, self.foreign_id) {
+            if msg.server_uid == 0 {
+                // the message has likely been moved
+                // try again later
+                self.try_again_later(Delay::Standard, None);
+                return;
+            }
             let server_folder = msg.server_folder.as_ref().unwrap();
             info!(context, 0, "job_markseen_msg db id={}", self.foreign_id);
             match inbox.set_seen(context, server_folder, msg.server_uid) {
@@ -310,7 +317,7 @@ impl Job {
                     .unwrap_or_else(|| 1)
             );
 
-            /*
+            /* XXX
             if 0 != msg.param.get_int(Param::WantsMdn).unwrap_or_default()
                 && 0 != context
                     .sql
@@ -600,6 +607,21 @@ pub fn maybe_network(context: &Context) {
     interrupt_imap_idle(context);
     interrupt_mvbox_idle(context);
     interrupt_sentbox_idle(context);
+}
+
+pub fn job_retry_msg_actions_at_once(context: &Context, msg_id: uint32_t) -> bool {
+    match sql::execute(
+        context,
+        &context.sql,
+        "UPDATE jobs SET desired_timestamp=? WHERE foreign_id=?;",
+        params![time(), msg_id],
+    ) {
+        Ok(_) => true,
+        Err(_err) => {
+            info!(context, 0, "job-retry-at-once failed {:?}", _err);
+            false
+        }
+    }
 }
 
 pub fn job_action_exists(context: &Context, action: Action) -> bool {
@@ -960,7 +982,7 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> bool {
     }
 }
 
-fn send_mdn(context: &Context, msg_id: uint32_t) {
+pub fn send_mdn(context: &Context, msg_id: uint32_t) {
     if let Ok(mut mimefactory) = unsafe { dc_mimefactory_load_mdn(context, msg_id) } {
         if 0 != unsafe { dc_mimefactory_render(&mut mimefactory) } {
             add_smtp_job(context, Action::SendMdn, &mut mimefactory);
