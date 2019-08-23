@@ -107,7 +107,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
             // Variables that are shared between steps:
             let mut param: dc_loginparam_t = dc_loginparam_read(context, &context.sql, "");
             // need all vars here to be mutable because rust thinks the same step could be called multiple times
-            // and also initilize, because otherwise rust thinks it's used while unitilized, even if thats not the case as the loop goes only forward
+            // and also initialize, because otherwise rust thinks it's used while unitilized, even if thats not the case as the loop goes only forward
             let mut param_domain = "undefined.undefined".to_owned();
             let mut param_addr_urlencoded: String =
                 "Internal Error: this value should never be used".to_owned();
@@ -289,7 +289,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             param.send_port = cfg.send_port;
                             param.send_user = cfg.send_user.clone();
                             param.server_flags = cfg.server_flags;
-                            /* althoug param_autoconfig's data are no longer needed from, it is important to keep the object as
+                            /* although param_autoconfig's data are no longer needed from, it is important to keep the object as
                             we may enter "deep guessing" if we could not read a configuration */
                         }
                         param.server_flags |= keep_flags;
@@ -655,7 +655,7 @@ pub unsafe fn dc_alloc_ongoing(context: &Context) -> libc::c_int {
     1
 }
 
-/// Frees the process allocated with dc_alloc_ongoing() - independingly of dc_shall_stop_ongoing.
+/// Frees the process allocated with dc_alloc_ongoing() - independently of dc_shall_stop_ongoing.
 /// If dc_alloc_ongoing() fails, this function MUST NOT be called.
 pub unsafe fn dc_free_ongoing(context: &Context) {
     let s_a = context.running_state.clone();
