@@ -35,11 +35,11 @@ impl Simplify {
     /// lineends etc.
     /// The data returned from simplify() must be free()'d when no longer used.
     pub fn simplify(&mut self, input: &str, is_html: bool, is_msgrmsg: bool) -> String {
-        let mut out = input.to_string();
-
-        if is_html {
-            out = dc_dehtml(&out);
-        }
+        let mut out = if is_html {
+            dc_dehtml(input)
+        } else {
+            input.to_string()
+        };
 
         out.retain(|c| c != '\r');
         out = self.simplify_plain_text(&out, is_msgrmsg);
