@@ -2668,6 +2668,8 @@ int             dc_chat_is_sending_locations (const dc_chat_t*);
  * The message object is not updated.
  * If you want an update, you have to recreate the object.
  */
+
+
 #define         DC_MSG_ID_MARKER1            1
 #define         DC_MSG_ID_DAYMARKER          9
 #define         DC_MSG_ID_LAST_SPECIAL       9
@@ -2689,41 +2691,579 @@ int             dc_chat_is_sending_locations (const dc_chat_t*);
 #define         DC_MAX_GET_INFO_LEN          100000 // approx. max. length returned by dc_get_msg_info()
 
 
+/**
+ * Create new message object. Message objects are needed eg. for sending messages using
+ * dc_send_msg().  Moreover, they are returned eg. from dc_get_msg(),
+ * set up with the current state of a message. The message object is not updated;
+ * to achieve this, you have to recreate it.
+ *
+ * @memberof dc_msg_t
+ * @param context The context that should be stored in the message object.
+ * @param viewtype The type to the message object to create,
+ *     one of the @ref DC_MSG constants.
+ * @return The created message object.
+ */
 dc_msg_t*       dc_msg_new                    (dc_context_t*, int viewtype);
+
+
+/**
+ * Free a message object. Message objects are created eg. by dc_get_msg().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object to free.
+ *     If NULL is given, nothing is done.
+ * @return None.
+ */
 void            dc_msg_unref                  (dc_msg_t*);
+
+
+/**
+ * Get the ID of the message.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The ID of the message.
+ *     0 if the given message object is invalid.
+ */
 uint32_t        dc_msg_get_id                 (const dc_msg_t*);
+
+
+/**
+ * Get the ID of contact who wrote the message.
+ *
+ * If the ID is equal to DC_CONTACT_ID_SELF (1), the message is an outgoing
+ * message that is typically shown on the right side of the chat view.
+ *
+ * Otherwise, the message is an incoming message; to get details about the sender,
+ * pass the returned ID to dc_get_contact().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The ID of the contact who wrote the message, DC_CONTACT_ID_SELF (1)
+ *     if this is an outgoing message, 0 on errors.
+ */
 uint32_t        dc_msg_get_from_id            (const dc_msg_t*);
+
+
+/**
+ * Get the ID of chat the message belongs to.
+ * To get details about the chat, pass the returned ID to dc_get_chat().
+ * If a message is still in the deaddrop, the ID DC_CHAT_ID_DEADDROP is returned
+ * although internally another ID is used.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The ID of the chat the message belongs to, 0 on errors.
+ */
 uint32_t        dc_msg_get_chat_id            (const dc_msg_t*);
+
+
+/**
+ * Get the type of the message.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return One of the @ref DC_MSG constants.
+ *     0 if the given message object is invalid.
+ */
 int             dc_msg_get_viewtype           (const dc_msg_t*);
+
+
+/**
+ * Get the state of a message.
+ *
+ * Incoming message states:
+ * - DC_STATE_IN_FRESH (10) - Incoming _fresh_ message. Fresh messages are not noticed nor seen and are typically shown in notifications. Use dc_get_fresh_msgs() to get all fresh messages.
+ * - DC_STATE_IN_NOTICED (13) - Incoming _noticed_ message. Eg. chat opened but message not yet read - noticed messages are not counted as unread but did not marked as read nor resulted in MDNs. Use dc_marknoticed_chat() or dc_marknoticed_contact() to mark messages as being noticed.
+ * - DC_STATE_IN_SEEN (16) - Incoming message, really _seen_ by the user. Marked as read on IMAP and MDN may be send. Use dc_markseen_msgs() to mark messages as being seen.
+ *
+ * Outgoing message states:
+ * - DC_STATE_OUT_PREPARING (18) - For files which need time to be prepared before they can be sent,
+ *   the message enters this state before DC_STATE_OUT_PENDING.
+ * - DC_STATE_OUT_DRAFT (19) - Message saved as draft using dc_set_draft()
+ * - DC_STATE_OUT_PENDING (20) - The user has send the "send" button but the
+ *   message is not yet sent and is pending in some way. Maybe we're offline (no checkmark).
+ * - DC_STATE_OUT_FAILED (24) - _Unrecoverable_ error (_recoverable_ errors result in pending messages), you'll receive the event #DC_EVENT_MSG_FAILED.
+ * - DC_STATE_OUT_DELIVERED (26) - Outgoing message successfully delivered to server (one checkmark). Note, that already delivered messages may get into the state DC_STATE_OUT_FAILED if we get such a hint from the server.
+ *   If a sent message changes to this state, you'll receive the event #DC_EVENT_MSG_DELIVERED.
+ * - DC_STATE_OUT_MDN_RCVD (28) - Outgoing message read by the recipient (two checkmarks; this requires goodwill on the receiver's side)
+ *   If a sent message changes to this state, you'll receive the event #DC_EVENT_MSG_READ.
+ *
+ * If you just want to check if a message is sent or not, please use dc_msg_is_sent() which regards all states accordingly.
+ *
+ * The state of just created message objects is DC_STATE_UNDEFINED (0).
+ * The state is always set by the core-library, users of the library cannot set the state directly, but it is changed implicitly eg.
+ * when calling  dc_marknoticed_chat() or dc_markseen_msgs().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The state of the message.
+ */
 int             dc_msg_get_state              (const dc_msg_t*);
+
+
+/**
+ * Get message sending time.
+ * The sending time is returned as a unix timestamp in seconds.
+ *
+ * Note that the message lists returned eg. by dc_get_chat_msgs()
+ * are not sorted by the _sending_ time but by the _receiving_ time.
+ * This ensures newly received messages always pop up at the end of the list,
+ * however, for delayed messages, the correct sending time will be displayed.
+ *
+ * To display detailed information about the times to the user,
+ * the UI can use dc_get_msg_info().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return The time of the message.
+ */
 int64_t          dc_msg_get_timestamp          (const dc_msg_t*);
+
+
+/**
+ * Get message receive time.
+ * The receive time is returned as a unix timestamp in seconds.
+ *
+ * To get the sending time, use dc_msg_get_timestamp().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Receiving time of the message.
+ *     For outgoing messages, 0 is returned.
+ */
 int64_t          dc_msg_get_received_timestamp (const dc_msg_t*);
+
+
+/**
+ * Get message time used for sorting.
+ * This function returns the timestamp that is used for sorting the message
+ * into lists as returned eg. by dc_get_chat_msgs().
+ * This may be the reveived time, the sending time or another time.
+ *
+ * To get the receiving time, use dc_msg_get_received_timestamp().
+ * To get the sending time, use dc_msg_get_timestamp().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Time used for ordering.
+ */
 int64_t          dc_msg_get_sort_timestamp     (const dc_msg_t*);
+
+
+/**
+ * Get the text of the message.
+ * If there is no text associated with the message, an empty string is returned.
+ * NULL is never returned.
+ *
+ * The returned text is plain text, HTML is stripped.
+ * The returned text is truncated to a max. length of currently about 30000 characters,
+ * it does not make sense to show more text in the message list and typical controls
+ * will have problems with showing much more text.
+ * This max. length is to avoid passing _lots_ of data to the frontend which may
+ * result eg. from decoding errors (assume some bytes missing in a mime structure, forcing
+ * an attachment to be plain text).
+ *
+ * To get information about the message and more/raw text, use dc_get_msg_info().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Message text. The result must be free()'d. Never returns NULL.
+ */
 char*           dc_msg_get_text               (const dc_msg_t*);
+
+
+/**
+ * Find out full path, file name and extension of the file associated with a
+ * message.
+ *
+ * Typically files are associated with images, videos, audios, documents.
+ * Plain text messages do not have a file.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Full path, file name and extension of the file associated with the
+ *     message.  If there is no file associated with the message, an emtpy
+ *     string is returned.  NULL is never returned and the returned value must be free()'d.
+ */
 char*           dc_msg_get_file               (const dc_msg_t*);
+
+
+/**
+ * Get base file name without path. The base file name includes the extension; the path
+ * is not returned. To get the full path, use dc_msg_get_file().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Base file name plus extension without part.  If there is no file
+ *     associated with the message, an empty string is returned.  The returned
+ *     value must be free()'d.
+ */
 char*           dc_msg_get_filename           (const dc_msg_t*);
+
+
+/**
+ * Get mime type of the file.  If there is not file, an empty string is returned.
+ * If there is no associated mime type with the file, the function guesses on; if
+ * in doubt, `application/octet-stream` is returned. NULL is never returned.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return String containing the mime type. Must be free()'d after usage. NULL is never returned.
+ */
 char*           dc_msg_get_filemime           (const dc_msg_t*);
+
+
+/**
+ * Get the size of the file.  Returns the size of the file associated with a
+ * message, if applicable.
+ *
+ * Typically, this is used to show the size of document messages, eg. a PDF.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return File size in bytes, 0 if not applicable or on errors.
+ */
 uint64_t        dc_msg_get_filebytes          (const dc_msg_t*);
+
+
+/**
+ * Get width of image or video.  The width is returned in pixels.
+ * If the width is unknown or if the associated file is no image or video file,
+ * 0 is returned.
+ *
+ * Often the aspect ratio is the more interesting thing. You can calculate
+ * this using dc_msg_get_width() / dc_msg_get_height().
+ *
+ * See also dc_msg_get_duration().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Width in pixels, if applicable. 0 otherwise or if unknown.
+ */
 int             dc_msg_get_width              (const dc_msg_t*);
+
+
+/**
+ * Get height of image or video.  The height is returned in pixels.
+ * If the height is unknown or if the associated file is no image or video file,
+ * 0 is returned.
+ *
+ * Often the ascpect ratio is the more interesting thing. You can calculate
+ * this using dc_msg_get_width() / dc_msg_get_height().
+ *
+ * See also dc_msg_get_duration().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Height in pixels, if applicable. 0 otherwise or if unknown.
+ */
 int             dc_msg_get_height             (const dc_msg_t*);
+
+
+/**
+ * Get the duration of audio or video.  The duration is returned in milliseconds (ms).
+ * If the duration is unknown or if the associated file is no audio or video file,
+ * 0 is returned.
+ *
+ * See also dc_msg_get_width() and dc_msg_get_height().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Duration in milliseconds, if applicable. 0 otherwise or if unknown.
+ */
 int             dc_msg_get_duration           (const dc_msg_t*);
+
+
+/**
+ * Check if a padlock should be shown beside the message.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=padlock should be shown beside message, 0=do not show a padlock beside the message.
+ */
 int             dc_msg_get_showpadlock        (const dc_msg_t*);
+
+
+/**
+ * Get a summary for a message.
+ *
+ * The summary is returned by a dc_lot_t object with the following fields:
+ *
+ * - dc_lot_t::text1: contains the username or the string "Me".
+ *   The string may be colored by having a look at text1_meaning.
+ *   If the name should not be displayed, the element is NULL.
+ * - dc_lot_t::text1_meaning: one of DC_TEXT1_USERNAME or DC_TEXT1_SELF.
+ *   Typically used to show dc_lot_t::text1 with different colors. 0 if not applicable.
+ * - dc_lot_t::text2: contains an excerpt of the message text.
+ * - dc_lot_t::timestamp: the timestamp of the message.
+ * - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
+ *
+ * Typically used to display a search result. See also dc_chatlist_get_summary() to display a list of chats.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param chat To speed up things, pass an already available chat object here.
+ *     If the chat object is not yet available, it is faster to pass NULL.
+ * @return The summary as an dc_lot_t object. Must be freed using dc_lot_unref().  NULL is never returned.
+ */
 dc_lot_t*       dc_msg_get_summary            (const dc_msg_t*, const dc_chat_t*);
+
+
+/**
+ * Get a message summary as a single line of text.  Typically used for
+ * notifications.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param approx_characters Rough length of the expected string.
+ * @return A summary for the given messages. The returned string must be free()'d.
+ *     Returns an empty string on errors, never returns NULL.
+ */
 char*           dc_msg_get_summarytext        (const dc_msg_t*, int approx_characters);
+
+
+/**
+ * Check if a message has a deviating timestamp.
+ * A message has a deviating timestamp
+ * when it is sent on another day as received/sorted by.
+ *
+ * When the UI displays normally only the time beside the message and the full day as headlines,
+ * the UI should display the full date directly beside the message if the timestamp is deviating.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=Timestamp is deviating, the UI should display the full date beside the message.
+ *     0=Timestamp is not deviating and belongs to the same date as the date headers,
+ *     displaying the time only is sufficient in this case.
+ */
 int             dc_msg_has_deviating_timestamp(const dc_msg_t*);
+
+
+/**
+ * Check if a message has a location bound to it.
+ * These messages are also returned by dc_get_locations()
+ * and the UI may decide to display a special icon beside such messages,
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=Message has location bound to it, 0=No location bound to message.
+ */
 int             dc_msg_has_location           (const dc_msg_t*);
+
+
+/**
+ * Check if a message was sent successfully.
+ *
+ * Currently, "sent" messages are messages that are in the state "delivered" or "mdn received",
+ * see dc_msg_get_state().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message sent successfully, 0=message not yet sent or message is an incoming message.
+ */
 int             dc_msg_is_sent                (const dc_msg_t*);
+
+
+/**
+ * Check if a message is starred.  Starred messages are "favorites" marked by the user
+ * with a "star" or something like that.  Starred messages can typically be shown
+ * easily and are not deleted automatically.
+ *
+ * To star one or more messages, use dc_star_msgs(), to get a list of starred messages,
+ * use dc_get_chat_msgs() using DC_CHAT_ID_STARRED as the chat_id.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message is starred, 0=message not starred.
+ */
 int             dc_msg_is_starred             (const dc_msg_t*);
+
+
+/**
+ * Check if the message is a forwarded message.
+ *
+ * Forwarded messages may not be created by the contact given as "from".
+ *
+ * Typically, the UI shows a little text for a symbol above forwarded messages.
+ *
+ * For privacy reasons, we do not provide the name or the email address of the
+ * original author (in a typical GUI, you select the messages text and click on
+ * "forwared"; you won't expect other data to be send to the new recipient,
+ * esp. as the new recipient may not be in any relationship to the original author)
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message is a forwarded message, 0=message not forwarded.
+ */
 int             dc_msg_is_forwarded           (const dc_msg_t*);
+
+
+/**
+ * Check if the message is an informational message, created by the
+ * device or by another users. Such messages are not "typed" by the user but
+ * created due to other actions, eg. dc_set_chat_name(), dc_set_chat_profile_image()
+ * or dc_add_contact_to_chat().
+ *
+ * These messages are typically shown in the center of the chat view,
+ * dc_msg_get_text() returns a descriptive text about what is going on.
+ *
+ * There is no need to perform any action when seeing such a message - this is already done by the core.
+ * Typically, these messages are displayed in the center of the chat.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message is a system command, 0=normal message
+ */
 int             dc_msg_is_info                (const dc_msg_t*);
+
+
+/**
+ * Check if a message is still in creation.  A message is in creation between
+ * the calls to dc_prepare_msg() and dc_send_msg().
+ *
+ * Typically, this is used for videos that are recoded by the UI before
+ * they can be sent.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object
+ * @return 1=message is still in creation (dc_send_msg() was not called yet),
+ *     0=message no longer in creation
+ */
 int             dc_msg_is_increation          (const dc_msg_t*);
+
+
+/**
+ * Check if the message is an Autocrypt Setup Message.
+ *
+ * Setup messages should be shown in an unique way eg. using a different text color.
+ * On a click or another action, the user should be prompted for the setup code
+ * which is forwarded to dc_continue_key_transfer() then.
+ *
+ * Setup message are typically generated by dc_initiate_key_transfer() on another device.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return 1=message is a setup message, 0=no setup message.
+ *     For setup messages, dc_msg_get_viewtype() returns DC_MSG_FILE.
+ */
 int             dc_msg_is_setupmessage        (const dc_msg_t*);
+
+
+/**
+ * Get the first characters of the setup code.
+ *
+ * Typically, this is used to pre-fill the first entry field of the setup code.
+ * If the user has several setup messages, he can be sure typing in the correct digits.
+ *
+ * To check, if a message is a setup message, use dc_msg_is_setupmessage().
+ * To decrypt a secret key from a setup message, use dc_continue_key_transfer().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @return Typically, the first two digits of the setup code or an empty string if unknown.
+ *     NULL is never returned. Must be free()'d when done.
+ */
 char*           dc_msg_get_setupcodebegin     (const dc_msg_t*);
+
+
+/**
+ * Set the text of a message object.
+ * This does not alter any information in the database; this may be done by dc_send_msg() later.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param text Message text.
+ * @return None.
+ */
 void            dc_msg_set_text               (dc_msg_t*, const char* text);
+
+
+/**
+ * Set the file associated with a message object.
+ * This does not alter any information in the database
+ * nor copy or move the file or checks if the file exist.
+ * All this can be done with dc_send_msg() later.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param file If the message object is used in dc_send_msg() later,
+ *     this must be the full path of the image file to send.
+ * @param filemime Mime type of the file. NULL if you don't know or don't care.
+ * @return None.
+ */
 void            dc_msg_set_file               (dc_msg_t*, const char* file, const char* filemime);
+
+
+/**
+ * Set the dimensions associated with message object.
+ * Typically this is the width and the height of an image or video associated using dc_msg_set_file().
+ * This does not alter any information in the database; this may be done by dc_send_msg() later.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param width Width in pixels, if known. 0 if you don't know or don't care.
+ * @param height Height in pixels, if known. 0 if you don't know or don't care.
+ * @return None.
+ */
 void            dc_msg_set_dimension          (dc_msg_t*, int width, int height);
+
+
+/**
+ * Set the duration associated with message object.
+ * Typically this is the duration of an audio or video associated using dc_msg_set_file().
+ * This does not alter any information in the database; this may be done by dc_send_msg() later.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param duration Length in milliseconds. 0 if you don't know or don't care.
+ * @return None.
+ */
 void            dc_msg_set_duration           (dc_msg_t*, int duration);
+
+
+/**
+ * Set any location that should be bound to the message object.
+ * The function is useful to add a marker to the map
+ * at a position different from the self-location.
+ * You should not call this function
+ * if you want to bind the current self-location to a message;
+ * this is done by dc_set_location() and dc_send_locations_to_chat().
+ *
+ * Typically results in the event #DC_EVENT_LOCATION_CHANGED with
+ * contact_id set to DC_CONTACT_ID_SELF.
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param latitude North-south position of the location.
+ * @param longitude East-west position of the location.
+ * @return None.
+ */
 void            dc_msg_set_location           (dc_msg_t*, double latitude, double longitude);
+
+
+/**
+ * Late filing information to a message.
+ * In contrast to the dc_msg_set_*() functions, this function really stores the information in the database.
+ *
+ * Sometimes, the core cannot find out the width, the height or the duration
+ * of an image, an audio or a video.
+ *
+ * If, in these cases, the frontend can provide the information, it can save
+ * them together with the message object for later usage.
+ *
+ * This function should only be used if dc_msg_get_width(), dc_msg_get_height() or dc_msg_get_duration()
+ * do not provide the expected values.
+ *
+ * To get the stored values later, use dc_msg_get_width(), dc_msg_get_height() or dc_msg_get_duration().
+ *
+ * @memberof dc_msg_t
+ * @param msg The message object.
+ * @param width The new width to store in the message object. 0 if you do not want to change width and height.
+ * @param height The new height to store in the message object. 0 if you do not want to change width and height.
+ * @param duration The new duration to store in the message object. 0 if you do not want to change it.
+ * @return None.
+ */
 void            dc_msg_latefiling_mediasize   (dc_msg_t*, int width, int height, int duration);
 
 
