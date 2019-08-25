@@ -2352,12 +2352,93 @@ const uint32_t*  dc_array_get_raw            (const dc_array_t*);
  * Rendering the deaddrop in the described way
  * would not add extra work in the UI then.
  */
-// dc_chatlist_t*   dc_chatlist_new             (dc_context_t*);
+
+
+/**
+ * Free a chatlist object.
+ *
+ * @memberof dc_chatlist_t
+ * @param chatlist The chatlist object to free, created eg. by dc_get_chatlist(), dc_search_msgs().
+ *     If NULL is given, nothing is done.
+ * @return None.
+ */
 void             dc_chatlist_unref           (dc_chatlist_t*);
+
+
+/**
+ * Find out the number of chats in a chatlist.
+ *
+ * @memberof dc_chatlist_t
+ * @param chatlist The chatlist object as created eg. by dc_get_chatlist().
+ * @return Returns the number of items in a dc_chatlist_t object. 0 on errors or if the list is empty.
+ */
 size_t           dc_chatlist_get_cnt         (const dc_chatlist_t*);
+
+
+/**
+ * Get a single chat ID of a chatlist.
+ *
+ * To get the message object from the message ID, use dc_get_chat().
+ *
+ * @memberof dc_chatlist_t
+ * @param chatlist The chatlist object as created eg. by dc_get_chatlist().
+ * @param index The index to get the chat ID for.
+ * @return Returns the chat_id of the item at the given index.  Index must be between
+ *     0 and dc_chatlist_get_cnt()-1.
+ */
 uint32_t         dc_chatlist_get_chat_id     (const dc_chatlist_t*, size_t index);
+
+
+/**
+ * Get a single message ID of a chatlist.
+ *
+ * To get the message object from the message ID, use dc_get_msg().
+ *
+ * @memberof dc_chatlist_t
+ * @param chatlist The chatlist object as created eg. by dc_get_chatlist().
+ * @param index The index to get the chat ID for.
+ * @return Returns the message_id of the item at the given index.  Index must be between
+ *     0 and dc_chatlist_get_cnt()-1.  If there is no message at the given index (eg. the chat may be empty), 0 is returned.
+ */
 uint32_t         dc_chatlist_get_msg_id      (const dc_chatlist_t*, size_t index);
+
+
+/**
+ * Get a summary for a chatlist index.
+ *
+ * The summary is returned by a dc_lot_t object with the following fields:
+ *
+ * - dc_lot_t::text1: contains the username or the strings "Me", "Draft" and so on.
+ *   The string may be colored by having a look at text1_meaning.
+ *   If there is no such name or it should not be displayed, the element is NULL.
+ *
+ * - dc_lot_t::text1_meaning: one of DC_TEXT1_USERNAME, DC_TEXT1_SELF or DC_TEXT1_DRAFT.
+ *   Typically used to show dc_lot_t::text1 with different colors. 0 if not applicable.
+ *
+ * - dc_lot_t::text2: contains an excerpt of the message text or strings as
+ *   "No messages".  May be NULL of there is no such text (eg. for the archive link)
+ *
+ * - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
+ *
+ * - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).  0 if not applicable.
+ *
+ * @memberof dc_chatlist_t
+ * @param chatlist The chatlist to query as returned eg. from dc_get_chatlist().
+ * @param index The index to query in the chatlist.
+ * @param chat To speed up things, pass an already available chat object here.
+ *     If the chat object is not yet available, it is faster to pass NULL.
+ * @return The summary as an dc_lot_t object. Must be freed using dc_lot_unref().  NULL is never returned.
+ */
 dc_lot_t*        dc_chatlist_get_summary     (const dc_chatlist_t*, size_t index, dc_chat_t*);
+
+
+/**
+ * Helper function to get the associated context object.
+ *
+ * @memberof dc_chatlist_t
+ * @param chatlist The chatlist object to empty.
+ * @return Context object associated with the chatlist. NULL if none or on errors.
+ */
 dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t*);
 
 
