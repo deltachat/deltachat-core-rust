@@ -3440,17 +3440,93 @@ int             dc_contact_is_verified       (dc_contact_t*);
  *
  * NB: _Lot_ is used in the meaning _heap_ here.
  */
+
+
 #define         DC_TEXT1_DRAFT     1
 #define         DC_TEXT1_USERNAME  2
 #define         DC_TEXT1_SELF      3
 
 
+/**
+ * Frees an object containing a set of parameters.
+ * If the set object contains strings, the strings are also freed with this function.
+ * Set objects are created eg. by dc_chatlist_get_summary() or dc_msg_get_summary().
+ *
+ * @memberof dc_lot_t
+ * @param set The object to free.
+ *     If NULL is given, nothing is done.
+ * @return None.
+ */
 void            dc_lot_unref             (dc_lot_t*);
+
+
+/**
+ * Get first string. The meaning of the string is defined by the creator of the object and may be roughly described by dc_lot_get_text1_meaning().
+ *
+ * @memberof dc_lot_t
+ * @param lot The lot object.
+ * @return A string, the string may be empty and the returned value must be free()'d. NULL if there is no such string.
+ */
 char*           dc_lot_get_text1         (const dc_lot_t*);
+
+
+/**
+ * Get second string. The meaning of the string is defined by the creator of the object.
+ *
+ * @memberof dc_lot_t
+ *
+ * @param lot The lot object.
+ *
+ * @return A string, the string may be empty and the returned value must be free()'d	. NULL if there is no such string.
+ */
 char*           dc_lot_get_text2         (const dc_lot_t*);
+
+
+/**
+ * Get the meaning of the first string.  Posssible meanings of the string are defined by the creator of the object and may be returned eg.
+ * as DC_TEXT1_DRAFT, DC_TEXT1_USERNAME or DC_TEXT1_SELF.
+ *
+ * @memberof dc_lot_t
+ * @param lot The lot object.
+ * @return Returns the meaning of the first string, possible meanings are defined by the creator of the object.
+ *    0 if there is no concrete meaning or on errors.
+ */
 int             dc_lot_get_text1_meaning (const dc_lot_t*);
+
+
+/**
+ * Get the associated state. The meaning of the state is defined by the creator of the object.
+ *
+ * @memberof dc_lot_t
+ *
+ * @param lot The lot object.
+ *
+ * @return The state as defined by the creator of the object. 0 if there is not state or on errors.
+ */
 int             dc_lot_get_state         (const dc_lot_t*);
+
+
+/**
+ * Get the associated ID. The meaning of the ID is defined by the creator of the object.
+ *
+ * @memberof dc_lot_t
+ * @param lot The lot object.
+ * @return The state as defined by the creator of the object. 0 if there is not state or on errors.
+ */
 uint32_t        dc_lot_get_id            (const dc_lot_t*);
+
+
+/**
+ * Get the associated timestamp.
+ * The timestamp is returned as a unix timestamp in seconds.
+ * The meaning of the timestamp is defined by the creator of the object.
+ *
+ * @memberof dc_lot_t
+ *
+ * @param lot The lot object.
+ *
+ * @return The timestamp as defined by the creator of the object. 0 if there is not timestamp or on errors.
+ */
 int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
 
 
