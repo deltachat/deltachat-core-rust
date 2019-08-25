@@ -180,6 +180,12 @@ impl Simplify {
  * Tools
  */
 fn is_empty_line(buf: &str) -> bool {
+    // XXX: can it be simplified to buf.chars().all(|c| c.is_whitespace())?
+    //
+    // Strictly speaking, it is not equivalent (^A is not whitespace, but less than ' '),
+    // but having control sequences in email body?!
+    //
+    // See discussion at: https://github.com/deltachat/deltachat-core-rust/pull/402#discussion_r317062392
     for c in buf.chars() {
         if c > ' ' {
             return false;
