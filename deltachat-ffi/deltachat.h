@@ -3286,21 +3286,147 @@ void            dc_msg_latefiling_mediasize   (dc_msg_t*, int width, int height,
  * dc_create_contact() or dc_add_address_book())
  * only affect the given-name.
  */
+
+
 #define         DC_CONTACT_ID_SELF           1
 #define         DC_CONTACT_ID_DEVICE         2
 #define         DC_CONTACT_ID_LAST_SPECIAL   9
 
 
+/**
+ * Free a contact object.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object as created eg. by dc_get_contact().
+ *     If NULL is given, nothing is done.
+ * @return None.
+ */
 void            dc_contact_unref             (dc_contact_t*);
+
+
+/**
+ * Get the ID of the contact.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return The ID of the contact, 0 on errors.
+ */
 uint32_t        dc_contact_get_id            (const dc_contact_t*);
+
+
+/**
+ * Get email address.  The email address is always set for a contact.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return String with the email address, must be free()'d. Never returns NULL.
+ */
 char*           dc_contact_get_addr          (const dc_contact_t*);
+
+
+/**
+ * Get the contact name. This is the name as defined by the contact himself or
+ * modified by the user.  May be an empty string.
+ *
+ * This name is typically used in a form where the user can edit the name of a contact.
+ * To get a fine name to display in lists etc., use dc_contact_get_display_name() or dc_contact_get_name_n_addr().
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return String with the name to display, must be free()'d. Empty string if unset, never returns NULL.
+ */
 char*           dc_contact_get_name          (const dc_contact_t*);
+
+
+/**
+ * Get display name. This is the name as defined by the contact himself,
+ * modified by the user or, if both are unset, the email address.
+ *
+ * This name is typically used in lists.
+ * To get the name editable in a formular, use dc_contact_get_name().
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return String with the name to display, must be free()'d. Never returns NULL.
+ */
 char*           dc_contact_get_display_name  (const dc_contact_t*);
+
+
+/**
+ * Get a summary of name and address.
+ *
+ * The returned string is either "Name (email@domain.com)" or just
+ * "email@domain.com" if the name is unset.
+ *
+ * The summary is typically used when asking the user something about the contact.
+ * The attached email address makes the question unique, eg. "Chat with Alan Miller (am@uniquedomain.com)?"
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return Summary string, must be free()'d. Never returns NULL.
+ */
 char*           dc_contact_get_name_n_addr   (const dc_contact_t*);
+
+
+/**
+ * Get the part of the name before the first space. In most languages, this seems to be
+ * the prename. If there is no space, the full display name is returned.
+ * If the display name is not set, the e-mail address is returned.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return String with the name to display, must be free()'d. Never returns NULL.
+ */
 char*           dc_contact_get_first_name    (const dc_contact_t*);
+
+
+/**
+ * Get the contact's profile image.
+ * This is the image set by each remote user on their own
+ * using dc_set_config(context, "selfavatar", image).
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return Path and file if the profile image, if any.
+ *     NULL otherwise.
+ *     Must be free()'d after usage.
+ */
 char*           dc_contact_get_profile_image (const dc_contact_t*);
+
+
+/**
+ * Get a color for the contact.
+ * The color is calculated from the contact's email address
+ * and can be used for an fallback avatar with white initials
+ * as well as for headlines in bubbles of group chats.
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return Color as 0x00rrggbb with rr=red, gg=green, bb=blue
+ *     each in the range 0-255.
+ */
 uint32_t        dc_contact_get_color         (const dc_contact_t*);
+
+
+/**
+ * Check if a contact is blocked.
+ *
+ * To block or unblock a contact, use dc_block_contact().
+ *
+ * @memberof dc_contact_t
+ * @param contact The contact object.
+ * @return 1=contact is blocked, 0=contact is not blocked.
+ */
 int             dc_contact_is_blocked        (const dc_contact_t*);
+
+
+/**
+ * Same as dc_contact_is_verified() but allows speeding up things
+ * by adding the peerstate belonging to the contact.
+ * If you do not have the peerstate available, it is loaded automatically.
+ *
+ * @private @memberof dc_context_t
+ */
 int             dc_contact_is_verified       (dc_contact_t*);
 
 
