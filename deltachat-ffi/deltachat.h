@@ -2141,23 +2141,176 @@ void        dc_delete_all_locations         (dc_context_t*);
  * The items of the array are typically IDs.
  * To free an array object, use dc_array_unref().
  */
+
+
+/**
+ * Free an array object. Does not free any data items.
+ *
+ * @memberof dc_array_t
+ * @param array The array object to free,
+ *     created eg. by dc_get_chatlist(), dc_get_contacts() and so on.
+ *     If NULL is given, nothing is done.
+ * @return None.
+ */
 void             dc_array_unref              (dc_array_t*);
 
-void             dc_array_add_id             (dc_array_t*, uint32_t);
 
+/**
+ * Find out the number of items in an array.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @return Returns the number of items in a dc_array_t object. 0 on errors or if the array is empty.
+ */
 size_t           dc_array_get_cnt            (const dc_array_t*);
+
+
+/**
+ * Get the item at the given index as an ID.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item to get. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Returns the item at the given index. Returns 0 on errors or if the array is empty.
+ */
 uint32_t         dc_array_get_id             (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the latitude of the item at the given index.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Latitude of the item at the given index.
+ *     0.0 if there is no latitude bound to the given item,
+ */
 double           dc_array_get_latitude       (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the longitude of the item at the given index.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Latitude of the item at the given index.
+ *     0.0 if there is no longitude bound to the given item,
+ */
 double           dc_array_get_longitude      (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the accuracy of the item at the given index.
+ * See dc_set_location() for more information about the accuracy.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Accuracy of the item at the given index.
+ *     0.0 if there is no longitude bound to the given item,
+ */
 double           dc_array_get_accuracy       (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the timestamp of the item at the given index.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Timestamp of the item at the given index.
+ *     0 if there is no timestamp bound to the given item,
+ */
 int64_t           dc_array_get_timestamp      (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the chat-id of the item at the given index.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Chat-id of the item at the given index.
+ *     0 if there is no chat-id bound to the given item,
+ */
 uint32_t         dc_array_get_chat_id        (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the contact-id of the item at the given index.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Contact-id of the item at the given index.
+ *     0 if there is no contact-id bound to the given item,
+ */
 uint32_t         dc_array_get_contact_id     (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the message-id of the item at the given index.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Message-id of the item at the given index.
+ *     0 if there is no message-id bound to the given item,
+ */
 uint32_t         dc_array_get_msg_id         (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the marker-character of the item at the given index.
+ * Marker-character are typically bound to locations
+ * returned by dc_get_locations()
+ * and are typically created by on-character-messages
+ * which can also be an emoticon :)
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return Marker-character of the item at the given index.
+ *     NULL if there is no marker-character bound to the given item.
+ *     The returned value must be free()'d after usage.
+ */
 char*            dc_array_get_marker         (const dc_array_t*, size_t index);
+
+
+/**
+ * Return the independent-state of the location at the given index.
+ * Independent locations do not belong to the track of the user.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @param index Index of the item. Must be between 0 and dc_array_get_cnt()-1.
+ * @return 0=Location belongs to the track of the user,
+ *     1=Location was reported independently.
+ */
 int              dc_array_is_independent     (const dc_array_t*, size_t index);
 
+
+/**
+ * Check if a given ID is present in an array.
+ *
+ * @private @memberof dc_array_t
+ * @param array The array object to search in.
+ * @param needle The ID to search for.
+ * @param[out] ret_index If set, this will receive the index. Set to NULL if you're not interested in the index.
+ * @return 1=ID is present in array, 0=ID not found.
+ */
 int              dc_array_search_id          (const dc_array_t*, uint32_t needle, size_t* indx);
+
+
+/**
+ * Get raw pointer to the data.
+ *
+ * @memberof dc_array_t
+ * @param array The array object.
+ * @return Raw pointer to the array. You MUST NOT free the data. You MUST NOT access the data beyond the current item count.
+ *     It is not possible to enlarge the array this way.  Calling any other dc_array*()-function may discard the returned pointer.
+ */
 const uint32_t*  dc_array_get_raw            (const dc_array_t*);
 
 
@@ -2869,6 +3022,8 @@ int64_t          dc_lot_get_timestamp     (const dc_lot_t*);
 #define DC_EVENT_RETURNS_INT(e)      ((e)==DC_EVENT_IS_OFFLINE)
 #define DC_EVENT_RETURNS_STRING(e)   ((e)==DC_EVENT_GET_STRING)
 char*           dc_get_version_str           (void); // deprecated
+void            dc_array_add_id              (dc_array_t*, uint32_t); // deprecated
+
 
 /*
  * Values for dc_get|set_config("show_emails")
