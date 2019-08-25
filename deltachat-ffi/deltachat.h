@@ -2450,6 +2450,8 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t*);
  * and are not updated on database changes;
  * if you want an update, you have to recreate the object.
  */
+
+
 #define         DC_CHAT_ID_DEADDROP          1 // virtual chat showing all messages belonging to chats flagged with chats.blocked=2
 #define         DC_CHAT_ID_TRASH             3 // messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
 #define         DC_CHAT_ID_MSGS_IN_CREATION  4 // a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
@@ -2465,18 +2467,197 @@ dc_context_t*    dc_chatlist_get_context     (dc_chatlist_t*);
 #define         DC_CHAT_TYPE_VERIFIED_GROUP  130
 
 
+/**
+ * Free a chat object.
+ *
+ * @memberof dc_chat_t
+ * @param chat Chat object are returned eg. by dc_get_chat().
+ *     If NULL is given, nothing is done.
+ * @return None.
+ */
 void            dc_chat_unref                (dc_chat_t*);
 
+
+/**
+ * Get chat ID. The chat ID is the ID under which the chat is filed in the database.
+ *
+ * Special IDs:
+ * - DC_CHAT_ID_DEADDROP         (1) - Virtual chat containing messages which senders are not confirmed by the user.
+ * - DC_CHAT_ID_STARRED          (5) - Virtual chat containing all starred messages-
+ * - DC_CHAT_ID_ARCHIVED_LINK    (6) - A link at the end of the chatlist, if present the UI should show the button "Archived chats"-
+ *
+ * "Normal" chat IDs are larger than these special IDs (larger than DC_CHAT_ID_LAST_SPECIAL).
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return Chat ID. 0 on errors.
+ */
 uint32_t        dc_chat_get_id               (const dc_chat_t*);
+
+
+/**
+ * Get chat type.
+ *
+ * Currently, there are two chat types:
+ *
+ * - DC_CHAT_TYPE_SINGLE (100) - a normal chat is a chat with a single contact,
+ *   chats_contacts contains one record for the user.  DC_CONTACT_ID_SELF
+ *   (see dc_contact_t::id) is added _only_ for a self talk.
+ *
+ * - DC_CHAT_TYPE_GROUP  (120) - a group chat, chats_contacts contain all group
+ *   members, incl. DC_CONTACT_ID_SELF
+ *
+ * - DC_CHAT_TYPE_VERIFIED_GROUP  (130) - a verified group chat. In verified groups,
+ *   all members are verified and encryption is always active and cannot be disabled.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return Chat type.
+ */
 int             dc_chat_get_type             (const dc_chat_t*);
+
+
+/**
+ * Get name of a chat. For one-to-one chats, this is the name of the contact.
+ * For group chats, this is the name given eg. to dc_create_group_chat() or
+ * received by a group-creation message.
+ *
+ * To change the name, use dc_set_chat_name()
+ *
+ * See also: dc_chat_get_subtitle()
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return Chat name as a string. Must be free()'d after usage. Never NULL.
+ */
 char*           dc_chat_get_name             (const dc_chat_t*);
+
+
+/**
+ * Get a subtitle for a chat.  The subtitle is eg. the email-address or the
+ * number of group members.
+ *
+ * See also: dc_chat_get_name()
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object to calulate the subtitle for.
+ * @return Subtitle as a string. Must be free()'d after usage. Never NULL.
+ */
 char*           dc_chat_get_subtitle         (const dc_chat_t*);
+
+
+/**
+ * Get the chat's profile image.
+ * For groups, this is the image set by any group member
+ * using dc_set_chat_profile_image().
+ * For normal chats, this is the image set by each remote user on their own
+ * using dc_set_config(context, "selfavatar", image).
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return Path and file if the profile image, if any.
+ *     NULL otherwise.
+ *     Must be free()'d after usage.
+ */
 char*           dc_chat_get_profile_image    (const dc_chat_t*);
+
+
+/**
+ * Get a color for the chat.
+ * For 1:1 chats, the color is calculated from the contact's email address.
+ * Otherwise, the chat name is used.
+ * The color can be used for an fallback avatar with white initials
+ * as well as for headlines in bubbles of group chats.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return Color as 0x00rrggbb with rr=red, gg=green, bb=blue
+ *     each in the range 0-255.
+ */
 uint32_t        dc_chat_get_color            (const dc_chat_t*);
+
+
+/**
+ * Get archived state.
+ *
+ * - 0 = normal chat, not archived, not sticky.
+ * - 1 = chat archived
+ * - 2 = chat sticky (reserved for future use, if you do not support this value, just treat the chat as a normal one)
+ *
+ * To archive or unarchive chats, use dc_archive_chat().
+ * If chats are archived, this should be shown in the UI by a little icon or text,
+ * eg. the search will also return archived chats.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return Archived state.
+ */
 int             dc_chat_get_archived         (const dc_chat_t*);
+
+
+/**
+ * Check if a group chat is still unpromoted.
+ *
+ * After the creation with dc_create_group_chat() the chat is usually unpromoted
+ * until the first call to dc_send_text_msg() or another sending function.
+ *
+ * With unpromoted chats, members can be added
+ * and settings can be modified without the need of special status messages being sent.
+ *
+ * While the core takes care of the unpromoted state on its own,
+ * checking the state from the UI side may be useful to decide whether a hint as
+ * "Send the first message to allow others to reply within the group"
+ * should be shown to the user or not.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=chat is still unpromoted, no message was ever send to the chat,
+ *     0=chat is not unpromoted, messages were send and/or received
+ *     or the chat is not group chat.
+ */
 int             dc_chat_is_unpromoted        (const dc_chat_t*);
+
+
+/**
+ * Check if a chat is a self talk.  Self talks are normal chats with
+ * the only contact DC_CONTACT_ID_SELF.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=chat is self talk, 0=chat is no self talk
+ */
 int             dc_chat_is_self_talk         (const dc_chat_t*);
+
+
+/**
+ * Check if a chat is verified.  Verified chats contain only verified members
+ * and encryption is alwasy enabled.  Verified chats are created using
+ * dc_create_group_chat() by setting the 'verified' parameter to true.
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=chat verified, 0=chat is not verified
+ */
+int dc_chat_is_verified(const dc_chat_t* chat)
+{
+	if (chat==NULL || chat->magic!=DC_CHAT_MAGIC) {
+		return 0;
+	}
+	return (chat->type==DC_CHAT_TYPE_VERIFIED_GROUP);
+}
 int             dc_chat_is_verified          (const dc_chat_t*);
+
+
+/**
+ * Check if locations are sent to the chat
+ * at the time the object was created using dc_get_chat().
+ * To check if locations are sent to _any_ chat,
+ * use dc_is_sending_locations_to_chat().
+ *
+ * @memberof dc_chat_t
+ * @param chat The chat object.
+ * @return 1=locations are sent to chat, 0=no locations are sent to chat
+ */
 int             dc_chat_is_sending_locations (const dc_chat_t*);
 
 
