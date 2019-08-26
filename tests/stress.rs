@@ -657,11 +657,9 @@ unsafe fn create_test_context() -> TestContext {
 fn test_dc_mimeparser_with_context() {
     unsafe {
         let context = create_test_context();
-
-        let mut mimeparser = dc_mimeparser_new(&context.ctx);
         let raw = b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00";
+        let mut mimeparser = dc_mimeparser_parse(&context.ctx, &raw[..]);
 
-        dc_mimeparser_parse(&mut mimeparser, &raw[..]);
         assert_eq!(
             as_str(mimeparser.subject as *const libc::c_char),
             "inner-subject",

@@ -123,11 +123,12 @@ unsafe fn dc_mimepart_unref(mut mimepart: dc_mimepart_t) {
     mimepart.msg_raw = 0 as *mut libc::c_char;
 }
 
-pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8]) {
+pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_mimeparser_t<'a> {
     let r: libc::c_int;
     let mut index: size_t = 0i32 as size_t;
     let optional_field: *mut mailimf_optional_field;
-    dc_mimeparser_empty(mimeparser);
+    let mut mimeparser = dc_mimeparser_new(context);
+
     r = mailmime_parse(
         body.as_ptr() as *const libc::c_char,
         body.len(),
@@ -140,15 +141,16 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
             mimeparser.mimeroot,
             &mut mimeparser.e2ee_helper,
         );
-        dc_mimeparser_parse_mime_recursive(mimeparser, mimeparser.mimeroot);
-        let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, "Subject");
+        let mimeparser_ref = &mut mimeparser;
+        dc_mimeparser_parse_mime_recursive(mimeparser_ref, mimeparser_ref.mimeroot);
+        let field: *mut mailimf_field = dc_mimeparser_lookup_field(&mut mimeparser, "Subject");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
             mimeparser.subject = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)
         }
-        if !dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Version").is_null() {
+        if !dc_mimeparser_lookup_optional_field(&mut mimeparser, "Chat-Version").is_null() {
             mimeparser.is_send_by_messenger = 1i32
         }
-        if !dc_mimeparser_lookup_field(mimeparser, "Autocrypt-Setup-Message").is_null() {
+        if !dc_mimeparser_lookup_field(&mut mimeparser, "Autocrypt-Setup-Message").is_null() {
             let mut has_setup_file: libc::c_int = 0i32;
             for part in &mimeparser.parts {
                 if part.int_mimetype == 111i32 {
@@ -180,7 +182,7 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
                 }
             }
         } else {
-            optional_field = dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Content");
+            optional_field = dc_mimeparser_lookup_optional_field(&mut mimeparser, "Chat-Content");
             if !optional_field.is_null() && !(*optional_field).fld_value.is_null() {
                 if strcmp(
                     (*optional_field).fld_value,
@@ -191,7 +193,7 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
                 }
             }
         }
-        if !dc_mimeparser_lookup_field(mimeparser, "Chat-Group-Image").is_null()
+        if !dc_mimeparser_lookup_field(&mut mimeparser, "Chat-Group-Image").is_null()
             && !mimeparser.parts.is_empty()
         {
             let textpart = &mimeparser.parts[0];
@@ -288,7 +290,7 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
         }
         if mimeparser.parts.len() == 1 {
             if mimeparser.parts[0].type_0 == 40i32 {
-                if !dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Voice-Message").is_null()
+                if !dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Voice-Message").is_null()
                 {
                     let part_mut = &mut mimeparser.parts[0];
                     part_mut.type_0 = 41i32
@@ -296,7 +298,7 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
             }
             let part = &mimeparser.parts[0];
             if part.type_0 == 40i32 || part.type_0 == 41i32 || part.type_0 == 50i32 {
-                let field_0 = dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Duration");
+                let field_0 = dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Duration");
                 if !field_0.is_null() {
                     let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
                     if duration_ms > 0i32 && duration_ms < 24i32 * 60i32 * 60i32 * 1000i32 {
@@ -307,9 +309,11 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
             }
         }
         if 0 == mimeparser.decrypting_failed {
-            let dn_field: *const mailimf_optional_field =
-                dc_mimeparser_lookup_optional_field(mimeparser, "Chat-Disposition-Notification-To");
-            if !dn_field.is_null() && dc_mimeparser_get_last_nonmeta(mimeparser).is_some() {
+            let dn_field: *const mailimf_optional_field = dc_mimeparser_lookup_optional_field(
+                &mimeparser,
+                "Chat-Disposition-Notification-To",
+            );
+            if !dn_field.is_null() && dc_mimeparser_get_last_nonmeta(&mut mimeparser).is_some() {
                 let mut mb_list: *mut mailimf_mailbox_list = 0 as *mut mailimf_mailbox_list;
                 let mut index_0: size_t = 0i32 as size_t;
                 if mailimf_mailbox_list_parse(
@@ -323,7 +327,7 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
                     let dn_to_addr: *mut libc::c_char = mailimf_find_first_addr(mb_list);
                     if !dn_to_addr.is_null() {
                         let from_field: *mut mailimf_field =
-                            dc_mimeparser_lookup_field(mimeparser, "From");
+                            dc_mimeparser_lookup_field(&mimeparser, "From");
                         if !from_field.is_null()
                             && (*from_field).fld_type == MAILIMF_FIELD_FROM as libc::c_int
                             && !(*from_field).fld_data.fld_from.is_null()
@@ -333,7 +337,8 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
                             );
                             if !from_addr.is_null() {
                                 if strcmp(from_addr, dn_to_addr) == 0i32 {
-                                    if let Some(part_4) = dc_mimeparser_get_last_nonmeta(mimeparser)
+                                    if let Some(part_4) =
+                                        dc_mimeparser_get_last_nonmeta(&mut mimeparser)
                                     {
                                         part_4.param.set_int(Param::WantsMdn, 1);
                                     }
@@ -349,7 +354,7 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
         }
     }
     /* Cleanup - and try to create at least an empty part if there are no parts yet */
-    if dc_mimeparser_get_last_nonmeta(mimeparser).is_none() && mimeparser.reports.is_empty() {
+    if dc_mimeparser_get_last_nonmeta(&mut mimeparser).is_none() && mimeparser.reports.is_empty() {
         let mut part_5 = dc_mimepart_new();
         part_5.type_0 = 10i32;
         if !mimeparser.subject.is_null() && 0 == mimeparser.is_send_by_messenger {
@@ -359,6 +364,7 @@ pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8])
         }
         mimeparser.parts.push(part_5);
     };
+    mimeparser
 }
 
 /*******************************************************************************
