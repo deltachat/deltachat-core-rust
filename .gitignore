@@ -18,3 +18,7 @@ __pycache__
 python/src/deltachat/capi*.so
 
 python/liveconfig*
+
+# ignore doxgen generated files
+deltachat-ffi/html
+deltachat-ffi/xml
