@@ -9,13 +9,16 @@
 
 #[macro_use]
 extern crate human_panic;
+#[macro_use]
+extern crate rental;
+
 extern crate num_traits;
 
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::ptr;
 use std::str::FromStr;
-use std::sync::RwLock;
+use std::sync::{Arc, RwLock};
 
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -1037,16 +1040,20 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
     query_id: u32,
 ) -> *mut dc_chatlist_t<'a> {
     assert!(!context.is_null());
+
     let wrapper: &ContextWrapper = &*context;
-    let inner_guard = wrapper.inner.read().unwrap();
-    let context = inner_guard.as_ref().expect("context not open");
+
     let qs = if query_str.is_null() {
         None
     } else {
         Some(as_str(query_str))
     };
     let qi = if query_id == 0 { None } else { Some(query_id) };
-    match chatlist::Chatlist::try_load(context, flags as usize, qs, qi) {
+
+    match ChatlistWrapper::try_new(wrapper.inner.read().unwrap(), |guard| {
+        let context = guard.as_ref().expect("context not open");
+        chatlist::Chatlist::try_load(context, flags as usize, qs, qi)
+    }) {
         Ok(list) => Box::into_raw(Box::new(list)),
         Err(_) => std::ptr::null_mut(),
     }
@@ -3203,8 +3210,22 @@ pub unsafe fn dc_array_is_independent(
 
 // dc_chatlist_t
 
+rental! {
+    pub mod rentals {
+        use super::*;
+
+        #[rental]
+        pub struct ChatlistWrapper<'a> {
+            guard: std::sync::RwLockReadGuard<'a, Option<Context>>,
+            list: deltachat::chatlist::Chatlist<'guard>,
+        }
+    }
+}
+
+pub use rentals::*;
+
 #[no_mangle]
-pub type dc_chatlist_t<'a> = chatlist::Chatlist<'a>;
+pub type dc_chatlist_t<'a> = ChatlistWrapper<'a>;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist_t) {
@@ -3218,7 +3239,7 @@ pub unsafe extern "C" fn dc_chatlist_get_cnt(chatlist: *mut dc_chatlist_t) -> li
     assert!(!chatlist.is_null());
 
     let list = &*chatlist;
-    list.len() as libc::size_t
+    list.rent(|l| l.len() as libc::size_t)
 }
 
 #[no_mangle]
@@ -3229,7 +3250,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
     assert!(!chatlist.is_null());
 
     let list = &*chatlist;
-    list.get_chat_id(index as usize)
+    list.rent(|l| l.get_chat_id(index as usize))
 }
 
 #[no_mangle]
@@ -3240,7 +3261,7 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
     assert!(!chatlist.is_null());
 
     let list = &*chatlist;
-    list.get_msg_id(index as usize)
+    list.rent(|l| l.get_msg_id(index as usize))
 }
 
 #[no_mangle]
@@ -3254,7 +3275,7 @@ pub unsafe extern "C" fn dc_chatlist_get_summary<'a>(
     let chat = if chat.is_null() { None } else { Some(&*chat) };
     let list = &*chatlist;
 
-    let lot = list.get_summary(index as usize, chat);
+    let lot = list.rent(|l| l.get_summary(index as usize, chat));
     Box::into_raw(Box::new(lot))
 }
 
@@ -3265,10 +3286,12 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
     assert!(!chatlist.is_null());
     let list = &*chatlist;
 
-    let context: &Context = list.get_context();
-    let userdata_ptr = context.userdata as *const ContextWrapper;
-    let wrapper: &ContextWrapper = &*userdata_ptr;
-    wrapper
+    list.rent(|l| {
+        let context: &Context = l.get_context();
+        let userdata_ptr = context.userdata as *const ContextWrapper;
+        let wrapper: &ContextWrapper = &*userdata_ptr;
+        wrapper
+    })
 }
 
 // dc_chat_t
