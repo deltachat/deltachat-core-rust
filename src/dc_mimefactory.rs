@@ -885,43 +885,39 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                             .unwrap_or_default();
                         let kml_file =
                             dc_get_message_kml(factory.msg.timestamp_sort, latitude, longitude);
-                        if !kml_file.is_null() {
+                        let content_type = mailmime_content_new_with_str(
+                            b"application/vnd.google-earth.kml+xml\x00" as *const u8
+                                as *const libc::c_char,
+                        );
+                        let mime_fields = mailmime_fields_new_filename(
+                            MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
+                            dc_strdup(b"message.kml\x00" as *const u8 as *const libc::c_char),
+                            MAILMIME_MECHANISM_8BIT as libc::c_int,
+                        );
+                        let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
+                        mailmime_set_body_text(kml_mime_part, kml_file.strdup(), kml_file.len());
+                        mailmime_smart_add_part(message, kml_mime_part);
+                    }
+
+                    if dc_is_sending_locations_to_chat(factory.msg.context, factory.msg.chat_id) {
+                        if let Ok((kml_file, last_added_location_id)) =
+                            dc_get_location_kml(factory.msg.context, factory.msg.chat_id)
+                        {
                             let content_type = mailmime_content_new_with_str(
                                 b"application/vnd.google-earth.kml+xml\x00" as *const u8
                                     as *const libc::c_char,
                             );
                             let mime_fields = mailmime_fields_new_filename(
                                 MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
-                                dc_strdup(b"message.kml\x00" as *const u8 as *const libc::c_char),
-                                MAILMIME_MECHANISM_8BIT as libc::c_int,
-                            );
-                            let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
-                            mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
-
-                            mailmime_smart_add_part(message, kml_mime_part);
-                        }
-                    }
-
-                    if dc_is_sending_locations_to_chat(factory.msg.context, factory.msg.chat_id) {
-                        let mut last_added_location_id: uint32_t = 0 as uint32_t;
-                        let kml_file: *mut libc::c_char = dc_get_location_kml(
-                            factory.msg.context,
-                            factory.msg.chat_id,
-                            &mut last_added_location_id,
-                        );
-                        if !kml_file.is_null() {
-                            let content_type: *mut mailmime_content = mailmime_content_new_with_str(
-                                b"application/vnd.google-earth.kml+xml\x00" as *const u8
-                                    as *const libc::c_char,
-                            );
-                            let mime_fields: *mut mailmime_fields = mailmime_fields_new_filename(
-                                MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
                                 dc_strdup(b"location.kml\x00" as *const u8 as *const libc::c_char),
                                 MAILMIME_MECHANISM_8BIT as libc::c_int,
                             );
-                            let kml_mime_part: *mut mailmime =
-                                mailmime_new_empty(content_type, mime_fields);
-                            mailmime_set_body_text(kml_mime_part, kml_file, strlen(kml_file));
+                            let kml_mime_part = mailmime_new_empty(content_type, mime_fields);
+                            mailmime_set_body_text(
+                                kml_mime_part,
+                                kml_file.strdup(),
+                                kml_file.len(),
+                            );
                             mailmime_smart_add_part(message, kml_mime_part);
                             if !factory.msg.param.exists(Param::SetLatitude) {
                                 // otherwise, the independent location is already filed

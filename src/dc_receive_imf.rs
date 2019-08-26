@@ -953,11 +953,10 @@ unsafe fn save_locations(
     }
 
     if !mime_parser.location_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint {
-        if !mime_parser.location_kml.as_ref().unwrap().addr.is_null() {
+        if let Some(ref addr) = mime_parser.location_kml.as_ref().unwrap().addr {
             if let Ok(contact) = Contact::get_by_id(context, from_id) {
                 if !contact.get_addr().is_empty()
-                    && contact.get_addr().to_lowercase()
-                        == as_str(mime_parser.location_kml.as_ref().unwrap().addr).to_lowercase()
+                    && contact.get_addr().to_lowercase() == addr.to_lowercase()
                 {
                     let newest_location_id = dc_save_locations(
                         context,

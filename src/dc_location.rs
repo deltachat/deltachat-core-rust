@@ -6,69 +6,51 @@ use crate::constants::Event;
 use crate::constants::*;
 use crate::context::*;
 use crate::dc_tools::*;
+use crate::error::Error;
 use crate::job::*;
 use crate::message::*;
 use crate::param::*;
 use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
-use crate::x::*;
 
 // location handling
-#[derive(Clone, Default)]
-#[allow(non_camel_case_types)]
-pub struct dc_location {
-    pub location_id: uint32_t,
-    pub latitude: libc::c_double,
-    pub longitude: libc::c_double,
-    pub accuracy: libc::c_double,
+#[derive(Debug, Clone, Default)]
+pub struct Location {
+    pub location_id: u32,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub accuracy: f64,
     pub timestamp: i64,
-    pub contact_id: uint32_t,
-    pub msg_id: uint32_t,
-    pub chat_id: uint32_t,
+    pub contact_id: u32,
+    pub msg_id: u32,
+    pub chat_id: u32,
     pub marker: Option<String>,
-    pub independent: uint32_t,
+    pub independent: u32,
 }
 
-impl dc_location {
+impl Location {
     pub fn new() -> Self {
-        dc_location {
-            location_id: 0,
-            latitude: 0.0,
-            longitude: 0.0,
-            accuracy: 0.0,
-            timestamp: 0,
-            contact_id: 0,
-            msg_id: 0,
-            chat_id: 0,
-            marker: None,
-            independent: 0,
-        }
+        Default::default()
     }
 }
 
-#[derive(Clone)]
-#[allow(non_camel_case_types)]
-pub struct dc_kml_t {
-    pub addr: *mut libc::c_char,
-    pub locations: Option<Vec<dc_location>>,
-    pub tag: libc::c_int,
-    pub curr: dc_location,
+#[derive(Debug, Clone, Default)]
+pub struct Kml {
+    pub addr: Option<String>,
+    pub locations: Option<Vec<Location>>,
+    pub tag: i32,
+    pub curr: Location,
 }
 
-impl dc_kml_t {
+impl Kml {
     pub fn new() -> Self {
-        dc_kml_t {
-            addr: std::ptr::null_mut(),
-            locations: None,
-            tag: 0,
-            curr: dc_location::new(),
-        }
+        Default::default()
     }
 }
 
 // location streaming
-pub unsafe fn dc_send_locations_to_chat(context: &Context, chat_id: uint32_t, seconds: i64) {
+pub fn dc_send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
     let now = time();
     let mut msg: Message;
     let is_sending_locations_before: bool;
@@ -94,7 +76,7 @@ pub unsafe fn dc_send_locations_to_chat(context: &Context, chat_id: uint32_t, se
                 msg.text =
                     Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
                 msg.param.set_int(Param::Cmd, 8);
-                chat::send_msg(context, chat_id, &mut msg).unwrap();
+                unsafe { chat::send_msg(context, chat_id, &mut msg).unwrap() };
             } else if 0 == seconds && is_sending_locations_before {
                 let stock_str =
                     context.stock_system_msg(StockMessage::MsgLocationDisabled, "", "", 0);
@@ -123,7 +105,7 @@ pub unsafe fn dc_send_locations_to_chat(context: &Context, chat_id: uint32_t, se
  * job to send locations out to all chats that want them
  ******************************************************************************/
 #[allow(non_snake_case)]
-unsafe fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: libc::c_int) {
+fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: i32) {
     if 0 != flags & 0x1 || !job_action_exists(context, Action::MaybeSendLocations) {
         job_add(context, Action::MaybeSendLocations, 0, Params::new(), 60);
     };
@@ -141,9 +123,9 @@ pub fn dc_is_sending_locations_to_chat(context: &Context, chat_id: u32) -> bool 
 
 pub fn dc_set_location(
     context: &Context,
-    latitude: libc::c_double,
-    longitude: libc::c_double,
-    accuracy: libc::c_double,
+    latitude: f64,
+    longitude: f64,
+    accuracy: f64,
 ) -> libc::c_int {
     if latitude == 0.0 && longitude == 0.0 {
         return 1;
@@ -174,7 +156,7 @@ pub fn dc_set_location(
             if continue_streaming {
                 context.call_cb(Event::LOCATION_CHANGED, 1, 0);
             };
-            unsafe { schedule_MAYBE_SEND_LOCATIONS(context, 0) };
+            schedule_MAYBE_SEND_LOCATIONS(context, 0);
             Ok(continue_streaming as libc::c_int)
         }
     ).unwrap_or_default()
@@ -182,11 +164,11 @@ pub fn dc_set_location(
 
 pub fn dc_get_locations(
     context: &Context,
-    chat_id: uint32_t,
-    contact_id: uint32_t,
+    chat_id: u32,
+    contact_id: u32,
     timestamp_from: i64,
     mut timestamp_to: i64,
-) -> Vec<dc_location> {
+) -> Vec<Location> {
     if timestamp_to == 0 {
         timestamp_to = time() + 10;
     }
@@ -217,7 +199,7 @@ pub fn dc_get_locations(
                     None
                 };
 
-                let loc = dc_location {
+                let loc = Location {
                     location_id: row.get(0)?,
                     latitude: row.get(1)?,
                     longitude: row.get(2)?,
@@ -255,22 +237,18 @@ pub fn dc_delete_all_locations(context: &Context) -> bool {
     true
 }
 
-pub fn dc_get_location_kml(
-    context: &Context,
-    chat_id: uint32_t,
-    last_added_location_id: *mut uint32_t,
-) -> *mut libc::c_char {
-    let mut success: libc::c_int = 0;
+pub fn dc_get_location_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> {
     let now = time();
-    let mut location_count: libc::c_int = 0;
+    let mut location_count = 0;
     let mut ret = String::new();
+    let mut last_added_location_id = 0;
 
     let self_addr = context
         .sql
         .get_config(context, "configured_addr")
         .unwrap_or_default();
 
-    if let Ok((locations_send_begin, locations_send_until, locations_last_sent)) = context.sql.query_row(
+    let (locations_send_begin, locations_send_until, locations_last_sent) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until, locations_last_sent  FROM chats  WHERE id=?;",
         params![chat_id as i32], |row| {
             let send_begin: i64 = row.get(0)?;
@@ -278,106 +256,78 @@ pub fn dc_get_location_kml(
             let last_sent: i64 = row.get(2)?;
 
             Ok((send_begin, send_until, last_sent))
-        }
-    ) {
-        if !(locations_send_begin == 0 || now > locations_send_until) {
-            ret += &format!(
-                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"{}\">\n",
-                self_addr,
-            );
+        })?;
 
-            context.sql.query_map(
-                "SELECT id, latitude, longitude, accuracy, timestamp\
-                 FROM locations  WHERE from_id=? \
-                 AND timestamp>=? \
-                 AND (timestamp>=? OR timestamp=(SELECT MAX(timestamp) FROM locations WHERE from_id=?)) \
-                 AND independent=0 \
-                 GROUP BY timestamp \
-                 ORDER BY timestamp;",
-                params![1, locations_send_begin, locations_last_sent, 1],
-                |row| {
-                    let location_id: i32 = row.get(0)?;
-                    let latitude: f64 = row.get(1)?;
-                    let longitude: f64 = row.get(2)?;
-                    let accuracy: f64 = row.get(3)?;
-                    let timestamp = unsafe { get_kml_timestamp(row.get(4)?) };
+    if !(locations_send_begin == 0 || now > locations_send_until) {
+        ret += &format!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"{}\">\n",
+            self_addr,
+        );
 
-                    Ok((location_id, latitude, longitude, accuracy, timestamp))
-                },
-                |rows| {
-                    for row in rows {
-                        let (location_id, latitude, longitude, accuracy, timestamp) = row?;
-                        ret += &format!(
-                            "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
-                            as_str(timestamp),
-                            accuracy,
-                            longitude,
-                            latitude
-                        );
-                        location_count += 1;
-                        if !last_added_location_id.is_null() {
-                            unsafe { *last_added_location_id = location_id as u32 };
-                        }
-                        unsafe { free(timestamp as *mut libc::c_void) };
-                    }
-                    Ok(())
+        context.sql.query_map(
+            "SELECT id, latitude, longitude, accuracy, timestamp\
+             FROM locations  WHERE from_id=? \
+             AND timestamp>=? \
+             AND (timestamp>=? OR timestamp=(SELECT MAX(timestamp) FROM locations WHERE from_id=?)) \
+             AND independent=0 \
+             GROUP BY timestamp \
+             ORDER BY timestamp;",
+            params![1, locations_send_begin, locations_last_sent, 1],
+            |row| {
+                let location_id: i32 = row.get(0)?;
+                let latitude: f64 = row.get(1)?;
+                let longitude: f64 = row.get(2)?;
+                let accuracy: f64 = row.get(3)?;
+                let timestamp = get_kml_timestamp(row.get(4)?);
+
+                Ok((location_id, latitude, longitude, accuracy, timestamp))
+            },
+            |rows| {
+                for row in rows {
+                    let (location_id, latitude, longitude, accuracy, timestamp) = row?;
+                    ret += &format!(
+                        "<Placemark><Timestamp><when>{}</when></Timestamp><Point><coordinates accuracy=\"{}\">{},{}</coordinates></Point></Placemark>\n\x00",
+                        timestamp,
+                        accuracy,
+                        longitude,
+                        latitude
+                    );
+                    location_count += 1;
+                    last_added_location_id = location_id as u32;
                 }
-            ).unwrap(); // TODO: better error handling
-        }
+                Ok(())
+            }
+        )?;
     }
 
-    if location_count > 0 {
-        ret += "</Document>\n</kml>";
-        success = 1;
-    }
+    ensure!(location_count > 0, "No locations processed");
+    ret += "</Document>\n</kml>";
 
-    if 0 != success {
-        unsafe { ret.strdup() }
-    } else {
-        std::ptr::null_mut()
-    }
+    Ok((ret, last_added_location_id))
 }
 
-/*******************************************************************************
- * create kml-files
- ******************************************************************************/
-unsafe fn get_kml_timestamp(utc: i64) -> *mut libc::c_char {
+fn get_kml_timestamp(utc: i64) -> String {
     // Returns a string formatted as YYYY-MM-DDTHH:MM:SSZ. The trailing `Z` indicates UTC.
-    let res = chrono::NaiveDateTime::from_timestamp(utc, 0)
+    chrono::NaiveDateTime::from_timestamp(utc, 0)
         .format("%Y-%m-%dT%H:%M:%SZ")
-        .to_string();
-    res.strdup()
+        .to_string()
 }
 
-pub unsafe fn dc_get_message_kml(
-    timestamp: i64,
-    latitude: libc::c_double,
-    longitude: libc::c_double,
-) -> *mut libc::c_char {
-    let timestamp_str = get_kml_timestamp(timestamp);
-    let latitude_str = dc_ftoa(latitude);
-    let longitude_str = dc_ftoa(longitude);
-
-    let ret = dc_mprintf(
-        b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+pub fn dc_get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> String {
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <kml xmlns=\"http://www.opengis.net/kml/2.2\">\n\
          <Document>\n\
          <Placemark>\
-         <Timestamp><when>%s</when></Timestamp>\
-         <Point><coordinates>%s,%s</coordinates></Point>\
+         <Timestamp><when>{}</when></Timestamp>\
+         <Point><coordinates>{:.2},{:.2}</coordinates></Point>\
          </Placemark>\n\
          </Document>\n\
-         </kml>\x00" as *const u8 as *const libc::c_char,
-        timestamp_str,
-        longitude_str, // reverse order!
-        latitude_str,
-    );
-
-    free(latitude_str as *mut libc::c_void);
-    free(longitude_str as *mut libc::c_void);
-    free(timestamp_str as *mut libc::c_void);
-
-    ret
+         </kml>",
+        get_kml_timestamp(timestamp),
+        longitude,
+        latitude,
+    )
 }
 
 pub fn dc_set_kml_sent_timestamp(context: &Context, chat_id: u32, timestamp: i64) -> bool {
@@ -400,12 +350,12 @@ pub fn dc_set_msg_location_id(context: &Context, msg_id: u32, location_id: u32) 
     .is_ok()
 }
 
-pub unsafe fn dc_save_locations(
+pub fn dc_save_locations(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
-    locations_opt: &Option<Vec<dc_location>>,
-    independent: libc::c_int,
+    locations_opt: &Option<Vec<Location>>,
+    independent: i32,
 ) -> u32 {
     if chat_id <= 9 || locations_opt.is_none() {
         return 0;
@@ -458,59 +408,47 @@ pub unsafe fn dc_save_locations(
         .unwrap_or_default()
 }
 
-pub unsafe fn dc_kml_parse(
-    context: &Context,
-    content: *const libc::c_char,
-    content_bytes: size_t,
-) -> dc_kml_t {
-    let mut kml = dc_kml_t::new();
+pub fn dc_kml_parse(context: &Context, content: impl AsRef<str>) -> Result<Kml, Error> {
+    ensure!(
+        content.as_ref().len() <= (1 * 1024 * 1024),
+        "A kml-files with {} bytes is larger than reasonably expected.",
+        content.as_ref().len()
+    );
 
-    if content_bytes > (1 * 1024 * 1024) {
-        warn!(
-            context,
-            0, "A kml-files with {} bytes is larger than reasonably expected.", content_bytes,
-        );
-        return kml;
-    }
+    let mut reader = quick_xml::Reader::from_str(content.as_ref());
+    reader.trim_text(true);
 
-    let content_null = dc_null_terminate(content, content_bytes as libc::c_int);
-    if !content_null.is_null() {
-        let mut reader = quick_xml::Reader::from_str(as_str(content_null));
-        reader.trim_text(true);
+    let mut kml = Kml::new();
+    kml.locations = Some(Vec::with_capacity(100));
 
-        kml.locations = Some(Vec::with_capacity(100));
+    let mut buf = Vec::new();
 
-        let mut buf = Vec::new();
-
-        loop {
-            match reader.read_event(&mut buf) {
-                Ok(quick_xml::events::Event::Start(ref e)) => kml_starttag_cb(e, &mut kml, &reader),
-                Ok(quick_xml::events::Event::End(ref e)) => kml_endtag_cb(e, &mut kml),
-                Ok(quick_xml::events::Event::Text(ref e)) => kml_text_cb(e, &mut kml, &reader),
-                Err(e) => {
-                    error!(
-                        context,
-                        0,
-                        "Location parsing: Error at position {}: {:?}",
-                        reader.buffer_position(),
-                        e
-                    );
-                }
-                Ok(quick_xml::events::Event::Eof) => break,
-                _ => (),
+    loop {
+        match reader.read_event(&mut buf) {
+            Ok(quick_xml::events::Event::Start(ref e)) => kml_starttag_cb(e, &mut kml, &reader),
+            Ok(quick_xml::events::Event::End(ref e)) => kml_endtag_cb(e, &mut kml),
+            Ok(quick_xml::events::Event::Text(ref e)) => kml_text_cb(e, &mut kml, &reader),
+            Err(e) => {
+                error!(
+                    context,
+                    0,
+                    "Location parsing: Error at position {}: {:?}",
+                    reader.buffer_position(),
+                    e
+                );
             }
-            buf.clear();
+            Ok(quick_xml::events::Event::Eof) => break,
+            _ => (),
         }
+        buf.clear();
     }
 
-    free(content_null.cast());
-
-    kml
+    Ok(kml)
 }
 
 fn kml_text_cb<B: std::io::BufRead>(
     event: &BytesText,
-    kml: &mut dc_kml_t,
+    kml: &mut Kml,
     reader: &quick_xml::Reader<B>,
 ) {
     if 0 != kml.tag & (0x4 | 0x10) {
@@ -546,7 +484,7 @@ fn kml_text_cb<B: std::io::BufRead>(
     }
 }
 
-fn kml_endtag_cb(event: &BytesEnd, kml: &mut dc_kml_t) {
+fn kml_endtag_cb(event: &BytesEnd, kml: &mut Kml) {
     let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
     if tag == "placemark" {
@@ -556,7 +494,7 @@ fn kml_endtag_cb(event: &BytesEnd, kml: &mut dc_kml_t) {
             && 0. != kml.curr.longitude
         {
             if let Some(ref mut locations) = kml.locations {
-                locations.push(std::mem::replace(&mut kml.curr, dc_location::new()));
+                locations.push(std::mem::replace(&mut kml.curr, Location::new()));
             }
         }
         kml.tag = 0
@@ -565,7 +503,7 @@ fn kml_endtag_cb(event: &BytesEnd, kml: &mut dc_kml_t) {
 
 fn kml_starttag_cb<B: std::io::BufRead>(
     event: &BytesStart,
-    kml: &mut dc_kml_t,
+    kml: &mut Kml,
     reader: &quick_xml::Reader<B>,
 ) {
     let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
@@ -575,19 +513,14 @@ fn kml_starttag_cb<B: std::io::BufRead>(
                 .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "addr")
                 .unwrap_or_default()
         }) {
-            kml.addr = unsafe {
-                addr.unwrap()
-                    .unescape_and_decode_value(reader)
-                    .unwrap_or_default()
-                    .strdup()
-            };
+            kml.addr = addr.unwrap().unescape_and_decode_value(reader).ok();
         }
     } else if tag == "placemark" {
         kml.tag = 0x1;
         kml.curr.timestamp = 0;
-        kml.curr.latitude = 0 as libc::c_double;
-        kml.curr.longitude = 0.0f64;
-        kml.curr.accuracy = 0.0f64
+        kml.curr.latitude = 0.0;
+        kml.curr.longitude = 0.0;
+        kml.curr.accuracy = 0.0
     } else if tag == "timestamp" && 0 != kml.tag & 0x1 {
         kml.tag = 0x1 | 0x2
     } else if tag == "when" && 0 != kml.tag & 0x2 {
@@ -611,12 +544,8 @@ fn kml_starttag_cb<B: std::io::BufRead>(
     }
 }
 
-pub unsafe fn dc_kml_unref(kml: &mut dc_kml_t) {
-    free(kml.addr as *mut libc::c_void);
-}
-
 #[allow(non_snake_case)]
-pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
+pub fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
     let now = time();
     let mut continue_streaming: libc::c_int = 1;
     info!(
@@ -682,7 +611,7 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Jo
                             msg.hidden = true;
                             msg.param.set_int(Param::Cmd, 9);
                             // TODO: handle cleanup on error
-                            chat::send_msg(context, chat_id as u32, &mut msg).unwrap();
+                            unsafe { chat::send_msg(context, chat_id as u32, &mut msg).unwrap() };
                         }
                         Ok(())
                     },
@@ -697,12 +626,12 @@ pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Jo
 }
 
 #[allow(non_snake_case)]
-pub unsafe fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut Job) {
+pub fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut Job) {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.
 
-    let chat_id = (*job).foreign_id;
+    let chat_id = job.foreign_id;
 
     if let Ok((send_begin, send_until)) = context.sql.query_row(
         "SELECT locations_send_begin, locations_send_until  FROM chats  WHERE id=?",
@@ -739,38 +668,33 @@ mod tests {
 
     #[test]
     fn test_dc_kml_parse() {
-        unsafe {
-            let context = dummy_context();
+        let context = dummy_context();
 
-            let xml =
-                b"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</WHEN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></PlaceMARK>\n</Document>\n</kml>\x00"
-                as *const u8 as *const libc::c_char;
+        let xml =
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</WHEN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></PlaceMARK>\n</Document>\n</kml>";
 
-            let mut kml = dc_kml_parse(&context.ctx, xml, strlen(xml));
+        let kml = dc_kml_parse(&context.ctx, &xml).expect("parsing failed");
 
-            assert!(!kml.addr.is_null());
-            assert_eq!(as_str(kml.addr as *const libc::c_char), "user@example.org",);
+        assert!(kml.addr.is_some());
+        assert_eq!(kml.addr.as_ref().unwrap(), "user@example.org",);
 
-            let locations_ref = &kml.locations.as_ref().unwrap();
-            assert_eq!(locations_ref.len(), 2);
+        let locations_ref = &kml.locations.as_ref().unwrap();
+        assert_eq!(locations_ref.len(), 2);
 
-            assert!(locations_ref[0].latitude > 53.6f64);
-            assert!(locations_ref[0].latitude < 53.8f64);
-            assert!(locations_ref[0].longitude > 9.3f64);
-            assert!(locations_ref[0].longitude < 9.5f64);
-            assert!(locations_ref[0].accuracy > 31.9f64);
-            assert!(locations_ref[0].accuracy < 32.1f64);
-            assert_eq!(locations_ref[0].timestamp, 1551906597);
+        assert!(locations_ref[0].latitude > 53.6f64);
+        assert!(locations_ref[0].latitude < 53.8f64);
+        assert!(locations_ref[0].longitude > 9.3f64);
+        assert!(locations_ref[0].longitude < 9.5f64);
+        assert!(locations_ref[0].accuracy > 31.9f64);
+        assert!(locations_ref[0].accuracy < 32.1f64);
+        assert_eq!(locations_ref[0].timestamp, 1551906597);
 
-            assert!(locations_ref[1].latitude > 63.6f64);
-            assert!(locations_ref[1].latitude < 63.8f64);
-            assert!(locations_ref[1].longitude > 19.3f64);
-            assert!(locations_ref[1].longitude < 19.5f64);
-            assert!(locations_ref[1].accuracy > 2.4f64);
-            assert!(locations_ref[1].accuracy < 2.6f64);
-            assert_eq!(locations_ref[1].timestamp, 1544739072);
-
-            dc_kml_unref(&mut kml);
-        }
+        assert!(locations_ref[1].latitude > 63.6f64);
+        assert!(locations_ref[1].latitude < 63.8f64);
+        assert!(locations_ref[1].longitude > 19.3f64);
+        assert!(locations_ref[1].longitude < 19.5f64);
+        assert!(locations_ref[1].accuracy > 2.4f64);
+        assert!(locations_ref[1].accuracy < 2.6f64);
+        assert_eq!(locations_ref[1].timestamp, 1544739072);
     }
 }
