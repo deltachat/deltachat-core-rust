@@ -1,0 +1,7 @@
+
+/* the code snippet frame, defaults to white which tends to get badly readable in combination with explaining text around */
+div.fragment {
+	background-color: #e0e0e0;
+	border: 0;
+	padding: 1em;
+}
