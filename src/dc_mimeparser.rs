@@ -11,6 +11,7 @@ use mmime::mailmime_types::*;
 use mmime::mmapstring::*;
 use mmime::other::*;
 
+use crate::constants::Viewtype;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_e2ee::*;
@@ -22,6 +23,7 @@ use crate::param::*;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
+use std::ptr;
 
 /* Parse MIME body; this is the text part of an IMF, see https://tools.ietf.org/html/rfc5322
 dc_mimeparser_t has no deep dependencies to Context or to the database
@@ -29,7 +31,7 @@ dc_mimeparser_t has no deep dependencies to Context or to the database
 #[derive(Clone)]
 #[repr(C)]
 pub struct dc_mimepart_t {
-    pub type_0: libc::c_int,
+    pub type_0: Viewtype,
     pub is_meta: libc::c_int,
     pub int_mimetype: libc::c_int,
     pub msg: *mut libc::c_char,
@@ -201,10 +203,10 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             && !mimeparser.parts.is_empty()
         {
             let textpart = &mimeparser.parts[0];
-            if textpart.type_0 == 10i32 {
+            if textpart.type_0 == Viewtype::Text {
                 if mimeparser.parts.len() >= 2 {
                     let imgpart = &mut mimeparser.parts[1];
-                    if imgpart.type_0 == 20i32 {
+                    if imgpart.type_0 == Viewtype::Image {
                         imgpart.is_meta = 1i32
                     }
                 }
@@ -214,13 +216,13 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             let need_drop = {
                 let textpart = &mimeparser.parts[0];
                 let filepart = &mimeparser.parts[1];
-                textpart.type_0 == 10i32
-                    && (filepart.type_0 == 20i32
-                        || filepart.type_0 == 21i32
-                        || filepart.type_0 == 40i32
-                        || filepart.type_0 == 41i32
-                        || filepart.type_0 == 50i32
-                        || filepart.type_0 == 60i32)
+                textpart.type_0 == Viewtype::Text
+                    && (filepart.type_0 == Viewtype::Image
+                        || filepart.type_0 == Viewtype::Gif
+                        || filepart.type_0 == Viewtype::Audio
+                        || filepart.type_0 == Viewtype::Voice
+                        || filepart.type_0 == Viewtype::Video
+                        || filepart.type_0 == Viewtype::File)
                     && 0 == filepart.is_meta
             };
 
@@ -268,7 +270,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 dc_trim(subj);
                 if 0 != *subj.offset(0isize) {
                     for part in mimeparser.parts.iter_mut() {
-                        if part.type_0 == 10i32 {
+                        if part.type_0 == Viewtype::Text {
                             let new_txt: *mut libc::c_char = dc_mprintf(
                                 b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
                                 subj,
@@ -289,15 +291,18 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             }
         }
         if mimeparser.parts.len() == 1 {
-            if mimeparser.parts[0].type_0 == 40i32 {
+            if mimeparser.parts[0].type_0 == Viewtype::Audio {
                 if !dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Voice-Message").is_null()
                 {
                     let part_mut = &mut mimeparser.parts[0];
-                    part_mut.type_0 = 41i32
+                    part_mut.type_0 = Viewtype::Voice;
                 }
             }
             let part = &mimeparser.parts[0];
-            if part.type_0 == 40i32 || part.type_0 == 41i32 || part.type_0 == 50i32 {
+            if part.type_0 == Viewtype::Audio
+                || part.type_0 == Viewtype::Voice
+                || part.type_0 == Viewtype::Video
+            {
                 let field_0 = dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Duration");
                 if !field_0.is_null() {
                     let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
@@ -356,7 +361,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
     /* Cleanup - and try to create at least an empty part if there are no parts yet */
     if dc_mimeparser_get_last_nonmeta(&mut mimeparser).is_none() && mimeparser.reports.is_empty() {
         let mut part_5 = dc_mimepart_new();
-        part_5.type_0 = 10i32;
+        part_5.type_0 = Viewtype::Text;
         if !mimeparser.subject.is_null() && !mimeparser.is_send_by_messenger {
             part_5.msg = dc_strdup(mimeparser.subject)
         } else {
@@ -372,7 +377,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
  ******************************************************************************/
 unsafe fn dc_mimepart_new() -> dc_mimepart_t {
     dc_mimepart_t {
-        type_0: 0,
+        type_0: Viewtype::Unknown,
         is_meta: 0,
         int_mimetype: 0,
         msg: std::ptr::null_mut(),
@@ -511,7 +516,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
         // TODO match on enums /rtn
         1 => any_part_added = dc_mimeparser_add_single_part_if_known(mimeparser, mime),
         2 => {
-            match mailmime_get_mime_type(mime, 0 as *mut libc::c_int, 0 as *mut *mut libc::c_char) {
+            match mailmime_get_mime_type(mime, ptr::null_mut(), 0 as *mut *mut libc::c_char) {
                 10 => {
                     cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
                     while !cur.is_null() {
@@ -522,7 +527,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                         }) as *mut mailmime;
                         if mailmime_get_mime_type(
                             childmime,
-                            0 as *mut libc::c_int,
+                            ptr::null_mut(),
                             0 as *mut *mut libc::c_char,
                         ) == 30i32
                         {
@@ -548,7 +553,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                                 as *mut mailmime;
                             if mailmime_get_mime_type(
                                 childmime_0,
-                                0 as *mut libc::c_int,
+                                ptr::null_mut(),
                                 0 as *mut *mut libc::c_char,
                             ) == 60i32
                             {
@@ -603,7 +608,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                 }
                 40 => {
                     let mut part = dc_mimepart_new();
-                    part.type_0 = 10i32;
+                    part.type_0 = Viewtype::Text;
                     let msg_body = CString::new(
                         mimeparser
                             .context
@@ -674,14 +679,14 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                             as *mut mailmime;
                         if mailmime_get_mime_type(
                             childmime_1,
-                            0 as *mut libc::c_int,
+                            ptr::null_mut(),
                             0 as *mut *mut libc::c_char,
                         ) == 60i32
                         {
                             plain_cnt += 1
                         } else if mailmime_get_mime_type(
                             childmime_1,
-                            0 as *mut libc::c_int,
+                            ptr::null_mut(),
                             0 as *mut *mut libc::c_char,
                         ) == 70i32
                         {
@@ -809,15 +814,15 @@ unsafe fn hash_header(
 
 unsafe fn mailmime_get_mime_type(
     mime: *mut mailmime,
-    mut msg_type: *mut libc::c_int,
+    mut msg_type: *mut Viewtype,
     raw_mime: *mut *mut libc::c_char,
 ) -> libc::c_int {
     let c: *mut mailmime_content = (*mime).mm_content_type;
-    let mut dummy: libc::c_int = 0i32;
+    let mut dummy = Viewtype::Unknown;
     if msg_type.is_null() {
         msg_type = &mut dummy
     }
-    *msg_type = 0i32;
+    *msg_type = Viewtype::Unknown;
     if c.is_null() || (*c).ct_type.is_null() {
         return 0i32;
     }
@@ -831,7 +836,7 @@ unsafe fn mailmime_get_mime_type(
                         b"plain\x00" as *const u8 as *const libc::c_char,
                     ) == 0i32
                     {
-                        *msg_type = 10i32;
+                        *msg_type = Viewtype::Text;
                         return 60i32;
                     } else {
                         if strcmp(
@@ -839,12 +844,12 @@ unsafe fn mailmime_get_mime_type(
                             b"html\x00" as *const u8 as *const libc::c_char,
                         ) == 0i32
                         {
-                            *msg_type = 10i32;
+                            *msg_type = Viewtype::Text;
                             return 70i32;
                         }
                     }
                 }
-                *msg_type = 60i32;
+                *msg_type = Viewtype::File;
                 reconcat_mime(
                     raw_mime,
                     b"text\x00" as *const u8 as *const libc::c_char,
@@ -858,13 +863,13 @@ unsafe fn mailmime_get_mime_type(
                     b"gif\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    *msg_type = 21i32
+                    *msg_type = Viewtype::Gif;
                 } else if strcmp(
                     (*c).ct_subtype,
                     b"svg+xml\x00" as *const u8 as *const libc::c_char,
                 ) == 0i32
                 {
-                    *msg_type = 60i32;
+                    *msg_type = Viewtype::File;
                     reconcat_mime(
                         raw_mime,
                         b"image\x00" as *const u8 as *const libc::c_char,
@@ -872,7 +877,7 @@ unsafe fn mailmime_get_mime_type(
                     );
                     return 110i32;
                 } else {
-                    *msg_type = 20i32
+                    *msg_type = Viewtype::Image;
                 }
                 reconcat_mime(
                     raw_mime,
@@ -882,7 +887,7 @@ unsafe fn mailmime_get_mime_type(
                 return 80i32;
             }
             3 => {
-                *msg_type = 40i32;
+                *msg_type = Viewtype::Audio;
                 reconcat_mime(
                     raw_mime,
                     b"audio\x00" as *const u8 as *const libc::c_char,
@@ -891,7 +896,7 @@ unsafe fn mailmime_get_mime_type(
                 return 90i32;
             }
             4 => {
-                *msg_type = 50i32;
+                *msg_type = Viewtype::Video;
                 reconcat_mime(
                     raw_mime,
                     b"video\x00" as *const u8 as *const libc::c_char,
@@ -900,7 +905,7 @@ unsafe fn mailmime_get_mime_type(
                 return 100i32;
             }
             _ => {
-                *msg_type = 60i32;
+                *msg_type = Viewtype::File;
                 if (*(*(*c).ct_type).tp_data.tp_discrete_type).dt_type
                     == MAILMIME_DISCRETE_TYPE_APPLICATION as libc::c_int
                     && strcmp(
@@ -1078,7 +1083,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
     let mime_data: *mut mailmime_data;
     let file_suffix: *mut libc::c_char = 0 as *mut libc::c_char;
     let mut desired_filename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut msg_type: libc::c_int = 0i32;
+    let mut msg_type = Viewtype::Unknown;
     let mut raw_mime: *mut libc::c_char = 0 as *mut libc::c_char;
     /* mmap_string_unref()'d if set */
     let mut transfer_decoding_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
@@ -1165,7 +1170,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 };
                             if !simplified_txt.is_empty() {
                                 let mut part = dc_mimepart_new();
-                                part.type_0 = 10i32;
+                                part.type_0 = Viewtype::Text;
                                 part.int_mimetype = mime_type;
                                 part.msg = simplified_txt.strdup();
                                 part.msg_raw =
@@ -1350,7 +1355,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
 #[allow(non_snake_case)]
 unsafe fn do_add_single_file_part(
     parser: &mut dc_mimeparser_t,
-    msg_type: libc::c_int,
+    msg_type: Viewtype,
     mime_type: libc::c_int,
     raw_mime: *const libc::c_char,
     decoded_data: *const libc::c_char,
@@ -1694,7 +1699,7 @@ pub unsafe fn dc_mimeparser_repl_msg_by_error(
         return;
     }
     let part = &mut mimeparser.parts[0];
-    part.type_0 = 10i32;
+    part.type_0 = Viewtype::Text;
     free(part.msg as *mut libc::c_void);
     part.msg = dc_mprintf(b"[%s]\x00" as *const u8 as *const libc::c_char, error_msg);
     for part in mimeparser.parts.drain(1..) {

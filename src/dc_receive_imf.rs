@@ -644,7 +644,7 @@ unsafe fn add_parts(
                             state = MessageState::InNoticed;
                         }
                     }
-                    if part.type_0 == Viewtype::Text as i32 {
+                    if part.type_0 == Viewtype::Text {
                         txt_raw = dc_mprintf(
                             b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
                             if !mime_parser.subject.is_null() {
@@ -1352,7 +1352,7 @@ unsafe fn create_or_lookup_group(
             ok = 1
         } else {
             for part in &mut mime_parser.parts {
-                if part.type_0 == 20 {
+                if part.type_0 == Viewtype::Image {
                     grpimage = part
                         .param
                         .get(Param::File)
@@ -1862,7 +1862,7 @@ unsafe fn set_better_msg<T: AsRef<str>>(mime_parser: &mut dc_mimeparser_t, bette
     let msg = better_msg.as_ref();
     if msg.len() > 0 && !mime_parser.parts.is_empty() {
         let part = &mut mime_parser.parts[0];
-        if (*part).type_0 == 10 {
+        if (*part).type_0 == Viewtype::Text {
             free(part.msg as *mut libc::c_void);
             part.msg = msg.strdup();
         }
