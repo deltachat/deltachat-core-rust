@@ -7,9 +7,9 @@ use crate::aheader::EncryptPreference;
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_e2ee::*;
 use crate::dc_loginparam::*;
 use crate::dc_tools::*;
+use crate::e2ee;
 use crate::error::Result;
 use crate::key::*;
 use crate::message::MessageState;
@@ -603,7 +603,7 @@ impl<'a> Contact<'a> {
                     });
                 ret += &p;
                 if self_key.is_none() {
-                    dc_ensure_secret_key_exists(context)?;
+                    e2ee::ensure_secret_key_exists(context)?;
                     self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
                 }
                 let p = context.stock_str(StockMessage::FingerPrints);

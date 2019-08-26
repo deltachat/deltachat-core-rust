@@ -8,10 +8,10 @@ use crate::configure::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_e2ee::*;
 use crate::dc_mimeparser::*;
 use crate::dc_token::*;
 use crate::dc_tools::*;
+use crate::e2ee::*;
 use crate::key::*;
 use crate::lot::LotState;
 use crate::message::*;
@@ -34,7 +34,7 @@ pub unsafe fn dc_get_securejoin_qr(
     let mut fingerprint = ptr::null_mut();
     let mut qr: Option<String> = None;
 
-    dc_ensure_secret_key_exists(context).ok();
+    ensure_secret_key_exists(context).ok();
     let invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id)
         .unwrap_or_else(|| {
             let invitenumber_s = dc_create_id();
@@ -142,7 +142,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
     let mut join_vg: libc::c_int = 0i32;
 
     info!(context, 0, "Requesting secure-join ...",);
-    dc_ensure_secret_key_exists(context).ok();
+    ensure_secret_key_exists(context).ok();
     ongoing_allocated = dc_alloc_ongoing(context);
 
     if !(ongoing_allocated == 0i32) {

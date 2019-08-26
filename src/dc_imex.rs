@@ -11,8 +11,8 @@ use crate::config::Config;
 use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_e2ee::*;
 use crate::dc_tools::*;
+use crate::e2ee;
 use crate::error::*;
 use crate::job::*;
 use crate::key::*;
@@ -196,7 +196,7 @@ pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<Strin
         passphrase.len() >= 2,
         "Passphrase must be at least 2 chars long."
     );
-    let self_addr = dc_ensure_secret_key_exists(context)?;
+    let self_addr = e2ee::ensure_secret_key_exists(context)?;
     let private_key = Key::from_self_private(context, self_addr, &context.sql)
         .ok_or(format_err!("Failed to get private key."))?;
     let ac_headers = match context
@@ -522,7 +522,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
             } else {
                 if what == 1 || what == 11 {
                     /* before we export anything, make sure the private key exists */
-                    if dc_ensure_secret_key_exists(context).is_err() {
+                    if e2ee::ensure_secret_key_exists(context).is_err() {
                         error!(
                             context,
                             0,
