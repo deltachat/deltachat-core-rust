@@ -50,7 +50,7 @@ pub struct dc_mimeparser_t<'a> {
     pub header_root: *mut mailimf_fields,
     pub header_protected: *mut mailimf_fields,
     pub subject: *mut libc::c_char,
-    pub is_send_by_messenger: libc::c_int,
+    pub is_send_by_messenger: bool,
     pub decrypting_failed: libc::c_int,
     pub e2ee_helper: dc_e2ee_helper_t,
     pub is_forwarded: libc::c_int,
@@ -72,7 +72,7 @@ pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
         header_root: std::ptr::null_mut(),
         header_protected: std::ptr::null_mut(),
         subject: std::ptr::null_mut(),
-        is_send_by_messenger: 0,
+        is_send_by_messenger: false,
         decrypting_failed: 0,
         e2ee_helper: Default::default(),
         is_forwarded: 0,
@@ -99,7 +99,7 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
         mailimf_fields_free(mimeparser.header_protected);
         mimeparser.header_protected = 0 as *mut mailimf_fields
     }
-    mimeparser.is_send_by_messenger = 0i32;
+    mimeparser.is_send_by_messenger = false;
     mimeparser.is_system_message = 0i32;
     free(mimeparser.subject as *mut libc::c_void);
     mimeparser.subject = 0 as *mut libc::c_char;
@@ -155,7 +155,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             mimeparser.subject = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)
         }
         if !dc_mimeparser_lookup_optional_field(&mut mimeparser, "Chat-Version").is_null() {
-            mimeparser.is_send_by_messenger = 1i32
+            mimeparser.is_send_by_messenger = true
         }
         if !dc_mimeparser_lookup_field(&mut mimeparser, "Autocrypt-Setup-Message").is_null() {
             let mut has_setup_file: libc::c_int = 0i32;
@@ -213,7 +213,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 }
             }
         }
-        if 0 != mimeparser.is_send_by_messenger
+        if mimeparser.is_send_by_messenger
             && 0 != S_GENERATE_COMPOUND_MSGS
             && mimeparser.parts.len() == 2
         {
@@ -256,7 +256,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 let p: *mut libc::c_char = strchr(mimeparser.subject, ':' as i32);
                 if p.wrapping_offset_from(mimeparser.subject) == 2
                     || p.wrapping_offset_from(mimeparser.subject) == 3
-                    || 0 != mimeparser.is_send_by_messenger
+                    || mimeparser.is_send_by_messenger
                     || !strstr(
                         mimeparser.subject,
                         b"Chat:\x00" as *const u8 as *const libc::c_char,
@@ -364,7 +364,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
     if dc_mimeparser_get_last_nonmeta(&mut mimeparser).is_none() && mimeparser.reports.is_empty() {
         let mut part_5 = dc_mimepart_new();
         part_5.type_0 = 10i32;
-        if !mimeparser.subject.is_null() && 0 == mimeparser.is_send_by_messenger {
+        if !mimeparser.subject.is_null() && !mimeparser.is_send_by_messenger {
             part_5.msg = dc_strdup(mimeparser.subject)
         } else {
             part_5.msg = dc_strdup(b"\x00" as *const u8 as *const libc::c_char)
