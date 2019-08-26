@@ -61,9 +61,6 @@ pub struct dc_mimeparser_t<'a> {
     pub message_kml: Option<dc_kml_t>,
 }
 
-// deprecated: flag to switch generation of compound messages on and off.
-static mut S_GENERATE_COMPOUND_MSGS: libc::c_int = 1i32;
-
 pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
     dc_mimeparser_t {
         parts: Vec::new(),
@@ -213,10 +210,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 }
             }
         }
-        if mimeparser.is_send_by_messenger
-            && 0 != S_GENERATE_COMPOUND_MSGS
-            && mimeparser.parts.len() == 2
-        {
+        if mimeparser.is_send_by_messenger && mimeparser.parts.len() == 2 {
             let need_drop: bool;
             {
                 let textpart = &mimeparser.parts[0];
