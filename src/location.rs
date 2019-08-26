@@ -1,3 +1,4 @@
+use bitflags::bitflags;
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
@@ -39,8 +40,20 @@ impl Location {
 pub struct Kml {
     pub addr: Option<String>,
     pub locations: Option<Vec<Location>>,
-    pub tag: i32,
+    tag: KmlTag,
     pub curr: Location,
+}
+
+bitflags! {
+    #[derive(Default)]
+    struct KmlTag: i32 {
+        const UNDEFINED = 0x00;
+        const PLACEMARK = 0x01;
+        const TIMESTAMP = 0x02;
+        const WHEN = 0x04;
+        const POINT = 0x08;
+        const COORDINATES = 0x10;
+    }
 }
 
 impl Kml {
@@ -87,7 +100,7 @@ impl Kml {
     }
 
     fn text_cb<B: std::io::BufRead>(&mut self, event: &BytesText, reader: &quick_xml::Reader<B>) {
-        if 0 != self.tag & (0x4 | 0x10) {
+        if self.tag.contains(KmlTag::WHEN) || self.tag.contains(KmlTag::COORDINATES) {
             let val = event.unescape_and_decode(reader).unwrap_or_default();
 
             let val = val
@@ -96,7 +109,7 @@ impl Kml {
                 .replace("\t", "")
                 .replace(" ", "");
 
-            if 0 != self.tag & 0x4 && val.len() >= 19 {
+            if self.tag.contains(KmlTag::WHEN) && val.len() >= 19 {
                 // YYYY-MM-DDTHH:MM:SSZ
                 // 0   4  7  10 13 16 19
                 match chrono::NaiveDateTime::parse_from_str(&val, "%Y-%m-%dT%H:%M:%SZ") {
@@ -110,7 +123,7 @@ impl Kml {
                         self.curr.timestamp = time();
                     }
                 }
-            } else if 0 != self.tag & 0x10 {
+            } else if self.tag.contains(KmlTag::COORDINATES) {
                 let parts = val.splitn(2, ',').collect::<Vec<_>>();
                 if parts.len() == 2 {
                     self.curr.longitude = parts[0].parse().unwrap_or_default();
@@ -124,7 +137,7 @@ impl Kml {
         let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
 
         if tag == "placemark" {
-            if 0 != self.tag & 0x1
+            if self.tag.contains(KmlTag::PLACEMARK)
                 && 0 != self.curr.timestamp
                 && 0. != self.curr.latitude
                 && 0. != self.curr.longitude
@@ -133,7 +146,7 @@ impl Kml {
                     locations.push(std::mem::replace(&mut self.curr, Location::new()));
                 }
             }
-            self.tag = 0
+            self.tag = KmlTag::UNDEFINED;
         };
     }
 
@@ -152,19 +165,19 @@ impl Kml {
                 self.addr = addr.unwrap().unescape_and_decode_value(reader).ok();
             }
         } else if tag == "placemark" {
-            self.tag = 0x1;
+            self.tag = KmlTag::PLACEMARK;
             self.curr.timestamp = 0;
             self.curr.latitude = 0.0;
             self.curr.longitude = 0.0;
             self.curr.accuracy = 0.0
-        } else if tag == "timestamp" && 0 != self.tag & 0x1 {
-            self.tag = 0x1 | 0x2
-        } else if tag == "when" && 0 != self.tag & 0x2 {
-            self.tag = 0x1 | 0x2 | 0x4
-        } else if tag == "point" && 0 != self.tag & 0x1 {
-            self.tag = 0x1 | 0x8
-        } else if tag == "coordinates" && 0 != self.tag & 0x8 {
-            self.tag = 0x1 | 0x8 | 0x10;
+        } else if tag == "timestamp" && self.tag.contains(KmlTag::PLACEMARK) {
+            self.tag = KmlTag::PLACEMARK | KmlTag::TIMESTAMP
+        } else if tag == "when" && self.tag.contains(KmlTag::TIMESTAMP) {
+            self.tag = KmlTag::PLACEMARK | KmlTag::TIMESTAMP | KmlTag::WHEN
+        } else if tag == "point" && self.tag.contains(KmlTag::PLACEMARK) {
+            self.tag = KmlTag::PLACEMARK | KmlTag::POINT
+        } else if tag == "coordinates" && self.tag.contains(KmlTag::POINT) {
+            self.tag = KmlTag::PLACEMARK | KmlTag::POINT | KmlTag::COORDINATES;
             if let Some(acc) = event.attributes().find(|attr| {
                 attr.as_ref()
                     .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "accuracy")
