@@ -33,7 +33,7 @@ DOXYFILE_ENCODING      = UTF-8
 # The default value is: My Project.
 
 ######################################################
-PROJECT_NAME           = "Delta Chat Core FFI"
+PROJECT_NAME           = "Delta Chat Core C Interface"
 ######################################################
 
 # The PROJECT_NUMBER tag can be used to enter a project or revision number. This
