@@ -15,6 +15,7 @@ use std::convert::TryInto;
 use std::ffi::CString;
 use std::ptr;
 use std::str::FromStr;
+use std::sync::RwLock;
 
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -41,7 +42,7 @@ use deltachat::*;
 /// * `data1` - depends on the event parameter.
 /// * `data2` - depends on the event parameter.
 ///
-/// # Returns
+/// # Return value
 ///
 /// This callback should return 0 unless stated otherwise in the event
 /// parameter documentation.
@@ -51,8 +52,8 @@ pub type dc_callback_t =
 pub struct ContextWrapper {
     cb: Option<dc_callback_t>,
     userdata: *mut libc::c_void,
-    os_name: *const libc::c_char,
-    inner: Option<context::Context>, // TODO: Wrap this in RwLock
+    os_name: String,
+    inner: RwLock<Option<context::Context>>,
 }
 
 /// The FFI context type.
@@ -127,8 +128,8 @@ pub unsafe extern "C" fn dc_context_new(
     let wrapper = ContextWrapper {
         cb,
         userdata,
-        os_name: dc_tools::dc_strdup_keep_null(os_name),
-        inner: None,
+        os_name: to_string(os_name),
+        inner: RwLock::new(None),
     };
     Box::into_raw(Box::new(wrapper))
 }
@@ -204,17 +205,17 @@ pub unsafe extern "C" fn dc_open(
             None => 0,
         }
     };
-    let mut wrapper: &mut ContextWrapper = &mut *context;
+    let wrapper: &ContextWrapper = &*context;
     let new_context = if blobdir.is_null() {
         Context::new(
             Box::new(rust_cb),
-            to_string(wrapper.os_name),
+            wrapper.os_name.clone(),
             as_path(dbfile).to_path_buf(),
         )
     } else {
         Context::with_blobdir(
             Box::new(rust_cb),
-            to_string(wrapper.os_name),
+            wrapper.os_name.clone(),
             as_path(dbfile).to_path_buf(),
             as_path(blobdir),
         )
@@ -228,9 +229,10 @@ pub unsafe extern "C" fn dc_open(
             // wrapper as userdata on the Context.  The actual
             // userdata exposed by the C API is stored on the
             // ContextWrapper.
-            let wrapper_ptr: *mut ContextWrapper = wrapper;
+            let wrapper_ptr: *const ContextWrapper = wrapper;
             ctx.userdata = wrapper_ptr as *mut libc::c_void;
-            wrapper.inner = Some(ctx);
+            let mut inner_guard = wrapper.inner.write().unwrap();
+            *inner_guard = Some(ctx);
             1
         }
         Err(_) => 0,
@@ -260,9 +262,10 @@ pub unsafe extern "C" fn dc_open(
 pub unsafe extern "C" fn dc_close(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &mut ContextWrapper = &mut *context;
-    if let Some(ref ctx) = &wrapper.inner {
+    let mut inner_guard = wrapper.inner.write().unwrap();
+    if let Some(ref ctx) = &*inner_guard {
         context::dc_close(ctx);
-        wrapper.inner = None;
+        *inner_guard = None;
     }
 }
 
@@ -275,7 +278,8 @@ pub unsafe extern "C" fn dc_close(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_is_open(context: *mut dc_context_t) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &mut ContextWrapper = &mut *context;
-    match wrapper.inner {
+    let inner_guard = wrapper.inner.read().unwrap();
+    match *inner_guard {
         Some(_) => 0,
         None => 1,
     }
@@ -294,7 +298,8 @@ pub unsafe extern "C" fn dc_is_open(context: *mut dc_context_t) -> libc::c_int {
 pub unsafe extern "C" fn dc_get_blobdir(context: *mut dc_context_t) -> *mut libc::c_char {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     context::dc_get_blobdir(context)
 }
 
@@ -361,7 +366,8 @@ pub unsafe extern "C" fn dc_set_config(
     assert!(!context.is_null());
     assert!(!key.is_null(), "invalid key");
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     match Config::from_str(as_str(key)) {
         // context.set_config() did already log (TODO, it shouldn't)
         Ok(key) => context
@@ -414,7 +420,8 @@ pub unsafe extern "C" fn dc_get_config(
     assert!(!context.is_null());
     assert!(!key.is_null(), "invalid key pointer");
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let key = Config::from_str(as_str(key)).expect("invalid key");
     context.get_config(key).unwrap_or_default().strdup()
 }
@@ -434,7 +441,8 @@ pub unsafe extern "C" fn dc_get_config(
 pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c_char {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     context::dc_get_info(context)
 }
 
@@ -473,7 +481,8 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let addr = to_string(addr);
     let redirect = to_string(redirect);
     match oauth2::dc_get_oauth2_url(context, addr, redirect) {
@@ -556,7 +565,8 @@ pub unsafe extern "C" fn dc_get_version_str() -> *mut libc::c_char {
 pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     configure::configure(context)
 }
 
@@ -576,7 +586,8 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     configure::dc_is_configured(context)
 }
 
@@ -616,7 +627,8 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
 pub unsafe extern "C" fn dc_perform_imap_jobs(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_imap_jobs(context)
 }
 
@@ -635,7 +647,8 @@ pub unsafe extern "C" fn dc_perform_imap_jobs(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_perform_imap_fetch(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_imap_fetch(context)
 }
 
@@ -656,7 +669,8 @@ pub unsafe extern "C" fn dc_perform_imap_fetch(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_perform_imap_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_imap_idle(context)
 }
 
@@ -691,8 +705,9 @@ pub unsafe extern "C" fn dc_perform_imap_idle(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_interrupt_imap_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    if wrapper.inner.is_some() {
-        let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    if inner_guard.is_some() {
+        let context = inner_guard.as_ref().expect("context not open");
         job::interrupt_imap_idle(context);
     }
 }
@@ -736,7 +751,8 @@ pub unsafe extern "C" fn dc_interrupt_imap_idle(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_perform_mvbox_fetch(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_mvbox_fetch(context)
 }
 
@@ -757,7 +773,8 @@ pub unsafe extern "C" fn dc_perform_mvbox_fetch(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_perform_mvbox_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_mvbox_idle(context)
 }
 
@@ -782,7 +799,8 @@ pub unsafe extern "C" fn dc_perform_mvbox_idle(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_interrupt_mvbox_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::interrupt_mvbox_idle(context)
 }
 
@@ -798,7 +816,8 @@ pub unsafe extern "C" fn dc_interrupt_mvbox_idle(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_perform_sentbox_fetch(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_sentbox_fetch(context)
 }
 
@@ -814,7 +833,8 @@ pub unsafe extern "C" fn dc_perform_sentbox_fetch(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_perform_sentbox_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_sentbox_idle(context)
 }
 
@@ -827,7 +847,8 @@ pub unsafe extern "C" fn dc_perform_sentbox_idle(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_interrupt_sentbox_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::interrupt_sentbox_idle(context)
 }
 
@@ -866,7 +887,8 @@ pub unsafe extern "C" fn dc_interrupt_sentbox_idle(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_perform_smtp_jobs(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_smtp_jobs(context)
 }
 
@@ -884,7 +906,8 @@ pub unsafe extern "C" fn dc_perform_smtp_jobs(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_perform_smtp_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::perform_smtp_idle(context)
 }
 
@@ -918,8 +941,9 @@ pub unsafe extern "C" fn dc_perform_smtp_idle(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_interrupt_smtp_idle(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    if wrapper.inner.is_some() {
-        let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    if inner_guard.is_some() {
+        let context = inner_guard.as_ref().expect("context not open");
         job::interrupt_smtp_idle(context)
     }
 }
@@ -937,7 +961,8 @@ pub unsafe extern "C" fn dc_interrupt_smtp_idle(context: *mut dc_context_t) {
 pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     job::maybe_network(context)
 }
 
@@ -1013,11 +1038,12 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
 ) -> *mut dc_chatlist_t<'a> {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let qs = if query_str.is_null() {
         None
     } else {
-        Some(dc_tools::as_str(query_str))
+        Some(as_str(query_str))
     };
     let qi = if query_id == 0 { None } else { Some(query_id) };
     match chatlist::Chatlist::try_load(context, flags as usize, qs, qi) {
@@ -1056,7 +1082,8 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
 pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, msg_id: u32) -> u32 {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::create_by_msg_id(context, msg_id).unwrap_or_log_default(context, "Failed to create chag")
 }
 
@@ -1083,7 +1110,8 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
 ) -> u32 {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::create_by_contact_id(context, contact_id)
         .unwrap_or_log_default(context, "Failed to create chat")
 }
@@ -1107,7 +1135,8 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
 ) -> u32 {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::get_by_contact_id(context, contact_id)
         .unwrap_or_log_default(context, "Failed to get chat")
 }
@@ -1160,7 +1189,8 @@ pub unsafe extern "C" fn dc_prepare_msg(
     assert!(!context.is_null());
     assert!(!msg.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let msg = &mut *msg;
     chat::prepare_msg(context, chat_id, msg)
         .unwrap_or_log_default(context, "Failed to prepare message")
@@ -1202,7 +1232,8 @@ pub unsafe extern "C" fn dc_send_msg(
     assert!(!context.is_null());
     assert!(!msg.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let msg = &mut *msg;
     chat::send_msg(context, chat_id, msg).unwrap_or_log_default(context, "Failed to send message")
 }
@@ -1236,7 +1267,8 @@ pub unsafe extern "C" fn dc_send_text_msg(
     assert!(!context.is_null());
     assert!(!text_to_send.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let text_to_send = dc_tools::to_string_lossy(text_to_send);
     chat::send_text_msg(context, chat_id, text_to_send)
         .unwrap_or_log_default(context, "Failed to send text message")
@@ -1275,7 +1307,8 @@ pub unsafe extern "C" fn dc_set_draft(
 ) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let msg = if msg.is_null() { None } else { Some(&mut *msg) };
     chat::set_draft(context, chat_id, msg)
 }
@@ -1299,7 +1332,8 @@ pub unsafe extern "C" fn dc_get_draft<'a>(
 ) -> *mut dc_msg_t<'a> {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::get_draft(context, chat_id).into_raw()
 }
 
@@ -1337,7 +1371,8 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let arr = dc_array_t::from(chat::get_chat_msgs(context, chat_id, flags, marker1before));
     Box::into_raw(Box::new(arr))
 }
@@ -1355,7 +1390,8 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
 pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::get_msg_cnt(context, chat_id) as libc::c_int
 }
 
@@ -1377,7 +1413,8 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
 ) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::get_fresh_msg_cnt(context, chat_id) as libc::c_int
 }
 
@@ -1399,7 +1436,8 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let arr = dc_array_t::from(context::dc_get_fresh_msgs(context));
     Box::into_raw(Box::new(arr))
 }
@@ -1422,7 +1460,8 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
 pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id: u32) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::marknoticed_chat(context, chat_id).log_err(context, "Failed marknoticed chat");
 }
 
@@ -1435,7 +1474,8 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
 pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::marknoticed_all_chats(context).log_err(context, "Failed marknoticed all chats");
 }
 
@@ -1477,7 +1517,8 @@ pub unsafe extern "C" fn dc_get_chat_media(
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
 
     let msg_type = from_prim(msg_type).expect(&format!("invalid msg_type = {}", msg_type));
     let or_msg_type2 =
@@ -1527,7 +1568,8 @@ pub unsafe extern "C" fn dc_get_next_media(
 ) -> u32 {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
 
     let msg_type = from_prim(msg_type).expect(&format!("invalid msg_type = {}", msg_type));
     let or_msg_type2 =
@@ -1571,7 +1613,8 @@ pub unsafe extern "C" fn dc_archive_chat(
 ) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let archive = if archive == 0 {
         false
     } else if archive == 1 {
@@ -1613,7 +1656,8 @@ pub unsafe extern "C" fn dc_archive_chat(
 pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::delete(context, chat_id).log_err(context, "Failed chat delete");
 }
 
@@ -1642,7 +1686,8 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let arr = dc_array_t::from(chat::get_chat_contacts(context, chat_id));
     Box::into_raw(Box::new(arr))
 }
@@ -1675,7 +1720,8 @@ pub unsafe extern "C" fn dc_search_msgs(
     assert!(!context.is_null());
     assert!(!query.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let arr = dc_array_t::from(context::dc_search_msgs(context, chat_id, query));
     Box::into_raw(Box::new(arr))
 }
@@ -1695,7 +1741,8 @@ pub unsafe extern "C" fn dc_get_chat<'a>(
 ) -> *mut dc_chat_t<'a> {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     match chat::Chat::load_from_db(context, chat_id) {
         Ok(chat) => Box::into_raw(Box::new(chat)),
         Err(_) => std::ptr::null_mut(),
@@ -1738,7 +1785,8 @@ pub unsafe extern "C" fn dc_create_group_chat(
     assert!(!context.is_null());
     assert!(!name.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let verified = if let Some(s) = contact::VerifiedStatus::from_i32(verified) {
         s
     } else {
@@ -1767,7 +1815,8 @@ pub unsafe extern "C" fn dc_is_contact_in_chat(
 ) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::is_contact_in_chat(context, chat_id, contact_id)
 }
 
@@ -1798,7 +1847,8 @@ pub unsafe extern "C" fn dc_add_contact_to_chat(
 ) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::add_contact_to_chat(context, chat_id, contact_id)
 }
 
@@ -1826,7 +1876,8 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
 ) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::remove_contact_from_chat(context, chat_id, contact_id)
         .map(|_| 1)
         .unwrap_or_log_default(context, "Failed to remove contact")
@@ -1858,7 +1909,8 @@ pub unsafe extern "C" fn dc_set_chat_name(
     assert!(!name.is_null());
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::set_chat_name(context, chat_id, as_str(name))
         .map(|_| 1)
         .unwrap_or_log_default(context, "Failed to set chat name")
@@ -1894,7 +1946,8 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
     assert!(!context.is_null());
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::set_chat_profile_image(context, chat_id, as_str(image))
         .map(|_| 1)
         .unwrap_or_log_default(context, "Failed to set profile image")
@@ -1922,7 +1975,8 @@ pub unsafe extern "C" fn dc_get_msg_info(
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     message::dc_get_msg_info(context, msg_id)
 }
 
@@ -1948,7 +2002,8 @@ pub unsafe extern "C" fn dc_get_mime_headers(
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     message::dc_get_mime_headers(context, msg_id)
 }
 
@@ -1972,7 +2027,8 @@ pub unsafe extern "C" fn dc_delete_msgs(
     assert!(!msg_ids.is_null());
     assert!(msg_cnt > 0);
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     message::dc_delete_msgs(context, msg_ids, msg_cnt)
 }
 
@@ -1997,7 +2053,8 @@ pub unsafe extern "C" fn dc_forward_msgs(
     assert!(msg_cnt > 0);
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     chat::forward_msgs(context, msg_ids, msg_cnt, chat_id)
 }
 
@@ -2017,7 +2074,8 @@ pub unsafe extern "C" fn dc_forward_msgs(
 pub unsafe extern "C" fn dc_marknoticed_contact(context: *mut dc_context_t, contact_id: u32) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     Contact::mark_noticed(context, contact_id)
 }
 
@@ -2045,7 +2103,8 @@ pub unsafe extern "C" fn dc_markseen_msgs(
     assert!(!msg_ids.is_null());
     assert!(msg_cnt > 0);
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     message::dc_markseen_msgs(context, msg_ids, msg_cnt as usize);
 }
 
@@ -2072,7 +2131,8 @@ pub unsafe extern "C" fn dc_star_msgs(
     assert!(!msg_ids.is_null());
     assert!(msg_cnt > 0);
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     message::dc_star_msgs(context, msg_ids, msg_cnt, star);
 }
 
@@ -2095,7 +2155,8 @@ pub unsafe extern "C" fn dc_get_msg<'a>(
 ) -> *mut dc_msg_t<'a> {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     message::dc_get_msg(context, msg_id).into_raw()
 }
 
@@ -2142,7 +2203,8 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
     assert!(!context.is_null());
     assert!(!addr.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     Contact::lookup_id_by_addr(context, as_str(addr))
 }
 
@@ -2176,7 +2238,8 @@ pub unsafe extern "C" fn dc_create_contact(
     assert!(!context.is_null());
     assert!(!addr.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let name = if name.is_null() { "" } else { as_str(name) };
     match Contact::create(context, name, as_str(addr)) {
         Ok(id) => id,
@@ -2217,7 +2280,8 @@ pub unsafe extern "C" fn dc_add_address_book(
     assert!(!context.is_null());
     assert!(!addr_book.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     match Contact::add_address_book(context, as_str(addr_book)) {
         Ok(cnt) => cnt as libc::c_int,
         Err(_) => 0,
@@ -2250,7 +2314,8 @@ pub unsafe extern "C" fn dc_get_contacts(
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let query = if query.is_null() {
         None
     } else {
@@ -2273,7 +2338,8 @@ pub unsafe extern "C" fn dc_get_contacts(
 pub unsafe extern "C" fn dc_get_blocked_cnt(context: *mut dc_context_t) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     Contact::get_blocked_cnt(context) as libc::c_int
 }
 
@@ -2291,7 +2357,8 @@ pub unsafe extern "C" fn dc_get_blocked_contacts(
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     Box::into_raw(Box::new(dc_array_t::from(Contact::get_all_blocked(
         context,
     ))))
@@ -2314,7 +2381,8 @@ pub unsafe extern "C" fn dc_block_contact(
 ) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     if block == 0 {
         Contact::unblock(context, contact_id);
     } else {
@@ -2341,7 +2409,8 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     Contact::get_encrinfo(context, contact_id)
         .map(|s| s.strdup())
         .unwrap_or_else(|e| {
@@ -2371,7 +2440,8 @@ pub unsafe extern "C" fn dc_delete_contact(
 ) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     match Contact::delete(context, contact_id) {
         Ok(_) => 1,
         Err(_) => 0,
@@ -2400,7 +2470,8 @@ pub unsafe extern "C" fn dc_get_contact<'a>(
 ) -> *mut dc_contact_t<'a> {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     Contact::get_by_id(context, contact_id)
         .map(|contact| Box::into_raw(Box::new(contact)))
         .unwrap_or_else(|_| std::ptr::null_mut())
@@ -2474,7 +2545,8 @@ pub unsafe extern "C" fn dc_imex(
 ) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_imex::dc_imex(context, what, param1, param2)
 }
 
@@ -2537,7 +2609,8 @@ pub unsafe extern "C" fn dc_imex_has_backup(
     assert!(!context.is_null());
     assert!(!dir.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_imex::dc_imex_has_backup(context, dir)
 }
 
@@ -2596,7 +2669,8 @@ pub unsafe extern "C" fn dc_imex_has_backup(
 pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) -> *mut libc::c_char {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_imex::dc_initiate_key_transfer(context)
 }
 
@@ -2634,7 +2708,8 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
     assert!(!context.is_null());
     assert!(!setup_code.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_imex::dc_continue_key_transfer(context, msg_id, setup_code)
 }
 
@@ -2670,8 +2745,9 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
 pub unsafe extern "C" fn dc_stop_ongoing_process(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    if wrapper.inner.is_some() {
-        let context = wrapper.inner.as_ref().expect("context not open");
+    let inner: Option<Context> = *wrapper.inner.read().unwrap();
+    if inner.is_some() {
+        let context = inner.as_ref().expect("context not open");
         configure::dc_stop_ongoing_process(context)
     }
 }
@@ -2708,7 +2784,8 @@ pub unsafe extern "C" fn dc_check_qr(
     assert!(!context.is_null());
     assert!(!qr.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let lot = qr::check_qr(context, as_str(qr));
     Box::into_raw(Box::new(lot))
 }
@@ -2740,7 +2817,8 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
 ) -> *mut libc::c_char {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_securejoin::dc_get_securejoin_qr(context, chat_id)
 }
 
@@ -2772,7 +2850,8 @@ pub unsafe extern "C" fn dc_join_securejoin(
     assert!(!context.is_null());
     assert!(!qr.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_securejoin::dc_join_securejoin(context, qr)
 }
 
@@ -2800,7 +2879,8 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
 ) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_location::dc_send_locations_to_chat(context, chat_id, seconds as i64)
 }
 
@@ -2825,7 +2905,8 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
 ) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_location::dc_is_sending_locations_to_chat(context, chat_id) as libc::c_int
 }
 
@@ -2866,7 +2947,8 @@ pub unsafe extern "C" fn dc_set_location(
 ) -> libc::c_int {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_location::dc_set_location(context, latitude, longitude, accuracy)
 }
 
@@ -2941,7 +3023,8 @@ pub unsafe extern "C" fn dc_get_locations(
 ) -> *mut dc_array::dc_array_t {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let res = dc_location::dc_get_locations(
         context,
         chat_id,
@@ -2966,7 +3049,8 @@ pub unsafe extern "C" fn dc_get_locations(
 pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     dc_location::dc_delete_all_locations(context);
 }
 
@@ -3302,7 +3386,8 @@ pub unsafe extern "C" fn dc_msg_new<'a>(
 ) -> *mut dc_msg_t<'a> {
     assert!(!context.is_null());
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = (*inner_guard).as_ref().expect("context not open");
     let viewtype = from_prim(viewtype).expect(&format!("invalid viewtype = {}", viewtype));
     Box::into_raw(Box::new(message::dc_msg_new(context, viewtype)))
 }
