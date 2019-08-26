@@ -1674,9 +1674,9 @@ pub unsafe fn mailmime_find_mailimf_fields(mime: *mut mailmime) -> *mut mailimf_
     if mime.is_null() {
         return 0 as *mut mailimf_fields;
     }
-    // TODO match on enums
-    match (*mime).mm_type {
-        2 => {
+
+    match (*mime).mm_type as _ {
+        MAILMIME_MULTIPLE => {
             let mut cur: *mut clistiter = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
             while !cur.is_null() {
                 let header: *mut mailimf_fields = mailmime_find_mailimf_fields(
@@ -1696,7 +1696,7 @@ pub unsafe fn mailmime_find_mailimf_fields(mime: *mut mailmime) -> *mut mailimf_
                 }
             }
         }
-        3 => return (*mime).mm_data.mm_message.mm_fields,
+        MAILMIME_MESSAGE => return (*mime).mm_data.mm_message.mm_fields,
         _ => {}
     }
 
