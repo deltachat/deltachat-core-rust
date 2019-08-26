@@ -122,6 +122,7 @@ unsafe fn dc_mimepart_unref(mut mimepart: dc_mimepart_t) {
     free(mimepart.msg_raw as *mut libc::c_void);
     mimepart.msg_raw = 0 as *mut libc::c_char;
 }
+const DC_MIMETYPE_AC_SETUP_FILE: i32 = 111;
 
 pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_mimeparser_t<'a> {
     let r: libc::c_int;
@@ -151,13 +152,12 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             mimeparser.is_send_by_messenger = true
         }
         if !dc_mimeparser_lookup_field(&mut mimeparser, "Autocrypt-Setup-Message").is_null() {
-            let mut has_setup_file: libc::c_int = 0i32;
-            for part in &mimeparser.parts {
-                if part.int_mimetype == 111i32 {
-                    has_setup_file = 1i32
-                }
-            }
-            if 0 != has_setup_file {
+            let has_setup_file = mimeparser
+                .parts
+                .iter()
+                .any(|p| p.int_mimetype == DC_MIMETYPE_AC_SETUP_FILE);
+
+            if has_setup_file {
                 mimeparser.is_system_message = 6i32;
 
                 // TODO: replace the following code with this
