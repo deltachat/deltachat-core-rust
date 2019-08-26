@@ -1096,7 +1096,7 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    location::delete_all(context);
+    location::delete_all(context).log_err(context, "Failed to delete locations");
 }
 
 // dc_array_t
