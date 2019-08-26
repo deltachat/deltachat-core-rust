@@ -56,7 +56,6 @@ pub mod dc_imex;
 mod dc_loginparam;
 mod dc_mimefactory;
 pub mod dc_mimeparser;
-mod dc_move;
 pub mod dc_receive_imf;
 pub mod dc_securejoin;
 mod dc_simplify;
