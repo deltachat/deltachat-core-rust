@@ -39,7 +39,7 @@ impl Location {
 #[derive(Debug, Clone, Default)]
 pub struct Kml {
     pub addr: Option<String>,
-    pub locations: Option<Vec<Location>>,
+    pub locations: Vec<Location>,
     tag: KmlTag,
     pub curr: Location,
 }
@@ -72,7 +72,7 @@ impl Kml {
         reader.trim_text(true);
 
         let mut kml = Kml::new();
-        kml.locations = Some(Vec::with_capacity(100));
+        kml.locations = Vec::with_capacity(100);
 
         let mut buf = Vec::new();
 
@@ -142,9 +142,8 @@ impl Kml {
                 && 0. != self.curr.latitude
                 && 0. != self.curr.longitude
             {
-                if let Some(ref mut locations) = self.locations {
-                    locations.push(std::mem::replace(&mut self.curr, Location::new()));
-                }
+                self.locations
+                    .push(std::mem::replace(&mut self.curr, Location::new()));
             }
             self.tag = KmlTag::UNDEFINED;
         };
@@ -675,7 +674,7 @@ mod tests {
         assert!(kml.addr.is_some());
         assert_eq!(kml.addr.as_ref().unwrap(), "user@example.org",);
 
-        let locations_ref = &kml.locations.as_ref().unwrap();
+        let locations_ref = &kml.locations;
         assert_eq!(locations_ref.len(), 2);
 
         assert!(locations_ref[0].latitude > 53.6f64);

@@ -938,15 +938,13 @@ unsafe fn save_locations(
     let mut send_event = false;
 
     if !mime_parser.message_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint {
-        if let Some(ref locations) = mime_parser.message_kml.as_ref().unwrap().locations {
-            let newest_location_id =
-                location::save(context, chat_id, from_id, locations, 1).unwrap_or_default();
-            if 0 != newest_location_id && 0 == hidden {
-                if location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok()
-                {
-                    location_id_written = true;
-                    send_event = true;
-                }
+        let locations = &mime_parser.message_kml.as_ref().unwrap().locations;
+        let newest_location_id =
+            location::save(context, chat_id, from_id, locations, 1).unwrap_or_default();
+        if 0 != newest_location_id && 0 == hidden {
+            if location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok() {
+                location_id_written = true;
+                send_event = true;
             }
         }
     }
@@ -957,23 +955,19 @@ unsafe fn save_locations(
                 if !contact.get_addr().is_empty()
                     && contact.get_addr().to_lowercase() == addr.to_lowercase()
                 {
-                    if let Some(ref locations) =
-                        mime_parser.location_kml.as_ref().unwrap().locations
-                    {
-                        let newest_location_id =
-                            location::save(context, chat_id, from_id, locations, 0)
-                                .unwrap_or_default();
-                        if newest_location_id != 0 && hidden == 0 && !location_id_written {
-                            if let Err(err) = location::set_msg_location_id(
-                                context,
-                                insert_msg_id,
-                                newest_location_id,
-                            ) {
-                                error!(context, 0, "Failed to set msg_location_id: {:?}", err);
-                            }
+                    let locations = &mime_parser.location_kml.as_ref().unwrap().locations;
+                    let newest_location_id =
+                        location::save(context, chat_id, from_id, locations, 0).unwrap_or_default();
+                    if newest_location_id != 0 && hidden == 0 && !location_id_written {
+                        if let Err(err) = location::set_msg_location_id(
+                            context,
+                            insert_msg_id,
+                            newest_location_id,
+                        ) {
+                            error!(context, 0, "Failed to set msg_location_id: {:?}", err);
                         }
-                        send_event = true;
                     }
+                    send_event = true;
                 }
             }
         }
