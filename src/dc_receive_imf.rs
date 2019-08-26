@@ -57,7 +57,8 @@ pub unsafe fn dc_receive_imf(
     // somewhen, I did not found out anything that speaks against this approach yet)
 
     let mut mime_parser = dc_mimeparser_new(context);
-    dc_mimeparser_parse(&mut mime_parser, imf_raw_not_terminated, imf_raw_bytes);
+    let body = std::slice::from_raw_parts(imf_raw_not_terminated as *const u8, imf_raw_bytes);
+    dc_mimeparser_parse(&mut mime_parser, body);
 
     if mime_parser.header.is_empty() {
         // Error - even adding an empty record won't help as we do not know the message ID
