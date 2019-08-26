@@ -13,9 +13,8 @@ use sha2::{Digest, Sha256};
 use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
-use crate::context::Context;
+use crate::context::{do_heuristics_moves, Context};
 use crate::dc_mimeparser::*;
-use crate::dc_move::*;
 use crate::dc_securejoin::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
@@ -735,7 +734,7 @@ unsafe fn add_parts(
         }
     }
 
-    dc_do_heuristics_moves(context, server_folder.as_ref(), *insert_msg_id);
+    do_heuristics_moves(context, server_folder.as_ref(), *insert_msg_id);
     cleanup(mime_in_reply_to, mime_references, txt_raw);
 
     Ok(())

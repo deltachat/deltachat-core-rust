@@ -4,7 +4,6 @@ use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::dc_loginparam::*;
-use crate::dc_move::*;
 use crate::dc_receive_imf::*;
 use crate::dc_tools::*;
 use crate::imap::*;
@@ -228,7 +227,7 @@ unsafe fn cb_precheck_imf(
         if as_str(old_server_folder) != server_folder || old_server_uid != server_uid {
             dc_update_server_uid(context, rfc724_mid, server_folder, server_uid);
         }
-        dc_do_heuristics_moves(context, server_folder, msg_id);
+        do_heuristics_moves(context, server_folder, msg_id);
         if 0 != mark_seen {
             job_add(
                 context,
@@ -570,6 +569,45 @@ pub fn dc_is_mvbox(context: &Context, folder_name: impl AsRef<str>) -> bool {
         name == folder_name.as_ref()
     } else {
         false
+    }
+}
+
+pub fn do_heuristics_moves(context: &Context, folder: &str, msg_id: u32) {
+    if context
+        .sql
+        .get_config_int(context, "mvbox_move")
+        .unwrap_or_else(|| 1)
+        == 0
+    {
+        return;
+    }
+
+    if !dc_is_inbox(context, folder) && !dc_is_sentbox(context, folder) {
+        return;
+    }
+
+    if let Ok(msg) = dc_msg_new_load(context, msg_id) {
+        if dc_msg_is_setupmessage(&msg) {
+            // do not move setup messages;
+            // there may be a non-delta device that wants to handle it
+            return;
+        }
+
+        if dc_is_mvbox(context, folder) {
+            dc_update_msg_move_state(context, msg.rfc724_mid, MoveState::Stay);
+        }
+
+        // 1 = dc message, 2 = reply to dc message
+        if 0 != msg.is_dc_message {
+            job_add(
+                context,
+                Action::MoveMsg,
+                msg.id as libc::c_int,
+                Params::new(),
+                0,
+            );
+            dc_update_msg_move_state(context, msg.rfc724_mid, MoveState::Moving);
+        }
     }
 }
 
