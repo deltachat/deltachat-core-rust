@@ -123,18 +123,14 @@ unsafe fn dc_mimepart_unref(mut mimepart: dc_mimepart_t) {
     mimepart.msg_raw = 0 as *mut libc::c_char;
 }
 
-pub unsafe fn dc_mimeparser_parse(
-    mimeparser: &mut dc_mimeparser_t,
-    body_not_terminated: *const libc::c_char,
-    body_bytes: size_t,
-) {
+pub unsafe fn dc_mimeparser_parse(mimeparser: &mut dc_mimeparser_t, body: &[u8]) {
     let r: libc::c_int;
     let mut index: size_t = 0i32 as size_t;
     let optional_field: *mut mailimf_optional_field;
     dc_mimeparser_empty(mimeparser);
     r = mailmime_parse(
-        body_not_terminated,
-        body_bytes,
+        body.as_ptr() as *const libc::c_char,
+        body.len(),
         &mut index,
         &mut mimeparser.mimeroot,
     );
