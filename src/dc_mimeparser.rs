@@ -850,11 +850,7 @@ unsafe fn mailmime_get_mime_type(
                     }
                 }
                 *msg_type = Viewtype::File;
-                reconcat_mime(
-                    raw_mime,
-                    b"text\x00" as *const u8 as *const libc::c_char,
-                    (*c).ct_subtype,
-                );
+                *raw_mime = reconcat_mime(Some("text"), as_opt_str((*c).ct_subtype)).strdup();
                 return 110i32;
             }
             2 => {
@@ -870,38 +866,22 @@ unsafe fn mailmime_get_mime_type(
                 ) == 0i32
                 {
                     *msg_type = Viewtype::File;
-                    reconcat_mime(
-                        raw_mime,
-                        b"image\x00" as *const u8 as *const libc::c_char,
-                        (*c).ct_subtype,
-                    );
+                    *raw_mime = reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype)).strdup();
                     return 110i32;
                 } else {
                     *msg_type = Viewtype::Image;
                 }
-                reconcat_mime(
-                    raw_mime,
-                    b"image\x00" as *const u8 as *const libc::c_char,
-                    (*c).ct_subtype,
-                );
+                *raw_mime = reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype)).strdup();
                 return 80i32;
             }
             3 => {
                 *msg_type = Viewtype::Audio;
-                reconcat_mime(
-                    raw_mime,
-                    b"audio\x00" as *const u8 as *const libc::c_char,
-                    (*c).ct_subtype,
-                );
+                *raw_mime = reconcat_mime(Some("audio"), as_opt_str((*c).ct_subtype)).strdup();
                 return 90i32;
             }
             4 => {
                 *msg_type = Viewtype::Video;
-                reconcat_mime(
-                    raw_mime,
-                    b"video\x00" as *const u8 as *const libc::c_char,
-                    (*c).ct_subtype,
-                );
+                *raw_mime = reconcat_mime(Some("video"), as_opt_str((*c).ct_subtype)).strdup();
                 return 100i32;
             }
             _ => {
@@ -913,18 +893,14 @@ unsafe fn mailmime_get_mime_type(
                         b"autocrypt-setup\x00" as *const u8 as *const libc::c_char,
                     ) == 0i32
                 {
-                    reconcat_mime(
-                        raw_mime,
-                        b"application\x00" as *const u8 as *const libc::c_char,
-                        (*c).ct_subtype,
-                    );
+                    *raw_mime = reconcat_mime(None, as_opt_str((*c).ct_subtype)).strdup();
                     return 111i32;
                 }
-                reconcat_mime(
-                    raw_mime,
-                    (*(*(*c).ct_type).tp_data.tp_discrete_type).dt_extension,
-                    (*c).ct_subtype,
-                );
+                *raw_mime = reconcat_mime(
+                    as_opt_str((*(*(*c).ct_type).tp_data.tp_discrete_type).dt_extension),
+                    as_opt_str((*c).ct_subtype),
+                )
+                .strdup();
                 return 110i32;
             }
         },
@@ -985,26 +961,11 @@ unsafe fn mailmime_get_mime_type(
     0
 }
 
-unsafe fn reconcat_mime(
-    raw_mime: *mut *mut libc::c_char,
-    type_0: *const libc::c_char,
-    subtype: *const libc::c_char,
-) {
-    if !raw_mime.is_null() {
-        *raw_mime = dc_mprintf(
-            b"%s/%s\x00" as *const u8 as *const libc::c_char,
-            if !type_0.is_null() {
-                type_0
-            } else {
-                b"application\x00" as *const u8 as *const libc::c_char
-            },
-            if !subtype.is_null() {
-                subtype
-            } else {
-                b"octet-stream\x00" as *const u8 as *const libc::c_char
-            },
-        )
-    };
+fn reconcat_mime(type_0: Option<&str>, subtype: Option<&str>) -> String {
+    let type_0 = type_0.unwrap_or("application");
+    let subtype = subtype.unwrap_or("octet-stream");
+
+    format!("{}/{}", type_0, subtype)
 }
 
 unsafe fn mailmime_is_attachment_disposition(mime: *mut mailmime) -> libc::c_int {
