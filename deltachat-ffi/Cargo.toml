@@ -19,6 +19,7 @@ deltachat = { path = "../", default-features = false }
 libc = "0.2"
 human-panic = "1.0.1"
 num-traits = "0.2.6"
+rental = "0.5.4"
 
 [features]
 default = ["vendored", "nightly", "ringbuf"]

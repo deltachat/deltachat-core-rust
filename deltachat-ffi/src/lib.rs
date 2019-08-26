@@ -10,11 +10,14 @@
 #[macro_use]
 extern crate human_panic;
 extern crate num_traits;
+#[macro_use]
+extern crate rental;
 
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::ptr;
 use std::str::FromStr;
+use std::sync::RwLock;
 
 use libc::uintptr_t;
 use num_traits::{FromPrimitive, ToPrimitive};
@@ -49,24 +52,101 @@ use deltachat::*;
 /// * `data1` - depends on the event parameter.
 /// * `data2` - depends on the event parameter.
 ///
-/// # Returns
+/// # Return value
 ///
 /// This callback should return 0 unless stated otherwise in the event
 /// parameter documentation.
 pub type dc_callback_t =
     unsafe extern "C" fn(_: &ContextWrapper, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
 
+/// The FFI context struct.
+///
+/// This structure represents the [Context] on the FFI interface.
+/// Since it is returned by [dc_context_new] before it is initialised
+/// by [dc_context_open] it needs to store the actual [Context] in an
+/// [Option] and protected by an [RwLock].  Other than that it needs
+/// to store the data which is passed into [dc_context_new].
 pub struct ContextWrapper {
     cb: Option<dc_callback_t>,
     userdata: *mut libc::c_void,
-    os_name: *const libc::c_char,
-    inner: Option<context::Context>, // TODO: Wrap this in RwLock
+    os_name: String,
+    inner: RwLock<Option<context::Context>>,
 }
 
 /// The FFI context type.
 pub type dc_context_t = ContextWrapper;
 
+// A few wrappers for structs which keep a reference to the context.
+
+rental! {
+    /// FFI wrappers to keep a reference to the context.
+    ///
+    /// A few returned objects hold a reference to the [Context],
+    /// which itself is protected by an [RwLock] inside the
+    /// [ContextWrapper] used on the FFI layer.  This means the
+    /// objects returned by the FFI layer also need to return the lock
+    /// used to keep the [Context] reference alive.
+    ///
+    /// These structs each contain a reference to the lock guard and
+    /// the object being kept alive by the lock.  Because the latter
+    /// needs to have the lifetime of the former they are
+    /// self-referential structs and need to be created using the
+    /// rental crate.
+    pub mod rentals {
+        use super::*;
+
+        /// FFI wrapper around [chatlist::Chatlist].
+        #[rental]
+        pub struct ChatlistWrapper<'a> {
+            guard: std::sync::RwLockReadGuard<'a, Option<Context>>,
+            list: chatlist::Chatlist<'guard>,
+        }
+
+        /// FFI wrapper around [message::Message].
+        #[rental]
+        pub struct MessageWrapper<'a> {
+            guard: std::sync::RwLockReadGuard<'a, Option<Context>>,
+            msg: message::Message<'guard>,
+        }
+
+        /// FFI wrapper around [chat::Chat].
+        #[rental]
+        pub struct ChatWrapper<'a> {
+            guard: std::sync::RwLockReadGuard<'a, Option<Context>>,
+            chat: chat::Chat<'guard>,
+        }
+
+        /// FFI wrapper around [contact::Contact].
+        #[rental]
+        pub struct ContactWrapper<'a> {
+            guard: std::sync::RwLockReadGuard<'a, Option<Context>>,
+            contact: contact::Contact<'guard>,
+        }
+    }
+}
+
+pub use rentals::*;
+
+#[no_mangle]
+pub type dc_msg_t<'a> = MessageWrapper<'a>;
+
+#[no_mangle]
+pub type dc_chatlist_t<'a> = ChatlistWrapper<'a>;
+
+#[no_mangle]
+pub type dc_chat_t<'a> = ChatWrapper<'a>;
+
+#[no_mangle]
+pub type dc_contact_t<'a> = ContactWrapper<'a>;
+
 impl ContextWrapper {
+    /// Log an error on the FFI context.
+    ///
+    /// As soon as a [ContextWrapper] exist it can be used to log an
+    /// error using the callback, even before [dc_context_open] is
+    /// called and an actual [Context] exists.
+    ///
+    /// This function makes it easy to log an error.
     fn error(&self, msg: &str) {
         if let Some(cb) = self.cb {
             let msg_c =
@@ -75,6 +155,8 @@ impl ContextWrapper {
         }
     }
 }
+
+// dc_context_t implementations
 
 /// Create a new context object.
 ///
@@ -135,8 +217,8 @@ pub unsafe extern "C" fn dc_context_new(
     let wrapper = ContextWrapper {
         cb,
         userdata,
-        os_name: dc_tools::dc_strdup_keep_null(os_name),
-        inner: None,
+        os_name: to_string(os_name),
+        inner: RwLock::new(None),
     };
     Box::into_raw(Box::new(wrapper))
 }
@@ -220,17 +302,17 @@ pub unsafe extern "C" fn dc_open(
             None => 0,
         }
     };
-    let mut wrapper: &mut ContextWrapper = &mut *context;
+    let wrapper: &ContextWrapper = &*context;
     let new_context = if blobdir.is_null() {
         Context::new(
             Box::new(rust_cb),
-            to_string(wrapper.os_name),
+            wrapper.os_name.clone(),
             as_path(dbfile).to_path_buf(),
         )
     } else {
         Context::with_blobdir(
             Box::new(rust_cb),
-            to_string(wrapper.os_name),
+            wrapper.os_name.clone(),
             as_path(dbfile).to_path_buf(),
             as_path(blobdir),
         )
@@ -244,9 +326,10 @@ pub unsafe extern "C" fn dc_open(
             // wrapper as userdata on the Context.  The actual
             // userdata exposed by the C API is stored on the
             // ContextWrapper.
-            let wrapper_ptr: *mut ContextWrapper = wrapper;
+            let wrapper_ptr: *const ContextWrapper = wrapper;
             ctx.userdata = wrapper_ptr as *mut libc::c_void;
-            wrapper.inner = Some(ctx);
+            let mut inner_guard = wrapper.inner.write().unwrap();
+            *inner_guard = Some(ctx);
             1
         }
         Err(_) => 0,
@@ -260,6 +343,9 @@ pub unsafe extern "C" fn dc_open(
 /// [dc_context_unref] is called.
 ///
 /// This method is **not** thread safe.
+///
+/// This will **block** if there are still objects referencing the
+/// context due to the lock protecting the context.
 
 /// Close context database opened by [dc_open].
 ///
@@ -279,10 +365,14 @@ pub unsafe extern "C" fn dc_close(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &mut ContextWrapper = &mut *context;
-    if let Some(ref ctx) = &wrapper.inner {
-        context::dc_close(ctx);
-        wrapper.inner = None;
-    }
+    wrapper.inner.write().unwrap().take();
+    // Context's Drop impl will close the context.
+
+    // let mut inner_guard = wrapper.inner.write().unwrap();
+    // if let Some(ref ctx) = &*inner_guard {
+    //     context::dc_close(ctx);
+    //     *inner_guard = None;
+    // }
 }
 
 /// Checks if the context is open.
@@ -297,7 +387,8 @@ pub unsafe extern "C" fn dc_is_open(context: *mut dc_context_t) -> libc::c_int {
         return 0;
     }
     let wrapper: &mut ContextWrapper = &mut *context;
-    match wrapper.inner {
+    let inner_guard = wrapper.inner.read().unwrap();
+    match *inner_guard {
         Some(_) => 0,
         None => 1,
     }
@@ -319,7 +410,8 @@ pub unsafe extern "C" fn dc_get_blobdir(context: *mut dc_context_t) -> *mut libc
         return dc_strdup(ptr::null());
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     context::dc_get_blobdir(context)
 }
 
@@ -388,7 +480,8 @@ pub unsafe extern "C" fn dc_set_config(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     match Config::from_str(as_str(key)) {
         // context.set_config() did already log (TODO, it shouldn't)
         Ok(key) => context
@@ -443,7 +536,8 @@ pub unsafe extern "C" fn dc_get_config(
         return dc_strdup(ptr::null());
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let key = Config::from_str(as_str(key)).expect("invalid key");
     // TODO: Translating None to NULL would be more sensible than translating None
     // to "", as it is now.
@@ -468,7 +562,8 @@ pub unsafe extern "C" fn dc_get_info(context: *mut dc_context_t) -> *mut libc::c
         return dc_strdup(ptr::null());
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     context::dc_get_info(context)
 }
 
@@ -510,7 +605,8 @@ pub unsafe extern "C" fn dc_get_oauth2_url(
         return ptr::null_mut(); // NULL explicitly defined as "unknown"
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let addr = to_string(addr);
     let redirect = to_string(redirect);
     match oauth2::dc_get_oauth2_url(context, addr, redirect) {
@@ -596,7 +692,8 @@ pub unsafe extern "C" fn dc_configure(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     configure::configure(context)
 }
 
@@ -619,7 +716,8 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     configure::dc_is_configured(context)
 }
 
@@ -662,7 +760,8 @@ pub unsafe extern "C" fn dc_perform_imap_jobs(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_imap_jobs(context)
 }
 
@@ -684,7 +783,8 @@ pub unsafe extern "C" fn dc_perform_imap_fetch(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_imap_fetch(context)
 }
 
@@ -708,7 +808,8 @@ pub unsafe extern "C" fn dc_perform_imap_idle(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_imap_idle(context)
 }
 
@@ -746,8 +847,9 @@ pub unsafe extern "C" fn dc_interrupt_imap_idle(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    if wrapper.inner.is_some() {
-        let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    if inner_guard.is_some() {
+        let context = inner_guard.as_ref().expect("context not open");
         job::interrupt_imap_idle(context);
     }
 }
@@ -794,7 +896,8 @@ pub unsafe extern "C" fn dc_perform_mvbox_fetch(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_mvbox_fetch(context)
 }
 
@@ -818,7 +921,8 @@ pub unsafe extern "C" fn dc_perform_mvbox_idle(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_mvbox_idle(context)
 }
 
@@ -846,7 +950,8 @@ pub unsafe extern "C" fn dc_interrupt_mvbox_idle(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::interrupt_mvbox_idle(context)
 }
 
@@ -865,7 +970,8 @@ pub unsafe extern "C" fn dc_perform_sentbox_fetch(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_sentbox_fetch(context)
 }
 
@@ -884,7 +990,8 @@ pub unsafe extern "C" fn dc_perform_sentbox_idle(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_sentbox_idle(context)
 }
 
@@ -900,7 +1007,8 @@ pub unsafe extern "C" fn dc_interrupt_sentbox_idle(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::interrupt_sentbox_idle(context)
 }
 
@@ -942,7 +1050,8 @@ pub unsafe extern "C" fn dc_perform_smtp_jobs(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_smtp_jobs(context)
 }
 
@@ -963,7 +1072,8 @@ pub unsafe extern "C" fn dc_perform_smtp_idle(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::perform_smtp_idle(context)
 }
 
@@ -1000,8 +1110,9 @@ pub unsafe extern "C" fn dc_interrupt_smtp_idle(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    if wrapper.inner.is_some() {
-        let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    if inner_guard.is_some() {
+        let context = inner_guard.as_ref().expect("context not open");
         job::interrupt_smtp_idle(context)
     }
 }
@@ -1022,7 +1133,8 @@ pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     job::maybe_network(context)
 }
 
@@ -1101,14 +1213,17 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
     let qs = if query_str.is_null() {
         None
     } else {
-        Some(dc_tools::as_str(query_str))
+        Some(as_str(query_str))
     };
     let qi = if query_id == 0 { None } else { Some(query_id) };
-    match chatlist::Chatlist::try_load(context, flags as usize, qs, qi) {
+    let maybe_wrapper = ChatlistWrapper::try_new(wrapper.inner.read().unwrap(), |guard| {
+        let context = guard.as_ref().expect("context not open");
+        chatlist::Chatlist::try_load(context, flags as usize, qs, qi)
+    });
+    match maybe_wrapper {
         Ok(list) => Box::into_raw(Box::new(list)),
         Err(_) => std::ptr::null_mut(),
     }
@@ -1147,7 +1262,8 @@ pub unsafe extern "C" fn dc_create_chat_by_msg_id(context: *mut dc_context_t, ms
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::create_by_msg_id(context, msg_id).unwrap_or_log_default(context, "Failed to create chag")
 }
 
@@ -1177,7 +1293,8 @@ pub unsafe extern "C" fn dc_create_chat_by_contact_id(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::create_by_contact_id(context, contact_id)
         .unwrap_or_log_default(context, "Failed to create chat")
 }
@@ -1204,7 +1321,8 @@ pub unsafe extern "C" fn dc_get_chat_id_by_contact_id(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::get_by_contact_id(context, contact_id)
         .unwrap_or_log_default(context, "Failed to get chat")
 }
@@ -1258,11 +1376,11 @@ pub unsafe extern "C" fn dc_prepare_msg(
         eprintln!("ignoring careless call to dc_prepare_msg()");
         return 0;
     }
-    let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
     let msg = &mut *msg;
-    chat::prepare_msg(context, chat_id, msg)
-        .unwrap_or_log_default(context, "Failed to prepare message")
+    msg.rent_mut(|m| {
+        chat::prepare_msg(m.context, chat_id, m)
+            .unwrap_or_log_default(m.context, "Failed to prepare message")
+    })
 }
 
 /// Sends a message defined by a dc_msg_t object to a chat.
@@ -1302,10 +1420,11 @@ pub unsafe extern "C" fn dc_send_msg(
         eprintln!("ignoring careless call to dc_send_msg()");
         return 0;
     }
-    let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
     let msg = &mut *msg;
-    chat::send_msg(context, chat_id, msg).unwrap_or_log_default(context, "Failed to send message")
+    msg.rent_mut(|m| {
+        chat::send_msg(m.context, chat_id, m)
+            .unwrap_or_log_default(m.context, "Failed to send message")
+    })
 }
 
 /// Sends a simple text message a given chat.
@@ -1339,7 +1458,8 @@ pub unsafe extern "C" fn dc_send_text_msg(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let text_to_send = dc_tools::to_string_lossy(text_to_send);
     chat::send_text_msg(context, chat_id, text_to_send)
         .unwrap_or_log_default(context, "Failed to send text message")
@@ -1381,9 +1501,14 @@ pub unsafe extern "C" fn dc_set_draft(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
-    let msg = if msg.is_null() { None } else { Some(&mut *msg) };
-    chat::set_draft(context, chat_id, msg)
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
+    if msg.is_null() {
+        chat::set_draft(context, chat_id, None)
+    } else {
+        let msg = &mut *msg;
+        msg.rent_mut(|m| chat::set_draft(context, chat_id, Some(m)))
+    }
 }
 
 /// Gets draft for a chat, if any.
@@ -1408,8 +1533,14 @@ pub unsafe extern "C" fn dc_get_draft<'a>(
         return ptr::null_mut(); // NULL explicitly defined as "no draft"
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
-    chat::get_draft(context, chat_id).into_raw()
+    let maybe_msg = MessageWrapper::try_new(wrapper.inner.read().unwrap(), |inner_guard| {
+        let context = inner_guard.as_ref().expect("context not open");
+        chat::get_draft(context, chat_id)
+    });
+    match maybe_msg {
+        Ok(msg) => Box::into_raw(Box::new(msg)),
+        Err(_) => std::ptr::null_mut(), // log something
+    }
 }
 
 /// Gets all message IDs belonging to a chat.
@@ -1449,7 +1580,8 @@ pub unsafe extern "C" fn dc_get_chat_msgs(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let arr = dc_array_t::from(chat::get_chat_msgs(context, chat_id, flags, marker1before));
     Box::into_raw(Box::new(arr))
 }
@@ -1470,7 +1602,8 @@ pub unsafe extern "C" fn dc_get_msg_cnt(context: *mut dc_context_t, chat_id: u32
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::get_msg_cnt(context, chat_id) as libc::c_int
 }
 
@@ -1495,7 +1628,8 @@ pub unsafe extern "C" fn dc_get_fresh_msg_cnt(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::get_fresh_msg_cnt(context, chat_id) as libc::c_int
 }
 
@@ -1520,7 +1654,8 @@ pub unsafe extern "C" fn dc_get_fresh_msgs(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let arr = dc_array_t::from(context::dc_get_fresh_msgs(context));
     Box::into_raw(Box::new(arr))
 }
@@ -1546,7 +1681,8 @@ pub unsafe extern "C" fn dc_marknoticed_chat(context: *mut dc_context_t, chat_id
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::marknoticed_chat(context, chat_id).log_err(context, "Failed marknoticed chat");
 }
 
@@ -1562,7 +1698,8 @@ pub unsafe extern "C" fn dc_marknoticed_all_chats(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::marknoticed_all_chats(context).log_err(context, "Failed marknoticed all chats");
 }
 
@@ -1607,7 +1744,8 @@ pub unsafe extern "C" fn dc_get_chat_media(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
 
     let msg_type = from_prim(msg_type).expect(&format!("invalid msg_type = {}", msg_type));
     let or_msg_type2 =
@@ -1660,7 +1798,8 @@ pub unsafe extern "C" fn dc_get_next_media(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
 
     let msg_type = from_prim(msg_type).expect(&format!("invalid msg_type = {}", msg_type));
     let or_msg_type2 =
@@ -1707,7 +1846,8 @@ pub unsafe extern "C" fn dc_archive_chat(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let archive = if archive == 0 {
         false
     } else if archive == 1 {
@@ -1752,7 +1892,8 @@ pub unsafe extern "C" fn dc_delete_chat(context: *mut dc_context_t, chat_id: u32
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::delete(context, chat_id).log_err(context, "Failed chat delete");
 }
 
@@ -1784,7 +1925,8 @@ pub unsafe extern "C" fn dc_get_chat_contacts(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let arr = dc_array_t::from(chat::get_chat_contacts(context, chat_id));
     Box::into_raw(Box::new(arr))
 }
@@ -1819,7 +1961,8 @@ pub unsafe extern "C" fn dc_search_msgs(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let arr = dc_array_t::from(context::dc_search_msgs(context, chat_id, query));
     Box::into_raw(Box::new(arr))
 }
@@ -1841,11 +1984,14 @@ pub unsafe extern "C" fn dc_get_chat<'a>(
         eprintln!("ignoring careless call to dc_get_chat()");
         return ptr::null_mut();
     }
-    let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
-    match chat::Chat::load_from_db(context, chat_id) {
+    let context_wrapper: &ContextWrapper = &*context;
+    let maybe_chat_wrapper = ChatWrapper::try_new(context_wrapper.inner.read().unwrap(), |guard| {
+        let context = guard.as_ref().expect("context not open");
+        chat::Chat::load_from_db(context, chat_id)
+    });
+    match maybe_chat_wrapper {
         Ok(chat) => Box::into_raw(Box::new(chat)),
-        Err(_) => std::ptr::null_mut(),
+        Err(_) => ptr::null_mut(),
     }
 }
 
@@ -1887,7 +2033,8 @@ pub unsafe extern "C" fn dc_create_group_chat(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let verified = if let Some(s) = contact::VerifiedStatus::from_i32(verified) {
         s
     } else {
@@ -1919,7 +2066,8 @@ pub unsafe extern "C" fn dc_is_contact_in_chat(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::is_contact_in_chat(context, chat_id, contact_id)
 }
 
@@ -1953,7 +2101,8 @@ pub unsafe extern "C" fn dc_add_contact_to_chat(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::add_contact_to_chat(context, chat_id, contact_id)
 }
 
@@ -1984,7 +2133,8 @@ pub unsafe extern "C" fn dc_remove_contact_from_chat(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::remove_contact_from_chat(context, chat_id, contact_id)
         .map(|_| 1)
         .unwrap_or_log_default(context, "Failed to remove contact")
@@ -2017,7 +2167,8 @@ pub unsafe extern "C" fn dc_set_chat_name(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::set_chat_name(context, chat_id, as_str(name))
         .map(|_| 1)
         .unwrap_or_log_default(context, "Failed to set chat name")
@@ -2055,7 +2206,8 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::set_chat_profile_image(context, chat_id, as_str(image))
         .map(|_| 1)
         .unwrap_or_log_default(context, "Failed to set profile image")
@@ -2086,7 +2238,8 @@ pub unsafe extern "C" fn dc_get_msg_info(
         return dc_strdup(ptr::null());
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     message::dc_get_msg_info(context, msg_id)
 }
 
@@ -2115,7 +2268,8 @@ pub unsafe extern "C" fn dc_get_mime_headers(
         return ptr::null_mut(); // NULL explicitly defined as "no mime headers"
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     message::dc_get_mime_headers(context, msg_id)
 }
 
@@ -2140,7 +2294,8 @@ pub unsafe extern "C" fn dc_delete_msgs(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     message::dc_delete_msgs(context, msg_ids, msg_cnt)
 }
 
@@ -2169,7 +2324,8 @@ pub unsafe extern "C" fn dc_forward_msgs(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     chat::forward_msgs(context, msg_ids, msg_cnt, chat_id)
 }
 
@@ -2192,7 +2348,8 @@ pub unsafe extern "C" fn dc_marknoticed_contact(context: *mut dc_context_t, cont
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     Contact::mark_noticed(context, contact_id)
 }
 
@@ -2221,7 +2378,8 @@ pub unsafe extern "C" fn dc_markseen_msgs(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     message::dc_markseen_msgs(context, msg_ids, msg_cnt as usize);
 }
 
@@ -2249,7 +2407,8 @@ pub unsafe extern "C" fn dc_star_msgs(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     message::dc_star_msgs(context, msg_ids, msg_cnt, star);
 }
 
@@ -2275,8 +2434,14 @@ pub unsafe extern "C" fn dc_get_msg<'a>(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
-    message::dc_get_msg(context, msg_id).into_raw()
+    let maybe_msg = MessageWrapper::try_new(wrapper.inner.read().unwrap(), |guard| {
+        let context = guard.as_ref().expect("context not open");
+        message::dc_get_msg(context, msg_id)
+    });
+    match maybe_msg {
+        Ok(msg) => Box::into_raw(Box::new(msg)),
+        Err(_) => ptr::null_mut(), // TODO: log error
+    }
 }
 
 /// Rough check if a string may be a valid e-mail address.
@@ -2328,7 +2493,8 @@ pub unsafe extern "C" fn dc_lookup_contact_id_by_addr(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     Contact::lookup_id_by_addr(context, as_str(addr))
 }
 
@@ -2364,7 +2530,8 @@ pub unsafe extern "C" fn dc_create_contact(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let name = if name.is_null() { "" } else { as_str(name) };
     match Contact::create(context, name, as_str(addr)) {
         Ok(id) => id,
@@ -2407,7 +2574,8 @@ pub unsafe extern "C" fn dc_add_address_book(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     match Contact::add_address_book(context, as_str(addr_book)) {
         Ok(cnt) => cnt as libc::c_int,
         Err(_) => 0,
@@ -2443,7 +2611,8 @@ pub unsafe extern "C" fn dc_get_contacts(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let query = if query.is_null() {
         None
     } else {
@@ -2469,7 +2638,8 @@ pub unsafe extern "C" fn dc_get_blocked_cnt(context: *mut dc_context_t) -> libc:
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     Contact::get_blocked_cnt(context) as libc::c_int
 }
 
@@ -2490,7 +2660,8 @@ pub unsafe extern "C" fn dc_get_blocked_contacts(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     Box::into_raw(Box::new(dc_array_t::from(Contact::get_all_blocked(
         context,
     ))))
@@ -2516,7 +2687,8 @@ pub unsafe extern "C" fn dc_block_contact(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     if block == 0 {
         Contact::unblock(context, contact_id);
     } else {
@@ -2546,7 +2718,8 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
         return dc_strdup(ptr::null());
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     Contact::get_encrinfo(context, contact_id)
         .map(|s| s.strdup())
         .unwrap_or_else(|e| {
@@ -2579,7 +2752,8 @@ pub unsafe extern "C" fn dc_delete_contact(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     match Contact::delete(context, contact_id) {
         Ok(_) => 1,
         Err(_) => 0,
@@ -2611,10 +2785,12 @@ pub unsafe extern "C" fn dc_get_contact<'a>(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
-    Contact::get_by_id(context, contact_id)
-        .map(|contact| Box::into_raw(Box::new(contact)))
-        .unwrap_or_else(|_| std::ptr::null_mut())
+    ContactWrapper::try_new(wrapper.inner.read().unwrap(), |guard| {
+        let context = guard.as_ref().expect("context not open");
+        Contact::get_by_id(context, contact_id)
+    })
+    .map(|contact| Box::into_raw(Box::new(contact)))
+    .unwrap_or_else(|_| std::ptr::null_mut())
 }
 
 /// Import/export things.
@@ -2688,7 +2864,8 @@ pub unsafe extern "C" fn dc_imex(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_imex::dc_imex(context, what, param1, param2)
 }
 
@@ -2753,7 +2930,8 @@ pub unsafe extern "C" fn dc_imex_has_backup(
         return ptr::null_mut(); // NULL explicitly defined as "has no backup"
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_imex::dc_imex_has_backup(context, dir)
 }
 
@@ -2815,7 +2993,8 @@ pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) ->
         return ptr::null_mut(); // NULL explicitly defined as "error"
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_imex::dc_initiate_key_transfer(context)
 }
 
@@ -2858,7 +3037,8 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_imex::dc_continue_key_transfer(context, msg_id, setup_code)
 }
 
@@ -2896,11 +3076,11 @@ pub unsafe extern "C" fn dc_stop_ongoing_process(context: *mut dc_context_t) {
         eprintln!("ignoring careless call to dc_stop_ongoing_process()");
         return;
     }
-    let wrapper: &ContextWrapper = &*context;
-    if wrapper.inner.is_some() {
-        let context = wrapper.inner.as_ref().expect("context not open");
-        configure::dc_stop_ongoing_process(context)
-    }
+    let ffi_ctx: &ContextWrapper = &*context;
+    match ffi_ctx.inner.read().unwrap().as_ref() {
+        Some(ref ctx) => configure::dc_stop_ongoing_process(ctx),
+        None => (),
+    };
 }
 
 /// Check a scanned QR code.
@@ -2937,7 +3117,8 @@ pub unsafe extern "C" fn dc_check_qr(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let lot = qr::check_qr(context, as_str(qr));
     Box::into_raw(Box::new(lot))
 }
@@ -2972,7 +3153,8 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
         return "".strdup();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_securejoin::dc_get_securejoin_qr(context, chat_id)
 }
 
@@ -3006,7 +3188,8 @@ pub unsafe extern "C" fn dc_join_securejoin(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_securejoin::dc_join_securejoin(context, qr)
 }
 
@@ -3037,7 +3220,8 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_location::dc_send_locations_to_chat(context, chat_id, seconds as i64)
 }
 
@@ -3065,7 +3249,8 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_location::dc_is_sending_locations_to_chat(context, chat_id) as libc::c_int
 }
 
@@ -3109,7 +3294,8 @@ pub unsafe extern "C" fn dc_set_location(
         return 0;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_location::dc_set_location(context, latitude, longitude, accuracy)
 }
 
@@ -3187,7 +3373,8 @@ pub unsafe extern "C" fn dc_get_locations(
         return ptr::null_mut();
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     let res = dc_location::dc_get_locations(
         context,
         chat_id,
@@ -3215,7 +3402,8 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
         return;
     }
     let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
+    let inner_guard = wrapper.inner.read().unwrap();
+    let context = inner_guard.as_ref().expect("context not open");
     dc_location::dc_delete_all_locations(context);
 }
 
@@ -3414,9 +3602,6 @@ pub unsafe fn dc_array_is_independent(
 // dc_chatlist_t
 
 #[no_mangle]
-pub type dc_chatlist_t<'a> = chatlist::Chatlist<'a>;
-
-#[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist_t) {
     if chatlist.is_null() {
         eprintln!("ignoring careless call to dc_chatlist_unref()");
@@ -3434,7 +3619,7 @@ pub unsafe extern "C" fn dc_chatlist_get_cnt(chatlist: *mut dc_chatlist_t) -> li
     }
 
     let list = &*chatlist;
-    list.len() as libc::size_t
+    list.rent(|l| l.len() as libc::size_t)
 }
 
 #[no_mangle]
@@ -3448,7 +3633,7 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
     }
 
     let list = &*chatlist;
-    list.get_chat_id(index as usize)
+    list.rent(|l| l.get_chat_id(index as usize))
 }
 
 #[no_mangle]
@@ -3462,7 +3647,7 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
     }
 
     let list = &*chatlist;
-    list.get_msg_id(index as usize)
+    list.rent(|l| l.get_msg_id(index as usize))
 }
 
 #[no_mangle]
@@ -3475,14 +3660,21 @@ pub unsafe extern "C" fn dc_chatlist_get_summary<'a>(
         eprintln!("ignoring careless call to dc_chatlist_get_summary()");
         return ptr::null_mut();
     }
-
-    let chat = if chat.is_null() { None } else { Some(&*chat) };
-    let list = &*chatlist;
-
-    let lot = list.get_summary(index as usize, chat);
+    let ffi_list = &*chatlist;
+    let lot = ffi_list.rent(|l| {
+        if chat.is_null() {
+            l.get_summary(index as usize, None)
+        } else {
+            let ffi_chat = &*chat;
+            ffi_chat.rent(|c| l.get_summary(index as usize, Some(c)))
+        }
+    });
     Box::into_raw(Box::new(lot))
 }
 
+// On the C FFI the context is actually ContextWrapper.  This struct
+// is stored as userdata on the Rust Context object so that it can be
+// retrieved here.
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_get_context(
     chatlist: *mut dc_chatlist_t,
@@ -3493,17 +3685,15 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
     }
 
     let list = &*chatlist;
-
-    let context: &Context = list.get_context();
-    let userdata_ptr = context.userdata as *const ContextWrapper;
-    let wrapper: &ContextWrapper = &*userdata_ptr;
-    wrapper
+    list.rent(|l| {
+        let context: &Context = l.get_context();
+        let userdata_ptr = context.userdata as *const ContextWrapper;
+        let wrapper: &ContextWrapper = &*userdata_ptr;
+        wrapper
+    })
 }
 
 // dc_chat_t
-
-#[no_mangle]
-pub type dc_chat_t<'a> = chat::Chat<'a>;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat_t) {
@@ -3524,7 +3714,7 @@ pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat_t) -> u32 {
 
     let chat = &*chat;
 
-    chat.get_id()
+    chat.rent(|c| c.get_id())
 }
 
 #[no_mangle]
@@ -3536,7 +3726,7 @@ pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
 
     let chat = &*chat;
 
-    chat.get_type() as libc::c_int
+    chat.rent(|c| c.get_type() as libc::c_int)
 }
 
 #[no_mangle]
@@ -3548,7 +3738,7 @@ pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_
 
     let chat = &*chat;
 
-    chat.get_name().strdup()
+    chat.rent(|c| c.get_name().strdup())
 }
 
 #[no_mangle]
@@ -3560,7 +3750,7 @@ pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc
 
     let chat = &*chat;
 
-    chat.get_subtitle().strdup()
+    chat.rent(|c| c.get_subtitle().strdup())
 }
 
 #[no_mangle]
@@ -3572,7 +3762,7 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
 
     let chat = &*chat;
 
-    match chat.get_profile_image() {
+    match chat.rent(|c| c.get_profile_image()) {
         Some(i) => i.strdup(),
         None => ptr::null_mut(),
     }
@@ -3587,7 +3777,7 @@ pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
 
     let chat = &*chat;
 
-    chat.get_color()
+    chat.rent(|c| c.get_color())
 }
 
 #[no_mangle]
@@ -3599,7 +3789,7 @@ pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_i
 
     let chat = &*chat;
 
-    chat.is_archived() as libc::c_int
+    chat.rent(|c| c.is_archived() as libc::c_int)
 }
 
 #[no_mangle]
@@ -3611,7 +3801,7 @@ pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat_t) -> libc::c_
 
     let chat = &*chat;
 
-    chat.is_unpromoted() as libc::c_int
+    chat.rent(|c| c.is_unpromoted() as libc::c_int)
 }
 
 #[no_mangle]
@@ -3623,7 +3813,7 @@ pub unsafe extern "C" fn dc_chat_is_self_talk(chat: *mut dc_chat_t) -> libc::c_i
 
     let chat = &*chat;
 
-    chat.is_self_talk() as libc::c_int
+    chat.rent(|c| c.is_self_talk() as libc::c_int)
 }
 
 #[no_mangle]
@@ -3635,7 +3825,7 @@ pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_in
 
     let chat = &*chat;
 
-    chat.is_verified() as libc::c_int
+    chat.rent(|c| c.is_verified() as libc::c_int)
 }
 
 #[no_mangle]
@@ -3647,13 +3837,10 @@ pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> l
 
     let chat = &*chat;
 
-    chat.is_sending_locations() as libc::c_int
+    chat.rent(|c| c.is_sending_locations() as libc::c_int)
 }
 
 // dc_msg_t
-
-#[no_mangle]
-pub type dc_msg_t<'a> = message::Message<'a>;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_new<'a>(
@@ -3664,10 +3851,13 @@ pub unsafe extern "C" fn dc_msg_new<'a>(
         eprintln!("ignoring careless call to dc_msg_new()");
         return ptr::null_mut();
     }
-    let wrapper: &ContextWrapper = &*context;
-    let context = wrapper.inner.as_ref().expect("context not open");
-    let viewtype = from_prim(viewtype).expect(&format!("invalid viewtype = {}", viewtype));
-    Box::into_raw(Box::new(message::dc_msg_new(context, viewtype)))
+    let ctx_wrapper: &ContextWrapper = &*context;
+    let msg_wrapper = MessageWrapper::new(ctx_wrapper.inner.read().unwrap(), |inner_guard| {
+        let context = inner_guard.as_ref().expect("context not open");
+        let viewtype = from_prim(viewtype).expect(&format!("invalid viewtype = {}", viewtype));
+        message::dc_msg_new(context, viewtype)
+    });
+    Box::into_raw(Box::new(msg_wrapper))
 }
 
 #[no_mangle]
@@ -3688,7 +3878,7 @@ pub unsafe extern "C" fn dc_msg_get_id(msg: *mut dc_msg_t) -> u32 {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_id(msg)
+    msg.rent(|m| message::dc_msg_get_id(m))
 }
 
 #[no_mangle]
@@ -3699,7 +3889,7 @@ pub unsafe extern "C" fn dc_msg_get_from_id(msg: *mut dc_msg_t) -> u32 {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_from_id(msg)
+    msg.rent(|m| message::dc_msg_get_from_id(m))
 }
 
 #[no_mangle]
@@ -3710,7 +3900,7 @@ pub unsafe extern "C" fn dc_msg_get_chat_id(msg: *mut dc_msg_t) -> u32 {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_chat_id(msg)
+    msg.rent(|m| message::dc_msg_get_chat_id(m))
 }
 
 #[no_mangle]
@@ -3721,9 +3911,11 @@ pub unsafe extern "C" fn dc_msg_get_viewtype(msg: *mut dc_msg_t) -> libc::c_int 
     }
 
     let msg = &*msg;
-    message::dc_msg_get_viewtype(msg)
-        .to_i64()
-        .expect("impossible: Viewtype -> i64 conversion failed") as libc::c_int
+    msg.rent(|m| {
+        message::dc_msg_get_viewtype(m)
+            .to_i64()
+            .expect("impossible: Viewtype -> i64 conversion failed") as libc::c_int
+    })
 }
 
 #[no_mangle]
@@ -3734,7 +3926,7 @@ pub unsafe extern "C" fn dc_msg_get_state(msg: *mut dc_msg_t) -> libc::c_int {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_state(msg) as libc::c_int
+    msg.rent(|m| message::dc_msg_get_state(m) as libc::c_int)
 }
 
 #[no_mangle]
@@ -3745,7 +3937,7 @@ pub unsafe extern "C" fn dc_msg_get_timestamp(msg: *mut dc_msg_t) -> i64 {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_timestamp(msg)
+    msg.rent(|m| message::dc_msg_get_timestamp(m))
 }
 
 #[no_mangle]
@@ -3756,7 +3948,7 @@ pub unsafe extern "C" fn dc_msg_get_received_timestamp(msg: *mut dc_msg_t) -> i6
     }
 
     let msg = &*msg;
-    message::dc_msg_get_received_timestamp(msg)
+    msg.rent(|m| message::dc_msg_get_received_timestamp(m))
 }
 
 #[no_mangle]
@@ -3767,7 +3959,7 @@ pub unsafe extern "C" fn dc_msg_get_sort_timestamp(msg: *mut dc_msg_t) -> i64 {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_sort_timestamp(msg)
+    msg.rent(|m| message::dc_msg_get_sort_timestamp(m))
 }
 
 #[no_mangle]
@@ -3778,7 +3970,7 @@ pub unsafe extern "C" fn dc_msg_get_text(msg: *mut dc_msg_t) -> *mut libc::c_cha
     }
 
     let msg = &*msg;
-    message::dc_msg_get_text(msg)
+    msg.rent(|m| message::dc_msg_get_text(m))
 }
 
 #[no_mangle]
@@ -3789,7 +3981,7 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
     }
 
     let msg = &*msg;
-    message::dc_msg_get_file(msg)
+    msg.rent(|m| message::dc_msg_get_file(m))
 }
 
 #[no_mangle]
@@ -3800,7 +3992,7 @@ pub unsafe extern "C" fn dc_msg_get_filename(msg: *mut dc_msg_t) -> *mut libc::c
     }
 
     let msg = &*msg;
-    message::dc_msg_get_filename(msg)
+    msg.rent(|m| message::dc_msg_get_filename(m))
 }
 
 #[no_mangle]
@@ -3811,7 +4003,7 @@ pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c
     }
 
     let msg = &*msg;
-    message::dc_msg_get_filemime(msg)
+    msg.rent(|m| message::dc_msg_get_filemime(m))
 }
 
 #[no_mangle]
@@ -3822,7 +4014,7 @@ pub unsafe extern "C" fn dc_msg_get_filebytes(msg: *mut dc_msg_t) -> u64 {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_filebytes(msg)
+    msg.rent(|m| message::dc_msg_get_filebytes(m))
 }
 
 #[no_mangle]
@@ -3833,7 +4025,7 @@ pub unsafe extern "C" fn dc_msg_get_width(msg: *mut dc_msg_t) -> libc::c_int {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_width(msg)
+    msg.rent(|m| message::dc_msg_get_width(m))
 }
 
 #[no_mangle]
@@ -3844,7 +4036,7 @@ pub unsafe extern "C" fn dc_msg_get_height(msg: *mut dc_msg_t) -> libc::c_int {
     }
 
     let msg = &*msg;
-    message::dc_msg_get_height(msg)
+    msg.rent(|m| message::dc_msg_get_height(m))
 }
 
 #[no_mangle]
@@ -3855,7 +4047,7 @@ pub unsafe extern "C" fn dc_msg_get_duration(msg: *mut dc_msg_t) -> libc::c_int 
     }
 
     let msg = &*msg;
-    message::dc_msg_get_duration(msg)
+    msg.rent(|m| message::dc_msg_get_duration(m))
 }
 
 #[no_mangle]
@@ -3866,9 +4058,10 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg_t) -> libc::c_i
     }
 
     let msg = &*msg;
-    message::dc_msg_get_showpadlock(msg)
+    msg.rent(|m| message::dc_msg_get_showpadlock(m))
 }
 
+// TODO: how does this work?
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_summary<'a>(
     msg: *mut dc_msg_t<'a>,
@@ -3878,13 +4071,22 @@ pub unsafe extern "C" fn dc_msg_get_summary<'a>(
         eprintln!("ignoring careless call to dc_msg_get_summary()");
         return ptr::null_mut();
     }
-    let chat = if chat.is_null() { None } else { Some(&*chat) };
-
-    let msg = &mut *msg;
-
-    let lot = message::dc_msg_get_summary(msg, chat);
+    let ffi_msg = &mut *msg;
+    // let lot = ffi_msg.rent_mut(|m| {
+    //     if chat.is_null() {
+    //         message::dc_msg_get_summary(m, None)
+    //     } else {
+    //         let ffi_chat = &*chat;
+    //         ffi_chat.rent(|c| message::dc_msg_get_summary(m, Some(c)))
+    //     }
+    // });
+    let lot = ffi_msg.rent_mut(|m| message::dc_msg_get_summary(m, None));
     Box::into_raw(Box::new(lot))
 }
+
+// fn msg_get_summary<'a>(msg: &'a MessageWrapper, chat: Option<&chat::Chat>) -> lot::Lot {
+//     msg.rent_mut(|m: &'a mut message::Message<'a>| message::dc_msg_get_summary(m, chat))
+// }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_summarytext(
@@ -3897,7 +4099,7 @@ pub unsafe extern "C" fn dc_msg_get_summarytext(
     }
 
     let msg = &mut *msg;
-    message::dc_msg_get_summarytext(msg, approx_characters.try_into().unwrap())
+    msg.rent_mut(|m| message::dc_msg_get_summarytext(m, approx_characters.try_into().unwrap()))
 }
 
 #[no_mangle]
@@ -3908,7 +4110,7 @@ pub unsafe extern "C" fn dc_msg_has_deviating_timestamp(msg: *mut dc_msg_t) -> l
     }
 
     let msg = &*msg;
-    message::dc_msg_has_deviating_timestamp(msg)
+    msg.rent(|m| message::dc_msg_has_deviating_timestamp(m))
 }
 
 #[no_mangle]
@@ -3919,7 +4121,7 @@ pub unsafe extern "C" fn dc_msg_has_location(msg: *mut dc_msg_t) -> libc::c_int 
     }
 
     let msg = &*msg;
-    message::dc_msg_has_location(msg) as libc::c_int
+    msg.rent(|m| message::dc_msg_has_location(m) as libc::c_int)
 }
 
 #[no_mangle]
@@ -3930,7 +4132,7 @@ pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg_t) -> libc::c_int {
     }
 
     let msg = &*msg;
-    message::dc_msg_is_sent(msg)
+    msg.rent(|m| message::dc_msg_is_sent(m))
 }
 
 #[no_mangle]
@@ -3941,7 +4143,7 @@ pub unsafe extern "C" fn dc_msg_is_starred(msg: *mut dc_msg_t) -> libc::c_int {
     }
 
     let msg = &*msg;
-    message::dc_msg_is_starred(msg).into()
+    msg.rent(|m| message::dc_msg_is_starred(m).into())
 }
 
 #[no_mangle]
@@ -3952,7 +4154,7 @@ pub unsafe extern "C" fn dc_msg_is_forwarded(msg: *mut dc_msg_t) -> libc::c_int 
     }
 
     let msg = &*msg;
-    message::dc_msg_is_forwarded(msg)
+    msg.rent(|m| message::dc_msg_is_forwarded(m))
 }
 
 #[no_mangle]
@@ -3963,7 +4165,7 @@ pub unsafe extern "C" fn dc_msg_is_info(msg: *mut dc_msg_t) -> libc::c_int {
     }
 
     let msg = &*msg;
-    message::dc_msg_is_info(msg)
+    msg.rent(|m| message::dc_msg_is_info(m))
 }
 
 #[no_mangle]
@@ -3974,7 +4176,7 @@ pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int
     }
 
     let msg = &*msg;
-    message::dc_msg_is_increation(msg)
+    msg.rent(|m| message::dc_msg_is_increation(m))
 }
 
 #[no_mangle]
@@ -3985,7 +4187,7 @@ pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg_t) -> libc::c_i
     }
 
     let msg = &*msg;
-    message::dc_msg_is_setupmessage(msg) as libc::c_int
+    msg.rent(|m| message::dc_msg_is_setupmessage(m) as libc::c_int)
 }
 
 #[no_mangle]
@@ -3996,7 +4198,7 @@ pub unsafe extern "C" fn dc_msg_get_setupcodebegin(msg: *mut dc_msg_t) -> *mut l
     }
 
     let msg = &*msg;
-    message::dc_msg_get_setupcodebegin(msg)
+    msg.rent(|m| message::dc_msg_get_setupcodebegin(m))
 }
 
 #[no_mangle]
@@ -4008,7 +4210,7 @@ pub unsafe extern "C" fn dc_msg_set_text(msg: *mut dc_msg_t, text: *mut libc::c_
 
     let msg = &mut *msg;
     // TODO: {text} equal to NULL is treated as "", which is strange. Does anyone rely on it?
-    message::dc_msg_set_text(msg, text)
+    msg.rent_mut(|m| message::dc_msg_set_text(m, text))
 }
 
 #[no_mangle]
@@ -4023,7 +4225,7 @@ pub unsafe extern "C" fn dc_msg_set_file(
     }
 
     let msg = &mut *msg;
-    message::dc_msg_set_file(msg, file, filemime)
+    msg.rent_mut(|m| message::dc_msg_set_file(m, file, filemime))
 }
 
 #[no_mangle]
@@ -4038,7 +4240,7 @@ pub unsafe extern "C" fn dc_msg_set_dimension(
     }
 
     let msg = &mut *msg;
-    message::dc_msg_set_dimension(msg, width, height)
+    msg.rent_mut(|m| message::dc_msg_set_dimension(m, width, height))
 }
 
 #[no_mangle]
@@ -4049,7 +4251,7 @@ pub unsafe extern "C" fn dc_msg_set_duration(msg: *mut dc_msg_t, duration: libc:
     }
 
     let msg = &mut *msg;
-    message::dc_msg_set_duration(msg, duration)
+    msg.rent_mut(|m| message::dc_msg_set_duration(m, duration))
 }
 
 #[no_mangle]
@@ -4064,7 +4266,7 @@ pub unsafe extern "C" fn dc_msg_set_location(
     }
 
     let msg = &mut *msg;
-    message::dc_msg_set_location(msg, latitude, longitude)
+    msg.rent_mut(|m| message::dc_msg_set_location(m, latitude, longitude))
 }
 
 #[no_mangle]
@@ -4080,13 +4282,10 @@ pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
     }
 
     let msg = &mut *msg;
-    message::dc_msg_latefiling_mediasize(msg, width, height, duration)
+    msg.rent_mut(|m| message::dc_msg_latefiling_mediasize(m, width, height, duration))
 }
 
 // dc_contact_t
-
-#[no_mangle]
-pub type dc_contact_t<'a> = contact::Contact<'a>;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_contact_unref(contact: *mut dc_contact_t) {
@@ -4107,7 +4306,7 @@ pub unsafe extern "C" fn dc_contact_get_id(contact: *mut dc_contact_t) -> u32 {
 
     let contact = &*contact;
 
-    contact.get_id()
+    contact.rent(|c| c.get_id())
 }
 
 #[no_mangle]
@@ -4119,7 +4318,7 @@ pub unsafe extern "C" fn dc_contact_get_addr(contact: *mut dc_contact_t) -> *mut
 
     let contact = &*contact;
 
-    contact.get_addr().strdup()
+    contact.rent(|c| c.get_addr().strdup())
 }
 
 #[no_mangle]
@@ -4131,7 +4330,7 @@ pub unsafe extern "C" fn dc_contact_get_name(contact: *mut dc_contact_t) -> *mut
 
     let contact = &*contact;
 
-    contact.get_name().strdup()
+    contact.rent(|c| c.get_name().strdup())
 }
 
 #[no_mangle]
@@ -4145,7 +4344,7 @@ pub unsafe extern "C" fn dc_contact_get_display_name(
 
     let contact = &*contact;
 
-    contact.get_display_name().strdup()
+    contact.rent(|c| c.get_display_name().strdup())
 }
 
 #[no_mangle]
@@ -4159,7 +4358,7 @@ pub unsafe extern "C" fn dc_contact_get_name_n_addr(
 
     let contact = &*contact;
 
-    contact.get_name_n_addr().strdup()
+    contact.rent(|c| c.get_name_n_addr().strdup())
 }
 
 #[no_mangle]
@@ -4173,7 +4372,7 @@ pub unsafe extern "C" fn dc_contact_get_first_name(
 
     let contact = &*contact;
 
-    contact.get_first_name().strdup()
+    contact.rent(|c| c.get_first_name().strdup())
 }
 
 #[no_mangle]
@@ -4187,10 +4386,11 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
 
     let contact = &*contact;
 
-    contact
-        .get_profile_image()
-        .map(|s| s.strdup())
-        .unwrap_or_else(|| std::ptr::null_mut())
+    contact.rent(|c| {
+        c.get_profile_image()
+            .map(|s| s.strdup())
+            .unwrap_or_else(|| std::ptr::null_mut())
+    })
 }
 
 #[no_mangle]
@@ -4202,7 +4402,7 @@ pub unsafe extern "C" fn dc_contact_get_color(contact: *mut dc_contact_t) -> u32
 
     let contact = &*contact;
 
-    contact.get_color()
+    contact.rent(|c| c.get_color())
 }
 
 #[no_mangle]
@@ -4214,7 +4414,7 @@ pub unsafe extern "C" fn dc_contact_is_blocked(contact: *mut dc_contact_t) -> li
 
     let contact = &*contact;
 
-    contact.is_blocked() as libc::c_int
+    contact.rent(|c| c.is_blocked() as libc::c_int)
 }
 
 #[no_mangle]
@@ -4226,7 +4426,7 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
 
     let contact = &*contact;
 
-    contact.is_verified() as libc::c_int
+    contact.rent(|c| c.is_verified() as libc::c_int)
 }
 
 // dc_lot_t
