@@ -2633,13 +2633,6 @@ int             dc_chat_is_self_talk         (const dc_chat_t* chat);
  * @param chat The chat object.
  * @return 1=chat verified, 0=chat is not verified
  */
-int dc_chat_is_verified(const dc_chat_t* chat)
-{
-	if (chat==NULL || chat->magic!=DC_CHAT_MAGIC) {
-		return 0;
-	}
-	return (chat->type==DC_CHAT_TYPE_VERIFIED_GROUP);
-}
 int             dc_chat_is_verified          (const dc_chat_t* chat);
 
 
