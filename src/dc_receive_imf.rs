@@ -1761,7 +1761,7 @@ unsafe fn check_verified_properties(
         }
     };
 
-    if 0 == mimeparser.e2ee_helper.encrypted {
+    if mimeparser.e2ee_helper.encrypted {
         verify_fail("This message is not encrypted".into());
         return 0;
     }

@@ -504,7 +504,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
-                            if 0 != mimeparser.e2ee_helper.encrypted {
+                            if mimeparser.e2ee_helper.encrypted {
                                 b"No valid signature.\x00" as *const u8 as *const libc::c_char
                             } else {
                                 b"Not encrypted.\x00" as *const u8 as *const libc::c_char
@@ -943,7 +943,7 @@ unsafe fn encrypted_and_signed(
     mimeparser: &dc_mimeparser_t,
     expected_fingerprint: impl AsRef<str>,
 ) -> bool {
-    if 0 == mimeparser.e2ee_helper.encrypted {
+    if !mimeparser.e2ee_helper.encrypted {
         warn!(mimeparser.context, 0, "Message not encrypted.",);
         return false;
     }
