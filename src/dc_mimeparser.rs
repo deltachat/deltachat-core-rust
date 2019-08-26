@@ -43,7 +43,6 @@ pub struct dc_mimepart_t {
 /* *
  * @class dc_mimeparser_t
  */
-#[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub struct dc_mimeparser_t<'a> {
     pub parts: Vec<dc_mimepart_t>,
@@ -54,7 +53,7 @@ pub struct dc_mimeparser_t<'a> {
     pub subject: *mut libc::c_char,
     pub is_send_by_messenger: bool,
     pub decrypting_failed: libc::c_int,
-    pub e2ee_helper: dc_e2ee_helper_t,
+    pub e2ee_helper: E2eeHelper,
     pub is_forwarded: libc::c_int,
     pub context: &'a Context,
     pub reports: Vec<*mut mailmime>,
@@ -109,7 +108,7 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     mimeparser.is_forwarded = 0i32;
     mimeparser.reports.clear();
     mimeparser.decrypting_failed = 0i32;
-    dc_e2ee_thanks(&mut mimeparser.e2ee_helper);
+    mimeparser.e2ee_helper.thanks();
 
     mimeparser.location_kml = None;
     mimeparser.message_kml = None;
@@ -135,14 +134,11 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
         &mut mimeparser.mimeroot,
     );
     if r == MAILIMF_NO_ERROR as libc::c_int && !mimeparser.mimeroot.is_null() {
-        dc_e2ee_decrypt(
-            mimeparser.context,
-            mimeparser.mimeroot,
-            &mut mimeparser.e2ee_helper,
-        );
-        let mimeparser_ref = &mut mimeparser;
-        dc_mimeparser_parse_mime_recursive(mimeparser_ref, mimeparser_ref.mimeroot);
-        let field: *mut mailimf_field = dc_mimeparser_lookup_field(&mut mimeparser, "Subject");
+        mimeparser
+            .e2ee_helper
+            .decrypt(mimeparser.context, mimeparser.mimeroot);
+        dc_mimeparser_parse_mime_recursive(&mut mimeparser, mimeparser.mimeroot);
+        let field: *mut mailimf_field = dc_mimeparser_lookup_field(&mimeparser, "Subject");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
             mimeparser.subject = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)
         }
@@ -1361,9 +1357,9 @@ unsafe fn do_add_single_file_part(
 }
 
 unsafe fn do_add_single_part(parser: &mut dc_mimeparser_t, mut part: dc_mimepart_t) {
-    if 0 != (*parser).e2ee_helper.encrypted && (*parser).e2ee_helper.signatures.len() > 0 {
+    if (*parser).e2ee_helper.encrypted && (*parser).e2ee_helper.signatures.len() > 0 {
         part.param.set_int(Param::GuranteeE2ee, 1);
-    } else if 0 != (*parser).e2ee_helper.encrypted {
+    } else if (*parser).e2ee_helper.encrypted {
         part.param.set_int(Param::ErroneousE2ee, 0x2);
     }
     parser.parts.push(part);
@@ -1818,19 +1814,22 @@ mod tests {
             let mut mimeparser = dc_mimeparser_parse(&context.ctx, &raw[..]);
 
             assert_eq!(
-                as_str(mimeparser.subject as *const libc::c_char),
+                &to_string(mimeparser.subject as *const libc::c_char),
                 "inner-subject",
             );
 
             let mut of: *mut mailimf_optional_field =
                 dc_mimeparser_lookup_optional_field(&mimeparser, "X-Special-A");
-            assert_eq!(as_str((*of).fld_value as *const libc::c_char), "special-a",);
+            assert_eq!(
+                &to_string((*of).fld_value as *const libc::c_char),
+                "special-a",
+            );
 
             of = dc_mimeparser_lookup_optional_field(&mimeparser, "Foo");
-            assert_eq!(as_str((*of).fld_value as *const libc::c_char), "Bar",);
+            assert_eq!(&to_string((*of).fld_value as *const libc::c_char), "Bar",);
 
             of = dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Version");
-            assert_eq!(as_str((*of).fld_value as *const libc::c_char), "1.0",);
+            assert_eq!(&to_string((*of).fld_value as *const libc::c_char), "1.0",);
             assert_eq!(mimeparser.parts.len(), 1);
 
             dc_mimeparser_unref(&mut mimeparser);
