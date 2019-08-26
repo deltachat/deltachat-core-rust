@@ -13,7 +13,7 @@ use deltachat::dc_receive_imf::*;
 use deltachat::dc_tools::*;
 use deltachat::error::Error;
 use deltachat::job::*;
-use deltachat::location::*;
+use deltachat::location;
 use deltachat::lot::LotState;
 use deltachat::message::*;
 use deltachat::peerstate::*;
@@ -652,7 +652,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     );
                 }
             }
-            if dc_is_sending_locations_to_chat(context, 0 as uint32_t) {
+            if location::is_sending_locations_to_chat(context, 0 as uint32_t) {
                 info!(context, 0, "Location streaming enabled.");
             }
             println!("{} chats", cnt);
@@ -778,14 +778,17 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             println!(
                 "{} contacts\nLocation streaming: {}",
                 contacts.len(),
-                dc_is_sending_locations_to_chat(context, sel_chat.as_ref().unwrap().get_id()),
+                location::is_sending_locations_to_chat(
+                    context,
+                    sel_chat.as_ref().unwrap().get_id()
+                ),
             );
         }
         "getlocations" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
 
             let contact_id = arg1.parse().unwrap_or_default();
-            let locations = dc_get_locations(
+            let locations = location::get_range(
                 context,
                 sel_chat.as_ref().unwrap().get_id(),
                 contact_id,
@@ -819,7 +822,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "No timeout given.");
 
             let seconds = arg1.parse()?;
-            dc_send_locations_to_chat(context, sel_chat.as_ref().unwrap().get_id(), seconds);
+            location::send_locations_to_chat(context, sel_chat.as_ref().unwrap().get_id(), seconds);
             println!(
                 "Locations will be sent to Chat#{} for {} seconds. Use 'setlocation <lat> <lng>' to play around.",
                 sel_chat.as_ref().unwrap().get_id(),
@@ -834,7 +837,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let latitude = arg1.parse()?;
             let longitude = arg2.parse()?;
 
-            let continue_streaming = dc_set_location(context, latitude, longitude, 0.);
+            let continue_streaming = location::set(context, latitude, longitude, 0.);
             if 0 != continue_streaming {
                 println!("Success, streaming should be continued.");
             } else {
@@ -842,7 +845,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "dellocations" => {
-            dc_delete_all_locations(context);
+            location::delete_all(context)?;
         }
         "send" => {
             ensure!(sel_chat.is_some(), "No chat selected.");

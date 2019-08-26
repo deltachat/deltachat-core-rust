@@ -1043,7 +1043,7 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    location::dc_send_locations_to_chat(context, chat_id, seconds as i64)
+    location::send_locations_to_chat(context, chat_id, seconds as i64)
 }
 
 #[no_mangle]
@@ -1054,7 +1054,7 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
     assert!(!context.is_null());
     let context = &*context;
 
-    location::dc_is_sending_locations_to_chat(context, chat_id) as libc::c_int
+    location::is_sending_locations_to_chat(context, chat_id) as libc::c_int
 }
 
 #[no_mangle]
@@ -1067,7 +1067,7 @@ pub unsafe extern "C" fn dc_set_location(
     assert!(!context.is_null());
     let context = &*context;
 
-    location::dc_set_location(context, latitude, longitude, accuracy)
+    location::set(context, latitude, longitude, accuracy)
 }
 
 #[no_mangle]
@@ -1081,7 +1081,7 @@ pub unsafe extern "C" fn dc_get_locations(
     assert!(!context.is_null());
     let context = &*context;
 
-    let res = location::dc_get_locations(
+    let res = location::get_range(
         context,
         chat_id,
         contact_id,
@@ -1096,7 +1096,7 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
     assert!(!context.is_null());
     let context = &*context;
 
-    location::dc_delete_all_locations(context);
+    location::delete_all(context);
 }
 
 // dc_array_t

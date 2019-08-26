@@ -47,15 +47,147 @@ impl Kml {
     pub fn new() -> Self {
         Default::default()
     }
+
+    pub fn parse(context: &Context, content: impl AsRef<str>) -> Result<Self, Error> {
+        ensure!(
+            content.as_ref().len() <= (1 * 1024 * 1024),
+            "A kml-files with {} bytes is larger than reasonably expected.",
+            content.as_ref().len()
+        );
+
+        let mut reader = quick_xml::Reader::from_str(content.as_ref());
+        reader.trim_text(true);
+
+        let mut kml = Kml::new();
+        kml.locations = Some(Vec::with_capacity(100));
+
+        let mut buf = Vec::new();
+
+        loop {
+            match reader.read_event(&mut buf) {
+                Ok(quick_xml::events::Event::Start(ref e)) => kml.starttag_cb(e, &reader),
+                Ok(quick_xml::events::Event::End(ref e)) => kml.endtag_cb(e),
+                Ok(quick_xml::events::Event::Text(ref e)) => kml.text_cb(e, &reader),
+                Err(e) => {
+                    error!(
+                        context,
+                        0,
+                        "Location parsing: Error at position {}: {:?}",
+                        reader.buffer_position(),
+                        e
+                    );
+                }
+                Ok(quick_xml::events::Event::Eof) => break,
+                _ => (),
+            }
+            buf.clear();
+        }
+
+        Ok(kml)
+    }
+
+    fn text_cb<B: std::io::BufRead>(&mut self, event: &BytesText, reader: &quick_xml::Reader<B>) {
+        if 0 != self.tag & (0x4 | 0x10) {
+            let val = event.unescape_and_decode(reader).unwrap_or_default();
+
+            let val = val
+                .replace("\n", "")
+                .replace("\r", "")
+                .replace("\t", "")
+                .replace(" ", "");
+
+            if 0 != self.tag & 0x4 && val.len() >= 19 {
+                // YYYY-MM-DDTHH:MM:SSZ
+                // 0   4  7  10 13 16 19
+                match chrono::NaiveDateTime::parse_from_str(&val, "%Y-%m-%dT%H:%M:%SZ") {
+                    Ok(res) => {
+                        self.curr.timestamp = res.timestamp();
+                        if self.curr.timestamp > time() {
+                            self.curr.timestamp = time();
+                        }
+                    }
+                    Err(_err) => {
+                        self.curr.timestamp = time();
+                    }
+                }
+            } else if 0 != self.tag & 0x10 {
+                let parts = val.splitn(2, ',').collect::<Vec<_>>();
+                if parts.len() == 2 {
+                    self.curr.longitude = parts[0].parse().unwrap_or_default();
+                    self.curr.latitude = parts[1].parse().unwrap_or_default();
+                }
+            }
+        }
+    }
+
+    fn endtag_cb(&mut self, event: &BytesEnd) {
+        let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+
+        if tag == "placemark" {
+            if 0 != self.tag & 0x1
+                && 0 != self.curr.timestamp
+                && 0. != self.curr.latitude
+                && 0. != self.curr.longitude
+            {
+                if let Some(ref mut locations) = self.locations {
+                    locations.push(std::mem::replace(&mut self.curr, Location::new()));
+                }
+            }
+            self.tag = 0
+        };
+    }
+
+    fn starttag_cb<B: std::io::BufRead>(
+        &mut self,
+        event: &BytesStart,
+        reader: &quick_xml::Reader<B>,
+    ) {
+        let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
+        if tag == "document" {
+            if let Some(addr) = event.attributes().find(|attr| {
+                attr.as_ref()
+                    .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "addr")
+                    .unwrap_or_default()
+            }) {
+                self.addr = addr.unwrap().unescape_and_decode_value(reader).ok();
+            }
+        } else if tag == "placemark" {
+            self.tag = 0x1;
+            self.curr.timestamp = 0;
+            self.curr.latitude = 0.0;
+            self.curr.longitude = 0.0;
+            self.curr.accuracy = 0.0
+        } else if tag == "timestamp" && 0 != self.tag & 0x1 {
+            self.tag = 0x1 | 0x2
+        } else if tag == "when" && 0 != self.tag & 0x2 {
+            self.tag = 0x1 | 0x2 | 0x4
+        } else if tag == "point" && 0 != self.tag & 0x1 {
+            self.tag = 0x1 | 0x8
+        } else if tag == "coordinates" && 0 != self.tag & 0x8 {
+            self.tag = 0x1 | 0x8 | 0x10;
+            if let Some(acc) = event.attributes().find(|attr| {
+                attr.as_ref()
+                    .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "accuracy")
+                    .unwrap_or_default()
+            }) {
+                let v = acc
+                    .unwrap()
+                    .unescape_and_decode_value(reader)
+                    .unwrap_or_default();
+
+                self.curr.accuracy = v.trim().parse().unwrap_or_default();
+            }
+        }
+    }
 }
 
 // location streaming
-pub fn dc_send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
+pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
     let now = time();
     let mut msg: Message;
     let is_sending_locations_before: bool;
     if !(seconds < 0 || chat_id <= 9i32 as libc::c_uint) {
-        is_sending_locations_before = dc_is_sending_locations_to_chat(context, chat_id);
+        is_sending_locations_before = is_sending_locations_to_chat(context, chat_id);
         if sql::execute(
             context,
             &context.sql,
@@ -101,9 +233,6 @@ pub fn dc_send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) 
     }
 }
 
-/*******************************************************************************
- * job to send locations out to all chats that want them
- ******************************************************************************/
 #[allow(non_snake_case)]
 fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: i32) {
     if 0 != flags & 0x1 || !job_action_exists(context, Action::MaybeSendLocations) {
@@ -111,7 +240,7 @@ fn schedule_MAYBE_SEND_LOCATIONS(context: &Context, flags: i32) {
     };
 }
 
-pub fn dc_is_sending_locations_to_chat(context: &Context, chat_id: u32) -> bool {
+pub fn is_sending_locations_to_chat(context: &Context, chat_id: u32) -> bool {
     context
         .sql
         .exists(
@@ -121,12 +250,7 @@ pub fn dc_is_sending_locations_to_chat(context: &Context, chat_id: u32) -> bool 
         .unwrap_or_default()
 }
 
-pub fn dc_set_location(
-    context: &Context,
-    latitude: f64,
-    longitude: f64,
-    accuracy: f64,
-) -> libc::c_int {
+pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> libc::c_int {
     if latitude == 0.0 && longitude == 0.0 {
         return 1;
     }
@@ -162,7 +286,7 @@ pub fn dc_set_location(
     ).unwrap_or_default()
 }
 
-pub fn dc_get_locations(
+pub fn get_range(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
@@ -229,15 +353,13 @@ fn is_marker(txt: &str) -> bool {
     txt.len() == 1 && txt.chars().next().unwrap() != ' '
 }
 
-pub fn dc_delete_all_locations(context: &Context) -> bool {
-    if sql::execute(context, &context.sql, "DELETE FROM locations;", params![]).is_err() {
-        return false;
-    }
+pub fn delete_all(context: &Context) -> Result<(), Error> {
+    sql::execute(context, &context.sql, "DELETE FROM locations;", params![])?;
     context.call_cb(Event::LOCATION_CHANGED, 0, 0);
-    true
+    Ok(())
 }
 
-pub fn dc_get_location_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> {
+pub fn get_kml(context: &Context, chat_id: u32) -> Result<(String, u32), Error> {
     let now = time();
     let mut location_count = 0;
     let mut ret = String::new();
@@ -313,7 +435,7 @@ fn get_kml_timestamp(utc: i64) -> String {
         .to_string()
 }
 
-pub fn dc_get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> String {
+pub fn get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> String {
     format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
          <kml xmlns=\"http://www.opengis.net/kml/2.2\">\n\
@@ -330,222 +452,84 @@ pub fn dc_get_message_kml(timestamp: i64, latitude: f64, longitude: f64) -> Stri
     )
 }
 
-pub fn dc_set_kml_sent_timestamp(context: &Context, chat_id: u32, timestamp: i64) -> bool {
+pub fn set_kml_sent_timestamp(
+    context: &Context,
+    chat_id: u32,
+    timestamp: i64,
+) -> Result<(), Error> {
     sql::execute(
         context,
         &context.sql,
         "UPDATE chats SET locations_last_sent=? WHERE id=?;",
         params![timestamp, chat_id as i32],
-    )
-    .is_ok()
+    )?;
+
+    Ok(())
 }
 
-pub fn dc_set_msg_location_id(context: &Context, msg_id: u32, location_id: u32) -> bool {
+pub fn set_msg_location_id(context: &Context, msg_id: u32, location_id: u32) -> Result<(), Error> {
     sql::execute(
         context,
         &context.sql,
         "UPDATE msgs SET location_id=? WHERE id=?;",
         params![location_id, msg_id as i32],
-    )
-    .is_ok()
+    )?;
+
+    Ok(())
 }
 
-pub fn dc_save_locations(
+pub fn save(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
-    locations_opt: &Option<Vec<Location>>,
+    locations: &[Location],
     independent: i32,
-) -> u32 {
-    if chat_id <= 9 || locations_opt.is_none() {
-        return 0;
-    }
+) -> Result<u32, Error> {
+    ensure!(chat_id > 9, "Invalid chat id");
+    context.sql.prepare2(
+        "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
+        "INSERT INTO locations\
+         (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
+         VALUES (?,?,?,?,?,?,?);",
+        |mut stmt_test, mut stmt_insert, conn| {
+            let mut newest_timestamp = 0;
+            let mut newest_location_id = 0;
 
-    let locations = locations_opt.as_ref().unwrap();
-    context
-        .sql
-        .prepare2(
-            "SELECT id FROM locations WHERE timestamp=? AND from_id=?",
-            "INSERT INTO locations\
-             (timestamp, from_id, chat_id, latitude, longitude, accuracy, independent) \
-             VALUES (?,?,?,?,?,?,?);",
-            |mut stmt_test, mut stmt_insert, conn| {
-                let mut newest_timestamp = 0;
-                let mut newest_location_id = 0;
+            for location in locations {
+                let exists = stmt_test.exists(params![location.timestamp, contact_id as i32])?;
 
-                for location in locations {
-                    let exists =
-                        stmt_test.exists(params![location.timestamp, contact_id as i32])?;
+                if 0 != independent || !exists {
+                    stmt_insert.execute(params![
+                        location.timestamp,
+                        contact_id as i32,
+                        chat_id as i32,
+                        location.latitude,
+                        location.longitude,
+                        location.accuracy,
+                        independent,
+                    ])?;
 
-                    if 0 != independent || !exists {
-                        stmt_insert.execute(params![
+                    if location.timestamp > newest_timestamp {
+                        newest_timestamp = location.timestamp;
+                        newest_location_id = sql::get_rowid2_with_conn(
+                            context,
+                            conn,
+                            "locations",
+                            "timestamp",
                             location.timestamp,
+                            "from_id",
                             contact_id as i32,
-                            chat_id as i32,
-                            location.latitude,
-                            location.longitude,
-                            location.accuracy,
-                            independent,
-                        ])?;
-
-                        if location.timestamp > newest_timestamp {
-                            newest_timestamp = location.timestamp;
-                            newest_location_id = sql::get_rowid2_with_conn(
-                                context,
-                                conn,
-                                "locations",
-                                "timestamp",
-                                location.timestamp,
-                                "from_id",
-                                contact_id as i32,
-                            );
-                        }
+                        );
                     }
                 }
-                Ok(newest_location_id)
-            },
-        )
-        .unwrap_or_default()
-}
-
-pub fn dc_kml_parse(context: &Context, content: impl AsRef<str>) -> Result<Kml, Error> {
-    ensure!(
-        content.as_ref().len() <= (1 * 1024 * 1024),
-        "A kml-files with {} bytes is larger than reasonably expected.",
-        content.as_ref().len()
-    );
-
-    let mut reader = quick_xml::Reader::from_str(content.as_ref());
-    reader.trim_text(true);
-
-    let mut kml = Kml::new();
-    kml.locations = Some(Vec::with_capacity(100));
-
-    let mut buf = Vec::new();
-
-    loop {
-        match reader.read_event(&mut buf) {
-            Ok(quick_xml::events::Event::Start(ref e)) => kml_starttag_cb(e, &mut kml, &reader),
-            Ok(quick_xml::events::Event::End(ref e)) => kml_endtag_cb(e, &mut kml),
-            Ok(quick_xml::events::Event::Text(ref e)) => kml_text_cb(e, &mut kml, &reader),
-            Err(e) => {
-                error!(
-                    context,
-                    0,
-                    "Location parsing: Error at position {}: {:?}",
-                    reader.buffer_position(),
-                    e
-                );
             }
-            Ok(quick_xml::events::Event::Eof) => break,
-            _ => (),
-        }
-        buf.clear();
-    }
-
-    Ok(kml)
-}
-
-fn kml_text_cb<B: std::io::BufRead>(
-    event: &BytesText,
-    kml: &mut Kml,
-    reader: &quick_xml::Reader<B>,
-) {
-    if 0 != kml.tag & (0x4 | 0x10) {
-        let val = event.unescape_and_decode(reader).unwrap_or_default();
-
-        let val = val
-            .replace("\n", "")
-            .replace("\r", "")
-            .replace("\t", "")
-            .replace(" ", "");
-
-        if 0 != kml.tag & 0x4 && val.len() >= 19 {
-            // YYYY-MM-DDTHH:MM:SSZ
-            // 0   4  7  10 13 16 19
-            match chrono::NaiveDateTime::parse_from_str(&val, "%Y-%m-%dT%H:%M:%SZ") {
-                Ok(res) => {
-                    kml.curr.timestamp = res.timestamp();
-                    if kml.curr.timestamp > time() {
-                        kml.curr.timestamp = time();
-                    }
-                }
-                Err(_err) => {
-                    kml.curr.timestamp = time();
-                }
-            }
-        } else if 0 != kml.tag & 0x10 {
-            let parts = val.splitn(2, ',').collect::<Vec<_>>();
-            if parts.len() == 2 {
-                kml.curr.longitude = parts[0].parse().unwrap_or_default();
-                kml.curr.latitude = parts[1].parse().unwrap_or_default();
-            }
-        }
-    }
-}
-
-fn kml_endtag_cb(event: &BytesEnd, kml: &mut Kml) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-
-    if tag == "placemark" {
-        if 0 != kml.tag & 0x1
-            && 0 != kml.curr.timestamp
-            && 0. != kml.curr.latitude
-            && 0. != kml.curr.longitude
-        {
-            if let Some(ref mut locations) = kml.locations {
-                locations.push(std::mem::replace(&mut kml.curr, Location::new()));
-            }
-        }
-        kml.tag = 0
-    };
-}
-
-fn kml_starttag_cb<B: std::io::BufRead>(
-    event: &BytesStart,
-    kml: &mut Kml,
-    reader: &quick_xml::Reader<B>,
-) {
-    let tag = String::from_utf8_lossy(event.name()).trim().to_lowercase();
-    if tag == "document" {
-        if let Some(addr) = event.attributes().find(|attr| {
-            attr.as_ref()
-                .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "addr")
-                .unwrap_or_default()
-        }) {
-            kml.addr = addr.unwrap().unescape_and_decode_value(reader).ok();
-        }
-    } else if tag == "placemark" {
-        kml.tag = 0x1;
-        kml.curr.timestamp = 0;
-        kml.curr.latitude = 0.0;
-        kml.curr.longitude = 0.0;
-        kml.curr.accuracy = 0.0
-    } else if tag == "timestamp" && 0 != kml.tag & 0x1 {
-        kml.tag = 0x1 | 0x2
-    } else if tag == "when" && 0 != kml.tag & 0x2 {
-        kml.tag = 0x1 | 0x2 | 0x4
-    } else if tag == "point" && 0 != kml.tag & 0x1 {
-        kml.tag = 0x1 | 0x8
-    } else if tag == "coordinates" && 0 != kml.tag & 0x8 {
-        kml.tag = 0x1 | 0x8 | 0x10;
-        if let Some(acc) = event.attributes().find(|attr| {
-            attr.as_ref()
-                .map(|a| String::from_utf8_lossy(a.key).trim().to_lowercase() == "accuracy")
-                .unwrap_or_default()
-        }) {
-            let v = acc
-                .unwrap()
-                .unescape_and_decode_value(reader)
-                .unwrap_or_default();
-
-            kml.curr.accuracy = v.trim().parse().unwrap_or_default();
-        }
-    }
+            Ok(newest_location_id)
+        },
+    )
 }
 
 #[allow(non_snake_case)]
-pub fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
+pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
     let now = time();
     let mut continue_streaming: libc::c_int = 1;
     info!(
@@ -626,7 +610,7 @@ pub fn dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
 }
 
 #[allow(non_snake_case)]
-pub fn dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut Job) {
+pub fn job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context: &Context, job: &mut Job) {
     // this function is called when location-streaming _might_ have ended for a chat.
     // the function checks, if location-streaming is really ended;
     // if so, a device-message is added if not yet done.
@@ -667,13 +651,13 @@ mod tests {
     use crate::test_utils::dummy_context;
 
     #[test]
-    fn test_dc_kml_parse() {
+    fn test_kml_parse() {
         let context = dummy_context();
 
         let xml =
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n<Document addr=\"user@example.org\">\n<Placemark><Timestamp><when>2019-03-06T21:09:57Z</when></Timestamp><Point><coordinates accuracy=\"32.000000\">9.423110,53.790302</coordinates></Point></Placemark>\n<PlaceMARK>\n<Timestamp><WHEN > \n\t2018-12-13T22:11:12Z\t</WHEN></Timestamp><Point><coordinates aCCuracy=\"2.500000\"> 19.423110 \t , \n 63.790302\n </coordinates></Point></PlaceMARK>\n</Document>\n</kml>";
 
-        let kml = dc_kml_parse(&context.ctx, &xml).expect("parsing failed");
+        let kml = Kml::parse(&context.ctx, &xml).expect("parsing failed");
 
         assert!(kml.addr.is_some());
         assert_eq!(kml.addr.as_ref().unwrap(), "user@example.org",);

@@ -19,7 +19,7 @@ use crate::dc_e2ee::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::error::Error;
-use crate::location::*;
+use crate::location;
 use crate::message::*;
 use crate::param::*;
 use crate::stock::StockMessage;
@@ -883,8 +883,11 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                             .param
                             .get_float(Param::SetLongitude)
                             .unwrap_or_default();
-                        let kml_file =
-                            dc_get_message_kml(factory.msg.timestamp_sort, latitude, longitude);
+                        let kml_file = location::get_message_kml(
+                            factory.msg.timestamp_sort,
+                            latitude,
+                            longitude,
+                        );
                         let content_type = mailmime_content_new_with_str(
                             b"application/vnd.google-earth.kml+xml\x00" as *const u8
                                 as *const libc::c_char,
@@ -899,9 +902,12 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                         mailmime_smart_add_part(message, kml_mime_part);
                     }
 
-                    if dc_is_sending_locations_to_chat(factory.msg.context, factory.msg.chat_id) {
+                    if location::is_sending_locations_to_chat(
+                        factory.msg.context,
+                        factory.msg.chat_id,
+                    ) {
                         if let Ok((kml_file, last_added_location_id)) =
-                            dc_get_location_kml(factory.msg.context, factory.msg.chat_id)
+                            location::get_kml(factory.msg.context, factory.msg.chat_id)
                         {
                             let content_type = mailmime_content_new_with_str(
                                 b"application/vnd.google-earth.kml+xml\x00" as *const u8

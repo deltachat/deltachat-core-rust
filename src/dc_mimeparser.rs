@@ -17,7 +17,7 @@ use crate::dc_e2ee::*;
 use crate::dc_simplify::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
-use crate::location::*;
+use crate::location;
 use crate::param::*;
 use crate::stock::StockMessage;
 use crate::types::*;
@@ -57,8 +57,8 @@ pub struct dc_mimeparser_t<'a> {
     pub context: &'a Context,
     pub reports: Vec<*mut mailmime>,
     pub is_system_message: libc::c_int,
-    pub location_kml: Option<Kml>,
-    pub message_kml: Option<Kml>,
+    pub location_kml: Option<location::Kml>,
+    pub message_kml: Option<location::Kml>,
 }
 
 // deprecated: flag to switch generation of compound messages on and off.
@@ -1297,7 +1297,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     let d =
                                         dc_null_terminate(decoded_data, decoded_data_bytes as i32);
                                     mimeparser.location_kml =
-                                        dc_kml_parse(mimeparser.context, as_str(d)).ok();
+                                        location::Kml::parse(mimeparser.context, as_str(d)).ok();
                                     free(d.cast());
                                 }
                             } else if strncmp(
@@ -1317,7 +1317,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     let d =
                                         dc_null_terminate(decoded_data, decoded_data_bytes as i32);
                                     mimeparser.message_kml =
-                                        dc_kml_parse(mimeparser.context, as_str(d)).ok();
+                                        location::Kml::parse(mimeparser.context, as_str(d)).ok();
                                     free(d.cast());
                                 }
                             } else {
