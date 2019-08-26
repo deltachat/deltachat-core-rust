@@ -204,19 +204,18 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             }
         }
         if mimeparser.is_send_by_messenger && mimeparser.parts.len() == 2 {
-            let need_drop: bool;
-            {
+            let need_drop = {
                 let textpart = &mimeparser.parts[0];
                 let filepart = &mimeparser.parts[1];
-                need_drop = textpart.type_0 == 10i32
+                textpart.type_0 == 10i32
                     && (filepart.type_0 == 20i32
                         || filepart.type_0 == 21i32
                         || filepart.type_0 == 40i32
                         || filepart.type_0 == 41i32
                         || filepart.type_0 == 50i32
                         || filepart.type_0 == 60i32)
-                    && 0 == filepart.is_meta;
-            }
+                    && 0 == filepart.is_meta
+            };
 
             if need_drop {
                 let mut filepart = mimeparser.parts.swap_remove(1);
