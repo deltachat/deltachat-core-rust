@@ -445,7 +445,7 @@ unsafe fn add_parts(
 
         if *chat_id == 0 {
             // check if the message belongs to a mailing list
-            if 0 != dc_mimeparser_is_mailinglist_message(mime_parser) {
+            if dc_mimeparser_is_mailinglist_message(mime_parser) {
                 *chat_id = 3;
                 info!(
                     context,
@@ -1258,7 +1258,7 @@ unsafe fn create_or_lookup_group(
         .get_config(context, "configured_addr")
         .unwrap_or_default();
     if chat_id == 0
-            && 0 == dc_mimeparser_is_mailinglist_message(mime_parser)
+            && !dc_mimeparser_is_mailinglist_message(mime_parser)
             && !grpid.is_empty()
             && !grpname.is_null()
             // otherwise, a pending "quit" message may pop up
@@ -1493,7 +1493,7 @@ unsafe fn create_or_lookup_adhoc_group(
     };
 
     // build member list from the given ids
-    if to_ids.is_empty() || 0 != dc_mimeparser_is_mailinglist_message(mime_parser) {
+    if to_ids.is_empty() || dc_mimeparser_is_mailinglist_message(mime_parser) {
         // too few contacts or a mailinglist
         cleanup(
             grpname,

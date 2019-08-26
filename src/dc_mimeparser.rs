@@ -1453,10 +1453,9 @@ pub unsafe fn mailmime_transfer_decode(
     1
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_mimeparser_is_mailinglist_message(mimeparser: &dc_mimeparser_t) -> libc::c_int {
+pub unsafe fn dc_mimeparser_is_mailinglist_message(mimeparser: &dc_mimeparser_t) -> bool {
     if !dc_mimeparser_lookup_field(&mimeparser, "List-Id").is_null() {
-        return 1i32;
+        return true;
     }
     let precedence: *mut mailimf_optional_field =
         dc_mimeparser_lookup_optional_field(mimeparser, "Precedence");
@@ -1470,11 +1469,11 @@ pub unsafe fn dc_mimeparser_is_mailinglist_message(mimeparser: &dc_mimeparser_t)
                 b"bulk\x00" as *const u8 as *const libc::c_char,
             ) == 0i32
         {
-            return 1i32;
+            return true;
         }
     }
 
-    0
+    false
 }
 
 pub unsafe fn dc_mimeparser_sender_equals_recipient(mimeparser: &dc_mimeparser_t) -> libc::c_int {
