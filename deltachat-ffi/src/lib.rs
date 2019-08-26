@@ -721,7 +721,7 @@ pub unsafe extern "C" fn dc_delete_msgs(
 ) {
     assert!(!context.is_null());
     assert!(!msg_ids.is_null());
-    assert!(msg_cnt > 0);
+    assert!(msg_cnt >= 0);
     let context = &*context;
 
     message::dc_delete_msgs(context, msg_ids, msg_cnt)
@@ -736,7 +736,7 @@ pub unsafe extern "C" fn dc_forward_msgs(
 ) {
     assert!(!context.is_null());
     assert!(!msg_ids.is_null());
-    assert!(msg_cnt > 0);
+    assert!(msg_cnt >= 0);
     assert!(chat_id > constants::DC_CHAT_ID_LAST_SPECIAL as u32);
     let context = &*context;
 
@@ -759,7 +759,7 @@ pub unsafe extern "C" fn dc_markseen_msgs(
 ) {
     assert!(!context.is_null());
     assert!(!msg_ids.is_null());
-    assert!(msg_cnt > 0);
+    assert!(msg_cnt >= 0);
     let context = &*context;
 
     message::dc_markseen_msgs(context, msg_ids, msg_cnt as usize);
@@ -774,7 +774,7 @@ pub unsafe extern "C" fn dc_star_msgs(
 ) {
     assert!(!context.is_null());
     assert!(!msg_ids.is_null());
-    assert!(msg_cnt > 0);
+    assert!(msg_cnt >= 0);
 
     let context = &*context;
 
