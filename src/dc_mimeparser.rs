@@ -1781,6 +1781,7 @@ pub unsafe fn mailimf_find_optional_field(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
     use std::ffi::CStr;
 
     #[test]
@@ -1853,6 +1854,32 @@ mod tests {
             );
 
             mailmime_free(mime);
+        }
+    }
+    #[test]
+    fn test_dc_mimeparser_with_context() {
+        unsafe {
+            let context = dummy_context();
+            let raw = b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00";
+            let mut mimeparser = dc_mimeparser_parse(&context.ctx, &raw[..]);
+
+            assert_eq!(
+                as_str(mimeparser.subject as *const libc::c_char),
+                "inner-subject",
+            );
+
+            let mut of: *mut mailimf_optional_field =
+                dc_mimeparser_lookup_optional_field(&mimeparser, "X-Special-A");
+            assert_eq!(as_str((*of).fld_value as *const libc::c_char), "special-a",);
+
+            of = dc_mimeparser_lookup_optional_field(&mimeparser, "Foo");
+            assert_eq!(as_str((*of).fld_value as *const libc::c_char), "Bar",);
+
+            of = dc_mimeparser_lookup_optional_field(&mimeparser, "Chat-Version");
+            assert_eq!(as_str((*of).fld_value as *const libc::c_char), "1.0",);
+            assert_eq!(mimeparser.parts.len(), 1);
+
+            dc_mimeparser_unref(&mut mimeparser);
         }
     }
 }
