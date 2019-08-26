@@ -1,4 +1,4 @@
-use crate::dc_location::Location;
+use crate::location::Location;
 use crate::types::*;
 
 /* * the structure behind dc_array_t */
