@@ -362,7 +362,7 @@ unsafe fn add_parts(
     }
 
     // 1 or 0 for yes/no
-    msgrmsg = mime_parser.is_send_by_messenger;
+    msgrmsg = mime_parser.is_send_by_messenger as _;
     if msgrmsg == 0 && 0 != dc_is_reply_to_messenger_message(context, mime_parser) {
         // 2=no, but is reply to messenger message
         msgrmsg = 2;
@@ -908,11 +908,11 @@ unsafe fn handle_reports(
                 }
             }
 
-            if 0 != mime_parser.is_send_by_messenger || 0 != mdn_consumed {
+            if mime_parser.is_send_by_messenger || 0 != mdn_consumed {
                 let mut param = Params::new();
                 param.set(Param::ServerFolder, server_folder.as_ref());
                 param.set_int(Param::ServerUid, server_uid as i32);
-                if 0 != mime_parser.is_send_by_messenger
+                if mime_parser.is_send_by_messenger
                     && 0 != context
                         .sql
                         .get_config_int(context, "mvbox_move")
@@ -1433,7 +1433,7 @@ unsafe fn create_or_lookup_group(
 
     // check the number of receivers -
     // the only critical situation is if the user hits "Reply" instead of "Reply all" in a non-messenger-client */
-    if to_ids_cnt == 1 && mime_parser.is_send_by_messenger == 0 {
+    if to_ids_cnt == 1 && !mime_parser.is_send_by_messenger {
         let is_contact_cnt = chat::get_chat_contact_cnt(context, chat_id);
         if is_contact_cnt > 3 {
             // to_ids_cnt==1 may be "From: A, To: B, SELF" as SELF is not counted in to_ids_cnt.
