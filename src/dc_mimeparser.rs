@@ -135,7 +135,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
         &mut index,
         &mut mimeparser.mimeroot,
     );
-    if !(r != MAILIMF_NO_ERROR as libc::c_int || mimeparser.mimeroot.is_null()) {
+    if r == MAILIMF_NO_ERROR as libc::c_int && !mimeparser.mimeroot.is_null() {
         dc_e2ee_decrypt(
             mimeparser.context,
             mimeparser.mimeroot,
