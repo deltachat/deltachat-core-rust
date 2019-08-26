@@ -1025,7 +1025,7 @@ unsafe fn contains_report(mime: *mut mailmime) -> bool {
 ///
 /// If this succeeds you are also guaranteed that the
 /// [Config::ConfiguredAddr] is configured, this address is returned.
-pub fn dc_ensure_secret_key_exists(context: &Context) -> Result<String> {
+pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
     let self_addr = context
         .get_config(Config::ConfiguredAddr)
         .ok_or(format_err!(concat!(
@@ -1049,13 +1049,13 @@ mod tests {
         fn test_prexisting() {
             let t = dummy_context();
             let test_addr = configure_alice_keypair(&t.ctx);
-            assert_eq!(dc_ensure_secret_key_exists(&t.ctx).unwrap(), test_addr);
+            assert_eq!(ensure_secret_key_exists(&t.ctx).unwrap(), test_addr);
         }
 
         #[test]
         fn test_not_configured() {
             let t = dummy_context();
-            assert!(dc_ensure_secret_key_exists(&t.ctx).is_err());
+            assert!(ensure_secret_key_exists(&t.ctx).is_err());
         }
     }
 

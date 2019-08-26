@@ -15,10 +15,10 @@ use mmime::other::*;
 use crate::constants::Viewtype;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_e2ee::*;
 use crate::dc_simplify::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::e2ee::*;
 use crate::location;
 use crate::param::*;
 use crate::stock::StockMessage;
@@ -137,7 +137,8 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
         mimeparser
             .e2ee_helper
             .decrypt(mimeparser.context, mimeparser.mimeroot);
-        dc_mimeparser_parse_mime_recursive(&mut mimeparser, mimeparser.mimeroot);
+        let mimeparser_ref = &mut mimeparser;
+        dc_mimeparser_parse_mime_recursive(mimeparser_ref, mimeparser_ref.mimeroot);
         let field: *mut mailimf_field = dc_mimeparser_lookup_field(&mimeparser, "Subject");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
             mimeparser.subject = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)

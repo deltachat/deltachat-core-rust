@@ -30,6 +30,7 @@ pub mod configure;
 pub mod constants;
 pub mod contact;
 pub mod context;
+mod e2ee;
 mod imap;
 pub mod job;
 mod job_thread;
@@ -51,7 +52,6 @@ pub mod x;
 
 pub mod dc_array;
 mod dc_dehtml;
-mod dc_e2ee;
 pub mod dc_imex;
 mod dc_loginparam;
 mod dc_mimefactory;
