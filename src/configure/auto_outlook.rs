@@ -126,7 +126,7 @@ pub unsafe fn outlk_autodiscover(
 unsafe fn outlk_clean_config(mut outlk_ad: *mut outlk_autodiscover_t) {
     for i in 0..6 {
         free((*outlk_ad).config[i] as *mut libc::c_void);
-        (*outlk_ad).config[i] = 0 as *mut libc::c_char;
+        (*outlk_ad).config[i] = ptr::null_mut();
     }
 }
 

@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::ptr;
 use std::str::FromStr;
 
 use deltachat::chat::{self, Chat};
@@ -94,7 +95,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
 unsafe fn dc_poke_eml_file(context: &Context, filename: *const libc::c_char) -> libc::c_int {
     /* mainly for testing, may be called by dc_import_spec() */
     let mut success: libc::c_int = 0i32;
-    let mut data: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut data: *mut libc::c_char = ptr::null_mut();
     let mut data_bytes: size_t = 0;
     if !(dc_read_file(
         context,
@@ -128,7 +129,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     let ok_to_continue;
     let mut success: libc::c_int = 0;
     let real_spec: *mut libc::c_char;
-    let mut suffix: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut suffix: *mut libc::c_char = ptr::null_mut();
     let mut read_cnt: libc::c_int = 0;
 
     /* if `spec` is given, remember it for later usage; if it is not given, try to use the last one */
@@ -526,17 +527,17 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             }
         }
         "export-backup" => {
-            dc_imex(context, 11, context.get_blobdir(), 0 as *const libc::c_char);
+            dc_imex(context, 11, context.get_blobdir(), ptr::null());
         }
         "import-backup" => {
             ensure!(!arg1.is_empty(), "Argument <backup-file> missing.");
-            dc_imex(context, 12, arg1_c, 0 as *const libc::c_char);
+            dc_imex(context, 12, arg1_c, ptr::null());
         }
         "export-keys" => {
-            dc_imex(context, 1, context.get_blobdir(), 0 as *const libc::c_char);
+            dc_imex(context, 1, context.get_blobdir(), ptr::null());
         }
         "import-keys" => {
-            dc_imex(context, 2, context.get_blobdir(), 0 as *const libc::c_char);
+            dc_imex(context, 2, context.get_blobdir(), ptr::null());
         }
         "export-setup" => {
             let setup_code = dc_create_setup_code(context);
@@ -871,7 +872,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     Viewtype::File
                 },
             );
-            dc_msg_set_file(&mut msg, arg1_c, 0 as *const libc::c_char);
+            dc_msg_set_file(&mut msg, arg1_c, ptr::null());
             dc_msg_set_text(&mut msg, arg2_c);
             chat::send_msg(context, sel_chat.as_ref().unwrap().get_id(), &mut msg)?;
         }

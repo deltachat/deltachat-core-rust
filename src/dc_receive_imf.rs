@@ -696,7 +696,7 @@ unsafe fn add_parts(
                     ])?;
 
                     free(txt_raw as *mut libc::c_void);
-                    txt_raw = 0 as *mut libc::c_char;
+                    txt_raw = ptr::null_mut();
                     *insert_msg_id = sql::get_rowid_with_conn(
                         context,
                         conn,
@@ -797,7 +797,7 @@ unsafe fn handle_reports(
                 {
                     (*(*(*report_root).mm_data.mm_multipart.mm_mp_list).first).next
                 } else {
-                    0 as *mut clistcell
+                    ptr::null_mut()
                 }
                 .is_null()
                 {
@@ -807,11 +807,11 @@ unsafe fn handle_reports(
                     {
                         (*(*(*report_root).mm_data.mm_multipart.mm_mp_list).first).next
                     } else {
-                        0 as *mut clistcell
+                        ptr::null_mut()
                     })
                     .data
                 } else {
-                    0 as *mut libc::c_void
+                    ptr::null_mut()
                 }) as *mut mailmime;
 
                 if !report_data.is_null()
@@ -1334,7 +1334,7 @@ unsafe fn create_or_lookup_group(
     }
     if !X_MrGrpImageChanged.is_null() {
         let mut ok = 0;
-        let mut grpimage = 0 as *mut libc::c_char;
+        let mut grpimage = ptr::null_mut();
         if strcmp(
             X_MrGrpImageChanged,
             b"0\x00" as *const u8 as *const libc::c_char,
@@ -1388,7 +1388,7 @@ unsafe fn create_or_lookup_group(
         let skip = if !X_MrRemoveFromGrp.is_null() {
             X_MrRemoveFromGrp
         } else {
-            0 as *mut libc::c_char
+            ptr::null_mut()
         };
         sql::execute(
             context,
@@ -1470,7 +1470,7 @@ unsafe fn create_or_lookup_adhoc_group(
     // group matching the to-list or if we can create one
     let mut chat_id = 0;
     let mut chat_id_blocked = Blocked::Not;
-    let mut grpname = 0 as *mut libc::c_char;
+    let mut grpname = ptr::null_mut();
 
     let cleanup = |grpname: *mut libc::c_char,
                    ret_chat_id: *mut uint32_t,
@@ -1908,7 +1908,7 @@ unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist)
                 (if !cur.is_null() {
                     (*cur).data
                 } else {
-                    0 as *mut libc::c_void
+                    ptr::null_mut()
                 }) as *const libc::c_char,
             ) {
                 return 1;
@@ -1985,7 +1985,7 @@ unsafe fn is_msgrmsg_rfc724_mid_in_list(context: &Context, mid_list: *const clis
                 (if !cur.is_null() {
                     (*cur).data
                 } else {
-                    0 as *mut libc::c_void
+                    ptr::null_mut()
                 }) as *const libc::c_char,
             ) {
                 return 1;
@@ -2029,7 +2029,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
         let adr: *mut mailimf_address = (if !cur.is_null() {
             (*cur).data
         } else {
-            0 as *mut libc::c_void
+            ptr::null_mut()
         }) as *mut mailimf_address;
         if !adr.is_null() {
             if (*adr).ad_type == MAILIMF_ADDRESS_MAILBOX as libc::c_int {
@@ -2060,7 +2060,7 @@ unsafe fn dc_add_or_lookup_contacts_by_address_list(
         cur = if !cur.is_null() {
             (*cur).next
         } else {
-            0 as *mut clistcell
+            ptr::null_mut()
         }
     }
 }
@@ -2080,7 +2080,7 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
         let mb: *mut mailimf_mailbox = (if !cur.is_null() {
             (*cur).data
         } else {
-            0 as *mut libc::c_void
+            ptr::null_mut()
         }) as *mut mailimf_mailbox;
         if !mb.is_null() {
             add_or_lookup_contact_by_addr(
@@ -2095,7 +2095,7 @@ unsafe fn dc_add_or_lookup_contacts_by_mailbox_list(
         cur = if !cur.is_null() {
             (*cur).next
         } else {
-            0 as *mut clistcell
+            ptr::null_mut()
         }
     }
 }

@@ -1,4 +1,5 @@
 use std::ffi::{CStr, CString};
+use std::ptr;
 
 use charset::Charset;
 use mmime::mailmime_decode::*;
@@ -79,7 +80,7 @@ fn hex_2_int(ch: libc::c_char) -> libc::c_char {
 
 pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut ok_to_continue = true;
-    let mut ret_str: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut ret_str: *mut libc::c_char = ptr::null_mut();
     let mut cur: *const libc::c_char = to_encode;
     let mmapstr: *mut MMAPString = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
     if to_encode.is_null() || mmapstr.is_null() {
@@ -270,9 +271,9 @@ unsafe fn to_be_quoted(word: *const libc::c_char, size: size_t) -> bool {
 
 pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_char {
     if in_0.is_null() {
-        return 0 as *mut libc::c_char;
+        return ptr::null_mut();
     }
-    let mut out: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut out: *mut libc::c_char = ptr::null_mut();
     let mut cur_token: size_t = 0i32 as size_t;
     let r: libc::c_int = mailmime_encoded_phrase_parse(
         b"iso-8859-1\x00" as *const u8 as *const libc::c_char,
@@ -616,8 +617,8 @@ pub unsafe fn dc_encode_ext_header(to_encode: *const libc::c_char) -> *mut libc:
 }
 
 pub unsafe fn dc_decode_ext_header(to_decode: *const libc::c_char) -> *mut libc::c_char {
-    let mut decoded: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut charset: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut decoded: *mut libc::c_char = ptr::null_mut();
+    let mut charset: *mut libc::c_char = ptr::null_mut();
     let mut p2: *const libc::c_char;
     if !to_decode.is_null() {
         // get char set

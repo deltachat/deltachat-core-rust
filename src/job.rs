@@ -727,7 +727,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
                 clist_insert_after(
                     mimefactory.recipients_names,
                     (*mimefactory.recipients_names).last,
-                    0 as *mut libc::c_void,
+                    ptr::null_mut(),
                 );
                 clist_insert_after(
                     mimefactory.recipients_addr,
@@ -1020,7 +1020,7 @@ fn send_mdn(context: &Context, msg_id: uint32_t) {
 fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_t) -> libc::c_int {
     let pathNfilename: *mut libc::c_char;
     let mut success: libc::c_int = 0i32;
-    let mut recipients: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut recipients: *mut libc::c_char = ptr::null_mut();
     let mut param = Params::new();
     pathNfilename = unsafe {
         dc_get_fine_pathNfilename(

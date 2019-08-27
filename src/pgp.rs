@@ -33,7 +33,7 @@ pub unsafe fn dc_split_armored_data(
     let mut headerline: *mut libc::c_char = ptr::null_mut();
     let mut base64: *mut libc::c_char = ptr::null_mut();
     if !ret_headerline.is_null() {
-        *ret_headerline = 0 as *const libc::c_char
+        *ret_headerline = ptr::null()
     }
     if !ret_setupcodebegin.is_null() {
         *ret_setupcodebegin = ptr::null_mut();

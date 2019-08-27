@@ -991,9 +991,9 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 if dc_split_armored_data(
                     buf2,
                     &mut buf2_headerline,
-                    0 as *mut *const libc::c_char,
-                    0 as *mut *const libc::c_char,
-                    0 as *mut *const libc::c_char,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
                 ) && strcmp(
                     buf2_headerline,
                     b"-----BEGIN PGP PUBLIC KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,

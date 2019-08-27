@@ -1424,7 +1424,7 @@ mod tests {
             );
             assert_ne!(str_a, str_a_copy);
 
-            let str_a = 0 as *const u8 as *const libc::c_char;
+            let str_a = ptr::null();
             let str_a_copy = dc_strdup_keep_null(str_a);
             assert_eq!(str_a.is_null(), true);
             assert_eq!(str_a_copy.is_null(), true);

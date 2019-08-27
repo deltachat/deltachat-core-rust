@@ -187,7 +187,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                     clist_insert_after(
                         factory.recipients_names,
                         (*factory.recipients_names).last,
-                        0 as *mut libc::c_void,
+                        ptr::null_mut(),
                     );
                     clist_insert_after(
                         factory.recipients_addr,
@@ -318,7 +318,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         (if !contact.get_authname().is_empty() {
             contact.get_authname().strdup()
         } else {
-            0 as *mut libc::c_char
+            ptr::null_mut()
         }) as *mut libc::c_void,
     );
     clist_insert_after(
@@ -339,10 +339,10 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
     let subject: *mut mailimf_subject;
     let mut ok_to_continue = true;
     let imf_fields: *mut mailimf_fields;
-    let mut message: *mut mailmime = 0 as *mut mailmime;
-    let mut message_text: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut message_text2: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut subject_str: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut message: *mut mailmime = ptr::null_mut();
+    let mut message_text: *mut libc::c_char = ptr::null_mut();
+    let mut message_text2: *mut libc::c_char = ptr::null_mut();
+    let mut subject_str: *mut libc::c_char = ptr::null_mut();
     let mut afwd_email: libc::c_int = 0;
     let mut col: libc::c_int = 0;
     let mut success: libc::c_int = 0;
@@ -355,7 +355,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
     let mut grpimage = None;
     let mut e2ee_helper = dc_e2ee_helper_t {
         encryption_successfull: 0,
-        cdata_to_free: 0 as *mut libc::c_void,
+        cdata_to_free: ptr::null_mut(),
         encrypted: 0,
         signatures: Default::default(),
         gossipped_addr: Default::default(),
@@ -377,12 +377,12 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 if !factory.from_displayname.is_null() {
                     dc_encode_header_words(factory.from_displayname)
                 } else {
-                    0 as *mut libc::c_char
+                    ptr::null_mut()
                 },
                 dc_strdup(factory.from_addr),
             ),
         );
-        let mut to: *mut mailimf_address_list = 0 as *mut mailimf_address_list;
+        let mut to: *mut mailimf_address_list = ptr::null_mut();
         if !factory.recipients_names.is_null()
             && !factory.recipients_addr.is_null()
             && (*factory.recipients_addr).count > 0
@@ -396,12 +396,12 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 let name: *const libc::c_char = (if !iter1.is_null() {
                     (*iter1).data
                 } else {
-                    0 as *mut libc::c_void
+                    ptr::null_mut()
                 }) as *const libc::c_char;
                 let addr: *const libc::c_char = (if !iter2.is_null() {
                     (*iter2).data
                 } else {
-                    0 as *mut libc::c_void
+                    ptr::null_mut()
                 }) as *const libc::c_char;
                 mailimf_address_list_add(
                     to,
@@ -411,33 +411,33 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                             if !name.is_null() {
                                 dc_encode_header_words(name)
                             } else {
-                                0 as *mut libc::c_char
+                                ptr::null_mut()
                             },
                             dc_strdup(addr),
                         ),
-                        0 as *mut mailimf_group,
+                        ptr::null_mut(),
                     ),
                 );
                 iter1 = if !iter1.is_null() {
                     (*iter1).next
                 } else {
-                    0 as *mut clistcell
+                    ptr::null_mut()
                 };
                 iter2 = if !iter2.is_null() {
                     (*iter2).next
                 } else {
-                    0 as *mut clistcell
+                    ptr::null_mut()
                 }
             }
         }
-        let mut references_list: *mut clist = 0 as *mut clist;
+        let mut references_list: *mut clist = ptr::null_mut();
         if !factory.references.is_null() && 0 != *factory.references.offset(0isize) as libc::c_int {
             references_list = dc_str_to_clist(
                 factory.references,
                 b" \x00" as *const u8 as *const libc::c_char,
             )
         }
-        let mut in_reply_to_list: *mut clist = 0 as *mut clist;
+        let mut in_reply_to_list: *mut clist = ptr::null_mut();
         if !factory.in_reply_to.is_null() && 0 != *factory.in_reply_to.offset(0isize) as libc::c_int
         {
             in_reply_to_list = dc_str_to_clist(
@@ -448,15 +448,15 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
         imf_fields = mailimf_fields_new_with_data_all(
             mailimf_get_date(factory.timestamp as i64),
             from,
-            0 as *mut mailimf_mailbox,
-            0 as *mut mailimf_address_list,
+            ptr::null_mut(),
+            ptr::null_mut(),
             to,
-            0 as *mut mailimf_address_list,
-            0 as *mut mailimf_address_list,
+            ptr::null_mut(),
+            ptr::null_mut(),
             dc_strdup(factory.rfc724_mid),
             in_reply_to_list,
             references_list,
-            0 as *mut libc::c_char,
+            ptr::null_mut(),
         );
 
         let os_name = &factory.context.os_name;
@@ -503,8 +503,8 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
             /* Render a normal message
              *********************************************************************/
             let chat = factory.chat.as_ref().unwrap();
-            let mut meta_part: *mut mailmime = 0 as *mut mailmime;
-            let mut placeholdertext: *mut libc::c_char = 0 as *mut libc::c_char;
+            let mut meta_part: *mut mailmime = ptr::null_mut();
+            let mut placeholdertext: *mut libc::c_char = ptr::null_mut();
             if chat.typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
@@ -736,7 +736,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 meta.type_0 = Viewtype::Image;
                 meta.param.set(Param::File, grpimage);
 
-                let mut filename_as_sent = 0 as *mut libc::c_char;
+                let mut filename_as_sent = ptr::null_mut();
                 meta_part = build_body_file(
                     &meta,
                     b"group-image\x00" as *const u8 as *const libc::c_char,
@@ -785,7 +785,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 }
             }
             afwd_email = factory.msg.param.exists(Param::Forwarded) as libc::c_int;
-            let mut fwdhint = 0 as *mut libc::c_char;
+            let mut fwdhint = ptr::null_mut();
             if 0 != afwd_email {
                 fwdhint = dc_strdup(
                     b"---------- Forwarded message ----------\r\nFrom: Delta Chat\r\n\r\n\x00"
@@ -850,11 +850,8 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     free(error as *mut libc::c_void);
                     ok_to_continue = false;
                 } else {
-                    let file_part: *mut mailmime = build_body_file(
-                        &factory.msg,
-                        0 as *const libc::c_char,
-                        0 as *mut *mut libc::c_char,
-                    );
+                    let file_part: *mut mailmime =
+                        build_body_file(&factory.msg, ptr::null(), ptr::null_mut());
                     if !file_part.is_null() {
                         mailmime_smart_add_part(message, file_part);
                         parts += 1
@@ -1011,28 +1008,28 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 imf_fields,
                 mailimf_field_new(
                     MAILIMF_FIELD_SUBJECT as libc::c_int,
-                    0 as *mut mailimf_return,
-                    0 as *mut mailimf_orig_date,
-                    0 as *mut mailimf_from,
-                    0 as *mut mailimf_sender,
-                    0 as *mut mailimf_to,
-                    0 as *mut mailimf_cc,
-                    0 as *mut mailimf_bcc,
-                    0 as *mut mailimf_message_id,
-                    0 as *mut mailimf_orig_date,
-                    0 as *mut mailimf_from,
-                    0 as *mut mailimf_sender,
-                    0 as *mut mailimf_reply_to,
-                    0 as *mut mailimf_to,
-                    0 as *mut mailimf_cc,
-                    0 as *mut mailimf_bcc,
-                    0 as *mut mailimf_message_id,
-                    0 as *mut mailimf_in_reply_to,
-                    0 as *mut mailimf_references,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
                     subject,
-                    0 as *mut mailimf_comments,
-                    0 as *mut mailimf_keywords,
-                    0 as *mut mailimf_optional_field,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
                 ),
             );
             if force_plaintext != 2 {
@@ -1151,7 +1148,7 @@ unsafe fn build_body_file(
 ) -> *mut mailmime {
     let needs_ext: bool;
     let mime_fields: *mut mailmime_fields;
-    let mut mime_sub: *mut mailmime = 0 as *mut mailmime;
+    let mut mime_sub: *mut mailmime = ptr::null_mut();
     let content: *mut mailmime_content;
     let path_filename = msg.param.get(Param::File);
 
@@ -1161,8 +1158,8 @@ unsafe fn build_body_file(
         .map(|s| s.strdup())
         .unwrap_or_else(|| std::ptr::null_mut());
 
-    let mut filename_to_send = 0 as *mut libc::c_char;
-    let mut filename_encoded = 0 as *mut libc::c_char;
+    let mut filename_to_send = ptr::null_mut();
+    let mut filename_encoded = ptr::null_mut();
 
     if let Some(ref path_filename) = path_filename {
         let suffix = dc_get_filesuffix_lc(path_filename);
@@ -1232,7 +1229,7 @@ unsafe fn build_body_file(
             mime_fields = mailmime_fields_new_filename(
                 MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
                 if needs_ext {
-                    0 as *mut libc::c_char
+                    ptr::null_mut()
                 } else {
                     dc_strdup(filename_to_send)
                 },
@@ -1244,7 +1241,7 @@ unsafe fn build_body_file(
                     let field: *mut mailmime_field = (if !cur1.is_null() {
                         (*cur1).data
                     } else {
-                        0 as *mut libc::c_void
+                        ptr::null_mut()
                     }) as *mut mailmime_field;
                     if !field.is_null()
                         && (*field).fld_type == MAILMIME_FIELD_DISPOSITION as libc::c_int
@@ -1256,10 +1253,10 @@ unsafe fn build_body_file(
                             let parm: *mut mailmime_disposition_parm =
                                 mailmime_disposition_parm_new(
                                     MAILMIME_DISPOSITION_PARM_PARAMETER as libc::c_int,
-                                    0 as *mut libc::c_char,
-                                    0 as *mut libc::c_char,
-                                    0 as *mut libc::c_char,
-                                    0 as *mut libc::c_char,
+                                    ptr::null_mut(),
+                                    ptr::null_mut(),
+                                    ptr::null_mut(),
+                                    ptr::null_mut(),
                                     0 as size_t,
                                     mailmime_parameter_new(
                                         strdup(
@@ -1281,7 +1278,7 @@ unsafe fn build_body_file(
                         cur1 = if !cur1.is_null() {
                             (*cur1).next
                         } else {
-                            0 as *mut clistcell
+                            ptr::null_mut()
                         }
                     }
                 }

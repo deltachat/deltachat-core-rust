@@ -2,6 +2,7 @@
 
 use std::collections::HashSet;
 use std::ffi::CString;
+use std::ptr;
 
 use tempfile::{tempdir, TempDir};
 
@@ -68,7 +69,7 @@ unsafe fn stress_functions(context: &Context) {
         assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
         assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
 
-        let mut buf: *mut libc::c_void = 0 as *mut libc::c_void;
+        let mut buf: *mut libc::c_void = ptr::null_mut();
         let mut buf_bytes: size_t = 0;
 
         assert_eq!(
@@ -161,10 +162,10 @@ unsafe fn stress_functions(context: &Context) {
     assert!(res.contains(" configured_server_flags "));
 
     let mut buf_0: *mut libc::c_char;
-    let mut headerline: *const libc::c_char = 0 as *const libc::c_char;
-    let mut setupcodebegin: *const libc::c_char = 0 as *const libc::c_char;
-    let mut preferencrypt: *const libc::c_char = 0 as *const libc::c_char;
-    let mut base64: *const libc::c_char = 0 as *const libc::c_char;
+    let mut headerline: *const libc::c_char = ptr::null();
+    let mut setupcodebegin: *const libc::c_char = ptr::null();
+    let mut preferencrypt: *const libc::c_char = ptr::null();
+    let mut base64: *const libc::c_char = ptr::null();
     buf_0 = strdup(
         b"-----BEGIN PGP MESSAGE-----\nNoVal:\n\ndata\n-----END PGP MESSAGE-----\x00" as *const u8
             as *const libc::c_char,
@@ -173,7 +174,7 @@ unsafe fn stress_functions(context: &Context) {
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
         &mut base64,
     );
     assert!(ok);
@@ -198,7 +199,7 @@ unsafe fn stress_functions(context: &Context) {
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
         &mut base64,
     );
 
@@ -225,7 +226,7 @@ unsafe fn stress_functions(context: &Context) {
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
         &mut base64,
     );
 
@@ -250,7 +251,7 @@ unsafe fn stress_functions(context: &Context) {
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
         &mut base64,
     );
 
@@ -263,7 +264,7 @@ unsafe fn stress_functions(context: &Context) {
         buf_0,
         &mut headerline,
         &mut setupcodebegin,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
         &mut base64,
     );
     assert!(ok);
@@ -296,7 +297,7 @@ unsafe fn stress_functions(context: &Context) {
     let ok = dc_split_armored_data(
         buf_0,
         &mut headerline,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
         &mut preferencrypt,
         &mut base64,
     );
@@ -352,16 +353,16 @@ unsafe fn stress_functions(context: &Context) {
     );
     free(norm as *mut libc::c_void);
     let mut buf_1: *mut libc::c_char;
-    let mut headerline_0: *const libc::c_char = 0 as *const libc::c_char;
-    let mut setupcodebegin_0: *const libc::c_char = 0 as *const libc::c_char;
-    let mut preferencrypt_0: *const libc::c_char = 0 as *const libc::c_char;
+    let mut headerline_0: *const libc::c_char = ptr::null();
+    let mut setupcodebegin_0: *const libc::c_char = ptr::null();
+    let mut preferencrypt_0: *const libc::c_char = ptr::null();
     buf_1 = strdup(S_EM_SETUPFILE);
     assert!(dc_split_armored_data(
         buf_1,
         &mut headerline_0,
         &mut setupcodebegin_0,
         &mut preferencrypt_0,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
     ));
     assert!(!headerline_0.is_null());
     assert_eq!(
@@ -387,7 +388,7 @@ unsafe fn stress_functions(context: &Context) {
         &mut headerline_0,
         &mut setupcodebegin_0,
         &mut preferencrypt_0,
-        0 as *mut *const libc::c_char,
+        ptr::null_mut(),
     ));
     assert!(!headerline_0.is_null());
     assert_eq!(
@@ -415,16 +416,16 @@ unsafe fn stress_functions(context: &Context) {
     // let setupcode_c = CString::yolo(setupcode.clone());
     // let setupfile = dc_render_setup_file(context, &setupcode).unwrap();
     // let setupfile_c = CString::yolo(setupfile);
-    // let mut headerline_2: *const libc::c_char = 0 as *const libc::c_char;
+    // let mut headerline_2: *const libc::c_char = ptr::null();
     // let payload = dc_decrypt_setup_file(context, setupcode_c.as_ptr(), setupfile_c.as_ptr());
 
     // assert!(payload.is_null());
     // assert!(!dc_split_armored_data(
     //     payload,
     //     &mut headerline_2,
-    //     0 as *mut *const libc::c_char,
-    //     0 as *mut *const libc::c_char,
-    //     0 as *mut *const libc::c_char,
+    //     ptr::null_mut(),
+    //     ptr::null_mut(),
+    //     ptr::null_mut(),
     // ));
     // assert!(!headerline_2.is_null());
     // assert_eq!(
