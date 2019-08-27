@@ -34,7 +34,7 @@ pub struct dc_mimepart_t {
     pub type_0: Viewtype,
     pub is_meta: libc::c_int,
     pub int_mimetype: libc::c_int,
-    pub msg: *mut libc::c_char,
+    pub msg: Option<String>,
     pub msg_raw: *mut libc::c_char,
     pub bytes: libc::c_int,
     pub param: Params,
@@ -116,8 +116,7 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
 }
 
 unsafe fn dc_mimepart_unref(mut mimepart: dc_mimepart_t) {
-    free(mimepart.msg as *mut libc::c_void);
-    mimepart.msg = 0 as *mut libc::c_char;
+    mimepart.msg = None;
     free(mimepart.msg_raw as *mut libc::c_void);
     mimepart.msg_raw = 0 as *mut libc::c_char;
 }
@@ -222,14 +221,11 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             if need_drop {
                 let mut filepart = mimeparser.parts.swap_remove(1);
 
-                // clear old one
-                free(filepart.msg as *mut libc::c_void);
-
                 // insert new one
-                filepart.msg = mimeparser.parts[0].msg;
+                filepart.msg = mimeparser.parts[0].msg.as_ref().map(|s| s.to_string());
 
                 // forget the one we use now
-                mimeparser.parts[0].msg = std::ptr::null_mut();
+                mimeparser.parts[0].msg = None;
 
                 // swap new with old
                 let old = std::mem::replace(&mut mimeparser.parts[0], filepart);
@@ -264,13 +260,15 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 if 0 != *subj.offset(0isize) {
                     for part in mimeparser.parts.iter_mut() {
                         if part.type_0 == Viewtype::Text {
+                            let msg_c = part.msg.as_ref().unwrap().strdup();
                             let new_txt: *mut libc::c_char = dc_mprintf(
                                 b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
                                 subj,
-                                part.msg,
+                                msg_c,
                             );
-                            free(part.msg as *mut libc::c_void);
-                            part.msg = new_txt;
+                            free(msg_c.cast());
+                            part.msg = Some(to_string(new_txt));
+                            free(new_txt.cast());
                             break;
                         }
                     }
@@ -356,9 +354,9 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
         let mut part_5 = dc_mimepart_new();
         part_5.type_0 = Viewtype::Text;
         if !mimeparser.subject.is_null() && !mimeparser.is_send_by_messenger {
-            part_5.msg = dc_strdup(mimeparser.subject)
+            part_5.msg = Some(to_string(mimeparser.subject));
         } else {
-            part_5.msg = dc_strdup(b"\x00" as *const u8 as *const libc::c_char)
+            part_5.msg = Some("".into());
         }
         mimeparser.parts.push(part_5);
     };
@@ -373,7 +371,7 @@ unsafe fn dc_mimepart_new() -> dc_mimepart_t {
         type_0: Viewtype::Unknown,
         is_meta: 0,
         int_mimetype: 0,
-        msg: std::ptr::null_mut(),
+        msg: None,
         msg_raw: std::ptr::null_mut(),
         bytes: 0,
         param: Params::new(),
@@ -602,18 +600,14 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                 40 => {
                     let mut part = dc_mimepart_new();
                     part.type_0 = Viewtype::Text;
-                    let msg_body = CString::new(
-                        mimeparser
-                            .context
-                            .stock_str(StockMessage::CantDecryptMsgBody)
-                            .as_ref(),
-                    )
-                    .unwrap();
-                    part.msg = dc_mprintf(
-                        b"[%s]\x00" as *const u8 as *const libc::c_char,
-                        msg_body.as_ptr(),
-                    );
-                    part.msg_raw = dc_strdup(part.msg);
+                    let msg_body = mimeparser
+                        .context
+                        .stock_str(StockMessage::CantDecryptMsgBody);
+
+                    let txt = format!("[{}]", msg_body);
+                    part.msg_raw = txt.strdup();
+                    part.msg = Some(txt);
+
                     mimeparser.parts.push(part);
                     any_part_added = 1i32;
                     mimeparser.decrypting_failed = 1i32
@@ -1126,7 +1120,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 let mut part = dc_mimepart_new();
                                 part.type_0 = Viewtype::Text;
                                 part.int_mimetype = mime_type;
-                                part.msg = simplified_txt.strdup();
+                                part.msg = Some(simplified_txt);
                                 part.msg_raw =
                                     strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
                                 do_add_single_part(mimeparser, part);
@@ -1657,8 +1651,7 @@ pub unsafe fn dc_mimeparser_repl_msg_by_error(
     }
     let part = &mut mimeparser.parts[0];
     part.type_0 = Viewtype::Text;
-    free(part.msg as *mut libc::c_void);
-    part.msg = dc_mprintf(b"[%s]\x00" as *const u8 as *const libc::c_char, error_msg);
+    part.msg = Some(format!("[{}]", to_string(error_msg)));
     for part in mimeparser.parts.drain(1..) {
         dc_mimepart_unref(part);
     }
