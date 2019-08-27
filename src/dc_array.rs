@@ -1,11 +1,11 @@
-use crate::dc_location::dc_location;
+use crate::location::Location;
 use crate::types::*;
 
 /* * the structure behind dc_array_t */
 #[derive(Clone)]
 #[allow(non_camel_case_types)]
 pub enum dc_array_t {
-    Locations(Vec<dc_location>),
+    Locations(Vec<Location>),
     Uint(Vec<u32>),
 }
 
@@ -27,7 +27,7 @@ impl dc_array_t {
         }
     }
 
-    pub fn add_location(&mut self, location: dc_location) {
+    pub fn add_location(&mut self, location: Location) {
         if let Self::Locations(array) = self {
             array.push(location)
         } else {
@@ -42,7 +42,7 @@ impl dc_array_t {
         }
     }
 
-    pub fn get_location(&self, index: usize) -> &dc_location {
+    pub fn get_location(&self, index: usize) -> &Location {
         if let Self::Locations(array) = self {
             &array[index]
         } else {
@@ -108,8 +108,8 @@ impl From<Vec<u32>> for dc_array_t {
     }
 }
 
-impl From<Vec<dc_location>> for dc_array_t {
-    fn from(array: Vec<dc_location>) -> Self {
+impl From<Vec<Location>> for dc_array_t {
+    fn from(array: Vec<Location>) -> Self {
         dc_array_t::Locations(array)
     }
 }

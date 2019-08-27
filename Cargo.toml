@@ -49,6 +49,7 @@ itertools = "0.8.0"
 image-meta = "0.1.0"
 quick-xml = "0.15.0"
 escaper = "0.1.0"
+bitflags = "1.1.0"
 
 [dev-dependencies]
 tempfile = "3.0"

@@ -14,7 +14,6 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
-use crate::dc_location::*;
 use crate::dc_mimeparser::*;
 use crate::dc_move::*;
 use crate::dc_securejoin::*;
@@ -22,6 +21,7 @@ use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::error::Result;
 use crate::job::*;
+use crate::location;
 use crate::message::*;
 use crate::param::*;
 use crate::peerstate::*;
@@ -938,36 +938,34 @@ unsafe fn save_locations(
     let mut send_event = false;
 
     if !mime_parser.message_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint {
-        let newest_location_id: uint32_t = dc_save_locations(
-            context,
-            chat_id,
-            from_id,
-            &mime_parser.message_kml.as_ref().unwrap().locations,
-            1,
-        );
+        let locations = &mime_parser.message_kml.as_ref().unwrap().locations;
+        let newest_location_id =
+            location::save(context, chat_id, from_id, locations, 1).unwrap_or_default();
         if 0 != newest_location_id && 0 == hidden {
-            dc_set_msg_location_id(context, insert_msg_id, newest_location_id);
-            location_id_written = true;
-            send_event = true;
+            if location::set_msg_location_id(context, insert_msg_id, newest_location_id).is_ok() {
+                location_id_written = true;
+                send_event = true;
+            }
         }
     }
 
     if !mime_parser.location_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL as libc::c_uint {
-        if !mime_parser.location_kml.as_ref().unwrap().addr.is_null() {
+        if let Some(ref addr) = mime_parser.location_kml.as_ref().unwrap().addr {
             if let Ok(contact) = Contact::get_by_id(context, from_id) {
                 if !contact.get_addr().is_empty()
-                    && contact.get_addr().to_lowercase()
-                        == as_str(mime_parser.location_kml.as_ref().unwrap().addr).to_lowercase()
+                    && contact.get_addr().to_lowercase() == addr.to_lowercase()
                 {
-                    let newest_location_id = dc_save_locations(
-                        context,
-                        chat_id,
-                        from_id,
-                        &mime_parser.location_kml.as_ref().unwrap().locations,
-                        0,
-                    );
+                    let locations = &mime_parser.location_kml.as_ref().unwrap().locations;
+                    let newest_location_id =
+                        location::save(context, chat_id, from_id, locations, 0).unwrap_or_default();
                     if newest_location_id != 0 && hidden == 0 && !location_id_written {
-                        dc_set_msg_location_id(context, insert_msg_id, newest_location_id);
+                        if let Err(err) = location::set_msg_location_id(
+                            context,
+                            insert_msg_id,
+                            newest_location_id,
+                        ) {
+                            error!(context, 0, "Failed to set msg_location_id: {:?}", err);
+                        }
                     }
                     send_event = true;
                 }

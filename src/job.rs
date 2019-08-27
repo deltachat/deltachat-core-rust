@@ -10,11 +10,11 @@ use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_imex::*;
-use crate::dc_location::*;
 use crate::dc_loginparam::*;
 use crate::dc_mimefactory::*;
 use crate::dc_tools::*;
 use crate::imap::*;
+use crate::location;
 use crate::message::*;
 use crate::param::*;
 use crate::sql;
@@ -739,13 +739,19 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
                 chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
-                dc_set_kml_sent_timestamp(context, mimefactory.msg.chat_id, time());
+                if let Err(err) =
+                    location::set_kml_sent_timestamp(context, mimefactory.msg.chat_id, time())
+                {
+                    error!(context, 0, "Failed to set kml sent_timestamp: {:?}", err);
+                }
                 if !mimefactory.msg.hidden {
-                    dc_set_msg_location_id(
+                    if let Err(err) = location::set_msg_location_id(
                         context,
                         mimefactory.msg.id,
                         mimefactory.out_last_added_location_id,
-                    );
+                    ) {
+                        error!(context, 0, "Failed to set msg_location_id: {:?}", err);
+                    }
                 }
             }
             if 0 != mimefactory.out_encrypted
@@ -875,12 +881,12 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 Action::SendMdn => job.do_DC_JOB_SEND(context),
                 Action::ConfigureImap => unsafe { dc_job_do_DC_JOB_CONFIGURE_IMAP(context, &job) },
                 Action::ImexImap => unsafe { dc_job_do_DC_JOB_IMEX_IMAP(context, &job) },
-                Action::MaybeSendLocations => unsafe {
-                    dc_job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &job)
-                },
-                Action::MaybeSendLocationsEnded => unsafe {
-                    dc_job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context, &mut job)
-                },
+                Action::MaybeSendLocations => {
+                    location::job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context, &job)
+                }
+                Action::MaybeSendLocationsEnded => {
+                    location::job_do_DC_JOB_MAYBE_SEND_LOC_ENDED(context, &mut job)
+                }
                 Action::Housekeeping => sql::housekeeping(context),
                 Action::SendMdnOld => {}
                 Action::SendMsgToSmtpOld => {}

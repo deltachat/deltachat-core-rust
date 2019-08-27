@@ -14,10 +14,10 @@ use mmime::other::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_e2ee::*;
-use crate::dc_location::*;
 use crate::dc_simplify::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::location;
 use crate::param::*;
 use crate::stock::StockMessage;
 use crate::types::*;
@@ -57,8 +57,8 @@ pub struct dc_mimeparser_t<'a> {
     pub context: &'a Context,
     pub reports: Vec<*mut mailmime>,
     pub is_system_message: libc::c_int,
-    pub location_kml: Option<dc_kml_t>,
-    pub message_kml: Option<dc_kml_t>,
+    pub location_kml: Option<location::Kml>,
+    pub message_kml: Option<location::Kml>,
 }
 
 // deprecated: flag to switch generation of compound messages on and off.
@@ -112,14 +112,7 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     mimeparser.decrypting_failed = 0i32;
     dc_e2ee_thanks(&mut mimeparser.e2ee_helper);
 
-    if let Some(location_kml) = mimeparser.location_kml.as_mut() {
-        dc_kml_unref(location_kml);
-    }
     mimeparser.location_kml = None;
-
-    if let Some(message_kml) = mimeparser.message_kml.as_mut() {
-        dc_kml_unref(message_kml);
-    }
     mimeparser.message_kml = None;
 }
 
@@ -1300,11 +1293,13 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     4,
                                 ) == 0i32
                             {
-                                mimeparser.location_kml = Some(dc_kml_parse(
-                                    mimeparser.context,
-                                    decoded_data,
-                                    decoded_data_bytes,
-                                ));
+                                if !decoded_data.is_null() && decoded_data_bytes > 0 {
+                                    let d =
+                                        dc_null_terminate(decoded_data, decoded_data_bytes as i32);
+                                    mimeparser.location_kml =
+                                        location::Kml::parse(mimeparser.context, as_str(d)).ok();
+                                    free(d.cast());
+                                }
                             } else if strncmp(
                                 desired_filename,
                                 b"message\x00" as *const u8 as *const libc::c_char,
@@ -1318,11 +1313,13 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     4,
                                 ) == 0i32
                             {
-                                mimeparser.message_kml = Some(dc_kml_parse(
-                                    mimeparser.context,
-                                    decoded_data,
-                                    decoded_data_bytes,
-                                ));
+                                if !decoded_data.is_null() && decoded_data_bytes > 0 {
+                                    let d =
+                                        dc_null_terminate(decoded_data, decoded_data_bytes as i32);
+                                    mimeparser.message_kml =
+                                        location::Kml::parse(mimeparser.context, as_str(d)).ok();
+                                    free(d.cast());
+                                }
                             } else {
                                 dc_replace_bad_utf8_chars(desired_filename);
                                 do_add_single_file_part(
