@@ -303,11 +303,8 @@ impl<'a> Chat<'a> {
                 "Cannot send message; self not in group.",
             );
         } else {
-            let from = context.sql.get_config(context, "configured_addr");
-            if from.is_none() {
-                error!(context, 0, "Cannot send message, not configured.",);
-            } else {
-                let from_c = CString::yolo(from.unwrap());
+            if let Some(from) = context.sql.get_config(context, "configured_addr") {
+                let from_c = CString::yolo(from);
                 new_rfc724_mid = dc_create_outgoing_rfc724_mid(
                     if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
                         self.grpid.strdup()
@@ -529,6 +526,8 @@ impl<'a> Chat<'a> {
                         );
                     }
                 }
+            } else {
+                error!(context, 0, "Cannot send message, not configured.",);
             }
         }
 
