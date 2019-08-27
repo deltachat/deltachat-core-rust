@@ -149,12 +149,9 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                         ok_to_continue0 = true;
                     }
                     if ok_to_continue0 {
-                        let parsed: Result<EmailAddress, _> = param.addr.parse();
                         let mut ok_to_continue7 = false;
-                        if parsed.is_err() {
-                            error!(context, 0, "Bad email-address.");
-                        } else {
-                            let parsed = parsed.unwrap();
+                        if let Ok(parsed) = param.addr.parse() {
+                            let parsed: EmailAddress = parsed;
                             let param_domain = parsed.domain;
                             let param_addr_urlencoded =
                                 utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
@@ -609,6 +606,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                     }
                                 }
                             }
+                        } else {
+                            error!(context, 0, "Bad email-address.");
                         }
                     }
                 }
