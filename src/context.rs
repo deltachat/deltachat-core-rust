@@ -300,9 +300,11 @@ pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) ->
     if 0 != dc_is_open(context) {
         return false;
     }
+
     *context.dbfile.write().unwrap() = Some(PathBuf::from(dbfile));
-    if blobdir.is_some() && !blobdir.unwrap().is_empty() {
-        let dir = dc_ensure_no_slash_safe(blobdir.unwrap()).strdup();
+    let blobdir = blobdir.unwrap_or_default();
+    if !blobdir.is_empty() {
+        let dir = dc_ensure_no_slash_safe(blobdir).strdup();
         *context.blobdir.write().unwrap() = dir;
     } else {
         let dir = dbfile.to_string() + "-blobs";
