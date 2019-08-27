@@ -63,7 +63,7 @@ pub struct dc_mimeparser_t<'a> {
     pub message_kml: Option<location::Kml>,
 }
 
-pub unsafe fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
+pub fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
     dc_mimeparser_t {
         parts: Vec::new(),
         mimeroot: std::ptr::null_mut(),
