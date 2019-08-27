@@ -630,18 +630,15 @@ unsafe fn add_parts(
                         continue;
                     }
 
-                    if !mime_parser.location_kml.is_none()
-                        && icnt == 1
-                        && !part.msg.is_null()
-                        && (strcmp(
-                            part.msg,
-                            b"-location-\x00" as *const u8 as *const libc::c_char,
-                        ) == 0
-                            || *part.msg.offset(0) as libc::c_int == 0)
-                    {
-                        *hidden = 1;
-                        if state == MessageState::InFresh {
-                            state = MessageState::InNoticed;
+                    if let Some(ref msg) = part.msg {
+                        if !mime_parser.location_kml.is_none()
+                            && icnt == 1
+                            && (msg == "-location-" || msg.is_empty())
+                        {
+                            *hidden = 1;
+                            if state == MessageState::InFresh {
+                                state = MessageState::InNoticed;
+                            }
                         }
                     }
                     if part.type_0 == Viewtype::Text {
@@ -673,11 +670,7 @@ unsafe fn add_parts(
                         part.type_0,
                         state,
                         msgrmsg,
-                        if !part.msg.is_null() {
-                            as_str(part.msg)
-                        } else {
-                            ""
-                        },
+                        part.msg.as_ref().map_or("", String::as_str),
                         // txt_raw might contain invalid utf8
                         if !txt_raw.is_null() {
                             to_string_lossy(txt_raw)
@@ -1863,8 +1856,7 @@ unsafe fn set_better_msg<T: AsRef<str>>(mime_parser: &mut dc_mimeparser_t, bette
     if msg.len() > 0 && !mime_parser.parts.is_empty() {
         let part = &mut mime_parser.parts[0];
         if (*part).type_0 == Viewtype::Text {
-            free(part.msg as *mut libc::c_void);
-            part.msg = msg.strdup();
+            part.msg = Some(msg.to_string());
         }
     };
 }
