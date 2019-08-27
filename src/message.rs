@@ -208,33 +208,28 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         return ret.strdup();
     }
 
-    context
-        .sql
-        .query_map(
-            "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
-            params![msg_id as i32],
-            |row| {
-                let contact_id: i32 = row.get(0)?;
-                let ts: i64 = row.get(1)?;
-                Ok((contact_id, ts))
-            },
-            |rows| {
-                for row in rows {
-                    let (contact_id, ts) = row?;
-                    let fts = dc_timestamp_to_str(ts);
-                    ret += &format!("Read: {}", fts);
+    if let Ok(rows) = context.sql.query_map(
+        "SELECT contact_id, timestamp_sent FROM msgs_mdns WHERE msg_id=?;",
+        params![msg_id as i32],
+        |row| {
+            let contact_id: i32 = row.get(0)?;
+            let ts: i64 = row.get(1)?;
+            Ok((contact_id, ts))
+        },
+        |rows| rows.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+    ) {
+        for (contact_id, ts) in rows {
+            let fts = dc_timestamp_to_str(ts);
+            ret += &format!("Read: {}", fts);
 
-                    let name = Contact::load_from_db(context, contact_id as u32)
-                        .map(|contact| contact.get_name_n_addr())
-                        .unwrap_or_default();
+            let name = Contact::load_from_db(context, contact_id as u32)
+                .map(|contact| contact.get_name_n_addr())
+                .unwrap_or_default();
 
-                    ret += &format!(" by {}", name);
-                    ret += "\n";
-                }
-                Ok(())
-            },
-        )
-        .unwrap(); // TODO: better error handling
+            ret += &format!(" by {}", name);
+            ret += "\n";
+        }
+    }
 
     ret += "State: ";
     use MessageState::*;
