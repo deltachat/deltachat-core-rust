@@ -780,16 +780,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                 _ => {
                     let mut total_files_cnt = 0;
                     let dir = std::path::Path::new(as_str(context.get_blobdir()));
-                    let dir_handle = std::fs::read_dir(dir);
-                    if dir_handle.is_err() {
-                        error!(
-                            context,
-                            0,
-                            "Backup: Cannot get info for blob-directory \"{}\".",
-                            as_str(context.get_blobdir()),
-                        );
-                    } else {
-                        let dir_handle = dir_handle.unwrap();
+                    if let Ok(dir_handle) = std::fs::read_dir(dir) {
                         total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
                         info!(context, 0, "EXPORT: total_files_cnt={}", total_files_cnt);
@@ -899,7 +890,14 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                 }
                             }
                         }
-                    }
+                    } else {
+                        error!(
+                            context,
+                            0,
+                            "Backup: Cannot get info for blob-directory \"{}\".",
+                            as_str(context.get_blobdir())
+                        );
+                    };
                 }
             }
         }
