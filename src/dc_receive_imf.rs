@@ -1892,28 +1892,17 @@ unsafe fn dc_is_reply_to_known_message(
 }
 
 unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> bool {
-    if !mid_list.is_null() {
-        let mut cur: *mut clistiter;
-        cur = (*mid_list).first;
-        while !cur.is_null() {
-            if 0 != is_known_rfc724_mid(
-                context,
-                (if !cur.is_null() {
-                    (*cur).data
-                } else {
-                    ptr::null_mut()
-                }) as *const libc::c_char,
-            ) {
-                return true;
-            }
-            cur = if !cur.is_null() {
-                (*cur).next
-            } else {
-                ptr::null_mut()
-            }
+    if mid_list.is_null() {
+        return false;
+    }
+
+    for data in &*mid_list {
+        if 0 != is_known_rfc724_mid(context, data.cast()) {
+            return true;
         }
     }
-    false
+
+    return false;
 }
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).
