@@ -819,19 +819,21 @@ pub fn dc_msg_get_summarytext_by_raw(
             }
         }
     };
-    let ret = if append_text && text.is_some() {
-        let text = text.unwrap();
-        if !prefix.is_empty() {
+
+    if !append_text {
+        return prefix;
+    }
+
+    if let Some(text) = text {
+        if prefix.is_empty() {
+            dc_truncate(text.as_ref(), approx_characters, true).to_string()
+        } else {
             let tmp = format!("{} – {}", prefix, text.as_ref());
             dc_truncate(&tmp, approx_characters, true).to_string()
-        } else {
-            dc_truncate(text.as_ref(), approx_characters, true).to_string()
         }
     } else {
         prefix
-    };
-
-    ret
+    }
 }
 
 pub unsafe fn dc_msg_has_deviating_timestamp(msg: &Message) -> libc::c_int {
