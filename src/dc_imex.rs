@@ -795,17 +795,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                         info!(context, 0, "EXPORT: total_files_cnt={}", total_files_cnt);
                         if total_files_cnt > 0 {
                             // scan directory, pass 2: copy files
-                            let dir_handle = std::fs::read_dir(dir);
-                            if dir_handle.is_err() {
-                                error!(
-                                    context,
-                                    0,
-                                    "Backup: Cannot copy from blob-directory \"{}\".",
-                                    as_str(context.get_blobdir()),
-                                );
-                            } else {
-                                let dir_handle = dir_handle.unwrap();
-
+                            if let Ok(dir_handle) = std::fs::read_dir(dir) {
                                 sql.prepare(
                                     "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
                                     move |mut stmt, _| {
@@ -881,6 +871,13 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                         Ok(())
                                     }
                                 ).unwrap();
+                            } else {
+                                error!(
+                                    context,
+                                    0,
+                                    "Backup: Cannot copy from blob-directory \"{}\".",
+                                    as_str(context.get_blobdir()),
+                                );
                             }
                         } else {
                             info!(context, 0, "Backup: No files to copy.",);
