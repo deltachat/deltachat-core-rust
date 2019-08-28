@@ -136,12 +136,8 @@ impl Job {
             if unsafe { strlen(filename) } == 0 {
                 warn!(context, 0, "Missing file name for job {}", self.job_id,);
             } else if 0 != unsafe { dc_read_file(context, filename, &mut buf, &mut buf_bytes) } {
-                let recipients = self.param.get(Param::Recipients);
-                if recipients.is_none() {
-                    warn!(context, 0, "Missing recipients for job {}", self.job_id,);
-                } else {
+                if let Some(recipients) = self.param.get(Param::Recipients) {
                     let recipients_list = recipients
-                        .unwrap()
                         .split("\x1e")
                         .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
                             Ok(addr) => Some(addr),
@@ -210,6 +206,8 @@ impl Job {
                             }
                         }
                     }
+                } else {
+                    warn!(context, 0, "Missing recipients for job {}", self.job_id,);
                 }
             }
         }
