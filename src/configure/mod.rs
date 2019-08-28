@@ -414,16 +414,16 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
         progress!(s, context, 900);
         flags = if 0
             != context
-            .sql
-            .get_config_int(context, "mvbox_watch")
-            .unwrap_or_else(|| 1)
+                .sql
+                .get_config_int(context, "mvbox_watch")
+                .unwrap_or_else(|| 1)
             || 0 != context
-            .sql
-            .get_config_int(context, "mvbox_move")
-            .unwrap_or_else(|| 1)
-            {
-                0x1
-            } else {
+                .sql
+                .get_config_int(context, "mvbox_move")
+                .unwrap_or_else(|| 1)
+        {
+            0x1
+        } else {
             0
         };
 
