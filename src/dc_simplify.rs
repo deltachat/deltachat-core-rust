@@ -100,8 +100,8 @@ impl Simplify {
                     break;
                 }
             }
-            if l_lastQuotedLine.is_some() {
-                l_last = l_lastQuotedLine.unwrap();
+            if let Some(last_quoted_line) = l_lastQuotedLine {
+                l_last = last_quoted_line;
                 is_cut_at_end = true;
                 if l_last > 1 {
                     if is_empty_line(lines[l_last - 1]) {
