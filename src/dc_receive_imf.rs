@@ -1874,10 +1874,7 @@ unsafe fn dc_is_reply_to_known_message(
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
         let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
-            if 0 != is_known_rfc724_mid_in_list(
-                context,
-                (*(*field).fld_data.fld_in_reply_to).mid_list,
-            ) {
+            if is_known_rfc724_mid_in_list(context, (*(*field).fld_data.fld_in_reply_to).mid_list) {
                 return 1;
             }
         }
@@ -1886,10 +1883,7 @@ unsafe fn dc_is_reply_to_known_message(
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
         let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {
-            if 0 != is_known_rfc724_mid_in_list(
-                context,
-                (*(*field).fld_data.fld_references).mid_list,
-            ) {
+            if is_known_rfc724_mid_in_list(context, (*(*field).fld_data.fld_references).mid_list) {
                 return 1;
             }
         }
@@ -1897,7 +1891,7 @@ unsafe fn dc_is_reply_to_known_message(
     0
 }
 
-unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> libc::c_int {
+unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> bool {
     if !mid_list.is_null() {
         let mut cur: *mut clistiter;
         cur = (*mid_list).first;
@@ -1910,7 +1904,7 @@ unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist)
                     ptr::null_mut()
                 }) as *const libc::c_char,
             ) {
-                return 1;
+                return true;
             }
             cur = if !cur.is_null() {
                 (*cur).next
@@ -1919,7 +1913,7 @@ unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist)
             }
         }
     }
-    0
+    false
 }
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).
