@@ -940,16 +940,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     let mut buf2_headerline: *const libc::c_char = ptr::null_mut();
     if !dir_name.is_null() {
         let dir = std::path::Path::new(as_str(dir_name));
-        let dir_handle = std::fs::read_dir(dir);
-        if dir_handle.is_err() {
-            error!(
-                context,
-                0,
-                "Import: Cannot open directory \"{}\".",
-                as_str(dir_name),
-            );
-        } else {
-            let dir_handle = dir_handle.unwrap();
+        if let Ok(dir_handle) = std::fs::read_dir(dir) {
             for entry in dir_handle {
                 if entry.is_err() {
                     break;
@@ -1033,6 +1024,13 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     as_str(dir_name),
                 );
             }
+        } else {
+            error!(
+                context,
+                0,
+                "Import: Cannot open directory \"{}\".",
+                as_str(dir_name),
+            );
         }
     }
 
