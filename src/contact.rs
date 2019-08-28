@@ -152,7 +152,7 @@ pub enum VerifiedStatus {
 
 impl<'a> Contact<'a> {
     pub fn load_from_db(context: &'a Context, contact_id: u32) -> Result<Self> {
-        if contact_id == DC_CONTACT_ID_SELF as u32 {
+        if contact_id == DC_CONTACT_ID_SELF {
             let contact = Contact {
                 context,
                 id: contact_id,
@@ -545,7 +545,7 @@ impl<'a> Contact<'a> {
         }
 
         if 0 != listflags & DC_GCL_ADD_SELF as u32 && add_self {
-            ret.push(DC_CONTACT_ID_SELF as u32);
+            ret.push(DC_CONTACT_ID_SELF);
         }
 
         Ok(ret)
@@ -655,7 +655,7 @@ impl<'a> Contact<'a> {
     /// May result in a `#DC_EVENT_CONTACTS_CHANGED` event.
     pub fn delete(context: &Context, contact_id: u32) -> Result<()> {
         ensure!(
-            contact_id > DC_CONTACT_ID_LAST_SPECIAL as u32,
+            contact_id > DC_CONTACT_ID_LAST_SPECIAL,
             "Can not delete special contact"
         );
 
@@ -780,7 +780,7 @@ impl<'a> Contact<'a> {
     /// This is the image set by each remote user on their own
     /// using dc_set_config(context, "selfavatar", image).
     pub fn get_profile_image(&self) -> Option<String> {
-        if self.id == DC_CONTACT_ID_SELF as u32 {
+        if self.id == DC_CONTACT_ID_SELF {
             return self.context.get_config(Config::Selfavatar);
         }
         // TODO: else get image_abs from contact param
@@ -810,7 +810,7 @@ impl<'a> Contact<'a> {
     pub fn is_verified_ex(&self, peerstate: Option<&Peerstate<'a>>) -> VerifiedStatus {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
-        if self.id == DC_CONTACT_ID_SELF as u32 {
+        if self.id == DC_CONTACT_ID_SELF {
             return VerifiedStatus::BidirectVerified;
         }
 

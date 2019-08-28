@@ -323,7 +323,7 @@ mod tests {
                 StockMessage::MsgAddMember,
                 "alice@example.com",
                 "",
-                DC_CONTACT_ID_SELF as u32
+                DC_CONTACT_ID_SELF
             ),
             "Member alice@example.com added by me."
         )
@@ -338,7 +338,7 @@ mod tests {
                 StockMessage::MsgAddMember,
                 "alice@example.com",
                 "",
-                DC_CONTACT_ID_SELF as u32
+                DC_CONTACT_ID_SELF
             ),
             "Member Alice (alice@example.com) added by me."
         );
@@ -373,7 +373,7 @@ mod tests {
                 StockMessage::MsgGrpName,
                 "Some chat",
                 "Other chat",
-                DC_CONTACT_ID_SELF as u32
+                DC_CONTACT_ID_SELF
             ),
             "Group name changed from \"Some chat\" to \"Other chat\" by me."
         )

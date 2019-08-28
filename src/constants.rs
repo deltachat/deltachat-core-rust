@@ -65,19 +65,19 @@ const DC_IMEX_EXPORT_BACKUP: usize = 11;
 const DC_IMEX_IMPORT_BACKUP: usize = 12;
 
 /// virtual chat showing all messages belonging to chats flagged with chats.blocked=2
-pub(crate) const DC_CHAT_ID_DEADDROP: usize = 1;
+pub(crate) const DC_CHAT_ID_DEADDROP: u32 = 1;
 /// messages that should be deleted get this chat_id; the messages are deleted from the working thread later then. This is also needed as rfc724_mid should be preset as long as the message is not deleted on the server (otherwise it is downloaded again)
-pub const DC_CHAT_ID_TRASH: usize = 3;
+pub const DC_CHAT_ID_TRASH: u32 = 3;
 /// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
-const DC_CHAT_ID_MSGS_IN_CREATION: usize = 4;
+const DC_CHAT_ID_MSGS_IN_CREATION: u32 = 4;
 /// virtual chat showing all messages flagged with msgs.starred=2
-const DC_CHAT_ID_STARRED: usize = 5;
+const DC_CHAT_ID_STARRED: u32 = 5;
 /// only an indicator in a chatlist
-pub const DC_CHAT_ID_ARCHIVED_LINK: usize = 6;
+pub const DC_CHAT_ID_ARCHIVED_LINK: u32 = 6;
 /// only an indicator in a chatlist
-pub const DC_CHAT_ID_ALLDONE_HINT: usize = 7;
+pub const DC_CHAT_ID_ALLDONE_HINT: u32 = 7;
 /// larger chat IDs are "real" chats, their messages are "real" messages.
-pub const DC_CHAT_ID_LAST_SPECIAL: usize = 9;
+pub const DC_CHAT_ID_LAST_SPECIAL: u32 = 9;
 
 #[derive(
     Debug,
@@ -106,19 +106,19 @@ impl Default for Chattype {
     }
 }
 
-pub const DC_MSG_ID_MARKER1: usize = 1;
-const DC_MSG_ID_DAYMARKER: usize = 9;
-pub const DC_MSG_ID_LAST_SPECIAL: usize = 9;
+pub const DC_MSG_ID_MARKER1: u32 = 1;
+const DC_MSG_ID_DAYMARKER: u32 = 9;
+pub const DC_MSG_ID_LAST_SPECIAL: u32 = 9;
 
 /// approx. max. length returned by dc_msg_get_text()
 const DC_MAX_GET_TEXT_LEN: usize = 30000;
 /// approx. max. length returned by dc_get_msg_info()
 const DC_MAX_GET_INFO_LEN: usize = 100000;
 
-pub const DC_CONTACT_ID_UNDEFINED: usize = 0;
-pub const DC_CONTACT_ID_SELF: usize = 1;
-const DC_CONTACT_ID_DEVICE: usize = 2;
-pub const DC_CONTACT_ID_LAST_SPECIAL: usize = 9;
+pub const DC_CONTACT_ID_UNDEFINED: u32 = 0;
+pub const DC_CONTACT_ID_SELF: u32 = 1;
+const DC_CONTACT_ID_DEVICE: u32 = 2;
+pub const DC_CONTACT_ID_LAST_SPECIAL: u32 = 9;
 
 pub const DC_CREATE_MVBOX: usize = 1;
 

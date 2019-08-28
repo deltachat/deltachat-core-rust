@@ -80,7 +80,7 @@ impl Lot {
         if msg.state == MessageState::OutDraft {
             self.text1 = Some(context.stock_str(StockMessage::Draft).to_owned().into());
             self.text1_meaning = Meaning::Text1Draft;
-        } else if msg.from_id == DC_CONTACT_ID_SELF as u32 {
+        } else if msg.from_id == DC_CONTACT_ID_SELF {
             if 0 != dc_msg_is_info(msg) || chat.is_self_talk() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
@@ -93,7 +93,7 @@ impl Lot {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
             } else {
-                if chat.id == DC_CHAT_ID_DEADDROP as u32 {
+                if chat.id == DC_CHAT_ID_DEADDROP {
                     if let Some(contact) = contact {
                         self.text1 = Some(contact.get_display_name().into());
                     } else {
