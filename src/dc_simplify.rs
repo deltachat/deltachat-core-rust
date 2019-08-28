@@ -135,8 +135,8 @@ impl Simplify {
                     }
                 }
             }
-            if l_lastQuotedLine_0.is_some() {
-                l_first = l_lastQuotedLine_0.unwrap() + 1;
+            if let Some(last_quoted_line) = l_lastQuotedLine_0 {
+                l_first = last_quoted_line + 1;
                 is_cut_at_begin = true
             }
         }
