@@ -1246,7 +1246,7 @@ pub unsafe extern "C" fn dc_imex_has_backup(
 ) -> *mut libc::c_char {
     if context.is_null() || dir.is_null() {
         eprintln!("ignoring careless call to dc_imex_has_backup()");
-        return 0;
+        return ptr::null_mut(); // NULL explicitly defined as "has no backup"
     }
 
     let context = &*context;
@@ -1258,7 +1258,7 @@ pub unsafe extern "C" fn dc_imex_has_backup(
 pub unsafe extern "C" fn dc_initiate_key_transfer(context: *mut dc_context_t) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_initiate_key_transfer()");
-        return 0;
+        return ptr::null_mut(); // NULL explicitly defined as "error"
     }
 
     let context = &*context;
@@ -1478,7 +1478,7 @@ pub unsafe extern "C" fn dc_array_get_latitude(
 ) -> libc::c_double {
     if array.is_null() {
         eprintln!("ignoring careless call to dc_array_get_latitude()");
-        return 0;
+        return 0.0;
     }
 
     (*array).get_location(index).latitude
@@ -1490,7 +1490,7 @@ pub unsafe extern "C" fn dc_array_get_longitude(
 ) -> libc::c_double {
     if array.is_null() {
         eprintln!("ignoring careless call to dc_array_get_longitude()");
-        return 0;
+        return 0.0;
     }
 
     (*array).get_location(index).longitude
@@ -1502,7 +1502,7 @@ pub unsafe extern "C" fn dc_array_get_accuracy(
 ) -> libc::c_double {
     if array.is_null() {
         eprintln!("ignoring careless call to dc_array_get_accuracy()");
-        return 0;
+        return 0.0;
     }
 
     (*array).get_location(index).accuracy
@@ -1562,7 +1562,7 @@ pub unsafe extern "C" fn dc_array_get_marker(
 ) -> *mut libc::c_char {
     if array.is_null() {
         eprintln!("ignoring careless call to dc_array_get_marker()");
-        return 0;
+        return std::ptr::null_mut(); // NULL explicitly defined as "no markers"
     }
 
     if let Some(s) = &(*array).get_location(index).marker {
@@ -2455,7 +2455,7 @@ pub unsafe extern "C" fn dc_lot_unref(lot: *mut dc_lot_t) {
 pub unsafe extern "C" fn dc_lot_get_text1(lot: *mut dc_lot_t) -> *mut libc::c_char {
     if lot.is_null() {
         eprintln!("ignoring careless call to dc_lot_get_text1()");
-        return ptr::mut_null(); // NULL explicitly defined as "there is no such text"
+        return ptr::null_mut(); // NULL explicitly defined as "there is no such text"
     }
 
     let lot = &*lot;
@@ -2466,7 +2466,7 @@ pub unsafe extern "C" fn dc_lot_get_text1(lot: *mut dc_lot_t) -> *mut libc::c_ch
 pub unsafe extern "C" fn dc_lot_get_text2(lot: *mut dc_lot_t) -> *mut libc::c_char {
     if lot.is_null() {
         eprintln!("ignoring careless call to dc_lot_get_text2()");
-        return ptr::mut_null(); // NULL explicitly defined as "there is no such text"
+        return ptr::null_mut(); // NULL explicitly defined as "there is no such text"
     }
 
     let lot = &*lot;
