@@ -479,14 +479,12 @@ impl Imap {
             0, "IMAP unsetup_handle step 1 (closing down stream)."
         );
         let stream = self.stream.write().unwrap().take();
-        if stream.is_some() {
-            match stream.unwrap().shutdown(net::Shutdown::Both) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("failed to shutdown connection: {:?}", err);
-                }
+        if let Some(stream) = stream {
+            if let Err(err) = stream.shutdown(net::Shutdown::Both) {
+                eprintln!("failed to shutdown connection: {:?}", err);
             }
         }
+
         info!(
             context,
             0, "IMAP unsetup_handle step 2 (acquiring session.lock)"
