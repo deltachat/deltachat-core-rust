@@ -489,13 +489,9 @@ impl Imap {
             context,
             0, "IMAP unsetup_handle step 2 (acquiring session.lock)"
         );
-        let session = self.session.lock().unwrap().take();
-        if session.is_some() {
-            match session.unwrap().close() {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("failed to close connection: {:?}", err);
-                }
+        if let Some(mut session) = self.session.lock().unwrap().take() {
+            if let Err(err) = session.close() {
+                eprintln!("failed to close connection: {:?}", err);
             }
         }
 
