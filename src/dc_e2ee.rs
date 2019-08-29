@@ -255,7 +255,7 @@ pub unsafe fn dc_e2ee_encrypt(
                                 cur = if !cur.is_null() {
                                     (*cur).next
                                 } else {
-                                    0 as *mut clistcell
+                                    ptr::null_mut()
                                 }
                             }
                         }
@@ -738,7 +738,7 @@ unsafe fn decrypt_recursive(
                     (if !cur.is_null() {
                         (*cur).data
                     } else {
-                        0 as *mut libc::c_void
+                        ptr::null_mut()
                     }) as *mut mailmime,
                     private_keyring,
                     public_keyring_for_validate,
@@ -766,7 +766,7 @@ unsafe fn decrypt_recursive(
                 cur = if !cur.is_null() {
                     (*cur).next
                 } else {
-                    0 as *mut clistcell
+                    ptr::null_mut()
                 }
             }
             *ret_has_unencrypted_parts = 1i32
@@ -1019,7 +1019,7 @@ unsafe fn contains_report(mime: *mut mailmime) -> libc::c_int {
             cur = if !cur.is_null() {
                 (*cur).next
             } else {
-                0 as *mut clistcell
+                ptr::null_mut()
             }
         }
     } else if (*mime).mm_type == MAILMIME_MESSAGE as libc::c_int {
@@ -1111,9 +1111,9 @@ Sent with my Delta Chat Messenger: https://delta.chat";
         };
         unsafe {
             let msg1 = (*decrypted_mime).mm_data.mm_message.mm_msg_mime;
-            let mut decoded_data = 0 as *const libc::c_char;
+            let mut decoded_data = ptr::null();
             let mut decoded_data_bytes = 0;
-            let mut transfer_decoding_buffer: *mut libc::c_char = 0 as *mut libc::c_char;
+            let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
 
             assert_eq!(
                 mailmime_transfer_decode(

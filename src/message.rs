@@ -378,7 +378,7 @@ pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
 }
 
 pub unsafe fn dc_msg_get_file(msg: &Message) -> *mut libc::c_char {
-    let mut file_abs = 0 as *mut libc::c_char;
+    let mut file_abs = ptr::null_mut();
 
     if let Some(file_rel) = msg.param.get(Param::File) {
         file_abs = dc_get_abs_path(msg.context, file_rel);
@@ -687,7 +687,7 @@ pub unsafe fn dc_msg_get_text(msg: &Message) -> *mut libc::c_char {
 
 #[allow(non_snake_case)]
 pub unsafe fn dc_msg_get_filename(msg: &Message) -> *mut libc::c_char {
-    let mut ret = 0 as *mut libc::c_char;
+    let mut ret = ptr::null_mut();
 
     if let Some(file) = msg.param.get(Param::File) {
         ret = dc_get_filename(file);
@@ -819,19 +819,21 @@ pub fn dc_msg_get_summarytext_by_raw(
             }
         }
     };
-    let ret = if append_text && text.is_some() {
-        let text = text.unwrap();
-        if !prefix.is_empty() {
+
+    if !append_text {
+        return prefix;
+    }
+
+    if let Some(text) = text {
+        if prefix.is_empty() {
+            dc_truncate(text.as_ref(), approx_characters, true).to_string()
+        } else {
             let tmp = format!("{} – {}", prefix, text.as_ref());
             dc_truncate(&tmp, approx_characters, true).to_string()
-        } else {
-            dc_truncate(text.as_ref(), approx_characters, true).to_string()
         }
     } else {
         prefix
-    };
-
-    ret
+    }
 }
 
 pub unsafe fn dc_msg_has_deviating_timestamp(msg: &Message) -> libc::c_int {
@@ -895,14 +897,14 @@ pub fn dc_msg_is_setupmessage(msg: &Message) -> bool {
 }
 
 pub unsafe fn dc_msg_get_setupcodebegin(msg: &Message) -> *mut libc::c_char {
-    let mut filename: *mut libc::c_char = 0 as *mut libc::c_char;
-    let mut buf: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut filename: *mut libc::c_char = ptr::null_mut();
+    let mut buf: *mut libc::c_char = ptr::null_mut();
     let mut buf_bytes: size_t = 0i32 as size_t;
     // just a pointer inside buf, MUST NOT be free()'d
-    let mut buf_headerline: *const libc::c_char = 0 as *const libc::c_char;
+    let mut buf_headerline: *const libc::c_char = ptr::null();
     // just a pointer inside buf, MUST NOT be free()'d
-    let mut buf_setupcodebegin: *const libc::c_char = 0 as *const libc::c_char;
-    let mut ret: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut buf_setupcodebegin: *const libc::c_char = ptr::null();
+    let mut ret: *mut libc::c_char = ptr::null_mut();
     if dc_msg_is_setupmessage(msg) {
         filename = dc_msg_get_file(msg);
         if !(filename.is_null() || *filename.offset(0isize) as libc::c_int == 0i32) {
@@ -920,8 +922,8 @@ pub unsafe fn dc_msg_get_setupcodebegin(msg: &Message) -> *mut libc::c_char {
                     buf,
                     &mut buf_headerline,
                     &mut buf_setupcodebegin,
-                    0 as *mut *const libc::c_char,
-                    0 as *mut *const libc::c_char,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
                 ) && strcmp(
                     buf_headerline,
                     b"-----BEGIN PGP MESSAGE-----\x00" as *const u8 as *const libc::c_char,
@@ -1263,7 +1265,7 @@ pub fn dc_rfc724_mid_exists(
         Ok(res) => res,
         Err(_err) => {
             if !ret_server_folder.is_null() {
-                unsafe { *ret_server_folder = 0 as *mut libc::c_char };
+                unsafe { *ret_server_folder = ptr::null_mut() };
             }
             if !ret_server_uid.is_null() {
                 unsafe { *ret_server_uid = 0 };

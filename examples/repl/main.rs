@@ -14,6 +14,7 @@ extern crate lazy_static;
 extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
+use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
@@ -384,11 +385,7 @@ impl Highlighter for DcHelper {
 impl Helper for DcHelper {}
 
 fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
-    let mut context = dc_context_new(
-        Some(receive_event),
-        0 as *mut libc::c_void,
-        Some("CLI".into()),
-    );
+    let mut context = dc_context_new(Some(receive_event), ptr::null_mut(), Some("CLI".into()));
 
     unsafe { dc_cmdline_skip_auth() };
 

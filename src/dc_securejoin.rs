@@ -1,5 +1,6 @@
 use mmime::mailimf_types::*;
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use std::ptr;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat};
@@ -30,7 +31,7 @@ pub unsafe fn dc_get_securejoin_qr(
     ====   Step 1 in "Setup verified contact" protocol   ====
     ========================================================= */
 
-    let mut fingerprint = 0 as *mut libc::c_char;
+    let mut fingerprint = ptr::null_mut();
     let mut invitenumber: *mut libc::c_char;
     let mut auth: *mut libc::c_char;
     let mut qr: Option<String> = None;
@@ -244,7 +245,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                             .invitenumber
                             .as_ref()
                             .unwrap(),
-                        0 as *const libc::c_char,
+                        ptr::null(),
                         "",
                     );
                 }
@@ -270,7 +271,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                 context,
                 bob.qr_scan.as_ref().unwrap().text2.as_ref().unwrap(),
                 None,
-                0 as *mut libc::c_int,
+                ptr::null_mut(),
             ) as libc::c_int
         } else {
             ret_chat_id = contact_chat_id as libc::c_int
@@ -371,7 +372,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     let mut current_block: u64;
     let step: *const libc::c_char;
     let join_vg: libc::c_int;
-    let mut own_fingerprint: *mut libc::c_char = 0 as *mut libc::c_char;
+    let mut own_fingerprint: *mut libc::c_char = ptr::null_mut();
     let contact_chat_id: u32;
     let contact_chat_id_blocked: Blocked;
     let mut grpid = "".to_string();
@@ -433,7 +434,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"vc-auth-required\x00" as *const u8 as *const libc::c_char
                         },
                         "",
-                        0 as *const libc::c_char,
+                        ptr::null(),
                         "",
                     );
                     current_block = 10256747982273457880;
@@ -636,12 +637,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         );
                         if 0 != join_vg {
                             grpid = to_string(lookup_field(mimeparser, "Secure-Join-Group"));
-                            let group_chat_id: uint32_t = chat::get_chat_id_by_grpid(
-                                context,
-                                &grpid,
-                                None,
-                                0 as *mut libc::c_int,
-                            );
+                            let group_chat_id: uint32_t =
+                                chat::get_chat_id_by_grpid(context, &grpid, None, ptr::null_mut());
                             if group_chat_id == 0i32 as libc::c_uint {
                                 error!(context, 0, "Chat {} not found.", &grpid);
                                 current_block = 4378276786830486580;
@@ -660,7 +657,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 contact_chat_id,
                                 b"vc-contact-confirm\x00" as *const u8 as *const libc::c_char,
                                 "",
-                                0 as *const libc::c_char,
+                                ptr::null(),
                                 "",
                             );
                             context.call_cb(
@@ -813,7 +810,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                                     b"vg-member-added-received\x00" as *const u8
                                                         as *const libc::c_char,
                                                     "",
-                                                    0 as *const libc::c_char,
+                                                    ptr::null(),
                                                     "",
                                                 );
                                             }
@@ -898,7 +895,7 @@ unsafe fn secure_connection_established(context: &Context, contact_chat_id: uint
 }
 
 unsafe fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> *const libc::c_char {
-    let mut value: *const libc::c_char = 0 as *const libc::c_char;
+    let mut value: *const libc::c_char = ptr::null();
     let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, key);
     if field.is_null()
         || (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
@@ -908,7 +905,7 @@ unsafe fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> *const libc::
             value.is_null()
         }
     {
-        return 0 as *const libc::c_char;
+        return ptr::null();
     }
 
     value

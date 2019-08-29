@@ -780,32 +780,13 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                 _ => {
                     let mut total_files_cnt = 0;
                     let dir = std::path::Path::new(as_str(context.get_blobdir()));
-                    let dir_handle = std::fs::read_dir(dir);
-                    if dir_handle.is_err() {
-                        error!(
-                            context,
-                            0,
-                            "Backup: Cannot get info for blob-directory \"{}\".",
-                            as_str(context.get_blobdir()),
-                        );
-                    } else {
-                        let dir_handle = dir_handle.unwrap();
+                    if let Ok(dir_handle) = std::fs::read_dir(dir) {
                         total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
                         info!(context, 0, "EXPORT: total_files_cnt={}", total_files_cnt);
                         if total_files_cnt > 0 {
                             // scan directory, pass 2: copy files
-                            let dir_handle = std::fs::read_dir(dir);
-                            if dir_handle.is_err() {
-                                error!(
-                                    context,
-                                    0,
-                                    "Backup: Cannot copy from blob-directory \"{}\".",
-                                    as_str(context.get_blobdir()),
-                                );
-                            } else {
-                                let dir_handle = dir_handle.unwrap();
-
+                            if let Ok(dir_handle) = std::fs::read_dir(dir) {
                                 sql.prepare(
                                     "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
                                     move |mut stmt, _| {
@@ -881,6 +862,13 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                         Ok(())
                                     }
                                 ).unwrap();
+                            } else {
+                                error!(
+                                    context,
+                                    0,
+                                    "Backup: Cannot copy from blob-directory \"{}\".",
+                                    as_str(context.get_blobdir()),
+                                );
                             }
                         } else {
                             info!(context, 0, "Backup: No files to copy.",);
@@ -902,7 +890,14 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                 }
                             }
                         }
-                    }
+                    } else {
+                        error!(
+                            context,
+                            0,
+                            "Backup: Cannot get info for blob-directory \"{}\".",
+                            as_str(context.get_blobdir())
+                        );
+                    };
                 }
             }
         }
@@ -943,16 +938,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     let mut buf2_headerline: *const libc::c_char = ptr::null_mut();
     if !dir_name.is_null() {
         let dir = std::path::Path::new(as_str(dir_name));
-        let dir_handle = std::fs::read_dir(dir);
-        if dir_handle.is_err() {
-            error!(
-                context,
-                0,
-                "Import: Cannot open directory \"{}\".",
-                as_str(dir_name),
-            );
-        } else {
-            let dir_handle = dir_handle.unwrap();
+        if let Ok(dir_handle) = std::fs::read_dir(dir) {
             for entry in dir_handle {
                 if entry.is_err() {
                     break;
@@ -991,9 +977,9 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 if dc_split_armored_data(
                     buf2,
                     &mut buf2_headerline,
-                    0 as *mut *const libc::c_char,
-                    0 as *mut *const libc::c_char,
-                    0 as *mut *const libc::c_char,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                    ptr::null_mut(),
                 ) && strcmp(
                     buf2_headerline,
                     b"-----BEGIN PGP PUBLIC KEY BLOCK-----\x00" as *const u8 as *const libc::c_char,
@@ -1036,6 +1022,13 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     as_str(dir_name),
                 );
             }
+        } else {
+            error!(
+                context,
+                0,
+                "Import: Cannot open directory \"{}\".",
+                as_str(dir_name),
+            );
         }
     }
 

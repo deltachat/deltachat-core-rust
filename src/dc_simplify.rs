@@ -100,8 +100,8 @@ impl Simplify {
                     break;
                 }
             }
-            if l_lastQuotedLine.is_some() {
-                l_last = l_lastQuotedLine.unwrap();
+            if let Some(last_quoted_line) = l_lastQuotedLine {
+                l_last = last_quoted_line;
                 is_cut_at_end = true;
                 if l_last > 1 {
                     if is_empty_line(lines[l_last - 1]) {
@@ -135,8 +135,8 @@ impl Simplify {
                     }
                 }
             }
-            if l_lastQuotedLine_0.is_some() {
-                l_first = l_lastQuotedLine_0.unwrap() + 1;
+            if let Some(last_quoted_line) = l_lastQuotedLine_0 {
+                l_first = last_quoted_line + 1;
                 is_cut_at_begin = true
             }
         }

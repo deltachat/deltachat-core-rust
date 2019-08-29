@@ -303,11 +303,8 @@ impl<'a> Chat<'a> {
                 "Cannot send message; self not in group.",
             );
         } else {
-            let from = context.sql.get_config(context, "configured_addr");
-            if from.is_none() {
-                error!(context, 0, "Cannot send message, not configured.",);
-            } else {
-                let from_c = CString::yolo(from.unwrap());
+            if let Some(from) = context.sql.get_config(context, "configured_addr") {
+                let from_c = CString::yolo(from);
                 new_rfc724_mid = dc_create_outgoing_rfc724_mid(
                     if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
                         self.grpid.strdup()
@@ -529,6 +526,8 @@ impl<'a> Chat<'a> {
                         );
                     }
                 }
+            } else {
+                error!(context, 0, "Cannot send message, not configured.",);
             }
         }
 
@@ -1415,83 +1414,82 @@ pub unsafe fn add_contact_to_chat_ex(
     let contact = contact.unwrap();
 
     /*this also makes sure, not contacts are added to special or normal chats*/
-    let chat = Chat::load_from_db(context, chat_id);
+    if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
+        if !(!real_group_exists(context, chat_id)
+            || !Contact::real_exists_by_id(context, contact_id)
+                && contact_id != DC_CONTACT_ID_SELF as u32)
+        {
+            if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
+                log_event!(
+                    context,
+                    Event::ERROR_SELF_NOT_IN_GROUP,
+                    0,
+                    "Cannot add contact to group; self not in group.",
+                );
+            } else {
+                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
+                if 0 != flags & 0x1
+                    && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+                {
+                    chat.param.remove(Param::Unpromoted);
+                    chat.update_param().unwrap();
+                }
+                let self_addr = context
+                    .sql
+                    .get_config(context, "configured_addr")
+                    .unwrap_or_default();
+                if contact.get_addr() != &self_addr {
+                    // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
+                    // if SELF is not in the group, members cannot be added at all.
 
-    if !(!real_group_exists(context, chat_id)
-        || !Contact::real_exists_by_id(context, contact_id)
-            && contact_id != DC_CONTACT_ID_SELF as u32
-        || chat.is_err())
-    {
-        let mut chat = chat.unwrap();
-
-        if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
-            log_event!(
-                context,
-                Event::ERROR_SELF_NOT_IN_GROUP,
-                0,
-                "Cannot add contact to group; self not in group.",
-            );
-        } else {
-            /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-            if 0 != flags & 0x1 && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
-                chat.param.remove(Param::Unpromoted);
-                chat.update_param().unwrap();
-            }
-            let self_addr = context
-                .sql
-                .get_config(context, "configured_addr")
-                .unwrap_or_default();
-            if contact.get_addr() != &self_addr {
-                // ourself is added using DC_CONTACT_ID_SELF, do not add it explicitly.
-                // if SELF is not in the group, members cannot be added at all.
-
-                if 0 != is_contact_in_chat(context, chat_id, contact_id) {
-                    if 0 == flags & 0x1 {
-                        success = 1;
-                        OK_TO_CONTINUE = false;
-                    }
-                } else {
-                    // else continue and send status mail
-                    if chat.typ == Chattype::VerifiedGroup {
-                        if contact.is_verified() != VerifiedStatus::BidirectVerified {
-                            error!(
+                    if 0 != is_contact_in_chat(context, chat_id, contact_id) {
+                        if 0 == flags & 0x1 {
+                            success = 1;
+                            OK_TO_CONTINUE = false;
+                        }
+                    } else {
+                        // else continue and send status mail
+                        if chat.typ == Chattype::VerifiedGroup {
+                            if contact.is_verified() != VerifiedStatus::BidirectVerified {
+                                error!(
                                     context, 0,
                                     "Only bidirectional verified contacts can be added to verified groups."
                                 );
-                            OK_TO_CONTINUE = false;
+                                OK_TO_CONTINUE = false;
+                            }
+                        }
+                        if OK_TO_CONTINUE {
+                            if 0 == add_to_chat_contacts_table(context, chat_id, contact_id) {
+                                OK_TO_CONTINUE = false;
+                            }
                         }
                     }
                     if OK_TO_CONTINUE {
-                        if 0 == add_to_chat_contacts_table(context, chat_id, contact_id) {
-                            OK_TO_CONTINUE = false;
+                        if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
+                            msg.type_0 = Viewtype::Text;
+                            msg.text = Some(context.stock_system_msg(
+                                StockMessage::MsgAddMember,
+                                contact.get_addr(),
+                                "",
+                                DC_CONTACT_ID_SELF as u32,
+                            ));
+                            msg.param.set_int(Param::Cmd, 4);
+                            msg.param.set(Param::Arg, contact.get_addr());
+                            msg.param.set_int(Param::Arg2, flags);
+                            msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
+                            context.call_cb(
+                                Event::MSGS_CHANGED,
+                                chat_id as uintptr_t,
+                                msg.id as uintptr_t,
+                            );
                         }
+                        context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0 as uintptr_t);
+                        success = 1;
                     }
-                }
-                if OK_TO_CONTINUE {
-                    if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                        msg.type_0 = Viewtype::Text;
-                        msg.text = Some(context.stock_system_msg(
-                            StockMessage::MsgAddMember,
-                            contact.get_addr(),
-                            "",
-                            DC_CONTACT_ID_SELF as u32,
-                        ));
-                        msg.param.set_int(Param::Cmd, 4);
-                        msg.param.set(Param::Arg, contact.get_addr());
-                        msg.param.set_int(Param::Arg2, flags);
-                        msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
-                        context.call_cb(
-                            Event::MSGS_CHANGED,
-                            chat_id as uintptr_t,
-                            msg.id as uintptr_t,
-                        );
-                    }
-                    context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0 as uintptr_t);
-                    success = 1;
                 }
             }
         }
-    }
+    };
 
     success
 }
@@ -1565,58 +1563,57 @@ pub unsafe fn remove_contact_from_chat(
 
     /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
     /* this allows to delete pending references to deleted contacts.  Of course, this should _not_ happen. */
-    let chat = Chat::load_from_db(context, chat_id);
-
-    if !(!real_group_exists(context, chat_id) || chat.is_err()) {
-        let chat = chat.unwrap();
-        if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
-            log_event!(
-                context,
-                Event::ERROR_SELF_NOT_IN_GROUP,
-                0,
-                "Cannot remove contact from chat; self not in group.",
-            );
-        } else {
-            /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-            if let Ok(contact) = Contact::get_by_id(context, contact_id) {
-                if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                    msg.type_0 = Viewtype::Text;
-                    if contact.id == DC_CONTACT_ID_SELF as u32 {
-                        set_group_explicitly_left(context, chat.grpid).unwrap();
-                        msg.text = Some(context.stock_system_msg(
-                            StockMessage::MsgGroupLeft,
-                            "",
-                            "",
-                            DC_CONTACT_ID_SELF as u32,
-                        ));
-                    } else {
-                        msg.text = Some(context.stock_system_msg(
-                            StockMessage::MsgDelMember,
-                            contact.get_addr(),
-                            "",
-                            DC_CONTACT_ID_SELF as u32,
-                        ));
+    if let Ok(chat) = Chat::load_from_db(context, chat_id) {
+        if real_group_exists(context, chat_id) {
+            if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
+                log_event!(
+                    context,
+                    Event::ERROR_SELF_NOT_IN_GROUP,
+                    0,
+                    "Cannot remove contact from chat; self not in group.",
+                );
+            } else {
+                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
+                if let Ok(contact) = Contact::get_by_id(context, contact_id) {
+                    if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
+                        msg.type_0 = Viewtype::Text;
+                        if contact.id == DC_CONTACT_ID_SELF as u32 {
+                            set_group_explicitly_left(context, chat.grpid).unwrap();
+                            msg.text = Some(context.stock_system_msg(
+                                StockMessage::MsgGroupLeft,
+                                "",
+                                "",
+                                DC_CONTACT_ID_SELF as u32,
+                            ));
+                        } else {
+                            msg.text = Some(context.stock_system_msg(
+                                StockMessage::MsgDelMember,
+                                contact.get_addr(),
+                                "",
+                                DC_CONTACT_ID_SELF as u32,
+                            ));
+                        }
+                        msg.param.set_int(Param::Cmd, 5);
+                        msg.param.set(Param::Arg, contact.get_addr());
+                        msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
+                        context.call_cb(
+                            Event::MSGS_CHANGED,
+                            chat_id as uintptr_t,
+                            msg.id as uintptr_t,
+                        );
                     }
-                    msg.param.set_int(Param::Cmd, 5);
-                    msg.param.set(Param::Arg, contact.get_addr());
-                    msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
-                    context.call_cb(
-                        Event::MSGS_CHANGED,
-                        chat_id as uintptr_t,
-                        msg.id as uintptr_t,
-                    );
                 }
-            }
-            if sql::execute(
-                context,
-                &context.sql,
-                "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
-                params![chat_id as i32, contact_id as i32],
-            )
-            .is_ok()
-            {
-                context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
-                success = true;
+                if sql::execute(
+                    context,
+                    &context.sql,
+                    "DELETE FROM chats_contacts WHERE chat_id=? AND contact_id=?;",
+                    params![chat_id as i32, contact_id as i32],
+                )
+                .is_ok()
+                {
+                    context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0 as uintptr_t);
+                    success = true;
+                }
             }
         }
     }
