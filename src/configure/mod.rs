@@ -118,18 +118,6 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
             while !s.shall_stop_ongoing {
                 step_counter = step_counter + 1;
 
-                // if s.shall_stop_ongoing {
-                // if step_counter == 3 {
-                //     // Skip Autoconfig? (ok_to_continue 7)
-                //     // But wouldn't it need to reset s.shall_stop_ongoing then, too?
-                //     // It needs to run sth. but fail afterwards anyway, I'm still not sure about this, because the C code doesn't work like this so I guess we should ignore it
-                //     step_counter = STEP_3_INDEX;
-                // } else {
-                // break;
-                // }
-                // break;
-                // }
-
                 let success = match step_counter {
                     // Read login parameters from the database
                     1 => {
