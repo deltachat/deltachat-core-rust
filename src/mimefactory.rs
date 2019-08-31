@@ -134,7 +134,11 @@ impl<'a> MimeFactory<'a> {
             .push(contact.get_authname().to_string());
         factory.recipients_addr.push(contact.get_addr().to_string());
         factory.timestamp = dc_create_smeared_timestamp(factory.context);
-        factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, &factory.from_addr);
+        factory.rfc724_mid = dc_create_outgoing_rfc724_mid(
+            None,
+            &factory.from_addr,
+            use_rfc724_msgid_prefix(context),
+        );
         factory.loaded = Loaded::MDN;
 
         Ok(factory)

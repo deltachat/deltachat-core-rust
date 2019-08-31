@@ -268,7 +268,7 @@ impl Chat {
                     Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
                     _ => None,
                 };
-                dc_create_outgoing_rfc724_mid(grpid, &from)
+                dc_create_outgoing_rfc724_mid(grpid, &from, use_rfc724_msgid_prefix(context))
             };
 
             if self.typ == Chattype::Single {
@@ -1849,7 +1849,8 @@ pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, 
 }
 
 pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
-    let rfc724_mid = dc_create_outgoing_rfc724_mid(None, "@device");
+    let rfc724_mid =
+        dc_create_outgoing_rfc724_mid(None, "@device", use_rfc724_msgid_prefix(context));
 
     if context.sql.execute(
         "INSERT INTO msgs (chat_id,from_id,to_id, timestamp,type,state, txt,rfc724_mid) VALUES (?,?,?, ?,?,?, ?,?);",
