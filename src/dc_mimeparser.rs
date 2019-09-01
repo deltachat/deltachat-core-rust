@@ -828,7 +828,9 @@ unsafe fn mailmime_get_mime_type(
                     }
                 }
                 *msg_type = Viewtype::File;
-                *raw_mime = reconcat_mime(Some("text"), as_opt_str((*c).ct_subtype)).strdup();
+                if !raw_mime.is_null() {
+                    *raw_mime = reconcat_mime(Some("text"), as_opt_str((*c).ct_subtype)).strdup();
+                }
                 return 110i32;
             }
             2 => {
@@ -844,22 +846,31 @@ unsafe fn mailmime_get_mime_type(
                 ) == 0i32
                 {
                     *msg_type = Viewtype::File;
-                    *raw_mime = reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype)).strdup();
+                    if !raw_mime.is_null() {
+                        *raw_mime =
+                            reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype)).strdup();
+                    }
                     return 110i32;
                 } else {
                     *msg_type = Viewtype::Image;
                 }
-                *raw_mime = reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype)).strdup();
+                if !raw_mime.is_null() {
+                    *raw_mime = reconcat_mime(Some("image"), as_opt_str((*c).ct_subtype)).strdup();
+                }
                 return 80i32;
             }
             3 => {
                 *msg_type = Viewtype::Audio;
-                *raw_mime = reconcat_mime(Some("audio"), as_opt_str((*c).ct_subtype)).strdup();
+                if !raw_mime.is_null() {
+                    *raw_mime = reconcat_mime(Some("audio"), as_opt_str((*c).ct_subtype)).strdup();
+                }
                 return 90i32;
             }
             4 => {
                 *msg_type = Viewtype::Video;
-                *raw_mime = reconcat_mime(Some("video"), as_opt_str((*c).ct_subtype)).strdup();
+                if !raw_mime.is_null() {
+                    *raw_mime = reconcat_mime(Some("video"), as_opt_str((*c).ct_subtype)).strdup();
+                }
                 return 100i32;
             }
             _ => {
@@ -871,14 +882,18 @@ unsafe fn mailmime_get_mime_type(
                         b"autocrypt-setup\x00" as *const u8 as *const libc::c_char,
                     ) == 0i32
                 {
-                    *raw_mime = reconcat_mime(None, as_opt_str((*c).ct_subtype)).strdup();
+                    if !raw_mime.is_null() {
+                        *raw_mime = reconcat_mime(None, as_opt_str((*c).ct_subtype)).strdup();
+                    }
                     return 111i32;
                 }
-                *raw_mime = reconcat_mime(
-                    as_opt_str((*(*(*c).ct_type).tp_data.tp_discrete_type).dt_extension),
-                    as_opt_str((*c).ct_subtype),
-                )
-                .strdup();
+                if !raw_mime.is_null() {
+                    *raw_mime = reconcat_mime(
+                        as_opt_str((*(*(*c).ct_type).tp_data.tp_discrete_type).dt_extension),
+                        as_opt_str((*c).ct_subtype),
+                    )
+                    .strdup();
+                }
                 return 110i32;
             }
         },
