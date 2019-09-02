@@ -87,7 +87,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     context: &Context,
     msg_id: u32,
 ) -> Result<dc_mimefactory_t, Error> {
-    ensure!(msg_id > DC_CHAT_ID_LAST_SPECIAL as u32, "Invalid chat id");
+    ensure!(msg_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
 
     let msg = dc_msg_load_from_db(context, msg_id)?;
     let chat = Chat::load_from_db(context, msg.chat_id)?;
@@ -308,7 +308,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     // in dc_markseen_msgs()
     ensure!(!contact.is_blocked(), "Contact blocked");
     ensure!(
-        factory.msg.chat_id > DC_CHAT_ID_LAST_SPECIAL as u32,
+        factory.msg.chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "Invalid chat id"
     );
 

@@ -468,7 +468,7 @@ impl<'a> Chat<'a> {
                              VALUES (?,?,?, ?,?,1);",
                             params![
                                 timestamp,
-                                DC_CONTACT_ID_SELF as i32,
+                                DC_CONTACT_ID_SELF,
                                 self.id as i32,
                                 msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
                                 msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
@@ -566,7 +566,7 @@ pub fn create_by_msg_id(context: &Context, msg_id: u32) -> Result<u32, Error> {
 
     if let Ok(msg) = dc_msg_load_from_db(context, msg_id) {
         if let Ok(chat) = Chat::load_from_db(context, msg.chat_id) {
-            if chat.id > DC_CHAT_ID_LAST_SPECIAL as u32 {
+            if chat.id > DC_CHAT_ID_LAST_SPECIAL {
                 chat_id = chat.id;
                 if chat.blocked != Blocked::Not {
                     unblock(context, chat.id);
@@ -602,8 +602,7 @@ pub fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<u32, E
             chat_id
         }
         Err(err) => {
-            if !Contact::real_exists_by_id(context, contact_id)
-                && contact_id != DC_CONTACT_ID_SELF as u32
+            if !Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF
             {
                 warn!(
                     context,
@@ -706,7 +705,7 @@ pub fn prepare_msg<'a>(
     msg: &mut Message<'a>,
 ) -> Result<u32, Error> {
     ensure!(
-        chat_id > DC_CHAT_ID_LAST_SPECIAL as u32,
+        chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "Cannot prepare message for special chat"
     );
 
@@ -884,7 +883,7 @@ pub unsafe fn send_msg<'a>(
     );
 
     if msg.param.exists(Param::SetLatitude) {
-        context.call_cb(Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF, 0);
+        context.call_cb(Event::LOCATION_CHANGED, DC_CONTACT_ID_SELF as usize, 0);
     }
 
     if 0 == chat_id {
@@ -916,7 +915,7 @@ pub unsafe fn send_text_msg(
     text_to_send: String,
 ) -> Result<u32, Error> {
     ensure!(
-        chat_id > DC_CHAT_ID_LAST_SPECIAL as u32,
+        chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "bad chat_id = {} <= 9",
         chat_id
     );
@@ -928,7 +927,7 @@ pub unsafe fn send_text_msg(
 
 // passing `None` as message jsut deletes the draft
 pub unsafe fn set_draft(context: &Context, chat_id: u32, msg: Option<&mut Message>) {
-    if chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
+    if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return;
     }
     if set_draft_raw(context, chat_id, msg) {
@@ -1006,7 +1005,7 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
 }
 
 pub unsafe fn get_draft(context: &Context, chat_id: u32) -> Result<Message, Error> {
-    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL as u32, "Invalid chat ID");
+    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
     let draft_msg_id = get_draft_msg_id(context, chat_id);
     ensure!(draft_msg_id != 0, "Invalid draft message ID");
 
@@ -1024,13 +1023,13 @@ pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before:
         for row in rows {
             let (curr_id, ts) = row?;
             if curr_id as u32 == marker1before {
-                ret.push(DC_MSG_ID_MARKER1 as u32);
+                ret.push(DC_MSG_ID_MARKER1);
             }
             if 0 != flags & 0x1 {
                 let curr_local_timestamp = ts + cnv_to_local;
                 let curr_day = (curr_local_timestamp / 86400) as libc::c_int;
                 if curr_day != last_day {
-                    ret.push(DC_MSG_ID_LAST_SPECIAL as u32);
+                    ret.push(DC_MSG_ID_LAST_SPECIAL);
                     last_day = curr_day;
                 }
             }
@@ -1233,7 +1232,7 @@ pub unsafe fn get_next_media(
 
 pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Error> {
     ensure!(
-        chat_id > DC_CHAT_ID_LAST_SPECIAL as u32,
+        chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "bad chat_id = {} <= 9",
         chat_id
     );
@@ -1265,7 +1264,7 @@ pub fn archive(context: &Context, chat_id: u32, archive: bool) -> Result<(), Err
 
 pub fn delete(context: &Context, chat_id: u32) -> Result<(), Error> {
     ensure!(
-        chat_id > DC_CHAT_ID_LAST_SPECIAL as u32,
+        chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "bad chat_id = {} <= 9",
         chat_id
     );
@@ -1405,7 +1404,7 @@ pub unsafe fn add_contact_to_chat_ex(
     let mut success: libc::c_int = 0;
     let contact = Contact::get_by_id(context, contact_id);
 
-    if contact.is_err() || chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
+    if contact.is_err() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return 0;
     }
     let mut msg = dc_msg_new_untyped(context);
@@ -1416,8 +1415,7 @@ pub unsafe fn add_contact_to_chat_ex(
     /*this also makes sure, not contacts are added to special or normal chats*/
     if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
         if !(!real_group_exists(context, chat_id)
-            || !Contact::real_exists_by_id(context, contact_id)
-                && contact_id != DC_CONTACT_ID_SELF as u32)
+            || !Contact::real_exists_by_id(context, contact_id) && contact_id != DC_CONTACT_ID_SELF)
         {
             if !(is_contact_in_chat(context, chat_id, 1 as u32) == 1) {
                 log_event!(
@@ -1496,7 +1494,7 @@ pub unsafe fn add_contact_to_chat_ex(
 
 fn real_group_exists(context: &Context, chat_id: u32) -> bool {
     // check if a group or a verified group exists under the given ID
-    if !context.sql.is_open() || chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
+    if !context.sql.is_open() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return false;
     }
 
@@ -1549,14 +1547,11 @@ pub unsafe fn remove_contact_from_chat(
     contact_id: u32,
 ) -> Result<(), Error> {
     ensure!(
-        chat_id > DC_CHAT_ID_LAST_SPECIAL as u32,
+        chat_id > DC_CHAT_ID_LAST_SPECIAL,
         "bad chat_id = {} <= 9",
         chat_id
     );
-    ensure!(
-        contact_id != DC_CONTACT_ID_SELF as u32,
-        "Cannot remove self"
-    );
+    ensure!(contact_id != DC_CONTACT_ID_SELF, "Cannot remove self");
 
     let mut msg = dc_msg_new_untyped(context);
     let mut success = false;
@@ -1577,20 +1572,20 @@ pub unsafe fn remove_contact_from_chat(
                 if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                     if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
                         msg.type_0 = Viewtype::Text;
-                        if contact.id == DC_CONTACT_ID_SELF as u32 {
+                        if contact.id == DC_CONTACT_ID_SELF {
                             set_group_explicitly_left(context, chat.grpid).unwrap();
                             msg.text = Some(context.stock_system_msg(
                                 StockMessage::MsgGroupLeft,
                                 "",
                                 "",
-                                DC_CONTACT_ID_SELF as u32,
+                                DC_CONTACT_ID_SELF,
                             ));
                         } else {
                             msg.text = Some(context.stock_system_msg(
                                 StockMessage::MsgDelMember,
                                 contact.get_addr(),
                                 "",
-                                DC_CONTACT_ID_SELF as u32,
+                                DC_CONTACT_ID_SELF,
                             ));
                         }
                         msg.param.set_int(Param::Cmd, 5);
@@ -1654,7 +1649,7 @@ pub unsafe fn set_chat_name(
     let mut success = false;
 
     ensure!(!new_name.as_ref().is_empty(), "Invalid name");
-    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL as u32, "Invalid chat ID");
+    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
 
     let chat = Chat::load_from_db(context, chat_id)?;
     let mut msg = dc_msg_new_untyped(context);
@@ -1689,7 +1684,7 @@ pub unsafe fn set_chat_name(
                         StockMessage::MsgGrpName,
                         &chat.name,
                         new_name.as_ref(),
-                        DC_CONTACT_ID_SELF as u32,
+                        DC_CONTACT_ID_SELF,
                     ));
                     msg.param.set_int(Param::Cmd, 2);
                     if !chat.name.is_empty() {
@@ -1725,7 +1720,7 @@ pub unsafe fn set_chat_profile_image(
     chat_id: u32,
     new_image: impl AsRef<str>,
 ) -> Result<(), Error> {
-    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL as u32, "Invalid chat ID");
+    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
 
     let mut OK_TO_CONTINUE = true;
     let mut success = false;
@@ -1773,7 +1768,7 @@ pub unsafe fn set_chat_profile_image(
                         },
                         "",
                         "",
-                        DC_CONTACT_ID_SELF as u32,
+                        DC_CONTACT_ID_SELF,
                     ));
                     msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
                     context.call_cb(
@@ -1805,7 +1800,7 @@ pub unsafe fn forward_msgs(
     msg_cnt: libc::c_int,
     chat_id: u32,
 ) {
-    if msg_ids.is_null() || msg_cnt <= 0 || chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
+    if msg_ids.is_null() || msg_cnt <= 0 || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return;
     }
 
@@ -1844,7 +1839,7 @@ pub unsafe fn forward_msgs(
             }
             let mut msg = msg.unwrap();
             let original_param = msg.param.clone();
-            if msg.from_id != DC_CONTACT_ID_SELF as u32 {
+            if msg.from_id != DC_CONTACT_ID_SELF {
                 msg.param.set_int(Param::Forwarded, 1);
             }
             msg.param.remove(Param::GuranteeE2ee);

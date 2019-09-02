@@ -131,7 +131,7 @@ pub unsafe fn dc_receive_imf(
             if 0 != check_self {
                 incoming = 0;
                 if 0 != dc_mimeparser_sender_equals_recipient(&mime_parser) {
-                    from_id = DC_CONTACT_ID_SELF as u32;
+                    from_id = DC_CONTACT_ID_SELF;
                 }
             } else if from_list.len() >= 1 {
                 // if there is no from given, from_id stays 0 which is just fine. These messages
@@ -220,7 +220,7 @@ pub unsafe fn dc_receive_imf(
         );
     }
 
-    if !mime_parser.message_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL as u32 {
+    if !mime_parser.message_kml.is_none() && chat_id > DC_CHAT_ID_LAST_SPECIAL {
         save_locations(
             context,
             &mime_parser,
@@ -492,7 +492,7 @@ unsafe fn add_parts(
         }
         if *chat_id == 0 {
             // maybe from_id is null or sth. else is suspicious, move message to trash
-            *chat_id = DC_CHAT_ID_TRASH as u32;
+            *chat_id = DC_CHAT_ID_TRASH;
         }
 
         // if the chat_id is blocked,
@@ -509,7 +509,7 @@ unsafe fn add_parts(
         // the mail is on the IMAP server, probably it is also delivered.
         // We cannot recreate other states (read, error).
         state = MessageState::OutDelivered;
-        *from_id = DC_CONTACT_ID_SELF as u32;
+        *from_id = DC_CONTACT_ID_SELF;
         if !to_ids.is_empty() {
             *to_id = to_ids[0];
             if *chat_id == 0 {
@@ -565,7 +565,7 @@ unsafe fn add_parts(
             }
         }
         if *chat_id == 0 {
-            *chat_id = DC_CHAT_ID_TRASH as u32;
+            *chat_id = DC_CHAT_ID_TRASH;
         }
     }
     // correct message_timestamp, it should not be used before,
@@ -723,7 +723,7 @@ unsafe fn add_parts(
     );
 
     // check event to send
-    if *chat_id == DC_CHAT_ID_TRASH as u32 {
+    if *chat_id == DC_CHAT_ID_TRASH {
         *create_event_to_send = None;
     } else if 0 != incoming && state == MessageState::InFresh {
         if 0 != from_id_blocked {
@@ -1290,10 +1290,10 @@ unsafe fn create_or_lookup_group(
     }
 
     // again, check chat_id
-    if chat_id <= DC_CHAT_ID_LAST_SPECIAL as u32 {
+    if chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         chat_id = 0;
         if group_explicitly_left {
-            chat_id = DC_CHAT_ID_TRASH as u32;
+            chat_id = DC_CHAT_ID_TRASH;
         } else {
             create_or_lookup_adhoc_group(
                 context,
@@ -1398,9 +1398,9 @@ unsafe fn create_or_lookup_group(
         )
         .ok();
         if skip.is_null() || !addr_cmp(&self_addr, as_str(skip)) {
-            chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF as u32);
+            chat::add_to_chat_contacts_table(context, chat_id, DC_CONTACT_ID_SELF);
         }
-        if from_id > DC_CHAT_ID_LAST_SPECIAL as u32 {
+        if from_id > DC_CHAT_ID_LAST_SPECIAL {
             if !Contact::addr_equals_contact(context, &self_addr, from_id as u32)
                 && (skip.is_null()
                     || !Contact::addr_equals_contact(context, to_string(skip), from_id as u32))

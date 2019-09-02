@@ -195,9 +195,9 @@ impl<'a> Chatlist<'a> {
 
         if 0 != add_archived_link_item && dc_get_archived_cnt(context) > 0 {
             if ids.is_empty() && 0 != listflags & DC_GCL_ADD_ALLDONE_HINT {
-                ids.push((DC_CHAT_ID_ALLDONE_HINT as u32, 0));
+                ids.push((DC_CHAT_ID_ALLDONE_HINT, 0));
             }
-            ids.push((DC_CHAT_ID_ARCHIVED_LINK as u32, 0));
+            ids.push((DC_CHAT_ID_ARCHIVED_LINK, 0));
         }
 
         Ok(Chatlist { context, ids })
@@ -290,10 +290,9 @@ impl<'a> Chatlist<'a> {
             None
         };
 
-        if chat.id == DC_CHAT_ID_ARCHIVED_LINK as u32 {
+        if chat.id == DC_CHAT_ID_ARCHIVED_LINK {
             ret.text2 = None;
-        } else if lastmsg.is_none()
-            || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED as u32
+        } else if lastmsg.is_none() || lastmsg.as_ref().unwrap().from_id == DC_CONTACT_ID_UNDEFINED
         {
             ret.text2 = Some(self.context.stock_str(StockMessage::NoMessages).to_string());
         } else {
