@@ -32,27 +32,29 @@ pub unsafe fn dc_get_securejoin_qr(
     ========================================================= */
 
     let mut fingerprint = ptr::null_mut();
-    let mut invitenumber: *mut libc::c_char;
-    let mut auth: *mut libc::c_char;
     let mut qr: Option<String> = None;
 
     dc_ensure_secret_key_exists(context).ok();
-    invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id);
-    if invitenumber.is_null() {
-        invitenumber = dc_create_id().strdup();
-        dc_token_save(context, DC_TOKEN_INVITENUMBER, group_chat_id, invitenumber);
-    }
-    auth = dc_token_lookup(context, DC_TOKEN_AUTH, group_chat_id);
-    if auth.is_null() {
-        auth = dc_create_id().strdup();
-        dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, auth);
-    }
+    let invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id)
+        .unwrap_or_else(|| {
+            let invitenumber_s = dc_create_id();
+            dc_token_save(
+                context,
+                DC_TOKEN_INVITENUMBER,
+                group_chat_id,
+                &invitenumber_s,
+            );
+            invitenumber_s
+        });
+    let auth = dc_token_lookup(context, DC_TOKEN_AUTH, group_chat_id).unwrap_or_else(|| {
+        let auth_s = dc_create_id();
+        dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, &auth_s);
+        auth_s
+    });
     let self_addr = context.sql.get_config(context, "configured_addr");
 
     let cleanup = |fingerprint| {
         free(fingerprint as *mut libc::c_void);
-        free(invitenumber as *mut libc::c_void);
-        free(auth as *mut libc::c_void);
 
         if let Some(qr) = qr {
             qr.strdup()
@@ -93,8 +95,8 @@ pub unsafe fn dc_get_securejoin_qr(
                 self_addr_urlencoded,
                 &group_name_urlencoded,
                 &chat.grpid,
-                as_str(invitenumber),
-                as_str(auth),
+                &invitenumber,
+                &auth,
             ))
         } else {
             error!(
@@ -109,8 +111,8 @@ pub unsafe fn dc_get_securejoin_qr(
             as_str(fingerprint),
             self_addr_urlencoded,
             self_name_urlencoded,
-            as_str(invitenumber),
-            as_str(auth),
+            &invitenumber,
+            &auth,
         ))
     };
 
@@ -414,7 +416,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 if invitenumber.is_null() {
                     warn!(context, 0, "Secure-join denied (invitenumber missing).",);
                     ok_to_continue = false;
-                } else if !dc_token_exists(context, DC_TOKEN_INVITENUMBER, invitenumber) {
+                } else if !dc_token_exists(context, DC_TOKEN_INVITENUMBER, as_str(invitenumber)) {
                     warn!(context, 0, "Secure-join denied (bad invitenumber).",);
                     ok_to_continue = false;
                 } else {
@@ -602,7 +604,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Auth not provided.\x00" as *const u8 as *const libc::c_char,
                         );
                         ok_to_continue = false;
-                    } else if !dc_token_exists(context, DC_TOKEN_AUTH, auth_0) {
+                    } else if !dc_token_exists(context, DC_TOKEN_AUTH, as_str(auth_0)) {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,

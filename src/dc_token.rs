@@ -14,17 +14,14 @@ pub fn dc_token_save(
     context: &Context,
     namespc: dc_tokennamespc_t,
     foreign_id: u32,
-    token: *const libc::c_char,
+    token: &str,
 ) -> bool {
-    if token.is_null() {
-        return false;
-    }
     // foreign_id may be 0
     sql::execute(
         context,
         &context.sql,
         "INSERT INTO tokens (namespc, foreign_id, token, timestamp) VALUES (?, ?, ?, ?);",
-        params![namespc as i32, foreign_id as i32, as_str(token), time()],
+        params![namespc as i32, foreign_id as i32, token, time()],
     )
     .is_ok()
 }
@@ -33,33 +30,21 @@ pub fn dc_token_lookup(
     context: &Context,
     namespc: dc_tokennamespc_t,
     foreign_id: u32,
-) -> *mut libc::c_char {
-    context
-        .sql
-        .query_row_col::<_, String>(
-            context,
-            "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
-            params![namespc as i32, foreign_id as i32],
-            0,
-        )
-        .map(|s| unsafe { s.strdup() })
-        .unwrap_or_else(|| std::ptr::null_mut())
+) -> Option<String> {
+    context.sql.query_row_col::<_, String>(
+        context,
+        "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
+        params![namespc as i32, foreign_id as i32],
+        0,
+    )
 }
 
-pub fn dc_token_exists(
-    context: &Context,
-    namespc: dc_tokennamespc_t,
-    token: *const libc::c_char,
-) -> bool {
-    if token.is_null() {
-        return false;
-    }
-
+pub fn dc_token_exists(context: &Context, namespc: dc_tokennamespc_t, token: &str) -> bool {
     context
         .sql
         .exists(
             "SELECT id FROM tokens WHERE namespc=? AND token=?;",
-            params![namespc as i32, as_str(token)],
+            params![namespc as i32, token],
         )
         .unwrap_or_default()
 }
