@@ -33,6 +33,7 @@ pub enum Config {
     E2eeEnabled,
     #[strum(props(default = "1"))]
     MdnsEnabled,
+    #[strum(props(default = "1"))]
     InboxWatch,
     #[strum(props(default = "1"))]
     SentboxWatch,
