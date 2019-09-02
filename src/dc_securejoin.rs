@@ -30,6 +30,17 @@ pub unsafe fn dc_get_securejoin_qr(
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
     ========================================================= */
+    let cleanup = |fingerprint, invitenumber, auth, qr: Option<String>| {
+        free(fingerprint as *mut libc::c_void);
+        free(invitenumber as *mut libc::c_void);
+        free(auth as *mut libc::c_void);
+
+        if let Some(qr) = qr {
+            qr.strdup()
+        } else {
+            "".strdup()
+        }
+    };
 
     let mut fingerprint = ptr::null_mut();
     let mut invitenumber: *mut libc::c_char;
@@ -49,21 +60,10 @@ pub unsafe fn dc_get_securejoin_qr(
     }
     let self_addr = context.sql.get_config(context, "configured_addr");
 
-    let cleanup = |fingerprint, qr: Option<String>| {
-        free(fingerprint as *mut libc::c_void);
-        free(invitenumber as *mut libc::c_void);
-        free(auth as *mut libc::c_void);
-
-        if let Some(qr) = qr {
-            qr.strdup()
-        } else {
-            "".strdup()
-        }
-    };
 
     if self_addr.is_none() {
         error!(context, 0, "Not configured, cannot generate QR code.",);
-        return cleanup(fingerprint, qr);
+        return cleanup(fingerprint, invitenumber, auth, qr);
     }
 
     let self_addr = self_addr.unwrap();
@@ -75,7 +75,7 @@ pub unsafe fn dc_get_securejoin_qr(
     fingerprint = get_self_fingerprint(context);
 
     if fingerprint.is_null() {
-        return cleanup(fingerprint, qr);
+        return cleanup(fingerprint, invitenumber, auth, qr);
     }
 
     let self_addr_urlencoded = utf8_percent_encode(&self_addr, NON_ALPHANUMERIC).to_string();
@@ -101,7 +101,7 @@ pub unsafe fn dc_get_securejoin_qr(
                 context,
                 0, "Cannot get QR-code for chat-id {}", group_chat_id,
             );
-            return cleanup(fingerprint, None);
+            return cleanup(fingerprint, invitenumber, auth, qr);
         }
     } else {
         Some(format!(
@@ -116,7 +116,7 @@ pub unsafe fn dc_get_securejoin_qr(
 
     info!(context, 0, "Generated QR code: {}", qr.as_ref().unwrap());
 
-    cleanup(fingerprint, qr)
+    return cleanup(fingerprint, invitenumber, auth, qr);
 }
 
 fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {
