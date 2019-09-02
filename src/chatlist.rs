@@ -247,7 +247,7 @@ impl<'a> Chatlist<'a> {
     /// - dc_lot_t::timestamp: the timestamp of the message.  0 if not applicable.
     /// - dc_lot_t::state: The state of the message as one of the DC_STATE_* constants (see #dc_msg_get_state()).
     //    0 if not applicable.
-    pub unsafe fn get_summary(&self, index: usize, chat: Option<&Chat<'a>>) -> Lot {
+    pub fn get_summary(&self, index: usize, chat: Option<&Chat<'a>>) -> Lot {
         // The summary is created by the chat, not by the last message.
         // This is because we may want to display drafts here or stuff as
         // "is typing".
