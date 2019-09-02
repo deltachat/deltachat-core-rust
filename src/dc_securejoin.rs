@@ -60,7 +60,6 @@ pub unsafe fn dc_get_securejoin_qr(
     }
     let self_addr = context.sql.get_config(context, "configured_addr");
 
-
     if self_addr.is_none() {
         error!(context, 0, "Not configured, cannot generate QR code.",);
         return cleanup(fingerprint, invitenumber, auth, qr);
