@@ -712,7 +712,7 @@ The macro avoids weird values of 0% or 100% while still working. */
 // TODO should return bool /rtn
 #[allow(non_snake_case)]
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
-    let mut current_block: u64;
+    let mut ok_to_continue: bool;
     let mut success: libc::c_int = 0;
 
     let mut delete_dest_file: libc::c_int = 0;
@@ -768,16 +768,14 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                 .is_err()
                 {
                     /* error already logged */
-                    current_block = 11487273724841241105;
+                    ok_to_continue = false;
                 } else {
-                    current_block = 14648156034262866959;
+                    ok_to_continue = true;
                 }
             } else {
-                current_block = 14648156034262866959;
+                ok_to_continue = true;
             }
-            match current_block {
-                11487273724841241105 => {}
-                _ => {
+            if ok_to_continue {
                     let mut total_files_cnt = 0;
                     let dir = std::path::Path::new(as_str(context.get_blobdir()));
                     if let Ok(dir_handle) = std::fs::read_dir(dir) {
@@ -793,7 +791,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                         let mut processed_files_cnt = 0;
                                         for entry in dir_handle {
                                             if entry.is_err() {
-                                                current_block = 2631791190359682872;
+                                                ok_to_continue = true;
                                                 break;
                                             }
                                             let entry = entry.unwrap();
@@ -805,7 +803,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                                 .shall_stop_ongoing
                                             {
                                                 delete_dest_file = 1;
-                                                current_block = 11487273724841241105;
+                                                ok_to_continue = false;
                                                 break;
                                             } else {
                                                 processed_files_cnt += 1;
@@ -850,7 +848,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                                                 &curr_pathNfilename,
                                                             );
                                                             /* this is not recoverable! writing to the sqlite database should work! */
-                                                            current_block = 11487273724841241105;
+                                                            ok_to_continue = false;
                                                             break;
                                                         }
                                                     } else {
@@ -872,11 +870,9 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                             }
                         } else {
                             info!(context, 0, "Backup: No files to copy.",);
-                            current_block = 2631791190359682872;
+                            ok_to_continue = true;
                         }
-                        match current_block {
-                            11487273724841241105 => {}
-                            _ => {
+                        if ok_to_continue {
                                 if sql
                                     .set_config_int(context, "backup_time", now as i32)
                                     .is_ok()
@@ -888,7 +884,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                     );
                                     success = 1;
                                 }
-                            }
                         }
                     } else {
                         error!(
@@ -898,7 +893,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                             as_str(context.get_blobdir())
                         );
                     };
-                }
             }
         }
     }
