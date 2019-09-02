@@ -498,7 +498,7 @@ pub unsafe extern "C" fn dc_send_msg(
     chat_id: u32,
     msg: *mut dc_msg_t,
 ) -> u32 {
-    if context.is_null() || chat_id == 0 || msg.is_null() {
+    if context.is_null() || msg.is_null() {
         eprintln!("ignoring careless call to dc_send_msg()");
         return 0;
     }
