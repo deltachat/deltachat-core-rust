@@ -554,13 +554,11 @@ impl Imap {
                         warn!(context, 0, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
                         (true, false, false)
                     } else {
-                        let can_idle = caps.has("IDLE");
-                        let has_xlist = caps.has("XLIST");
-                        let caps_list = caps.iter().fold(String::new(), |mut s, c| {
-                            s += " ";
-                            s += c;
-                            s
-                        });
+                        let can_idle = caps.has_str("IDLE");
+                        let has_xlist = caps.has_str("XLIST");
+                        let caps_list = caps
+                            .iter()
+                            .fold(String::new(), |s, c| s + &format!(" {:?}", c));
                         log_event!(
                             context,
                             Event::IMAP_CONNECTED,

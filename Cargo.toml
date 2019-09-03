@@ -23,7 +23,7 @@ num-derive = "0.2.5"
 num-traits = "0.2.6"
 native-tls = "0.2.3"
 lettre = "0.9.0"
-imap = "1.0.1"
+imap = { git = "https://github.com/jonhoo/rust-imap", rev = "31e2490d2203a837d8830736bcb183831ec4894d" }
 mmime = { git = "https://github.com/dignifiedquire/mmime", rev = "bccd2c2" }
 base64 = "0.10"
 charset = "0.1"
