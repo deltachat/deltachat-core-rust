@@ -1,5 +1,4 @@
 version: 2.1
-
 executors:
   default:
     docker:
@@ -158,7 +157,6 @@ jobs:
       - checkout
       - attach_workspace:
           at: workspace
-      - run: pyenv global 3.6.2
       - run: ls -laR workspace
       - run: ci_scripts/ci_upload.sh workspace/py-docs workspace/wheelhouse
 
