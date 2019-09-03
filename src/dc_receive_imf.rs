@@ -13,9 +13,8 @@ use sha2::{Digest, Sha256};
 use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
-use crate::context::Context;
+use crate::context::{do_heuristics_moves, Context};
 use crate::dc_mimeparser::*;
-use crate::dc_move::*;
 use crate::dc_securejoin::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
@@ -735,7 +734,7 @@ unsafe fn add_parts(
         }
     }
 
-    dc_do_heuristics_moves(context, server_folder.as_ref(), *insert_msg_id);
+    do_heuristics_moves(context, server_folder.as_ref(), *insert_msg_id);
     cleanup(mime_in_reply_to, mime_references, txt_raw);
 
     Ok(())
@@ -1762,7 +1761,7 @@ unsafe fn check_verified_properties(
         }
     };
 
-    if 0 == mimeparser.e2ee_helper.encrypted {
+    if mimeparser.e2ee_helper.encrypted {
         verify_fail("This message is not encrypted".into());
         return 0;
     }
@@ -1875,10 +1874,7 @@ unsafe fn dc_is_reply_to_known_message(
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_IN_REPLY_TO as libc::c_int {
         let fld_in_reply_to: *mut mailimf_in_reply_to = (*field).fld_data.fld_in_reply_to;
         if !fld_in_reply_to.is_null() {
-            if 0 != is_known_rfc724_mid_in_list(
-                context,
-                (*(*field).fld_data.fld_in_reply_to).mid_list,
-            ) {
+            if is_known_rfc724_mid_in_list(context, (*(*field).fld_data.fld_in_reply_to).mid_list) {
                 return 1;
             }
         }
@@ -1887,10 +1883,7 @@ unsafe fn dc_is_reply_to_known_message(
     if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_REFERENCES as libc::c_int {
         let fld_references: *mut mailimf_references = (*field).fld_data.fld_references;
         if !fld_references.is_null() {
-            if 0 != is_known_rfc724_mid_in_list(
-                context,
-                (*(*field).fld_data.fld_references).mid_list,
-            ) {
+            if is_known_rfc724_mid_in_list(context, (*(*field).fld_data.fld_references).mid_list) {
                 return 1;
             }
         }
@@ -1898,29 +1891,18 @@ unsafe fn dc_is_reply_to_known_message(
     0
 }
 
-unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> libc::c_int {
-    if !mid_list.is_null() {
-        let mut cur: *mut clistiter;
-        cur = (*mid_list).first;
-        while !cur.is_null() {
-            if 0 != is_known_rfc724_mid(
-                context,
-                (if !cur.is_null() {
-                    (*cur).data
-                } else {
-                    ptr::null_mut()
-                }) as *const libc::c_char,
-            ) {
-                return 1;
-            }
-            cur = if !cur.is_null() {
-                (*cur).next
-            } else {
-                ptr::null_mut()
-            }
+unsafe fn is_known_rfc724_mid_in_list(context: &Context, mid_list: *const clist) -> bool {
+    if mid_list.is_null() {
+        return false;
+    }
+
+    for data in &*mid_list {
+        if 0 != is_known_rfc724_mid(context, data.cast()) {
+            return true;
         }
     }
-    0
+
+    return false;
 }
 
 /// Check if a message is a reply to a known message (messenger or non-messenger).

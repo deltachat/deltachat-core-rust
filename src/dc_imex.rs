@@ -11,8 +11,8 @@ use crate::config::Config;
 use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_e2ee::*;
 use crate::dc_tools::*;
+use crate::e2ee;
 use crate::error::*;
 use crate::job::*;
 use crate::key::*;
@@ -196,7 +196,7 @@ pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<Strin
         passphrase.len() >= 2,
         "Passphrase must be at least 2 chars long."
     );
-    let self_addr = dc_ensure_secret_key_exists(context)?;
+    let self_addr = e2ee::ensure_secret_key_exists(context)?;
     let private_key = Key::from_self_private(context, self_addr, &context.sql)
         .ok_or(format_err!("Failed to get private key."))?;
     let ac_headers = match context
@@ -522,7 +522,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
             } else {
                 if what == 1 || what == 11 {
                     /* before we export anything, make sure the private key exists */
-                    if dc_ensure_secret_key_exists(context).is_err() {
+                    if e2ee::ensure_secret_key_exists(context).is_err() {
                         error!(
                             context,
                             0,
@@ -712,7 +712,7 @@ The macro avoids weird values of 0% or 100% while still working. */
 // TODO should return bool /rtn
 #[allow(non_snake_case)]
 unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
-    let mut current_block: u64;
+    let mut ok_to_continue: bool;
     let mut success: libc::c_int = 0;
 
     let mut delete_dest_file: libc::c_int = 0;
@@ -768,32 +768,30 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                 .is_err()
                 {
                     /* error already logged */
-                    current_block = 11487273724841241105;
+                    ok_to_continue = false;
                 } else {
-                    current_block = 14648156034262866959;
+                    ok_to_continue = true;
                 }
             } else {
-                current_block = 14648156034262866959;
+                ok_to_continue = true;
             }
-            match current_block {
-                11487273724841241105 => {}
-                _ => {
-                    let mut total_files_cnt = 0;
-                    let dir = std::path::Path::new(as_str(context.get_blobdir()));
-                    if let Ok(dir_handle) = std::fs::read_dir(dir) {
-                        total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
+            if ok_to_continue {
+                let mut total_files_cnt = 0;
+                let dir = std::path::Path::new(as_str(context.get_blobdir()));
+                if let Ok(dir_handle) = std::fs::read_dir(dir) {
+                    total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
-                        info!(context, 0, "EXPORT: total_files_cnt={}", total_files_cnt);
-                        if total_files_cnt > 0 {
-                            // scan directory, pass 2: copy files
-                            if let Ok(dir_handle) = std::fs::read_dir(dir) {
-                                sql.prepare(
+                    info!(context, 0, "EXPORT: total_files_cnt={}", total_files_cnt);
+                    if total_files_cnt > 0 {
+                        // scan directory, pass 2: copy files
+                        if let Ok(dir_handle) = std::fs::read_dir(dir) {
+                            sql.prepare(
                                     "INSERT INTO backup_blobs (file_name, file_content) VALUES (?, ?);",
                                     move |mut stmt, _| {
                                         let mut processed_files_cnt = 0;
                                         for entry in dir_handle {
                                             if entry.is_err() {
-                                                current_block = 2631791190359682872;
+                                                ok_to_continue = true;
                                                 break;
                                             }
                                             let entry = entry.unwrap();
@@ -805,7 +803,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                                 .shall_stop_ongoing
                                             {
                                                 delete_dest_file = 1;
-                                                current_block = 11487273724841241105;
+                                                ok_to_continue = false;
                                                 break;
                                             } else {
                                                 processed_files_cnt += 1;
@@ -850,7 +848,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                                                 &curr_pathNfilename,
                                                             );
                                                             /* this is not recoverable! writing to the sqlite database should work! */
-                                                            current_block = 11487273724841241105;
+                                                            ok_to_continue = false;
                                                             break;
                                                         }
                                                     } else {
@@ -862,43 +860,39 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                         Ok(())
                                     }
                                 ).unwrap();
-                            } else {
-                                error!(
-                                    context,
-                                    0,
-                                    "Backup: Cannot copy from blob-directory \"{}\".",
-                                    as_str(context.get_blobdir()),
-                                );
-                            }
                         } else {
-                            info!(context, 0, "Backup: No files to copy.",);
-                            current_block = 2631791190359682872;
-                        }
-                        match current_block {
-                            11487273724841241105 => {}
-                            _ => {
-                                if sql
-                                    .set_config_int(context, "backup_time", now as i32)
-                                    .is_ok()
-                                {
-                                    context.call_cb(
-                                        Event::IMEX_FILE_WRITTEN,
-                                        dest_pathNfilename as uintptr_t,
-                                        0,
-                                    );
-                                    success = 1;
-                                }
-                            }
+                            error!(
+                                context,
+                                0,
+                                "Backup: Cannot copy from blob-directory \"{}\".",
+                                as_str(context.get_blobdir()),
+                            );
                         }
                     } else {
-                        error!(
-                            context,
-                            0,
-                            "Backup: Cannot get info for blob-directory \"{}\".",
-                            as_str(context.get_blobdir())
-                        );
-                    };
-                }
+                        info!(context, 0, "Backup: No files to copy.",);
+                        ok_to_continue = true;
+                    }
+                    if ok_to_continue {
+                        if sql
+                            .set_config_int(context, "backup_time", now as i32)
+                            .is_ok()
+                        {
+                            context.call_cb(
+                                Event::IMEX_FILE_WRITTEN,
+                                dest_pathNfilename as uintptr_t,
+                                0,
+                            );
+                            success = 1;
+                        }
+                    }
+                } else {
+                    error!(
+                        context,
+                        0,
+                        "Backup: Cannot get info for blob-directory \"{}\".",
+                        as_str(context.get_blobdir())
+                    );
+                };
             }
         }
     }

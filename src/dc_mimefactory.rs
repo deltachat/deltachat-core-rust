@@ -15,9 +15,9 @@ use crate::chat::{self, Chat};
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::{dc_get_version_str, Context};
-use crate::dc_e2ee::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
+use crate::e2ee::*;
 use crate::error::Error;
 use crate::location;
 use crate::message::*;
@@ -353,13 +353,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
     let mut force_plaintext: libc::c_int = 0;
     let mut do_gossip: libc::c_int = 0;
     let mut grpimage = None;
-    let mut e2ee_helper = dc_e2ee_helper_t {
-        encryption_successfull: 0,
-        cdata_to_free: ptr::null_mut(),
-        encrypted: 0,
-        signatures: Default::default(),
-        gossipped_addr: Default::default(),
-    };
+    let mut e2ee_helper = E2eeHelper::default();
 
     if factory.loaded as libc::c_uint == DC_MF_NOTHING_LOADED as libc::c_int as libc::c_uint
         || !factory.out.is_null()
@@ -1033,7 +1027,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 ),
             );
             if force_plaintext != 2 {
-                dc_e2ee_encrypt(
+                e2ee_helper.encrypt(
                     factory.context,
                     factory.recipients_addr,
                     force_plaintext,
@@ -1041,10 +1035,9 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     min_verified,
                     do_gossip,
                     message,
-                    &mut e2ee_helper,
                 );
             }
-            if 0 != e2ee_helper.encryption_successfull {
+            if e2ee_helper.encryption_successfull {
                 factory.out_encrypted = 1;
                 if 0 != do_gossip {
                     factory.out_gossiped = 1
@@ -1052,14 +1045,14 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
             }
             factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
             mailmime_write_mem(factory.out, &mut col, message);
-            success = 1
+            success = 1;
         }
     }
 
     if !message.is_null() {
         mailmime_free(message);
     }
-    dc_e2ee_thanks(&mut e2ee_helper);
+    e2ee_helper.thanks();
     free(message_text as *mut libc::c_void);
     free(message_text2 as *mut libc::c_void);
     free(subject_str as *mut libc::c_void);

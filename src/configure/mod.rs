@@ -2,9 +2,9 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
 use crate::constants::Event;
 use crate::context::Context;
-use crate::dc_e2ee::*;
 use crate::dc_loginparam::*;
 use crate::dc_tools::*;
+use crate::e2ee;
 use crate::imap::*;
 use crate::job::*;
 use crate::oauth2::*;
@@ -589,7 +589,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                                             .ok();
                                                         if !s.shall_stop_ongoing {
                                                             progress!(context, 920);
-                                                            dc_ensure_secret_key_exists(context);
+                                                            e2ee::ensure_secret_key_exists(context);
                                                             success = true;
                                                             info!(
                                                                 context,
