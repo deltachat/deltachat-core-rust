@@ -548,8 +548,8 @@ impl Imap {
         }
 
         let (teardown, can_idle, has_xlist) = match &mut *self.session.lock().unwrap() {
-            Some(ref mut session) => {
-                if let Ok(caps) = session.capabilities() {
+            Some(ref mut session) => match session.capabilities() {
+                Ok(caps) => {
                     if !context.sql.is_open() {
                         warn!(context, 0, "IMAP-LOGIN as {} ok but ABORTING", lp.mail_user,);
                         (true, false, false)
@@ -569,10 +569,12 @@ impl Imap {
                         );
                         (false, can_idle, has_xlist)
                     }
-                } else {
+                }
+                Err(err) => {
+                    info!(context, 0, "CAPABILITY command error: {}", err);
                     (true, false, false)
                 }
-            }
+            },
             None => (true, false, false),
         };
 
