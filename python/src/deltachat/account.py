@@ -14,7 +14,7 @@ except ImportError:
 import deltachat
 from . import const
 from .capi import ffi, lib
-from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array
+from .cutil import as_dc_charpointer, from_dc_charpointer, iter_array, DCLot
 from .chatting import Contact, Chat, Message
 
 
@@ -328,6 +328,26 @@ class Account(object):
         if res == ffi.NULL:
             raise RuntimeError("could not send out autocrypt setup message")
         return from_dc_charpointer(res)
+
+    def get_setup_contact_qr(self):
+        """ get/Create Setup-Contact QR Code as ascii-string """
+        res = lib.dc_get_securejoin_qr(self._dc_context, 0)
+        return from_dc_charpointer(res)
+
+    def check_qr(self, qr):
+        """ check qr code ..."""
+        res = ffi.gc(
+            lib.dc_check_qr(self._dc_context, as_dc_charpointer(qr)),
+            lib.dc_lot_unref
+        )
+        return DCLot(res)
+
+    def setup_secure_contact(self, qr):
+        """ """
+        chat_id = lib.dc_join_securejoin(self._dc_context, as_dc_charpointer(qr))
+        if chat_id == 0:
+            raise ValueError("could not setup secure contact")
+        return Chat(self, chat_id)
 
     def start_threads(self):
         """ start IMAP/SMTP threads (and configure account if it hasn't happened).

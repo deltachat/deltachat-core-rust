@@ -12,6 +12,7 @@ use crate::dc_mimeparser::*;
 use crate::dc_token::*;
 use crate::dc_tools::*;
 use crate::e2ee::*;
+use crate::error::Error;
 use crate::key::*;
 use crate::lot::LotState;
 use crate::message::*;
@@ -164,7 +165,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: *const libc::c_char) -> 
                     bob.status = 0;
                     bob.qr_scan = Some(qr_scan);
                 }
-                if 0 != fingerprint_equals_sender(
+                if fingerprint_equals_sender(
                     context,
                     context
                         .bob
@@ -334,12 +335,11 @@ unsafe fn chat_id_2_contact_id(context: &Context, contact_chat_id: uint32_t) -> 
     }
 }
 
-unsafe fn fingerprint_equals_sender(
+fn fingerprint_equals_sender(
     context: &Context,
     fingerprint: impl AsRef<str>,
     contact_chat_id: u32,
-) -> libc::c_int {
-    let mut fingerprint_equal = 0;
+) -> bool {
     let contacts = chat::get_chat_contacts(context, contact_chat_id);
 
     if contacts.len() == 1 {
@@ -350,15 +350,12 @@ unsafe fn fingerprint_equals_sender(
                 if peerstate.public_key_fingerprint.is_some()
                     && &fingerprint_normalized == peerstate.public_key_fingerprint.as_ref().unwrap()
                 {
-                    fingerprint_equal = 1;
+                    return true;
                 }
             }
-        } else {
-            return 0;
         }
     }
-
-    fingerprint_equal
+    false
 }
 
 /* library private: secure-join */
@@ -508,13 +505,11 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         );
                         end_bobs_joining(context, 0i32);
                         ok_to_continue = false;
-                    } else if 0
-                        == fingerprint_equals_sender(
-                            context,
-                            &scanned_fingerprint_of_alice,
-                            contact_chat_id,
-                        )
-                    {
+                    } else if !fingerprint_equals_sender(
+                        context,
+                        &scanned_fingerprint_of_alice,
+                        contact_chat_id,
+                    ) {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
@@ -578,8 +573,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                         b"Auth not encrypted.\x00" as *const u8 as *const libc::c_char,
                     );
                     ok_to_continue = false;
-                } else if 0
-                    == fingerprint_equals_sender(context, as_str(fingerprint), contact_chat_id)
+                } else if !fingerprint_equals_sender(context, as_str(fingerprint), contact_chat_id)
                 {
                     could_not_establish_secure_connection(
                         context,
@@ -607,7 +601,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             b"Auth invalid.\x00" as *const u8 as *const libc::c_char,
                         );
                         ok_to_continue = false;
-                    } else if 0 == mark_peer_as_verified(context, as_str(fingerprint)) {
+                    } else if mark_peer_as_verified(context, as_str(fingerprint)).is_err() {
                         could_not_establish_secure_connection(
                             context,
                             contact_chat_id,
@@ -752,7 +746,9 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             ok_to_continue = true;
                         }
                         if ok_to_continue {
-                            if 0 == mark_peer_as_verified(context, &scanned_fingerprint_of_alice) {
+                            if mark_peer_as_verified(context, &scanned_fingerprint_of_alice)
+                                .is_err()
+                            {
                                 could_not_establish_secure_connection(
                                     context,
                                     contact_chat_id,
@@ -914,9 +910,7 @@ unsafe fn could_not_establish_secure_connection(
     error!(context, 0, "{} ({})", &msg, as_str(details));
 }
 
-unsafe fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> libc::c_int {
-    let mut success = 0;
-
+fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Result<(), Error> {
     if let Some(ref mut peerstate) =
         Peerstate::from_fingerprint(context, &context.sql, fingerprint.as_ref())
     {
@@ -924,11 +918,13 @@ unsafe fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>)
             peerstate.prefer_encrypt = EncryptPreference::Mutual;
             peerstate.to_save = Some(ToSave::All);
             peerstate.save_to_db(&context.sql, false);
-            success = 1;
+            return Ok(());
         }
     }
-
-    success
+    bail!(
+        "could not mark peer as verified for fingerprint {}",
+        fingerprint.as_ref()
+    );
 }
 
 /* ******************************************************************************

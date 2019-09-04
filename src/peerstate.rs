@@ -178,8 +178,11 @@ impl<'a> Peerstate<'a> {
                      OR gossip_key_fingerprint=? COLLATE NOCASE  \
                      ORDER BY public_key_fingerprint=? DESC;";
 
-        let fp = fingerprint.as_bytes();
-        Self::from_stmt(context, query, params![fp, fp, fp])
+        Self::from_stmt(
+            context,
+            query,
+            params![fingerprint, fingerprint, fingerprint],
+        )
     }
 
     fn from_stmt<P>(context: &'a Context, query: &str, params: P) -> Option<Self>
@@ -523,6 +526,10 @@ mod tests {
         // clear to_save, as that is not persissted
         peerstate.to_save = None;
         assert_eq!(peerstate, peerstate_new);
+        let peerstate_new2 =
+            Peerstate::from_fingerprint(&ctx.ctx, &ctx.ctx.sql, &pub_key.fingerprint())
+                .expect("failed to load peerstate from db");
+        assert_eq!(peerstate, peerstate_new2);
     }
 
     #[test]
