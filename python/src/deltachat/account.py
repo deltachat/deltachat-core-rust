@@ -330,20 +330,35 @@ class Account(object):
         return from_dc_charpointer(res)
 
     def get_setup_contact_qr(self):
-        """ get/Create Setup-Contact QR Code as ascii-string """
+        """ get/create Setup-Contact QR Code as ascii-string.
+
+        this string needs to be transferred to another DC account
+        in a second channel (typically used by mobiles with QRcode-show + scan UX)
+        where setup_secure_contact(qr) is called.
+        """
         res = lib.dc_get_securejoin_qr(self._dc_context, 0)
         return from_dc_charpointer(res)
 
     def check_qr(self, qr):
-        """ check qr code ..."""
+        """ check qr code and return :class:`ScannedQRCode` instance representing the result"""
         res = ffi.gc(
             lib.dc_check_qr(self._dc_context, as_dc_charpointer(qr)),
             lib.dc_lot_unref
         )
-        return DCLot(res)
+        lot = DCLot(res)
+        if lot.state() == const.DC_QR_ERROR:
+            raise ValueError("invalid or unknown QR code: {}".format(lot.text1()))
+        return ScannedQRCode(lot)
 
     def setup_secure_contact(self, qr):
-        """ """
+        """ setup secure contact and return a channel after contact is established.
+
+        Note that this function may block for a long time as messages are exchanged
+        with the emitter of the QR code.  On success a :class:`deltachat.chatting.Chat` instance
+        is returned.
+        :param qr: valid "setup contact" QR code (all other QR codes will result in an exception)
+        """
+        assert self.check_qr(qr).is_ask_verifycontact()
         chat_id = lib.dc_join_securejoin(self._dc_context, as_dc_charpointer(qr))
         if chat_id == 0:
             raise ValueError("could not setup secure contact")
@@ -512,3 +527,18 @@ def _destroy_dc_context(dc_context, dc_context_unref=lib.dc_context_unref):
         # we are deep into Python Interpreter shutdown,
         # so no need to clear the callback context mapping.
         pass
+
+
+class ScannedQRCode:
+    def __init__(self, dc_lot):
+        self._dc_lot = dc_lot
+
+    def is_ask_verifycontact(self):
+        return self._dc_lot.state() == const.DC_QR_ASK_VERIFYCONTACT
+
+    def is_ask_verifygroup(self):
+        return self._dc_lot.state() == const.DC_QR_ASK_VERIFYGROUP
+
+    @property
+    def contact_id(self):
+        return self._dc_lot.id()

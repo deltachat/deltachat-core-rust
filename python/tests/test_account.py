@@ -306,6 +306,19 @@ class TestOfflineChat:
         chat1.set_draft(None)
         assert chat1.get_draft() is None
 
+    def test_setup_contact(self, acfactory, lp):
+        # note that the receiving account needs to be configured and running
+        # before ther setup message is send. DC does not read old messages
+        # as of Jul2019
+        ac1 = acfactory.get_configured_offline_account()
+        ac2 = acfactory.get_configured_offline_account()
+        qr = ac1.get_setup_contact_qr()
+        assert qr.startswith("OPENPGP4FPR:")
+        res = ac2.check_qr(qr)
+        assert res.is_ask_verifycontact()
+        assert not res.is_ask_verifygroup()
+        assert res.contact_id == 10
+
 
 class TestOnlineAccount:
     def test_one_account_init(self, acfactory):
@@ -548,9 +561,6 @@ class TestOnlineAccount:
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
     def test_setup_contact(self, acfactory, lp):
-        # note that the receiving account needs to be configured and running
-        # before ther setup message is send. DC does not read old messages
-        # as of Jul2019
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac2, 1000)
@@ -559,11 +569,6 @@ class TestOnlineAccount:
 
         qr = ac1.get_setup_contact_qr()
         assert qr.startswith("OPENPGP4FPR:")
-
-        res = ac2.check_qr(qr)
-        assert res.state() == 200
-        assert res.id() == 10
-
         lp.sec("ac2: start QR-code based setup contact protocol")
         ch = ac2.setup_secure_contact(qr)
         assert ch.id >= 10

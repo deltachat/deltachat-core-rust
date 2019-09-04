@@ -13,6 +13,15 @@ DC_GCL_NO_SPECIALS = 0x02
 DC_GCL_ADD_ALLDONE_HINT = 0x04
 DC_GCL_VERIFIED_ONLY = 0x01
 DC_GCL_ADD_SELF = 0x02
+DC_QR_ASK_VERIFYCONTACT = 200
+DC_QR_ASK_VERIFYGROUP = 202
+DC_QR_FPR_OK = 210
+DC_QR_FPR_MISMATCH = 220
+DC_QR_FPR_WITHOUT_ADDR = 230
+DC_QR_ADDR = 320
+DC_QR_TEXT = 330
+DC_QR_URL = 332
+DC_QR_ERROR = 400
 DC_CHAT_ID_DEADDROP = 1
 DC_CHAT_ID_TRASH = 3
 DC_CHAT_ID_MSGS_IN_CREATION = 4
@@ -69,15 +78,13 @@ DC_EVENT_IMEX_FILE_WRITTEN = 2052
 DC_EVENT_SECUREJOIN_INVITER_PROGRESS = 2060
 DC_EVENT_SECUREJOIN_JOINER_PROGRESS = 2061
 DC_EVENT_GET_STRING = 2091
-DC_EVENT_HTTP_GET = 2100
-DC_EVENT_HTTP_POST = 2110
 DC_EVENT_FILE_COPIED = 2055
 DC_EVENT_IS_OFFLINE = 2081
 # end const generated
 
 
 def read_event_defines(f):
-    rex = re.compile(r'#define\s+((?:DC_EVENT_|DC_MSG|DC_STATE_|DC_CONTACT_ID_|DC_GCL|DC_CHAT)\S+)\s+([x\d]+).*')
+    rex = re.compile(r'#define\s+((?:DC_EVENT_|DC_QR|DC_MSG|DC_STATE_|DC_CONTACT_ID_|DC_GCL|DC_CHAT)\S+)\s+([x\d]+).*')
     for line in f:
         m = rex.match(line)
         if m:
@@ -90,7 +97,7 @@ if __name__ == "__main__":
     if len(sys.argv) >= 2:
         deltah = sys.argv[1]
     else:
-        deltah = joinpath(dirname(dirname(dirname(here_dir))), "src", "deltachat.h")
+        deltah = joinpath(dirname(dirname(dirname(here_dir))), "deltachat-ffi", "deltachat.h")
     assert os.path.exists(deltah)
 
     lines = []
