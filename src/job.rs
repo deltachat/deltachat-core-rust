@@ -112,9 +112,6 @@ impl Job {
     #[allow(non_snake_case)]
     fn do_DC_JOB_SEND(&mut self, context: &Context) {
         let ok_to_continue;
-        let mut filename = ptr::null_mut();
-        let mut buf = ptr::null_mut();
-        let mut buf_bytes = 0;
 
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
@@ -131,88 +128,79 @@ impl Job {
             ok_to_continue = true;
         }
         if ok_to_continue {
-            let filename_s = self.param.get(Param::File).unwrap_or_default();
-            filename = unsafe { filename_s.strdup() };
-            if unsafe { strlen(filename) } == 0 {
-                warn!(context, 0, "Missing file name for job {}", self.job_id,);
-            } else if 0 != unsafe { dc_read_file(context, filename, &mut buf, &mut buf_bytes) } {
-                if let Some(recipients) = self.param.get(Param::Recipients) {
-                    let recipients_list = recipients
-                        .split("\x1e")
-                        .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
-                            Ok(addr) => Some(addr),
-                            Err(err) => {
-                                eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
-                                None
+            if let Some(filename) = self.param.get(Param::File) {
+                if let Some(body) = dc_read_file_safe(context, filename) {
+                    if let Some(recipients) = self.param.get(Param::Recipients) {
+                        let recipients_list = recipients
+                            .split("\x1e")
+                            .filter_map(|addr| match lettre::EmailAddress::new(addr.to_string()) {
+                                Ok(addr) => Some(addr),
+                                Err(err) => {
+                                    eprintln!("WARNING: invalid recipient: {} {:?}", addr, err);
+                                    None
+                                }
+                            })
+                            .collect::<Vec<_>>();
+                        /* if there is a msg-id and it does not exist in the db, cancel sending.
+                        this happends if dc_delete_msgs() was called
+                        before the generated mime was sent out */
+                        let ok_to_continue1;
+                        if 0 != self.foreign_id {
+                            if 0 == unsafe { dc_msg_exists(context, self.foreign_id) } {
+                                warn!(
+                                    context,
+                                    0,
+                                    "Message {} for job {} does not exist",
+                                    self.foreign_id,
+                                    self.job_id,
+                                );
+                                ok_to_continue1 = false;
+                            } else {
+                                ok_to_continue1 = true;
                             }
-                        })
-                        .collect::<Vec<_>>();
-                    /* if there is a msg-id and it does not exist in the db, cancel sending.
-                    this happends if dc_delete_msgs() was called
-                    before the generated mime was sent out */
-                    let ok_to_continue1;
-                    if 0 != self.foreign_id {
-                        if 0 == unsafe { dc_msg_exists(context, self.foreign_id) } {
-                            warn!(
-                                context,
-                                0,
-                                "Message {} for job {} does not exist",
-                                self.foreign_id,
-                                self.job_id,
-                            );
-                            ok_to_continue1 = false;
                         } else {
                             ok_to_continue1 = true;
                         }
-                    } else {
-                        ok_to_continue1 = true;
-                    }
-                    if ok_to_continue1 {
-                        /* send message */
-                        let body = unsafe {
-                            std::slice::from_raw_parts(buf as *const u8, buf_bytes).to_vec()
-                        };
-
-                        // hold the smtp lock during sending of a job and
-                        // its ok/error response processing. Note that if a message
-                        // was sent we need to mark it in the database as we
-                        // otherwise might send it twice.
-                        let mut sock = context.smtp.lock().unwrap();
-                        if 0 == sock.send(context, recipients_list, body) {
-                            sock.disconnect();
-                            self.try_again_later(-1i32, Some(as_str(sock.error)));
-                        } else {
-                            dc_delete_file(context, filename_s);
-                            if 0 != self.foreign_id {
-                                dc_update_msg_state(
-                                    context,
-                                    self.foreign_id,
-                                    MessageState::OutDelivered,
-                                );
-                                let chat_id: i32 = context
-                                    .sql
-                                    .query_row_col(
+                        if ok_to_continue1 {
+                            // hold the smtp lock during sending of a job and
+                            // its ok/error response processing. Note that if a message
+                            // was sent we need to mark it in the database as we
+                            // otherwise might send it twice.
+                            let mut sock = context.smtp.lock().unwrap();
+                            if 0 == sock.send(context, recipients_list, body) {
+                                sock.disconnect();
+                                self.try_again_later(-1i32, Some(as_str(sock.error)));
+                            } else {
+                                dc_delete_file(context, filename);
+                                if 0 != self.foreign_id {
+                                    dc_update_msg_state(
                                         context,
-                                        "SELECT chat_id FROM msgs WHERE id=?",
-                                        params![self.foreign_id as i32],
-                                        0,
-                                    )
-                                    .unwrap_or_default();
-                                context.call_cb(
-                                    Event::MSG_DELIVERED,
-                                    chat_id as uintptr_t,
-                                    self.foreign_id as uintptr_t,
-                                );
+                                        self.foreign_id,
+                                        MessageState::OutDelivered,
+                                    );
+                                    let chat_id: i32 = context
+                                        .sql
+                                        .query_row_col(
+                                            context,
+                                            "SELECT chat_id FROM msgs WHERE id=?",
+                                            params![self.foreign_id as i32],
+                                            0,
+                                        )
+                                        .unwrap_or_default();
+                                    context.call_cb(
+                                        Event::MSG_DELIVERED,
+                                        chat_id as uintptr_t,
+                                        self.foreign_id as uintptr_t,
+                                    );
+                                }
                             }
                         }
+                    } else {
+                        warn!(context, 0, "Missing recipients for job {}", self.job_id,);
                     }
-                } else {
-                    warn!(context, 0, "Missing recipients for job {}", self.job_id,);
                 }
             }
         }
-        unsafe { free(buf) };
-        unsafe { free(filename.cast()) };
     }
 
     // this value does not increase the number of tries
