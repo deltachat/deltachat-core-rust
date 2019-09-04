@@ -33,7 +33,7 @@ macro_rules! progress {
 
 // connect
 pub unsafe fn configure(context: &Context) {
-    if 0 != dc_has_ongoing(context) {
+    if dc_has_ongoing(context) {
         warn!(
             context,
             0, "There is already another ongoing process running.",
@@ -43,6 +43,7 @@ pub unsafe fn configure(context: &Context) {
     job_kill_action(context, Action::ConfigureImap);
     job_add(context, Action::ConfigureImap, 0, Params::new(), 0);
 }
+
 /// Check if the context is already configured.
 pub fn dc_is_configured(context: &Context) -> libc::c_int {
     if context
@@ -51,17 +52,6 @@ pub fn dc_is_configured(context: &Context) -> libc::c_int {
         .unwrap_or_default()
         > 0
     {
-        1
-    } else {
-        0
-    }
-}
-/// Check if there is an ongoing process.
-unsafe fn dc_has_ongoing(context: &Context) -> libc::c_int {
-    let s_a = context.running_state.clone();
-    let s = s_a.read().unwrap();
-
-    if s.ongoing_running || !s.shall_stop_ongoing {
         1
     } else {
         0
@@ -80,7 +70,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
     let mut ongoing_allocated_here = false;
 
     let mut param_autoconfig: Option<dc_loginparam_t> = None;
-    if !(0 == dc_alloc_ongoing(context)) {
+    if dc_alloc_ongoing(context) {
         ongoing_allocated_here = true;
         if !context.sql.is_open() {
             error!(context, 0, "Cannot configure, database not opened.",);
@@ -591,7 +581,45 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
     progress!(context, (if success { 1000 } else { 0 }));
 }
 
-/* File Structure like in C: */
+/*******************************************************************************
+ * Ongoing process allocation/free/check 
+ ******************************************************************************/
+
+pub fn dc_alloc_ongoing(context: &Context) -> bool {
+    if dc_has_ongoing(context) {
+        warn!(
+            context,
+            0, "There is already another ongoing process running.",
+        );
+
+        false
+    } else {
+        let s_a = context.running_state.clone();
+        let mut s = s_a.write().unwrap();
+
+        s.ongoing_running = true;
+        s.shall_stop_ongoing = false;
+
+        true
+    }
+}
+
+pub fn dc_free_ongoing(context: &Context) {
+    let s_a = context.running_state.clone();
+    let mut s = s_a.write().unwrap();
+
+    s.ongoing_running = false;
+    s.shall_stop_ongoing = true;
+}
+
+
+fn dc_has_ongoing(context: &Context) -> bool {
+    let s_a = context.running_state.clone();
+    let s = s_a.read().unwrap();
+
+    s.ongoing_running || !s.shall_stop_ongoing
+}
+
 
 /*******************************************************************************
  * Connect to configured account
@@ -623,35 +651,6 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
 /*******************************************************************************
  * Configure a Context
  ******************************************************************************/
-
-/// Request an ongoing process to start.
-/// Returns 0=process started, 1=not started, there is running another process
-pub unsafe fn dc_alloc_ongoing(context: &Context) -> libc::c_int {
-    if 0 != dc_has_ongoing(context) {
-        warn!(
-            context,
-            0, "There is already another ongoing process running.",
-        );
-        return 0;
-    }
-    let s_a = context.running_state.clone();
-    let mut s = s_a.write().unwrap();
-
-    s.ongoing_running = true;
-    s.shall_stop_ongoing = false;
-
-    1
-}
-
-/// Frees the process allocated with dc_alloc_ongoing() - independently of dc_shall_stop_ongoing.
-/// If dc_alloc_ongoing() fails, this function MUST NOT be called.
-pub unsafe fn dc_free_ongoing(context: &Context) {
-    let s_a = context.running_state.clone();
-    let mut s = s_a.write().unwrap();
-
-    s.ongoing_running = false;
-    s.shall_stop_ongoing = true;
-}
 
 /// Signal an ongoing process to stop.
 pub fn dc_stop_ongoing_process(context: &Context) {

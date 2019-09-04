@@ -854,7 +854,7 @@ pub fn unarchive(context: &Context, chat_id: u32) -> Result<(), Error> {
 /// However, this does not imply, the message really reached the recipient -
 /// sending may be delayed eg. due to network problems. However, from your
 /// view, you're done with the message. Sooner or later it will find its way.
-pub unsafe fn send_msg<'a>(
+pub fn send_msg<'a>(
     context: &'a Context,
     chat_id: u32,
     msg: &mut Message<'a>,
@@ -872,7 +872,7 @@ pub unsafe fn send_msg<'a>(
     }
 
     ensure!(
-        job_send_msg(context, msg.id) != 0,
+        unsafe { job_send_msg(context, msg.id) } != 0,
         "Failed to initiate send job"
     );
 
@@ -1394,7 +1394,7 @@ pub unsafe fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u
 
 // TODO should return bool /rtn
 #[allow(non_snake_case)]
-pub unsafe fn add_contact_to_chat_ex(
+pub fn add_contact_to_chat_ex(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
@@ -1407,7 +1407,7 @@ pub unsafe fn add_contact_to_chat_ex(
     if contact.is_err() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return 0;
     }
-    let mut msg = dc_msg_new_untyped(context);
+    let mut msg = unsafe { dc_msg_new_untyped(context) };
 
     reset_gossiped_timestamp(context, chat_id);
     let contact = contact.unwrap();
