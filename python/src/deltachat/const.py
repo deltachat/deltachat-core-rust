@@ -8,6 +8,9 @@ from os.path import join as joinpath
 # this works well when you in a git-checkout
 # run "python deltachat/const.py" to regenerate events
 # begin const generated
+DC_PROVIDER_STATUS_OK = 1
+DC_PROVIDER_STATUS_PREPARATION = 2
+DC_PROVIDER_STATUS_BROKEN = 3
 DC_GCL_ARCHIVED_ONLY = 0x01
 DC_GCL_NO_SPECIALS = 0x02
 DC_GCL_ADD_ALLDONE_HINT = 0x04
@@ -84,7 +87,8 @@ DC_EVENT_IS_OFFLINE = 2081
 
 
 def read_event_defines(f):
-    rex = re.compile(r'#define\s+((?:DC_EVENT_|DC_QR|DC_MSG|DC_STATE_|DC_CONTACT_ID_|DC_GCL|DC_CHAT)\S+)\s+([x\d]+).*')
+    rex = re.compile(r'#define\s+((?:DC_EVENT_|DC_QR|DC_MSG|DC_STATE_|'
+                     r'DC_CONTACT_ID_|DC_GCL|DC_CHAT|DC_PROVIDER)\S+)\s+([x\d]+).*')
     for line in f:
         m = rex.match(line)
         if m:

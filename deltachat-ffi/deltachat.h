@@ -442,7 +442,112 @@ char*           dc_get_info                  (dc_context_t* context);
  */
 char*           dc_get_oauth2_url            (dc_context_t* context, const char* addr, const char* redirect_uri);
 
+/**
+ * Opaque object containing information about one single email provider.
+ */
+typedef struct _dc_provider  dc_provider_t;
 
+/**
+ * Create a provider struct for the given domain.
+ *
+ * @param doamin The domain to get provider info for.
+ * @return a dc_provider_t struct which can be used with the dc_provider_get_*
+ *     accessor functions.  If no provider info is found, NULL will be
+ *     returned.
+ */
+dc_provider_t*  dc_provider_new_from_domain           (char* domain);
+
+/**
+ * Create a provider struct for the given email address.
+ *
+ * The provider is extracted from the email address and it's information is returned.
+ *
+ * @param email The user's email address to extract the provider info form.
+ * @return a dc_provider_t struct which can be used with the dc_provider_get_*
+ *     accessor functions.  If no provider info is found, NULL will be
+ *     returned.
+ */
+dc_provider_t*  dc_provider_new_from_email            (char* email);
+
+/**
+ * URL of the overview page.
+ *
+ * This URL allows linking to the providers page on providers.delta.chat.
+ *
+ * @param provider The dc_provider_t struct.
+ * @return A string which must be free()d.
+ */
+char*           dc_provider_get_overview_page         (const dc_provider_t* provider);
+
+/**
+ * The provider's name.
+ *
+ * The name of the provider, e.g. "POSTEO".
+ *
+ * @param provider The dc_provider_t struct.
+ * @return A string which must be free()d.
+ */
+char*           dc_provider_get_name                  (const dc_provider_t* provider);
+
+/**
+ * The markdown content of the providers page.
+ *
+ * This contains the preparation steps or additional information if the status
+ * is DC_PROVIDER_STATUS_BROKEN.
+ *
+ * @param provider The dc_provider_t struct.
+ * @return A string which must be free()d.
+ */
+char*           dc_provider_get_markdown              (const dc_provider_t* provider);
+
+/**
+ * Date of when the state was last checked/updated.
+ *
+ * This is returned as a string.
+ *
+ * @param provider The dc_provider_t struct.
+ * @return A string which must be free()d.
+ */
+char*           dc_provider_get_status_date           (const dc_provider_t* provider);
+
+/**
+ * Whether DC works with this provider.
+ *
+ * Can be one of @ref DC_PROVIDER_STATUS_OK, @ref
+ * DC_PROVIDER_STATUS_PREPARATION and @ref DC_PROVIDER_STATUS_BROKEN.
+ *
+ * @param provider The dc_provider_t struct.
+ * @return The status as a constant number.
+ */
+int             dc_provider_get_status                (const dc_provider_t* provider);
+
+/**
+ * Free the provider info struct.
+ *
+ * @param provider The dc_provider_t struct.
+ */
+void            dc_provider_unref                     (const dc_provider_t* provider);
+
+/**
+ * Provider status returned by dc_provider_get_status().
+ *
+ * Works right out of the box without any preperation steps needed
+ */
+#define         DC_PROVIDER_STATUS_OK           1
+
+/**
+ * Provider status returned by dc_provider_get_status().
+ *
+ * Works, but preparation steps are needed
+ */
+#define         DC_PROVIDER_STATUS_PREPARATION  2
+
+/**
+ * Provider status returned by dc_provider_get_status().
+ *
+ * Doesn't work (too unstable to use falls also in this category)
+ */
+#define         DC_PROVIDER_STATUS_BROKEN       3
 
 // connect
 
