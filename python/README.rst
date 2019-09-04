@@ -72,10 +72,10 @@ then cargo-build and install the deltachat bindings::
     python install_python_bindings.py
 
 The bindings will be installed in release mode but with debug symbols.
-The release mode is neccessary because some tests generate RSA keys
+The release mode is necessary because some tests generate RSA keys
 which is prohibitively slow in debug mode.
 
-After succcessul binding installation you can finally run the tests::
+After successful binding installation you can finally run the tests::
 
     pytest -v tests
 
