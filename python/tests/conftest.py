@@ -213,6 +213,15 @@ def wait_configuration_progress(account, target):
             break
 
 
+def wait_securejoin_inviter_progress(account, target):
+    while 1:
+        evt_name, data1, data2 = \
+            account._evlogger.get_matching("DC_EVENT_SECUREJOIN_INVITER_PROGRESS")
+        if data2 >= target:
+            print("** SECUREJOINT-INVITER PROGRESS {}".format(target), account)
+            break
+
+
 def wait_successful_IMAP_SMTP_connection(account):
     imap_ok = smtp_ok = False
     while not imap_ok or not smtp_ok:

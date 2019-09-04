@@ -1,5 +1,6 @@
 from .capi import lib
 from .capi import ffi
+from datetime import datetime
 
 
 def as_dc_charpointer(obj):
@@ -17,3 +18,29 @@ def iter_array(dc_array_t, constructor):
 
 def from_dc_charpointer(obj):
     return ffi.string(ffi.gc(obj, lib.dc_str_unref)).decode("utf8")
+
+
+class DCLot:
+    def __init__(self, dc_lot):
+        self._dc_lot = dc_lot
+
+    def id(self):
+        return lib.dc_lot_get_id(self._dc_lot)
+
+    def state(self):
+        return lib.dc_lot_get_state(self._dc_lot)
+
+    def text1(self):
+        return from_dc_charpointer(lib.dc_lot_get_text1(self._dc_lot))
+
+    def text1_meaning(self):
+        return lib.dc_lot_get_text1_meaning(self._dc_lot)
+
+    def text2(self):
+        return from_dc_charpointer(lib.dc_lot_get_text2(self._dc_lot))
+
+    def timestamp(self):
+        ts = lib.dc_lot_get_timestamp(self._dc_lot)
+        if ts == 0:
+            return None
+        return datetime.utcfromtimestamp(ts)

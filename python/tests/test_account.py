@@ -4,7 +4,7 @@ import os
 from deltachat import const, Account
 from deltachat.message import Message
 from datetime import datetime, timedelta
-from conftest import wait_configuration_progress, wait_successful_IMAP_SMTP_connection
+from conftest import wait_configuration_progress, wait_successful_IMAP_SMTP_connection, wait_securejoin_inviter_progress
 
 
 class TestOfflineAccountBasic:
@@ -546,3 +546,25 @@ class TestOnlineAccount:
         print("*************** Setup Code: ", setup_code)
         msg.continue_key_transfer(setup_code)
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
+
+    def test_setup_contact(self, acfactory, lp):
+        # note that the receiving account needs to be configured and running
+        # before ther setup message is send. DC does not read old messages
+        # as of Jul2019
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        wait_configuration_progress(ac2, 1000)
+        wait_configuration_progress(ac1, 1000)
+        lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
+
+        qr = ac1.get_setup_contact_qr()
+        assert qr.startswith("OPENPGP4FPR:")
+
+        res = ac2.check_qr(qr)
+        assert res.state() == 200
+        assert res.id() == 10
+
+        lp.sec("ac2: start QR-code based setup contact protocol")
+        ch = ac2.setup_secure_contact(qr)
+        assert ch.id >= 10
+        wait_securejoin_inviter_progress(ac1, 1000)
