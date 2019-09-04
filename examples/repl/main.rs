@@ -17,6 +17,8 @@ use std::borrow::Cow::{self, Borrowed, Owned};
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
+use std::process::Command;
+use std::io::{self, Write};
 
 use deltachat::config;
 use deltachat::configure::*;
@@ -516,25 +518,20 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
         }
         "getqr" | "getbadqr" => {
             start_threads(ctx.clone());
-            let qrstr =
-                dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse().unwrap_or_default());
-            if !qrstr.is_null() && 0 != *qrstr.offset(0isize) as libc::c_int {
-                if arg0 == "getbadqr" && strlen(qrstr) > 40 {
-                    let mut i: libc::c_int = 12i32;
-                    while i < 22i32 {
-                        *qrstr.offset(i as isize) = '0' as i32 as libc::c_char;
-                        i += 1
+            if let Some(mut qr) = dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse().unwrap_or_default()) {
+                if !qr.is_empty() {
+                    if arg0 == "getbadqr" && qr.len() > 40 {
+                        qr.replace_range(12..22, "0000000000")
                     }
+                    println!("{}", qr);
+                    let output = Command::new("qrencode")
+                            .args(&["-t", "ansiutf8", format!("\"{}\"", qr.as_str()).as_str(), "-o", "-"])
+                            .output()
+                            .expect("failed to execute process");
+                    io::stdout().write_all(&output.stdout).unwrap();
+                    io::stderr().write_all(&output.stderr).unwrap();
                 }
-                println!("{}", to_string(qrstr as *const _));
-                let syscmd = dc_mprintf(
-                    b"qrencode -t ansiutf8 \"%s\" -o -\x00" as *const u8 as *const libc::c_char,
-                    qrstr,
-                );
-                system(syscmd);
-                free(syscmd as *mut libc::c_void);
             }
-            free(qrstr as *mut libc::c_void);
         }
         "joinqr" => {
             start_threads(ctx.clone());

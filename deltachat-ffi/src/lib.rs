@@ -1320,12 +1320,11 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
 ) -> *mut libc::c_char {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_securejoin_qr()");
-        return dc_strdup(ptr::null());
+        "".strdup()
     }
 
     let context = &*context;
-
-    dc_securejoin::dc_get_securejoin_qr(context, chat_id)
+    dc_securejoin::dc_get_securejoin_qr(context, chat_id).unwrap_or("").strdup()
 }
 
 #[no_mangle]

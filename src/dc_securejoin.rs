@@ -25,11 +25,16 @@ use crate::x::*;
 pub unsafe fn dc_get_securejoin_qr(
     context: &Context,
     group_chat_id: uint32_t,
-) -> *mut libc::c_char {
+) -> Option<String> {
     /* =========================================================
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
     ========================================================= */
+
+    let cleanup = |fingerprint, qr: Option<String>| {
+        free(fingerprint as *mut libc::c_void);
+        qr
+    };
 
     let mut fingerprint = ptr::null_mut();
     let mut qr: Option<String> = None;
@@ -53,19 +58,10 @@ pub unsafe fn dc_get_securejoin_qr(
     });
     let self_addr = context.sql.get_config(context, "configured_addr");
 
-    let cleanup = |fingerprint| {
-        free(fingerprint as *mut libc::c_void);
-
-        if let Some(qr) = qr {
-            qr.strdup()
-        } else {
-            std::ptr::null_mut()
-        }
-    };
 
     if self_addr.is_none() {
         error!(context, 0, "Not configured, cannot generate QR code.",);
-        return cleanup(fingerprint);
+        return cleanup(fingerprint, qr);
     }
 
     let self_addr = self_addr.unwrap();
@@ -77,7 +73,7 @@ pub unsafe fn dc_get_securejoin_qr(
     fingerprint = get_self_fingerprint(context);
 
     if fingerprint.is_null() {
-        return cleanup(fingerprint);
+        return cleanup(fingerprint, qr);
     }
 
     let self_addr_urlencoded = utf8_percent_encode(&self_addr, NON_ALPHANUMERIC).to_string();
@@ -103,7 +99,7 @@ pub unsafe fn dc_get_securejoin_qr(
                 context,
                 0, "Cannot get QR-code for chat-id {}", group_chat_id,
             );
-            return cleanup(fingerprint);
+            return cleanup(fingerprint, qr);
         }
     } else {
         Some(format!(
@@ -118,7 +114,7 @@ pub unsafe fn dc_get_securejoin_qr(
 
     info!(context, 0, "Generated QR code: {}", qr.as_ref().unwrap());
 
-    cleanup(fingerprint)
+    cleanup(fingerprint, qr)
 }
 
 fn get_self_fingerprint(context: &Context) -> *mut libc::c_char {
