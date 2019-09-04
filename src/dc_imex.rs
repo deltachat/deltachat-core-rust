@@ -103,7 +103,7 @@ pub unsafe fn dc_imex_has_backup(
 pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
     let mut setup_file_name: *mut libc::c_char = ptr::null_mut();
     let mut msg: Message;
-    if dc_alloc_ongoing(context) == 0 {
+    if !dc_alloc_ongoing(context) {
         return std::ptr::null_mut();
     }
     let setup_code = dc_create_setup_code(context);
@@ -502,11 +502,9 @@ pub unsafe fn dc_normalize_setup_code(
 pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
     let mut ok_to_continue = true;
     let mut success: libc::c_int = 0;
-    let mut ongoing_allocated_here: libc::c_int = 0;
     let what: libc::c_int;
 
-    if !(0 == dc_alloc_ongoing(context)) {
-        ongoing_allocated_here = 1;
+    if dc_alloc_ongoing(context) {
         what = job.param.get_int(Param::Cmd).unwrap_or_default();
         let param1_s = job.param.get(Param::Arg).unwrap_or_default();
         let param1 = CString::yolo(param1_s);
@@ -564,9 +562,6 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
                 }
             }
         }
-    }
-
-    if 0 != ongoing_allocated_here {
         dc_free_ongoing(context);
     }
     context.call_cb(
