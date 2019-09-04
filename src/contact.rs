@@ -18,8 +18,6 @@ use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
 
-const DC_GCL_VERIFIED_ONLY: u32 = 0x01;
-
 /// Contacts with at least this origin value are shown in the contact list.
 const DC_ORIGIN_MIN_CONTACT_LIST: i32 = 0x100;
 
@@ -479,8 +477,10 @@ impl<'a> Contact<'a> {
 
         let mut add_self = false;
         let mut ret = Vec::new();
+        let flag_verified_only = listflags_has(listflags, DC_GCL_VERIFIED_ONLY);
+        let flag_add_self = listflags_has(listflags, DC_GCL_ADD_SELF);
 
-        if (listflags & DC_GCL_VERIFIED_ONLY) > 0 || query.is_some() {
+        if flag_verified_only || query.is_some() {
             let s3str_like_cmd = format!(
                 "%{}%",
                 query
@@ -504,7 +504,7 @@ impl<'a> Contact<'a> {
                     0x100,
                     &s3str_like_cmd,
                     &s3str_like_cmd,
-                    if 0 != listflags & 0x1 { 0 } else { 1 },
+                    if flag_verified_only { 0 } else { 1 },
                 ],
                 |row| row.get::<_, i32>(0),
                 |ids| {
@@ -544,7 +544,7 @@ impl<'a> Contact<'a> {
             )?;
         }
 
-        if 0 != listflags & DC_GCL_ADD_SELF as u32 && add_self {
+        if flag_add_self && add_self {
             ret.push(DC_CONTACT_ID_SELF);
         }
 
