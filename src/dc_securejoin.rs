@@ -168,7 +168,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
                     contact_chat_id,
                 ) {
                     info!(context, 0, "Taking protocol shortcut.");
-                    context.bob.write().unwrap().expects = 6;
+                    context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
                     context.call_cb(
                         Event::SECUREJOIN_JOINER_PROGRESS,
                         chat_id_2_contact_id(context, contact_chat_id) as uintptr_t,
@@ -212,7 +212,7 @@ pub unsafe fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
                         },
                     );
                 } else {
-                    context.bob.write().unwrap().expects = 2;
+                    context.bob.write().unwrap().expects = DC_VC_AUTH_REQUIRED;
                     send_handshake_msg(
                         context,
                         contact_chat_id,
@@ -370,7 +370,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
             if Blocked::Not != contact_chat_id_blocked {
                 chat::unblock(context, contact_chat_id);
             }
-            ret = 0x2i32;
+            ret = DC_HANDSHAKE_STOP_NORMAL_PROCESSING;
             if step == "vg-request" || step == "vc-request" {
                 /* =========================================================
                 ====             Alice - the inviter side            ====
@@ -414,7 +414,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                     let bob = context.bob.read().unwrap();
                     let scan = bob.qr_scan.as_ref();
                     scan.is_none()
-                        || bob.expects != 2
+                        || bob.expects != DC_VC_AUTH_REQUIRED
                         || join_vg && scan.unwrap().state != LotState::QrAskVerifyGroup
                 };
 
@@ -470,7 +470,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                 "Not encrypted."
                             },
                         );
-                        end_bobs_joining(context, 0i32);
+                        end_bobs_joining(context, DC_BOB_ERROR);
                         ok_to_continue = false;
                     } else if !fingerprint_equals_sender(
                         context,
@@ -482,7 +482,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             contact_chat_id,
                             "Fingerprint mismatch on joiner-side.",
                         );
-                        end_bobs_joining(context, 0i32);
+                        end_bobs_joining(context, DC_BOB_ERROR);
                         ok_to_continue = false;
                     } else {
                         info!(context, 0, "Fingerprint verified.",);
@@ -492,7 +492,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                             contact_id as uintptr_t,
                             400i32 as uintptr_t,
                         );
-                        context.bob.write().unwrap().expects = 6;
+                        context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
 
                         send_handshake_msg(
                             context,
@@ -616,9 +616,9 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 }
             } else if step == "vg-member-added" || step == "vc-contact-confirm" {
                 if join_vg {
-                    ret = 0x1i32
+                    ret = DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING;
                 }
-                if context.bob.read().unwrap().expects != 6 {
+                if context.bob.read().unwrap().expects != DC_VC_CONTACT_CONFIRM {
                     info!(context, 0, "Message belongs to a different handshake.",);
                     ok_to_continue = false;
                 } else {
@@ -679,7 +679,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                     contact_chat_id,
                                     "Contact confirm message not encrypted.",
                                 );
-                                end_bobs_joining(context, 0i32);
+                                end_bobs_joining(context, DC_BOB_ERROR);
                                 ok_to_continue = false;
                             } else {
                                 ok_to_continue = true;
@@ -738,7 +738,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
                                             "",
                                         );
                                     }
-                                    end_bobs_joining(context, 1i32);
+                                    end_bobs_joining(context, DC_BOB_SUCCESS);
                                     ok_to_continue = true;
                                 }
                             }
@@ -775,8 +775,8 @@ pub unsafe fn dc_handle_securejoin_handshake(
                 ok_to_continue = true;
             }
             if ok_to_continue {
-                if 0 != ret & 0x2i32 {
-                    ret |= 0x4i32
+                if ret == DC_HANDSHAKE_STOP_NORMAL_PROCESSING {
+                    ret |= DC_HANDSHAKE_ADD_DELETE_JOB;
                 }
             }
         }
@@ -785,7 +785,7 @@ pub unsafe fn dc_handle_securejoin_handshake(
     ret
 }
 
-unsafe fn end_bobs_joining(context: &Context, status: libc::c_int) {
+fn end_bobs_joining(context: &Context, status: libc::c_int) {
     context.bob.write().unwrap().status = status;
     dc_stop_ongoing_process(context);
 }

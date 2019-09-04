@@ -42,7 +42,7 @@ impl Default for Blocked {
 
 pub const DC_IMAP_SEEN: u32 = 0x1;
 
-const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
+pub const DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING: i32 = 0x01;
 pub const DC_HANDSHAKE_STOP_NORMAL_PROCESSING: i32 = 0x02;
 pub const DC_HANDSHAKE_ADD_DELETE_JOB: i32 = 0x04;
 
@@ -168,6 +168,12 @@ const DC_LP_IMAP_SOCKET_FLAGS: usize =
 /// if none of these flags are set, the default is chosen
 const DC_LP_SMTP_SOCKET_FLAGS: usize =
     (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
+
+// QR code scanning (view from Bob, the joiner)
+pub const DC_VC_AUTH_REQUIRED: i32 = 2;
+pub const DC_VC_CONTACT_CONFIRM: i32 = 6;
+pub const DC_BOB_ERROR: i32 = 0;
+pub const DC_BOB_SUCCESS: i32 = 1;
 
 #[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(i32)]
