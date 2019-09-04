@@ -131,6 +131,16 @@ class Chat(object):
         """
         return lib.dc_chat_get_type(self._dc_chat)
 
+    def get_join_qr(self):
+        """ get/create Join-Group QR Code as ascii-string.
+
+        this string needs to be transferred to another DC account
+        in a second channel (typically used by mobiles with QRcode-show + scan UX)
+        where account.join_with_qrcode(qr) needs to be called.
+        """
+        res = lib.dc_get_securejoin_qr(self._dc_context, self.id)
+        return from_dc_charpointer(res)
+
     # ------  chat messaging API ------------------------------
 
     def send_text(self, text):
