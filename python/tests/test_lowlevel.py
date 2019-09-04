@@ -1,5 +1,5 @@
 from __future__ import print_function
-from deltachat import capi, const, set_context_callback, clear_context_callback
+from deltachat import capi, cutil, const, set_context_callback, clear_context_callback
 from deltachat.capi import ffi
 from deltachat.capi import lib
 from deltachat.account import EventLogger
@@ -75,3 +75,10 @@ def test_markseen_invalid_message_ids(acfactory):
     msg_ids = [9]
     lib.dc_markseen_msgs(ac1._dc_context, msg_ids, len(msg_ids))
     ac1._evlogger.ensure_event_not_queued("DC_EVENT_WARNING|DC_EVENT_ERROR")
+
+
+def test_provider_info():
+    example = cutil.from_dc_charpointer(
+        lib.dc_get_json_provider_info_from_email(cutil.as_dc_charpointer("ex@example.com"))
+    )
+    assert example == "{\"overview_page\":\"example.com\",\"name\":\"Example\",\"status\":{\"state\":\"PREPARATION\",\"date\":\"2018-09\"},\"markdown\":\"\\n...\"}"

@@ -441,7 +441,11 @@ char*           dc_get_info                  (dc_context_t* context);
  */
 char*           dc_get_oauth2_url            (dc_context_t* context, const char* addr, const char* redirect_uri);
 
+/**
+ * Get the provider information from our provider overview as json object.
+ */
 
+char*           dc_get_json_provider_info_from_email  (char* email);
 
 // connect
 

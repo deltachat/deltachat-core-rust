@@ -16,6 +16,8 @@ use std::convert::TryInto;
 use std::ptr;
 use std::str::FromStr;
 
+extern crate deltachat_provider_overview;
+
 use deltachat::contact::Contact;
 use deltachat::dc_tools::{as_str, dc_strdup, StrExt};
 use deltachat::*;
@@ -2529,6 +2531,20 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
 
     Some(dc_tools::as_str(s))
 }
+
+#[no_mangle]
+pub unsafe extern "C" fn dc_get_json_provider_info_from_email (
+    email: *const libc::c_char,
+) -> *mut libc::c_char {
+    let option = deltachat_provider_overview::get_provider_info(
+        deltachat_provider_overview::get_domain_from_email(dc_tools::as_str(email)),
+    );
+    if let Some(provider) = option {
+        serde_json::to_string(provider.0).unwrap().strdup()
+    } else {
+        dc_strdup(ptr::null())
+    }
+} 
 
 pub trait ResultExt<T> {
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;

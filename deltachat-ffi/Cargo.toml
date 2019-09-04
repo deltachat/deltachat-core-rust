@@ -20,6 +20,9 @@ libc = "0.2"
 human-panic = "1.0.1"
 num-traits = "0.2.6"
 
+deltachat-provider-overview = { git = "https://github.com/deltachat/provider-overview", rev = "e52d915c05232c40284387bfe13862c6a2293060" }
+serde_json = "1.0"
+
 [features]
 default = ["vendored", "nightly", "ringbuf"]
 vendored = ["deltachat/vendored"]
