@@ -2813,6 +2813,8 @@ fn as_opt_str<'a>(s: *const libc::c_char) -> Option<&'a str> {
     Some(dc_tools::as_str(s))
 }
 
+pub mod providers;
+
 pub trait ResultExt<T> {
     fn unwrap_or_log_default(self, context: &context::Context, message: &str) -> T;
     fn log_err(&self, context: &context::Context, message: &str);
