@@ -1034,7 +1034,6 @@ unsafe fn create_or_lookup_group(
     let group_explicitly_left: bool;
     let mut chat_id = 0;
     let mut chat_id_blocked = Blocked::Not;
-    let mut chat_id_verified = 0;
     let mut grpid = "".to_string();
     let mut grpname = std::ptr::null_mut();
     let to_ids_cnt = to_ids.len();
@@ -1216,14 +1215,9 @@ unsafe fn create_or_lookup_group(
     set_better_msg(mime_parser, &better_msg);
 
     // check, if we have a chat with this group ID
-    chat_id = chat::get_chat_id_by_grpid(
-        context,
-        &grpid,
-        Some(&mut chat_id_blocked),
-        &mut chat_id_verified,
-    );
+    let (mut chat_id, chat_id_verified, _blocked) = chat::get_chat_id_by_grpid(context, &grpid);
     if chat_id != 0 {
-        if 0 != chat_id_verified
+        if chat_id_verified
             && 0 == check_verified_properties(
                 context,
                 mime_parser,

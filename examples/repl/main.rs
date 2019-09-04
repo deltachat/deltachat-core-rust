@@ -538,7 +538,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
         "joinqr" => {
             start_threads(ctx.clone());
             if !arg0.is_empty() {
-                dc_join_securejoin(&ctx.read().unwrap(), arg1_c);
+                dc_join_securejoin(&ctx.read().unwrap(), arg1);
             }
         }
         "exit" | "quit" => return Ok(ExitResult::Exit),
