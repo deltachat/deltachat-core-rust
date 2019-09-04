@@ -1918,16 +1918,7 @@ pub fn get_chat_cnt(context: &Context) -> usize {
     }
 }
 
-pub unsafe fn get_chat_id_by_grpid(
-    context: &Context,
-    grpid: impl AsRef<str>,
-    ret_blocked: Option<&mut Blocked>,
-    ret_verified: *mut libc::c_int,
-) -> u32 {
-    if !ret_verified.is_null() {
-        *ret_verified = 0;
-    }
-
+pub fn get_chat_id_by_grpid(context: &Context, grpid: impl AsRef<str>) -> (u32, bool, Blocked) {
     context
         .sql
         .query_row(
@@ -1936,18 +1927,12 @@ pub unsafe fn get_chat_id_by_grpid(
             |row| {
                 let chat_id = row.get(0)?;
 
-                if let Some(b) = ret_blocked {
-                    *b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
-                }
-
+                let b = row.get::<_, Option<Blocked>>(1)?.unwrap_or_default();
                 let v = row.get::<_, Option<Chattype>>(2)?.unwrap_or_default();
-                if !ret_verified.is_null() {
-                    *ret_verified = (v == Chattype::VerifiedGroup) as libc::c_int;
-                }
-                Ok(chat_id)
+                Ok((chat_id, v == Chattype::VerifiedGroup, b))
             },
         )
-        .unwrap_or_default()
+        .unwrap_or((0, false, Blocked::Not))
 }
 
 pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {

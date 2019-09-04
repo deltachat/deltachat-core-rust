@@ -316,7 +316,7 @@ class TestOfflineChat:
     def test_qr_setup_contact(self, acfactory, lp):
         ac1 = acfactory.get_configured_offline_account()
         ac2 = acfactory.get_configured_offline_account()
-        qr = ac1.qr_setup_contact()
+        qr = ac1.get_setup_contact_qr()
         assert qr.startswith("OPENPGP4FPR:")
         res = ac2.check_qr(qr)
         assert res.is_ask_verifycontact()

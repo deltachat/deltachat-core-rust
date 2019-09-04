@@ -1341,7 +1341,7 @@ pub unsafe extern "C" fn dc_join_securejoin(
 
     let context = &*context;
 
-    dc_securejoin::dc_join_securejoin(context, qr)
+    dc_securejoin::dc_join_securejoin(context, as_str(qr))
 }
 
 #[no_mangle]
