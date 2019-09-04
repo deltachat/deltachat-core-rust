@@ -14,11 +14,11 @@ extern crate lazy_static;
 extern crate rusqlite;
 
 use std::borrow::Cow::{self, Borrowed, Owned};
+use std::io::{self, Write};
+use std::process::Command;
 use std::ptr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
-use std::process::Command;
-use std::io::{self, Write};
 
 use deltachat::config;
 use deltachat::configure::*;
@@ -518,16 +518,18 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
         }
         "getqr" | "getbadqr" => {
             start_threads(ctx.clone());
-            if let Some(mut qr) = dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse().unwrap_or_default()) {
+            if let Some(mut qr) =
+                dc_get_securejoin_qr(&ctx.read().unwrap(), arg1.parse().unwrap_or_default())
+            {
                 if !qr.is_empty() {
                     if arg0 == "getbadqr" && qr.len() > 40 {
                         qr.replace_range(12..22, "0000000000")
                     }
                     println!("{}", qr);
                     let output = Command::new("qrencode")
-                            .args(&["-t", "ansiutf8", qr.as_str(), "-o", "-"])
-                            .output()
-                            .expect("failed to execute process");
+                        .args(&["-t", "ansiutf8", qr.as_str(), "-o", "-"])
+                        .output()
+                        .expect("failed to execute process");
                     io::stdout().write_all(&output.stdout).unwrap();
                     io::stderr().write_all(&output.stderr).unwrap();
                 }

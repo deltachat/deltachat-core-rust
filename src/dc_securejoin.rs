@@ -22,13 +22,9 @@ use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
 
-pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC
-    .remove(b'.');
+pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
-pub unsafe fn dc_get_securejoin_qr(
-    context: &Context,
-    group_chat_id: uint32_t,
-) -> Option<String> {
+pub unsafe fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Option<String> {
     /* =========================================================
     ====             Alice - the inviter side            ====
     ====   Step 1 in "Setup verified contact" protocol   ====
@@ -61,7 +57,6 @@ pub unsafe fn dc_get_securejoin_qr(
     });
     let self_addr = context.sql.get_config(context, "configured_addr");
 
-
     if self_addr.is_none() {
         error!(context, 0, "Not configured, cannot generate QR code.",);
         return cleanup(fingerprint, qr);
@@ -79,8 +74,10 @@ pub unsafe fn dc_get_securejoin_qr(
         return cleanup(fingerprint, qr);
     }
 
-    let self_addr_urlencoded = utf8_percent_encode(&self_addr, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
-    let self_name_urlencoded = utf8_percent_encode(&self_name, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
+    let self_addr_urlencoded =
+        utf8_percent_encode(&self_addr, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
+    let self_name_urlencoded =
+        utf8_percent_encode(&self_name, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
 
     qr = if 0 != group_chat_id {
         if let Ok(chat) = Chat::load_from_db(context, group_chat_id) {
