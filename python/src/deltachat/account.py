@@ -334,7 +334,7 @@ class Account(object):
 
         this string needs to be transferred to another DC account
         in a second channel (typically used by mobiles with QRcode-show + scan UX)
-        where setup_secure_contact(qr) is called.
+        where qr_setup_contact(qr) is called.
         """
         res = lib.dc_get_securejoin_qr(self._dc_context, 0)
         return from_dc_charpointer(res)
@@ -350,8 +350,8 @@ class Account(object):
             raise ValueError("invalid or unknown QR code: {}".format(lot.text1()))
         return ScannedQRCode(lot)
 
-    def setup_secure_contact(self, qr):
-        """ setup secure contact and return a channel after contact is established.
+    def qr_setup_contact(self, qr):
+        """ setup contact and return a Chat after contact is established.
 
         Note that this function may block for a long time as messages are exchanged
         with the emitter of the QR code.  On success a :class:`deltachat.chatting.Chat` instance
@@ -362,6 +362,21 @@ class Account(object):
         chat_id = lib.dc_join_securejoin(self._dc_context, as_dc_charpointer(qr))
         if chat_id == 0:
             raise ValueError("could not setup secure contact")
+        return Chat(self, chat_id)
+
+    def qr_join_chat(self, qr):
+        """ join a chat group through a QR code.
+
+        Note that this function may block for a long time as messages are exchanged
+        with the emitter of the QR code.  On success a :class:`deltachat.chatting.Chat` instance
+        is returned which is the chat that we just joined.
+
+        :param qr: valid "join-group" QR code (all other QR codes will result in an exception)
+        """
+        assert self.check_qr(qr).is_ask_verifygroup()
+        chat_id = lib.dc_join_securejoin(self._dc_context, as_dc_charpointer(qr))
+        if chat_id == 0:
+            raise ValueError("could not join group")
         return Chat(self, chat_id)
 
     def start_threads(self):

@@ -1941,8 +1941,9 @@ pub unsafe fn get_chat_id_by_grpid(
                 }
 
                 let v = row.get::<_, Option<Chattype>>(2)?.unwrap_or_default();
-                *ret_verified = (v == Chattype::VerifiedGroup) as libc::c_int;
-
+                if !ret_verified.is_null() {
+                    *ret_verified = (v == Chattype::VerifiedGroup) as libc::c_int;
+                }
                 Ok(chat_id)
             },
         )

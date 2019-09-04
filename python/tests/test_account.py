@@ -140,6 +140,13 @@ class TestOfflineChat:
         chat.set_name("title2")
         assert chat.get_name() == "title2"
 
+    @pytest.mark.parametrize("verified", [True, False])
+    def test_group_chat_qr(self, acfactory, ac1, verified):
+        ac2 = acfactory.get_configured_offline_account()
+        chat = ac1.create_group_chat(name="title1", verified=verified)
+        qr = chat.get_join_qr()
+        assert ac2.check_qr(qr).is_ask_verifygroup
+
     def test_delete_and_send_fails(self, ac1, chat1):
         chat1.delete()
         ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
@@ -306,13 +313,10 @@ class TestOfflineChat:
         chat1.set_draft(None)
         assert chat1.get_draft() is None
 
-    def test_setup_contact(self, acfactory, lp):
-        # note that the receiving account needs to be configured and running
-        # before ther setup message is send. DC does not read old messages
-        # as of Jul2019
+    def test_qr_setup_contact(self, acfactory, lp):
         ac1 = acfactory.get_configured_offline_account()
         ac2 = acfactory.get_configured_offline_account()
-        qr = ac1.get_setup_contact_qr()
+        qr = ac1.qr_setup_contact()
         assert qr.startswith("OPENPGP4FPR:")
         res = ac2.check_qr(qr)
         assert res.is_ask_verifycontact()
@@ -560,16 +564,28 @@ class TestOnlineAccount:
         msg.continue_key_transfer(setup_code)
         assert ac1.get_info()["fingerprint"] == ac2.get_info()["fingerprint"]
 
-    def test_setup_contact(self, acfactory, lp):
+    def test_qr_setup_contact(self, acfactory, lp):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        wait_configuration_progress(ac2, 1000)
+        wait_configuration_progress(ac1, 1000)
+        lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
+        qr = ac1.get_setup_contact_qr()
+        lp.sec("ac2: start QR-code based setup contact protocol")
+        ch = ac2.qr_setup_contact(qr)
+        assert ch.id >= 10
+        wait_securejoin_inviter_progress(ac1, 1000)
+
+    def test_qr_join_chat(self, acfactory, lp):
         ac1 = acfactory.get_online_configuring_account()
         ac2 = acfactory.get_online_configuring_account()
         wait_configuration_progress(ac2, 1000)
         wait_configuration_progress(ac1, 1000)
         lp.sec("ac1: create QR code and let ac2 scan it, starting the securejoin")
 
-        qr = ac1.get_setup_contact_qr()
-        assert qr.startswith("OPENPGP4FPR:")
-        lp.sec("ac2: start QR-code based setup contact protocol")
-        ch = ac2.setup_secure_contact(qr)
+        chat = ac1.create_group_chat("hello")
+        qr = chat.get_join_qr()
+        lp.sec("ac2: start QR-code based join-group protocol")
+        ch = ac2.qr_join_chat(qr)
         assert ch.id >= 10
         wait_securejoin_inviter_progress(ac1, 1000)
