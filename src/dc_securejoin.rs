@@ -1,5 +1,5 @@
 use mmime::mailimf_types::*;
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use std::ptr;
 
 use crate::aheader::EncryptPreference;
@@ -21,6 +21,9 @@ use crate::qr::check_qr;
 use crate::stock::StockMessage;
 use crate::types::*;
 use crate::x::*;
+
+pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'.');
 
 pub unsafe fn dc_get_securejoin_qr(
     context: &Context,
@@ -76,8 +79,8 @@ pub unsafe fn dc_get_securejoin_qr(
         return cleanup(fingerprint, qr);
     }
 
-    let self_addr_urlencoded = utf8_percent_encode(&self_addr, NON_ALPHANUMERIC).to_string();
-    let self_name_urlencoded = utf8_percent_encode(&self_name, NON_ALPHANUMERIC).to_string();
+    let self_addr_urlencoded = utf8_percent_encode(&self_addr, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
+    let self_name_urlencoded = utf8_percent_encode(&self_name, NON_ALPHANUMERIC_WITHOUT_DOT).to_string();
 
     qr = if 0 != group_chat_id {
         if let Ok(chat) = Chat::load_from_db(context, group_chat_id) {
