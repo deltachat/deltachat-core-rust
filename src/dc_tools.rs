@@ -1383,6 +1383,32 @@ impl FromStr for EmailAddress {
     }
 }
 
+/// Utility to check if a in the binary represantion of listflags
+/// the bit at position bitindex is 1.
+///
+///
+/// # Example
+///
+/// ```
+/// use std::convert::TryInto;
+/// use deltachat::dc_tools::listflags_has;
+/// use deltachat::constants::{DC_GCL_ADD_SELF, DC_GCL_VERIFIED_ONLY};
+/// let listflags: u32 = 0x1101;
+/// assert!(listflags_has(listflags, 0x1) == true);
+/// assert!(listflags_has(listflags, 0x10) == false);
+/// assert!(listflags_has(listflags, 0x100) == true);
+/// assert!(listflags_has(listflags, 0x1000) == true);
+/// let listflags: u32 = (DC_GCL_ADD_SELF | DC_GCL_VERIFIED_ONLY).try_into().unwrap();
+/// assert!(listflags_has(listflags, DC_GCL_VERIFIED_ONLY) == true);
+/// assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == true);
+/// let listflags: u32 = DC_GCL_VERIFIED_ONLY.try_into().unwrap();
+/// assert!(listflags_has(listflags, DC_GCL_ADD_SELF) == false);
+/// ```
+pub fn listflags_has(listflags: u32, bitindex: usize) -> bool {
+    let listflags = listflags as usize;
+    (listflags & bitindex) == bitindex
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

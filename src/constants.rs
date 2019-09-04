@@ -52,7 +52,7 @@ pub const DC_GCL_ADD_ALLDONE_HINT: usize = 0x04;
 
 const DC_GCM_ADDDAYMARKER: usize = 0x01;
 
-const DC_GCL_VERIFIED_ONLY: usize = 0x01;
+pub const DC_GCL_VERIFIED_ONLY: usize = 0x01;
 pub const DC_GCL_ADD_SELF: usize = 0x02;
 
 /// param1 is a directory where the keys are written to
