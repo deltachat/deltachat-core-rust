@@ -23,13 +23,13 @@ use crate::aheader::*;
 use crate::config::Config;
 use crate::context::Context;
 use crate::dc_mimeparser::*;
-use crate::dc_securejoin::*;
 use crate::dc_tools::*;
 use crate::error::*;
 use crate::key::*;
 use crate::keyring::*;
 use crate::peerstate::*;
 use crate::pgp::*;
+use crate::securejoin::handle_degrade_event;
 use crate::types::*;
 use crate::x::*;
 
@@ -440,7 +440,7 @@ impl E2eeHelper {
                     }
                     if let Some(ref peerstate) = peerstate {
                         if peerstate.degrade_event.is_some() {
-                            dc_handle_degrade_event(context, &peerstate);
+                            handle_degrade_event(context, &peerstate);
                         }
                         if let Some(ref key) = peerstate.gossip_key {
                             public_keyring_for_validate.add_ref(key);
@@ -681,7 +681,7 @@ unsafe fn update_gossip_peerstates(
                         }
                         if let Some(peerstate) = peerstate {
                             if peerstate.degrade_event.is_some() {
-                                dc_handle_degrade_event(context, &peerstate);
+                                handle_degrade_event(context, &peerstate);
                             }
                         }
 

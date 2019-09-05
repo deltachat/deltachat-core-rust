@@ -341,7 +341,7 @@ fn fingerprint_equals_sender(
 }
 
 /* library private: secure-join */
-pub fn dc_handle_securejoin_handshake(
+pub fn handle_securejoin_handshake(
     context: &Context,
     mimeparser: &dc_mimeparser_t,
     contact_id: uint32_t,
@@ -748,7 +748,7 @@ fn encrypted_and_signed(
     }
 }
 
-pub fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) {
+pub fn handle_degrade_event(context: &Context, peerstate: &Peerstate) {
     // - we do not issue an warning for DC_DE_ENCRYPTION_PAUSED as this is quite normal
     // - currently, we do not issue an extra warning for DC_DE_VERIFICATION_LOST - this always comes
     //   together with DC_DE_FINGERPRINT_CHANGED which is logged, the idea is not to bother
