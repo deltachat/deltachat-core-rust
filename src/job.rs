@@ -156,7 +156,7 @@ impl Job {
                     let mut sock = context.smtp.lock().unwrap();
                     if 0 == sock.send(context, recipients_list, body) {
                         sock.disconnect();
-                        self.try_again_later(-1i32, Some(as_str(sock.error)));
+                        self.try_again_later(-1i32, sock.error.clone());
                     } else {
                         dc_delete_file(context, filename);
                         if 0 != self.foreign_id {
@@ -189,9 +189,9 @@ impl Job {
     }
 
     // this value does not increase the number of tries
-    fn try_again_later(&mut self, try_again: libc::c_int, pending_error: Option<&str>) {
+    fn try_again_later(&mut self, try_again: libc::c_int, pending_error: Option<String>) {
         self.try_again = try_again;
-        self.pending_error = pending_error.map(|s| s.to_string());
+        self.pending_error = pending_error;
     }
 
     #[allow(non_snake_case)]

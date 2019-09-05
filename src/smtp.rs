@@ -12,7 +12,7 @@ pub struct Smtp {
     transport_connected: bool,
     /// Email address we are sending from.
     from: Option<EmailAddress>,
-    pub error: *mut libc::c_char,
+    pub error: Option<String>,
 }
 
 impl Smtp {
@@ -22,7 +22,7 @@ impl Smtp {
             transport: None,
             transport_connected: false,
             from: None,
-            error: std::ptr::null_mut(),
+            error: None,
         }
     }
 
@@ -152,6 +152,7 @@ impl Smtp {
                 }
                 Err(err) => {
                     warn!(context, 0, "SMTP failed to send message: {}", err);
+                    self.error = Some(format!("{}", err));
                     0
                 }
             }
