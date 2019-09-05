@@ -1676,61 +1676,68 @@ fn hex_hash(s: impl AsRef<str>) -> String {
 }
 
 #[allow(non_snake_case)]
-unsafe fn search_chat_ids_by_contact_ids(
+fn search_chat_ids_by_contact_ids(
     context: &Context,
     unsorted_contact_ids: &Vec<u32>,
 ) -> Vec<u32> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
+
     let mut contact_ids = Vec::with_capacity(23);
     let mut chat_ids = Vec::with_capacity(23);
 
+    if unsorted_contact_ids.is_empty() {
+        return chat_ids;
+    }
+
     /* copy array, remove duplicates and SELF, sort by ID */
-    if !unsorted_contact_ids.is_empty() {
-        for &curr_id in unsorted_contact_ids {
-            if curr_id != 1 && !contact_ids.contains(&curr_id) {
-                contact_ids.push(curr_id);
-            }
+    for &curr_id in unsorted_contact_ids {
+        if curr_id != DC_CONTACT_ID_SELF && !contact_ids.contains(&curr_id) {
+            contact_ids.push(curr_id);
         }
-        if !contact_ids.is_empty() {
-            contact_ids.sort();
-            let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
-            context.sql.query_map(
-                format!(
-                    "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
-                    contact_ids_str
-                ),
-                params![],
-                |row| Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1)?)),
-                |rows| {
-                    let mut last_chat_id = 0;
-                    let mut matches = 0;
-                    let mut mismatches = 0;
+    }
+    if contact_ids.is_empty() {
+        return chat_ids;
+    }
 
-                    for row in rows {
-                        let (chat_id, contact_id) = row?;
-                        if chat_id as u32 != last_chat_id {
-                            if matches == contact_ids.len() && mismatches == 0 {
-                                chat_ids.push(last_chat_id);
-                            }
-                            last_chat_id = chat_id as u32;
-                            matches = 0;
-                            mismatches = 0;
-                        }
-                        if contact_id == contact_ids[matches] {
-                            matches += 1;
-                        } else {
-                            mismatches += 1;
-                        }
-                    }
+	/* collect all possible chats with the contact count as the data (as contact_ids have no doubles, this is sufficient) */
+    contact_ids.sort();
+    let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
 
+    context.sql.query_map(
+        format!(
+            "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
+            contact_ids_str
+        ),
+        params![],
+        |row| Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1)?)),
+        |rows| {
+            let mut last_chat_id = 0;
+            let mut matches = 0;
+            let mut mismatches = 0;
+
+            for row in rows {
+                let (chat_id, contact_id) = row?;
+                if chat_id != last_chat_id {
                     if matches == contact_ids.len() && mismatches == 0 {
                         chat_ids.push(last_chat_id);
                     }
-                Ok(())
+                    last_chat_id = chat_id;
+                    matches = 0;
+                    mismatches = 0;
                 }
-            ).unwrap(); // TODO: better error handling
+                if contact_id == contact_ids[matches] {
+                    matches += 1;
+                } else {
+                    mismatches += 1;
+                }
+            }
+
+            if matches == contact_ids.len() && mismatches == 0 {
+                chat_ids.push(last_chat_id);
+            }
+        Ok(())
         }
-    }
+    ).unwrap(); // TODO: better error handling
 
     chat_ids
 }
