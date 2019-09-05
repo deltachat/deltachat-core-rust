@@ -57,11 +57,11 @@ mod dc_loginparam;
 mod dc_mimefactory;
 pub mod dc_mimeparser;
 pub mod dc_receive_imf;
-pub mod dc_securejoin;
 mod dc_simplify;
 mod dc_strencode;
 mod dc_token;
 pub mod dc_tools;
+pub mod securejoin;
 
 #[cfg(test)]
 mod test_utils;

@@ -15,7 +15,6 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::{do_heuristics_moves, Context};
 use crate::dc_mimeparser::*;
-use crate::dc_securejoin::*;
 use crate::dc_strencode::*;
 use crate::dc_tools::*;
 use crate::error::Result;
@@ -24,6 +23,7 @@ use crate::location;
 use crate::message::*;
 use crate::param::*;
 use crate::peerstate::*;
+use crate::securejoin::handle_securejoin_handshake;
 use crate::sql;
 use crate::stock::StockMessage;
 use crate::types::*;
@@ -400,7 +400,7 @@ unsafe fn add_parts(
             msgrmsg = 1;
             *chat_id = 0;
             allow_creation = 1;
-            let handshake = dc_handle_securejoin_handshake(context, mime_parser, *from_id);
+            let handshake = handle_securejoin_handshake(context, mime_parser, *from_id);
             if 0 != handshake & DC_HANDSHAKE_STOP_NORMAL_PROCESSING {
                 *hidden = 1;
                 *add_delete_job = handshake & DC_HANDSHAKE_ADD_DELETE_JOB;

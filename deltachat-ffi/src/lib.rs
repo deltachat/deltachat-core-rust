@@ -1324,7 +1324,7 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
     }
 
     let context = &*context;
-    dc_securejoin::dc_get_securejoin_qr(context, chat_id)
+    securejoin::dc_get_securejoin_qr(context, chat_id)
         .unwrap_or("".to_string())
         .strdup()
 }
@@ -1341,7 +1341,7 @@ pub unsafe extern "C" fn dc_join_securejoin(
 
     let context = &*context;
 
-    dc_securejoin::dc_join_securejoin(context, as_str(qr))
+    securejoin::dc_join_securejoin(context, as_str(qr))
 }
 
 #[no_mangle]
