@@ -83,14 +83,6 @@ pub unsafe fn dc_atoi_null_is_0(s: *const libc::c_char) -> libc::c_int {
     }
 }
 
-pub fn dc_atof(s: *const libc::c_char) -> libc::c_double {
-    if s.is_null() {
-        return 0.;
-    }
-
-    as_str(s).parse().unwrap_or_default()
-}
-
 pub unsafe fn dc_str_replace(
     haystack: *mut *mut libc::c_char,
     needle: *const libc::c_char,
@@ -103,21 +95,6 @@ pub unsafe fn dc_str_replace(
     free(*haystack as *mut libc::c_void);
 
     *haystack = haystack_s.replace(&needle_s, &replacement_s).strdup();
-}
-
-pub unsafe fn dc_ftoa(f: libc::c_double) -> *mut libc::c_char {
-    // hack around printf(%f) that may return `,` as decimal point on mac
-    let test: *mut libc::c_char = dc_mprintf(b"%f\x00" as *const u8 as *const libc::c_char, 1.2f64);
-    *test.offset(2isize) = 0 as libc::c_char;
-    let mut str: *mut libc::c_char = dc_mprintf(b"%f\x00" as *const u8 as *const libc::c_char, f);
-    dc_str_replace(
-        &mut str,
-        test.offset(1isize),
-        b".\x00" as *const u8 as *const libc::c_char,
-    );
-    free(test as *mut libc::c_void);
-
-    str
 }
 
 unsafe fn dc_ltrim(buf: *mut libc::c_char) {
@@ -1502,23 +1479,6 @@ mod tests {
                 CStr::from_ptr(out as *const libc::c_char).to_str().unwrap(),
                 "line1<br>\r\n\r\n\r\rline2"
             );
-        }
-    }
-
-    #[test]
-    fn test_dc_atof() {
-        let f: libc::c_double = dc_atof(b"1.23\x00" as *const u8 as *const libc::c_char);
-        assert!(f > 1.22f64);
-        assert!(f < 1.24f64);
-    }
-
-    #[test]
-    fn test_dc_ftoa() {
-        unsafe {
-            let s: *mut libc::c_char = dc_ftoa(1.23f64);
-            assert!(dc_atof(s) > 1.22f64);
-            assert!(dc_atof(s) < 1.24f64);
-            free(s as *mut libc::c_void);
         }
     }
 
