@@ -582,7 +582,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
 }
 
 /*******************************************************************************
- * Ongoing process allocation/free/check 
+ * Ongoing process allocation/free/check
  ******************************************************************************/
 
 pub fn dc_alloc_ongoing(context: &Context) -> bool {
@@ -612,14 +612,12 @@ pub fn dc_free_ongoing(context: &Context) {
     s.shall_stop_ongoing = true;
 }
 
-
 fn dc_has_ongoing(context: &Context) -> bool {
     let s_a = context.running_state.clone();
     let s = s_a.read().unwrap();
 
     s.ongoing_running || !s.shall_stop_ongoing
 }
-
 
 /*******************************************************************************
  * Connect to configured account

@@ -57,3 +57,10 @@ macro_rules! log_event {
                          formatted_c.as_ptr() as libc::uintptr_t);
     }};
 }
+
+#[macro_export]
+macro_rules! emit_event {
+    ($ctx:expr, $event:expr, $data1:expr, $data2:expr) => {
+        $ctx.call_cb($event, $data1 as libc::uintptr_t, $data2 as libc::uintptr_t);
+    };
+}
