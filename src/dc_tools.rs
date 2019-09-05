@@ -494,7 +494,7 @@ pub fn dc_gm2local_offset() -> i64 {
 }
 
 /* timesmearing */
-pub unsafe fn dc_smeared_time(context: &Context) -> i64 {
+pub fn dc_smeared_time(context: &Context) -> i64 {
     /* function returns a corrected time(NULL) */
     let mut now = time();
     let ts = *context.last_smeared_timestamp.clone().read().unwrap();
