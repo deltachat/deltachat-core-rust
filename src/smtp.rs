@@ -152,6 +152,7 @@ impl Smtp {
                 }
                 Err(err) => {
                     warn!(context, 0, "SMTP failed to send message: {}", err);
+                    self.error = Some(format!("{}", err));
                     0
                 }
             }
