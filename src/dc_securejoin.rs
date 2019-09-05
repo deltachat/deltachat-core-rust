@@ -24,6 +24,53 @@ use crate::types::*;
 
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
 
+macro_rules! progress {
+    ($context:tt, $event:expr, $contact_id:expr, $progress:expr) => {
+        assert!(
+            $progress >= 0 && $progress <= 1000,
+            "value in range 0..1000 expected with: 0=error, 1..999=progress, 1000=success"
+        );
+        $context.call_cb($event, $contact_id as uintptr_t, $progress as uintptr_t);
+    };
+}
+
+macro_rules! joiner_progress {
+    ($context:tt, $contact_id:expr, $progress:expr) => {
+        progress!(
+            $context,
+            Event::SECUREJOIN_JOINER_PROGRESS,
+            $contact_id,
+            $progress
+        );
+    };
+}
+
+macro_rules! inviter_progress {
+    ($context:tt, $contact_id:expr, $progress:expr) => {
+        progress!(
+            $context,
+            Event::SECUREJOIN_INVITER_PROGRESS,
+            $contact_id,
+            $progress
+        );
+    };
+}
+
+macro_rules! get_qr_attr {
+    ($context:tt, $attr:ident) => {
+        $context
+            .bob
+            .read()
+            .unwrap()
+            .qr_scan
+            .as_ref()
+            .unwrap()
+            .$attr
+            .as_ref()
+            .unwrap()
+    };
+}
+
 pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Option<String> {
     /* =========================================================
     ====             Alice - the inviter side            ====
@@ -33,30 +80,16 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Optio
     let fingerprint: String;
 
     ensure_secret_key_exists(context).ok();
-    let invitenumber = dc_token_lookup(context, DC_TOKEN_INVITENUMBER, group_chat_id)
-        .unwrap_or_else(|| {
-            let invitenumber_s = dc_create_id();
-            dc_token_save(
-                context,
-                DC_TOKEN_INVITENUMBER,
-                group_chat_id,
-                &invitenumber_s,
-            );
-            invitenumber_s
-        });
-    let auth = dc_token_lookup(context, DC_TOKEN_AUTH, group_chat_id).unwrap_or_else(|| {
-        let auth_s = dc_create_id();
-        dc_token_save(context, DC_TOKEN_AUTH, group_chat_id, &auth_s);
-        auth_s
-    });
-    let self_addr = context.sql.get_config(context, "configured_addr");
+    let invitenumber = dc_token_lookup_or_new(context, DC_TOKEN_INVITENUMBER, group_chat_id);
+    let auth = dc_token_lookup_or_new(context, DC_TOKEN_AUTH, group_chat_id);
+    let self_addr = match context.sql.get_config(context, "configured_addr") {
+        Some(addr) => addr,
+        None => {
+            error!(context, 0, "Not configured, cannot generate QR code.",);
+            return None;
+        }
+    };
 
-    if self_addr.is_none() {
-        error!(context, 0, "Not configured, cannot generate QR code.",);
-        return None;
-    }
-
-    let self_addr = self_addr.unwrap();
     let self_name = context
         .sql
         .get_config(context, "displayname")
@@ -190,11 +223,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
     ) {
         info!(context, 0, "Taking protocol shortcut.");
         context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
-        context.call_cb(
-            Event::SECUREJOIN_JOINER_PROGRESS,
-            chat_id_2_contact_id(context, contact_chat_id) as uintptr_t,
-            400i32 as uintptr_t,
-        );
+        joiner_progress!(context, chat_id_2_contact_id(context, contact_chat_id), 400);
         let own_fingerprint = get_self_fingerprint(context).unwrap();
         send_handshake_msg(
             context,
@@ -204,30 +233,10 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
             } else {
                 "vc-request-with-auth"
             },
-            context
-                .bob
-                .read()
-                .unwrap()
-                .qr_scan
-                .as_ref()
-                .unwrap()
-                .auth
-                .as_ref()
-                .unwrap()
-                .to_string(),
+            get_qr_attr!(context, auth).to_string(),
             Some(own_fingerprint),
             if join_vg {
-                context
-                    .bob
-                    .read()
-                    .unwrap()
-                    .qr_scan
-                    .as_ref()
-                    .unwrap()
-                    .text2
-                    .as_ref()
-                    .unwrap()
-                    .to_string()
+                get_qr_attr!(context, text2).to_string()
             } else {
                 "".to_string()
             },
@@ -238,16 +247,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
             context,
             contact_chat_id,
             if join_vg { "vg-request" } else { "vc-request" },
-            context
-                .bob
-                .read()
-                .unwrap()
-                .qr_scan
-                .as_ref()
-                .unwrap()
-                .invitenumber
-                .as_ref()
-                .unwrap(),
+            get_qr_attr!(context, invitenumber),
             None,
             "",
         );
@@ -351,10 +351,12 @@ pub fn dc_handle_securejoin_handshake(
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return 0;
     }
-    let step = lookup_field(mimeparser, "Secure-Join");
-    if step.is_empty() {
-        return 0;
-    }
+    let step = match lookup_field(mimeparser, "Secure-Join") {
+        Some(s) => s,
+        None => {
+            return 0;
+        }
+    };
     info!(
         context,
         0, ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
@@ -367,6 +369,7 @@ pub fn dc_handle_securejoin_handshake(
     }
     let mut ret: libc::c_int = DC_HANDSHAKE_STOP_NORMAL_PROCESSING;
     let join_vg = step.starts_with("vg-");
+
     match step.as_str() {
         "vg-request" | "vc-request" => {
             /* =========================================================
@@ -377,30 +380,24 @@ pub fn dc_handle_securejoin_handshake(
             // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
             // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
             // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
-            let invitenumber = lookup_field(mimeparser, "Secure-Join-Invitenumber");
-            if invitenumber == "" {
-                warn!(context, 0, "Secure-join denied (invitenumber missing).",);
-                return ret;
-            }
+            let invitenumber = match lookup_field(mimeparser, "Secure-Join-Invitenumber") {
+                Some(n) => n,
+                None => {
+                    warn!(context, 0, "Secure-join denied (invitenumber missing).",);
+                    return ret;
+                }
+            };
             if !dc_token_exists(context, DC_TOKEN_INVITENUMBER, &invitenumber) {
                 warn!(context, 0, "Secure-join denied (bad invitenumber).",);
                 return ret;
             }
             info!(context, 0, "Secure-join requested.",);
 
-            context.call_cb(
-                Event::SECUREJOIN_INVITER_PROGRESS,
-                contact_id as uintptr_t,
-                300i32 as uintptr_t,
-            );
+            inviter_progress!(context, contact_id, 300);
             send_handshake_msg(
                 context,
                 contact_chat_id,
-                if join_vg {
-                    "vg-auth-required"
-                } else {
-                    "vc-auth-required"
-                },
+                &format!("{}-auth-required", &step[..2]),
                 "",
                 None,
                 "",
@@ -420,29 +417,9 @@ pub fn dc_handle_securejoin_handshake(
                 // no error, just aborted somehow or a mail from another handshake
                 return ret;
             }
-            let scanned_fingerprint_of_alice = context
-                .bob
-                .read()
-                .unwrap()
-                .qr_scan
-                .as_ref()
-                .unwrap()
-                .fingerprint
-                .as_ref()
-                .unwrap()
-                .to_string();
+            let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
+            let auth = get_qr_attr!(context, auth).to_string();
 
-            let auth = context
-                .bob
-                .read()
-                .unwrap()
-                .qr_scan
-                .as_ref()
-                .unwrap()
-                .auth
-                .as_ref()
-                .unwrap()
-                .to_string();
             if !encrypted_and_signed(mimeparser, &scanned_fingerprint_of_alice) {
                 could_not_establish_secure_connection(
                     context,
@@ -467,40 +444,20 @@ pub fn dc_handle_securejoin_handshake(
             }
             info!(context, 0, "Fingerprint verified.",);
             own_fingerprint = get_self_fingerprint(context).unwrap();
-            context.call_cb(
-                Event::SECUREJOIN_JOINER_PROGRESS,
-                contact_id as uintptr_t,
-                400i32 as uintptr_t,
-            );
+            joiner_progress!(context, contact_id, 400);
             context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
-
-            let grpid = if join_vg {
-                context
-                    .bob
-                    .read()
-                    .unwrap()
-                    .qr_scan
-                    .as_ref()
-                    .unwrap()
-                    .text2
-                    .as_ref()
-                    .unwrap()
-                    .to_string()
-            } else {
-                "".to_string()
-            };
 
             send_handshake_msg(
                 context,
                 contact_chat_id,
-                if join_vg {
-                    "vg-request-with-auth"
-                } else {
-                    "vc-request-with-auth"
-                },
+                &format!("{}-request-with-auth", &step[..2]),
                 auth,
                 Some(own_fingerprint),
-                grpid,
+                if join_vg {
+                    get_qr_attr!(context, text2).to_string()
+                } else {
+                    "".to_string()
+                },
             );
         }
         "vg-request-with-auth" | "vc-request-with-auth" => {
@@ -510,15 +467,17 @@ pub fn dc_handle_securejoin_handshake(
             ====  Step 6 in "Out-of-band verified groups" protocol  ====
             ============================================================ */
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-            let fingerprint = lookup_field(mimeparser, "Secure-Join-Fingerprint");
-            if fingerprint.is_empty() {
-                could_not_establish_secure_connection(
-                    context,
-                    contact_chat_id,
-                    "Fingerprint not provided.",
-                );
-                return ret;
-            }
+            let fingerprint = match lookup_field(mimeparser, "Secure-Join-Fingerprint") {
+                Some(fp) => fp,
+                None => {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_chat_id,
+                        "Fingerprint not provided.",
+                    );
+                    return ret;
+                }
+            };
             if !encrypted_and_signed(mimeparser, &fingerprint) {
                 could_not_establish_secure_connection(
                     context,
@@ -537,15 +496,17 @@ pub fn dc_handle_securejoin_handshake(
             }
             info!(context, 0, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-            let auth_0 = lookup_field(mimeparser, "Secure-Join-Auth");
-            if auth_0.is_empty() {
-                could_not_establish_secure_connection(
-                    context,
-                    contact_chat_id,
-                    "Auth not provided.",
-                );
-                return ret;
-            }
+            let auth_0 = match lookup_field(mimeparser, "Secure-Join-Auth") {
+                Some(auth) => auth,
+                None => {
+                    could_not_establish_secure_connection(
+                        context,
+                        contact_chat_id,
+                        "Auth not provided.",
+                    );
+                    return ret;
+                }
+            };
             if !dc_token_exists(context, DC_TOKEN_AUTH, &auth_0) {
                 could_not_establish_secure_connection(context, contact_chat_id, "Auth invalid.");
                 return ret;
@@ -561,32 +522,20 @@ pub fn dc_handle_securejoin_handshake(
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited);
             info!(context, 0, "Auth verified.",);
             secure_connection_established(context, contact_chat_id);
-            context.call_cb(
-                Event::CONTACTS_CHANGED,
-                contact_id as uintptr_t,
-                0i32 as uintptr_t,
-            );
-            context.call_cb(
-                Event::SECUREJOIN_INVITER_PROGRESS,
-                contact_id as uintptr_t,
-                600i32 as uintptr_t,
-            );
+            emit_event!(context, Event::CONTACTS_CHANGED, contact_id, 0);
+            inviter_progress!(context, contact_id, 600);
             if join_vg {
-                let grpid = lookup_field(mimeparser, "Secure-Join-Group");
-                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &grpid);
+                let field_grpid = lookup_field(mimeparser, "Secure-Join-Group").unwrap_or_default();
+                let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
                 if group_chat_id == 0 {
-                    error!(context, 0, "Chat {} not found.", &grpid);
+                    error!(context, 0, "Chat {} not found.", &field_grpid);
                     return ret;
                 } else {
                     chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, 0x1i32);
                 }
             } else {
                 send_handshake_msg(context, contact_chat_id, "vc-contact-confirm", "", None, "");
-                context.call_cb(
-                    Event::SECUREJOIN_INVITER_PROGRESS,
-                    contact_id as uintptr_t,
-                    1000i32 as uintptr_t,
-                );
+                inviter_progress!(context, contact_id, 1000);
             }
         }
         "vg-member-added" | "vc-contact-confirm" => {
@@ -609,37 +558,18 @@ pub fn dc_handle_securejoin_handshake(
                 );
                 return ret;
             }
-            let scanned_fingerprint_of_alice = context
-                .bob
-                .read()
-                .unwrap()
-                .qr_scan
-                .as_ref()
-                .unwrap()
-                .fingerprint
-                .as_ref()
-                .unwrap()
-                .to_string();
+            let scanned_fingerprint_of_alice = get_qr_attr!(context, fingerprint).to_string();
 
             let vg_expect_encrypted = if join_vg {
-                let grpid = context
-                    .bob
-                    .read()
-                    .unwrap()
-                    .qr_scan
-                    .as_ref()
-                    .unwrap()
-                    .text2
-                    .as_ref()
-                    .unwrap()
-                    .to_string();
-                let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, grpid);
+                let group_id = get_qr_attr!(context, text2).to_string();
+                let (_, is_verified_group, _) = chat::get_chat_id_by_grpid(context, group_id);
                 // when joining a non-verified group
                 // the vg-member-added message may be unencrypted
                 // when not all group members have keys or prefer encryption.
                 // So only expect encryption if this is a verified group
                 is_verified_group
             } else {
+                // setup contact is always encrypted
                 true
             };
             if vg_expect_encrypted
@@ -663,14 +593,10 @@ pub fn dc_handle_securejoin_handshake(
                 return ret;
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
-            context.call_cb(
-                Event::CONTACTS_CHANGED,
-                0i32 as uintptr_t,
-                0i32 as uintptr_t,
-            );
-            if join_vg
-                && !addr_equals_self(context, lookup_field(mimeparser, "Chat-Group-Member-Added"))
-            {
+            emit_event!(context, Event::CONTACTS_CHANGED, 0, 0);
+            let cg_member_added =
+                lookup_field(mimeparser, "Chat-Group-Member-Added").unwrap_or_default();
+            if join_vg && !addr_equals_self(context, cg_member_added) {
                 info!(context, 0, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
                 return ret;
             }
@@ -698,16 +624,8 @@ pub fn dc_handle_securejoin_handshake(
                     warn!(context, 0, "vg-member-added-received invalid.",);
                     return ret;
                 }
-                context.call_cb(
-                    Event::SECUREJOIN_INVITER_PROGRESS,
-                    contact_id as uintptr_t,
-                    800i32 as uintptr_t,
-                );
-                context.call_cb(
-                    Event::SECUREJOIN_INVITER_PROGRESS,
-                    contact_id as uintptr_t,
-                    1000i32 as uintptr_t,
-                );
+                inviter_progress!(context, contact_id, 800);
+                inviter_progress!(context, contact_id, 1000);
             } else {
                 warn!(context, 0, "vg-member-added-received invalid.",);
                 return ret;
@@ -738,14 +656,10 @@ fn secure_connection_established(context: &Context, contact_chat_id: uint32_t) {
     };
     let msg = context.stock_string_repl_str(StockMessage::ContactVerified, addr);
     chat::add_device_msg(context, contact_chat_id, msg);
-    context.call_cb(
-        Event::CHAT_MODIFIED,
-        contact_chat_id as uintptr_t,
-        0i32 as uintptr_t,
-    );
+    emit_event!(context, Event::CHAT_MODIFIED, contact_chat_id, 0);
 }
 
-fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> String {
+fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> Option<String> {
     let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, key);
     unsafe {
         let mut value: *const libc::c_char = ptr::null();
@@ -757,9 +671,9 @@ fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> String {
                 value.is_null()
             }
         {
-            return String::from("");
+            return None;
         }
-        as_str(value).to_string()
+        Some(as_str(value).to_string())
     }
 }
 
@@ -862,11 +776,7 @@ pub fn dc_handle_degrade_event(context: &Context, peerstate: &Peerstate) {
             let msg = context.stock_string_repl_str(StockMessage::ContactSetupChanged, peeraddr);
 
             chat::add_device_msg(context, contact_chat_id, msg);
-            context.call_cb(
-                Event::CHAT_MODIFIED,
-                contact_chat_id as uintptr_t,
-                0 as uintptr_t,
-            );
+            emit_event!(context, Event::CHAT_MODIFIED, contact_chat_id, 0);
         }
     }
 }
