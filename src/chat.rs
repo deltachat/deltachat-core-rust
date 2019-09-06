@@ -379,21 +379,14 @@ impl<'a> Chat<'a> {
                             let parent_in_reply_to = parent_in_reply_to.strdup();
                             let parent_references = parent_references.strdup();
 
-                            if !parent_rfc724_mid.is_null()
-                                && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                            {
+                            if 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int {
                                 new_in_reply_to = dc_strdup(parent_rfc724_mid)
                             }
-                            if !parent_references.is_null() {
-                                let space: *mut libc::c_char;
-                                space = strchr(parent_references, ' ' as i32);
-                                if !space.is_null() {
-                                    *space = 0 as libc::c_char
-                                }
+                            let space = strchr(parent_references, ' ' as i32);
+                            if !space.is_null() {
+                                *space = 0 as libc::c_char
                             }
-                            if !parent_references.is_null()
-                                && 0 != *parent_references.offset(0isize) as libc::c_int
-                                && !parent_rfc724_mid.is_null()
+                            if 0 != *parent_references.offset(0isize) as libc::c_int
                                 && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
                             {
                                 new_references = dc_mprintf(
@@ -401,13 +394,9 @@ impl<'a> Chat<'a> {
                                     parent_references,
                                     parent_rfc724_mid,
                                 )
-                            } else if !parent_references.is_null()
-                                && 0 != *parent_references.offset(0isize) as libc::c_int
-                            {
+                            } else if 0 != *parent_references.offset(0isize) as libc::c_int {
                                 new_references = dc_strdup(parent_references)
-                            } else if !parent_in_reply_to.is_null()
-                                && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                                && !parent_rfc724_mid.is_null()
+                            } else if 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
                                 && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
                             {
                                 new_references = dc_mprintf(
@@ -415,9 +404,7 @@ impl<'a> Chat<'a> {
                                     parent_in_reply_to,
                                     parent_rfc724_mid,
                                 )
-                            } else if !parent_in_reply_to.is_null()
-                                && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                            {
+                            } else if 0 != *parent_in_reply_to.offset(0isize) as libc::c_int {
                                 new_references = dc_strdup(parent_in_reply_to)
                             }
                             free(parent_rfc724_mid as *mut libc::c_void);
