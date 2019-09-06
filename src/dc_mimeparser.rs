@@ -54,7 +54,7 @@ pub struct dc_mimeparser_t<'a> {
     pub is_send_by_messenger: bool,
     pub decrypting_failed: libc::c_int,
     pub e2ee_helper: E2eeHelper,
-    pub is_forwarded: libc::c_int,
+    pub is_forwarded: bool,
     pub context: &'a Context,
     pub reports: Vec<*mut mailmime>,
     pub is_system_message: libc::c_int,
@@ -73,7 +73,7 @@ pub fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
         is_send_by_messenger: false,
         decrypting_failed: 0,
         e2ee_helper: Default::default(),
-        is_forwarded: 0,
+        is_forwarded: false,
         context,
         reports: Vec::new(),
         is_system_message: 0,
@@ -105,7 +105,7 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
         mailmime_free(mimeparser.mimeroot);
         mimeparser.mimeroot = ptr::null_mut()
     }
-    mimeparser.is_forwarded = 0i32;
+    mimeparser.is_forwarded = false;
     mimeparser.reports.clear();
     mimeparser.decrypting_failed = 0i32;
     mimeparser.e2ee_helper.thanks();
@@ -273,7 +273,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 free(subj as *mut libc::c_void);
             }
         }
-        if 0 != mimeparser.is_forwarded {
+        if mimeparser.is_forwarded {
             for part in mimeparser.parts.iter_mut() {
                 part.param.set_int(Param::Forwarded, 1);
             }
@@ -1130,7 +1130,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                             }
 
                             if simplifier.unwrap().is_forwarded {
-                                mimeparser.is_forwarded = 1i32
+                                mimeparser.is_forwarded = true;
                             }
                         }
                     }
