@@ -436,19 +436,11 @@ pub unsafe fn clist_search_string_nocase(
     haystack: *const clist,
     needle: *const libc::c_char,
 ) -> libc::c_int {
-    let mut iter = (*haystack).first;
-
-    while !iter.is_null() {
-        if strcasecmp((*iter).data as *const libc::c_char, needle) == 0 {
+    for data in &*haystack {
+        if strcasecmp(data.cast(), needle) == 0 {
             return 1;
         }
-        iter = if !iter.is_null() {
-            (*iter).next
-        } else {
-            ptr::null_mut()
-        }
     }
-
     0
 }
 
