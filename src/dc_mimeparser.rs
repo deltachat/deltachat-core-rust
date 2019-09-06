@@ -52,7 +52,7 @@ pub struct dc_mimeparser_t<'a> {
     pub header_protected: *mut mailimf_fields,
     pub subject: *mut libc::c_char,
     pub is_send_by_messenger: bool,
-    pub decrypting_failed: libc::c_int,
+    pub decrypting_failed: bool,
     pub e2ee_helper: E2eeHelper,
     pub is_forwarded: bool,
     pub context: &'a Context,
@@ -71,7 +71,7 @@ pub fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
         header_protected: std::ptr::null_mut(),
         subject: std::ptr::null_mut(),
         is_send_by_messenger: false,
-        decrypting_failed: 0,
+        decrypting_failed: false,
         e2ee_helper: Default::default(),
         is_forwarded: false,
         context,
@@ -107,7 +107,7 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     }
     mimeparser.is_forwarded = false;
     mimeparser.reports.clear();
-    mimeparser.decrypting_failed = 0i32;
+    mimeparser.decrypting_failed = false;
     mimeparser.e2ee_helper.thanks();
 
     mimeparser.location_kml = None;
@@ -233,7 +233,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
         }
         if !mimeparser.subject.is_null() {
             let mut prepend_subject: libc::c_int = 1i32;
-            if 0 == mimeparser.decrypting_failed {
+            if !mimeparser.decrypting_failed {
                 let p: *mut libc::c_char = strchr(mimeparser.subject, ':' as i32);
                 if p.wrapping_offset_from(mimeparser.subject) == 2
                     || p.wrapping_offset_from(mimeparser.subject) == 3
@@ -301,7 +301,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 }
             }
         }
-        if 0 == mimeparser.decrypting_failed {
+        if !mimeparser.decrypting_failed {
             let dn_field: *const mailimf_optional_field = dc_mimeparser_lookup_optional_field(
                 &mimeparser,
                 "Chat-Disposition-Notification-To",
@@ -597,7 +597,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
 
                     mimeparser.parts.push(part);
                     any_part_added = 1i32;
-                    mimeparser.decrypting_failed = 1i32
+                    mimeparser.decrypting_failed = true;
                 }
                 46 => {
                     cur = (*(*mime).mm_data.mm_multipart.mm_mp_list).first;
