@@ -1090,13 +1090,20 @@ fn maybe_add_from_param(
 ) {
     context
         .sql
-        .query_row(query, NO_PARAMS, |row| {
-            let param: Params = row.get::<_, String>(0)?.parse().unwrap_or_default();
-            if let Some(file) = param.get(param_id) {
-                maybe_add_file(files_in_use, file);
-            }
-            Ok(())
-        })
+        .query_map(
+            query,
+            NO_PARAMS,
+            |row| row.get::<_, String>(0),
+            |rows| {
+                for row in rows {
+                    let param: Params = row?.parse().unwrap_or_default();
+                    if let Some(file) = param.get(param_id) {
+                        maybe_add_file(files_in_use, file);
+                    }
+                }
+                Ok(())
+            },
+        )
         .unwrap_or_else(|err| {
             warn!(context, 0, "sql: failed to add_from_param: {}", err);
         });
