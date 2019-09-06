@@ -50,7 +50,7 @@ pub struct dc_mimeparser_t<'a> {
     pub header: HashMap<String, *mut mailimf_field>,
     pub header_root: *mut mailimf_fields,
     pub header_protected: *mut mailimf_fields,
-    pub subject: *mut libc::c_char,
+    pub subject: Option<String>,
     pub is_send_by_messenger: bool,
     pub decrypting_failed: bool,
     pub e2ee_helper: E2eeHelper,
@@ -69,7 +69,7 @@ pub fn dc_mimeparser_new(context: &Context) -> dc_mimeparser_t {
         header: Default::default(),
         header_root: std::ptr::null_mut(),
         header_protected: std::ptr::null_mut(),
-        subject: std::ptr::null_mut(),
+        subject: None,
         is_send_by_messenger: false,
         decrypting_failed: false,
         e2ee_helper: Default::default(),
@@ -96,8 +96,7 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     }
     mimeparser.is_send_by_messenger = false;
     mimeparser.is_system_message = 0i32;
-    free(mimeparser.subject as *mut libc::c_void);
-    mimeparser.subject = ptr::null_mut();
+    mimeparser.subject = None;
     if !mimeparser.mimeroot.is_null() {
         mailmime_free(mimeparser.mimeroot);
         mimeparser.mimeroot = ptr::null_mut()
@@ -133,7 +132,15 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
         dc_mimeparser_parse_mime_recursive(mimeparser_ref, mimeparser_ref.mimeroot);
         let field: *mut mailimf_field = dc_mimeparser_lookup_field(&mimeparser, "Subject");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
-            mimeparser.subject = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value)
+            let decoded = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value);
+            if decoded.is_null()
+            /* XXX: can it happen? */
+            {
+                mimeparser.subject = None
+            } else {
+                mimeparser.subject = Some(to_string(decoded));
+                free(decoded.cast());
+            }
         }
         if !dc_mimeparser_lookup_optional_field(&mut mimeparser, "Chat-Version").is_null() {
             mimeparser.is_send_by_messenger = true
@@ -219,36 +226,34 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 std::mem::replace(&mut mimeparser.parts[0], filepart);
             }
         }
-        if !mimeparser.subject.is_null() {
+        if let Some(ref subject) = mimeparser.subject {
             let mut prepend_subject: libc::c_int = 1i32;
             if !mimeparser.decrypting_failed {
-                let p: *mut libc::c_char = strchr(mimeparser.subject, ':' as i32);
-                if p.wrapping_offset_from(mimeparser.subject) == 2
-                    || p.wrapping_offset_from(mimeparser.subject) == 3
+                let colon = subject.find(':');
+                if colon == Some(2)
+                    || colon == Some(3)
                     || mimeparser.is_send_by_messenger
-                    || !strstr(
-                        mimeparser.subject,
-                        b"Chat:\x00" as *const u8 as *const libc::c_char,
-                    )
-                    .is_null()
+                    || subject.contains("Chat:")
                 {
                     prepend_subject = 0i32
                 }
             }
             if 0 != prepend_subject {
-                let subj: *mut libc::c_char = dc_strdup(mimeparser.subject);
-                let p_0: *mut libc::c_char = strchr(subj, '[' as i32);
-                if !p_0.is_null() {
-                    *p_0 = 0i32 as libc::c_char
+                let subj = if let Some(n) = subject.find('[') {
+                    &subject[0..n]
+                } else {
+                    subject
                 }
-                dc_trim(subj);
-                if 0 != *subj.offset(0isize) {
+                .trim();
+
+                if !subj.is_empty() {
+                    let subj_c = CString::yolo(subj);
                     for part in mimeparser.parts.iter_mut() {
                         if part.type_0 == Viewtype::Text {
                             let msg_c = part.msg.as_ref().unwrap().strdup();
                             let new_txt: *mut libc::c_char = dc_mprintf(
                                 b"%s \xe2\x80\x93 %s\x00" as *const u8 as *const libc::c_char,
-                                subj,
+                                subj_c.as_ptr(),
                                 msg_c,
                             );
                             free(msg_c.cast());
@@ -258,7 +263,6 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                         }
                     }
                 }
-                free(subj as *mut libc::c_void);
             }
         }
         if mimeparser.is_forwarded {
@@ -338,10 +342,12 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
     if dc_mimeparser_get_last_nonmeta(&mut mimeparser).is_none() && mimeparser.reports.is_empty() {
         let mut part_5 = dc_mimepart_new();
         part_5.type_0 = Viewtype::Text;
-        if !mimeparser.subject.is_null() && !mimeparser.is_send_by_messenger {
-            part_5.msg = Some(to_string(mimeparser.subject));
-        } else {
-            part_5.msg = Some("".into());
+        part_5.msg = Some("".into());
+
+        if let Some(ref subject) = mimeparser.subject {
+            if !mimeparser.is_send_by_messenger {
+                part_5.msg = Some(subject.to_string())
+            }
         }
         mimeparser.parts.push(part_5);
     };
@@ -1801,10 +1807,7 @@ mod tests {
             let raw = b"Content-Type: multipart/mixed; boundary=\"==break==\";\nSubject: outer-subject\nX-Special-A: special-a\nFoo: Bar\nChat-Version: 0.0\n\n--==break==\nContent-Type: text/plain; protected-headers=\"v1\";\nSubject: inner-subject\nX-Special-B: special-b\nFoo: Xy\nChat-Version: 1.0\n\ntest1\n\n--==break==--\n\n\x00";
             let mut mimeparser = dc_mimeparser_parse(&context.ctx, &raw[..]);
 
-            assert_eq!(
-                &to_string(mimeparser.subject as *const libc::c_char),
-                "inner-subject",
-            );
+            assert_eq!(mimeparser.subject, Some("inner-subject".into()));
 
             let mut of: *mut mailimf_optional_field =
                 dc_mimeparser_lookup_optional_field(&mimeparser, "X-Special-A");

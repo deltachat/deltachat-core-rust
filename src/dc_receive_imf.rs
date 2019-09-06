@@ -643,13 +643,16 @@ unsafe fn add_parts(
                     }
                     if part.type_0 == Viewtype::Text {
                         let msg_raw = CString::yolo(part.msg_raw.as_ref().unwrap().clone());
+                        let subject_c = CString::yolo(
+                            mime_parser
+                                .subject
+                                .as_ref()
+                                .map(|s| s.to_string())
+                                .unwrap_or("".into()),
+                        );
                         txt_raw = dc_mprintf(
                             b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
-                            if !mime_parser.subject.is_null() {
-                                mime_parser.subject
-                            } else {
-                                b"\x00" as *const u8 as *const libc::c_char
-                            },
+                            subject_c.as_ptr(),
                             msg_raw.as_ptr(),
                         )
                     }
@@ -1570,8 +1573,8 @@ unsafe fn create_or_lookup_adhoc_group(
     }
 
     // use subject as initial chat name
-    if !mime_parser.subject.is_null() && 0 != *mime_parser.subject.offset(0isize) as libc::c_int {
-        grpname = dc_strdup(mime_parser.subject)
+    if let Some(subject) = mime_parser.subject.as_ref().filter(|s| !s.is_empty()) {
+        grpname = subject.strdup();
     } else {
         grpname = context
             .stock_string_repl_int(StockMessage::Member, member_ids.len() as libc::c_int)
