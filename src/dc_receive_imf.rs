@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::ptr;
 
 use itertools::join;
@@ -641,6 +642,7 @@ unsafe fn add_parts(
                         }
                     }
                     if part.type_0 == Viewtype::Text {
+                        let msg_raw = CString::yolo(part.msg_raw.as_ref().unwrap().clone());
                         txt_raw = dc_mprintf(
                             b"%s\n\n%s\x00" as *const u8 as *const libc::c_char,
                             if !mime_parser.subject.is_null() {
@@ -648,7 +650,7 @@ unsafe fn add_parts(
                             } else {
                                 b"\x00" as *const u8 as *const libc::c_char
                             },
-                            part.msg_raw,
+                            msg_raw.as_ptr(),
                         )
                     }
                     if 0 != mime_parser.is_system_message {

@@ -35,7 +35,7 @@ pub struct dc_mimepart_t {
     pub is_meta: bool,
     pub int_mimetype: libc::c_int,
     pub msg: Option<String>,
-    pub msg_raw: *mut libc::c_char,
+    pub msg_raw: Option<String>,
     pub bytes: libc::c_int,
     pub param: Params,
 }
@@ -116,8 +116,7 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
 
 unsafe fn dc_mimepart_unref(mut mimepart: dc_mimepart_t) {
     mimepart.msg = None;
-    free(mimepart.msg_raw as *mut libc::c_void);
-    mimepart.msg_raw = ptr::null_mut();
+    mimepart.msg_raw = None;
 }
 const DC_MIMETYPE_AC_SETUP_FILE: i32 = 111;
 
@@ -369,7 +368,7 @@ unsafe fn dc_mimepart_new() -> dc_mimepart_t {
         is_meta: false,
         int_mimetype: 0,
         msg: None,
-        msg_raw: std::ptr::null_mut(),
+        msg_raw: None,
         bytes: 0,
         param: Params::new(),
     }
@@ -592,7 +591,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                         .stock_str(StockMessage::CantDecryptMsgBody);
 
                     let txt = format!("[{}]", msg_body);
-                    part.msg_raw = txt.strdup();
+                    part.msg_raw = Some(txt.clone());
                     part.msg = Some(txt);
 
                     mimeparser.parts.push(part);
@@ -1120,8 +1119,13 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 part.type_0 = Viewtype::Text;
                                 part.int_mimetype = mime_type;
                                 part.msg = Some(simplified_txt);
-                                part.msg_raw =
-                                    strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
+                                part.msg_raw = {
+                                    let raw_c =
+                                        strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
+                                    let raw = to_string(raw_c);
+                                    free(raw_c.cast());
+                                    Some(raw)
+                                };
                                 do_add_single_part(mimeparser, part);
                             }
 
