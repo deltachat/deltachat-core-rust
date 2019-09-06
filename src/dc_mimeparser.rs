@@ -87,10 +87,7 @@ pub unsafe fn dc_mimeparser_unref(mimeparser: &mut dc_mimeparser_t) {
 }
 
 unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
-    for part in mimeparser.parts.drain(..) {
-        dc_mimepart_unref(part);
-    }
-    assert!(mimeparser.parts.is_empty());
+    mimeparser.parts = vec![];
     mimeparser.header_root = ptr::null_mut();
     mimeparser.header.clear();
     if !mimeparser.header_protected.is_null() {
@@ -114,10 +111,6 @@ unsafe fn dc_mimeparser_empty(mimeparser: &mut dc_mimeparser_t) {
     mimeparser.message_kml = None;
 }
 
-unsafe fn dc_mimepart_unref(mut mimepart: dc_mimepart_t) {
-    mimepart.msg = None;
-    mimepart.msg_raw = None;
-}
 const DC_MIMETYPE_AC_SETUP_FILE: i32 = 111;
 
 pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_mimeparser_t<'a> {
@@ -168,8 +161,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 let mut i = 0;
                 while i != mimeparser.parts.len() {
                     if mimeparser.parts[i].int_mimetype != 111 {
-                        let part = mimeparser.parts.remove(i);
-                        dc_mimepart_unref(part);
+                        mimeparser.parts.remove(i);
                     } else {
                         i += 1;
                     }
@@ -224,10 +216,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 mimeparser.parts[0].msg = None;
 
                 // swap new with old
-                let old = std::mem::replace(&mut mimeparser.parts[0], filepart);
-
-                // unref old one
-                dc_mimepart_unref(old);
+                std::mem::replace(&mut mimeparser.parts[0], filepart);
             }
         }
         if !mimeparser.subject.is_null() {
@@ -1655,9 +1644,7 @@ pub unsafe fn dc_mimeparser_repl_msg_by_error(
     let part = &mut mimeparser.parts[0];
     part.type_0 = Viewtype::Text;
     part.msg = Some(format!("[{}]", to_string(error_msg)));
-    for part in mimeparser.parts.drain(1..) {
-        dc_mimepart_unref(part);
-    }
+    mimeparser.parts.truncate(1);
     assert_eq!(mimeparser.parts.len(), 1);
 }
 
