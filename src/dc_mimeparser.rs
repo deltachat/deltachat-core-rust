@@ -1284,7 +1284,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                     mimeparser,
                                     msg_type,
                                     mime_type,
-                                    raw_mime,
+                                    as_str(raw_mime),
                                     decoded_data,
                                     decoded_data_bytes,
                                     desired_filename,
@@ -1312,7 +1312,7 @@ unsafe fn do_add_single_file_part(
     parser: &mut dc_mimeparser_t,
     msg_type: Viewtype,
     mime_type: libc::c_int,
-    raw_mime: *const libc::c_char,
+    raw_mime: &str,
     decoded_data: *const libc::c_char,
     decoded_data_bytes: size_t,
     desired_filename: *const libc::c_char,
@@ -1338,7 +1338,7 @@ unsafe fn do_add_single_file_part(
             part.int_mimetype = mime_type;
             part.bytes = decoded_data_bytes as libc::c_int;
             part.param.set(Param::File, as_str(pathNfilename));
-            part.param.set(Param::MimeType, as_str(raw_mime));
+            part.param.set(Param::MimeType, raw_mime);
             if mime_type == 80 {
                 assert!(!decoded_data.is_null(), "invalid image data");
                 let data = std::slice::from_raw_parts(
