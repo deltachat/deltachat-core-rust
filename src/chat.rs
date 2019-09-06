@@ -294,9 +294,6 @@ impl<'a> Chat<'a> {
         let mut do_guarantee_e2ee: libc::c_int;
         let e2ee_enabled: libc::c_int;
         let mut OK_TO_CONTINUE = true;
-        let mut parent_rfc724_mid = ptr::null_mut();
-        let mut parent_references = ptr::null_mut();
-        let mut parent_in_reply_to = ptr::null_mut();
         let mut new_rfc724_mid = ptr::null_mut();
         let mut new_references = ptr::null_mut();
         let mut new_in_reply_to = ptr::null_mut();
@@ -421,55 +418,58 @@ impl<'a> Chat<'a> {
                         msg.param.set_int(Param::GuranteeE2ee, 1);
                     }
                     msg.param.remove(Param::ErroneousE2ee);
-                    if !self.is_self_talk()
-                        && self
-                            .get_parent_mime_headers(
-                                &mut parent_rfc724_mid,
-                                &mut parent_in_reply_to,
-                                &mut parent_references,
-                            )
-                            .is_ok()
-                    {
-                        if !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
+                    if !self.is_self_talk() {
+                        if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
+                            self.get_parent_mime_headers_safe()
                         {
-                            new_in_reply_to = dc_strdup(parent_rfc724_mid)
-                        }
-                        if !parent_references.is_null() {
-                            let space: *mut libc::c_char;
-                            space = strchr(parent_references, ' ' as i32);
-                            if !space.is_null() {
-                                *space = 0 as libc::c_char
+                            let parent_rfc724_mid = parent_rfc724_mid.strdup();
+                            let parent_in_reply_to = parent_in_reply_to.strdup();
+                            let parent_references = parent_references.strdup();
+
+                            if !parent_rfc724_mid.is_null()
+                                && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
+                            {
+                                new_in_reply_to = dc_strdup(parent_rfc724_mid)
                             }
-                        }
-                        if !parent_references.is_null()
-                            && 0 != *parent_references.offset(0isize) as libc::c_int
-                            && !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_mprintf(
-                                b"%s %s\x00" as *const u8 as *const libc::c_char,
-                                parent_references,
-                                parent_rfc724_mid,
-                            )
-                        } else if !parent_references.is_null()
-                            && 0 != *parent_references.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_strdup(parent_references)
-                        } else if !parent_in_reply_to.is_null()
-                            && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                            && !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_mprintf(
-                                b"%s %s\x00" as *const u8 as *const libc::c_char,
-                                parent_in_reply_to,
-                                parent_rfc724_mid,
-                            )
-                        } else if !parent_in_reply_to.is_null()
-                            && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_strdup(parent_in_reply_to)
+                            if !parent_references.is_null() {
+                                let space: *mut libc::c_char;
+                                space = strchr(parent_references, ' ' as i32);
+                                if !space.is_null() {
+                                    *space = 0 as libc::c_char
+                                }
+                            }
+                            if !parent_references.is_null()
+                                && 0 != *parent_references.offset(0isize) as libc::c_int
+                                && !parent_rfc724_mid.is_null()
+                                && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
+                            {
+                                new_references = dc_mprintf(
+                                    b"%s %s\x00" as *const u8 as *const libc::c_char,
+                                    parent_references,
+                                    parent_rfc724_mid,
+                                )
+                            } else if !parent_references.is_null()
+                                && 0 != *parent_references.offset(0isize) as libc::c_int
+                            {
+                                new_references = dc_strdup(parent_references)
+                            } else if !parent_in_reply_to.is_null()
+                                && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
+                                && !parent_rfc724_mid.is_null()
+                                && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
+                            {
+                                new_references = dc_mprintf(
+                                    b"%s %s\x00" as *const u8 as *const libc::c_char,
+                                    parent_in_reply_to,
+                                    parent_rfc724_mid,
+                                )
+                            } else if !parent_in_reply_to.is_null()
+                                && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
+                            {
+                                new_references = dc_strdup(parent_in_reply_to)
+                            }
+                            free(parent_rfc724_mid as *mut libc::c_void);
+                            free(parent_in_reply_to as *mut libc::c_void);
+                            free(parent_references as *mut libc::c_void);
                         }
                     }
 
@@ -547,9 +547,6 @@ impl<'a> Chat<'a> {
             }
         }
 
-        free(parent_rfc724_mid as *mut libc::c_void);
-        free(parent_in_reply_to as *mut libc::c_void);
-        free(parent_references as *mut libc::c_void);
         free(new_rfc724_mid as *mut libc::c_void);
         free(new_in_reply_to as *mut libc::c_void);
         free(new_references as *mut libc::c_void);
