@@ -1015,14 +1015,14 @@ pub fn housekeeping(context: &Context) {
 
                 match std::fs::metadata(entry.path()) {
                     Ok(stats) => {
-                        let created = stats.created().is_ok()
+                        let recently_created = stats.created().is_ok()
                             && stats.created().unwrap() > keep_files_newer_than;
-                        let modified = stats.modified().is_ok()
+                        let recently_modified = stats.modified().is_ok()
                             && stats.modified().unwrap() > keep_files_newer_than;
-                        let accessed = stats.accessed().is_ok()
+                        let recently_accessed = stats.accessed().is_ok()
                             && stats.accessed().unwrap() > keep_files_newer_than;
 
-                        if created || modified || accessed {
+                        if recently_created || recently_modified || recently_accessed {
                             info!(
                                 context,
                                 0,
