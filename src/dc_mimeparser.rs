@@ -32,7 +32,7 @@ dc_mimeparser_t has no deep dependencies to Context or to the database
 #[repr(C)]
 pub struct dc_mimepart_t {
     pub type_0: Viewtype,
-    pub is_meta: libc::c_int,
+    pub is_meta: bool,
     pub int_mimetype: libc::c_int,
     pub msg: Option<String>,
     pub msg_raw: *mut libc::c_char,
@@ -196,7 +196,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                 if mimeparser.parts.len() >= 2 {
                     let imgpart = &mut mimeparser.parts[1];
                     if imgpart.type_0 == Viewtype::Image {
-                        imgpart.is_meta = 1i32
+                        imgpart.is_meta = true;
                     }
                 }
             }
@@ -212,7 +212,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                         || filepart.type_0 == Viewtype::Voice
                         || filepart.type_0 == Viewtype::Video
                         || filepart.type_0 == Viewtype::File)
-                    && 0 == filepart.is_meta
+                    && !filepart.is_meta
             };
 
             if need_drop {
@@ -366,7 +366,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
 unsafe fn dc_mimepart_new() -> dc_mimepart_t {
     dc_mimepart_t {
         type_0: Viewtype::Unknown,
-        is_meta: 0,
+        is_meta: false,
         int_mimetype: 0,
         msg: None,
         msg_raw: std::ptr::null_mut(),
@@ -378,11 +378,7 @@ unsafe fn dc_mimepart_new() -> dc_mimepart_t {
 pub fn dc_mimeparser_get_last_nonmeta<'a>(
     mimeparser: &'a mut dc_mimeparser_t,
 ) -> Option<&'a mut dc_mimepart_t> {
-    mimeparser
-        .parts
-        .iter_mut()
-        .rev()
-        .find(|part| part.is_meta == 0)
+    mimeparser.parts.iter_mut().rev().find(|part| !part.is_meta)
 }
 
 /*the result must be freed*/

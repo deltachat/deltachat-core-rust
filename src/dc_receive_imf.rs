@@ -625,7 +625,7 @@ unsafe fn add_parts(
             |mut stmt, conn| {
                 for i in 0..icnt {
                     let part = &mut mime_parser.parts[i];
-                    if part.is_meta != 0 {
+                    if part.is_meta {
                         continue;
                     }
 
