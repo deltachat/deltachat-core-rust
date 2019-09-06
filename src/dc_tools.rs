@@ -435,13 +435,10 @@ pub unsafe fn clist_free_content(haystack: *const clist) {
 pub unsafe fn clist_search_string_nocase(
     haystack: *const clist,
     needle: *const libc::c_char,
-) -> libc::c_int {
-    for data in &*haystack {
-        if strcasecmp(data.cast(), needle) == 0 {
-            return 1;
-        }
-    }
-    0
+) -> bool {
+    (&*haystack)
+        .into_iter()
+        .any(|data| strcasecmp(data.cast(), needle) == 0)
 }
 
 /* date/time tools */
