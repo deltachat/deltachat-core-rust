@@ -218,6 +218,22 @@ impl<'a> Chat<'a> {
         Ok(())
     }
 
+    pub fn get_parent_mime_headers_safe(&self) -> Option<(String, String, String)> {
+        let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
+        let params = params![self.id as i32, DC_CONTACT_ID_SELF as i32];
+        let sql = &self.context.sql;
+        let main_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
+                          FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT max(timestamp) \
+                          FROM msgs WHERE chat_id=?1 AND from_id!=?2);";
+        let fallback_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
+                              FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT min(timestamp) \
+                              FROM msgs WHERE chat_id=?1 AND from_id==?2);";
+
+        sql.query_row(main_query, params, collect)
+            .or_else(|_| sql.query_row(fallback_query, params, collect))
+            .ok()
+    }
+
     pub unsafe fn get_profile_image(&self) -> Option<String> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
