@@ -171,54 +171,7 @@ impl<'a> Chat<'a> {
         return "Err".into();
     }
 
-    unsafe fn get_parent_mime_headers(
-        &self,
-        parent_rfc724_mid: *mut *mut libc::c_char,
-        parent_in_reply_to: *mut *mut libc::c_char,
-        parent_references: *mut *mut libc::c_char,
-    ) -> Result<(), Error> {
-        if !(parent_rfc724_mid.is_null()
-            || parent_in_reply_to.is_null()
-            || parent_references.is_null())
-        {
-            // prefer a last message that isn't from us
-            let next = self
-                .context
-                .sql
-                .query_row(
-                    "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                     FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT max(timestamp) \
-                     FROM msgs WHERE chat_id=?1 AND from_id!=?2);",
-                    params![self.id as i32, DC_CONTACT_ID_SELF as i32],
-                    |row| {
-                        *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
-                        *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
-                        *parent_references = row.get::<_, String>(2)?.strdup();
-                        Ok(())
-                    },
-                )
-                .is_ok();
-
-            if !next {
-                self.context.sql.query_row(
-                    "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                     FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT min(timestamp) \
-                     FROM msgs WHERE chat_id=?1 AND from_id==?2);",
-                    params![self.id as i32, DC_CONTACT_ID_SELF as i32],
-                    |row| {
-                        *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
-                        *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
-                        *parent_references = row.get::<_, String>(2)?.strdup();
-                        Ok(())
-                    },
-                )?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn get_parent_mime_headers_safe(&self) -> Option<(String, String, String)> {
+    pub fn get_parent_mime_headers(&self) -> Option<(String, String, String)> {
         let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
         let params = params![self.id as i32, DC_CONTACT_ID_SELF as i32];
         let sql = &self.context.sql;
@@ -420,7 +373,7 @@ impl<'a> Chat<'a> {
                     msg.param.remove(Param::ErroneousE2ee);
                     if !self.is_self_talk() {
                         if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
-                            self.get_parent_mime_headers_safe()
+                            self.get_parent_mime_headers()
                         {
                             let parent_rfc724_mid = parent_rfc724_mid.strdup();
                             let parent_in_reply_to = parent_in_reply_to.strdup();
