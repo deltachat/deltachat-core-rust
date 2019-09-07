@@ -1015,14 +1015,14 @@ pub fn housekeeping(context: &Context) {
 
                 match std::fs::metadata(entry.path()) {
                     Ok(stats) => {
-                        let created = stats.created().is_ok()
+                        let recently_created = stats.created().is_ok()
                             && stats.created().unwrap() > keep_files_newer_than;
-                        let modified = stats.modified().is_ok()
+                        let recently_modified = stats.modified().is_ok()
                             && stats.modified().unwrap() > keep_files_newer_than;
-                        let accessed = stats.accessed().is_ok()
+                        let recently_accessed = stats.accessed().is_ok()
                             && stats.accessed().unwrap() > keep_files_newer_than;
 
-                        if created || modified || accessed {
+                        if recently_created || recently_modified || recently_accessed {
                             info!(
                                 context,
                                 0,
@@ -1090,13 +1090,20 @@ fn maybe_add_from_param(
 ) {
     context
         .sql
-        .query_row(query, NO_PARAMS, |row| {
-            let param: Params = row.get::<_, String>(0)?.parse().unwrap_or_default();
-            if let Some(file) = param.get(param_id) {
-                maybe_add_file(files_in_use, file);
-            }
-            Ok(())
-        })
+        .query_map(
+            query,
+            NO_PARAMS,
+            |row| row.get::<_, String>(0),
+            |rows| {
+                for row in rows {
+                    let param: Params = row?.parse().unwrap_or_default();
+                    if let Some(file) = param.get(param_id) {
+                        maybe_add_file(files_in_use, file);
+                    }
+                }
+                Ok(())
+            },
+        )
         .unwrap_or_else(|err| {
             warn!(context, 0, "sql: failed to add_from_param: {}", err);
         });
