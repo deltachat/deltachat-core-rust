@@ -247,7 +247,6 @@ impl<'a> Chat<'a> {
         let mut do_guarantee_e2ee: libc::c_int;
         let e2ee_enabled: libc::c_int;
         let mut OK_TO_CONTINUE = true;
-        let mut new_rfc724_mid = ptr::null_mut();
         let mut new_references = "".into();
         let mut new_in_reply_to = "".into();
         let mut msg_id = 0;
@@ -270,15 +269,13 @@ impl<'a> Chat<'a> {
             );
         } else {
             if let Some(from) = context.sql.get_config(context, "configured_addr") {
-                let from_c = CString::yolo(from);
-                new_rfc724_mid = dc_create_outgoing_rfc724_mid(
-                    if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
-                        self.grpid.strdup()
-                    } else {
-                        ptr::null_mut()
-                    },
-                    from_c.as_ptr(),
-                );
+                let new_rfc724_mid = {
+                    let grpid = match self.typ {
+                        Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
+                        _ => None,
+                    };
+                    dc_create_outgoing_rfc724_mid_safe(grpid, &from)
+                };
 
                 if self.typ == Chattype::Single {
                     if let Some(id) = context.sql.query_row_col(
@@ -438,7 +435,7 @@ impl<'a> Chat<'a> {
                         &context.sql,
                         "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
                         params![
-                            as_str(new_rfc724_mid),
+                            new_rfc724_mid,
                             self.id as i32,
                             1i32,
                             to_id as i32,
@@ -458,7 +455,7 @@ impl<'a> Chat<'a> {
                             &context.sql,
                             "msgs",
                             "rfc724_mid",
-                            as_str(new_rfc724_mid),
+                            new_rfc724_mid,
                         );
                     } else {
                         error!(
@@ -473,8 +470,6 @@ impl<'a> Chat<'a> {
                 error!(context, 0, "Cannot send message, not configured.",);
             }
         }
-
-        free(new_rfc724_mid as *mut libc::c_void);
 
         Ok(msg_id)
     }
