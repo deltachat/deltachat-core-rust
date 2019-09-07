@@ -271,170 +271,166 @@ impl<'a> Chat<'a> {
             );
             return Ok(0);
         }
-            {
-            if let Some(from) = context.sql.get_config(context, "configured_addr") {
-                let new_rfc724_mid = {
-                    let grpid = match self.typ {
-                        Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
-                        _ => None,
-                    };
-                    dc_create_outgoing_rfc724_mid_safe(grpid, &from)
-                };
 
-                if self.typ == Chattype::Single {
-                    if let Some(id) = context.sql.query_row_col(
-                        context,
-                        "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
-                        params![self.id as i32],
-                        0,
-                    ) {
-                        to_id = id;
-                    } else {
-                        error!(
-                            context,
-                            0, "Cannot send message, contact for chat #{} not found.", self.id,
-                        );
-                        return Ok(0);
-                    }
+        if let Some(from) = context.sql.get_config(context, "configured_addr") {
+            let new_rfc724_mid = {
+                let grpid = match self.typ {
+                    Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
+                    _ => None,
+                };
+                dc_create_outgoing_rfc724_mid_safe(grpid, &from)
+            };
+
+            if self.typ == Chattype::Single {
+                if let Some(id) = context.sql.query_row_col(
+                    context,
+                    "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
+                    params![self.id as i32],
+                    0,
+                ) {
+                    to_id = id;
                 } else {
-                    if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
-                        if self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
-                            self.param.remove(Param::Unpromoted);
-                            self.update_param().unwrap();
-                        }
+                    error!(
+                        context,
+                        0, "Cannot send message, contact for chat #{} not found.", self.id,
+                    );
+                    return Ok(0);
+                }
+            } else {
+                if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
+                    if self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
+                        self.param.remove(Param::Unpromoted);
+                        self.update_param().unwrap();
                     }
                 }
+            }
+
+            /* check if we can guarantee E2EE for this message.
+            if we guarantee E2EE, and circumstances change
+            so that E2EE is no longer available at a later point (reset, changed settings),
+            we do not send the message out at all */
+            do_guarantee_e2ee = 0;
+            e2ee_enabled = context
+                .sql
+                .get_config_int(context, "e2ee_enabled")
+                .unwrap_or_else(|| 1);
+            if 0 != e2ee_enabled
+                && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0
+            {
+                let mut can_encrypt = 1;
+                let mut all_mutual = 1;
+
+                let res = context.sql.query_row(
+                    "SELECT ps.prefer_encrypted, c.addr \
+                     FROM chats_contacts cc  \
+                     LEFT JOIN contacts c ON cc.contact_id=c.id  \
+                     LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
+                     WHERE cc.chat_id=?  AND cc.contact_id>9;",
+                    params![self.id],
+                    |row| {
+                        let state: String = row.get(1)?;
+
+                        if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
+                            if prefer_encrypted != 1 {
+                                info!(
+                                    context,
+                                    0,
+                                    "[autocrypt] peerstate for {} is {}",
+                                    state,
+                                    if prefer_encrypted == 0 {
+                                        "NOPREFERENCE"
+                                    } else {
+                                        "RESET"
+                                    },
+                                );
+                                all_mutual = 0;
+                            }
+                        } else {
+                            info!(context, 0, "[autocrypt] no peerstate for {}", state,);
+                            can_encrypt = 0;
+                            all_mutual = 0;
+                        }
+                        Ok(())
+                    },
+                );
+                match res {
+                    Ok(_) => {}
+                    Err(err) => {
+                        warn!(context, 0, "chat: failed to load peerstates: {:?}", err);
+                    }
+                }
+
+                if 0 != can_encrypt {
+                    if 0 != all_mutual {
+                        do_guarantee_e2ee = 1;
+                    } else if last_msg_in_chat_encrypted(context, &context.sql, self.id) {
+                        do_guarantee_e2ee = 1;
+                    }
+                }
+            }
+            if 0 != do_guarantee_e2ee {
+                msg.param.set_int(Param::GuranteeE2ee, 1);
+            }
+            msg.param.remove(Param::ErroneousE2ee);
+            if !self.is_self_talk() {
+                if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
+                    self.get_parent_mime_headers()
                 {
-                    /* check if we can guarantee E2EE for this message.
-                    if we guarantee E2EE, and circumstances change
-                    so that E2EE is no longer available at a later point (reset, changed settings),
-                    we do not send the message out at all */
-                    do_guarantee_e2ee = 0;
-                    e2ee_enabled = context
-                        .sql
-                        .get_config_int(context, "e2ee_enabled")
-                        .unwrap_or_else(|| 1);
-                    if 0 != e2ee_enabled
-                        && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0
-                    {
-                        let mut can_encrypt = 1;
-                        let mut all_mutual = 1;
-
-                        let res = context.sql.query_row(
-                            "SELECT ps.prefer_encrypted, c.addr \
-                             FROM chats_contacts cc  \
-                             LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-                             WHERE cc.chat_id=?  AND cc.contact_id>9;",
-                            params![self.id],
-                            |row| {
-                                let state: String = row.get(1)?;
-
-                                if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
-                                    if prefer_encrypted != 1 {
-                                        info!(
-                                            context,
-                                            0,
-                                            "[autocrypt] peerstate for {} is {}",
-                                            state,
-                                            if prefer_encrypted == 0 {
-                                                "NOPREFERENCE"
-                                            } else {
-                                                "RESET"
-                                            },
-                                        );
-                                        all_mutual = 0;
-                                    }
-                                } else {
-                                    info!(context, 0, "[autocrypt] no peerstate for {}", state,);
-                                    can_encrypt = 0;
-                                    all_mutual = 0;
-                                }
-                                Ok(())
-                            },
-                        );
-                        match res {
-                            Ok(_) => {}
-                            Err(err) => {
-                                warn!(context, 0, "chat: failed to load peerstates: {:?}", err);
-                            }
-                        }
-
-                        if 0 != can_encrypt {
-                            if 0 != all_mutual {
-                                do_guarantee_e2ee = 1;
-                            } else if last_msg_in_chat_encrypted(context, &context.sql, self.id) {
-                                do_guarantee_e2ee = 1;
-                            }
-                        }
+                    if !parent_rfc724_mid.is_empty() {
+                        new_in_reply_to = parent_rfc724_mid.clone();
                     }
-                    if 0 != do_guarantee_e2ee {
-                        msg.param.set_int(Param::GuranteeE2ee, 1);
+                    let parent_references = if let Some(n) = parent_references.find(' ') {
+                        &parent_references[0..n]
+                    } else {
+                        &parent_references
+                    };
+
+                    if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
+                        new_references = format!("{} {}", parent_references, parent_rfc724_mid);
+                    } else if !parent_references.is_empty() {
+                        new_references = parent_references.to_string();
+                    } else if !parent_in_reply_to.is_empty() && !parent_rfc724_mid.is_empty() {
+                        new_references = format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
+                    } else if !parent_in_reply_to.is_empty() {
+                        new_references = parent_in_reply_to.clone();
                     }
-                    msg.param.remove(Param::ErroneousE2ee);
-                    if !self.is_self_talk() {
-                        if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
-                            self.get_parent_mime_headers()
-                        {
-                            if !parent_rfc724_mid.is_empty() {
-                                new_in_reply_to = parent_rfc724_mid.clone();
-                            }
-                            let parent_references = if let Some(n) = parent_references.find(' ') {
-                                &parent_references[0..n]
-                            } else {
-                                &parent_references
-                            };
+                }
+            }
 
-                            if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
-                                new_references =
-                                    format!("{} {}", parent_references, parent_rfc724_mid);
-                            } else if !parent_references.is_empty() {
-                                new_references = parent_references.to_string();
-                            } else if !parent_in_reply_to.is_empty()
-                                && !parent_rfc724_mid.is_empty()
-                            {
-                                new_references =
-                                    format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
-                            } else if !parent_in_reply_to.is_empty() {
-                                new_references = parent_in_reply_to.clone();
-                            }
-                        }
-                    }
+            // add independent location to database
 
-                    // add independent location to database
+            if msg.param.exists(Param::SetLatitude) {
+                if sql::execute(
+                    context,
+                    &context.sql,
+                    "INSERT INTO locations \
+                     (timestamp,from_id,chat_id, latitude,longitude,independent)\
+                     VALUES (?,?,?, ?,?,1);",
+                    params![
+                        timestamp,
+                        DC_CONTACT_ID_SELF,
+                        self.id as i32,
+                        msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
+                        msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
+                    ],
+                )
+                .is_ok()
+                {
+                    location_id = sql::get_rowid2(
+                        context,
+                        &context.sql,
+                        "locations",
+                        "timestamp",
+                        timestamp,
+                        "from_id",
+                        DC_CONTACT_ID_SELF as i32,
+                    );
+                }
+            }
 
-                    if msg.param.exists(Param::SetLatitude) {
-                        if sql::execute(
-                            context,
-                            &context.sql,
-                            "INSERT INTO locations \
-                             (timestamp,from_id,chat_id, latitude,longitude,independent)\
-                             VALUES (?,?,?, ?,?,1);",
-                            params![
-                                timestamp,
-                                DC_CONTACT_ID_SELF,
-                                self.id as i32,
-                                msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
-                                msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
-                            ],
-                        )
-                        .is_ok()
-                        {
-                            location_id = sql::get_rowid2(
-                                context,
-                                &context.sql,
-                                "locations",
-                                "timestamp",
-                                timestamp,
-                                "from_id",
-                                DC_CONTACT_ID_SELF as i32,
-                            );
-                        }
-                    }
+            // add message to the database
 
-                    // add message to the database
-
-                    if sql::execute(
+            if sql::execute(
                         context,
                         &context.sql,
                         "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
@@ -469,10 +465,8 @@ impl<'a> Chat<'a> {
                             self.id,
                         );
                     }
-                }
-            } else {
-                error!(context, 0, "Cannot send message, not configured.",);
-            }
+        } else {
+            error!(context, 0, "Cannot send message, not configured.",);
         }
 
         Ok(msg_id)
