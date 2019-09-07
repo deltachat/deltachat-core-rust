@@ -428,7 +428,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  send <text>\n\
                  send-garbage\n\
                  sendimage <file> [<text>]\n\
-                 sendfile <file>\n\
+                 sendfile <file> [<text>]\n\
                  draft [<text>]\n\
                  listmedia\n\
                  archive <chat-id>\n\
@@ -862,7 +862,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "sendimage" | "sendfile" => {
             ensure!(sel_chat.is_some(), "No chat selected.");
-            ensure!(!arg1.is_empty() && !arg2.is_empty(), "No file given.");
+            ensure!(!arg1.is_empty(), "No file given.");
 
             let mut msg = dc_msg_new(
                 context,
@@ -873,7 +873,9 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 },
             );
             dc_msg_set_file(&mut msg, arg1_c, ptr::null());
-            dc_msg_set_text(&mut msg, arg2_c);
+            if !arg2.is_empty() {
+                dc_msg_set_text(&mut msg, arg2_c);
+            }
             chat::send_msg(context, sel_chat.as_ref().unwrap().get_id(), &mut msg)?;
         }
         "listmsgs" => {
