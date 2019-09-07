@@ -50,7 +50,7 @@ pub unsafe fn outlk_autodiscover(
             0,
             ::std::mem::size_of::<outlk_autodiscover_t>(),
         );
-        xml_raw = read_autoconf_file(context, url);
+        xml_raw = read_autoconf_file(context, as_str(url));
         if xml_raw.is_null() {
             ok_to_continue = false;
             break;

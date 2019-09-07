@@ -39,9 +39,7 @@ pub unsafe fn moz_autoconfigure(
         tag_config: 0,
     };
 
-    let url_c = url.strdup();
-    let xml_raw = read_autoconf_file(context, url_c);
-    free(url_c as *mut libc::c_void);
+    let xml_raw = read_autoconf_file(context, url);
     if xml_raw.is_null() {
         return None;
     }

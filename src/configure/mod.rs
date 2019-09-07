@@ -663,11 +663,11 @@ pub fn dc_stop_ongoing_process(context: &Context) {
     };
 }
 
-pub fn read_autoconf_file(context: &Context, url: *const libc::c_char) -> *mut libc::c_char {
-    info!(context, 0, "Testing {} ...", to_string(url));
+pub fn read_autoconf_file(context: &Context, url: &str) -> *mut libc::c_char {
+    info!(context, 0, "Testing {} ...", url);
 
     match reqwest::Client::new()
-        .get(as_str(url))
+        .get(url)
         .send()
         .and_then(|mut res| res.text())
     {
