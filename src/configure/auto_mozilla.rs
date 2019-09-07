@@ -14,8 +14,8 @@ use super::read_autoconf_file;
 #[repr(C)]
 struct moz_autoconfigure_t<'a> {
     pub in_0: &'a dc_loginparam_t,
-    pub in_emaildomain: *mut libc::c_char,
-    pub in_emaillocalpart: *mut libc::c_char,
+    pub in_emaildomain: &'a str,
+    pub in_emaillocalpart: &'a str,
     pub out: dc_loginparam_t,
     pub out_imap_set: libc::c_int,
     pub out_smtp_set: libc::c_int,
@@ -28,40 +28,35 @@ pub unsafe fn moz_autoconfigure(
     url: &str,
     param_in: &dc_loginparam_t,
 ) -> Option<dc_loginparam_t> {
-    let mut moz_ac = moz_autoconfigure_t {
-        in_0: param_in,
-        in_emaildomain: std::ptr::null_mut(),
-        in_emaillocalpart: std::ptr::null_mut(),
-        out: dc_loginparam_new(),
-        out_imap_set: 0,
-        out_smtp_set: 0,
-        tag_server: 0,
-        tag_config: 0,
-    };
-
     let xml_raw = read_autoconf_file(context, url);
     if xml_raw.is_null() {
         return None;
     }
 
-    moz_ac.in_emaillocalpart = param_in.addr.strdup();
-    let p = strchr(moz_ac.in_emaillocalpart, '@' as i32);
-
-    if p.is_null() {
+    // Split address into local part and domain part.
+    let p = param_in.addr.find("@");
+    if p.is_none() {
         free(xml_raw as *mut libc::c_void);
-        free(moz_ac.in_emaildomain as *mut libc::c_void);
-        free(moz_ac.in_emaillocalpart as *mut libc::c_void);
         return None;
     }
-
-    *p = 0 as libc::c_char;
-    moz_ac.in_emaildomain = dc_strdup(p.offset(1isize));
+    let (in_emaillocalpart, in_emaildomain) = param_in.addr.split_at(p.unwrap());
+    let in_emaildomain = &in_emaildomain[1..];
 
     let mut reader = quick_xml::Reader::from_str(as_str(xml_raw));
     reader.trim_text(true);
 
     let mut buf = Vec::new();
 
+    let mut moz_ac = moz_autoconfigure_t {
+        in_0: param_in,
+        in_emaildomain,
+        in_emaillocalpart,
+        out: dc_loginparam_new(),
+        out_imap_set: 0,
+        out_smtp_set: 0,
+        tag_server: 0,
+        tag_config: 0,
+    };
     loop {
         match reader.read_event(&mut buf) {
             Ok(quick_xml::events::Event::Start(ref e)) => {
@@ -94,14 +89,10 @@ pub unsafe fn moz_autoconfigure(
         let r = dc_loginparam_get_readable(&moz_ac.out);
         warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
         free(xml_raw as *mut libc::c_void);
-        free(moz_ac.in_emaildomain as *mut libc::c_void);
-        free(moz_ac.in_emaillocalpart as *mut libc::c_void);
         return None;
     }
 
     free(xml_raw as *mut libc::c_void);
-    free(moz_ac.in_emaildomain as *mut libc::c_void);
-    free(moz_ac.in_emaillocalpart as *mut libc::c_void);
     Some(moz_ac.out)
 }
 
@@ -113,8 +104,8 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
     let val = event.unescape_and_decode(reader).unwrap_or_default();
 
     let addr = &moz_ac.in_0.addr;
-    let email_local = as_str(moz_ac.in_emaillocalpart);
-    let email_domain = as_str(moz_ac.in_emaildomain);
+    let email_local = moz_ac.in_emaillocalpart;
+    let email_domain = moz_ac.in_emaildomain;
 
     let val = val
         .trim()
