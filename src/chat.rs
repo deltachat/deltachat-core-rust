@@ -502,7 +502,7 @@ impl<'a> Chat<'a> {
                             timestamp,
                             msg.type_0,
                             msg.state,
-                            msg.text,
+                            msg.text.as_ref().map_or("", String::as_str),
                             msg.param.to_string(),
                             msg.hidden,
                             to_string(new_in_reply_to),
