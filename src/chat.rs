@@ -1653,34 +1653,34 @@ pub unsafe fn set_chat_profile_image(
 ) -> Result<(), Error> {
     ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
 
-    let mut OK_TO_CONTINUE = true;
     let mut success = false;
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
     let mut msg = dc_msg_new_untyped(context);
     let mut new_image_rel = None;
 
-    if real_group_exists(context, chat_id) {
-        if !(is_contact_in_chat(context, chat_id, 1i32 as u32) == 1i32) {
-            log_event!(
-                context,
-                Event::ERROR_SELF_NOT_IN_GROUP,
-                0,
-                "Cannot set chat profile image; self not in group.",
-            );
-        } else {
-            /* we should respect this - whatever we send to the group, it gets discarded anyway! */
+    (|| {
+        if real_group_exists(context, chat_id) {
+            if !(is_contact_in_chat(context, chat_id, 1i32 as u32) == 1i32) {
+                log_event!(
+                    context,
+                    Event::ERROR_SELF_NOT_IN_GROUP,
+                    0,
+                    "Cannot set chat profile image; self not in group.",
+                );
+                /* we should respect this - whatever we send to the group, it gets discarded anyway! */
+                return;
+            }
             if !new_image.as_ref().is_empty() {
                 let mut img = new_image.as_ref().to_string();
                 if !dc_make_rel_and_copy(context, &mut img) {
-                    OK_TO_CONTINUE = false;
+                    return;
                 }
                 new_image_rel = Some(img);
             } else {
-                OK_TO_CONTINUE = false;
+                new_image_rel = Some("".to_string());
             }
-        }
-        if OK_TO_CONTINUE {
+
             if let Some(ref new_image_rel) = new_image_rel {
                 chat.param.set(Param::ProfileImage, new_image_rel);
             }
@@ -1716,7 +1716,7 @@ pub unsafe fn set_chat_profile_image(
                 success = true;
             }
         }
-    }
+    })();
 
     if !success {
         bail!("Failed to set profile image");

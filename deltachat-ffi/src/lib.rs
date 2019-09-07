@@ -898,9 +898,15 @@ pub unsafe extern "C" fn dc_set_chat_profile_image(
 
     let context = &*context;
 
-    chat::set_chat_profile_image(context, chat_id, as_str(image))
-        .map(|_| 1)
-        .unwrap_or_log_default(context, "Failed to set profile image")
+    chat::set_chat_profile_image(context, chat_id, {
+        if image.is_null() {
+            ""
+        } else {
+            as_str(image)
+        }
+    })
+    .map(|_| 1)
+    .unwrap_or_log_default(context, "Failed to set profile image")
 }
 
 #[no_mangle]
