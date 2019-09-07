@@ -111,7 +111,7 @@ impl FromSql for Origin {
         let inner = FromSql::column_result(col)?;
         match FromPrimitive::from_i64(inner) {
             Some(res) => Ok(res),
-            None => Ok(Origin::Unknown)
+            None => Ok(Origin::Unknown),
         }
     }
 }
