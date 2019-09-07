@@ -258,7 +258,10 @@ impl<'a> Chat<'a> {
             || self.typ == Chattype::VerifiedGroup)
         {
             error!(context, 0, "Cannot send to chat type #{}.", self.typ,);
-        } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+            return Ok(0);
+        }
+
+        if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
             && 0 == is_contact_in_chat(context, self.id, 1 as u32)
         {
             log_event!(
@@ -267,7 +270,9 @@ impl<'a> Chat<'a> {
                 0,
                 "Cannot send message; self not in group.",
             );
-        } else {
+            return Ok(0);
+        }
+            {
             if let Some(from) = context.sql.get_config(context, "configured_addr") {
                 let new_rfc724_mid = {
                     let grpid = match self.typ {
