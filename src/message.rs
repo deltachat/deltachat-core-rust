@@ -478,8 +478,7 @@ pub fn dc_msg_load_from_db<'a>(context: &'a Context, id: u32) -> Result<Message<
                         text = String::from_utf8_lossy(buf).into_owned();
                     }
                 } else {
-                    warn!(context, 0, "dc_msg_load_from_db: could not get text column for id {}", id);
-                    text = "[ Could not read from db ]".to_string();
+                    text = "".to_string();
                 }
                 msg.text = Some(text);
 
