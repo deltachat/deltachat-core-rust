@@ -246,7 +246,6 @@ impl<'a> Chat<'a> {
     ) -> Result<u32, Error> {
         let mut do_guarantee_e2ee: libc::c_int;
         let e2ee_enabled: libc::c_int;
-        let mut OK_TO_CONTINUE = true;
         let mut new_references = "".into();
         let mut new_in_reply_to = "".into();
         let mut msg_id = 0;
@@ -295,7 +294,7 @@ impl<'a> Chat<'a> {
                             context,
                             0, "Cannot send message, contact for chat #{} not found.", self.id,
                         );
-                        OK_TO_CONTINUE = false;
+                        return Ok(0);
                     }
                 } else {
                     if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
@@ -305,7 +304,7 @@ impl<'a> Chat<'a> {
                         }
                     }
                 }
-                if OK_TO_CONTINUE {
+                {
                     /* check if we can guarantee E2EE for this message.
                     if we guarantee E2EE, and circumstances change
                     so that E2EE is no longer available at a later point (reset, changed settings),
