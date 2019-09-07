@@ -109,7 +109,10 @@ impl ToSql for Origin {
 impl FromSql for Origin {
     fn column_result(col: ValueRef) -> FromSqlResult<Self> {
         let inner = FromSql::column_result(col)?;
-        FromPrimitive::from_i64(inner).ok_or(FromSqlError::InvalidType)
+        match FromPrimitive::from_i64(inner) {
+            Some(res) => Ok(res),
+            None => Ok(Origin::Unknown)
+        }
     }
 }
 
