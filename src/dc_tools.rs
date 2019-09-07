@@ -619,6 +619,21 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     ret
 }
 
+/// Generate globally-unique message-id for a new outgoing message.
+///
+/// Note: Do not add a counter or any private data as as this may give
+/// unneeded information to the receiver
+pub fn dc_create_outgoing_rfc724_mid_safe(grpid: Option<&str>, from_addr: &str) -> String {
+    let hostname = from_addr
+        .find('@')
+        .map(|k| &from_addr[k..])
+        .unwrap_or("@nohost");
+    match grpid {
+        Some(grpid) => format!("Gr.{}.{}{}", grpid, dc_create_id(), hostname),
+        None => format!("Mr.{}.{}{}", dc_create_id(), dc_create_id(), hostname),
+    }
+}
+
 /// Extract the group id (grpid) from a message id (mid)
 ///
 /// # Arguments
