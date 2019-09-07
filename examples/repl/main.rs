@@ -389,8 +389,6 @@ impl Helper for DcHelper {}
 fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
     let mut context = dc_context_new(Some(receive_event), ptr::null_mut(), Some("CLI".into()));
 
-    unsafe { dc_cmdline_skip_auth() };
-
     if args.len() == 2 {
         if unsafe { !dc_open(&mut context, &args[1], None) } {
             println!("Error: Cannot open {}.", args[0],);

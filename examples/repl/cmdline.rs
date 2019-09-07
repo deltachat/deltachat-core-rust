@@ -342,12 +342,6 @@ unsafe fn log_contactlist(context: &Context, contacts: &Vec<u32>) {
     }
 }
 
-static mut S_IS_AUTH: libc::c_int = 0;
-
-pub unsafe fn dc_cmdline_skip_auth() {
-    S_IS_AUTH = 1;
-}
-
 fn chat_prefix(chat: &Chat) -> &'static str {
     chat.typ.into()
 }
@@ -461,20 +455,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  ============================================="
             ),
         },
-        "auth" => {
-            if 0 == S_IS_AUTH {
-                let is_pw = context
-                    .get_config(config::Config::MailPw)
-                    .unwrap_or_default();
-                if arg1 == is_pw {
-                    S_IS_AUTH = 1;
-                } else {
-                    println!("Bad password.");
-                }
-            } else {
-                println!("Already authorized.");
-            }
-        }
         "open" => {
             ensure!(!arg1.is_empty(), "Argument <file> missing");
             dc_close(context);
