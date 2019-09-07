@@ -1657,7 +1657,7 @@ pub unsafe fn set_chat_profile_image(
     let mut msg = dc_msg_new_untyped(context);
     let new_image_rel;
 
-    macro_rules! returnError{
+    macro_rules! returnError {
         () => {
             bail!("Failed to set profile image");
         };
