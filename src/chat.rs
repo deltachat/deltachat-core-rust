@@ -248,8 +248,8 @@ impl<'a> Chat<'a> {
         let e2ee_enabled: libc::c_int;
         let mut OK_TO_CONTINUE = true;
         let mut new_rfc724_mid = ptr::null_mut();
-        let mut new_references = ptr::null_mut();
-        let mut new_in_reply_to = ptr::null_mut();
+        let mut new_references = "".into();
+        let mut new_in_reply_to = "".into();
         let mut msg_id = 0;
         let mut to_id = 0;
         let mut location_id = 0;
@@ -375,41 +375,28 @@ impl<'a> Chat<'a> {
                         if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
                             self.get_parent_mime_headers()
                         {
-                            let parent_rfc724_mid = parent_rfc724_mid.strdup();
-                            let parent_in_reply_to = parent_in_reply_to.strdup();
-                            let parent_references = parent_references.strdup();
+                            if !parent_rfc724_mid.is_empty() {
+                                new_in_reply_to = parent_rfc724_mid.clone();
+                            }
+                            let parent_references = if let Some(n) = parent_references.find(' ') {
+                                &parent_references[0..n]
+                            } else {
+                                &parent_references
+                            };
 
-                            if 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int {
-                                new_in_reply_to = dc_strdup(parent_rfc724_mid)
-                            }
-                            let space = strchr(parent_references, ' ' as i32);
-                            if !space.is_null() {
-                                *space = 0 as libc::c_char
-                            }
-                            if 0 != *parent_references.offset(0isize) as libc::c_int
-                                && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
+                            if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
+                                new_references =
+                                    format!("{} {}", parent_references, parent_rfc724_mid);
+                            } else if !parent_references.is_empty() {
+                                new_references = parent_references.to_string();
+                            } else if !parent_in_reply_to.is_empty()
+                                && !parent_rfc724_mid.is_empty()
                             {
-                                new_references = dc_mprintf(
-                                    b"%s %s\x00" as *const u8 as *const libc::c_char,
-                                    parent_references,
-                                    parent_rfc724_mid,
-                                )
-                            } else if 0 != *parent_references.offset(0isize) as libc::c_int {
-                                new_references = dc_strdup(parent_references)
-                            } else if 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                                && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                            {
-                                new_references = dc_mprintf(
-                                    b"%s %s\x00" as *const u8 as *const libc::c_char,
-                                    parent_in_reply_to,
-                                    parent_rfc724_mid,
-                                )
-                            } else if 0 != *parent_in_reply_to.offset(0isize) as libc::c_int {
-                                new_references = dc_strdup(parent_in_reply_to)
+                                new_references =
+                                    format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
+                            } else if !parent_in_reply_to.is_empty() {
+                                new_references = parent_in_reply_to.clone();
                             }
-                            free(parent_rfc724_mid as *mut libc::c_void);
-                            free(parent_in_reply_to as *mut libc::c_void);
-                            free(parent_references as *mut libc::c_void);
                         }
                     }
 
@@ -461,8 +448,8 @@ impl<'a> Chat<'a> {
                             msg.text,
                             msg.param.to_string(),
                             msg.hidden,
-                            to_string(new_in_reply_to),
-                            to_string(new_references),
+                            new_in_reply_to,
+                            new_references,
                             location_id as i32,
                         ]
                     ).is_ok() {
@@ -488,8 +475,6 @@ impl<'a> Chat<'a> {
         }
 
         free(new_rfc724_mid as *mut libc::c_void);
-        free(new_in_reply_to as *mut libc::c_void);
-        free(new_references as *mut libc::c_void);
 
         Ok(msg_id)
     }
