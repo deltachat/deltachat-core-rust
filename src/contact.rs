@@ -341,19 +341,22 @@ impl<'a> Contact<'a> {
                 let row_id = row.get(0)?;
                 let row_name: String = row.get(1)?;
                 let row_addr: String = row.get(2)?;
-                let row_origin = row.get(3)?;
+                let row_origin: Origin = row.get(3)?;
                 let row_authname: String = row.get(4)?;
 
-                if !name.as_ref().is_empty() && !row_name.is_empty() {
-                    if origin >= row_origin && name.as_ref() != row_name {
+                if !name.as_ref().is_empty() {
+                    if !row_name.is_empty() {
+                        if origin >= row_origin && name.as_ref() != row_name {
+                            update_name = true;
+                        }
+                    } else {
                         update_name = true;
                     }
-                } else {
-                    update_name = true;
+                    if origin == Origin::IncomingUnknownFrom && name.as_ref() != row_authname {
+                        update_authname = true;
+                    }
                 }
-                if origin == Origin::IncomingUnknownFrom && name.as_ref() != row_authname {
-                    update_authname = true;
-                }
+
                 Ok((row_id, row_name, row_addr, row_origin, row_authname))
             },
         ) {
@@ -393,7 +396,7 @@ impl<'a> Contact<'a> {
                     context,
                     &context.sql,
                     "UPDATE chats SET name=? WHERE type=? AND id IN(SELECT chat_id FROM chats_contacts WHERE contact_id=?);",
-                    params![name.as_ref(), 100, row_id]
+                    params![name.as_ref(), Chattype::Single, row_id]
                 ).ok();
                 }
                 sth_modified = Modifier::Modified;
@@ -431,19 +434,13 @@ impl<'a> Contact<'a> {
     /// To add a single contact entered by the user, you should prefer `Contact::create`,
     /// however, for adding a bunch of addresses, this function is _much_ faster.
     ///
-    /// The `adr_book` is a multiline string in the format `Name one\nAddress one\nName two\nAddress two`.
+    /// The `addr_book` is a multiline string in the format `Name one\nAddress one\nName two\nAddress two`.
     ///
     /// Returns the number of modified contacts.
-    pub fn add_address_book(context: &Context, adr_book: impl AsRef<str>) -> Result<usize> {
+    pub fn add_address_book(context: &Context, addr_book: impl AsRef<str>) -> Result<usize> {
         let mut modify_cnt = 0;
 
-        for chunk in &adr_book.as_ref().lines().chunks(2) {
-            let chunk = chunk.collect::<Vec<_>>();
-            if chunk.len() < 2 {
-                break;
-            }
-            let name = chunk[0];
-            let addr = chunk[1];
+        for (name, addr) in split_address_book(addr_book.as_ref()).into_iter() {
             let name = normalize_name(name);
             let (_, modified) = Contact::add_or_lookup(context, name, addr, Origin::AdressBook)?;
             if modified != Modifier::None {
@@ -1043,6 +1040,21 @@ pub fn addr_equals_self(context: &Context, addr: impl AsRef<str>) -> bool {
     false
 }
 
+fn split_address_book(book: &str) -> Vec<(&str, &str)> {
+    book.lines()
+        .chunks(2)
+        .into_iter()
+        .filter_map(|mut chunk| {
+            let name = chunk.next().unwrap();
+            let addr = match chunk.next() {
+                Some(a) => a,
+                None => return None,
+            };
+            Some((name, addr))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1077,5 +1089,15 @@ mod tests {
     #[test]
     fn test_get_first_name() {
         assert_eq!(get_first_name("John Doe"), "John");
+    }
+
+    #[test]
+    fn test_split_address_book() {
+        let book = "Name one\nAddress one\nName two\nAddress two\nrest name";
+        let list = split_address_book(&book);
+        assert_eq!(
+            list,
+            vec![("Name one", "Address one"), ("Name two", "Address two")]
+        )
     }
 }
