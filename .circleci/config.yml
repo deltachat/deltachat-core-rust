@@ -130,10 +130,9 @@ jobs:
 
 
   build_test_docs_wheel:
-    executor:
-      docker:
-        - image: deltachat/coredeps
-      working_directory: /mnt/crate
+    docker:
+      - image: deltachat/coredeps
+    working_directory: /mnt/crate
     steps:
       - *restore-workspace
       - *restore-cache-python
@@ -158,10 +157,9 @@ jobs:
             - wheelhouse
 
   upload_docs_wheels:
-    executor:
-      docker:
-        - image: deltachat/coredeps
-      working_directory: /mnt/crate
+    docker:
+      - image: deltachat/coredeps
+    working_directory: /mnt/crate
     steps:
       - *restore-workspace
       - *restore-cache-python
