@@ -532,10 +532,6 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
 
             /* build header etc. */
             let command = factory.msg.param.get_int(Param::Cmd).unwrap_or_default();
-            info!(
-                factory.context,
-                0, "render_message found command {}", command
-            );
             if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
@@ -729,9 +725,8 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     }
                 }
             }
-            info!(factory.context, 0, "grpimage {:?}", grpimage);
             if let Some(grpimage) = grpimage {
-                info!(factory.context, 0, "setting group image");
+                info!(factory.context, 0, "setting group image '{}'", grpimage);
                 let mut meta = dc_msg_new_untyped(factory.context);
                 meta.type_0 = Viewtype::Image;
                 meta.param.set(Param::File, grpimage);
@@ -1089,7 +1084,7 @@ unsafe fn get_subject(
     } else {
         b"\x00" as *const u8 as *const libc::c_char
     };
-    if msg.param.get_int(Param::Cmd).unwrap_or_default() == 6 {
+    if msg.param.get_int(Param::Cmd).unwrap_or_default() == DC_CMD_AUTOCRYPT_SETUP_MESSAGE {
         ret = context.stock_str(StockMessage::AcSetupMsgSubject).strdup()
     } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
         ret = format!(
