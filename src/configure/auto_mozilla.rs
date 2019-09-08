@@ -2,7 +2,7 @@ use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::context::Context;
-use crate::dc_loginparam::*;
+use crate::dc_loginparam::LoginParam;
 use crate::dc_tools::*;
 use crate::x::*;
 
@@ -13,10 +13,10 @@ use super::read_autoconf_file;
 /* documentation: https://developer.mozilla.org/en-US/docs/Mozilla/Thunderbird/Autoconfiguration */
 #[repr(C)]
 struct moz_autoconfigure_t<'a> {
-    pub in_0: &'a dc_loginparam_t,
+    pub in_0: &'a LoginParam,
     pub in_emaildomain: &'a str,
     pub in_emaillocalpart: &'a str,
-    pub out: dc_loginparam_t,
+    pub out: LoginParam,
     pub out_imap_set: libc::c_int,
     pub out_smtp_set: libc::c_int,
     pub tag_server: libc::c_int,
@@ -26,8 +26,8 @@ struct moz_autoconfigure_t<'a> {
 pub unsafe fn moz_autoconfigure(
     context: &Context,
     url: &str,
-    param_in: &dc_loginparam_t,
-) -> Option<dc_loginparam_t> {
+    param_in: &LoginParam,
+) -> Option<LoginParam> {
     let xml_raw = read_autoconf_file(context, url);
     if xml_raw.is_null() {
         return None;
@@ -51,7 +51,7 @@ pub unsafe fn moz_autoconfigure(
         in_0: param_in,
         in_emaildomain,
         in_emaillocalpart,
-        out: dc_loginparam_new(),
+        out: LoginParam::new(),
         out_imap_set: 0,
         out_smtp_set: 0,
         tag_server: 0,
@@ -86,7 +86,7 @@ pub unsafe fn moz_autoconfigure(
         || moz_ac.out.send_server.is_empty()
         || moz_ac.out.send_port == 0
     {
-        let r = dc_loginparam_get_readable(&moz_ac.out);
+        let r = moz_ac.out.to_string();
         warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
         free(xml_raw as *mut libc::c_void);
         return None;

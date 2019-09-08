@@ -10,7 +10,7 @@ use crate::configure::*;
 use crate::constants::*;
 use crate::context::Context;
 use crate::dc_imex::*;
-use crate::dc_loginparam::*;
+use crate::dc_loginparam::LoginParam;
 use crate::dc_mimefactory::*;
 use crate::dc_tools::*;
 use crate::imap::*;
@@ -130,7 +130,7 @@ impl Job {
     fn do_DC_JOB_SEND(&mut self, context: &Context) {
         /* connect to SMTP server, if not yet done */
         if !context.smtp.lock().unwrap().is_connected() {
-            let loginparam = dc_loginparam_read(context, &context.sql, "configured_");
+            let loginparam = LoginParam::from_database(context, "configured_");
             let connected = context.smtp.lock().unwrap().connect(context, &loginparam);
 
             if !connected {

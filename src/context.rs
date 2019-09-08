@@ -3,7 +3,7 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use crate::chat::*;
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_loginparam::*;
+use crate::dc_loginparam::LoginParam;
 use crate::dc_receive_imf::*;
 use crate::dc_tools::*;
 use crate::imap::*;
@@ -331,8 +331,8 @@ pub unsafe fn dc_get_blobdir(context: &Context) -> *mut libc::c_char {
 
 pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
     let unset = "0";
-    let l = dc_loginparam_read(context, &context.sql, "");
-    let l2 = dc_loginparam_read(context, &context.sql, "configured_");
+    let l = LoginParam::from_database(context, "");
+    let l2 = LoginParam::from_database(context, "configured_");
     let displayname = context.sql.get_config(context, "displayname");
     let chats = get_chat_cnt(context) as usize;
     let real_msgs = dc_get_real_msg_cnt(context) as usize;
@@ -376,8 +376,6 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         "<Not yet calculated>".into()
     };
 
-    let l_readable_str = dc_loginparam_get_readable(&l);
-    let l2_readable_str = dc_loginparam_get_readable(&l2);
     let inbox_watch = context
         .sql
         .get_config_int(context, "inbox_watch")
@@ -457,8 +455,8 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         },
         displayname.unwrap_or_else(|| unset.into()),
         is_configured,
-        l_readable_str,
-        l2_readable_str,
+        l,
+        l2,
         inbox_watch,
         sentbox_watch,
         mvbox_watch,

@@ -4,7 +4,7 @@ use lettre::*;
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_loginparam::*;
+use crate::dc_loginparam::LoginParam;
 use crate::oauth2::*;
 
 pub struct Smtp {
@@ -43,7 +43,7 @@ impl Smtp {
     }
 
     /// Connect using the provided login params
-    pub fn connect(&mut self, context: &Context, lp: &dc_loginparam_t) -> bool {
+    pub fn connect(&mut self, context: &Context, lp: &LoginParam) -> bool {
         if self.is_connected() {
             warn!(context, 0, "SMTP already connected.");
             return true;

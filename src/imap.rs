@@ -8,7 +8,7 @@ use std::time::{Duration, SystemTime};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_loginparam::*;
+use crate::dc_loginparam::LoginParam;
 use crate::dc_tools::CStringExt;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
@@ -516,7 +516,7 @@ impl Imap {
         cfg.watch_folder = None;
     }
 
-    pub fn connect(&self, context: &Context, lp: &dc_loginparam_t) -> bool {
+    pub fn connect(&self, context: &Context, lp: &LoginParam) -> bool {
         if lp.mail_server.is_empty() || lp.mail_user.is_empty() || lp.mail_pw.is_empty() {
             return false;
         }
