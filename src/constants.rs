@@ -18,6 +18,12 @@ pub enum MoveState {
     Moving = 3,
 }
 
+impl Default for MoveState {
+    fn default() -> Self {
+        MoveState::Undefined
+    }
+}
+
 // some defaults
 const DC_E2EE_DEFAULT_ENABLED: i32 = 1;
 pub const DC_MDNS_DEFAULT_ENABLED: i32 = 1;
@@ -218,6 +224,12 @@ pub enum Viewtype {
     /// The file is set via dc_msg_set_file()
     /// and retrieved via dc_msg_get_file().
     File = 60,
+}
+
+impl Default for Viewtype {
+    fn default() -> Self {
+        Viewtype::Unknown
+    }
 }
 
 #[cfg(test)]

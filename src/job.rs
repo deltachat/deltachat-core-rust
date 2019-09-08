@@ -25,13 +25,22 @@ use crate::x::*;
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(i32)]
 enum Thread {
+    Unknown = 0,
     Imap = 100,
     Smtp = 5000,
+}
+
+impl Default for Thread {
+    fn default() -> Self {
+        Thread::Unknown
+    }
 }
 
 #[derive(Debug, Display, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, FromSql, ToSql)]
 #[repr(i32)]
 pub enum Action {
+    Unknown = 0,
+
     // Jobs in the INBOX-thread, range from DC_IMAP_THREAD..DC_IMAP_THREAD+999
     Housekeeping = 105, // low priority ...
     DeleteMsgOnImap = 110,
@@ -50,11 +59,19 @@ pub enum Action {
     SendMsgToSmtp = 5901, // ... high priority
 }
 
+impl Default for Action {
+    fn default() -> Self {
+        Action::Unknown
+    }
+}
+
 impl From<Action> for Thread {
     fn from(action: Action) -> Thread {
         use Action::*;
 
         match action {
+            Unknown => Thread::Unknown,
+
             Housekeeping => Thread::Imap,
             DeleteMsgOnImap => Thread::Imap,
             MarkseenMdnOnImap => Thread::Imap,
@@ -842,6 +859,9 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             job.try_again = 0;
 
             match job.action {
+                Action::Unknown => {
+                    warn!(context, 0, "Unknown job id found");
+                }
                 Action::SendMsgToSmtp => job.do_DC_JOB_SEND(context),
                 Action::DeleteMsgOnImap => job.do_DC_JOB_DELETE_MSG_ON_IMAP(context),
                 Action::MarkseenMsgOnImap => job.do_DC_JOB_MARKSEEN_MSG_ON_IMAP(context),
@@ -1060,6 +1080,11 @@ pub fn job_add(
     param: Params,
     delay_seconds: i64,
 ) {
+    if action != Action::Unknown {
+        error!(context, 0, "Invalid action passed to job_add");
+        return;
+    }
+
     let timestamp = time();
     let thread: Thread = action.into();
 
@@ -1080,6 +1105,7 @@ pub fn job_add(
     match thread {
         Thread::Imap => interrupt_imap_idle(context),
         Thread::Smtp => interrupt_smtp_idle(context),
+        Thread::Unknown => {}
     }
 }
 

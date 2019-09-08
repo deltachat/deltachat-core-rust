@@ -36,7 +36,7 @@ pub fn from_sql_derive(input: TokenStream) -> TokenStream {
         impl rusqlite::types::FromSql for #name {
             fn column_result(col: rusqlite::types::ValueRef) -> rusqlite::types::FromSqlResult<Self> {
                 let inner = rusqlite::types::FromSql::column_result(col)?;
-                num_traits::FromPrimitive::from_i64(inner).ok_or(rusqlite::types::FromSqlError::InvalidType)
+                Ok(num_traits::FromPrimitive::from_i64(inner).unwrap_or_default())
             }
         }
     };
