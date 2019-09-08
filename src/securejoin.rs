@@ -9,7 +9,6 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_mimeparser::*;
-use crate::dc_token::*;
 use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::error::Error;
@@ -20,6 +19,7 @@ use crate::param::*;
 use crate::peerstate::*;
 use crate::qr::check_qr;
 use crate::stock::StockMessage;
+use crate::token::*;
 use crate::types::*;
 
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
