@@ -695,19 +695,17 @@ fn test_get_contacts() {
 
 #[test]
 fn test_chat() {
-    unsafe {
-        let context = create_test_context();
-        let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
-        assert_ne!(contact1, 0);
+    let context = create_test_context();
+    let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
+    assert_ne!(contact1, 0);
 
-        let chat_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
-        assert!(chat_id > 9, "chat_id too small {}", chat_id);
-        let chat = Chat::load_from_db(&context.ctx, chat_id).unwrap();
+    let chat_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
+    assert!(chat_id > 9, "chat_id too small {}", chat_id);
+    let chat = Chat::load_from_db(&context.ctx, chat_id).unwrap();
 
-        let chat2_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
-        assert_eq!(chat2_id, chat_id);
-        let chat2 = Chat::load_from_db(&context.ctx, chat2_id).unwrap();
+    let chat2_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
+    assert_eq!(chat2_id, chat_id);
+    let chat2 = Chat::load_from_db(&context.ctx, chat2_id).unwrap();
 
-        assert_eq!(chat2.name, chat.name);
-    }
+    assert_eq!(chat2.name, chat.name);
 }

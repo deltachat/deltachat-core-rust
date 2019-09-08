@@ -16,7 +16,6 @@ extern crate rusqlite;
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::io::{self, Write};
 use std::process::Command;
-use std::ptr;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -388,7 +387,6 @@ impl Highlighter for DcHelper {
 impl Helper for DcHelper {}
 
 fn main_0(args: Vec<String>) -> Result<(), failure::Error> {
-    unsafe { dc_cmdline_skip_auth() };
     if args.len() != 2 {
         println!("Error: Bad arguments, expected [db-name].");
         return Err(format_err!("No db-name specified"));

@@ -26,7 +26,7 @@ use deltachat::config::Config;
 use deltachat::constants::Event;
 use deltachat::contact::Contact;
 use deltachat::context::Context;
-use deltachat::dc_tools::{as_path, as_str, to_string, Strdup};
+use deltachat::dc_tools::{as_path, as_str, dc_strdup, to_string, Strdup};
 use deltachat::*;
 
 // as C lacks a good and portable error handling,
@@ -242,9 +242,7 @@ pub unsafe extern "C" fn dc_context_unref(context: *mut dc_context_t) {
         eprintln!("ignoring careless call to dc_context_unref()");
         return;
     }
-
-    let wrapper: &mut ContextWrapper = &mut *context;
-    Box::from_raw(context); // Drops the wrapper and contained context
+    Box::from_raw(context); // Drops the ContextWrapper and contained Context
 }
 
 /// Get user data associated with a context object.
@@ -291,7 +289,7 @@ pub unsafe extern "C" fn dc_open(
     dbfile: *mut libc::c_char,
     blobdir: *mut libc::c_char,
 ) -> libc::c_int {
-    if conext.is_null() || dbfile.is_null() {
+    if context.is_null() || dbfile.is_null() {
         eprintln!("ignoring careless call to dc_open()");
         return 0;
     }
@@ -3155,7 +3153,9 @@ pub unsafe extern "C" fn dc_get_securejoin_qr(
     let wrapper: &ContextWrapper = &*context;
     let inner_guard = wrapper.inner.read().unwrap();
     let context = inner_guard.as_ref().expect("context not open");
-    dc_securejoin::dc_get_securejoin_qr(context, chat_id)
+    securejoin::dc_get_securejoin_qr(context, chat_id)
+        .unwrap_or("".to_string())
+        .strdup()
 }
 
 /// Join an out-of-band-verification initiated on another device with
@@ -3190,7 +3190,7 @@ pub unsafe extern "C" fn dc_join_securejoin(
     let wrapper: &ContextWrapper = &*context;
     let inner_guard = wrapper.inner.read().unwrap();
     let context = inner_guard.as_ref().expect("context not open");
-    dc_securejoin::dc_join_securejoin(context, qr)
+    securejoin::dc_join_securejoin(context, as_str(qr))
 }
 
 /// Enable or disable location streaming for a chat.
@@ -3222,7 +3222,7 @@ pub unsafe extern "C" fn dc_send_locations_to_chat(
     let wrapper: &ContextWrapper = &*context;
     let inner_guard = wrapper.inner.read().unwrap();
     let context = inner_guard.as_ref().expect("context not open");
-    dc_location::dc_send_locations_to_chat(context, chat_id, seconds as i64)
+    location::send_locations_to_chat(context, chat_id, seconds as i64)
 }
 
 /// Check if location streaming is enabled.
@@ -3251,7 +3251,7 @@ pub unsafe extern "C" fn dc_is_sending_locations_to_chat(
     let wrapper: &ContextWrapper = &*context;
     let inner_guard = wrapper.inner.read().unwrap();
     let context = inner_guard.as_ref().expect("context not open");
-    dc_location::dc_is_sending_locations_to_chat(context, chat_id) as libc::c_int
+    location::is_sending_locations_to_chat(context, chat_id) as libc::c_int
 }
 
 /// Sets current location.
@@ -3296,7 +3296,7 @@ pub unsafe extern "C" fn dc_set_location(
     let wrapper: &ContextWrapper = &*context;
     let inner_guard = wrapper.inner.read().unwrap();
     let context = inner_guard.as_ref().expect("context not open");
-    dc_location::dc_set_location(context, latitude, longitude, accuracy)
+    location::set(context, latitude, longitude, accuracy)
 }
 
 /// Get shared locations from the database.
@@ -3375,7 +3375,7 @@ pub unsafe extern "C" fn dc_get_locations(
     let wrapper: &ContextWrapper = &*context;
     let inner_guard = wrapper.inner.read().unwrap();
     let context = inner_guard.as_ref().expect("context not open");
-    let res = dc_location::dc_get_locations(
+    let res = location::get_range(
         context,
         chat_id,
         contact_id,
@@ -3404,7 +3404,7 @@ pub unsafe extern "C" fn dc_delete_all_locations(context: *mut dc_context_t) {
     let wrapper: &ContextWrapper = &*context;
     let inner_guard = wrapper.inner.read().unwrap();
     let context = inner_guard.as_ref().expect("context not open");
-    dc_location::dc_delete_all_locations(context);
+    location::delete_all(context).log_err(context, "Failed to delete locations");
 }
 
 // dc_array_t
