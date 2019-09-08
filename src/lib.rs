@@ -59,9 +59,9 @@ pub mod dc_mimeparser;
 pub mod dc_receive_imf;
 mod dc_simplify;
 mod dc_strencode;
-mod dc_token;
 pub mod dc_tools;
 pub mod securejoin;
+mod token;
 
 #[cfg(test)]
 mod test_utils;
