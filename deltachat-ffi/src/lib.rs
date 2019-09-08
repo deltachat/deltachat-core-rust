@@ -4072,15 +4072,14 @@ pub unsafe extern "C" fn dc_msg_get_summary<'a>(
         return ptr::null_mut();
     }
     let ffi_msg = &mut *msg;
-    // let lot = ffi_msg.rent_mut(|m| {
-    //     if chat.is_null() {
-    //         message::dc_msg_get_summary(m, None)
-    //     } else {
-    //         let ffi_chat = &*chat;
-    //         ffi_chat.rent(|c| message::dc_msg_get_summary(m, Some(c)))
-    //     }
-    // });
-    let lot = ffi_msg.rent_mut(|m| message::dc_msg_get_summary(m, None));
+    let lot = if chat.is_null() {
+        ffi_msg.rent_mut(|m| message::dc_msg_get_summary(m, None))
+    } else {
+        ffi_msg.rent_mut(|m| {
+            let ffi_chat = &*chat;
+            ffi_chat.rent(|c| message::dc_msg_get_summary(m, Some(c)))
+        })
+    };
     Box::into_raw(Box::new(lot))
 }
 
