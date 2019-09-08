@@ -1711,31 +1711,29 @@ fn search_chat_ids_by_contact_ids(
         params![],
         |row| Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1)?)),
         |rows| {
-            let mut last_chat_id = 0;
-            let mut matches = 0;
-            let mut mismatches = 0;
-
+            let mut chat2contacts = HashMap<u32, Vec<u32>>::new();
             for row in rows {
                 let (chat_id, contact_id) = row?;
-                if chat_id != last_chat_id {
-                    if matches == contact_ids.len() && mismatches == 0 {
-                        chat_ids.push(last_chat_id);
+                let mut contacts: Vec<u32>;
+                contacts = match chat2contacts.get(chat_id) {
+                    Some(c) => c,
+                    None => {
+                        l = Vec<u32>::default();
+                        chat2contacts.insert(chat_id, l);
+                        l
                     }
-                    last_chat_id = chat_id;
-                    matches = 0;
-                    mismatches = 0;
                 }
-                if contact_id == contact_ids[matches] {
-                    matches += 1;
-                } else {
-                    mismatches += 1;
+                contacts.push(contact_id);
+            }
+            for (&chat_id, &contacts) in chat2contacts.iter_mut() {
+                contacts.retain(|x| {
+                    contact_ids.contains(x) 
+                });
+                if contacts.len() == contact_ids.len() {
+                    chat_ids.push(chat_id)
                 }
             }
-
-            if matches == contact_ids.len() && mismatches == 0 {
-                chat_ids.push(last_chat_id);
-            }
-        Ok(())
+            Ok(())
         }
     ).unwrap(); // TODO: better error handling
 
