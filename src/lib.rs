@@ -53,7 +53,6 @@ pub mod x;
 pub mod dc_array;
 mod dc_dehtml;
 pub mod dc_imex;
-mod dc_loginparam;
 mod dc_mimefactory;
 pub mod dc_mimeparser;
 pub mod dc_receive_imf;
@@ -61,6 +60,7 @@ mod dc_simplify;
 mod dc_strencode;
 mod dc_token;
 pub mod dc_tools;
+mod login_param;
 pub mod securejoin;
 
 #[cfg(test)]

@@ -8,8 +8,8 @@ use std::time::{Duration, SystemTime};
 
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_loginparam::LoginParam;
 use crate::dc_tools::CStringExt;
+use crate::login_param::LoginParam;
 use crate::oauth2::dc_get_oauth2_access_token;
 use crate::types::*;
 
