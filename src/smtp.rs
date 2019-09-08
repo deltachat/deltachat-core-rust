@@ -4,7 +4,7 @@ use lettre::*;
 use crate::constants::Event;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_loginparam::LoginParam;
+use crate::login_param::LoginParam;
 use crate::oauth2::*;
 
 pub struct Smtp {

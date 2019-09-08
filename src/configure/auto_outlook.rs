@@ -2,8 +2,8 @@ use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::context::Context;
-use crate::dc_loginparam::LoginParam;
 use crate::dc_tools::*;
+use crate::login_param::LoginParam;
 use crate::x::*;
 use std::ptr;
 
