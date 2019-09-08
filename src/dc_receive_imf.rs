@@ -1078,7 +1078,6 @@ unsafe fn create_or_lookup_group(
     }
     set_better_msg(mime_parser, &better_msg);
 
-    // search the grpid in the header
     let optional_field = dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-ID");
     if !optional_field.is_null() {
         grpid = to_string((*optional_field).fld_value)
@@ -1316,9 +1315,11 @@ unsafe fn create_or_lookup_group(
     }
 
     // execute group commands
+    info!(context, 0, "before exec group commands");
     if !X_MrAddToGrp.is_null() || !X_MrRemoveFromGrp.is_null() {
         recreate_member_list = 1;
     } else if 0 != X_MrGrpNameChanged && !grpname.is_null() && strlen(grpname) < 200 {
+        info!(context, 0, "updating grpname for chat {}", chat_id);
         if sql::execute(
             context,
             &context.sql,
@@ -1331,6 +1332,13 @@ unsafe fn create_or_lookup_group(
         }
     }
     if !X_MrGrpImageChanged.is_null() {
+        info!(
+            context,
+            0,
+            "handling group image changed {} for chat {}",
+            as_str(X_MrGrpImageChanged),
+            chat_id
+        );
         let mut ok = 0;
         let mut grpimage = ptr::null_mut();
         if strcmp(
@@ -1347,6 +1355,7 @@ unsafe fn create_or_lookup_group(
                         .get(Param::File)
                         .map(|s| s.strdup())
                         .unwrap_or_else(|| std::ptr::null_mut());
+                    info!(context, 0, "found image {:?}", grpimage);
                     ok = 1
                 }
             }

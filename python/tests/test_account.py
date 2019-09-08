@@ -147,6 +147,15 @@ class TestOfflineChat:
         qr = chat.get_join_qr()
         assert ac2.check_qr(qr).is_ask_verifygroup
 
+    def test_get_set_profile_image(self, ac1, data):
+        chat = ac1.create_group_chat(name="title1")
+        p = data.get_path("d.png")
+        chat.set_profile_image(p)
+        p2 = chat.get_profile_image()
+        assert open(p, "rb").read() == open(p2, "rb").read()
+        chat.remove_profile_image()
+        assert chat.get_profile_image() is None
+
     def test_delete_and_send_fails(self, ac1, chat1):
         chat1.delete()
         ac1._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
@@ -589,3 +598,44 @@ class TestOnlineAccount:
         ch = ac2.qr_join_chat(qr)
         assert ch.id >= 10
         wait_securejoin_inviter_progress(ac1, 1000)
+
+    def test_set_get_profile_image(self, acfactory, data, lp):
+        ac1 = acfactory.get_online_configuring_account()
+        ac2 = acfactory.get_online_configuring_account()
+        wait_configuration_progress(ac2, 1000)
+        wait_configuration_progress(ac1, 1000)
+
+        lp.sec("create unpromoted group chat")
+        chat = ac1.create_group_chat("hello")
+        p = data.get_path("d.png")
+
+        lp.sec("set profile image")
+        chat.set_profile_image(p)
+        ac1._evlogger.get_matching("DC_EVENT_CHAT_MODIFIED")
+        assert not chat.is_promoted()
+
+        lp.sec("add ac2 to unpromoted group chat")
+        c2 = ac1.create_contact(email=ac2.get_config("addr"))
+        contact1 = chat.add_contact(c2)
+        assert not chat.is_promoted()
+
+        lp.sec("ac2: add ac1 per chat")
+        c1 = ac2.create_contact(email=ac1.get_config("addr"))
+        ac2.create_chat_by_contact(c1)
+        ev = ac2._evlogger.get_matching("DC_EVENT_MSGS_CHANGED")
+
+        lp.sec("ac1: send a first message to ac2")
+        chat.send_text("hi")
+        assert chat.is_promoted()
+
+        lp.sec("ac2: wait for receiving message from ac1")
+        ev = ac2._evlogger.get_matching("DC_EVENT_INCOMING_MSG")
+        msg_in = ac2.get_message_by_id(ev[2])
+        assert msg_in.text == "hi"
+        assert not msg_in.chat.is_deaddrop()
+
+        lp.sec("ac2: create proper chat and read profile image")
+        chat2 = ac2.create_chat_by_message(msg_in)
+        p2 = chat2.get_profile_image()
+        assert p2 is not None
+        assert open(p2, "rb").read() == open(p, "rb").read()
