@@ -1724,7 +1724,7 @@ fn search_chat_ids_by_contact_ids(context: &Context, unsorted_contact_ids: &Vec<
                             matches = 0;
                             mismatches = 0;
                         }
-                        if contact_id == contact_ids[matches] {
+                        if matches < contact_ids.len() && contact_id == contact_ids[matches] {
                             matches += 1;
                         } else {
                             mismatches += 1;
