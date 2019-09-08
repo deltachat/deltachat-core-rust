@@ -1080,7 +1080,7 @@ pub fn job_add(
     param: Params,
     delay_seconds: i64,
 ) {
-    if action != Action::Unknown {
+    if action == Action::Unknown {
         error!(context, 0, "Invalid action passed to job_add");
         return;
     }
