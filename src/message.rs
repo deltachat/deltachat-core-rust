@@ -733,7 +733,7 @@ pub fn dc_msg_get_showpadlock(msg: &Message) -> libc::c_int {
     0
 }
 
-pub unsafe fn dc_msg_get_summary<'a, 'b>(msg: &mut Message<'a>, chat: Option<&Chat<'b>>) -> Lot {
+pub unsafe fn dc_msg_get_summary(msg: &mut Message, chat: Option<&Chat>) -> Lot {
     let mut ret = Lot::new();
 
     let chat_loaded: Chat;

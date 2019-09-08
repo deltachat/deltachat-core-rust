@@ -4061,11 +4061,10 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg_t) -> libc::c_i
     msg.rent(|m| message::dc_msg_get_showpadlock(m))
 }
 
-// TODO: how does this work?
 #[no_mangle]
-pub unsafe extern "C" fn dc_msg_get_summary<'a>(
-    msg: *mut dc_msg_t<'a>,
-    chat: *mut dc_chat_t<'a>,
+pub unsafe extern "C" fn dc_msg_get_summary(
+    msg: *mut dc_msg_t,
+    chat: *mut dc_chat_t,
 ) -> *mut dc_lot_t {
     if msg.is_null() {
         eprintln!("ignoring careless call to dc_msg_get_summary()");
@@ -4082,10 +4081,6 @@ pub unsafe extern "C" fn dc_msg_get_summary<'a>(
     };
     Box::into_raw(Box::new(lot))
 }
-
-// fn msg_get_summary<'a>(msg: &'a MessageWrapper, chat: Option<&chat::Chat>) -> lot::Lot {
-//     msg.rent_mut(|m: &'a mut message::Message<'a>| message::dc_msg_get_summary(m, chat))
-// }
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_msg_get_summarytext(
