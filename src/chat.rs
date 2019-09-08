@@ -1657,12 +1657,6 @@ pub unsafe fn set_chat_profile_image(
     let mut msg = dc_msg_new_untyped(context);
     let new_image_rel;
 
-    macro_rules! returnError {
-        () => {
-            bail!("Failed to set profile image");
-        };
-    }
-
     if real_group_exists(context, chat_id) {
         if !(is_contact_in_chat(context, chat_id, 1i32 as u32) == 1i32) {
             log_event!(
@@ -1672,12 +1666,12 @@ pub unsafe fn set_chat_profile_image(
                 "Cannot set chat profile image; self not in group.",
             );
             /* we should respect this - whatever we send to the group, it gets discarded anyway! */
-            returnError!();
+            bail!("Failed to set profile image");
         }
         if !new_image.as_ref().is_empty() {
             let mut img = new_image.as_ref().to_string();
             if !dc_make_rel_and_copy(context, &mut img) {
-                returnError!();
+                bail!("Failed to set profile image");
             }
             new_image_rel = Some(img);
         } else {
@@ -1719,7 +1713,7 @@ pub unsafe fn set_chat_profile_image(
             return Ok(());
         }
     }
-    returnError!()
+    bail!("Failed to set profile image");
 }
 
 pub unsafe fn forward_msgs(
