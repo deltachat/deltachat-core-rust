@@ -692,9 +692,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
             );
         } else {
             /* unrecoverable */
-            if clist_search_string_nocase(mimefactory.recipients_addr, mimefactory.from_addr)
-                == 0i32
-            {
+            if !clist_search_string_nocase(mimefactory.recipients_addr, mimefactory.from_addr) {
                 clist_insert_after(
                     mimefactory.recipients_names,
                     (*mimefactory.recipients_names).last,

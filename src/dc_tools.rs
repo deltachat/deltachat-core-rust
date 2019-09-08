@@ -435,21 +435,10 @@ pub unsafe fn clist_free_content(haystack: *const clist) {
 pub unsafe fn clist_search_string_nocase(
     haystack: *const clist,
     needle: *const libc::c_char,
-) -> libc::c_int {
-    let mut iter = (*haystack).first;
-
-    while !iter.is_null() {
-        if strcasecmp((*iter).data as *const libc::c_char, needle) == 0 {
-            return 1;
-        }
-        iter = if !iter.is_null() {
-            (*iter).next
-        } else {
-            ptr::null_mut()
-        }
-    }
-
-    0
+) -> bool {
+    (&*haystack)
+        .into_iter()
+        .any(|data| strcasecmp(data.cast(), needle) == 0)
 }
 
 /* date/time tools */
@@ -628,6 +617,21 @@ pub unsafe fn dc_create_outgoing_rfc724_mid(
     free(rand2 as *mut libc::c_void);
 
     ret
+}
+
+/// Generate globally-unique message-id for a new outgoing message.
+///
+/// Note: Do not add a counter or any private data as as this may give
+/// unneeded information to the receiver
+pub fn dc_create_outgoing_rfc724_mid_safe(grpid: Option<&str>, from_addr: &str) -> String {
+    let hostname = from_addr
+        .find('@')
+        .map(|k| &from_addr[k..])
+        .unwrap_or("@nohost");
+    match grpid {
+        Some(grpid) => format!("Gr.{}.{}{}", grpid, dc_create_id(), hostname),
+        None => format!("Mr.{}.{}{}", dc_create_id(), dc_create_id(), hostname),
+    }
 }
 
 /// Extract the group id (grpid) from a message id (mid)

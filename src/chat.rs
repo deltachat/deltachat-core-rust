@@ -171,51 +171,20 @@ impl<'a> Chat<'a> {
         return "Err".into();
     }
 
-    unsafe fn get_parent_mime_headers(
-        &self,
-        parent_rfc724_mid: *mut *mut libc::c_char,
-        parent_in_reply_to: *mut *mut libc::c_char,
-        parent_references: *mut *mut libc::c_char,
-    ) -> Result<(), Error> {
-        if !(parent_rfc724_mid.is_null()
-            || parent_in_reply_to.is_null()
-            || parent_references.is_null())
-        {
-            // prefer a last message that isn't from us
-            let next = self
-                .context
-                .sql
-                .query_row(
-                    "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                     FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT max(timestamp) \
-                     FROM msgs WHERE chat_id=?1 AND from_id!=?2);",
-                    params![self.id as i32, DC_CONTACT_ID_SELF as i32],
-                    |row| {
-                        *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
-                        *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
-                        *parent_references = row.get::<_, String>(2)?.strdup();
-                        Ok(())
-                    },
-                )
-                .is_ok();
+    pub fn get_parent_mime_headers(&self) -> Option<(String, String, String)> {
+        let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
+        let params = params![self.id as i32, DC_CONTACT_ID_SELF as i32];
+        let sql = &self.context.sql;
+        let main_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
+                          FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT max(timestamp) \
+                          FROM msgs WHERE chat_id=?1 AND from_id!=?2);";
+        let fallback_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
+                              FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT min(timestamp) \
+                              FROM msgs WHERE chat_id=?1 AND from_id==?2);";
 
-            if !next {
-                self.context.sql.query_row(
-                    "SELECT rfc724_mid, mime_in_reply_to, mime_references \
-                     FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT min(timestamp) \
-                     FROM msgs WHERE chat_id=?1 AND from_id==?2);",
-                    params![self.id as i32, DC_CONTACT_ID_SELF as i32],
-                    |row| {
-                        *parent_rfc724_mid = row.get::<_, String>(0)?.strdup();
-                        *parent_in_reply_to = row.get::<_, String>(1)?.strdup();
-                        *parent_references = row.get::<_, String>(2)?.strdup();
-                        Ok(())
-                    },
-                )?;
-            }
-        }
-
-        Ok(())
+        sql.query_row(main_query, params, collect)
+            .or_else(|_| sql.query_row(fallback_query, params, collect))
+            .ok()
     }
 
     pub unsafe fn get_profile_image(&self) -> Option<String> {
@@ -277,13 +246,8 @@ impl<'a> Chat<'a> {
     ) -> Result<u32, Error> {
         let mut do_guarantee_e2ee: libc::c_int;
         let e2ee_enabled: libc::c_int;
-        let mut OK_TO_CONTINUE = true;
-        let mut parent_rfc724_mid = ptr::null_mut();
-        let mut parent_references = ptr::null_mut();
-        let mut parent_in_reply_to = ptr::null_mut();
-        let mut new_rfc724_mid = ptr::null_mut();
-        let mut new_references = ptr::null_mut();
-        let mut new_in_reply_to = ptr::null_mut();
+        let mut new_references = "".into();
+        let mut new_in_reply_to = "".into();
         let mut msg_id = 0;
         let mut to_id = 0;
         let mut location_id = 0;
@@ -293,7 +257,10 @@ impl<'a> Chat<'a> {
             || self.typ == Chattype::VerifiedGroup)
         {
             error!(context, 0, "Cannot send to chat type #{}.", self.typ,);
-        } else if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
+            return Ok(0);
+        }
+
+        if (self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup)
             && 0 == is_contact_in_chat(context, self.id, 1 as u32)
         {
             log_event!(
@@ -302,200 +269,173 @@ impl<'a> Chat<'a> {
                 0,
                 "Cannot send message; self not in group.",
             );
-        } else {
-            if let Some(from) = context.sql.get_config(context, "configured_addr") {
-                let from_c = CString::yolo(from);
-                new_rfc724_mid = dc_create_outgoing_rfc724_mid(
-                    if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
-                        self.grpid.strdup()
-                    } else {
-                        ptr::null_mut()
-                    },
-                    from_c.as_ptr(),
-                );
+            return Ok(0);
+        }
 
-                if self.typ == Chattype::Single {
-                    if let Some(id) = context.sql.query_row_col(
-                        context,
-                        "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
-                        params![self.id as i32],
-                        0,
-                    ) {
-                        to_id = id;
-                    } else {
-                        error!(
-                            context,
-                            0, "Cannot send message, contact for chat #{} not found.", self.id,
-                        );
-                        OK_TO_CONTINUE = false;
-                    }
+        if let Some(from) = context.sql.get_config(context, "configured_addr") {
+            let new_rfc724_mid = {
+                let grpid = match self.typ {
+                    Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
+                    _ => None,
+                };
+                dc_create_outgoing_rfc724_mid_safe(grpid, &from)
+            };
+
+            if self.typ == Chattype::Single {
+                if let Some(id) = context.sql.query_row_col(
+                    context,
+                    "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
+                    params![self.id as i32],
+                    0,
+                ) {
+                    to_id = id;
                 } else {
-                    if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
-                        if self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
-                            self.param.remove(Param::Unpromoted);
-                            self.update_param().unwrap();
-                        }
+                    error!(
+                        context,
+                        0, "Cannot send message, contact for chat #{} not found.", self.id,
+                    );
+                    return Ok(0);
+                }
+            } else {
+                if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
+                    if self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
+                        self.param.remove(Param::Unpromoted);
+                        self.update_param().unwrap();
                     }
                 }
-                if OK_TO_CONTINUE {
-                    /* check if we can guarantee E2EE for this message.
-                    if we guarantee E2EE, and circumstances change
-                    so that E2EE is no longer available at a later point (reset, changed settings),
-                    we do not send the message out at all */
-                    do_guarantee_e2ee = 0;
-                    e2ee_enabled = context
-                        .sql
-                        .get_config_int(context, "e2ee_enabled")
-                        .unwrap_or_else(|| 1);
-                    if 0 != e2ee_enabled
-                        && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0
-                    {
-                        let mut can_encrypt = 1;
-                        let mut all_mutual = 1;
+            }
 
-                        let res = context.sql.query_row(
-                            "SELECT ps.prefer_encrypted, c.addr \
-                             FROM chats_contacts cc  \
-                             LEFT JOIN contacts c ON cc.contact_id=c.id  \
-                             LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
-                             WHERE cc.chat_id=?  AND cc.contact_id>9;",
-                            params![self.id],
-                            |row| {
-                                let state: String = row.get(1)?;
+            /* check if we can guarantee E2EE for this message.
+            if we guarantee E2EE, and circumstances change
+            so that E2EE is no longer available at a later point (reset, changed settings),
+            we do not send the message out at all */
+            do_guarantee_e2ee = 0;
+            e2ee_enabled = context
+                .sql
+                .get_config_int(context, "e2ee_enabled")
+                .unwrap_or_else(|| 1);
+            if 0 != e2ee_enabled
+                && msg.param.get_int(Param::ForcePlaintext).unwrap_or_default() == 0
+            {
+                let mut can_encrypt = 1;
+                let mut all_mutual = 1;
 
-                                if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
-                                    if prefer_encrypted != 1 {
-                                        info!(
-                                            context,
-                                            0,
-                                            "[autocrypt] peerstate for {} is {}",
-                                            state,
-                                            if prefer_encrypted == 0 {
-                                                "NOPREFERENCE"
-                                            } else {
-                                                "RESET"
-                                            },
-                                        );
-                                        all_mutual = 0;
-                                    }
-                                } else {
-                                    info!(context, 0, "[autocrypt] no peerstate for {}", state,);
-                                    can_encrypt = 0;
-                                    all_mutual = 0;
-                                }
-                                Ok(())
-                            },
-                        );
-                        match res {
-                            Ok(_) => {}
-                            Err(err) => {
-                                warn!(context, 0, "chat: failed to load peerstates: {:?}", err);
+                let res = context.sql.query_row(
+                    "SELECT ps.prefer_encrypted, c.addr \
+                     FROM chats_contacts cc  \
+                     LEFT JOIN contacts c ON cc.contact_id=c.id  \
+                     LEFT JOIN acpeerstates ps ON c.addr=ps.addr  \
+                     WHERE cc.chat_id=?  AND cc.contact_id>9;",
+                    params![self.id],
+                    |row| {
+                        let state: String = row.get(1)?;
+
+                        if let Some(prefer_encrypted) = row.get::<_, Option<i32>>(0)? {
+                            if prefer_encrypted != 1 {
+                                info!(
+                                    context,
+                                    0,
+                                    "[autocrypt] peerstate for {} is {}",
+                                    state,
+                                    if prefer_encrypted == 0 {
+                                        "NOPREFERENCE"
+                                    } else {
+                                        "RESET"
+                                    },
+                                );
+                                all_mutual = 0;
                             }
+                        } else {
+                            info!(context, 0, "[autocrypt] no peerstate for {}", state,);
+                            can_encrypt = 0;
+                            all_mutual = 0;
                         }
-
-                        if 0 != can_encrypt {
-                            if 0 != all_mutual {
-                                do_guarantee_e2ee = 1;
-                            } else if last_msg_in_chat_encrypted(context, &context.sql, self.id) {
-                                do_guarantee_e2ee = 1;
-                            }
-                        }
+                        Ok(())
+                    },
+                );
+                match res {
+                    Ok(_) => {}
+                    Err(err) => {
+                        warn!(context, 0, "chat: failed to load peerstates: {:?}", err);
                     }
-                    if 0 != do_guarantee_e2ee {
-                        msg.param.set_int(Param::GuranteeE2ee, 1);
+                }
+
+                if 0 != can_encrypt {
+                    if 0 != all_mutual {
+                        do_guarantee_e2ee = 1;
+                    } else if last_msg_in_chat_encrypted(context, &context.sql, self.id) {
+                        do_guarantee_e2ee = 1;
                     }
-                    msg.param.remove(Param::ErroneousE2ee);
-                    if !self.is_self_talk()
-                        && self
-                            .get_parent_mime_headers(
-                                &mut parent_rfc724_mid,
-                                &mut parent_in_reply_to,
-                                &mut parent_references,
-                            )
-                            .is_ok()
-                    {
-                        if !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                        {
-                            new_in_reply_to = dc_strdup(parent_rfc724_mid)
-                        }
-                        if !parent_references.is_null() {
-                            let space: *mut libc::c_char;
-                            space = strchr(parent_references, ' ' as i32);
-                            if !space.is_null() {
-                                *space = 0 as libc::c_char
-                            }
-                        }
-                        if !parent_references.is_null()
-                            && 0 != *parent_references.offset(0isize) as libc::c_int
-                            && !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_mprintf(
-                                b"%s %s\x00" as *const u8 as *const libc::c_char,
-                                parent_references,
-                                parent_rfc724_mid,
-                            )
-                        } else if !parent_references.is_null()
-                            && 0 != *parent_references.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_strdup(parent_references)
-                        } else if !parent_in_reply_to.is_null()
-                            && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                            && !parent_rfc724_mid.is_null()
-                            && 0 != *parent_rfc724_mid.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_mprintf(
-                                b"%s %s\x00" as *const u8 as *const libc::c_char,
-                                parent_in_reply_to,
-                                parent_rfc724_mid,
-                            )
-                        } else if !parent_in_reply_to.is_null()
-                            && 0 != *parent_in_reply_to.offset(0isize) as libc::c_int
-                        {
-                            new_references = dc_strdup(parent_in_reply_to)
-                        }
+                }
+            }
+            if 0 != do_guarantee_e2ee {
+                msg.param.set_int(Param::GuranteeE2ee, 1);
+            }
+            msg.param.remove(Param::ErroneousE2ee);
+            if !self.is_self_talk() {
+                if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
+                    self.get_parent_mime_headers()
+                {
+                    if !parent_rfc724_mid.is_empty() {
+                        new_in_reply_to = parent_rfc724_mid.clone();
                     }
+                    let parent_references = if let Some(n) = parent_references.find(' ') {
+                        &parent_references[0..n]
+                    } else {
+                        &parent_references
+                    };
 
-                    // add independent location to database
-
-                    if msg.param.exists(Param::SetLatitude) {
-                        if sql::execute(
-                            context,
-                            &context.sql,
-                            "INSERT INTO locations \
-                             (timestamp,from_id,chat_id, latitude,longitude,independent)\
-                             VALUES (?,?,?, ?,?,1);",
-                            params![
-                                timestamp,
-                                DC_CONTACT_ID_SELF,
-                                self.id as i32,
-                                msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
-                                msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
-                            ],
-                        )
-                        .is_ok()
-                        {
-                            location_id = sql::get_rowid2(
-                                context,
-                                &context.sql,
-                                "locations",
-                                "timestamp",
-                                timestamp,
-                                "from_id",
-                                DC_CONTACT_ID_SELF as i32,
-                            );
-                        }
+                    if !parent_references.is_empty() && !parent_rfc724_mid.is_empty() {
+                        new_references = format!("{} {}", parent_references, parent_rfc724_mid);
+                    } else if !parent_references.is_empty() {
+                        new_references = parent_references.to_string();
+                    } else if !parent_in_reply_to.is_empty() && !parent_rfc724_mid.is_empty() {
+                        new_references = format!("{} {}", parent_in_reply_to, parent_rfc724_mid);
+                    } else if !parent_in_reply_to.is_empty() {
+                        new_references = parent_in_reply_to.clone();
                     }
+                }
+            }
 
-                    // add message to the database
+            // add independent location to database
 
-                    if sql::execute(
+            if msg.param.exists(Param::SetLatitude) {
+                if sql::execute(
+                    context,
+                    &context.sql,
+                    "INSERT INTO locations \
+                     (timestamp,from_id,chat_id, latitude,longitude,independent)\
+                     VALUES (?,?,?, ?,?,1);",
+                    params![
+                        timestamp,
+                        DC_CONTACT_ID_SELF,
+                        self.id as i32,
+                        msg.param.get_float(Param::SetLatitude).unwrap_or_default(),
+                        msg.param.get_float(Param::SetLongitude).unwrap_or_default(),
+                    ],
+                )
+                .is_ok()
+                {
+                    location_id = sql::get_rowid2(
+                        context,
+                        &context.sql,
+                        "locations",
+                        "timestamp",
+                        timestamp,
+                        "from_id",
+                        DC_CONTACT_ID_SELF as i32,
+                    );
+                }
+            }
+
+            // add message to the database
+
+            if sql::execute(
                         context,
                         &context.sql,
                         "INSERT INTO msgs (rfc724_mid, chat_id, from_id, to_id, timestamp, type, state, txt, param, hidden, mime_in_reply_to, mime_references, location_id) VALUES (?,?,?,?,?, ?,?,?,?,?, ?,?,?);",
                         params![
-                            as_str(new_rfc724_mid),
+                            new_rfc724_mid,
                             self.id as i32,
                             1i32,
                             to_id as i32,
@@ -505,8 +445,8 @@ impl<'a> Chat<'a> {
                             msg.text.as_ref().map_or("", String::as_str),
                             msg.param.to_string(),
                             msg.hidden,
-                            to_string(new_in_reply_to),
-                            to_string(new_references),
+                            new_in_reply_to,
+                            new_references,
                             location_id as i32,
                         ]
                     ).is_ok() {
@@ -515,7 +455,7 @@ impl<'a> Chat<'a> {
                             &context.sql,
                             "msgs",
                             "rfc724_mid",
-                            as_str(new_rfc724_mid),
+                            new_rfc724_mid,
                         );
                     } else {
                         error!(
@@ -525,18 +465,9 @@ impl<'a> Chat<'a> {
                             self.id,
                         );
                     }
-                }
-            } else {
-                error!(context, 0, "Cannot send message, not configured.",);
-            }
+        } else {
+            error!(context, 0, "Cannot send message, not configured.",);
         }
-
-        free(parent_rfc724_mid as *mut libc::c_void);
-        free(parent_in_reply_to as *mut libc::c_void);
-        free(parent_references as *mut libc::c_void);
-        free(new_rfc724_mid as *mut libc::c_void);
-        free(new_in_reply_to as *mut libc::c_void);
-        free(new_references as *mut libc::c_void);
 
         Ok(msg_id)
     }

@@ -148,7 +148,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                     for row in rows {
                         let (authname, addr) = row?;
                         let addr_c = addr.strdup();
-                        if clist_search_string_nocase(factory.recipients_addr, addr_c) == 0 {
+                        if !clist_search_string_nocase(factory.recipients_addr, addr_c) {
                             clist_insert_after(
                                 factory.recipients_names,
                                 (*factory.recipients_names).last,
@@ -183,7 +183,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 .unwrap_or_default();
 
             if !email_to_remove.is_empty() && email_to_remove != self_addr {
-                if clist_search_string_nocase(factory.recipients_addr, email_to_remove_c) == 0 {
+                if !clist_search_string_nocase(factory.recipients_addr, email_to_remove_c) {
                     clist_insert_after(
                         factory.recipients_names,
                         (*factory.recipients_names).last,
