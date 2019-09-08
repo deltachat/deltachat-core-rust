@@ -1486,7 +1486,10 @@ pub unsafe fn remove_contact_from_chat(
         "bad chat_id = {} <= 9",
         chat_id
     );
-    ensure!(contact_id != DC_CONTACT_ID_SELF, "Cannot remove self");
+    ensure!(
+        contact_id > DC_CONTACT_ID_LAST_SPECIAL || contact_id == DC_CONTACT_ID_SELF,
+        "Cannot remove special contact"
+    );
 
     let mut msg = dc_msg_new_untyped(context);
     let mut success = false;
