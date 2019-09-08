@@ -261,11 +261,18 @@ pub unsafe fn dc_replace_bad_utf8_chars(buf: *mut libc::c_char) {
 pub fn dc_truncate(buf: &str, approx_chars: usize, do_unwrap: bool) -> Cow<str> {
     let ellipse = if do_unwrap { "..." } else { "[...]" };
 
-    if approx_chars > 0 && buf.len() > approx_chars + ellipse.len() {
-        if let Some(index) = buf[..approx_chars].rfind(|c| c == ' ' || c == '\n') {
+    let count = buf.chars().count();
+    if approx_chars > 0 && count > approx_chars + ellipse.len() {
+        let end_pos = buf
+            .char_indices()
+            .nth(approx_chars)
+            .map(|(n, _)| n)
+            .unwrap_or_default();
+
+        if let Some(index) = buf[..end_pos].rfind(|c| c == ' ' || c == '\n') {
             Cow::Owned(format!("{}{}", &buf[..index + 1], ellipse))
         } else {
-            Cow::Owned(format!("{}{}", &buf[..approx_chars], ellipse))
+            Cow::Owned(format!("{}{}", &buf[..end_pos], ellipse))
         }
     } else {
         Cow::Borrowed(buf)
@@ -1534,6 +1541,36 @@ mod tests {
     }
 
     #[test]
+    fn test_dc_truncate_edge() {
+        assert_eq!(dc_truncate("", 4, false), "");
+        assert_eq!(dc_truncate("", 4, true), "");
+
+        assert_eq!(dc_truncate("\n  hello \n world", 4, false), "\n  [...]");
+        assert_eq!(dc_truncate("\n  hello \n world", 4, true), "\n  ...");
+
+        assert_eq!(
+            dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 1, false),
+            "𐠈[...]"
+        );
+        assert_eq!(
+            dc_truncate("𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ", 0, false),
+            "𐠈0Aᝮa𫝀®!ꫛa¡0A𐢧00𐹠®A  丽ⷐએ"
+        );
+
+        // 9 characters, so no truncation
+        assert_eq!(
+            dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠", 6, false),
+            "𑒀ὐ￠🜀\u{1e01b}A a🟠",
+        );
+
+        // 12 characters, truncation
+        assert_eq!(
+            dc_truncate("𑒀ὐ￠🜀\u{1e01b}A a🟠bcd", 6, false),
+            "𑒀ὐ￠🜀\u{1e01b}A[...]",
+        );
+    }
+
+    #[test]
     fn test_dc_null_terminate_1() {
         unsafe {
             let str: *mut libc::c_char =
@@ -1869,5 +1906,38 @@ mod tests {
         );
         assert_eq!(EmailAddress::new("u@.tt").is_ok(), false);
         assert_eq!(EmailAddress::new("@d.tt").is_ok(), false);
+    }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn test_dc_truncate(
+            buf: String,
+            approx_chars in 0..10000usize,
+            do_unwrap: bool,
+        ) {
+            let res = dc_truncate(&buf, approx_chars, do_unwrap);
+            let el_len = if do_unwrap { 3 } else { 5 };
+            let l = res.chars().count();
+            if approx_chars > 0 {
+                assert!(
+                    l <= approx_chars + el_len,
+                    "buf: '{}' - res: '{}' - len {}, approx {}",
+                    &buf, &res, res.len(), approx_chars
+                );
+            } else {
+                assert_eq!(&res, &buf);
+            }
+
+            if approx_chars > 0 && buf.chars().count() > approx_chars + el_len {
+                let l = res.len();
+                if do_unwrap {
+                    assert_eq!(&res[l-3..l], "...", "missing ellipsis in {}", &res);
+                } else {
+                    assert_eq!(&res[l-5..l], "[...]", "missing ellipsis in {}", &res);
+                }
+            }
+        }
     }
 }
