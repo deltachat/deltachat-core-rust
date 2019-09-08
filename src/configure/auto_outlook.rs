@@ -2,7 +2,7 @@ use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
 use crate::context::Context;
-use crate::dc_loginparam::*;
+use crate::dc_loginparam::LoginParam;
 use crate::dc_tools::*;
 use crate::x::*;
 use std::ptr;
@@ -13,8 +13,8 @@ use super::read_autoconf_file;
  ******************************************************************************/
 #[repr(C)]
 struct outlk_autodiscover_t<'a> {
-    pub in_0: &'a dc_loginparam_t,
-    pub out: dc_loginparam_t,
+    pub in_0: &'a LoginParam,
+    pub out: LoginParam,
     pub out_imap_set: libc::c_int,
     pub out_smtp_set: libc::c_int,
     pub tag_config: libc::c_int,
@@ -25,13 +25,13 @@ struct outlk_autodiscover_t<'a> {
 pub unsafe fn outlk_autodiscover(
     context: &Context,
     url__: &str,
-    param_in: &dc_loginparam_t,
-) -> Option<dc_loginparam_t> {
+    param_in: &LoginParam,
+) -> Option<LoginParam> {
     let mut xml_raw: *mut libc::c_char = ptr::null_mut();
     let mut url = url__.strdup();
     let mut outlk_ad = outlk_autodiscover_t {
         in_0: param_in,
-        out: dc_loginparam_new(),
+        out: LoginParam::new(),
         out_imap_set: 0,
         out_smtp_set: 0,
         tag_config: 0,
@@ -108,7 +108,7 @@ pub unsafe fn outlk_autodiscover(
             || outlk_ad.out.send_server.is_empty()
             || outlk_ad.out.send_port == 0
         {
-            let r = dc_loginparam_get_readable(&outlk_ad.out);
+            let r = outlk_ad.out.to_string();
             warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
             free(url as *mut libc::c_void);
             free(xml_raw as *mut libc::c_void);

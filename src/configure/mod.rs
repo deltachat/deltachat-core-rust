@@ -3,7 +3,7 @@ use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use crate::constants::Event;
 use crate::constants::DC_CREATE_MVBOX;
 use crate::context::Context;
-use crate::dc_loginparam::*;
+use crate::dc_loginparam::LoginParam;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::imap::*;
@@ -69,7 +69,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
     let mut smtp_connected_here = false;
     let mut ongoing_allocated_here = false;
 
-    let mut param_autoconfig: Option<dc_loginparam_t> = None;
+    let mut param_autoconfig: Option<LoginParam> = None;
     if dc_alloc_ongoing(context) {
         ongoing_allocated_here = true;
         if !context.sql.is_open() {
@@ -95,7 +95,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
             let s = s_a.read().unwrap();
 
             // Variables that are shared between steps:
-            let mut param: dc_loginparam_t = dc_loginparam_read(context, &context.sql, "");
+            let mut param = LoginParam::from_database(context, "");
             // need all vars here to be mutable because rust thinks the same step could be called multiple times
             // and also initialize, because otherwise rust thinks it's used while unitilized, even if thats not the case as the loop goes only forward
             let mut param_domain = "undefined.undefined".to_owned();
@@ -256,8 +256,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                     12 => {
                         progress!(context, 500);
                         if let Some(ref cfg) = param_autoconfig {
-                            let r = dc_loginparam_get_readable(cfg);
-                            info!(context, 0, "Got autoconfig: {}", r);
+                            info!(context, 0, "Got autoconfig: {}", &cfg);
                             if !cfg.mail_user.is_empty() {
                                 param.mail_user = cfg.mail_user.clone();
                             }
@@ -358,8 +357,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                 ok_to_continue8 = true;
                                 break;
                             }
-                            let r_0 = dc_loginparam_get_readable(&param);
-                            info!(context, 0, "Trying: {}", r_0,);
+                            info!(context, 0, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
                                 ok_to_continue8 = true;
@@ -377,8 +375,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             progress!(context, 650 + username_variation * 30);
                             param.server_flags &= !(0x100 | 0x200 | 0x400);
                             param.server_flags |= 0x100;
-                            let r_1 = dc_loginparam_get_readable(&param);
-                            info!(context, 0, "Trying: {}", r_1,);
+                            info!(context, 0, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
                                 ok_to_continue8 = true;
@@ -391,8 +388,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             }
                             progress!(context, 660 + username_variation * 30);
                             param.mail_port = 143;
-                            let r_2 = dc_loginparam_get_readable(&param);
-                            info!(context, 0, "Trying: {}", r_2,);
+                            info!(context, 0, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
                                 ok_to_continue8 = true;
@@ -447,8 +443,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                 param.server_flags &= !(0x10000 | 0x20000 | 0x40000);
                                 param.server_flags |= 0x10000;
                                 param.send_port = 587;
-                                let r_3 = dc_loginparam_get_readable(&param);
-                                info!(context, 0, "Trying: {}", r_3,);
+                                info!(context, 0, "Trying: {}", &param);
 
                                 if !context
                                     .smtp
@@ -464,8 +459,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                         param.server_flags &= !(0x10000 | 0x20000 | 0x40000);
                                         param.server_flags |= 0x10000;
                                         param.send_port = 25;
-                                        let r_4 = dc_loginparam_get_readable(&param);
-                                        info!(context, 0, "Trying: {}", r_4);
+                                        info!(context, 0, "Trying: {}", &param);
 
                                         if !context
                                             .smtp
@@ -517,12 +511,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                     17 => {
                         progress!(context, 910);
                         /* configuration success - write back the configured parameters with the "configured_" prefix; also write the "configured"-flag */
-                        dc_loginparam_write(
-                            context,
-                            &param,
-                            &context.sql,
-                            "configured_", /*the trailing underscore is correct*/
-                        );
+                        param
+                            .save_to_database(
+                                context,
+                                "configured_", /*the trailing underscore is correct*/
+                            )
+                            .ok();
+
                         context.sql.set_config_int(context, "configured", 1).ok();
                         true
                     }
@@ -635,7 +630,7 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
     {
         warn!(context, 0, "Not configured, cannot connect.",);
     } else {
-        let param = dc_loginparam_read(context, &context.sql, "configured_");
+        let param = LoginParam::from_database(context, "configured_");
         // the trailing underscore is correct
 
         if imap.connect(context, &param) {

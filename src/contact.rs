@@ -6,7 +6,7 @@ use crate::aheader::EncryptPreference;
 use crate::config::Config;
 use crate::constants::*;
 use crate::context::Context;
-use crate::dc_loginparam::*;
+use crate::dc_loginparam::LoginParam;
 use crate::dc_tools::*;
 use crate::e2ee;
 use crate::error::Result;
@@ -576,7 +576,7 @@ impl<'a> Contact<'a> {
 
         if let Ok(contact) = Contact::load_from_db(context, contact_id) {
             let peerstate = Peerstate::from_addr(context, &context.sql, &contact.addr);
-            let loginparam = dc_loginparam_read(context, &context.sql, "configured_");
+            let loginparam = LoginParam::from_database(context, "configured_");
 
             let mut self_key = Key::from_self_public(context, &loginparam.addr, &context.sql);
 

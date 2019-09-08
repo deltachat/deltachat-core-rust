@@ -1,11 +1,11 @@
 use std::borrow::Cow;
+use std::fmt;
 
 use crate::context::Context;
-use crate::sql::Sql;
+use crate::error::Error;
 
 #[derive(Default, Debug)]
-#[allow(non_camel_case_types)]
-pub struct dc_loginparam_t {
+pub struct LoginParam {
     pub addr: String,
     pub mail_server: String,
     pub mail_user: String,
@@ -18,113 +18,134 @@ pub struct dc_loginparam_t {
     pub server_flags: i32,
 }
 
-impl dc_loginparam_t {
+impl LoginParam {
+    /// Create a new `LoginParam` with default values.
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Read the login parameters from the database.
+    pub fn from_database(context: &Context, prefix: impl AsRef<str>) -> Self {
+        let prefix = prefix.as_ref();
+        let sql = &context.sql;
+
+        let key = format!("{}addr", prefix);
+        let addr = sql
+            .get_config(context, key)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+
+        let key = format!("{}mail_server", prefix);
+        let mail_server = sql.get_config(context, key).unwrap_or_default();
+
+        let key = format!("{}mail_port", prefix);
+        let mail_port = sql.get_config_int(context, key).unwrap_or_default();
+
+        let key = format!("{}mail_user", prefix);
+        let mail_user = sql.get_config(context, key).unwrap_or_default();
+
+        let key = format!("{}mail_pw", prefix);
+        let mail_pw = sql.get_config(context, key).unwrap_or_default();
+
+        let key = format!("{}send_server", prefix);
+        let send_server = sql.get_config(context, key).unwrap_or_default();
+
+        let key = format!("{}send_port", prefix);
+        let send_port = sql.get_config_int(context, key).unwrap_or_default();
+
+        let key = format!("{}send_user", prefix);
+        let send_user = sql.get_config(context, key).unwrap_or_default();
+
+        let key = format!("{}send_pw", prefix);
+        let send_pw = sql.get_config(context, key).unwrap_or_default();
+
+        let key = format!("{}server_flags", prefix);
+        let server_flags = sql.get_config_int(context, key).unwrap_or_default();
+
+        LoginParam {
+            addr: addr.to_string(),
+            mail_server,
+            mail_user,
+            mail_pw,
+            mail_port,
+            send_server,
+            send_user,
+            send_pw,
+            send_port,
+            server_flags,
+        }
+    }
+
     pub fn addr_str(&self) -> &str {
         self.addr.as_str()
     }
-}
 
-pub fn dc_loginparam_new() -> dc_loginparam_t {
-    Default::default()
-}
+    /// Save this loginparam to the database.
+    pub fn save_to_database(
+        &self,
+        context: &Context,
+        prefix: impl AsRef<str>,
+    ) -> Result<(), Error> {
+        let prefix = prefix.as_ref();
+        let sql = &context.sql;
 
-pub fn dc_loginparam_read(
-    context: &Context,
-    sql: &Sql,
-    prefix: impl AsRef<str>,
-) -> dc_loginparam_t {
-    let prefix = prefix.as_ref();
+        let key = format!("{}addr", prefix);
+        sql.set_config(context, key, Some(&self.addr))?;
 
-    let key = format!("{}addr", prefix);
-    let addr = sql
-        .get_config(context, key)
-        .unwrap_or_default()
-        .trim()
-        .to_string();
+        let key = format!("{}mail_server", prefix);
+        sql.set_config(context, key, Some(&self.mail_server))?;
 
-    let key = format!("{}mail_server", prefix);
-    let mail_server = sql.get_config(context, key).unwrap_or_default();
+        let key = format!("{}mail_port", prefix);
+        sql.set_config_int(context, key, self.mail_port)?;
 
-    let key = format!("{}mail_port", prefix);
-    let mail_port = sql.get_config_int(context, key).unwrap_or_default();
+        let key = format!("{}mail_user", prefix);
+        sql.set_config(context, key, Some(&self.mail_user))?;
 
-    let key = format!("{}mail_user", prefix);
-    let mail_user = sql.get_config(context, key).unwrap_or_default();
+        let key = format!("{}mail_pw", prefix);
+        sql.set_config(context, key, Some(&self.mail_pw))?;
 
-    let key = format!("{}mail_pw", prefix);
-    let mail_pw = sql.get_config(context, key).unwrap_or_default();
+        let key = format!("{}send_server", prefix);
+        sql.set_config(context, key, Some(&self.send_server))?;
 
-    let key = format!("{}send_server", prefix);
-    let send_server = sql.get_config(context, key).unwrap_or_default();
+        let key = format!("{}send_port", prefix);
+        sql.set_config_int(context, key, self.send_port)?;
 
-    let key = format!("{}send_port", prefix);
-    let send_port = sql.get_config_int(context, key).unwrap_or_default();
+        let key = format!("{}send_user", prefix);
+        sql.set_config(context, key, Some(&self.send_user))?;
 
-    let key = format!("{}send_user", prefix);
-    let send_user = sql.get_config(context, key).unwrap_or_default();
+        let key = format!("{}send_pw", prefix);
+        sql.set_config(context, key, Some(&self.send_pw))?;
 
-    let key = format!("{}send_pw", prefix);
-    let send_pw = sql.get_config(context, key).unwrap_or_default();
+        let key = format!("{}server_flags", prefix);
+        sql.set_config_int(context, key, self.server_flags)?;
 
-    let key = format!("{}server_flags", prefix);
-    let server_flags = sql.get_config_int(context, key).unwrap_or_default();
-
-    dc_loginparam_t {
-        addr: addr.to_string(),
-        mail_server,
-        mail_user,
-        mail_pw,
-        mail_port,
-        send_server,
-        send_user,
-        send_pw,
-        send_port,
-        server_flags,
+        Ok(())
     }
 }
 
-pub fn dc_loginparam_write(
-    context: &Context,
-    loginparam: &dc_loginparam_t,
-    sql: &Sql,
-    prefix: impl AsRef<str>,
-) {
-    let prefix = prefix.as_ref();
+impl fmt::Display for LoginParam {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let unset = "0";
+        let pw = "***";
 
-    let key = format!("{}addr", prefix);
-    sql.set_config(context, key, Some(&loginparam.addr)).ok();
+        let flags_readable = get_readable_flags(self.server_flags);
 
-    let key = format!("{}mail_server", prefix);
-    sql.set_config(context, key, Some(&loginparam.mail_server))
-        .ok();
-
-    let key = format!("{}mail_port", prefix);
-    sql.set_config_int(context, key, loginparam.mail_port).ok();
-
-    let key = format!("{}mail_user", prefix);
-    sql.set_config(context, key, Some(&loginparam.mail_user))
-        .ok();
-
-    let key = format!("{}mail_pw", prefix);
-    sql.set_config(context, key, Some(&loginparam.mail_pw)).ok();
-
-    let key = format!("{}send_server", prefix);
-    sql.set_config(context, key, Some(&loginparam.send_server))
-        .ok();
-
-    let key = format!("{}send_port", prefix);
-    sql.set_config_int(context, key, loginparam.send_port).ok();
-
-    let key = format!("{}send_user", prefix);
-    sql.set_config(context, key, Some(&loginparam.send_user))
-        .ok();
-
-    let key = format!("{}send_pw", prefix);
-    sql.set_config(context, key, Some(&loginparam.send_pw)).ok();
-
-    let key = format!("{}server_flags", prefix);
-    sql.set_config_int(context, key, loginparam.server_flags)
-        .ok();
+        write!(
+            f,
+            "{} {}:{}:{}:{} {}:{}:{}:{} {}",
+            unset_empty(&self.addr),
+            unset_empty(&self.mail_user),
+            if !self.mail_pw.is_empty() { pw } else { unset },
+            unset_empty(&self.mail_server),
+            self.mail_port,
+            unset_empty(&self.send_user),
+            if !self.send_pw.is_empty() { pw } else { unset },
+            unset_empty(&self.send_server),
+            self.send_port,
+            flags_readable,
+        )
+    }
 }
 
 fn unset_empty(s: &String) -> Cow<String> {
@@ -133,35 +154,6 @@ fn unset_empty(s: &String) -> Cow<String> {
     } else {
         Cow::Borrowed(s)
     }
-}
-
-pub fn dc_loginparam_get_readable(loginparam: &dc_loginparam_t) -> String {
-    let unset = "0";
-    let pw = "***";
-
-    let flags_readable = get_readable_flags(loginparam.server_flags);
-
-    format!(
-        "{} {}:{}:{}:{} {}:{}:{}:{} {}",
-        unset_empty(&loginparam.addr),
-        unset_empty(&loginparam.mail_user),
-        if !loginparam.mail_pw.is_empty() {
-            pw
-        } else {
-            unset
-        },
-        unset_empty(&loginparam.mail_server),
-        loginparam.mail_port,
-        unset_empty(&loginparam.send_user),
-        if !loginparam.send_pw.is_empty() {
-            pw
-        } else {
-            unset
-        },
-        unset_empty(&loginparam.send_server),
-        loginparam.send_port,
-        flags_readable,
-    )
 }
 
 fn get_readable_flags(flags: i32) -> String {
