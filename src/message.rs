@@ -38,6 +38,12 @@ pub enum MessageState {
     OutMdnRcvd = 28,
 }
 
+impl Default for MessageState {
+    fn default() -> Self {
+        MessageState::Undefined
+    }
+}
+
 impl From<MessageState> for LotState {
     fn from(s: MessageState) -> Self {
         use MessageState::*;

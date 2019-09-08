@@ -1,7 +1,6 @@
+use deltachat_derive::*;
 use itertools::Itertools;
-use num_traits::{FromPrimitive, ToPrimitive};
 use rusqlite;
-use rusqlite::types::*;
 
 use crate::aheader::EncryptPreference;
 use crate::config::Config;
@@ -58,7 +57,9 @@ pub struct Contact<'a> {
 }
 
 /// Possible origins of a contact.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, FromPrimitive, ToPrimitive, FromSql, ToSql,
+)]
 #[repr(i32)]
 pub enum Origin {
     Unknown = 0,
@@ -96,23 +97,9 @@ pub enum Origin {
     ManuallyCreated = 0x4000000,
 }
 
-impl ToSql for Origin {
-    fn to_sql(&self) -> rusqlite::Result<ToSqlOutput> {
-        let num: i64 = self
-            .to_i64()
-            .expect("impossible: Origin -> i64 conversion failed");
-
-        Ok(ToSqlOutput::Owned(Value::Integer(num)))
-    }
-}
-
-impl FromSql for Origin {
-    fn column_result(col: ValueRef) -> FromSqlResult<Self> {
-        let inner = FromSql::column_result(col)?;
-        match FromPrimitive::from_i64(inner) {
-            Some(res) => Ok(res),
-            None => Ok(Origin::Unknown),
-        }
+impl Default for Origin {
+    fn default() -> Self {
+        Origin::Unknown
     }
 }
 
