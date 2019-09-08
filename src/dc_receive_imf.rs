@@ -1701,7 +1701,13 @@ unsafe fn search_chat_ids_by_contact_ids(
             let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
             context.sql.query_map(
                 format!(
-                    "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
+                    "SELECT DISTINCT cc.chat_id, cc.contact_id \
+                       FROM chats_contacts cc \
+                       LEFT JOIN chats c ON c.id=cc.chat_id \
+                       WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({})) \
+                         AND c.type=120 \
+                         AND cc.contact_id!=1 \
+                       ORDER BY cc.chat_id, cc.contact_id;",
                     contact_ids_str
                 ),
                 params![],
@@ -1713,11 +1719,11 @@ unsafe fn search_chat_ids_by_contact_ids(
 
                     for row in rows {
                         let (chat_id, contact_id) = row?;
-                        if chat_id as u32 != last_chat_id {
+                        if chat_id != last_chat_id {
                             if matches == contact_ids.len() && mismatches == 0 {
                                 chat_ids.push(last_chat_id);
                             }
-                            last_chat_id = chat_id as u32;
+                            last_chat_id = chat_id;
                             matches = 0;
                             mismatches = 0;
                         }
