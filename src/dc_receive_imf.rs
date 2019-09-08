@@ -1,6 +1,8 @@
 use std::ptr;
 
 use itertools::join;
+use std::collections::HashMap;
+
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
 use mmime::mailmime::*;
@@ -1682,7 +1684,7 @@ fn search_chat_ids_by_contact_ids(
 ) -> Vec<u32> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
 
-    let mut contact_ids = Vec::with_capacity(23);
+    let mut match_contact_ids = Vec::with_capacity(23);
     let mut chat_ids = Vec::with_capacity(23);
 
     if unsorted_contact_ids.is_empty() {
@@ -1691,46 +1693,40 @@ fn search_chat_ids_by_contact_ids(
 
     /* copy array, remove duplicates and SELF, sort by ID */
     for &curr_id in unsorted_contact_ids {
-        if curr_id != DC_CONTACT_ID_SELF && !contact_ids.contains(&curr_id) {
-            contact_ids.push(curr_id);
+        if curr_id != DC_CONTACT_ID_SELF && !match_contact_ids.contains(&curr_id) {
+            match_contact_ids.push(curr_id);
         }
     }
-    if contact_ids.is_empty() {
+    if match_contact_ids.is_empty() {
         return chat_ids;
     }
 
-	/* collect all possible chats with the contact count as the data (as contact_ids have no doubles, this is sufficient) */
-    contact_ids.sort();
-    let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
+	/* collect all possible chats which contain at least one contact */
 
     context.sql.query_map(
         format!(
             "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
-            contact_ids_str
+            join(match_contact_ids.iter().map(|x| x.to_string()), ",")
         ),
         params![],
         |row| Ok((row.get::<_, u32>(0)?, row.get::<_, u32>(1)?)),
         |rows| {
-            let mut chat2contacts = HashMap<u32, Vec<u32>>::new();
+            // per-chat count all matching contacts and add chat-id
+            // if all matching contacts are seen
+            let mut chat2matches = HashMap::new();
             for row in rows {
                 let (chat_id, contact_id) = row?;
-                let mut contacts: Vec<u32>;
-                contacts = match chat2contacts.get(chat_id) {
-                    Some(c) => c,
-                    None => {
-                        l = Vec<u32>::default();
-                        chat2contacts.insert(chat_id, l);
-                        l
-                    }
-                }
-                contacts.push(contact_id);
-            }
-            for (&chat_id, &contacts) in chat2contacts.iter_mut() {
-                contacts.retain(|x| {
-                    contact_ids.contains(x) 
-                });
-                if contacts.len() == contact_ids.len() {
-                    chat_ids.push(chat_id)
+                if match_contact_ids.contains(&contact_id) {
+                    let count = if let Some(x) = chat2matches.get_mut(&chat_id) {
+                        *x = *x + 1;
+                        *x
+                    } else {
+                        chat2matches.insert(chat_id, 1);
+                        1
+                    };
+                    if count == match_contact_ids.len() {
+                        chat_ids.push(chat_id)
+                    } 
                 }
             }
             Ok(())
