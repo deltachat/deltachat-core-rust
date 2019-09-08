@@ -483,6 +483,10 @@ class EventLogger:
     def set_timeout(self, timeout):
         self._timeout = timeout
 
+    def consume_events(self, check_error=True):
+        while not self._event_queue.empty():
+            self.get()
+
     def get(self, timeout=None, check_error=True):
         timeout = timeout or self._timeout
         ev = self._event_queue.get(timeout=timeout)

@@ -1049,7 +1049,7 @@ unsafe fn create_or_lookup_group(
     // pointer somewhere into mime_parser, must not be freed
     let mut X_MrAddToGrp = std::ptr::null_mut();
     let mut X_MrGrpNameChanged = 0;
-    let mut X_MrGrpImageChanged = std::ptr::null();
+    let mut X_MrGrpImageChanged = "".to_string();
     let mut better_msg: String = From::from("");
     let mut failure_reason = std::ptr::null_mut();
 
@@ -1172,7 +1172,8 @@ unsafe fn create_or_lookup_group(
             let optional_field =
                 dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Image");
             if !optional_field.is_null() {
-                X_MrGrpImageChanged = (*optional_field).fld_value
+                // fld_value is a pointer somewhere into mime_parser, must not be freed
+                X_MrGrpImageChanged = as_str((*optional_field).fld_value).to_string();
             }
             better_msg = context.stock_system_msg(
                 StockMessage::MsgAddMember,
@@ -1196,14 +1197,11 @@ unsafe fn create_or_lookup_group(
                 let optional_field =
                     dc_mimeparser_lookup_optional_field(mime_parser, "Chat-Group-Image");
                 if !optional_field.is_null() {
-                    X_MrGrpImageChanged = (*optional_field).fld_value;
+                    // fld_value is a pointer somewhere into mime_parser, must not be freed
+                    X_MrGrpImageChanged = as_str((*optional_field).fld_value).to_string();
                     mime_parser.is_system_message = DC_CMD_GROUPIMAGE_CHANGED;
                     better_msg = context.stock_system_msg(
-                        if strcmp(
-                            X_MrGrpImageChanged,
-                            b"0\x00" as *const u8 as *const libc::c_char,
-                        ) == 0
-                        {
+                        if X_MrGrpImageChanged == "0" {
                             StockMessage::MsgGrpImgDeleted
                         } else {
                             StockMessage::MsgGrpImgChanged
@@ -1315,7 +1313,6 @@ unsafe fn create_or_lookup_group(
     }
 
     // execute group commands
-    info!(context, 0, "before exec group commands");
     if !X_MrAddToGrp.is_null() || !X_MrRemoveFromGrp.is_null() {
         recreate_member_list = 1;
     } else if 0 != X_MrGrpNameChanged && !grpname.is_null() && strlen(grpname) < 200 {
@@ -1331,57 +1328,39 @@ unsafe fn create_or_lookup_group(
             context.call_cb(Event::CHAT_MODIFIED, chat_id as uintptr_t, 0);
         }
     }
-    if !X_MrGrpImageChanged.is_null() {
+    if !X_MrGrpImageChanged.is_empty() {
         info!(
             context,
-            0,
-            "handling group image changed {} for chat {}",
-            as_str(X_MrGrpImageChanged),
-            chat_id
+            0, "grp-image-change {} chat {}", X_MrGrpImageChanged, chat_id
         );
-        let mut ok = 0;
-        let mut grpimage = ptr::null_mut();
-        if strcmp(
-            X_MrGrpImageChanged,
-            b"0\x00" as *const u8 as *const libc::c_char,
-        ) == 0
-        {
-            ok = 1
+        let mut changed = false;
+        let mut grpimage = "".to_string();
+        if X_MrGrpImageChanged == "0" {
+            changed = true;
         } else {
             for part in &mut mime_parser.parts {
                 if part.type_0 == Viewtype::Image {
                     grpimage = part
                         .param
                         .get(Param::File)
-                        .map(|s| s.strdup())
-                        .unwrap_or_else(|| std::ptr::null_mut());
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| "".to_string());
                     info!(context, 0, "found image {:?}", grpimage);
-                    ok = 1
+                    changed = true;
                 }
             }
         }
-        if 0 != ok {
-            info!(
-                context,
-                0,
-                "New group image set to {}.",
-                if !grpimage.is_null() {
-                    "DELETED".to_string()
-                } else {
-                    to_string(grpimage)
-                },
-            );
+        if changed {
+            info!(context, 0, "New group image set to '{}'.", grpimage);
             if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
-                if grpimage.is_null() {
+                if grpimage.is_empty() {
                     chat.param.remove(Param::ProfileImage);
                 } else {
-                    chat.param.set(Param::ProfileImage, as_str(grpimage));
+                    chat.param.set(Param::ProfileImage, grpimage);
                 }
                 chat.update_param().unwrap();
                 send_EVENT_CHAT_MODIFIED = 1;
             }
-
-            free(grpimage as *mut libc::c_void);
         }
     }
 

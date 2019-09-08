@@ -72,15 +72,15 @@ impl<'a> Chat<'a> {
             },
             Ok(mut chat) => {
                 match chat.id {
-                    1 => {
+                    DC_CHAT_ID_DEADDROP => {
                         chat.name = chat.context.stock_str(StockMessage::DeadDrop).into();
                     }
-                    6 => {
+                    DC_CHAT_ID_ARCHIVED_LINK => {
                         let tempname = chat.context.stock_str(StockMessage::ArchivedChats);
                         let cnt = dc_get_archived_cnt(chat.context);
                         chat.name = format!("{} ({})", tempname, cnt);
                     }
-                    5 => {
+                    DC_CHAT_ID_STARRED => {
                         chat.name = chat.context.stock_str(StockMessage::StarredMsgs).into();
                     }
                     _ => {
@@ -187,10 +187,15 @@ impl<'a> Chat<'a> {
             .ok()
     }
 
-    pub unsafe fn get_profile_image(&self) -> Option<String> {
+    pub fn get_profile_image(&self) -> Option<String> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Some(to_string(dc_get_abs_path(self.context, image_rel)));
+                return Some(
+                    dc_get_abs_path_safe(self.context, image_rel)
+                        .to_str()
+                        .unwrap()
+                        .to_string(),
+                );
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(self.context, self.id);
@@ -227,6 +232,10 @@ impl<'a> Chat<'a> {
 
     pub fn is_unpromoted(&self) -> bool {
         self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
+    }
+
+    pub fn is_promoted(&self) -> bool {
+        !self.is_unpromoted()
     }
 
     pub fn is_verified(&self) -> bool {
@@ -1501,7 +1510,7 @@ pub unsafe fn remove_contact_from_chat(
             } else {
                 /* we should respect this - whatever we send to the group, it gets discarded anyway! */
                 if let Ok(contact) = Contact::get_by_id(context, contact_id) {
-                    if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
+                    if chat.is_promoted() {
                         msg.type_0 = Viewtype::Text;
                         if contact.id == DC_CONTACT_ID_SELF {
                             set_group_explicitly_left(context, chat.grpid).unwrap();
@@ -1609,7 +1618,7 @@ pub unsafe fn set_chat_name(
             )
             .is_ok()
             {
-                if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
+                if chat.is_promoted() {
                     msg.type_0 = Viewtype::Text;
                     msg.text = Some(context.stock_system_msg(
                         StockMessage::MsgGrpName,
@@ -1646,7 +1655,7 @@ pub unsafe fn set_chat_name(
 }
 
 #[allow(non_snake_case)]
-pub unsafe fn set_chat_profile_image(
+pub fn set_chat_profile_image(
     context: &Context,
     chat_id: u32,
     new_image: impl AsRef<str>,
@@ -1656,7 +1665,7 @@ pub unsafe fn set_chat_profile_image(
     let mut chat = Chat::load_from_db(context, chat_id)?;
 
     if real_group_exists(context, chat_id) {
-        if !(is_contact_in_chat(context, chat_id, 1i32 as u32) == 1i32) {
+        if !(is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) == 1i32) {
             log_event!(
                 context,
                 Event::ERROR_SELF_NOT_IN_GROUP,
@@ -1678,17 +1687,16 @@ pub unsafe fn set_chat_profile_image(
 
         chat.param.set(Param::ProfileImage, &new_image_rel);
         if chat.update_param().is_ok() {
-            info!(context, 0, "after update_param");
-            if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                let mut msg = dc_msg_new_untyped(context);
-                info!(context, 0, "setting params for groupimage change");
+            if chat.is_promoted() {
+                let mut msg = unsafe { dc_msg_new_untyped(context) };
                 msg.param.set_int(Param::Cmd, DC_CMD_GROUPIMAGE_CHANGED);
-                msg.param.set(Param::Arg, &new_image_rel);
                 msg.type_0 = Viewtype::Text;
                 msg.text = Some(context.stock_system_msg(
-                    if new_image_rel.is_empty() {
+                    if new_image_rel == "" {
+                        msg.param.remove(Param::Arg);
                         StockMessage::MsgGrpImgDeleted
                     } else {
+                        msg.param.set(Param::Arg, &new_image_rel);
                         StockMessage::MsgGrpImgChanged
                     },
                     "",

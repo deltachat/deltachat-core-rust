@@ -77,7 +77,7 @@ pub const DC_CHAT_ID_TRASH: u32 = 3;
 /// a message is just in creation but not yet assigned to a chat (eg. we may need the message ID to set up blobs; this avoids unready message to be sent and shown)
 const DC_CHAT_ID_MSGS_IN_CREATION: u32 = 4;
 /// virtual chat showing all messages flagged with msgs.starred=2
-const DC_CHAT_ID_STARRED: u32 = 5;
+pub const DC_CHAT_ID_STARRED: u32 = 5;
 /// only an indicator in a chatlist
 pub const DC_CHAT_ID_ARCHIVED_LINK: u32 = 6;
 /// only an indicator in a chatlist
