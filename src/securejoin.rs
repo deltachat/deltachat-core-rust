@@ -19,7 +19,7 @@ use crate::param::*;
 use crate::peerstate::*;
 use crate::qr::check_qr;
 use crate::stock::StockMessage;
-use crate::token::*;
+use crate::token;
 use crate::types::*;
 
 pub const NON_ALPHANUMERIC_WITHOUT_DOT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'.');
@@ -80,8 +80,8 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Optio
     let fingerprint: String;
 
     ensure_secret_key_exists(context).ok();
-    let invitenumber = dc_token_lookup_or_new(context, DC_TOKEN_INVITENUMBER, group_chat_id);
-    let auth = dc_token_lookup_or_new(context, DC_TOKEN_AUTH, group_chat_id);
+    let invitenumber = token::lookup_or_new(context, token::Namespace::InviteNumber, group_chat_id);
+    let auth = token::lookup_or_new(context, token::Namespace::Auth, group_chat_id);
     let self_addr = match context.sql.get_config(context, "configured_addr") {
         Some(addr) => addr,
         None => {
@@ -387,7 +387,7 @@ pub fn handle_securejoin_handshake(
                     return ret;
                 }
             };
-            if !dc_token_exists(context, DC_TOKEN_INVITENUMBER, &invitenumber) {
+            if !token::exists(context, token::Namespace::InviteNumber, &invitenumber) {
                 warn!(context, 0, "Secure-join denied (bad invitenumber).",);
                 return ret;
             }
@@ -507,7 +507,7 @@ pub fn handle_securejoin_handshake(
                     return ret;
                 }
             };
-            if !dc_token_exists(context, DC_TOKEN_AUTH, &auth_0) {
+            if !token::exists(context, token::Namespace::Auth, &auth_0) {
                 could_not_establish_secure_connection(context, contact_chat_id, "Auth invalid.");
                 return ret;
             }
