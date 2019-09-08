@@ -923,7 +923,7 @@ unsafe fn handle_reports(
     }
 }
 
-unsafe fn save_locations(
+fn save_locations(
     context: &Context,
     mime_parser: &dc_mimeparser_t,
     chat_id: u32,
@@ -1681,10 +1681,7 @@ fn hex_hash(s: impl AsRef<str>) -> String {
 }
 
 #[allow(non_snake_case)]
-unsafe fn search_chat_ids_by_contact_ids(
-    context: &Context,
-    unsorted_contact_ids: &Vec<u32>,
-) -> Vec<u32> {
+fn search_chat_ids_by_contact_ids(context: &Context, unsorted_contact_ids: &Vec<u32>) -> Vec<u32> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut contact_ids = Vec::with_capacity(23);
     let mut chat_ids = Vec::with_capacity(23);
