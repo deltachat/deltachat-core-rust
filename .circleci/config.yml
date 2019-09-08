@@ -15,6 +15,12 @@ restore-cache: &restore-cache
       - cargo-v1-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
       - repo-source-{{ .Branch }}-{{ .Revision }}
 
+restore-cache-python: &restore-cache-python
+  restore_cache:
+    keys:
+      - cargo-v1-python-{{ checksum "rust-toolchain" }}-{{ checksum "Cargo.toml" }}-{{ checksum "Cargo.lock" }}-{{ arch }}
+      - repo-source-{{ .Branch }}-{{ .Revision }}
+
 commands:
   test_target:
     parameters:
@@ -124,18 +130,19 @@ jobs:
 
 
   build_test_docs_wheel:
-    machine: True
+    executor:
+      docker:
+        - image: deltachat/coredeps
+      working_directory: /mnt/crate
     steps:
-      - checkout
-      # - run: docker pull deltachat/doxygen
-      - run: docker pull deltachat/coredeps
+      - *restore-workspace
+      - *restore-cache-python
       - run:
           name: build docs, run tests and build wheels
           command: ci_scripts/ci_run.sh
           environment:
             TESTS: 1
             DOCS: 1
-
       - run:
            name: copying docs and wheels to workspace
            command: |
@@ -143,7 +150,6 @@ jobs:
              # cp -av docs workspace/c-docs
              cp -av python/.docker-tox/wheelhouse workspace/
              cp -av python/doc/_build/ workspace/py-docs
-
       - persist_to_workspace:
           root: workspace
           paths:
@@ -152,9 +158,13 @@ jobs:
             - wheelhouse
 
   upload_docs_wheels:
-    machine: true
+    executor:
+      docker:
+        - image: deltachat/coredeps
+      working_directory: /mnt/crate
     steps:
-      - checkout
+      - *restore-workspace
+      - *restore-cache-python
       - attach_workspace:
           at: workspace
       - run: pyenv global 3.5.2
