@@ -1654,8 +1654,6 @@ pub unsafe fn set_chat_profile_image(
     ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
-    let mut msg = dc_msg_new_untyped(context);
-    let new_image_rel;
 
     if real_group_exists(context, chat_id) {
         if !(is_contact_in_chat(context, chat_id, 1i32 as u32) == 1i32) {
@@ -1668,48 +1666,39 @@ pub unsafe fn set_chat_profile_image(
             /* we should respect this - whatever we send to the group, it gets discarded anyway! */
             bail!("Failed to set profile image");
         }
+        let mut new_image_rel: String;
         if !new_image.as_ref().is_empty() {
-            let mut img = new_image.as_ref().to_string();
-            if !dc_make_rel_and_copy(context, &mut img) {
-                bail!("Failed to set profile image");
+            new_image_rel = new_image.as_ref().to_string();
+            if !dc_make_rel_and_copy(context, &mut new_image_rel) {
+                bail!("Failed to get relative path for profile image");
             }
-            new_image_rel = Some(img);
         } else {
-            new_image_rel = Some("".to_string());
+            new_image_rel = "".to_string();
         }
 
-        if let Some(ref new_image_rel) = new_image_rel {
-            chat.param.set(Param::ProfileImage, new_image_rel);
-        }
+        chat.param.set(Param::ProfileImage, &new_image_rel);
         if chat.update_param().is_ok() {
+            info!(context, 0, "after update_param");
             if chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 0 {
-                msg.param.set_int(Param::Cmd, 3);
-                if let Some(ref new_image_rel) = new_image_rel {
-                    msg.param.set(Param::Arg, new_image_rel);
-                }
+                let mut msg = dc_msg_new_untyped(context);
+                info!(context, 0, "setting params for groupimage change");
+                msg.param.set_int(Param::Cmd, DC_CMD_GROUPIMAGE_CHANGED);
+                msg.param.set(Param::Arg, &new_image_rel);
                 msg.type_0 = Viewtype::Text;
                 msg.text = Some(context.stock_system_msg(
-                    if new_image_rel.is_some() {
-                        StockMessage::MsgGrpImgChanged
-                    } else {
+                    if new_image_rel.is_empty() {
                         StockMessage::MsgGrpImgDeleted
+                    } else {
+                        StockMessage::MsgGrpImgChanged
                     },
                     "",
                     "",
                     DC_CONTACT_ID_SELF,
                 ));
                 msg.id = send_msg(context, chat_id, &mut msg).unwrap_or_default();
-                context.call_cb(
-                    Event::MSGS_CHANGED,
-                    chat_id as uintptr_t,
-                    msg.id as uintptr_t,
-                );
+                emit_event!(context, Event::MSGS_CHANGED, chat_id, msg.id);
             }
-            context.call_cb(
-                Event::CHAT_MODIFIED,
-                chat_id as uintptr_t,
-                0i32 as uintptr_t,
-            );
+            emit_event!(context, Event::CHAT_MODIFIED, chat_id, 0);
             return Ok(());
         }
     }

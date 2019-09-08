@@ -532,6 +532,10 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
 
             /* build header etc. */
             let command = factory.msg.param.get_int(Param::Cmd).unwrap_or_default();
+            info!(
+                factory.context,
+                0, "render_message found command {}", command
+            );
             if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
                 mailimf_fields_add(
                     imf_fields,
@@ -548,7 +552,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                         dc_encode_header_words(name.as_ptr()),
                     ),
                 );
-                if command == 5 {
+                if command == DC_CMD_MEMBER_REMOVED_FROM_GROUP {
                     let email_to_remove = factory
                         .msg
                         .param
@@ -567,7 +571,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                             ),
                         );
                     }
-                } else if command == 4 {
+                } else if command == DC_CMD_MEMBER_ADDED_TO_GROUP {
                     let msg = &factory.msg;
                     do_gossip = 1;
                     let email_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
@@ -599,7 +603,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                             ),
                         );
                     }
-                } else if command == 2 {
+                } else if command == DC_CMD_GROUPNAME_CHANGED {
                     let msg = &factory.msg;
 
                     let value_to_add = msg.param.get(Param::Arg).unwrap_or_default().strdup();
@@ -612,7 +616,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                             value_to_add,
                         ),
                     );
-                } else if command == 3 {
+                } else if command == DC_CMD_GROUPIMAGE_CHANGED {
                     let msg = &factory.msg;
                     grpimage = msg.param.get(Param::Arg);
                     if grpimage.is_none() {
@@ -626,7 +630,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     }
                 }
             }
-            if command == 8 {
+            if command == DC_CMD_LOCATION_STREAMING_ENABLED {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -637,7 +641,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     ),
                 );
             }
-            if command == 6 {
+            if command == DC_CMD_AUTOCRYPT_SETUP_MESSAGE {
                 mailimf_fields_add(
                     imf_fields,
                     mailimf_field_new_custom(
@@ -650,7 +654,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     .stock_str(StockMessage::AcSetupMsgBody)
                     .strdup();
             }
-            if command == 7 {
+            if command == DC_CMD_SECUREJOIN_MESSAGE {
                 let msg = &factory.msg;
                 let step = msg.param.get(Param::Arg).unwrap_or_default().strdup();
                 if strlen(step) > 0 {
@@ -725,7 +729,9 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     }
                 }
             }
+            info!(factory.context, 0, "grpimage {:?}", grpimage);
             if let Some(grpimage) = grpimage {
+                info!(factory.context, 0, "setting group image");
                 let mut meta = dc_msg_new_untyped(factory.context);
                 meta.type_0 = Viewtype::Image;
                 meta.param.set(Param::File, grpimage);
