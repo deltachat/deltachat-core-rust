@@ -37,7 +37,7 @@ pub struct dc_mimefactory_t<'a> {
     pub timestamp: i64,
     pub rfc724_mid: *mut libc::c_char,
     pub loaded: dc_mimefactory_loaded_t,
-    pub msg: Message<'a>,
+    pub msg: Message,
     pub chat: Option<Chat<'a>>,
     pub increation: libc::c_int,
     pub in_reply_to: *mut libc::c_char,
@@ -335,7 +335,10 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
 }
 
 // TODO should return bool /rtn
-pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_int {
+pub unsafe fn dc_mimefactory_render(
+    context: &Context,
+    factory: &mut dc_mimefactory_t,
+) -> libc::c_int {
     let subject: *mut mailimf_subject;
     let mut ok_to_continue = true;
     let imf_fields: *mut mailimf_fields;
@@ -586,7 +589,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     }
                     if 0 != msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
                         info!(
-                            msg.context,
+                            context,
                             "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
                             "vg-member-added",
                         );
@@ -654,7 +657,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 let step = msg.param.get(Param::Arg).unwrap_or_default().strdup();
                 if strlen(step) > 0 {
                     info!(
-                        msg.context,
+                        context,
                         "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
                         as_str(step),
                     );
@@ -725,12 +728,13 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
             }
             if let Some(grpimage) = grpimage {
                 info!(factory.context, "setting group image '{}'", grpimage);
-                let mut meta = dc_msg_new_untyped(factory.context);
+                let mut meta = dc_msg_new_untyped();
                 meta.type_0 = Viewtype::Image;
                 meta.param.set(Param::File, grpimage);
 
                 let mut filename_as_sent = ptr::null_mut();
                 meta_part = build_body_file(
+                    context,
                     &meta,
                     b"group-image\x00" as *const u8 as *const libc::c_char,
                     &mut filename_as_sent,
@@ -833,7 +837,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
 
             /* add attachment part */
             if chat::msgtype_has_file(factory.msg.type_0) {
-                if !is_file_size_okay(&factory.msg) {
+                if !is_file_size_okay(context, &factory.msg) {
                     let error: *mut libc::c_char = dc_mprintf(
                         b"Message exceeds the recommended %i MB.\x00" as *const u8
                             as *const libc::c_char,
@@ -844,7 +848,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     ok_to_continue = false;
                 } else {
                     let file_part: *mut mailmime =
-                        build_body_file(&factory.msg, ptr::null(), ptr::null_mut());
+                        build_body_file(context, &factory.msg, ptr::null(), ptr::null_mut());
                     if !file_part.is_null() {
                         mailmime_smart_add_part(message, file_part);
                         parts += 1
@@ -892,12 +896,9 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                         mailmime_smart_add_part(message, kml_mime_part);
                     }
 
-                    if location::is_sending_locations_to_chat(
-                        factory.msg.context,
-                        factory.msg.chat_id,
-                    ) {
+                    if location::is_sending_locations_to_chat(context, factory.msg.chat_id) {
                         if let Ok((kml_file, last_added_location_id)) =
-                            location::get_kml(factory.msg.context, factory.msg.chat_id)
+                            location::get_kml(context, factory.msg.chat_id)
                         {
                             let content_type = mailmime_content_new_with_str(
                                 b"application/vnd.google-earth.kml+xml\x00" as *const u8
@@ -950,7 +951,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     .stock_str(StockMessage::EncryptedMsg)
                     .into_owned()
             } else {
-                to_string(dc_msg_get_summarytext(&mut factory.msg, 32))
+                to_string(dc_msg_get_summarytext(context, &mut factory.msg, 32))
             };
             let p2 = factory
                 .context
@@ -1134,6 +1135,7 @@ unsafe fn build_body_text(text: *mut libc::c_char) -> *mut mailmime {
 
 #[allow(non_snake_case)]
 unsafe fn build_body_file(
+    context: &Context,
     msg: &Message,
     mut base_name: *const libc::c_char,
     ret_file_name_as_sent: *mut *mut libc::c_char,
@@ -1286,7 +1288,7 @@ unsafe fn build_body_file(
                 ) as *mut libc::c_void,
             );
             mime_sub = mailmime_new_empty(content, mime_fields);
-            mailmime_set_body_file(mime_sub, dc_get_abs_path(msg.context, path_filename));
+            mailmime_set_body_file(mime_sub, dc_get_abs_path(context, path_filename));
             if !ret_file_name_as_sent.is_null() {
                 *ret_file_name_as_sent = dc_strdup(filename_to_send)
             }
@@ -1303,10 +1305,10 @@ unsafe fn build_body_file(
 /*******************************************************************************
  * Render
  ******************************************************************************/
-unsafe fn is_file_size_okay(msg: &Message) -> bool {
+unsafe fn is_file_size_okay(context: &Context, msg: &Message) -> bool {
     let mut file_size_okay = true;
     let path = msg.param.get(Param::File).unwrap_or_default();
-    let bytes = dc_get_filebytes(msg.context, &path);
+    let bytes = dc_get_filebytes(context, &path);
 
     if bytes > (49 * 1024 * 1024 / 4 * 3) {
         file_size_okay = false;

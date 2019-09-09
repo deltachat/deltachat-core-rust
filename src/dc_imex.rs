@@ -138,7 +138,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                     ))
                 {
                     if let Ok(chat_id) = chat::create_by_contact_id(context, 1) {
-                        msg = dc_msg_new_untyped(context);
+                        msg = dc_msg_new_untyped();
                         msg.type_0 = Viewtype::File;
                         msg.param.set(Param::File, as_str(setup_file_name));
 
@@ -281,7 +281,7 @@ pub unsafe fn dc_continue_key_transfer(
     if msg.is_err()
         || !dc_msg_is_setupmessage(msg.as_ref().unwrap())
         || {
-            filename = dc_msg_get_file(msg.as_ref().unwrap());
+            filename = dc_msg_get_file(context, msg.as_ref().unwrap());
             filename.is_null()
         }
         || *filename.offset(0isize) as libc::c_int == 0i32
