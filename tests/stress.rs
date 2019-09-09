@@ -498,14 +498,13 @@ fn test_encryption_decryption() {
         keyring.add_owned(public_key.clone());
         keyring.add_ref(&public_key2);
 
-        let ctext = dc_pgp_pk_encrypt(original_text, &keyring, Some(&private_key)).unwrap();
+        let ctext_signed = dc_pgp_pk_encrypt(original_text, &keyring, Some(&private_key)).unwrap();
+        assert!(!ctext_signed.is_empty());
+        assert!(ctext_signed.starts_with("-----BEGIN PGP MESSAGE-----"));
 
-        assert!(!ctext.is_empty());
-        assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
-
-        let ctext = dc_pgp_pk_encrypt(original_text, &keyring, None).unwrap();
-        assert!(!ctext.is_empty());
-        assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
+        let ctext_unsigned = dc_pgp_pk_encrypt(original_text, &keyring, None).unwrap();
+        assert!(!ctext_unsigned.is_empty());
+        assert!(ctext_unsigned.starts_with("-----BEGIN PGP MESSAGE-----"));
 
         let mut keyring = Keyring::default();
         keyring.add_owned(private_key);
@@ -519,7 +518,7 @@ fn test_encryption_decryption() {
         let mut valid_signatures: HashSet<String> = Default::default();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext.as_bytes(),
+            ctext_signed.as_bytes(),
             &keyring,
             &public_keyring,
             Some(&mut valid_signatures),
@@ -533,7 +532,7 @@ fn test_encryption_decryption() {
 
         let empty_keyring = Keyring::default();
         let plain = dc_pgp_pk_decrypt(
-            ctext.as_bytes(),
+            ctext_signed.as_bytes(),
             &keyring,
             &empty_keyring,
             Some(&mut valid_signatures),
@@ -545,7 +544,7 @@ fn test_encryption_decryption() {
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext.as_bytes(),
+            ctext_signed.as_bytes(),
             &keyring,
             &public_keyring2,
             Some(&mut valid_signatures),
@@ -559,7 +558,7 @@ fn test_encryption_decryption() {
         public_keyring2.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
-            ctext.as_bytes(),
+            ctext_signed.as_bytes(),
             &keyring,
             &public_keyring2,
             Some(&mut valid_signatures),
@@ -571,7 +570,7 @@ fn test_encryption_decryption() {
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext.as_bytes(),
+            ctext_unsigned.as_bytes(),
             &keyring,
             &public_keyring,
             Some(&mut valid_signatures),
@@ -587,7 +586,8 @@ fn test_encryption_decryption() {
         let mut public_keyring = Keyring::default();
         public_keyring.add_ref(&public_key);
 
-        let plain = dc_pgp_pk_decrypt(ctext.as_bytes(), &keyring, &public_keyring, None).unwrap();
+        let plain =
+            dc_pgp_pk_decrypt(ctext_signed.as_bytes(), &keyring, &public_keyring, None).unwrap();
 
         assert_eq!(plain, original_text);
     }
