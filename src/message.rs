@@ -137,7 +137,7 @@ impl Lot {
 /// approx. max. length returned by dc_msg_get_text()
 /// approx. max. length returned by dc_get_msg_info()
 #[derive(Clone)]
-pub struct Message<'a> {
+pub struct Message {
     pub id: u32,
     pub from_id: u32,
     pub to_id: u32,
@@ -150,7 +150,6 @@ pub struct Message<'a> {
     pub timestamp_sent: i64,
     pub timestamp_rcvd: i64,
     pub text: Option<String>,
-    pub context: &'a Context,
     pub rfc724_mid: *mut libc::c_char,
     pub in_reply_to: *mut libc::c_char,
     pub server_folder: Option<String>,
@@ -270,7 +269,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         _ => {}
     }
 
-    let p = dc_msg_get_file(&msg);
+    let p = dc_msg_get_file(context, &msg);
     if !p.is_null() && 0 != *p.offset(0isize) as libc::c_int {
         ret += &format!(
             "\nFile: {}, {}, bytes\n",
@@ -310,11 +309,11 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
     ret.strdup()
 }
 
-pub unsafe fn dc_msg_new_untyped<'a>(context: &'a Context) -> Message<'a> {
-    dc_msg_new(context, Viewtype::Unknown)
+pub fn dc_msg_new_untyped() -> Message {
+    dc_msg_new(Viewtype::Unknown)
 }
 
-pub fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> Message<'a> {
+pub fn dc_msg_new(viewtype: Viewtype) -> Message {
     Message {
         id: 0,
         from_id: 0,
@@ -328,7 +327,6 @@ pub fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> Message<'a> {
         timestamp_sent: 0,
         timestamp_rcvd: 0,
         text: None,
-        context,
         rfc724_mid: std::ptr::null_mut(),
         in_reply_to: std::ptr::null_mut(),
         server_folder: None,
@@ -341,7 +339,7 @@ pub fn dc_msg_new<'a>(context: &'a Context, viewtype: Viewtype) -> Message<'a> {
     }
 }
 
-impl<'a> Drop for Message<'a> {
+impl Drop for Message {
     fn drop(&mut self) {
         unsafe {
             free(self.rfc724_mid.cast());
@@ -380,11 +378,11 @@ pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
     KNOWN.get(extension).map(|x| *x)
 }
 
-pub unsafe fn dc_msg_get_file(msg: &Message) -> *mut libc::c_char {
+pub unsafe fn dc_msg_get_file(context: &Context, msg: &Message) -> *mut libc::c_char {
     let mut file_abs = ptr::null_mut();
 
     if let Some(file_rel) = msg.param.get(Param::File) {
-        file_abs = dc_get_abs_path(msg.context, file_rel);
+        file_abs = dc_get_abs_path(context, file_rel);
     }
     if !file_abs.is_null() {
         file_abs
@@ -440,7 +438,7 @@ pub fn dc_msg_get_timestamp(msg: &Message) -> i64 {
     }
 }
 
-pub fn dc_msg_load_from_db<'a>(context: &'a Context, id: u32) -> Result<Message<'a>, Error> {
+pub fn dc_msg_load_from_db(context: &Context, id: u32) -> Result<Message, Error> {
     context.sql.query_row(
         "SELECT  \
          m.id,rfc724_mid,m.mime_in_reply_to,m.server_folder,m.server_uid,m.move_state,m.chat_id,  \
@@ -451,8 +449,7 @@ pub fn dc_msg_load_from_db<'a>(context: &'a Context, id: u32) -> Result<Message<
         params![id as i32],
         |row| {
             unsafe {
-                let mut msg = dc_msg_new_untyped(context);
-                msg.context = context;
+                let mut msg = dc_msg_new_untyped();
                 msg.id = row.get::<_, i32>(0)? as u32;
                 msg.rfc724_mid = row.get::<_, String>(1)?.strdup();
                 msg.in_reply_to = match row.get::<_, Option<String>>(2)? {
@@ -643,7 +640,7 @@ pub fn dc_star_msgs(
         .is_ok()
 }
 
-pub fn dc_get_msg<'a>(context: &'a Context, msg_id: u32) -> Result<Message<'a>, Error> {
+pub fn dc_get_msg(context: &Context, msg_id: u32) -> Result<Message, Error> {
     dc_msg_load_from_db(context, msg_id)
 }
 
@@ -701,11 +698,10 @@ pub unsafe fn dc_msg_get_filename(msg: &Message) -> *mut libc::c_char {
     }
 }
 
-pub unsafe fn dc_msg_get_filebytes(msg: &Message) -> uint64_t {
+pub fn dc_msg_get_filebytes(context: &Context, msg: &Message) -> uint64_t {
     if let Some(file) = msg.param.get(Param::File) {
-        return dc_get_filebytes(msg.context, &file);
+        return dc_get_filebytes(context, &file);
     }
-
     0
 }
 
@@ -730,14 +726,14 @@ pub fn dc_msg_get_showpadlock(msg: &Message) -> libc::c_int {
     0
 }
 
-pub unsafe fn dc_msg_get_summary<'a>(msg: &mut Message<'a>, chat: Option<&Chat<'a>>) -> Lot {
+pub fn dc_msg_get_summary(context: &Context, msg: &mut Message, chat: Option<&Chat>) -> Lot {
     let mut ret = Lot::new();
 
     let chat_loaded: Chat;
     let chat = if let Some(chat) = chat {
         chat
     } else {
-        if let Ok(chat) = Chat::load_from_db(msg.context, msg.chat_id) {
+        if let Ok(chat) = Chat::load_from_db(context, msg.chat_id) {
             chat_loaded = chat;
             &chat_loaded
         } else {
@@ -753,12 +749,13 @@ pub unsafe fn dc_msg_get_summary<'a>(msg: &mut Message<'a>, chat: Option<&Chat<'
         None
     };
 
-    ret.fill(msg, chat, contact.as_ref(), msg.context);
+    ret.fill(msg, chat, contact.as_ref(), context);
 
     ret
 }
 
 pub unsafe fn dc_msg_get_summarytext(
+    context: &Context,
     msg: &mut Message,
     approx_characters: usize,
 ) -> *mut libc::c_char {
@@ -767,7 +764,7 @@ pub unsafe fn dc_msg_get_summarytext(
         msg.text.as_ref(),
         &mut msg.param,
         approx_characters,
-        msg.context,
+        context,
     )
     .strdup()
 }
@@ -898,7 +895,7 @@ pub fn dc_msg_is_setupmessage(msg: &Message) -> bool {
     msg.param.get_int(Param::Cmd) == Some(6)
 }
 
-pub unsafe fn dc_msg_get_setupcodebegin(msg: &Message) -> *mut libc::c_char {
+pub unsafe fn dc_msg_get_setupcodebegin(context: &Context, msg: &Message) -> *mut libc::c_char {
     let mut filename: *mut libc::c_char = ptr::null_mut();
     let mut buf: *mut libc::c_char = ptr::null_mut();
     let mut buf_bytes: size_t = 0i32 as size_t;
@@ -908,11 +905,11 @@ pub unsafe fn dc_msg_get_setupcodebegin(msg: &Message) -> *mut libc::c_char {
     let mut buf_setupcodebegin: *const libc::c_char = ptr::null();
     let mut ret: *mut libc::c_char = ptr::null_mut();
     if dc_msg_is_setupmessage(msg) {
-        filename = dc_msg_get_file(msg);
+        filename = dc_msg_get_file(context, msg);
         if !(filename.is_null() || *filename.offset(0isize) as libc::c_int == 0i32) {
             if !(0
                 == dc_read_file(
-                    msg.context,
+                    context,
                     filename,
                     &mut buf as *mut *mut libc::c_char as *mut *mut libc::c_void,
                     &mut buf_bytes,
@@ -977,6 +974,7 @@ pub fn dc_msg_set_duration(msg: &mut Message, duration: libc::c_int) {
 }
 
 pub fn dc_msg_latefiling_mediasize(
+    context: &Context,
     msg: &mut Message,
     width: libc::c_int,
     height: libc::c_int,
@@ -989,20 +987,20 @@ pub fn dc_msg_latefiling_mediasize(
     if duration > 0 {
         msg.param.set_int(Param::Duration, duration);
     }
-    dc_msg_save_param_to_disk(msg);
+    dc_msg_save_param_to_disk(context, msg);
 }
 
-pub fn dc_msg_save_param_to_disk(msg: &mut Message) -> bool {
+pub fn dc_msg_save_param_to_disk(context: &Context, msg: &mut Message) -> bool {
     sql::execute(
-        msg.context,
-        &msg.context.sql,
+        context,
+        &context.sql,
         "UPDATE msgs SET param=? WHERE id=?;",
         params![msg.param.to_string(), msg.id as i32],
     )
     .is_ok()
 }
 
-pub fn dc_msg_new_load<'a>(context: &'a Context, msg_id: u32) -> Result<Message<'a>, Error> {
+pub fn dc_msg_new_load(context: &Context, msg_id: u32) -> Result<Message, Error> {
     dc_msg_load_from_db(context, msg_id)
 }
 
@@ -1321,7 +1319,7 @@ mod tests {
 
         let chat = chat::create_by_contact_id(ctx, contact).unwrap();
 
-        let mut msg = dc_msg_new(ctx, Viewtype::Text);
+        let mut msg = dc_msg_new(Viewtype::Text);
 
         let msg_id = chat::prepare_msg(ctx, chat, &mut msg).unwrap();
 

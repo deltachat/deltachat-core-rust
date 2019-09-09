@@ -677,12 +677,12 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
                             mimefactory.msg.param.set_int(Param::Height, height as i32);
                         }
                     }
-                    dc_msg_save_param_to_disk(&mut mimefactory.msg);
+                    dc_msg_save_param_to_disk(context, &mut mimefactory.msg);
                 }
             }
         }
         /* create message */
-        if 0 == dc_mimefactory_render(&mut mimefactory) {
+        if 0 == dc_mimefactory_render(context, &mut mimefactory) {
             dc_set_msg_failed(context, msg_id, as_opt_str(mimefactory.error));
         } else if 0
             != mimefactory
@@ -745,7 +745,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
                     == 0
             {
                 mimefactory.msg.param.set_int(Param::GuranteeE2ee, 1);
-                dc_msg_save_param_to_disk(&mut mimefactory.msg);
+                dc_msg_save_param_to_disk(context, &mut mimefactory.msg);
             }
             success = add_smtp_job(context, Action::SendMsgToSmtp, &mut mimefactory);
         }
@@ -992,7 +992,7 @@ fn connect_to_inbox(context: &Context, inbox: &Imap) -> libc::c_int {
 
 fn send_mdn(context: &Context, msg_id: uint32_t) {
     if let Ok(mut mimefactory) = unsafe { dc_mimefactory_load_mdn(context, msg_id) } {
-        if 0 != unsafe { dc_mimefactory_render(&mut mimefactory) } {
+        if 0 != unsafe { dc_mimefactory_render(context, &mut mimefactory) } {
             add_smtp_job(context, Action::SendMdn, &mut mimefactory);
         }
     }

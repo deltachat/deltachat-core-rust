@@ -274,7 +274,7 @@ fn send_handshake_msg(
     fingerprint: Option<String>,
     grpid: impl AsRef<str>,
 ) {
-    let mut msg = unsafe { dc_msg_new_untyped(context) };
+    let mut msg = dc_msg_new_untyped();
     msg.type_0 = Viewtype::Text;
     msg.text = Some(format!("Secure-Join: {}", step));
     msg.hidden = true;

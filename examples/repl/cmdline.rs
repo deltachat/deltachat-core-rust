@@ -476,7 +476,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let msg_id: u32 = arg1.parse()?;
             let msg = dc_get_msg(context, msg_id)?;
             if dc_msg_is_setupmessage(&msg) {
-                let setupcodebegin = dc_msg_get_setupcodebegin(&msg);
+                let setupcodebegin = dc_msg_get_setupcodebegin(context, &msg);
                 println!(
                     "The setup code for setup message Msg#{} starts with: {}",
                     msg_id,
@@ -836,14 +836,11 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(sel_chat.is_some(), "No chat selected.");
             ensure!(!arg1.is_empty(), "No file given.");
 
-            let mut msg = dc_msg_new(
-                context,
-                if arg0 == "sendimage" {
-                    Viewtype::Image
-                } else {
-                    Viewtype::File
-                },
-            );
+            let mut msg = dc_msg_new(if arg0 == "sendimage" {
+                Viewtype::Image
+            } else {
+                Viewtype::File
+            });
             dc_msg_set_file(&mut msg, arg1_c, ptr::null());
             if !arg2.is_empty() {
                 dc_msg_set_text(&mut msg, arg2_c);
@@ -868,7 +865,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(sel_chat.is_some(), "No chat selected.");
 
             if !arg1.is_empty() {
-                let mut draft = dc_msg_new(context, Viewtype::Text);
+                let mut draft = dc_msg_new(Viewtype::Text);
                 dc_msg_set_text(&mut draft, arg1_c);
                 chat::set_draft(
                     context,

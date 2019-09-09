@@ -215,7 +215,7 @@ pub fn send_locations_to_chat(context: &Context, chat_id: u32, seconds: i64) {
         .is_ok()
         {
             if 0 != seconds && !is_sending_locations_before {
-                msg = dc_msg_new(context, Viewtype::Text);
+                msg = dc_msg_new(Viewtype::Text);
                 msg.text =
                     Some(context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", 0));
                 msg.param.set_int(Param::Cmd, 8);
@@ -606,7 +606,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
                                 // the easiest way to determine this, is to check for an empty message queue.
                                 // (might not be 100%, however, as positions are sent combined later
                                 // and dc_set_location() is typically called periodically, this is ok)
-                                let mut msg = dc_msg_new(context, Viewtype::Text);
+                                let mut msg = dc_msg_new(Viewtype::Text);
                                 msg.hidden = true;
                                 msg.param.set_int(Param::Cmd, 9);
                                 Some((chat_id, msg))

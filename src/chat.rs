@@ -635,7 +635,7 @@ pub fn get_by_contact_id(context: &Context, contact_id: u32) -> Result<u32, Erro
 pub fn prepare_msg<'a>(
     context: &'a Context,
     chat_id: u32,
-    msg: &mut Message<'a>,
+    msg: &mut Message,
 ) -> Result<u32, Error> {
     ensure!(
         chat_id > DC_CHAT_ID_LAST_SPECIAL,
@@ -665,13 +665,8 @@ pub fn msgtype_has_file(msgtype: Viewtype) -> bool {
     }
 }
 
-fn prepare_msg_common<'a>(
-    context: &'a Context,
-    chat_id: u32,
-    msg: &mut Message<'a>,
-) -> Result<u32, Error> {
+fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u32, Error> {
     msg.id = 0;
-    msg.context = context;
 
     if msg.type_0 == Viewtype::Text {
         // the caller should check if the message text is empty
@@ -787,11 +782,7 @@ pub fn unarchive(context: &Context, chat_id: u32) -> Result<(), Error> {
 /// However, this does not imply, the message really reached the recipient -
 /// sending may be delayed eg. due to network problems. However, from your
 /// view, you're done with the message. Sooner or later it will find its way.
-pub fn send_msg<'a>(
-    context: &'a Context,
-    chat_id: u32,
-    msg: &mut Message<'a>,
-) -> Result<u32, Error> {
+pub fn send_msg(context: &Context, chat_id: u32, msg: &mut Message) -> Result<u32, Error> {
     if msg.state != MessageState::OutPreparing {
         // automatically prepare normal messages
         prepare_msg_common(context, chat_id, msg)?;
@@ -835,7 +826,7 @@ pub fn send_msg<'a>(
                 }
             }
             msg.param.remove(Param::PrepForwards);
-            dc_msg_save_param_to_disk(msg);
+            dc_msg_save_param_to_disk(context, msg);
         }
     }
 
@@ -853,7 +844,7 @@ pub unsafe fn send_text_msg(
         chat_id
     );
 
-    let mut msg = dc_msg_new(context, Viewtype::Text);
+    let mut msg = dc_msg_new(Viewtype::Text);
     msg.text = Some(text_to_send);
     send_msg(context, chat_id, &mut msg)
 }
@@ -1295,7 +1286,7 @@ pub unsafe fn create_group_chat(
 
     if chat_id != 0 {
         if 0 != add_to_chat_contacts_table(context, chat_id, 1) {
-            let mut draft_msg = dc_msg_new(context, Viewtype::Text);
+            let mut draft_msg = dc_msg_new(Viewtype::Text);
             dc_msg_set_text(&mut draft_msg, draft_txt.as_ptr());
             set_draft_raw(context, chat_id, Some(&mut draft_msg));
         }
@@ -1340,7 +1331,7 @@ pub fn add_contact_to_chat_ex(
     if contact.is_err() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
         return 0;
     }
-    let mut msg = unsafe { dc_msg_new_untyped(context) };
+    let mut msg = dc_msg_new_untyped();
 
     reset_gossiped_timestamp(context, chat_id);
     let contact = contact.unwrap();
@@ -1489,7 +1480,7 @@ pub unsafe fn remove_contact_from_chat(
         "Cannot remove special contact"
     );
 
-    let mut msg = dc_msg_new_untyped(context);
+    let mut msg = dc_msg_new_untyped();
     let mut success = false;
 
     /* we do not check if "contact_id" exists but just delete all records with the id from chats_contacts */
@@ -1588,7 +1579,7 @@ pub unsafe fn set_chat_name(
     ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
 
     let chat = Chat::load_from_db(context, chat_id)?;
-    let mut msg = dc_msg_new_untyped(context);
+    let mut msg = dc_msg_new_untyped();
 
     if real_group_exists(context, chat_id) {
         if &chat.name == new_name.as_ref() {
@@ -1684,7 +1675,7 @@ pub fn set_chat_profile_image(
         chat.param.set(Param::ProfileImage, &new_image_rel);
         if chat.update_param().is_ok() {
             if chat.is_promoted() {
-                let mut msg = unsafe { dc_msg_new_untyped(context) };
+                let mut msg = dc_msg_new_untyped();
                 msg.param.set_int(Param::Cmd, DC_CMD_GROUPIMAGE_CHANGED);
                 msg.type_0 = Viewtype::Text;
                 msg.text = Some(context.stock_system_msg(
@@ -1779,7 +1770,7 @@ pub unsafe fn forward_msgs(
                     msg.param.set(Param::PrepForwards, new_msg_id.to_string());
                 }
 
-                dc_msg_save_param_to_disk(&mut msg);
+                dc_msg_save_param_to_disk(context, &mut msg);
                 msg.param = save_param;
             } else {
                 msg.state = MessageState::OutPending;
