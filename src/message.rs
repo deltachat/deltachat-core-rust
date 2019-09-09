@@ -165,7 +165,6 @@ pub struct Message<'a> {
 
 // handle messages
 pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_char {
-    let mut p: *mut libc::c_char;
     let mut ret = String::new();
 
     let msg = dc_msg_load_from_db(context, msg_id);
@@ -271,7 +270,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         _ => {}
     }
 
-    p = dc_msg_get_file(&msg);
+    let p = dc_msg_get_file(&msg);
     if !p.is_null() && 0 != *p.offset(0isize) as libc::c_int {
         ret += &format!(
             "\nFile: {}, {}, bytes\n",
@@ -285,9 +284,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         ret += "Type: ";
         ret += &format!("{}", msg.type_0);
         ret += "\n";
-        p = dc_msg_get_filemime(&msg);
-        ret += &format!("Mimetype: {}\n", as_str(p));
-        free(p as *mut libc::c_void);
+        ret += &format!("Mimetype: {}\n", &dc_msg_get_filemime(&msg));
     }
     let w = msg.param.get_int(Param::Width).unwrap_or_default();
     let h = msg.param.get_int(Param::Height).unwrap_or_default();
@@ -353,16 +350,16 @@ impl<'a> Drop for Message<'a> {
     }
 }
 
-pub unsafe fn dc_msg_get_filemime(msg: &Message) -> *mut libc::c_char {
+pub fn dc_msg_get_filemime(msg: &Message) -> String {
     if let Some(m) = msg.param.get(Param::MimeType) {
-        return m.strdup();
+        return m.to_string();
     } else if let Some(file) = msg.param.get(Param::File) {
         if let Some((_, mime)) = dc_msg_guess_msgtype_from_suffix(Path::new(file)) {
-            return mime.strdup();
+            return mime.to_string();
         }
     }
 
-    "application/octet-stream".strdup()
+    "application/octet-stream".to_string()
 }
 
 pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)> {
