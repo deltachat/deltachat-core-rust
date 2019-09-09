@@ -211,12 +211,8 @@ pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<Strin
     let encr = {
         let private_key_asc_c = CString::yolo(private_key_asc);
         let passphrase_c = CString::yolo(passphrase);
-        dc_pgp_symm_encrypt(
-            passphrase_c.as_ptr(),
-            private_key_asc_c.as_ptr() as *const libc::c_void,
-            private_key_asc_c.as_bytes().len(),
-        )
-        .ok_or(format_err!("Failed to encrypt private key."))?
+        dc_pgp_symm_encrypt(passphrase_c.as_ptr(), private_key_asc_c.as_bytes())
+            .ok_or(format_err!("Failed to encrypt private key."))?
     };
     let replacement = format!(
         concat!(
@@ -449,9 +445,10 @@ pub unsafe fn dc_decrypt_setup_file(
             || binary_bytes == 0)
         {
             /* decrypt symmetrically */
-            if let Some(plain) =
-                dc_pgp_symm_decrypt(passphrase, binary as *const libc::c_void, binary_bytes)
-            {
+            if let Some(plain) = dc_pgp_symm_decrypt(
+                passphrase,
+                std::slice::from_raw_parts(binary as *const u8, binary_bytes),
+            ) {
                 let payload_c = CString::new(plain).unwrap();
                 payload = strdup(payload_c.as_ptr());
             }
