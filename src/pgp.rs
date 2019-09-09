@@ -188,15 +188,11 @@ pub fn dc_pgp_create_keypair(addr: impl AsRef<str>) -> Option<(Key, Key)> {
 }
 
 pub fn dc_pgp_pk_encrypt(
-    plain_text: *const libc::c_void,
-    plain_bytes: size_t,
+    plain: &[u8],
     public_keys_for_encryption: &Keyring,
     private_key_for_signing: Option<&Key>,
 ) -> Option<String> {
-    assert!(!plain_text.is_null() && !plain_bytes > 0, "invalid input");
-
-    let bytes = unsafe { std::slice::from_raw_parts(plain_text as *const u8, plain_bytes) };
-    let lit_msg = Message::new_literal_bytes("", bytes);
+    let lit_msg = Message::new_literal_bytes("", plain);
     let pkeys: Vec<&SignedPublicKey> = public_keys_for_encryption
         .keys()
         .into_iter()
@@ -227,16 +223,11 @@ pub fn dc_pgp_pk_encrypt(
 }
 
 pub fn dc_pgp_pk_decrypt(
-    ctext: *const libc::c_void,
-    ctext_bytes: size_t,
+    ctext: &[u8],
     private_keys_for_decryption: &Keyring,
     public_keys_for_validation: &Keyring,
     ret_signature_fingerprints: Option<&mut HashSet<String>>,
 ) -> Option<Vec<u8>> {
-    assert!(!ctext.is_null() && ctext_bytes > 0, "invalid input");
-
-    let ctext = unsafe { std::slice::from_raw_parts(ctext as *const u8, ctext_bytes) };
-
     // TODO: proper error handling
     if let Ok((msg, _)) = Message::from_armor_single(Cursor::new(ctext)) {
         let skeys: Vec<&SignedSecretKey> = private_keys_for_decryption
@@ -283,19 +274,13 @@ pub fn dc_pgp_pk_decrypt(
 }
 
 /// Symmetric encryption.
-pub fn dc_pgp_symm_encrypt(
-    passphrase: *const libc::c_char,
-    plain: *const libc::c_void,
-    plain_bytes: size_t,
-) -> Option<String> {
+pub fn dc_pgp_symm_encrypt(passphrase: *const libc::c_char, plain: &[u8]) -> Option<String> {
     assert!(!passphrase.is_null(), "invalid passphrase");
-    assert!(!plain.is_null() && !plain_bytes > 0, "invalid input");
 
     let pw = unsafe { CStr::from_ptr(passphrase).to_str().unwrap() };
-    let bytes = unsafe { std::slice::from_raw_parts(plain as *const u8, plain_bytes) };
 
     let mut rng = thread_rng();
-    let lit_msg = Message::new_literal_bytes("", bytes);
+    let lit_msg = Message::new_literal_bytes("", plain);
 
     let s2k = StringToKey::new_default(&mut rng);
     let msg = lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || pw.into());
@@ -304,18 +289,12 @@ pub fn dc_pgp_symm_encrypt(
 }
 
 /// Symmetric decryption.
-pub fn dc_pgp_symm_decrypt(
-    passphrase: *const libc::c_char,
-    ctext: *const libc::c_void,
-    ctext_bytes: size_t,
-) -> Option<Vec<u8>> {
+pub fn dc_pgp_symm_decrypt(passphrase: *const libc::c_char, ctext: &[u8]) -> Option<Vec<u8>> {
     assert!(!passphrase.is_null(), "invalid passphrase");
-    assert!(!ctext.is_null() && !ctext_bytes > 0, "invalid input");
 
     let pw = unsafe { CStr::from_ptr(passphrase).to_str().unwrap() };
-    let bytes = unsafe { std::slice::from_raw_parts(ctext as *const u8, ctext_bytes) };
 
-    let enc_msg = Message::from_bytes(Cursor::new(bytes));
+    let enc_msg = Message::from_bytes(Cursor::new(ctext));
 
     enc_msg
         .and_then(|msg| {

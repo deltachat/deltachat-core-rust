@@ -1,7 +1,6 @@
 //! Stress some functions for testing; if used as a lib, this file is obsolete.
 
 use std::collections::HashSet;
-use std::ffi::CString;
 use std::ptr;
 
 use tempfile::{tempdir, TempDir};
@@ -494,38 +493,19 @@ fn test_encryption_decryption() {
 
         assert_ne!(public_key, public_key2);
 
-        let original_text: *const libc::c_char =
-            b"This is a test\x00" as *const u8 as *const libc::c_char;
+        let original_text = b"This is a test";
         let mut keyring = Keyring::default();
         keyring.add_owned(public_key.clone());
         keyring.add_ref(&public_key2);
 
-        let ctext = dc_pgp_pk_encrypt(
-            original_text as *const libc::c_void,
-            strlen(original_text),
-            &keyring,
-            Some(&private_key),
-        )
-        .unwrap();
+        let ctext = dc_pgp_pk_encrypt(original_text, &keyring, Some(&private_key)).unwrap();
 
         assert!(!ctext.is_empty());
         assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
 
-        let ctext_signed_bytes = ctext.len();
-        let ctext_signed = CString::yolo(ctext);
-
-        let ctext = dc_pgp_pk_encrypt(
-            original_text as *const libc::c_void,
-            strlen(original_text),
-            &keyring,
-            None,
-        )
-        .unwrap();
+        let ctext = dc_pgp_pk_encrypt(original_text, &keyring, None).unwrap();
         assert!(!ctext.is_empty());
         assert!(ctext.starts_with("-----BEGIN PGP MESSAGE-----"));
-
-        let ctext_unsigned_bytes = ctext.len();
-        let ctext_unsigned = CString::yolo(ctext);
 
         let mut keyring = Keyring::default();
         keyring.add_owned(private_key);
@@ -539,42 +519,39 @@ fn test_encryption_decryption() {
         let mut valid_signatures: HashSet<String> = Default::default();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
-            ctext_signed_bytes,
+            ctext.as_bytes(),
             &keyring,
             &public_keyring,
             Some(&mut valid_signatures),
         )
         .unwrap();
 
-        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
+        assert_eq!(plain, original_text,);
         assert_eq!(valid_signatures.len(), 1);
 
         valid_signatures.clear();
 
         let empty_keyring = Keyring::default();
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
-            ctext_signed_bytes,
+            ctext.as_bytes(),
             &keyring,
             &empty_keyring,
             Some(&mut valid_signatures),
         )
         .unwrap();
-        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
+        assert_eq!(plain, original_text);
         assert_eq!(valid_signatures.len(), 0);
 
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
-            ctext_signed_bytes,
+            ctext.as_bytes(),
             &keyring,
             &public_keyring2,
             Some(&mut valid_signatures),
         )
         .unwrap();
-        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
+        assert_eq!(plain, original_text);
         assert_eq!(valid_signatures.len(), 0);
 
         valid_signatures.clear();
@@ -582,28 +559,26 @@ fn test_encryption_decryption() {
         public_keyring2.add_ref(&public_key);
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
-            ctext_signed_bytes,
+            ctext.as_bytes(),
             &keyring,
             &public_keyring2,
             Some(&mut valid_signatures),
         )
         .unwrap();
-        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
+        assert_eq!(plain, original_text);
         assert_eq!(valid_signatures.len(), 1);
 
         valid_signatures.clear();
 
         let plain = dc_pgp_pk_decrypt(
-            ctext_unsigned.as_ptr() as *const _,
-            ctext_unsigned_bytes,
+            ctext.as_bytes(),
             &keyring,
             &public_keyring,
             Some(&mut valid_signatures),
         )
         .unwrap();
 
-        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
+        assert_eq!(plain, original_text);
 
         valid_signatures.clear();
 
@@ -612,16 +587,9 @@ fn test_encryption_decryption() {
         let mut public_keyring = Keyring::default();
         public_keyring.add_ref(&public_key);
 
-        let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_ptr() as *const _,
-            ctext_signed_bytes,
-            &keyring,
-            &public_keyring,
-            None,
-        )
-        .unwrap();
+        let plain = dc_pgp_pk_decrypt(ctext.as_bytes(), &keyring, &public_keyring, None).unwrap();
 
-        assert_eq!(std::str::from_utf8(&plain).unwrap(), as_str(original_text),);
+        assert_eq!(plain, original_text);
     }
 }
 
