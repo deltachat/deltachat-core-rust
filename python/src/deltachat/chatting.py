@@ -350,7 +350,7 @@ class Chat(object):
         """Get group profile image.
 
         For groups, this is the image set by any group member using
-        dc_set_chat_profile_image(). For normal chats, this is the image
+        set_chat_profile_image(). For normal chats, this is the image
         set by each remote user on their own using dc_set_config(context,
         "selfavatar", image).
         :returns: path to profile image, None if no profile image exists.

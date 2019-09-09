@@ -1,6 +1,7 @@
 use deltachat_derive::*;
 use itertools::Itertools;
 use rusqlite;
+use std::path::PathBuf;
 
 use crate::aheader::EncryptPreference;
 use crate::config::Config;
@@ -766,9 +767,11 @@ impl<'a> Contact<'a> {
     /// Get the contact's profile image.
     /// This is the image set by each remote user on their own
     /// using dc_set_config(context, "selfavatar", image).
-    pub fn get_profile_image(&self) -> Option<String> {
+    pub fn get_profile_image(&self) -> Option<PathBuf> {
         if self.id == DC_CONTACT_ID_SELF {
-            return self.context.get_config(Config::Selfavatar);
+            if let Some(p) = self.context.get_config(Config::Selfavatar) {
+                return Some(PathBuf::from(p));
+            }
         }
         // TODO: else get image_abs from contact param
         None
