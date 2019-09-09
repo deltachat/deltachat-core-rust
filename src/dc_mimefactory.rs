@@ -1218,7 +1218,7 @@ unsafe fn build_body_file(
             /* create mime part, for Content-Disposition, see RFC 2183.
             `Content-Disposition: attachment` seems not to make a difference to `Content-Disposition: inline` at least on tested Thunderbird and Gma'l in 2017.
             But I've heard about problems with inline and outl'k, so we just use the attachment-type until we run into other problems ... */
-            needs_ext = dc_needs_ext_header(filename_to_send);
+            needs_ext = dc_needs_ext_header(as_str(filename_to_send));
             mime_fields = mailmime_fields_new_filename(
                 MAILMIME_DISPOSITION_TYPE_ATTACHMENT as libc::c_int,
                 if needs_ext {
@@ -1255,7 +1255,7 @@ unsafe fn build_body_file(
                                         strdup(
                                             b"filename*\x00" as *const u8 as *const libc::c_char,
                                         ),
-                                        dc_encode_ext_header(filename_to_send),
+                                        dc_encode_ext_header(as_str(filename_to_send)).strdup(),
                                     ),
                                 );
                             if !parm.is_null() {
