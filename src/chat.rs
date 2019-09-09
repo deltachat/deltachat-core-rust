@@ -1,5 +1,5 @@
 use std::ffi::CString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::chatlist::*;
 use crate::constants::*;
@@ -187,15 +187,10 @@ impl<'a> Chat<'a> {
             .ok()
     }
 
-    pub fn get_profile_image(&self) -> Option<String> {
+    pub fn get_profile_image(&self) -> Option<PathBuf> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Some(
-                    dc_get_abs_path_safe(self.context, image_rel)
-                        .to_str()
-                        .unwrap()
-                        .to_string(),
-                );
+                return Some(dc_get_abs_path_safe(self.context, image_rel));
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(self.context, self.id);
@@ -1658,13 +1653,14 @@ pub unsafe fn set_chat_name(
 pub fn set_chat_profile_image(
     context: &Context,
     chat_id: u32,
-    new_image: impl AsRef<str>,
+    new_image: impl AsRef<str>, // XXX use PathBuf
 ) -> Result<(), Error> {
     ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
 
     let mut chat = Chat::load_from_db(context, chat_id)?;
 
     if real_group_exists(context, chat_id) {
+        /* we should respect this - whatever we send to the group, it gets discarded anyway! */
         if !(is_contact_in_chat(context, chat_id, DC_CONTACT_ID_SELF) == 1i32) {
             log_event!(
                 context,
@@ -1672,7 +1668,6 @@ pub fn set_chat_profile_image(
                 0,
                 "Cannot set chat profile image; self not in group.",
             );
-            /* we should respect this - whatever we send to the group, it gets discarded anyway! */
             bail!("Failed to set profile image");
         }
         let mut new_image_rel: String;

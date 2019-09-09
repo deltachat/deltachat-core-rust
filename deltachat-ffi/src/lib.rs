@@ -1786,7 +1786,7 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
     let chat = &*chat;
 
     match chat.get_profile_image() {
-        Some(i) => i.strdup(),
+        Some(p) => p.to_str().unwrap().to_string().strdup(),
         None => ptr::null_mut(),
     }
 }
@@ -2403,7 +2403,7 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
 
     contact
         .get_profile_image()
-        .map(|s| s.strdup())
+        .map(|p| p.to_str().unwrap().to_string().strdup())
         .unwrap_or_else(|| std::ptr::null_mut())
 }
 

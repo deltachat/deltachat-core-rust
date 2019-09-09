@@ -609,15 +609,15 @@ class TestOnlineAccount:
         chat = ac1.create_group_chat("hello")
         p = data.get_path("d.png")
 
-        lp.sec("set profile image")
+        lp.sec("ac1: set profile image on unpromoted chat")
         chat.set_profile_image(p)
         ac1._evlogger.get_matching("DC_EVENT_CHAT_MODIFIED")
         assert not chat.is_promoted()
 
-        # XXX first promote the chat before setting group image
-        # because DC does not honor it before promotion happened
-        # unless you add yet another member, see step below.
-
+        lp.sec("ac1: send text to promote chat (XXX without contact added)")
+        # XXX first promote the chat before adding contact
+        # because DC does not send out profile images for unpromoted chats
+        # otherwise
         chat.send_text("ac1: initial message to promote chat (workaround)")
         assert chat.is_promoted()
 
@@ -628,7 +628,7 @@ class TestOnlineAccount:
 
         lp.sec("ac1: add ac2 to promoted group chat")
         c2 = ac1.create_contact(email=ac2.get_config("addr"))
-        contact1 = chat.add_contact(c2)
+        chat.add_contact(c2)
 
         lp.sec("ac1: send a first message to ac2")
         chat.send_text("hi")
@@ -654,9 +654,3 @@ class TestOnlineAccount:
         chat1b = ac1.create_chat_by_message(ev[2])
         assert chat1b.get_profile_image() is None
         assert chat.get_profile_image() is None
-
-
-
-
-
-
