@@ -2025,7 +2025,7 @@ pub unsafe extern "C" fn dc_msg_get_filemime(msg: *mut dc_msg_t) -> *mut libc::c
     }
 
     let msg = &*msg;
-    message::dc_msg_get_filemime(msg)
+    message::dc_msg_get_filemime(msg).strdup()
 }
 
 #[no_mangle]
