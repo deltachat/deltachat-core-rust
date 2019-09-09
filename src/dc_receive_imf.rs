@@ -923,7 +923,7 @@ unsafe fn handle_reports(
     }
 }
 
-unsafe fn save_locations(
+fn save_locations(
     context: &Context,
     mime_parser: &dc_mimeparser_t,
     chat_id: u32,
@@ -1681,10 +1681,7 @@ fn hex_hash(s: impl AsRef<str>) -> String {
 }
 
 #[allow(non_snake_case)]
-unsafe fn search_chat_ids_by_contact_ids(
-    context: &Context,
-    unsorted_contact_ids: &Vec<u32>,
-) -> Vec<u32> {
+fn search_chat_ids_by_contact_ids(context: &Context, unsorted_contact_ids: &Vec<u32>) -> Vec<u32> {
     /* searches chat_id's by the given contact IDs, may return zero, one or more chat_id's */
     let mut contact_ids = Vec::with_capacity(23);
     let mut chat_ids = Vec::with_capacity(23);
@@ -1701,7 +1698,13 @@ unsafe fn search_chat_ids_by_contact_ids(
             let contact_ids_str = join(contact_ids.iter().map(|x| x.to_string()), ",");
             context.sql.query_map(
                 format!(
-                    "SELECT DISTINCT cc.chat_id, cc.contact_id  FROM chats_contacts cc  LEFT JOIN chats c ON c.id=cc.chat_id  WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({}))   AND c.type=120   AND cc.contact_id!=1 ORDER BY cc.chat_id, cc.contact_id;",
+                    "SELECT DISTINCT cc.chat_id, cc.contact_id \
+                       FROM chats_contacts cc \
+                       LEFT JOIN chats c ON c.id=cc.chat_id \
+                       WHERE cc.chat_id IN(SELECT chat_id FROM chats_contacts WHERE contact_id IN({})) \
+                         AND c.type=120 \
+                         AND cc.contact_id!=1 \
+                       ORDER BY cc.chat_id, cc.contact_id;",
                     contact_ids_str
                 ),
                 params![],
@@ -1713,15 +1716,15 @@ unsafe fn search_chat_ids_by_contact_ids(
 
                     for row in rows {
                         let (chat_id, contact_id) = row?;
-                        if chat_id as u32 != last_chat_id {
+                        if chat_id != last_chat_id {
                             if matches == contact_ids.len() && mismatches == 0 {
                                 chat_ids.push(last_chat_id);
                             }
-                            last_chat_id = chat_id as u32;
+                            last_chat_id = chat_id;
                             matches = 0;
                             mismatches = 0;
                         }
-                        if contact_id == contact_ids[matches] {
+                        if matches < contact_ids.len() && contact_id == contact_ids[matches] {
                             matches += 1;
                         } else {
                             mismatches += 1;
