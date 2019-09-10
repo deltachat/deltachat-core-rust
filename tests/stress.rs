@@ -12,7 +12,6 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_tools::*;
-use deltachat::key::*;
 use deltachat::keyring::*;
 use deltachat::oauth2::*;
 use deltachat::pgp::*;
@@ -461,24 +460,6 @@ unsafe fn stress_functions(context: &Context) {
 #[test]
 #[ignore] // is too expensive
 fn test_encryption_decryption() {
-    let mut bad_data: [u8; 4096] = [0; 4096];
-
-    for i in 0..4096 {
-        bad_data[i] = (i & 0xff) as u8;
-    }
-
-    for j in 0..(4096 / 40) {
-        let bad_key = Key::from_slice(
-            &bad_data[j..j + 4096 / 2 + j],
-            if 0 != j & 1 {
-                KeyType::Public
-            } else {
-                KeyType::Private
-            },
-        );
-        assert!(bad_key.is_none());
-    }
-
     let (public_key, private_key) = dc_pgp_create_keypair("foo@bar.de").unwrap();
 
     private_key.split_key().unwrap();

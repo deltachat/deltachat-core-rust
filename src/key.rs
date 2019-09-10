@@ -440,6 +440,27 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
     }
 
     #[test]
+    fn test_from_slice_bad_data() {
+        let mut bad_data: [u8; 4096] = [0; 4096];
+
+        for i in 0..4096 {
+            bad_data[i] = (i & 0xff) as u8;
+        }
+
+        for j in 0..(4096 / 40) {
+            let bad_key = Key::from_slice(
+                &bad_data[j..j + 4096 / 2 + j],
+                if 0 != j & 1 {
+                    KeyType::Public
+                } else {
+                    KeyType::Private
+                },
+            );
+            assert!(bad_key.is_none());
+        }
+    }
+
+    #[test]
     #[ignore] // is too expensive
     fn test_ascii_roundtrip() {
         let (public_key, private_key) = crate::pgp::dc_pgp_create_keypair("hello").unwrap();
