@@ -156,9 +156,7 @@ impl Job {
                     /* if there is a msg-id and it does not exist in the db, cancel sending.
                     this happends if dc_delete_msgs() was called
                     before the generated mime was sent out */
-                    if 0 != self.foreign_id
-                        && 0 == unsafe { dc_msg_exists(context, self.foreign_id) }
-                    {
+                    if 0 != self.foreign_id && !dc_msg_exists(context, self.foreign_id) {
                         warn!(
                             context,
                             0, "Message {} for job {} does not exist", self.foreign_id, self.job_id,
