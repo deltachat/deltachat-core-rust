@@ -6,6 +6,8 @@ import os
 import re
 
 if __name__ == "__main__":
+    if Path('src/top_evil_rs.py').exists():
+        os.chdir('src')
     filestats = []
     for fn in Path(".").glob("**/*.rs"):
         s = fn.read_text()
