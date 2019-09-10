@@ -461,28 +461,22 @@ unsafe fn stress_functions(context: &Context) {
 #[test]
 #[ignore] // is too expensive
 fn test_encryption_decryption() {
-    unsafe {
-        let mut bad_data: [libc::c_uchar; 4096] = [0; 4096];
-        let mut i_0: libc::c_int = 0i32;
-        while i_0 < 4096i32 {
-            bad_data[i_0 as usize] = (i_0 & 0xffi32) as libc::c_uchar;
-            i_0 += 1
-        }
-        let mut j: libc::c_int = 0i32;
+        let mut bad_data: [u8; 4096] = [0; 4096];
 
-        while j < 4096 / 40 {
-            let bad_key = Key::from_binary(
-                &mut *bad_data.as_mut_ptr().offset(j as isize) as *const u8,
-                4096 / 2 + j,
+        for i in 0..4096 {
+            bad_data[i] = (i & 0xff) as u8;
+        }
+
+        for j in 0..(4096 / 40) {
+            let bad_key = Key::from_slice(
+                &bad_data[j..j + 4096 / 2 + j],
                 if 0 != j & 1 {
                     KeyType::Public
                 } else {
                     KeyType::Private
                 },
             );
-
             assert!(bad_key.is_none());
-            j += 1
         }
 
         let (public_key, private_key) = dc_pgp_create_keypair("foo@bar.de").unwrap();
@@ -590,7 +584,6 @@ fn test_encryption_decryption() {
             dc_pgp_pk_decrypt(ctext_signed.as_bytes(), &keyring, &public_keyring, None).unwrap();
 
         assert_eq!(plain, original_text);
-    }
 }
 
 unsafe extern "C" fn cb(
