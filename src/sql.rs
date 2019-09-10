@@ -259,6 +259,20 @@ impl Sql {
         self.get_config(context, key).and_then(|s| s.parse().ok())
     }
 
+    pub fn get_config_bool(&self, context: &Context, key: impl AsRef<str>) -> bool {
+        // Not the most obvious way to encode bool as string, but it is matter
+        // of backward compatibility.
+        self.get_config_int(context, key).unwrap_or_default() > 0
+    }
+
+    pub fn set_config_bool<T>(&self, context: &Context, key: T, value: bool) -> Result<()>
+    where
+        T: AsRef<str>,
+    {
+        let value = if value { Some("1") } else { None };
+        self.set_config(context, key, value)
+    }
+
     pub fn set_config_int64(
         &self,
         context: &Context,
