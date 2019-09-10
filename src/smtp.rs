@@ -45,7 +45,7 @@ impl Smtp {
     /// Connect using the provided login params
     pub fn connect(&mut self, context: &Context, lp: &LoginParam) -> bool {
         if self.is_connected() {
-            warn!(context, 0, "SMTP already connected.");
+            warn!(context, "SMTP already connected.");
             return true;
         }
 
@@ -119,7 +119,7 @@ impl Smtp {
                 true
             }
             Err(err) => {
-                warn!(context, 0, "SMTP: failed to establish connection {:?}", err);
+                warn!(context, "SMTP: failed to establish connection {:?}", err);
                 false
             }
         }
@@ -151,7 +151,7 @@ impl Smtp {
                     1
                 }
                 Err(err) => {
-                    warn!(context, 0, "SMTP failed to send message: {}", err);
+                    warn!(context, "SMTP failed to send message: {}", err);
                     self.error = Some(format!("{}", err));
                     0
                 }

@@ -28,10 +28,10 @@ use num_traits::FromPrimitive;
 /// Argument is a bitmask, executing single or multiple actions in one call.
 /// e.g. bitmask 7 triggers actions definded with bits 1, 2 and 4.
 pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
-    info!(context, 0, "Resetting tables ({})...", bits);
+    info!(context, "Resetting tables ({})...", bits);
     if 0 != bits & 1 {
         sql::execute(context, &context.sql, "DELETE FROM jobs;", params![]).unwrap();
-        info!(context, 0, "(1) Jobs reset.");
+        info!(context, "(1) Jobs reset.");
     }
     if 0 != bits & 2 {
         sql::execute(
@@ -41,11 +41,11 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
             params![],
         )
         .unwrap();
-        info!(context, 0, "(2) Peerstates reset.");
+        info!(context, "(2) Peerstates reset.");
     }
     if 0 != bits & 4 {
         sql::execute(context, &context.sql, "DELETE FROM keypairs;", params![]).unwrap();
-        info!(context, 0, "(4) Private keypairs reset.");
+        info!(context, "(4) Private keypairs reset.");
     }
     if 0 != bits & 8 {
         sql::execute(
@@ -84,7 +84,7 @@ pub unsafe fn dc_reset_tables(context: &Context, bits: i32) -> i32 {
         )
         .unwrap();
         sql::execute(context, &context.sql, "DELETE FROM leftgrps;", params![]).unwrap();
-        info!(context, 0, "(8) Rest but server config reset.");
+        info!(context, "(8) Rest but server config reset.");
     }
 
     context.call_cb(Event::MSGS_CHANGED, 0, 0);
@@ -122,7 +122,7 @@ unsafe fn dc_poke_eml_file(context: &Context, filename: *const libc::c_char) -> 
 /// @return 1=success, 0=error.
 unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int {
     if !context.sql.is_open() {
-        error!(context, 0, "Import: Database not opened.");
+        error!(context, "Import: Database not opened.");
         return 0;
     }
 
@@ -143,7 +143,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
     } else {
         let rs = context.sql.get_config(context, "import_spec");
         if rs.is_none() {
-            error!(context, 0, "Import: No file or folder given.");
+            error!(context, "Import: No file or folder given.");
             ok_to_continue = false;
         } else {
             ok_to_continue = true;
@@ -166,7 +166,6 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
             if dir.is_err() {
                 error!(
                     context,
-                    0,
                     "Import: Cannot open directory \"{}\".",
                     as_str(real_spec),
                 );
@@ -182,7 +181,7 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
                     let name = name_f.to_string_lossy();
                     if name.ends_with(".eml") {
                         let path_plus_name = format!("{}/{}", as_str(real_spec), name);
-                        info!(context, 0, "Import: {}", path_plus_name);
+                        info!(context, "Import: {}", path_plus_name);
                         let path_plus_name_c = CString::yolo(path_plus_name);
                         if 0 != dc_poke_eml_file(context, path_plus_name_c.as_ptr()) {
                             read_cnt += 1
@@ -195,7 +194,6 @@ unsafe fn poke_spec(context: &Context, spec: *const libc::c_char) -> libc::c_int
         if ok_to_continue2 {
             info!(
                 context,
-                0,
                 "Import: {} items read from \"{}\".",
                 read_cnt,
                 as_str(real_spec)
@@ -228,7 +226,6 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
     let msgtext = dc_msg_get_text(msg);
     info!(
         context,
-        0,
         "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{} [{}]",
         prefix.as_ref(),
         dc_msg_get_id(msg) as libc::c_int,
@@ -268,7 +265,6 @@ unsafe fn log_msglist(context: &Context, msglist: &Vec<u32>) -> Result<(), Error
         if msg_id == 9 as libc::c_uint {
             info!(
                 context,
-                0,
                 "--------------------------------------------------------------------------------"
             );
 
@@ -276,7 +272,7 @@ unsafe fn log_msglist(context: &Context, msglist: &Vec<u32>) -> Result<(), Error
         } else if msg_id > 0 {
             if lines_out == 0 {
                 info!(
-                    context, 0,
+                    context,
                     "--------------------------------------------------------------------------------",
                 );
                 lines_out += 1
@@ -288,7 +284,7 @@ unsafe fn log_msglist(context: &Context, msglist: &Vec<u32>) -> Result<(), Error
     if lines_out > 0 {
         info!(
             context,
-            0, "--------------------------------------------------------------------------------"
+            "--------------------------------------------------------------------------------"
         );
     }
     Ok(())
@@ -337,7 +333,7 @@ unsafe fn log_contactlist(context: &Context, contacts: &Vec<u32>) {
                 );
             }
 
-            info!(context, 0, "Contact#{}: {}{}", contact_id, line, line2);
+            info!(context, "Contact#{}: {}{}", contact_id, line, line2);
         }
     }
 }
@@ -579,7 +575,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let cnt = chatlist.len();
             if cnt > 0 {
                 info!(
-                    context, 0,
+                    context,
                     "================================================================================"
                 );
 
@@ -589,7 +585,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     let temp_name = chat.get_name();
                     info!(
                         context,
-                        0,
                         "{}#{}: {} [{}] [{} fresh]",
                         chat_prefix(&chat),
                         chat.get_id(),
@@ -614,7 +609,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                     let text2 = lot.get_text2();
                     info!(
                         context,
-                        0,
                         "{}{}{}{} [{}]{}",
                         text1.unwrap_or(""),
                         if text1.is_some() { ": " } else { "" },
@@ -628,13 +622,13 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         },
                     );
                     info!(
-                        context, 0,
+                        context,
                         "================================================================================"
                     );
                 }
             }
             if location::is_sending_locations_to_chat(context, 0 as uint32_t) {
-                info!(context, 0, "Location streaming enabled.");
+                info!(context, "Location streaming enabled.");
             }
             println!("{} chats", cnt);
         }
@@ -657,7 +651,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let temp_name = sel_chat.get_name();
             info!(
                 context,
-                0,
                 "{}#{}: {} [{}]{}",
                 chat_prefix(sel_chat),
                 sel_chat.get_id(),
@@ -753,7 +746,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(sel_chat.is_some(), "No chat selected.");
 
             let contacts = chat::get_chat_contacts(context, sel_chat.as_ref().unwrap().get_id());
-            info!(context, 0, "Memberlist:");
+            info!(context, "Memberlist:");
 
             log_contactlist(context, &contacts);
             println!(
@@ -781,7 +774,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 let marker = location.marker.as_ref().unwrap_or(&default_marker);
                 info!(
                     context,
-                    0,
                     "Loc#{}: {}: lat={} lng={} acc={} Chat#{} Contact#{} Msg#{} {}",
                     location.location_id,
                     dc_timestamp_to_str(location.timestamp),
@@ -795,7 +787,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 );
             }
             if locations.is_empty() {
-                info!(context, 0, "No locations.");
+                info!(context, "No locations.");
             }
         }
         "sendlocations" => {

@@ -91,7 +91,7 @@ impl E2eeHelper {
 
             if let Some(addr) = addr {
                 let pubkey_ret = load_or_generate_self_public_key(context, &addr).map_err(|err| {
-                    error!(context, 0, "Failed to load public key: {}", err);
+                    error!(context, "Failed to load public key: {}", err);
                     err
                 });
                 if let Ok(public_key) = pubkey_ret {
@@ -113,7 +113,7 @@ impl E2eeHelper {
                                     let peerstate = peerstate.unwrap();
                                     info!(
                                         context,
-                                        0, "dc_e2ee_encrypt {} has peerstate", recipient_addr
+                                        "dc_e2ee_encrypt {} has peerstate", recipient_addr
                                     );
                                     if let Some(key) = peerstate.peek_key(min_verified as usize) {
                                         keyring.add_owned(key.clone());
@@ -122,7 +122,6 @@ impl E2eeHelper {
                                 } else {
                                     info!(
                                         context,
-                                        0,
                                         "dc_e2ee_encrypt {} HAS NO peerstate {}",
                                         recipient_addr,
                                         peerstate.is_some()
@@ -608,7 +607,7 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
     let start = std::time::Instant::now();
     info!(
         context,
-        0, "Generating keypair with {} bits, e={} ...", 2048, 65537,
+        "Generating keypair with {} bits, e={} ...", 2048, 65537,
     );
     match dc_pgp_create_keypair(&self_addr) {
         Some((public_key, private_key)) => {
@@ -623,7 +622,6 @@ fn load_or_generate_self_public_key(context: &Context, self_addr: impl AsRef<str
                 true => {
                     info!(
                         context,
-                        0,
                         "Keypair generated in {:.3}s.",
                         start.elapsed().as_secs()
                     );
@@ -691,7 +689,6 @@ unsafe fn update_gossip_peerstates(
                     } else {
                         info!(
                             context,
-                            0,
                             "Ignoring gossipped \"{}\" as the address is not in To/Cc list.",
                             &header.addr,
                         );

@@ -65,7 +65,7 @@ impl<'a> Chat<'a> {
                 _ => {
                     error!(
                         context,
-                        0, "chat: failed to load from db {}: {:?}", chat_id, err
+                        "chat: failed to load from db {}: {:?}", chat_id, err
                     );
                     Err(err)
                 }
@@ -260,7 +260,7 @@ impl<'a> Chat<'a> {
             || self.typ == Chattype::Group
             || self.typ == Chattype::VerifiedGroup)
         {
-            error!(context, 0, "Cannot send to chat type #{}.", self.typ,);
+            error!(context, "Cannot send to chat type #{}.", self.typ,);
             return Ok(0);
         }
 
@@ -296,7 +296,7 @@ impl<'a> Chat<'a> {
                 } else {
                     error!(
                         context,
-                        0, "Cannot send message, contact for chat #{} not found.", self.id,
+                        "Cannot send message, contact for chat #{} not found.", self.id,
                     );
                     return Ok(0);
                 }
@@ -338,7 +338,6 @@ impl<'a> Chat<'a> {
                             if prefer_encrypted != 1 {
                                 info!(
                                     context,
-                                    0,
                                     "[autocrypt] peerstate for {} is {}",
                                     state,
                                     if prefer_encrypted == 0 {
@@ -350,7 +349,7 @@ impl<'a> Chat<'a> {
                                 all_mutual = 0;
                             }
                         } else {
-                            info!(context, 0, "[autocrypt] no peerstate for {}", state,);
+                            info!(context, "[autocrypt] no peerstate for {}", state,);
                             can_encrypt = 0;
                             all_mutual = 0;
                         }
@@ -360,7 +359,7 @@ impl<'a> Chat<'a> {
                 match res {
                     Ok(_) => {}
                     Err(err) => {
-                        warn!(context, 0, "chat: failed to load peerstates: {:?}", err);
+                        warn!(context, "chat: failed to load peerstates: {:?}", err);
                     }
                 }
 
@@ -464,13 +463,12 @@ impl<'a> Chat<'a> {
                     } else {
                         error!(
                             context,
-                            0,
                             "Cannot send message, cannot insert to database (chat #{}).",
                             self.id,
                         );
                     }
         } else {
-            error!(context, 0, "Cannot send message, not configured.",);
+            error!(context, "Cannot send message, not configured.",);
         }
 
         Ok(msg_id)
@@ -541,7 +539,7 @@ pub fn create_by_contact_id(context: &Context, contact_id: u32) -> Result<u32, E
             {
                 warn!(
                     context,
-                    0, "Cannot create chat, contact {} does not exist.", contact_id,
+                    "Cannot create chat, contact {} does not exist.", contact_id,
                 );
                 return Err(err);
             } else {
@@ -718,7 +716,7 @@ fn prepare_msg_common<'a>(
         }
         info!(
             context,
-            0, "Attaching \"{}\" for message type #{}.", &path_filename, msg.type_0
+            "Attaching \"{}\" for message type #{}.", &path_filename, msg.type_0
         );
     } else {
         bail!("Cannot send messages of type #{}.", msg.type_0);
@@ -751,7 +749,7 @@ fn last_msg_in_chat_encrypted(context: &Context, sql: &Sql, chat_id: u32) -> boo
         match packed.parse::<Params>() {
             Ok(param) => param.exists(Param::GuranteeE2ee),
             Err(err) => {
-                error!(context, 0, "invalid params stored: '{}', {:?}", packed, err);
+                error!(context, "invalid params stored: '{}', {:?}", packed, err);
                 false
             }
         }
@@ -1385,7 +1383,7 @@ pub fn add_contact_to_chat_ex(
                         if chat.typ == Chattype::VerifiedGroup {
                             if contact.is_verified() != VerifiedStatus::BidirectVerified {
                                 error!(
-                                    context, 0,
+                                    context,
                                     "Only bidirectional verified contacts can be added to verified groups."
                                 );
                                 OK_TO_CONTINUE = false;
@@ -1451,7 +1449,7 @@ pub fn set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
     if 0 != chat_id {
         info!(
             context,
-            0, "set gossiped_timestamp for chat #{} to {}.", chat_id, timestamp,
+            "set gossiped_timestamp for chat #{} to {}.", chat_id, timestamp,
         );
 
         sql::execute(
@@ -1464,7 +1462,7 @@ pub fn set_gossiped_timestamp(context: &Context, chat_id: u32, timestamp: i64) {
     } else {
         info!(
             context,
-            0, "set gossiped_timestamp for all chats to {}.", timestamp,
+            "set gossiped_timestamp for all chats to {}.", timestamp,
         );
         sql::execute(
             context,

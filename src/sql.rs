@@ -35,7 +35,7 @@ impl Sql {
         self.in_use.remove();
         // drop closes the connection
 
-        info!(context, 0, "Database closed.");
+        info!(context, "Database closed.");
     }
 
     // return true on success, false on failure
@@ -176,7 +176,7 @@ impl Sql {
                 rusqlite::types::Type::Null,
             ))) => None,
             Err(err) => {
-                error!(context, 0, "sql: Failed query_row: {}", err);
+                error!(context, "sql: Failed query_row: {}", err);
                 None
             }
         }
@@ -193,7 +193,7 @@ impl Sql {
         value: Option<&str>,
     ) -> Result<()> {
         if !self.is_open() {
-            error!(context, 0, "set_config(): Database not ready.");
+            error!(context, "set_config(): Database not ready.");
             return Err(Error::SqlNoConnection);
         }
 
@@ -227,7 +227,7 @@ impl Sql {
         match res {
             Ok(_) => Ok(()),
             Err(err) => {
-                error!(context, 0, "set_config(): Cannot change value. {:?}", &err);
+                error!(context, "set_config(): Cannot change value. {:?}", &err);
                 Err(err.into())
             }
         }
@@ -317,7 +317,6 @@ fn open(
     if sql.is_open() {
         error!(
             context,
-            0,
             "Cannot open, database \"{:?}\" already opened.",
             dbfile.as_ref(),
         );
@@ -351,7 +350,6 @@ fn open(
         if !sql.table_exists("config") {
             info!(
                 context,
-                0,
                 "First time init: creating tables in {:?}.",
                 dbfile.as_ref(),
             );
@@ -467,7 +465,6 @@ fn open(
             {
                 error!(
                     context,
-                    0,
                     "Cannot create tables in new database \"{:?}\".",
                     dbfile.as_ref(),
                 );
@@ -688,7 +685,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 46)?;
         }
         if dbversion < 47 {
-            info!(context, 0, "[migration] v47");
+            info!(context, "[migration] v47");
             sql.execute(
                 "ALTER TABLE jobs ADD COLUMN tries INTEGER DEFAULT 0;",
                 params![],
@@ -697,7 +694,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 47)?;
         }
         if dbversion < 48 {
-            info!(context, 0, "[migration] v48");
+            info!(context, "[migration] v48");
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN move_state INTEGER DEFAULT 1;",
                 params![],
@@ -707,7 +704,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 48)?;
         }
         if dbversion < 49 {
-            info!(context, 0, "[migration] v49");
+            info!(context, "[migration] v49");
             sql.execute(
                 "ALTER TABLE chats ADD COLUMN gossiped_timestamp INTEGER DEFAULT 0;",
                 params![],
@@ -716,7 +713,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 49)?;
         }
         if dbversion < 50 {
-            info!(context, 0, "[migration] v50");
+            info!(context, "[migration] v50");
             if 0 != exists_before_update {
                 sql.set_config_int(context, "show_emails", 2)?;
             }
@@ -724,7 +721,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 50)?;
         }
         if dbversion < 53 {
-            info!(context, 0, "[migration] v53");
+            info!(context, "[migration] v53");
             sql.execute(
                 "CREATE TABLE locations ( id INTEGER PRIMARY KEY AUTOINCREMENT, latitude REAL DEFAULT 0.0, longitude REAL DEFAULT 0.0, accuracy REAL DEFAULT 0.0, timestamp INTEGER DEFAULT 0, chat_id INTEGER DEFAULT 0, from_id INTEGER DEFAULT 0);",
                 params![]
@@ -757,7 +754,7 @@ fn open(
             sql.set_config_int(context, "dbversion", 53)?;
         }
         if dbversion < 54 {
-            info!(context, 0, "[migration] v54");
+            info!(context, "[migration] v54");
             sql.execute(
                 "ALTER TABLE msgs ADD COLUMN location_id INTEGER DEFAULT 0;",
                 params![],
@@ -797,7 +794,7 @@ fn open(
             // for newer versions, we copy files always to the blob directory and store relative paths.
             // this snippet converts older databases and can be removed after some time.
 
-            info!(context, 0, "[open] update file paths");
+            info!(context, "[open] update file paths");
 
             let repl_from = sql
                 .get_config(context, "backup_for")
@@ -824,7 +821,7 @@ fn open(
         }
     }
 
-    info!(context, 0, "Opened {:?}.", dbfile.as_ref(),);
+    info!(context, "Opened {:?}.", dbfile.as_ref(),);
 
     Ok(())
 }
@@ -839,7 +836,6 @@ where
         Err(err) => {
             error!(
                 context,
-                0,
                 "execute failed: {:?} for {}",
                 &err,
                 querystr.as_ref()
@@ -856,7 +852,6 @@ pub fn try_execute(context: &Context, sql: &Sql, querystr: impl AsRef<str>) -> R
         Err(err) => {
             warn!(
                 context,
-                0,
                 "Try-execute for \"{}\" failed: {}",
                 querystr.as_ref(),
                 &err,
@@ -900,7 +895,7 @@ pub fn get_rowid_with_conn(
         Err(err) => {
             error!(
                 context,
-                0, "sql: Failed to retrieve rowid: {} in {}", err, query
+                "sql: Failed to retrieve rowid: {} in {}", err, query
             );
             0
         }
@@ -947,7 +942,7 @@ pub fn get_rowid2_with_conn(
     ) {
         Ok(id) => id,
         Err(err) => {
-            error!(context, 0, "sql: Failed to retrieve rowid2: {}", err);
+            error!(context, "sql: Failed to retrieve rowid2: {}", err);
             0
         }
     }
@@ -957,7 +952,7 @@ pub fn housekeeping(context: &Context) {
     let mut files_in_use = HashSet::new();
     let mut unreferenced_count = 0;
 
-    info!(context, 0, "Start housekeeping...");
+    info!(context, "Start housekeeping...");
     maybe_add_from_param(
         context,
         &mut files_in_use,
@@ -997,10 +992,10 @@ pub fn housekeeping(context: &Context) {
             },
         )
         .unwrap_or_else(|err| {
-            warn!(context, 0, "sql: failed query: {}", err);
+            warn!(context, "sql: failed query: {}", err);
         });
 
-    info!(context, 0, "{} files in use.", files_in_use.len(),);
+    info!(context, "{} files in use.", files_in_use.len(),);
     /* go through directory and delete unused files */
     let p = std::path::Path::new(as_str(context.get_blobdir()));
     match std::fs::read_dir(p) {
@@ -1039,7 +1034,6 @@ pub fn housekeeping(context: &Context) {
                         if recently_created || recently_modified || recently_accessed {
                             info!(
                                 context,
-                                0,
                                 "Housekeeping: Keeping new unreferenced file #{}: {:?}",
                                 unreferenced_count,
                                 entry.file_name(),
@@ -1051,7 +1045,6 @@ pub fn housekeeping(context: &Context) {
                 }
                 info!(
                     context,
-                    0,
                     "Housekeeping: Deleting unreferenced file #{}: {:?}",
                     unreferenced_count,
                     entry.file_name()
@@ -1063,7 +1056,6 @@ pub fn housekeeping(context: &Context) {
         Err(err) => {
             warn!(
                 context,
-                0,
                 "Housekeeping: Cannot open {}. ({})",
                 as_str(context.get_blobdir()),
                 err
@@ -1071,7 +1063,7 @@ pub fn housekeeping(context: &Context) {
         }
     }
 
-    info!(context, 0, "Housekeeping done.",);
+    info!(context, "Housekeeping done.",);
 }
 
 fn is_file_in_use(files_in_use: &HashSet<String>, namespc_opt: Option<&str>, name: &str) -> bool {
@@ -1119,7 +1111,7 @@ fn maybe_add_from_param(
             },
         )
         .unwrap_or_else(|err| {
-            warn!(context, 0, "sql: failed to add_from_param: {}", err);
+            warn!(context, "sql: failed to add_from_param: {}", err);
         });
 }
 

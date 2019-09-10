@@ -1,44 +1,44 @@
 #[macro_export]
 macro_rules! info {
-    ($ctx:expr, $data1:expr, $msg:expr) => {
-        info!($ctx, $data1, $msg,)
+    ($ctx:expr,  $msg:expr) => {
+        info!($ctx, $msg,)
     };
-    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+    ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
         #[allow(unused_unsafe)]
         unsafe {
             let formatted = format!($msg, $($args),*);
             let formatted_c =  std::ffi::CString::new(formatted).unwrap();
-            $ctx.call_cb($crate::constants::Event::INFO, $data1 as libc::uintptr_t,
+            $ctx.call_cb($crate::constants::Event::INFO, 0,
                      formatted_c.as_ptr() as libc::uintptr_t);
     }};
 }
 
 #[macro_export]
 macro_rules! warn {
-    ($ctx:expr, $data1:expr, $msg:expr) => {
-        warn!($ctx, $data1, $msg,)
+    ($ctx:expr, $msg:expr) => {
+        warn!($ctx, $msg,)
     };
-    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+    ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
         #[allow(unused_unsafe)]
         unsafe {
             let formatted = format!($msg, $($args),*);
             let formatted_c = std::ffi::CString::new(formatted).unwrap();
-            $ctx.call_cb($crate::constants::Event::WARNING, $data1 as libc::uintptr_t,
+            $ctx.call_cb($crate::constants::Event::WARNING, 0,
                          formatted_c.as_ptr() as libc::uintptr_t);
         }};
 }
 
 #[macro_export]
 macro_rules! error {
-    ($ctx:expr, $data1:expr, $msg:expr) => {
-        error!($ctx, $data1, $msg,)
+    ($ctx:expr, $msg:expr) => {
+        error!($ctx, $msg,)
     };
-    ($ctx:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
+    ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
         #[allow(unused_unsafe)]
         unsafe {
         let formatted = format!($msg, $($args),*);
         let formatted_c = std::ffi::CString::new(formatted).unwrap();
-        $ctx.call_cb($crate::constants::Event::ERROR, $data1 as libc::uintptr_t,
+        $ctx.call_cb($crate::constants::Event::ERROR, 0,
                      formatted_c.as_ptr() as libc::uintptr_t);
     }};
 }

@@ -75,7 +75,6 @@ pub unsafe fn outlk_autodiscover(
                 Err(e) => {
                     error!(
                         context,
-                        0,
                         "Configure xml: Error at position {}: {:?}",
                         reader.buffer_position(),
                         e
@@ -109,7 +108,7 @@ pub unsafe fn outlk_autodiscover(
             || outlk_ad.out.send_port == 0
         {
             let r = outlk_ad.out.to_string();
-            warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
+            warn!(context, "Bad or incomplete autoconfig: {}", r,);
             free(url as *mut libc::c_void);
             free(xml_raw as *mut libc::c_void);
             outlk_clean_config(&mut outlk_ad);

@@ -852,7 +852,7 @@ pub fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path>) -> b
     match res {
         Ok(_) => true,
         Err(_err) => {
-            warn!(context, 0, "Cannot delete \"{}\".", path.as_ref().display());
+            warn!(context, "Cannot delete \"{}\".", path.as_ref().display());
             false
         }
     }
@@ -870,7 +870,6 @@ pub fn dc_copy_file(
         Err(_) => {
             error!(
                 context,
-                0,
                 "Cannot copy \"{}\" to \"{}\".",
                 src.as_ref().display(),
                 dest.as_ref().display(),
@@ -888,7 +887,6 @@ pub fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Path>) ->
             Err(_err) => {
                 warn!(
                     context,
-                    0,
                     "Cannot create directory \"{}\".",
                     path.as_ref().display(),
                 );
@@ -921,7 +919,6 @@ pub fn dc_write_file_safe<P: AsRef<std::path::Path>>(
     if let Err(_err) = fs::write(&path_abs, buf) {
         warn!(
             context,
-            0,
             "Cannot write {} bytes to \"{}\".",
             buf.len(),
             path.as_ref().display(),
@@ -959,7 +956,6 @@ pub fn dc_read_file_safe<P: AsRef<std::path::Path>>(context: &Context, path: P) 
         Err(_err) => {
             warn!(
                 context,
-                0,
                 "Cannot read \"{}\" or file is empty.",
                 path.as_ref().display()
             );

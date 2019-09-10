@@ -37,7 +37,7 @@ impl Into<Lot> for Error {
 pub fn check_qr(context: &Context, qr: impl AsRef<str>) -> Lot {
     let qr = qr.as_ref();
 
-    info!(context, 0, "Scanned QR code: {}", qr);
+    info!(context, "Scanned QR code: {}", qr);
 
     if qr.starts_with(OPENPGP4FPR_SCHEME) {
         decode_openpgp(context, qr)

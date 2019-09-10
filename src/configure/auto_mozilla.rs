@@ -69,7 +69,6 @@ pub unsafe fn moz_autoconfigure(
             Err(e) => {
                 error!(
                     context,
-                    0,
                     "Configure xml: Error at position {}: {:?}",
                     reader.buffer_position(),
                     e
@@ -87,7 +86,7 @@ pub unsafe fn moz_autoconfigure(
         || moz_ac.out.send_port == 0
     {
         let r = moz_ac.out.to_string();
-        warn!(context, 0, "Bad or incomplete autoconfig: {}", r,);
+        warn!(context, "Bad or incomplete autoconfig: {}", r,);
         free(xml_raw as *mut libc::c_void);
         return None;
     }
