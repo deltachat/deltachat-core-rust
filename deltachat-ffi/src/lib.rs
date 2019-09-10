@@ -1288,7 +1288,7 @@ pub unsafe extern "C" fn dc_continue_key_transfer(
 
     let context = &*context;
 
-    dc_imex::dc_continue_key_transfer(context, msg_id, setup_code)
+    dc_imex::dc_continue_key_transfer(context, msg_id, setup_code) as libc::c_int
 }
 
 #[no_mangle]

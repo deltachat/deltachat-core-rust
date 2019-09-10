@@ -268,13 +268,12 @@ pub fn dc_create_setup_code(_context: &Context) -> String {
     ret
 }
 
-// TODO should return bool /rtn
 pub unsafe fn dc_continue_key_transfer(
     context: &Context,
     msg_id: uint32_t,
     setup_code: *const libc::c_char,
-) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+) -> bool {
+    let mut success = false;
     let mut filename: *mut libc::c_char = ptr::null_mut();
     let mut filecontent: *mut libc::c_char = ptr::null_mut();
     let mut filebytes: size_t = 0i32 as size_t;
@@ -313,7 +312,7 @@ pub unsafe fn dc_continue_key_transfer(
                 } else if set_self_key(context, armored_key, 1) {
                     /*set default*/
                     /* error already logged */
-                    success = 1i32
+                    success = true
                 }
             }
         }

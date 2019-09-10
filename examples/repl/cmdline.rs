@@ -496,7 +496,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 !arg1.is_empty() && !arg2.is_empty(),
                 "Arguments <msg-id> <setup-code> expected"
             );
-            if 0 == dc_continue_key_transfer(context, arg1.parse()?, arg2_c) {
+            if !dc_continue_key_transfer(context, arg1.parse()?, arg2_c) {
                 bail!("Continue key transfer failed");
             }
         }
