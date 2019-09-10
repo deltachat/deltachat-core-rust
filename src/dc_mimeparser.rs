@@ -138,7 +138,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
             {
                 mimeparser.subject = None
             } else {
-                mimeparser.subject = Some(to_string(decoded));
+                mimeparser.subject = Some(to_string_lossy(decoded));
                 free(decoded.cast());
             }
         }
@@ -257,7 +257,7 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
                                 msg_c,
                             );
                             free(msg_c.cast());
-                            part.msg = Some(to_string(new_txt));
+                            part.msg = Some(to_string_lossy(new_txt));
                             free(new_txt.cast());
                             break;
                         }
@@ -1117,7 +1117,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 part.msg_raw = {
                                     let raw_c =
                                         strndup(decoded_data, decoded_data_bytes as libc::c_ulong);
-                                    let raw = to_string(raw_c);
+                                    let raw = to_string_lossy(raw_c);
                                     free(raw_c.cast());
                                     Some(raw)
                                 };
@@ -1175,7 +1175,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                                     9,
                                                 ) == 0i32
                                             {
-                                                filename_parts += &to_string(
+                                                filename_parts += &to_string_lossy(
                                                     (*(*dsp_param).pa_data.pa_parameter).pa_value,
                                                 );
                                             } else if (*dsp_param).pa_type
@@ -1649,7 +1649,7 @@ pub unsafe fn dc_mimeparser_repl_msg_by_error(
     }
     let part = &mut mimeparser.parts[0];
     part.type_0 = Viewtype::Text;
-    part.msg = Some(format!("[{}]", to_string(error_msg)));
+    part.msg = Some(format!("[{}]", to_string_lossy(error_msg)));
     mimeparser.parts.truncate(1);
     assert_eq!(mimeparser.parts.len(), 1);
 }
