@@ -509,7 +509,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             )
                             .ok();
 
-                        context.sql.set_config_int(context, "configured", 1).ok();
+                        context.sql.set_config_bool(context, "configured", true);
                         true
                     }
                     18 => {
