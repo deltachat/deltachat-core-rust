@@ -34,13 +34,11 @@ macro_rules! log_event {
         log_event!($ctx, $data1, $msg,)
     };
     ($ctx:expr, $event:expr, $data1:expr, $msg:expr, $($args:expr),* $(,)?) => {
-        #[allow(unused_unsafe)]
-        unsafe {
-            let formatted = format!($msg, $($args),*);
-            let formatted_c = std::ffi::CString::new(formatted).unwrap();
-            $ctx.call_cb($event, $data1 as libc::uintptr_t,
-                         formatted_c.as_ptr() as libc::uintptr_t);
-    }};
+        let formatted = format!($msg, $($args),*);
+        let formatted_c = std::ffi::CString::new(formatted).unwrap();
+        $ctx.call_cb($event, $data1 as libc::uintptr_t,
+                     formatted_c.as_ptr() as libc::uintptr_t);
+    };
 }
 
 #[macro_export]
