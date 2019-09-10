@@ -46,16 +46,7 @@ pub unsafe fn configure(context: &Context) {
 
 /// Check if the context is already configured.
 pub fn dc_is_configured(context: &Context) -> bool {
-    if context
-        .sql
-        .get_config_int(context, "configured")
-        .unwrap_or_default()
-        > 0
-    {
-        true
-    } else {
-        false
-    }
+    context.sql.get_config_bool(context, "configured")
 }
 
 /*******************************************************************************
