@@ -132,15 +132,9 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
         dc_mimeparser_parse_mime_recursive(mimeparser_ref, mimeparser_ref.mimeroot);
         let field: *mut mailimf_field = dc_mimeparser_lookup_field(&mimeparser, "Subject");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
-            let decoded = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value);
-            if decoded.is_null()
-            /* XXX: can it happen? */
-            {
-                mimeparser.subject = None
-            } else {
-                mimeparser.subject = Some(to_string(decoded));
-                free(decoded.cast());
-            }
+            let subj = (*(*field).fld_data.fld_subject).sbj_value;
+
+            mimeparser.subject = as_opt_str(subj).map(dc_decode_header_words_safe);
         }
         if !dc_mimeparser_lookup_optional_field(&mut mimeparser, "Chat-Version").is_null() {
             mimeparser.is_send_by_messenger = true
