@@ -642,7 +642,7 @@ unsafe fn add_parts(
                         }
                     }
                     if part.type_0 == Viewtype::Text {
-                        let msg_raw = CString::yolo(part.msg_raw.as_ref().unwrap().clone());
+                        let msg_raw = CString::yolo(part.msg_raw.as_ref().cloned().unwrap_or_default());
                         let subject_c = CString::yolo(
                             mime_parser
                                 .subject
