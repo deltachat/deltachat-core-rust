@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::convert::TryInto;
-use std::ffi::CStr;
 use std::io::Cursor;
 use std::ptr;
 
@@ -274,32 +273,25 @@ pub fn dc_pgp_pk_decrypt(
 }
 
 /// Symmetric encryption.
-pub fn dc_pgp_symm_encrypt(passphrase: *const libc::c_char, plain: &[u8]) -> Option<String> {
-    assert!(!passphrase.is_null(), "invalid passphrase");
-
-    let pw = unsafe { CStr::from_ptr(passphrase).to_str().unwrap() };
-
+pub fn dc_pgp_symm_encrypt(passphrase: &str, plain: &[u8]) -> Option<String> {
     let mut rng = thread_rng();
     let lit_msg = Message::new_literal_bytes("", plain);
 
     let s2k = StringToKey::new_default(&mut rng);
-    let msg = lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || pw.into());
+    let msg =
+        lit_msg.encrypt_with_password(&mut rng, s2k, Default::default(), || passphrase.into());
 
     msg.and_then(|msg| msg.to_armored_string(None)).ok()
 }
 
 /// Symmetric decryption.
-pub fn dc_pgp_symm_decrypt(passphrase: *const libc::c_char, ctext: &[u8]) -> Option<Vec<u8>> {
-    assert!(!passphrase.is_null(), "invalid passphrase");
-
-    let pw = unsafe { CStr::from_ptr(passphrase).to_str().unwrap() };
-
+pub fn dc_pgp_symm_decrypt(passphrase: &str, ctext: &[u8]) -> Option<Vec<u8>> {
     let enc_msg = Message::from_bytes(Cursor::new(ctext));
 
     enc_msg
         .and_then(|msg| {
             let mut decryptor = msg
-                .decrypt_with_password(|| pw.into())
+                .decrypt_with_password(|| passphrase.into())
                 .expect("failed decryption");
             decryptor.next().expect("no message")
         })
