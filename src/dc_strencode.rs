@@ -12,6 +12,20 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
+/**
+ * Encode non-ascii-strings as `=?UTF-8?Q?Bj=c3=b6rn_Petersen?=`.
+ * Belongs to RFC 2047: https://tools.ietf.org/html/rfc2047
+ *
+ * We do not fold at position 72; this would result in empty words as `=?utf-8?Q??=` which are correct,
+ * but cannot be displayed by some mail programs (eg. Android Stock Mail).
+ * however, this is not needed, as long as _one_ word is not longer than 72 characters.
+ * _if_ it is, the display may get weird.  This affects the subject only.
+ * the best solution wor all this would be if libetpan encodes the line as only libetpan knowns when a header line is full.
+ *
+ * @param to_encode Null-terminated UTF-8-string to encode.
+ * @return Returns the encoded string which must be free()'d when no longed needed.
+ *     On errors, NULL is returned.
+ */
 pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut ok_to_continue = true;
     let mut ret_str: *mut libc::c_char = ptr::null_mut();
