@@ -65,7 +65,7 @@ Afterwards ``which python`` tells you that it comes out of the "venv"
 directory that contains all python install artifacts. Let's first
 install test tools::
 
-    pip install pytest pytest-timeout requests
+    pip install pytest pytest-timeout pytest-rerunfailures requests
 
 then cargo-build and install the deltachat bindings::
 
