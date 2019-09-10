@@ -14,7 +14,7 @@ if __name__ == "__main__":
         s = re.sub(r"(?m)///.*$", "", s)  # remove comments
         unsafe = s.count("unsafe")
         free = s.count("free(")
-        gotoblocks = s.count("ok_to_continue")
+        gotoblocks = s.count("ok_to_continue") + s.count('OK_TO_CONTINUE')
         filestats.append((fn, unsafe, free, gotoblocks))
 
     sum_unsafe, sum_free, sum_gotoblocks = 0, 0, 0
