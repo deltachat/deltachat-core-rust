@@ -238,6 +238,31 @@ pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_
     out
 }
 
+pub fn dc_decode_header_words_safe(input: &str) -> String {
+    static FROM_ENCODING: &[u8] = b"iso-8859-1\x00";
+    static TO_ENCODING: &[u8] = b"utf-8\x00";
+    let mut out = ptr::null_mut();
+    let mut cur_token = 0;
+    let input_c = CString::yolo(input);
+    unsafe {
+        let r = mailmime_encoded_phrase_parse(
+            FROM_ENCODING.as_ptr().cast(),
+            input_c.as_ptr(),
+            input.len(),
+            &mut cur_token,
+            TO_ENCODING.as_ptr().cast(),
+            &mut out,
+        );
+        if r as u32 != MAILIMF_NO_ERROR || out.is_null() {
+            input.to_string()
+        } else {
+            let res = to_string(out);
+            free(out.cast());
+            res
+        }
+    }
+}
+
 pub fn dc_needs_ext_header(to_check: impl AsRef<str>) -> bool {
     let to_check = to_check.as_ref();
 
