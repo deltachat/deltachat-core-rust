@@ -4,13 +4,8 @@ macro_rules! info {
         info!($ctx, $msg,)
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
-        #[allow(unused_unsafe)]
-        unsafe {
-            let formatted = format!($msg, $($args),*);
-            let formatted_c =  std::ffi::CString::new(formatted).unwrap();
-            $ctx.call_cb($crate::constants::Event::INFO, 0,
-                     formatted_c.as_ptr() as libc::uintptr_t);
-    }};
+        log_event!($ctx, $crate::constants::Event::INFO, 0, $msg, $($args),*);
+    };
 }
 
 #[macro_export]
@@ -19,13 +14,8 @@ macro_rules! warn {
         warn!($ctx, $msg,)
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
-        #[allow(unused_unsafe)]
-        unsafe {
-            let formatted = format!($msg, $($args),*);
-            let formatted_c = std::ffi::CString::new(formatted).unwrap();
-            $ctx.call_cb($crate::constants::Event::WARNING, 0,
-                         formatted_c.as_ptr() as libc::uintptr_t);
-        }};
+        log_event!($ctx, $crate::constants::Event::WARNING, 0, $msg, $($args),*);
+    };
 }
 
 #[macro_export]
@@ -34,13 +24,8 @@ macro_rules! error {
         error!($ctx, $msg,)
     };
     ($ctx:expr, $msg:expr, $($args:expr),* $(,)?) => {
-        #[allow(unused_unsafe)]
-        unsafe {
-        let formatted = format!($msg, $($args),*);
-        let formatted_c = std::ffi::CString::new(formatted).unwrap();
-        $ctx.call_cb($crate::constants::Event::ERROR, 0,
-                     formatted_c.as_ptr() as libc::uintptr_t);
-    }};
+        log_event!($ctx, $crate::constants::Event::ERROR, 0, $msg, $($args),*);
+    };
 }
 
 #[macro_export]
