@@ -233,7 +233,7 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
 
     let context = &*context;
 
-    configure::dc_is_configured(context)
+    configure::dc_is_configured(context) as libc::c_int
 }
 
 #[no_mangle]

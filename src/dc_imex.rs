@@ -581,7 +581,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
             .map_or("<<None>>", |p| p.to_str().unwrap())
     );
 
-    if 0 != dc_is_configured(context) {
+    if dc_is_configured(context) {
         error!(context, 0, "Cannot import backups to accounts in use.");
         return 0;
     }
