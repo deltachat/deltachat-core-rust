@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::ffi::{CStr, CString};
 use std::io::Cursor;
-use std::slice;
 
 use libc;
 use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
@@ -104,15 +103,6 @@ impl Key {
                 None
             }
         }
-    }
-
-    pub fn from_binary(data: *const u8, len: libc::c_int, key_type: KeyType) -> Option<Self> {
-        if data.is_null() || len == 0 {
-            return None;
-        }
-
-        let bytes = unsafe { slice::from_raw_parts(data, len as usize) };
-        Self::from_slice(bytes, key_type)
     }
 
     pub fn from_armored_string(
