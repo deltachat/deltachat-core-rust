@@ -277,42 +277,42 @@ pub unsafe fn dc_continue_key_transfer(
     if msg_id <= 9i32 as libc::c_uint || setup_code.is_null() {
         return false;
     }
-        let msg = dc_get_msg(context, msg_id);
-        if msg.is_err()
-            || !dc_msg_is_setupmessage(msg.as_ref().unwrap())
-            || {
-                filename = dc_msg_get_file(msg.as_ref().unwrap());
-                filename.is_null()
-            }
-            || *filename.offset(0isize) as libc::c_int == 0i32
-        {
-            error!(context, "Message is no Autocrypt Setup Message.",);
-        } else if 0
-            == dc_read_file(
-                context,
-                filename,
-                &mut filecontent as *mut *mut libc::c_char as *mut *mut libc::c_void,
-                &mut filebytes,
-            )
-            || filecontent.is_null()
-            || filebytes <= 0
-        {
-            error!(context, "Cannot read Autocrypt Setup Message file.",);
+    let msg = dc_get_msg(context, msg_id);
+    if msg.is_err()
+        || !dc_msg_is_setupmessage(msg.as_ref().unwrap())
+        || {
+            filename = dc_msg_get_file(msg.as_ref().unwrap());
+            filename.is_null()
+        }
+        || *filename.offset(0isize) as libc::c_int == 0i32
+    {
+        error!(context, "Message is no Autocrypt Setup Message.",);
+    } else if 0
+        == dc_read_file(
+            context,
+            filename,
+            &mut filecontent as *mut *mut libc::c_char as *mut *mut libc::c_void,
+            &mut filebytes,
+        )
+        || filecontent.is_null()
+        || filebytes <= 0
+    {
+        error!(context, "Cannot read Autocrypt Setup Message file.",);
+    } else {
+        norm_sc = dc_normalize_setup_code(context, setup_code);
+        if norm_sc.is_null() {
+            warn!(context, "Cannot normalize Setup Code.",);
         } else {
-            norm_sc = dc_normalize_setup_code(context, setup_code);
-            if norm_sc.is_null() {
-                warn!(context, "Cannot normalize Setup Code.",);
-            } else {
-                armored_key = dc_decrypt_setup_file(context, norm_sc, filecontent);
-                if armored_key.is_null() {
-                    warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
-                } else if set_self_key(context, armored_key, 1) {
-                    /*set default*/
-                    /* error already logged */
-                    success = true
-                }
+            armored_key = dc_decrypt_setup_file(context, norm_sc, filecontent);
+            if armored_key.is_null() {
+                warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
+            } else if set_self_key(context, armored_key, 1) {
+                /*set default*/
+                /* error already logged */
+                success = true
             }
         }
+    }
 
     free(armored_key as *mut libc::c_void);
     free(filecontent as *mut libc::c_void);
