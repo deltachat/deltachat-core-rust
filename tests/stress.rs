@@ -90,7 +90,7 @@ unsafe fn stress_functions(context: &Context) {
         assert!(dc_delete_file(context, "$BLOBDIR/dada"));
         assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
         assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
-        assert!(dc_delete_file(context, "$BLOBDIR/foobar-folder"));
+        assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
         let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
