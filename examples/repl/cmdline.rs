@@ -581,7 +581,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
 
                 for i in (0..cnt).rev() {
                     let chat = Chat::load_from_db(context, chatlist.get_chat_id(i))?;
-                    let temp_subtitle = chat.get_subtitle();
+                    let temp_subtitle = chat.get_subtitle(context);
                     let temp_name = chat.get_name();
                     info!(
                         context,
@@ -647,7 +647,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             let sel_chat = sel_chat.as_ref().unwrap();
 
             let msglist = chat::get_chat_msgs(context, sel_chat.get_id(), 0x1, 0);
-            let temp2 = sel_chat.get_subtitle();
+            let temp2 = sel_chat.get_subtitle(context);
             let temp_name = sel_chat.get_name();
             info!(
                 context,

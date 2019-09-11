@@ -744,7 +744,7 @@ pub fn dc_msg_get_summary(context: &Context, msg: &mut Message, chat: Option<&Ch
     let contact = if msg.from_id != DC_CONTACT_ID_SELF as libc::c_uint
         && ((*chat).typ == Chattype::Group || (*chat).typ == Chattype::VerifiedGroup)
     {
-        Contact::get_by_id((*chat).context, msg.from_id).ok()
+        Contact::get_by_id(context, msg.from_id).ok()
     } else {
         None
     };
