@@ -843,13 +843,16 @@ pub fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) ->
 
 pub fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
     let path_abs = dc_get_abs_path_safe(context, &path);
-    let res = if path_abs.is_file() {
-        fs::remove_file(path_abs)
-    } else {
-        fs::remove_dir_all(path_abs)
-    };
+    if !path_abs.is_file() {
+        warn!(
+            context,
+            "Will not delete directory \"{}\".",
+            path.as_ref().display()
+        );
+        return false;
+    }
 
-    match res {
+    match fs::remove_file(path_abs) {
         Ok(_) => true,
         Err(_err) => {
             warn!(context, "Cannot delete \"{}\".", path.as_ref().display());
