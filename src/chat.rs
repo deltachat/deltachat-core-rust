@@ -21,8 +21,7 @@ use std::ptr;
 /// and are not updated on database changes;
 /// if you want an update, you have to recreate the object.
 #[derive(Clone)]
-pub struct Chat<'a> {
-    pub context: &'a Context,
+pub struct Chat {
     pub id: u32,
     pub typ: Chattype,
     pub name: String,
@@ -34,8 +33,8 @@ pub struct Chat<'a> {
     is_sending_locations: bool,
 }
 
-impl<'a> Chat<'a> {
-    pub fn load_from_db(context: &'a Context, chat_id: u32) -> Result<Self, Error> {
+impl Chat {
+    pub fn load_from_db(context: &Context, chat_id: u32) -> Result<Self, Error> {
         let res = context.sql.query_row(
             "SELECT c.id,c.type,c.name, c.grpid,c.param,c.archived, \
              c.blocked, c.gossiped_timestamp, c.locations_send_until  \
@@ -43,7 +42,6 @@ impl<'a> Chat<'a> {
             params![chat_id as i32],
             |row| {
                 let c = Chat {
-                    context,
                     id: row.get(0)?,
                     typ: row.get(1)?,
                     name: row.get::<_, String>(2)?,
@@ -73,23 +71,23 @@ impl<'a> Chat<'a> {
             Ok(mut chat) => {
                 match chat.id {
                     DC_CHAT_ID_DEADDROP => {
-                        chat.name = chat.context.stock_str(StockMessage::DeadDrop).into();
+                        chat.name = context.stock_str(StockMessage::DeadDrop).into();
                     }
                     DC_CHAT_ID_ARCHIVED_LINK => {
-                        let tempname = chat.context.stock_str(StockMessage::ArchivedChats);
-                        let cnt = dc_get_archived_cnt(chat.context);
+                        let tempname = context.stock_str(StockMessage::ArchivedChats);
+                        let cnt = dc_get_archived_cnt(context);
                         chat.name = format!("{} ({})", tempname, cnt);
                     }
                     DC_CHAT_ID_STARRED => {
-                        chat.name = chat.context.stock_str(StockMessage::StarredMsgs).into();
+                        chat.name = context.stock_str(StockMessage::StarredMsgs).into();
                     }
                     _ => {
                         if chat.typ == Chattype::Single {
-                            let contacts = get_chat_contacts(chat.context, chat.id);
+                            let contacts = get_chat_contacts(context, chat.id);
                             let mut chat_name = "Err [Name not found]".to_owned();
 
                             if !(*contacts).is_empty() {
-                                if let Ok(contact) = Contact::get_by_id(chat.context, contacts[0]) {
+                                if let Ok(contact) = Contact::get_by_id(context, contacts[0]) {
                                     chat_name = contact.get_display_name().to_owned();
                                 }
                             }
@@ -98,7 +96,7 @@ impl<'a> Chat<'a> {
                         }
 
                         if chat.param.exists(Param::Selftalk) {
-                            chat.name = chat.context.stock_str(StockMessage::SelfMsg).into();
+                            chat.name = context.stock_str(StockMessage::SelfMsg).into();
                         }
                     }
                 }
@@ -111,10 +109,10 @@ impl<'a> Chat<'a> {
         self.param.exists(Param::Selftalk)
     }
 
-    pub fn update_param(&mut self) -> Result<(), Error> {
+    pub fn update_param(&mut self, context: &Context) -> Result<(), Error> {
         sql::execute(
-            self.context,
-            &self.context.sql,
+            context,
+            &context.sql,
             "UPDATE chats SET param=? WHERE id=?",
             params![self.param.to_string(), self.id as i32],
         )
@@ -132,22 +130,18 @@ impl<'a> Chat<'a> {
         &self.name
     }
 
-    pub fn get_subtitle(&self) -> String {
+    pub fn get_subtitle(&self, context: &Context) -> String {
         // returns either the address or the number of chat members
 
         if self.typ == Chattype::Single && self.param.exists(Param::Selftalk) {
-            return self
-                .context
-                .stock_str(StockMessage::SelfTalkSubTitle)
-                .into();
+            return context.stock_str(StockMessage::SelfTalkSubTitle).into();
         }
 
         if self.typ == Chattype::Single {
-            return self
-                .context
+            return context
                 .sql
                 .query_row_col(
-                    self.context,
+                    context,
                     "SELECT c.addr FROM chats_contacts cc  \
                      LEFT JOIN contacts c ON c.id=cc.contact_id  \
                      WHERE cc.chat_id=?;",
@@ -159,11 +153,10 @@ impl<'a> Chat<'a> {
 
         if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
             if self.id == 1 {
-                return self.context.stock_str(StockMessage::DeadDrop).into();
+                return context.stock_str(StockMessage::DeadDrop).into();
             }
-            let cnt = get_chat_contact_cnt(self.context, self.id);
-            return self
-                .context
+            let cnt = get_chat_contact_cnt(context, self.id);
+            return context
                 .stock_string_repl_int(StockMessage::Member, cnt)
                 .into();
         }
@@ -171,10 +164,10 @@ impl<'a> Chat<'a> {
         return "Err".into();
     }
 
-    pub fn get_parent_mime_headers(&self) -> Option<(String, String, String)> {
+    pub fn get_parent_mime_headers(&self, context: &Context) -> Option<(String, String, String)> {
         let collect = |row: &rusqlite::Row| Ok((row.get(0)?, row.get(1)?, row.get(2)?));
         let params = params![self.id as i32, DC_CONTACT_ID_SELF as i32];
-        let sql = &self.context.sql;
+        let sql = &context.sql;
         let main_query = "SELECT rfc724_mid, mime_in_reply_to, mime_references \
                           FROM msgs WHERE chat_id=?1 AND timestamp=(SELECT max(timestamp) \
                           FROM msgs WHERE chat_id=?1 AND from_id!=?2);";
@@ -187,15 +180,15 @@ impl<'a> Chat<'a> {
             .ok()
     }
 
-    pub fn get_profile_image(&self) -> Option<PathBuf> {
+    pub fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Some(dc_get_abs_path_safe(self.context, image_rel));
+                return Some(dc_get_abs_path_safe(context, image_rel));
             }
         } else if self.typ == Chattype::Single {
-            let contacts = get_chat_contacts(self.context, self.id);
+            let contacts = get_chat_contacts(context, self.id);
             if !contacts.is_empty() {
-                if let Ok(contact) = Contact::get_by_id(self.context, contacts[0]) {
+                if let Ok(contact) = Contact::get_by_id(context, contacts[0]) {
                     return contact.get_profile_image();
                 }
             }
@@ -204,13 +197,13 @@ impl<'a> Chat<'a> {
         None
     }
 
-    pub fn get_color(&self) -> u32 {
+    pub fn get_color(&self, context: &Context) -> u32 {
         let mut color = 0;
 
         if self.typ == Chattype::Single {
-            let contacts = get_chat_contacts(self.context, self.id);
+            let contacts = get_chat_contacts(context, self.id);
             if !contacts.is_empty() {
-                if let Ok(contact) = Contact::get_by_id(self.context, contacts[0]) {
+                if let Ok(contact) = Contact::get_by_id(context, contacts[0]) {
                     color = contact.get_color();
                 }
             }
@@ -304,7 +297,7 @@ impl<'a> Chat<'a> {
                 if self.typ == Chattype::Group || self.typ == Chattype::VerifiedGroup {
                     if self.param.get_int(Param::Unpromoted).unwrap_or_default() == 1 {
                         self.param.remove(Param::Unpromoted);
-                        self.update_param().unwrap();
+                        self.update_param(context).unwrap();
                     }
                 }
             }
@@ -377,7 +370,7 @@ impl<'a> Chat<'a> {
             msg.param.remove(Param::ErroneousE2ee);
             if !self.is_self_talk() {
                 if let Some((parent_rfc724_mid, parent_in_reply_to, parent_references)) =
-                    self.get_parent_mime_headers()
+                    self.get_parent_mime_headers(context)
                 {
                     if !parent_rfc724_mid.is_empty() {
                         new_in_reply_to = parent_rfc724_mid.clone();
@@ -1354,7 +1347,7 @@ pub fn add_contact_to_chat_ex(
                     && chat.param.get_int(Param::Unpromoted).unwrap_or_default() == 1
                 {
                     chat.param.remove(Param::Unpromoted);
-                    chat.update_param().unwrap();
+                    chat.update_param(context).unwrap();
                 }
                 let self_addr = context
                     .sql
@@ -1673,7 +1666,7 @@ pub fn set_chat_profile_image(
         }
 
         chat.param.set(Param::ProfileImage, &new_image_rel);
-        if chat.update_param().is_ok() {
+        if chat.update_param(context).is_ok() {
             if chat.is_promoted() {
                 let mut msg = dc_msg_new_untyped();
                 msg.param.set_int(Param::Cmd, DC_CMD_GROUPIMAGE_CHANGED);
