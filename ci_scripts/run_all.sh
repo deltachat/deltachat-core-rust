@@ -41,7 +41,8 @@ if [ -n "$TESTS" ]; then
     # see https://github.com/deltachat/deltachat-core-rust/issues/331
     # unset DCC_PY_LIVECONFIG
 
-    tox --workdir "$TOXWORKDIR" -e lint,py35,py36,py37,auditwheels
+    tox --workdir "$TOXWORKDIR" -e lint,py35,py36,py37,auditwheels -- -k "not qr"
+    tox --workdir "$TOXWORKDIR" -e py35,py36,py37 -- -k "qr"
     popd
 fi
 
