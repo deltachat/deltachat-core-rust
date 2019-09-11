@@ -1760,7 +1760,8 @@ unsafe fn check_verified_properties(
         let peerstate = Peerstate::from_addr(context, &context.sql, contact.get_addr());
 
         if peerstate.is_none()
-            || contact.is_verified_ex(peerstate.as_ref()) != VerifiedStatus::BidirectVerified
+            || contact.is_verified_ex(context, peerstate.as_ref())
+                != VerifiedStatus::BidirectVerified
         {
             verify_fail("The sender of this message is not verified.".into());
             return 0;

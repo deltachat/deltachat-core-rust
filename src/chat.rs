@@ -189,7 +189,7 @@ impl Chat {
             let contacts = get_chat_contacts(context, self.id);
             if !contacts.is_empty() {
                 if let Ok(contact) = Contact::get_by_id(context, contacts[0]) {
-                    return contact.get_profile_image();
+                    return contact.get_profile_image(context);
                 }
             }
         }
@@ -1365,7 +1365,7 @@ pub fn add_contact_to_chat_ex(
                     } else {
                         // else continue and send status mail
                         if chat.typ == Chattype::VerifiedGroup {
-                            if contact.is_verified() != VerifiedStatus::BidirectVerified {
+                            if contact.is_verified(context) != VerifiedStatus::BidirectVerified {
                                 error!(
                                     context,
                                     "Only bidirectional verified contacts can be added to verified groups."
