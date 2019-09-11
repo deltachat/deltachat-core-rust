@@ -592,7 +592,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                         temp_subtitle,
                         chat::get_fresh_msg_cnt(context, chat.get_id()),
                     );
-                    let lot = chatlist.get_summary(i, Some(&chat));
+                    let lot = chatlist.get_summary(context, i, Some(&chat));
                     let statestr = if chat.is_archived() {
                         " [Archived]"
                     } else {
