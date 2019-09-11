@@ -159,7 +159,7 @@ impl Job {
                     if 0 != self.foreign_id && !dc_msg_exists(context, self.foreign_id) {
                         warn!(
                             context,
-                            0, "Message {} for job {} does not exist", self.foreign_id, self.job_id,
+                            "Message {} for job {} does not exist", self.foreign_id, self.job_id,
                         );
                         return;
                     };
@@ -197,7 +197,7 @@ impl Job {
                         }
                     }
                 } else {
-                    warn!(context, 0, "Missing recipients for job {}", self.job_id,);
+                    warn!(context, "Missing recipients for job {}", self.job_id,);
                 }
             }
         }
@@ -277,7 +277,7 @@ impl Job {
                 if dc_rfc724_mid_cnt(context, msg.rfc724_mid) != 1 {
                     info!(
                         context,
-                        0, "The message is deleted from the server when all parts are deleted.",
+                        "The message is deleted from the server when all parts are deleted.",
                     );
                     delete_from_server = 0i32
                 }
@@ -440,18 +440,17 @@ pub fn perform_imap_fetch(context: &Context) {
         .unwrap_or_else(|| 1)
         == 0
     {
-        info!(context, 0, "INBOX-watch disabled.",);
+        info!(context, "INBOX-watch disabled.",);
         return;
     }
-    info!(context, 0, "INBOX-fetch started...",);
+    info!(context, "INBOX-fetch started...",);
     inbox.fetch(context);
     if inbox.should_reconnect() {
-        info!(context, 0, "INBOX-fetch aborted, starting over...",);
+        info!(context, "INBOX-fetch aborted, starting over...",);
         inbox.fetch(context);
     }
     info!(
         context,
-        0,
         "INBOX-fetch done in {:.4} ms.",
         start.elapsed().as_nanos() as f64 / 1000.0,
     );
@@ -465,13 +464,13 @@ pub fn perform_imap_idle(context: &Context) {
     if *context.perform_inbox_jobs_needed.clone().read().unwrap() {
         info!(
             context,
-            0, "INBOX-IDLE will not be started because of waiting jobs."
+            "INBOX-IDLE will not be started because of waiting jobs."
         );
         return;
     }
-    info!(context, 0, "INBOX-IDLE started...");
+    info!(context, "INBOX-IDLE started...");
     inbox.idle(context);
-    info!(context, 0, "INBOX-IDLE ended.");
+    info!(context, "INBOX-IDLE ended.");
 }
 
 pub fn perform_mvbox_fetch(context: &Context) {
@@ -548,16 +547,16 @@ pub fn perform_smtp_jobs(context: &Context) {
         state.perform_jobs_needed = 0;
 
         if state.suspended {
-            info!(context, 0, "SMTP-jobs suspended.",);
+            info!(context, "SMTP-jobs suspended.",);
             return;
         }
         state.doing_jobs = true;
         probe_smtp_network
     };
 
-    info!(context, 0, "SMTP-jobs started...",);
+    info!(context, "SMTP-jobs started...",);
     job_perform(context, Thread::Smtp, probe_smtp_network);
-    info!(context, 0, "SMTP-jobs ended.");
+    info!(context, "SMTP-jobs ended.");
 
     {
         let &(ref lock, _) = &*context.smtp_state.clone();
@@ -568,7 +567,7 @@ pub fn perform_smtp_jobs(context: &Context) {
 }
 
 pub fn perform_smtp_idle(context: &Context) {
-    info!(context, 0, "SMTP-idle started...",);
+    info!(context, "SMTP-idle started...",);
     {
         let &(ref lock, ref cvar) = &*context.smtp_state.clone();
         let mut state = lock.lock().unwrap();
@@ -576,7 +575,7 @@ pub fn perform_smtp_idle(context: &Context) {
         if state.perform_jobs_needed == 1 {
             info!(
                 context,
-                0, "SMTP-idle will not be started because of waiting jobs.",
+                "SMTP-idle will not be started because of waiting jobs.",
             );
         } else {
             let dur = get_next_wakeup_time(context, Thread::Smtp);
@@ -594,7 +593,7 @@ pub fn perform_smtp_idle(context: &Context) {
         }
     }
 
-    info!(context, 0, "SMTP-idle ended.",);
+    info!(context, "SMTP-idle ended.",);
 }
 
 fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
@@ -653,7 +652,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
     if mimefactory.is_err() || mimefactory.as_ref().unwrap().from_addr.is_null() {
         warn!(
             context,
-            0, "Cannot load data to send, maybe the message is deleted in between.",
+            "Cannot load data to send, maybe the message is deleted in between.",
         );
     } else {
         let mut mimefactory = mimefactory.unwrap();
@@ -695,7 +694,6 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
         {
             warn!(
                 context,
-                0,
                 "e2e encryption unavailable {} - {:?}",
                 msg_id,
                 mimefactory.msg.param.get_int(Param::GuranteeE2ee),
@@ -726,7 +724,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
                 if let Err(err) =
                     location::set_kml_sent_timestamp(context, mimefactory.msg.chat_id, time())
                 {
-                    error!(context, 0, "Failed to set kml sent_timestamp: {:?}", err);
+                    error!(context, "Failed to set kml sent_timestamp: {:?}", err);
                 }
                 if !mimefactory.msg.hidden {
                     if let Err(err) = location::set_msg_location_id(
@@ -734,7 +732,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
                         mimefactory.msg.id,
                         mimefactory.out_last_added_location_id,
                     ) {
-                        error!(context, 0, "Failed to set msg_location_id: {:?}", err);
+                        error!(context, "Failed to set msg_location_id: {:?}", err);
                     }
                 }
             }
@@ -757,14 +755,14 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: uint32_t) -> libc::c_int {
 }
 
 pub fn perform_imap_jobs(context: &Context) {
-    info!(context, 0, "dc_perform_imap_jobs starting.",);
+    info!(context, "dc_perform_imap_jobs starting.",);
 
     let probe_imap_network = *context.probe_imap_network.clone().read().unwrap();
     *context.probe_imap_network.write().unwrap() = false;
     *context.perform_inbox_jobs_needed.write().unwrap() = false;
 
     job_perform(context, Thread::Imap, probe_imap_network);
-    info!(context, 0, "dc_perform_imap_jobs ended.",);
+    info!(context, "dc_perform_imap_jobs ended.",);
 }
 
 fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
@@ -812,14 +810,13 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
     match jobs {
         Ok(ref _res) => {}
         Err(ref err) => {
-            info!(context, 0, "query failed: {:?}", err);
+            info!(context, "query failed: {:?}", err);
         }
     }
 
     for mut job in jobs.unwrap_or_default() {
         info!(
             context,
-            0,
             "{}-job #{}, action {} started...",
             if thread == Thread::Imap {
                 "INBOX"
@@ -858,7 +855,7 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
 
             match job.action {
                 Action::Unknown => {
-                    warn!(context, 0, "Unknown job id found");
+                    warn!(context, "Unknown job id found");
                 }
                 Action::SendMsgToSmtp => job.do_DC_JOB_SEND(context),
                 Action::DeleteMsgOnImap => job.do_DC_JOB_DELETE_MSG_ON_IMAP(context),
@@ -902,7 +899,6 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
             // just try over next loop unconditionally, the ui typically interrupts idle when the file (video) is ready
             info!(
                 context,
-                0,
                 "{}-job #{} not yet ready and will be delayed.",
                 if thread == Thread::Imap {
                     "INBOX"
@@ -920,7 +916,6 @@ fn job_perform(context: &Context, thread: Thread, probe_network: bool) {
                 job.update(context);
                 info!(
                     context,
-                    0,
                     "{}-job #{} not succeeded on try #{}, retry in ADD_TIME+{} (in {} seconds).",
                     if thread == Thread::Imap {
                         "INBOX"
@@ -1019,7 +1014,6 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_
     if pathNfilename.is_null() {
         error!(
             context,
-            0,
             "Could not find free file name for message with ID <{}>.",
             to_string(mimefactory.rfc724_mid),
         );
@@ -1035,7 +1029,6 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &dc_mimefactory_
     {
         error!(
             context,
-            0,
             "Could not write message <{}> to \"{}\".",
             to_string(mimefactory.rfc724_mid),
             as_str(pathNfilename),
@@ -1079,7 +1072,7 @@ pub fn job_add(
     delay_seconds: i64,
 ) {
     if action == Action::Unknown {
-        error!(context, 0, "Invalid action passed to job_add");
+        error!(context, "Invalid action passed to job_add");
         return;
     }
 
@@ -1108,7 +1101,7 @@ pub fn job_add(
 }
 
 pub fn interrupt_smtp_idle(context: &Context) {
-    info!(context, 0, "Interrupting SMTP-idle...",);
+    info!(context, "Interrupting SMTP-idle...",);
 
     let &(ref lock, ref cvar) = &*context.smtp_state.clone();
     let mut state = lock.lock().unwrap();
@@ -1119,7 +1112,7 @@ pub fn interrupt_smtp_idle(context: &Context) {
 }
 
 pub fn interrupt_imap_idle(context: &Context) {
-    info!(context, 0, "Interrupting IMAP-IDLE...",);
+    info!(context, "Interrupting IMAP-IDLE...",);
 
     *context.perform_inbox_jobs_needed.write().unwrap() = true;
     context.inbox.read().unwrap().interrupt_idle();

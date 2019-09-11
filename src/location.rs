@@ -84,7 +84,6 @@ impl Kml {
                 Err(e) => {
                     error!(
                         context,
-                        0,
                         "Location parsing: Error at position {}: {:?}",
                         reader.buffer_position(),
                         e
@@ -546,7 +545,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
     let mut continue_streaming: libc::c_int = 1;
     info!(
         context,
-        0, " ----------------- MAYBE_SEND_LOCATIONS -------------- ",
+        " ----------------- MAYBE_SEND_LOCATIONS -------------- ",
     );
 
     context

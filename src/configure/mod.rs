@@ -34,10 +34,7 @@ macro_rules! progress {
 // connect
 pub unsafe fn configure(context: &Context) {
     if dc_has_ongoing(context) {
-        warn!(
-            context,
-            0, "There is already another ongoing process running.",
-        );
+        warn!(context, "There is already another ongoing process running.",);
         return;
     }
     job_kill_action(context, Action::ConfigureImap);
@@ -45,17 +42,8 @@ pub unsafe fn configure(context: &Context) {
 }
 
 /// Check if the context is already configured.
-pub fn dc_is_configured(context: &Context) -> libc::c_int {
-    if context
-        .sql
-        .get_config_int(context, "configured")
-        .unwrap_or_default()
-        > 0
-    {
-        1
-    } else {
-        0
-    }
+pub fn dc_is_configured(context: &Context) -> bool {
+    context.sql.get_config_bool(context, "configured")
 }
 
 /*******************************************************************************
@@ -73,7 +61,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
     if dc_alloc_ongoing(context) {
         ongoing_allocated_here = true;
         if !context.sql.is_open() {
-            error!(context, 0, "Cannot configure, database not opened.",);
+            error!(context, "Cannot configure, database not opened.",);
         } else {
             context.inbox.read().unwrap().disconnect(context);
             context
@@ -89,7 +77,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                 .imap
                 .disconnect(context);
             context.smtp.clone().lock().unwrap().disconnect();
-            info!(context, 0, "Configure ...",);
+            info!(context, "Configure ...",);
 
             let s_a = context.running_state.clone();
             let s = s_a.read().unwrap();
@@ -113,7 +101,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                     1 => {
                         progress!(context, 1);
                         if param.addr.is_empty() {
-                            error!(context, 0, "Please enter an email address.",);
+                            error!(context, "Please enter an email address.",);
                         }
                         !param.addr.is_empty()
                     }
@@ -146,7 +134,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                 utf8_percent_encode(&param.addr, NON_ALPHANUMERIC).to_string();
                             true
                         } else {
-                            error!(context, 0, "Bad email-address.");
+                            error!(context, "Bad email-address.");
                             false
                         }
                     }
@@ -256,7 +244,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                     12 => {
                         progress!(context, 500);
                         if let Some(ref cfg) = param_autoconfig {
-                            info!(context, 0, "Got autoconfig: {}", &cfg);
+                            info!(context, "Got autoconfig: {}", &cfg);
                             if !cfg.mail_user.is_empty() {
                                 param.mail_user = cfg.mail_user.clone();
                             }
@@ -340,7 +328,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             || param.send_pw.is_empty()
                             || param.server_flags == 0
                         {
-                            error!(context, 0, "Account settings incomplete.");
+                            error!(context, "Account settings incomplete.");
                             false
                         } else {
                             true
@@ -357,7 +345,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                 ok_to_continue8 = true;
                                 break;
                             }
-                            info!(context, 0, "Trying: {}", &param);
+                            info!(context, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
                                 ok_to_continue8 = true;
@@ -375,7 +363,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             progress!(context, 650 + username_variation * 30);
                             param.server_flags &= !(0x100 | 0x200 | 0x400);
                             param.server_flags |= 0x100;
-                            info!(context, 0, "Trying: {}", &param);
+                            info!(context, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
                                 ok_to_continue8 = true;
@@ -388,7 +376,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             }
                             progress!(context, 660 + username_variation * 30);
                             param.mail_port = 143;
-                            info!(context, 0, "Trying: {}", &param);
+                            info!(context, "Trying: {}", &param);
 
                             if context.inbox.read().unwrap().connect(context, &param) {
                                 ok_to_continue8 = true;
@@ -443,7 +431,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                 param.server_flags &= !(0x10000 | 0x20000 | 0x40000);
                                 param.server_flags |= 0x10000;
                                 param.send_port = 587;
-                                info!(context, 0, "Trying: {}", &param);
+                                info!(context, "Trying: {}", &param);
 
                                 if !context
                                     .smtp
@@ -459,7 +447,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                         param.server_flags &= !(0x10000 | 0x20000 | 0x40000);
                                         param.server_flags |= 0x10000;
                                         param.send_port = 25;
-                                        info!(context, 0, "Trying: {}", &param);
+                                        info!(context, "Trying: {}", &param);
 
                                         if !context
                                             .smtp
@@ -518,7 +506,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             )
                             .ok();
 
-                        context.sql.set_config_int(context, "configured", 1).ok();
+                        context.sql.set_config_bool(context, "configured", true);
                         true
                     }
                     18 => {
@@ -528,13 +516,13 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                         // (~30 seconds on a Moto G4 play) and might looks as if message sending is always that slow.
                         e2ee::ensure_secret_key_exists(context);
                         success = true;
-                        info!(context, 0, "Configure completed.");
+                        info!(context, "Configure completed.");
                         progress!(context, 940);
                         break; // We are done here
                     }
 
                     _ => {
-                        error!(context, 0, "Internal error: step counter out of bound",);
+                        error!(context, "Internal error: step counter out of bound",);
                         break;
                     }
                 };
@@ -582,10 +570,7 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
 
 pub fn dc_alloc_ongoing(context: &Context) -> bool {
     if dc_has_ongoing(context) {
-        warn!(
-            context,
-            0, "There is already another ongoing process running.",
-        );
+        warn!(context, "There is already another ongoing process running.",);
 
         false
     } else {
@@ -628,7 +613,7 @@ pub fn dc_connect_to_configured_imap(context: &Context, imap: &Imap) -> libc::c_
         .unwrap_or_default()
         == 0
     {
-        warn!(context, 0, "Not configured, cannot connect.",);
+        warn!(context, "Not configured, cannot connect.",);
     } else {
         let param = LoginParam::from_database(context, "configured_");
         // the trailing underscore is correct
@@ -651,15 +636,15 @@ pub fn dc_stop_ongoing_process(context: &Context) {
     let mut s = s_a.write().unwrap();
 
     if s.ongoing_running && !s.shall_stop_ongoing {
-        info!(context, 0, "Signaling the ongoing process to stop ASAP.",);
+        info!(context, "Signaling the ongoing process to stop ASAP.",);
         s.shall_stop_ongoing = true;
     } else {
-        info!(context, 0, "No ongoing process to stop.",);
+        info!(context, "No ongoing process to stop.",);
     };
 }
 
 pub fn read_autoconf_file(context: &Context, url: &str) -> *mut libc::c_char {
-    info!(context, 0, "Testing {} ...", url);
+    info!(context, "Testing {} ...", url);
 
     match reqwest::Client::new()
         .get(url)
@@ -668,7 +653,7 @@ pub fn read_autoconf_file(context: &Context, url: &str) -> *mut libc::c_char {
     {
         Ok(res) => unsafe { res.strdup() },
         Err(_err) => {
-            info!(context, 0, "Can\'t read file.",);
+            info!(context, "Can\'t read file.",);
 
             std::ptr::null_mut()
         }

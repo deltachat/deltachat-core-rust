@@ -12,6 +12,20 @@ use crate::dc_tools::*;
 use crate::types::*;
 use crate::x::*;
 
+/**
+ * Encode non-ascii-strings as `=?UTF-8?Q?Bj=c3=b6rn_Petersen?=`.
+ * Belongs to RFC 2047: https://tools.ietf.org/html/rfc2047
+ *
+ * We do not fold at position 72; this would result in empty words as `=?utf-8?Q??=` which are correct,
+ * but cannot be displayed by some mail programs (eg. Android Stock Mail).
+ * however, this is not needed, as long as _one_ word is not longer than 72 characters.
+ * _if_ it is, the display may get weird.  This affects the subject only.
+ * the best solution wor all this would be if libetpan encodes the line as only libetpan knowns when a header line is full.
+ *
+ * @param to_encode Null-terminated UTF-8-string to encode.
+ * @return Returns the encoded string which must be free()'d when no longed needed.
+ *     On errors, NULL is returned.
+ */
 pub unsafe fn dc_encode_header_words(to_encode: *const libc::c_char) -> *mut libc::c_char {
     let mut ok_to_continue = true;
     let mut ret_str: *mut libc::c_char = ptr::null_mut();
@@ -222,6 +236,31 @@ pub unsafe fn dc_decode_header_words(in_0: *const libc::c_char) -> *mut libc::c_
     }
 
     out
+}
+
+pub fn dc_decode_header_words_safe(input: &str) -> String {
+    static FROM_ENCODING: &[u8] = b"iso-8859-1\x00";
+    static TO_ENCODING: &[u8] = b"utf-8\x00";
+    let mut out = ptr::null_mut();
+    let mut cur_token = 0;
+    let input_c = CString::yolo(input);
+    unsafe {
+        let r = mailmime_encoded_phrase_parse(
+            FROM_ENCODING.as_ptr().cast(),
+            input_c.as_ptr(),
+            input.len(),
+            &mut cur_token,
+            TO_ENCODING.as_ptr().cast(),
+            &mut out,
+        );
+        if r as u32 != MAILIMF_NO_ERROR || out.is_null() {
+            input.to_string()
+        } else {
+            let res = to_string(out);
+            free(out.cast());
+            res
+        }
+    }
 }
 
 pub fn dc_needs_ext_header(to_check: impl AsRef<str>) -> bool {

@@ -308,7 +308,6 @@ impl<'a> Contact<'a> {
         if !may_be_valid_addr(&addr) {
             warn!(
                 context,
-                0,
                 "Bad address \"{}\" for contact \"{}\".",
                 addr,
                 if !name.as_ref().is_empty() {
@@ -404,7 +403,7 @@ impl<'a> Contact<'a> {
                 row_id = sql::get_rowid(context, &context.sql, "contacts", "addr", addr);
                 sth_modified = Modifier::Created;
             } else {
-                error!(context, 0, "Cannot add contact.");
+                error!(context, "Cannot add contact.");
             }
         }
 
@@ -683,7 +682,7 @@ impl<'a> Contact<'a> {
                     return Ok(());
                 }
                 Err(err) => {
-                    error!(context, 0, "delete_contact {} failed ({})", contact_id, err);
+                    error!(context, "delete_contact {} failed ({})", contact_id, err);
                     return Err(err);
                 }
             }
@@ -691,7 +690,7 @@ impl<'a> Contact<'a> {
 
         info!(
             context,
-            0, "could not delete contact {}, there are {} messages with it", contact_id, count_msgs
+            "could not delete contact {}, there are {} messages with it", contact_id, count_msgs
         );
         bail!("Could not delete contact with messages in it");
     }

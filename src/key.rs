@@ -245,7 +245,7 @@ impl Key {
                     file_content_c.as_bytes().len(),
                 )
             } {
-            error!(context, 0, "Cannot write key to {}", to_string(file));
+            error!(context, "Cannot write key to {}", to_string(file));
             false
         } else {
             true

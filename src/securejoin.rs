@@ -85,7 +85,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Optio
     let self_addr = match context.sql.get_config(context, "configured_addr") {
         Some(addr) => addr,
         None => {
-            error!(context, 0, "Not configured, cannot generate QR code.",);
+            error!(context, "Not configured, cannot generate QR code.",);
             return None;
         }
     };
@@ -123,10 +123,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Optio
                 &auth,
             ))
         } else {
-            error!(
-                context,
-                0, "Cannot get QR-code for chat-id {}", group_chat_id,
-            );
+            error!(context, "Cannot get QR-code for chat-id {}", group_chat_id,);
             return None;
         }
     } else {
@@ -136,7 +133,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Optio
         ))
     };
 
-    info!(context, 0, "Generated QR code: {}", qr.as_ref().unwrap());
+    info!(context, "Generated QR code: {}", qr.as_ref().unwrap());
 
     qr
 }
@@ -182,7 +179,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
     let mut contact_chat_id: uint32_t = 0;
     let mut join_vg: bool = false;
 
-    info!(context, 0, "Requesting secure-join ...",);
+    info!(context, "Requesting secure-join ...",);
     ensure_secret_key_exists(context).ok();
     if !dc_alloc_ongoing(context) {
         return cleanup(&context, contact_chat_id, false, join_vg);
@@ -190,12 +187,12 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
     let qr_scan = check_qr(context, &qr);
     if qr_scan.state != LotState::QrAskVerifyContact && qr_scan.state != LotState::QrAskVerifyGroup
     {
-        error!(context, 0, "Unknown QR code.",);
+        error!(context, "Unknown QR code.",);
         return cleanup(&context, contact_chat_id, true, join_vg);
     }
     contact_chat_id = chat::create_by_contact_id(context, qr_scan.id).unwrap_or_default();
     if contact_chat_id == 0 {
-        error!(context, 0, "Unknown contact.",);
+        error!(context, "Unknown contact.",);
         return cleanup(&context, contact_chat_id, true, join_vg);
     }
     if check_exit(context) {
@@ -221,7 +218,7 @@ pub fn dc_join_securejoin(context: &Context, qr: &str) -> uint32_t {
             .unwrap(),
         contact_chat_id,
     ) {
-        info!(context, 0, "Taking protocol shortcut.");
+        info!(context, "Taking protocol shortcut.");
         context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
         joiner_progress!(context, chat_id_2_contact_id(context, contact_chat_id), 400);
         let own_fingerprint = get_self_fingerprint(context).unwrap();
@@ -359,7 +356,7 @@ pub fn handle_securejoin_handshake(
     };
     info!(
         context,
-        0, ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
+        ">>>>>>>>>>>>>>>>>>>>>>>>> secure-join message \'{}\' received", step,
     );
     let (contact_chat_id, contact_chat_id_blocked) =
         chat::create_or_lookup_by_contact_id(context, contact_id, Blocked::Not).unwrap_or_default();
@@ -383,15 +380,15 @@ pub fn handle_securejoin_handshake(
             let invitenumber = match lookup_field(mimeparser, "Secure-Join-Invitenumber") {
                 Some(n) => n,
                 None => {
-                    warn!(context, 0, "Secure-join denied (invitenumber missing).",);
+                    warn!(context, "Secure-join denied (invitenumber missing).",);
                     return ret;
                 }
             };
             if !token::exists(context, token::Namespace::InviteNumber, &invitenumber) {
-                warn!(context, 0, "Secure-join denied (bad invitenumber).",);
+                warn!(context, "Secure-join denied (bad invitenumber).",);
                 return ret;
             }
-            info!(context, 0, "Secure-join requested.",);
+            info!(context, "Secure-join requested.",);
 
             inviter_progress!(context, contact_id, 300);
             send_handshake_msg(
@@ -413,7 +410,7 @@ pub fn handle_securejoin_handshake(
             };
 
             if cond {
-                warn!(context, 0, "auth-required message out of sync.",);
+                warn!(context, "auth-required message out of sync.",);
                 // no error, just aborted somehow or a mail from another handshake
                 return ret;
             }
@@ -442,7 +439,7 @@ pub fn handle_securejoin_handshake(
                 end_bobs_joining(context, DC_BOB_ERROR);
                 return ret;
             }
-            info!(context, 0, "Fingerprint verified.",);
+            info!(context, "Fingerprint verified.",);
             own_fingerprint = get_self_fingerprint(context).unwrap();
             joiner_progress!(context, contact_id, 400);
             context.bob.write().unwrap().expects = DC_VC_CONTACT_CONFIRM;
@@ -494,7 +491,7 @@ pub fn handle_securejoin_handshake(
                 );
                 return ret;
             }
-            info!(context, 0, "Fingerprint verified.",);
+            info!(context, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
             let auth_0 = match lookup_field(mimeparser, "Secure-Join-Auth") {
                 Some(auth) => auth,
@@ -520,7 +517,7 @@ pub fn handle_securejoin_handshake(
                 return ret;
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinInvited);
-            info!(context, 0, "Auth verified.",);
+            info!(context, "Auth verified.",);
             secure_connection_established(context, contact_chat_id);
             emit_event!(context, Event::CONTACTS_CHANGED, contact_id, 0);
             inviter_progress!(context, contact_id, 600);
@@ -528,7 +525,7 @@ pub fn handle_securejoin_handshake(
                 let field_grpid = lookup_field(mimeparser, "Secure-Join-Group").unwrap_or_default();
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
                 if group_chat_id == 0 {
-                    error!(context, 0, "Chat {} not found.", &field_grpid);
+                    error!(context, "Chat {} not found.", &field_grpid);
                     return ret;
                 } else {
                     chat::add_contact_to_chat_ex(context, group_chat_id, contact_id, 0x1i32);
@@ -543,7 +540,7 @@ pub fn handle_securejoin_handshake(
                 ret = DC_HANDSHAKE_CONTINUE_NORMAL_PROCESSING;
             }
             if context.bob.read().unwrap().expects != DC_VC_CONTACT_CONFIRM {
-                info!(context, 0, "Message belongs to a different handshake.",);
+                info!(context, "Message belongs to a different handshake.",);
                 return ret;
             }
             let cond = {
@@ -554,7 +551,7 @@ pub fn handle_securejoin_handshake(
             if cond {
                 warn!(
                     context,
-                    0, "Message out of sync or belongs to a different handshake.",
+                    "Message out of sync or belongs to a different handshake.",
                 );
                 return ret;
             }
@@ -597,7 +594,7 @@ pub fn handle_securejoin_handshake(
             let cg_member_added =
                 lookup_field(mimeparser, "Chat-Group-Member-Added").unwrap_or_default();
             if join_vg && !addr_equals_self(context, cg_member_added) {
-                info!(context, 0, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
+                info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
                 return ret;
             }
             secure_connection_established(context, contact_chat_id);
@@ -621,18 +618,18 @@ pub fn handle_securejoin_handshake(
             ============================================================ */
             if let Ok(contact) = Contact::get_by_id(context, contact_id) {
                 if contact.is_verified() == VerifiedStatus::Unverified {
-                    warn!(context, 0, "vg-member-added-received invalid.",);
+                    warn!(context, "vg-member-added-received invalid.",);
                     return ret;
                 }
                 inviter_progress!(context, contact_id, 800);
                 inviter_progress!(context, contact_id, 1000);
             } else {
-                warn!(context, 0, "vg-member-added-received invalid.",);
+                warn!(context, "vg-member-added-received invalid.",);
                 return ret;
             }
         }
         _ => {
-            warn!(context, 0, "invalid step: {}", step);
+            warn!(context, "invalid step: {}", step);
         }
     }
     if ret == DC_HANDSHAKE_STOP_NORMAL_PROCESSING {
@@ -694,7 +691,7 @@ fn could_not_establish_secure_connection(
     );
 
     chat::add_device_msg(context, contact_chat_id, &msg);
-    error!(context, 0, "{} ({})", &msg, details);
+    error!(context, "{} ({})", &msg, details);
 }
 
 fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Result<(), Error> {
@@ -723,13 +720,13 @@ fn encrypted_and_signed(
     expected_fingerprint: impl AsRef<str>,
 ) -> bool {
     if !mimeparser.e2ee_helper.encrypted {
-        warn!(mimeparser.context, 0, "Message not encrypted.",);
+        warn!(mimeparser.context, "Message not encrypted.",);
         false
     } else if mimeparser.e2ee_helper.signatures.len() <= 0 {
-        warn!(mimeparser.context, 0, "Message not signed.",);
+        warn!(mimeparser.context, "Message not signed.",);
         false
     } else if expected_fingerprint.as_ref().is_empty() {
-        warn!(mimeparser.context, 0, "Fingerprint for comparison missing.",);
+        warn!(mimeparser.context, "Fingerprint for comparison missing.",);
         false
     } else if !mimeparser
         .e2ee_helper
@@ -738,7 +735,6 @@ fn encrypted_and_signed(
     {
         warn!(
             mimeparser.context,
-            0,
             "Message does not match expected fingerprint {}.",
             expected_fingerprint.as_ref(),
         );

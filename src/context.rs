@@ -208,17 +208,11 @@ unsafe fn cb_precheck_imf(
         if *old_server_folder.offset(0isize) as libc::c_int == 0i32
             && old_server_uid == 0i32 as libc::c_uint
         {
-            info!(
-                context,
-                0,
-                "[move] detected bbc-self {}",
-                as_str(rfc724_mid),
-            );
+            info!(context, "[move] detected bbc-self {}", as_str(rfc724_mid),);
             mark_seen = 1i32
         } else if as_str(old_server_folder) != server_folder {
             info!(
                 context,
-                0,
                 "[move] detected moved message {}",
                 as_str(rfc724_mid),
             );
@@ -258,16 +252,16 @@ fn cb_get_config(context: &Context, key: &str) -> Option<String> {
 }
 
 pub unsafe fn dc_close(context: &Context) {
-    info!(context, 0, "disconnecting INBOX-watch",);
+    info!(context, "disconnecting INBOX-watch",);
     context.inbox.read().unwrap().disconnect(context);
-    info!(context, 0, "disconnecting sentbox-thread",);
+    info!(context, "disconnecting sentbox-thread",);
     context
         .sentbox_thread
         .read()
         .unwrap()
         .imap
         .disconnect(context);
-    info!(context, 0, "disconnecting mvbox-thread",);
+    info!(context, "disconnecting mvbox-thread",);
     context
         .mvbox_thread
         .read()
@@ -275,7 +269,7 @@ pub unsafe fn dc_close(context: &Context) {
         .imap
         .disconnect(context);
 
-    info!(context, 0, "disconnecting SMTP");
+    info!(context, "disconnecting SMTP");
     context.smtp.clone().lock().unwrap().disconnect();
 
     context.sql.close(context);

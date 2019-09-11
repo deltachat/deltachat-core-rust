@@ -233,7 +233,7 @@ pub unsafe extern "C" fn dc_is_configured(context: *mut dc_context_t) -> libc::c
 
     let context = &*context;
 
-    configure::dc_is_configured(context)
+    configure::dc_is_configured(context) as libc::c_int
 }
 
 #[no_mangle]
@@ -1188,7 +1188,7 @@ pub unsafe extern "C" fn dc_get_contact_encrinfo(
     Contact::get_encrinfo(context, contact_id)
         .map(|s| s.strdup())
         .unwrap_or_else(|e| {
-            error!(context, 0, "{}", e);
+            error!(context, "{}", e);
             std::ptr::null_mut()
         })
 }
@@ -2547,7 +2547,7 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
         match self {
             Ok(t) => t,
             Err(err) => {
-                error!(context, 0, "{}: {}", message, err);
+                error!(context, "{}: {}", message, err);
                 Default::default()
             }
         }
@@ -2555,7 +2555,7 @@ impl<T: Default, E: std::fmt::Display> ResultExt<T> for Result<T, E> {
 
     fn log_err(&self, context: &context::Context, message: &str) {
         if let Err(err) = self {
-            error!(context, 0, "{}: {}", message, err);
+            error!(context, "{}: {}", message, err);
         }
     }
 }

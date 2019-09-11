@@ -225,7 +225,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         Err(err) => {
             error!(
                 context,
-                0, "mimefactory: failed to load mime_in_reply_to: {:?}", err
+                "mimefactory: failed to load mime_in_reply_to: {:?}", err
             );
         }
     }
@@ -587,7 +587,6 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                     if 0 != msg.param.get_int(Param::Arg2).unwrap_or_default() & 0x1 {
                         info!(
                             msg.context,
-                            0,
                             "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
                             "vg-member-added",
                         );
@@ -656,7 +655,6 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 if strlen(step) > 0 {
                     info!(
                         msg.context,
-                        0,
                         "sending secure-join message \'{}\' >>>>>>>>>>>>>>>>>>>>>>>>>",
                         as_str(step),
                     );
@@ -726,7 +724,7 @@ pub unsafe fn dc_mimefactory_render(factory: &mut dc_mimefactory_t) -> libc::c_i
                 }
             }
             if let Some(grpimage) = grpimage {
-                info!(factory.context, 0, "setting group image '{}'", grpimage);
+                info!(factory.context, "setting group image '{}'", grpimage);
                 let mut meta = dc_msg_new_untyped(factory.context);
                 meta.type_0 = Viewtype::Image;
                 meta.param.set(Param::File, grpimage);
