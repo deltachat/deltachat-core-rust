@@ -38,7 +38,7 @@ pub struct dc_mimefactory_t<'a> {
     pub rfc724_mid: *mut libc::c_char,
     pub loaded: dc_mimefactory_loaded_t,
     pub msg: Message,
-    pub chat: Option<Chat<'a>>,
+    pub chat: Option<Chat>,
     pub increation: libc::c_int,
     pub in_reply_to: *mut libc::c_char,
     pub references: *mut libc::c_char,
@@ -995,7 +995,8 @@ pub unsafe fn dc_mimefactory_render(
                     e.as_ptr(),
                 );
             } else {
-                subject_str = get_subject(factory.chat.as_ref(), &mut factory.msg, afwd_email)
+                subject_str =
+                    get_subject(context, factory.chat.as_ref(), &mut factory.msg, afwd_email)
             }
             subject = mailimf_subject_new(dc_encode_header_words(subject_str));
             mailimf_fields_add(
@@ -1061,6 +1062,7 @@ pub unsafe fn dc_mimefactory_render(
 }
 
 unsafe fn get_subject(
+    context: &Context,
     chat: Option<&Chat>,
     msg: &mut Message,
     afwd_email: libc::c_int,
@@ -1070,7 +1072,6 @@ unsafe fn get_subject(
     }
 
     let chat = chat.unwrap();
-    let context = chat.context;
     let ret: *mut libc::c_char;
 
     let raw_subject = {

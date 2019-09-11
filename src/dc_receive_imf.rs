@@ -1354,7 +1354,7 @@ unsafe fn create_or_lookup_group(
                 } else {
                     chat.param.set(Param::ProfileImage, grpimage);
                 }
-                chat.update_param().unwrap();
+                chat.update_param(context).unwrap();
                 send_EVENT_CHAT_MODIFIED = 1;
             }
         }

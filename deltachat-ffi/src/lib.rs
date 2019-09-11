@@ -780,19 +780,17 @@ pub unsafe extern "C" fn dc_search_msgs(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_chat<'a>(
-    context: *mut dc_context_t,
-    chat_id: u32,
-) -> *mut dc_chat_t<'a> {
+pub unsafe extern "C" fn dc_get_chat(context: *mut dc_context_t, chat_id: u32) -> *mut dc_chat_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_chat()");
         return ptr::null_mut();
     }
-
     let context = &*context;
-
     match chat::Chat::load_from_db(context, chat_id) {
-        Ok(chat) => Box::into_raw(Box::new(chat)),
+        Ok(chat) => {
+            let ffi_chat = ChatWrapper { context, chat };
+            Box::into_raw(Box::new(ffi_chat))
+        }
         Err(_) => std::ptr::null_mut(),
     }
 }
@@ -1688,20 +1686,23 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_chatlist_get_summary<'a>(
-    chatlist: *mut dc_chatlist_t<'a>,
+pub unsafe extern "C" fn dc_chatlist_get_summary(
+    chatlist: *mut dc_chatlist_t,
     index: libc::size_t,
-    chat: *mut dc_chat_t<'a>,
+    chat: *mut dc_chat_t,
 ) -> *mut dc_lot_t {
     if chatlist.is_null() {
         eprintln!("ignoring careless call to dc_chatlist_get_summary()");
         return ptr::null_mut();
     }
-
-    let chat = if chat.is_null() { None } else { Some(&*chat) };
+    let maybe_chat = if chat.is_null() {
+        None
+    } else {
+        let ffi_chat = &*chat;
+        Some(&ffi_chat.chat)
+    };
     let list = &*chatlist;
-
-    let lot = list.get_summary(index as usize, chat);
+    let lot = list.get_summary(index as usize, maybe_chat);
     Box::into_raw(Box::new(lot))
 }
 
@@ -1721,8 +1722,20 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
 
 // dc_chat_t
 
+/// FFI struct for [dc_chat_t]
+///
+/// This is the structure behind [dc_chat_t] which is the opaque
+/// structure representing a message in the FFI API.  It exists
+/// because the FFI API has a refernce from the message to the
+/// context, but the Rust API does not, so the FFI layer needs to glue
+/// these together.
+pub struct ChatWrapper {
+    context: *const dc_context_t,
+    chat: chat::Chat,
+}
+
 #[no_mangle]
-pub type dc_chat_t<'a> = chat::Chat<'a>;
+pub type dc_chat_t = ChatWrapper;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chat_unref(chat: *mut dc_chat_t) {
@@ -1740,10 +1753,8 @@ pub unsafe extern "C" fn dc_chat_get_id(chat: *mut dc_chat_t) -> u32 {
         eprintln!("ignoring careless call to dc_chat_get_id()");
         return 0;
     }
-
-    let chat = &*chat;
-
-    chat.get_id()
+    let ffi_chat = &*chat;
+    ffi_chat.chat.get_id()
 }
 
 #[no_mangle]
@@ -1752,10 +1763,8 @@ pub unsafe extern "C" fn dc_chat_get_type(chat: *mut dc_chat_t) -> libc::c_int {
         eprintln!("ignoring careless call to dc_chat_get_type()");
         return 0;
     }
-
-    let chat = &*chat;
-
-    chat.get_type() as libc::c_int
+    let ffi_chat = &*chat;
+    ffi_chat.chat.get_type() as libc::c_int
 }
 
 #[no_mangle]
@@ -1764,10 +1773,8 @@ pub unsafe extern "C" fn dc_chat_get_name(chat: *mut dc_chat_t) -> *mut libc::c_
         eprintln!("ignoring careless call to dc_chat_get_name()");
         return dc_strdup(ptr::null());
     }
-
-    let chat = &*chat;
-
-    chat.get_name().strdup()
+    let ffi_chat = &*chat;
+    ffi_chat.chat.get_name().strdup()
 }
 
 #[no_mangle]
@@ -1776,10 +1783,8 @@ pub unsafe extern "C" fn dc_chat_get_subtitle(chat: *mut dc_chat_t) -> *mut libc
         eprintln!("ignoring careless call to dc_chat_get_subtitle()");
         return dc_strdup(ptr::null());
     }
-
-    let chat = &*chat;
-
-    chat.get_subtitle().strdup()
+    let ffi_chat = &*chat;
+    ffi_chat.chat.get_subtitle(&*ffi_chat.context).strdup()
 }
 
 #[no_mangle]
@@ -1788,10 +1793,8 @@ pub unsafe extern "C" fn dc_chat_get_profile_image(chat: *mut dc_chat_t) -> *mut
         eprintln!("ignoring careless call to dc_chat_get_profile_image()");
         return ptr::null_mut(); // NULL explicitly defined as "no image"
     }
-
-    let chat = &*chat;
-
-    match chat.get_profile_image() {
+    let ffi_chat = &*chat;
+    match ffi_chat.chat.get_profile_image(&*ffi_chat.context) {
         Some(p) => p.to_str().unwrap().to_string().strdup(),
         None => ptr::null_mut(),
     }
@@ -1803,10 +1806,8 @@ pub unsafe extern "C" fn dc_chat_get_color(chat: *mut dc_chat_t) -> u32 {
         eprintln!("ignoring careless call to dc_chat_get_color()");
         return 0;
     }
-
-    let chat = &*chat;
-
-    chat.get_color()
+    let ffi_chat = &*chat;
+    ffi_chat.chat.get_color(&*ffi_chat.context)
 }
 
 #[no_mangle]
@@ -1815,10 +1816,8 @@ pub unsafe extern "C" fn dc_chat_get_archived(chat: *mut dc_chat_t) -> libc::c_i
         eprintln!("ignoring careless call to dc_chat_get_archived()");
         return 0;
     }
-
-    let chat = &*chat;
-
-    chat.is_archived() as libc::c_int
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_archived() as libc::c_int
 }
 
 #[no_mangle]
@@ -1827,10 +1826,8 @@ pub unsafe extern "C" fn dc_chat_is_unpromoted(chat: *mut dc_chat_t) -> libc::c_
         eprintln!("ignoring careless call to dc_chat_is_unpromoted()");
         return 0;
     }
-
-    let chat = &*chat;
-
-    chat.is_unpromoted() as libc::c_int
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_unpromoted() as libc::c_int
 }
 
 #[no_mangle]
@@ -1839,10 +1836,8 @@ pub unsafe extern "C" fn dc_chat_is_self_talk(chat: *mut dc_chat_t) -> libc::c_i
         eprintln!("ignoring careless call to dc_chat_is_self_talk()");
         return 0;
     }
-
-    let chat = &*chat;
-
-    chat.is_self_talk() as libc::c_int
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_self_talk() as libc::c_int
 }
 
 #[no_mangle]
@@ -1851,10 +1846,8 @@ pub unsafe extern "C" fn dc_chat_is_verified(chat: *mut dc_chat_t) -> libc::c_in
         eprintln!("ignoring careless call to dc_chat_is_verified()");
         return 0;
     }
-
-    let chat = &*chat;
-
-    chat.is_verified() as libc::c_int
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_verified() as libc::c_int
 }
 
 #[no_mangle]
@@ -1863,10 +1856,8 @@ pub unsafe extern "C" fn dc_chat_is_sending_locations(chat: *mut dc_chat_t) -> l
         eprintln!("ignoring careless call to dc_chat_is_sending_locations()");
         return 0;
     }
-
-    let chat = &*chat;
-
-    chat.is_sending_locations() as libc::c_int
+    let ffi_chat = &*chat;
+    ffi_chat.chat.is_sending_locations() as libc::c_int
 }
 
 // dc_msg_t
@@ -2095,9 +2086,14 @@ pub unsafe extern "C" fn dc_msg_get_summary(
         eprintln!("ignoring careless call to dc_msg_get_summary()");
         return ptr::null_mut();
     }
-    let chat = if chat.is_null() { None } else { Some(&*chat) };
+    let maybe_chat = if chat.is_null() {
+        None
+    } else {
+        let ffi_chat = &*chat;
+        Some(&ffi_chat.chat)
+    };
     let ffi_msg = &mut *msg;
-    let lot = message::dc_msg_get_summary(&*ffi_msg.context, &mut ffi_msg.message, chat);
+    let lot = message::dc_msg_get_summary(&*ffi_msg.context, &mut ffi_msg.message, maybe_chat);
     Box::into_raw(Box::new(lot))
 }
 
