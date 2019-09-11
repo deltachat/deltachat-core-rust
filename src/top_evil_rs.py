@@ -6,13 +6,15 @@ import os
 import re
 
 if __name__ == "__main__":
+    if Path('src/top_evil_rs.py').exists():
+        os.chdir('src')
     filestats = []
     for fn in Path(".").glob("**/*.rs"):
         s = fn.read_text()
         s = re.sub(r"(?m)///.*$", "", s)  # remove comments
         unsafe = s.count("unsafe")
         free = s.count("free(")
-        gotoblocks = s.count("ok_to_continue")
+        gotoblocks = s.count("ok_to_continue") + s.count('OK_TO_CONTINUE')
         filestats.append((fn, unsafe, free, gotoblocks))
 
     sum_unsafe, sum_free, sum_gotoblocks = 0, 0, 0

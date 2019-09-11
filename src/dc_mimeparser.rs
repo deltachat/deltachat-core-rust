@@ -132,15 +132,9 @@ pub unsafe fn dc_mimeparser_parse<'a>(context: &'a Context, body: &[u8]) -> dc_m
         dc_mimeparser_parse_mime_recursive(mimeparser_ref, mimeparser_ref.mimeroot);
         let field: *mut mailimf_field = dc_mimeparser_lookup_field(&mimeparser, "Subject");
         if !field.is_null() && (*field).fld_type == MAILIMF_FIELD_SUBJECT as libc::c_int {
-            let decoded = dc_decode_header_words((*(*field).fld_data.fld_subject).sbj_value);
-            if decoded.is_null()
-            /* XXX: can it happen? */
-            {
-                mimeparser.subject = None
-            } else {
-                mimeparser.subject = Some(to_string_lossy(decoded));
-                free(decoded.cast());
-            }
+            let subj = (*(*field).fld_data.fld_subject).sbj_value;
+
+            mimeparser.subject = as_opt_str(subj).map(dc_decode_header_words_safe);
         }
         if !dc_mimeparser_lookup_optional_field(&mut mimeparser, "Chat-Version").is_null() {
             mimeparser.is_send_by_messenger = true
@@ -460,7 +454,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
         {
             info!(
                 mimeparser.context,
-                0, "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
+                "Protected headers found in text/rfc822-headers attachment: Will be ignored.",
             );
             return 0i32;
         }
@@ -474,7 +468,7 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
             ) != MAILIMF_NO_ERROR as libc::c_int
                 || mimeparser.header_protected.is_null()
             {
-                warn!(mimeparser.context, 0, "Protected headers parsing error.",);
+                warn!(mimeparser.context, "Protected headers parsing error.",);
             } else {
                 hash_header(
                     &mut mimeparser.header,
@@ -485,7 +479,6 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
         } else {
             info!(
                 mimeparser.context,
-                0,
                 "Protected headers found in MIME header: Will be ignored as we already found an outer one."
             );
         }
@@ -667,7 +660,6 @@ unsafe fn dc_mimeparser_parse_mime_recursive(
                     if plain_cnt == 1i32 && html_cnt == 1i32 {
                         warn!(
                             mimeparser.context,
-                            0i32,
                             "HACK: multipart/mixed message found with PLAIN and HTML, we\'ll skip the HTML part as this seems to be unwanted."
                         );
                         skip_part = html_part
@@ -1072,7 +1064,7 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                                 );
 
                                 let (res, _, _) = encoding.decode(data);
-                                info!(mimeparser.context, 0, "decoded message: '{}'", res);
+                                info!(mimeparser.context, "decoded message: '{}'", res);
                                 if res.is_empty() {
                                     /* no error - but nothing to add */
                                     ok_to_continue = false;
@@ -1085,7 +1077,6 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
                             } else {
                                 warn!(
                                     mimeparser.context,
-                                    0,
                                     "Cannot convert {} bytes from \"{}\" to \"utf-8\".",
                                     decoded_data_bytes as libc::c_int,
                                     as_str(charset),

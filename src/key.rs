@@ -1,7 +1,6 @@
 use std::collections::BTreeMap;
 use std::ffi::{CStr, CString};
 use std::io::Cursor;
-use std::slice;
 
 use libc;
 use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
@@ -104,15 +103,6 @@ impl Key {
                 None
             }
         }
-    }
-
-    pub fn from_binary(data: *const u8, len: libc::c_int, key_type: KeyType) -> Option<Self> {
-        if data.is_null() || len == 0 {
-            return None;
-        }
-
-        let bytes = unsafe { slice::from_raw_parts(data, len as usize) };
-        Self::from_slice(bytes, key_type)
     }
 
     pub fn from_armored_string(
@@ -245,7 +235,7 @@ impl Key {
                     file_content_c.as_bytes().len(),
                 )
             } {
-            error!(context, 0, "Cannot write key to {}", to_string(file));
+            error!(context, "Cannot write key to {}", to_string(file));
             false
         } else {
             true
@@ -447,6 +437,27 @@ i8pcjGO+IZffvyZJVRWfVooBJmWWbPB1pueo3tx8w3+fcuzpxz+RLFKaPyqXO+dD
         let binary = private_key.to_bytes();
         let private_key2 = Key::from_slice(&binary, KeyType::Private).expect("invalid private key");
         assert_eq!(private_key, private_key2);
+    }
+
+    #[test]
+    fn test_from_slice_bad_data() {
+        let mut bad_data: [u8; 4096] = [0; 4096];
+
+        for i in 0..4096 {
+            bad_data[i] = (i & 0xff) as u8;
+        }
+
+        for j in 0..(4096 / 40) {
+            let bad_key = Key::from_slice(
+                &bad_data[j..j + 4096 / 2 + j],
+                if 0 != j & 1 {
+                    KeyType::Public
+                } else {
+                    KeyType::Private
+                },
+            );
+            assert!(bad_key.is_none());
+        }
     }
 
     #[test]

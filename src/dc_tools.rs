@@ -843,16 +843,19 @@ pub fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) ->
 
 pub fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
     let path_abs = dc_get_abs_path_safe(context, &path);
-    let res = if path_abs.is_file() {
-        fs::remove_file(path_abs)
-    } else {
-        fs::remove_dir_all(path_abs)
-    };
+    if !path_abs.is_file() {
+        warn!(
+            context,
+            "Will not delete directory \"{}\".",
+            path.as_ref().display()
+        );
+        return false;
+    }
 
-    match res {
+    match fs::remove_file(path_abs) {
         Ok(_) => true,
         Err(_err) => {
-            warn!(context, 0, "Cannot delete \"{}\".", path.as_ref().display());
+            warn!(context, "Cannot delete \"{}\".", path.as_ref().display());
             false
         }
     }
@@ -870,7 +873,6 @@ pub fn dc_copy_file(
         Err(_) => {
             error!(
                 context,
-                0,
                 "Cannot copy \"{}\" to \"{}\".",
                 src.as_ref().display(),
                 dest.as_ref().display(),
@@ -888,7 +890,6 @@ pub fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Path>) ->
             Err(_err) => {
                 warn!(
                     context,
-                    0,
                     "Cannot create directory \"{}\".",
                     path.as_ref().display(),
                 );
@@ -921,7 +922,6 @@ pub fn dc_write_file_safe<P: AsRef<std::path::Path>>(
     if let Err(_err) = fs::write(&path_abs, buf) {
         warn!(
             context,
-            0,
             "Cannot write {} bytes to \"{}\".",
             buf.len(),
             path.as_ref().display(),
@@ -959,7 +959,6 @@ pub fn dc_read_file_safe<P: AsRef<std::path::Path>>(context: &Context, path: P) 
         Err(_err) => {
             warn!(
                 context,
-                0,
                 "Cannot read \"{}\" or file is empty.",
                 path.as_ref().display()
             );

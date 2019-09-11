@@ -58,7 +58,6 @@ pub unsafe fn dc_imex_has_backup(
     if dir_iter.is_err() {
         info!(
             context,
-            0,
             "Backup check: Cannot open directory \"{}\".\x00",
             dir_name.display(),
         );
@@ -92,7 +91,7 @@ pub unsafe fn dc_imex_has_backup(
         Some(path) => match path.to_c_string() {
             Ok(cstr) => dc_strdup(cstr.as_ptr()),
             Err(err) => {
-                error!(context, 0, "Invalid backup filename: {}", err);
+                error!(context, "Invalid backup filename: {}", err);
                 std::ptr::null_mut()
             }
         },
@@ -156,7 +155,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                             .shall_stop_ongoing
                         {
                             if let Ok(msg_id) = chat::send_msg(context, chat_id, &mut msg) {
-                                info!(context, 0, "Wait for setup message being sent ...",);
+                                info!(context, "Wait for setup message being sent ...",);
                                 loop {
                                     if context
                                         .running_state
@@ -170,7 +169,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                     std::thread::sleep(std::time::Duration::from_secs(1));
                                     if let Ok(msg) = dc_get_msg(context, msg_id) {
                                         if 0 != dc_msg_is_sent(&msg) {
-                                            info!(context, 0, "... setup message sent.",);
+                                            info!(context, "... setup message sent.",);
                                             break;
                                         }
                                     }
@@ -208,12 +207,8 @@ pub fn dc_render_setup_file(context: &Context, passphrase: &str) -> Result<Strin
         _ => Some(("Autocrypt-Prefer-Encrypt", "mutual")),
     };
     let private_key_asc = private_key.to_asc(ac_headers);
-    let encr = {
-        let private_key_asc_c = CString::yolo(private_key_asc);
-        let passphrase_c = CString::yolo(passphrase);
-        dc_pgp_symm_encrypt(passphrase_c.as_ptr(), private_key_asc_c.as_bytes())
-            .ok_or(format_err!("Failed to encrypt private key."))?
-    };
+    let encr = dc_pgp_symm_encrypt(&passphrase, private_key_asc.as_bytes())
+        .ok_or(format_err!("Failed to encrypt private key."))?;
     let replacement = format!(
         concat!(
             "-----BEGIN PGP MESSAGE-----\r\n",
@@ -279,44 +274,46 @@ pub unsafe fn dc_continue_key_transfer(
     let mut filebytes: size_t = 0i32 as size_t;
     let mut armored_key: *mut libc::c_char = ptr::null_mut();
     let mut norm_sc: *mut libc::c_char = ptr::null_mut();
-    if !(msg_id <= 9i32 as libc::c_uint || setup_code.is_null()) {
-        let msg = dc_get_msg(context, msg_id);
-        if msg.is_err()
-            || !dc_msg_is_setupmessage(msg.as_ref().unwrap())
-            || {
-                filename = dc_msg_get_file(msg.as_ref().unwrap());
-                filename.is_null()
-            }
-            || *filename.offset(0isize) as libc::c_int == 0i32
-        {
-            error!(context, 0, "Message is no Autocrypt Setup Message.",);
-        } else if 0
-            == dc_read_file(
-                context,
-                filename,
-                &mut filecontent as *mut *mut libc::c_char as *mut *mut libc::c_void,
-                &mut filebytes,
-            )
-            || filecontent.is_null()
-            || filebytes <= 0
-        {
-            error!(context, 0, "Cannot read Autocrypt Setup Message file.",);
+    if msg_id <= 9i32 as libc::c_uint || setup_code.is_null() {
+        return false;
+    }
+    let msg = dc_get_msg(context, msg_id);
+    if msg.is_err()
+        || !dc_msg_is_setupmessage(msg.as_ref().unwrap())
+        || {
+            filename = dc_msg_get_file(msg.as_ref().unwrap());
+            filename.is_null()
+        }
+        || *filename.offset(0isize) as libc::c_int == 0i32
+    {
+        error!(context, "Message is no Autocrypt Setup Message.",);
+    } else if 0
+        == dc_read_file(
+            context,
+            filename,
+            &mut filecontent as *mut *mut libc::c_char as *mut *mut libc::c_void,
+            &mut filebytes,
+        )
+        || filecontent.is_null()
+        || filebytes <= 0
+    {
+        error!(context, "Cannot read Autocrypt Setup Message file.",);
+    } else {
+        norm_sc = dc_normalize_setup_code(context, setup_code);
+        if norm_sc.is_null() {
+            warn!(context, "Cannot normalize Setup Code.",);
         } else {
-            norm_sc = dc_normalize_setup_code(context, setup_code);
-            if norm_sc.is_null() {
-                warn!(context, 0, "Cannot normalize Setup Code.",);
-            } else {
-                armored_key = dc_decrypt_setup_file(context, norm_sc, filecontent);
-                if armored_key.is_null() {
-                    warn!(context, 0, "Cannot decrypt Autocrypt Setup Message.",);
-                } else if set_self_key(context, armored_key, 1) {
-                    /*set default*/
-                    /* error already logged */
-                    success = true
-                }
+            armored_key = dc_decrypt_setup_file(context, norm_sc, filecontent);
+            if armored_key.is_null() {
+                warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
+            } else if set_self_key(context, armored_key, 1) {
+                /*set default*/
+                /* error already logged */
+                success = true
             }
         }
     }
+
     free(armored_key as *mut libc::c_void);
     free(filecontent as *mut libc::c_void);
     free(filename as *mut libc::c_void);
@@ -338,7 +335,7 @@ fn set_self_key(
         .and_then(|(k, h)| k.split_key().map(|pub_key| (k, pub_key, h)));
 
     if keys.is_none() {
-        error!(context, 0, "File does not contain a valid private key.",);
+        error!(context, "File does not contain a valid private key.",);
         return false;
     }
 
@@ -368,13 +365,13 @@ fn set_self_key(
             return false;
         }
     } else {
-        error!(context, 0, "File does not contain a private key.",);
+        error!(context, "File does not contain a private key.",);
     }
 
     let self_addr = context.sql.get_config(context, "configured_addr");
 
     if self_addr.is_none() {
-        error!(context, 0, "Missing self addr");
+        error!(context, "Missing self addr");
         return false;
     }
 
@@ -386,7 +383,7 @@ fn set_self_key(
         set_default,
         &context.sql,
     ) {
-        error!(context, 0, "Cannot save keypair.");
+        error!(context, "Cannot save keypair.");
         return false;
     }
 
@@ -445,7 +442,7 @@ pub unsafe fn dc_decrypt_setup_file(
         {
             /* decrypt symmetrically */
             if let Some(plain) = dc_pgp_symm_decrypt(
-                passphrase,
+                as_str(passphrase),
                 std::slice::from_raw_parts(binary as *const u8, binary_bytes),
             ) {
                 let payload_c = CString::new(plain).unwrap();
@@ -507,19 +504,18 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
         let _param2 = CString::yolo(job.param.get(Param::Arg2).unwrap_or_default());
 
         if strlen(param1.as_ptr()) == 0 {
-            error!(context, 0, "No Import/export dir/file given.",);
+            error!(context, "No Import/export dir/file given.",);
         } else {
-            info!(context, 0, "Import/export process started.",);
+            info!(context, "Import/export process started.",);
             context.call_cb(Event::IMEX_PROGRESS, 10 as uintptr_t, 0 as uintptr_t);
             if !context.sql.is_open() {
-                error!(context, 0, "Import/export: Database not opened.",);
+                error!(context, "Import/export: Database not opened.",);
             } else {
                 if what == 1 || what == 11 {
                     /* before we export anything, make sure the private key exists */
                     if e2ee::ensure_secret_key_exists(context).is_err() {
                         error!(
                             context,
-                            0,
                             "Import/export: Cannot create private key or private key not available.",
                         );
                         ok_to_continue = false;
@@ -531,25 +527,25 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
                     match what {
                         1 => {
                             if 0 != export_self_keys(context, param1.as_ptr()) {
-                                info!(context, 0, "Import/export completed.",);
+                                info!(context, "Import/export completed.",);
                                 success = 1
                             }
                         }
                         2 => {
                             if 0 != import_self_keys(context, param1.as_ptr()) {
-                                info!(context, 0, "Import/export completed.",);
+                                info!(context, "Import/export completed.",);
                                 success = 1
                             }
                         }
                         11 => {
                             if 0 != export_backup(context, param1.as_ptr()) {
-                                info!(context, 0, "Import/export completed.",);
+                                info!(context, "Import/export completed.",);
                                 success = 1
                             }
                         }
                         12 => {
                             if 0 != import_backup(context, param1.as_ptr()) {
-                                info!(context, 0, "Import/export completed.",);
+                                info!(context, "Import/export completed.",);
                                 success = 1
                             }
                         }
@@ -576,7 +572,6 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
 unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> libc::c_int {
     info!(
         context,
-        0,
         "Import \"{}\" to \"{}\".",
         as_str(backup_to_import),
         context
@@ -585,8 +580,8 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
             .map_or("<<None>>", |p| p.to_str().unwrap())
     );
 
-    if 0 != dc_is_configured(context) {
-        error!(context, 0, "Cannot import backups to accounts in use.");
+    if dc_is_configured(context) {
+        error!(context, "Cannot import backups to accounts in use.");
         return 0;
     }
     &context.sql.close(&context);
@@ -594,7 +589,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
     if dc_file_exist(context, context.get_dbfile().unwrap()) {
         error!(
             context,
-            0, "Cannot import backups: Cannot delete the old file.",
+            "Cannot import backups: Cannot delete the old file.",
         );
         return 0;
     }
@@ -621,7 +616,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         .unwrap_or_default() as usize;
     info!(
         context,
-        0, "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
+        "***IMPORT-in-progress: total_files_cnt={:?}", total_files_cnt,
     );
 
     let res = context.sql.query_map(
@@ -669,7 +664,6 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
                 }
                 error!(
                     context,
-                    0,
                     "Storage full? Cannot write file {} with {} bytes.",
                     &pathNfilename,
                     file_blob.len(),
@@ -716,7 +710,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     let buffer = CString::yolo(res);
     let dest_pathNfilename = dc_get_fine_pathNfilename(context, dir, buffer.as_ptr());
     if dest_pathNfilename.is_null() {
-        error!(context, 0, "Cannot get backup file name.",);
+        error!(context, "Cannot get backup file name.",);
 
         return success;
     }
@@ -728,7 +722,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
     let mut closed = true;
     info!(
         context,
-        0,
         "Backup \"{}\" to \"{}\".",
         context
             .get_dbfile()
@@ -772,7 +765,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                 if let Ok(dir_handle) = std::fs::read_dir(dir) {
                     total_files_cnt += dir_handle.filter(|r| r.is_ok()).count();
 
-                    info!(context, 0, "EXPORT: total_files_cnt={}", total_files_cnt);
+                    info!(context, "EXPORT: total_files_cnt={}", total_files_cnt);
                     if total_files_cnt > 0 {
                         // scan directory, pass 2: copy files
                         if let Ok(dir_handle) = std::fs::read_dir(dir) {
@@ -818,7 +811,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                                 {
                                                     continue;
                                                 } else {
-                                                    info!(context, 0, "EXPORTing filename={}", name);
+                                                    info!(context, "EXPORTing filename={}", name);
                                                     let curr_pathNfilename = format!(
                                                         "{}/{}",
                                                         as_str(context.get_blobdir()),
@@ -834,7 +827,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                                         if stmt.execute(params![name, buf]).is_err() {
                                                             error!(
                                                                 context,
-                                                                0,
                                                                 "Disk full? Cannot add file \"{}\" to backup.",
                                                                 &curr_pathNfilename,
                                                             );
@@ -854,13 +846,12 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                         } else {
                             error!(
                                 context,
-                                0,
                                 "Backup: Cannot copy from blob-directory \"{}\".",
                                 as_str(context.get_blobdir()),
                             );
                         }
                     } else {
-                        info!(context, 0, "Backup: No files to copy.",);
+                        info!(context, "Backup: No files to copy.",);
                         ok_to_continue = true;
                     }
                     if ok_to_continue {
@@ -879,7 +870,6 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                 } else {
                     error!(
                         context,
-                        0,
                         "Backup: Cannot get info for blob-directory \"{}\".",
                         as_str(context.get_blobdir())
                     );
@@ -944,7 +934,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                     dir_name,
                     name_c.as_ptr(),
                 );
-                info!(context, 0, "Checking: {}", as_str(path_plus_name));
+                info!(context, "Checking: {}", as_str(path_plus_name));
                 free(buf as *mut libc::c_void);
                 buf = ptr::null_mut();
                 if 0 == dc_read_file(
@@ -988,7 +978,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
                 {
                     info!(
                         context,
-                        0,
                         "Treating \"{}\" as a legacy private key.",
                         as_str(path_plus_name),
                     );
@@ -1002,7 +991,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
             if imported_cnt == 0i32 {
                 error!(
                     context,
-                    0,
                     "No private keys found in \"{}\".",
                     as_str(dir_name),
                 );
@@ -1010,7 +998,6 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
         } else {
             error!(
                 context,
-                0,
                 "Import: Cannot open directory \"{}\".",
                 as_str(dir_name),
             );
@@ -1110,10 +1097,10 @@ unsafe fn export_key_to_asc_file(
             id,
         )
     }
-    info!(context, 0, "Exporting key {}", as_str(file_name),);
+    info!(context, "Exporting key {}", as_str(file_name),);
     dc_delete_file(context, as_path(file_name));
     if !key.write_asc_to_file(file_name, context) {
-        error!(context, 0, "Cannot write key to {}", as_str(file_name),);
+        error!(context, "Cannot write key to {}", as_str(file_name),);
     } else {
         context.call_cb(
             Event::IMEX_FILE_WRITTEN,

@@ -97,10 +97,7 @@ pub fn dc_get_oauth2_access_token(
 
         let (redirect_uri, token_url, update_redirect_uri_on_success) =
             if refresh_token.is_none() || refresh_token_for != code.as_ref() {
-                info!(
-                    context,
-                    0, "Generate OAuth2 refresh_token and access_token...",
-                );
+                info!(context, "Generate OAuth2 refresh_token and access_token...",);
                 (
                     context
                         .sql
@@ -112,7 +109,7 @@ pub fn dc_get_oauth2_access_token(
             } else {
                 info!(
                     context,
-                    0, "Regenerate OAuth2 access_token by refresh_token...",
+                    "Regenerate OAuth2 access_token by refresh_token...",
                 );
                 (
                     context
@@ -134,7 +131,7 @@ pub fn dc_get_oauth2_access_token(
         if response.is_err() {
             warn!(
                 context,
-                0, "Error calling OAuth2 at {}: {:?}", token_url, response
+                "Error calling OAuth2 at {}: {:?}", token_url, response
             );
             return None;
         }
@@ -142,7 +139,6 @@ pub fn dc_get_oauth2_access_token(
         if !response.status().is_success() {
             warn!(
                 context,
-                0,
                 "Error calling OAuth2 at {}: {:?}",
                 token_url,
                 response.status()
@@ -154,7 +150,7 @@ pub fn dc_get_oauth2_access_token(
         if parsed.is_err() {
             warn!(
                 context,
-                0, "Failed to parse OAuth2 JSON response from {}: error: {:?}", token_url, parsed
+                "Failed to parse OAuth2 JSON response from {}: error: {:?}", token_url, parsed
             );
             return None;
         }
@@ -195,12 +191,12 @@ pub fn dc_get_oauth2_access_token(
                     .ok();
             }
         } else {
-            warn!(context, 0, "Failed to find OAuth2 access token");
+            warn!(context, "Failed to find OAuth2 access token");
         }
 
         response.access_token
     } else {
-        warn!(context, 0, "Internal OAuth2 error: 2");
+        warn!(context, "Internal OAuth2 error: 2");
 
         None
     }
@@ -268,17 +264,12 @@ impl Oauth2 {
         // }
         let response = reqwest::Client::new().get(&userinfo_url).send();
         if response.is_err() {
-            warn!(context, 0, "Error getting userinfo: {:?}", response);
+            warn!(context, "Error getting userinfo: {:?}", response);
             return None;
         }
         let mut response = response.unwrap();
         if !response.status().is_success() {
-            warn!(
-                context,
-                0,
-                "Error getting userinfo: {:?}",
-                response.status()
-            );
+            warn!(context, "Error getting userinfo: {:?}", response.status());
             return None;
         }
 
@@ -286,19 +277,19 @@ impl Oauth2 {
         if parsed.is_err() {
             warn!(
                 context,
-                0, "Failed to parse userinfo JSON response: {:?}", parsed
+                "Failed to parse userinfo JSON response: {:?}", parsed
             );
             return None;
         }
         if let Ok(response) = parsed {
             let addr = response.get("email");
             if addr.is_none() {
-                warn!(context, 0, "E-mail missing in userinfo.");
+                warn!(context, "E-mail missing in userinfo.");
             }
 
             addr.map(|addr| addr.to_string())
         } else {
-            warn!(context, 0, "Failed to parse userinfo.");
+            warn!(context, "Failed to parse userinfo.");
             None
         }
     }

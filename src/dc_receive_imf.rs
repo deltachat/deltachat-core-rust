@@ -41,7 +41,6 @@ pub unsafe fn dc_receive_imf(
 ) {
     info!(
         context,
-        0,
         "Receiving message {}/{}...",
         if !server_folder.as_ref().is_empty() {
             server_folder.as_ref()
@@ -61,7 +60,7 @@ pub unsafe fn dc_receive_imf(
 
     if mime_parser.header.is_empty() {
         // Error - even adding an empty record won't help as we do not know the message ID
-        info!(context, 0, "No header.");
+        info!(context, "No header.");
         return;
     }
 
@@ -189,7 +188,7 @@ pub unsafe fn dc_receive_imf(
             &mut created_db_entries,
             &mut create_event_to_send,
         ) {
-            info!(context, 0, "{}", err);
+            info!(context, "{}", err);
 
             cleanup(
                 context,
@@ -243,7 +242,6 @@ pub unsafe fn dc_receive_imf(
 
     info!(
         context,
-        0,
         "received message {} has Message-Id: {}",
         server_uid,
         to_string(rfc724_mid)
@@ -447,10 +445,7 @@ unsafe fn add_parts(
             // check if the message belongs to a mailing list
             if dc_mimeparser_is_mailinglist_message(mime_parser) {
                 *chat_id = 3;
-                info!(
-                    context,
-                    0, "Message belongs to a mailing list and is ignored.",
-                );
+                info!(context, "Message belongs to a mailing list and is ignored.",);
             }
         }
 
@@ -482,7 +477,7 @@ unsafe fn add_parts(
                     Contact::scaleup_origin_by_id(context, *from_id, Origin::IncomingReplyTo);
                     info!(
                         context,
-                        0, "Message is a reply to a known message, mark sender as known.",
+                        "Message is a reply to a known message, mark sender as known.",
                     );
                     if !incoming_origin.is_verified() {
                         *incoming_origin = Origin::IncomingReplyTo;
@@ -642,7 +637,8 @@ unsafe fn add_parts(
                         }
                     }
                     if part.type_0 == Viewtype::Text {
-                        let msg_raw = CString::yolo(part.msg_raw.as_ref().cloned().unwrap_or_default());
+                        let msg_raw =
+                            CString::yolo(part.msg_raw.as_ref().cloned().unwrap_or_default());
                         let subject_c = CString::yolo(
                             mime_parser
                                 .subject
@@ -723,7 +719,7 @@ unsafe fn add_parts(
 
     info!(
         context,
-        0, "Message has {} parts and is assigned to chat #{}.", icnt, *chat_id,
+        "Message has {} parts and is assigned to chat #{}.", icnt, *chat_id,
     );
 
     // check event to send
@@ -961,7 +957,7 @@ fn save_locations(
                             insert_msg_id,
                             newest_location_id,
                         ) {
-                            error!(context, 0, "Failed to set msg_location_id: {:?}", err);
+                            error!(context, "Failed to set msg_location_id: {:?}", err);
                         }
                     }
                     send_event = true;
@@ -1316,7 +1312,7 @@ unsafe fn create_or_lookup_group(
     if !X_MrAddToGrp.is_null() || !X_MrRemoveFromGrp.is_null() {
         recreate_member_list = 1;
     } else if 0 != X_MrGrpNameChanged && !grpname.is_null() && strlen(grpname) < 200 {
-        info!(context, 0, "updating grpname for chat {}", chat_id);
+        info!(context, "updating grpname for chat {}", chat_id);
         if sql::execute(
             context,
             &context.sql,
@@ -1331,7 +1327,7 @@ unsafe fn create_or_lookup_group(
     if !X_MrGrpImageChanged.is_empty() {
         info!(
             context,
-            0, "grp-image-change {} chat {}", X_MrGrpImageChanged, chat_id
+            "grp-image-change {} chat {}", X_MrGrpImageChanged, chat_id
         );
         let mut changed = false;
         let mut grpimage = "".to_string();
@@ -1345,13 +1341,13 @@ unsafe fn create_or_lookup_group(
                         .get(Param::File)
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| "".to_string());
-                    info!(context, 0, "found image {:?}", grpimage);
+                    info!(context, "found image {:?}", grpimage);
                     changed = true;
                 }
             }
         }
         if changed {
-            info!(context, 0, "New group image set to '{}'.", grpimage);
+            info!(context, "New group image set to '{}'.", grpimage);
             if let Ok(mut chat) = Chat::load_from_db(context, chat_id) {
                 if grpimage.is_empty() {
                     chat.param.remove(Param::ProfileImage);
@@ -1740,7 +1736,7 @@ unsafe fn check_verified_properties(
 ) -> libc::c_int {
     let verify_fail = |reason: String| {
         *failure_reason = format!("{}. See \"Info\" for details.", reason).strdup();
-        warn!(context, 0, "{}", reason);
+        warn!(context, "{}", reason);
     };
 
     let contact = match Contact::load_from_db(context, from_id) {
@@ -1811,13 +1807,7 @@ unsafe fn check_verified_properties(
                 || peerstate.verified_key_fingerprint != peerstate.public_key_fingerprint
                     && peerstate.verified_key_fingerprint != peerstate.gossip_key_fingerprint
             {
-                info!(
-                    context,
-                    0,
-                    "{} has verfied {}.",
-                    contact.get_addr(),
-                    to_addr,
-                );
+                info!(context, "{} has verfied {}.", contact.get_addr(), to_addr,);
                 let fp = peerstate.gossip_key_fingerprint.clone();
                 if let Some(fp) = fp {
                     peerstate.set_verified(0, &fp, 2);

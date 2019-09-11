@@ -12,7 +12,6 @@ use deltachat::contact::*;
 use deltachat::context::*;
 use deltachat::dc_imex::*;
 use deltachat::dc_tools::*;
-use deltachat::key::*;
 use deltachat::keyring::*;
 use deltachat::oauth2::*;
 use deltachat::pgp::*;
@@ -91,7 +90,7 @@ unsafe fn stress_functions(context: &Context) {
         assert!(dc_delete_file(context, "$BLOBDIR/dada"));
         assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
         assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
-        assert!(dc_delete_file(context, "$BLOBDIR/foobar-folder"));
+        assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
         let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
@@ -461,136 +460,111 @@ unsafe fn stress_functions(context: &Context) {
 #[test]
 #[ignore] // is too expensive
 fn test_encryption_decryption() {
-    unsafe {
-        let mut bad_data: [libc::c_uchar; 4096] = [0; 4096];
-        let mut i_0: libc::c_int = 0i32;
-        while i_0 < 4096i32 {
-            bad_data[i_0 as usize] = (i_0 & 0xffi32) as libc::c_uchar;
-            i_0 += 1
-        }
-        let mut j: libc::c_int = 0i32;
+    let (public_key, private_key) = dc_pgp_create_keypair("foo@bar.de").unwrap();
 
-        while j < 4096 / 40 {
-            let bad_key = Key::from_binary(
-                &mut *bad_data.as_mut_ptr().offset(j as isize) as *const u8,
-                4096 / 2 + j,
-                if 0 != j & 1 {
-                    KeyType::Public
-                } else {
-                    KeyType::Private
-                },
-            );
+    private_key.split_key().unwrap();
 
-            assert!(bad_key.is_none());
-            j += 1
-        }
+    let (public_key2, private_key2) = dc_pgp_create_keypair("two@zwo.de").unwrap();
 
-        let (public_key, private_key) = dc_pgp_create_keypair("foo@bar.de").unwrap();
+    assert_ne!(public_key, public_key2);
 
-        private_key.split_key().unwrap();
+    let original_text = b"This is a test";
+    let mut keyring = Keyring::default();
+    keyring.add_owned(public_key.clone());
+    keyring.add_ref(&public_key2);
 
-        let (public_key2, private_key2) = dc_pgp_create_keypair("two@zwo.de").unwrap();
+    let ctext_signed = dc_pgp_pk_encrypt(original_text, &keyring, Some(&private_key)).unwrap();
+    assert!(!ctext_signed.is_empty());
+    assert!(ctext_signed.starts_with("-----BEGIN PGP MESSAGE-----"));
 
-        assert_ne!(public_key, public_key2);
+    let ctext_unsigned = dc_pgp_pk_encrypt(original_text, &keyring, None).unwrap();
+    assert!(!ctext_unsigned.is_empty());
+    assert!(ctext_unsigned.starts_with("-----BEGIN PGP MESSAGE-----"));
 
-        let original_text = b"This is a test";
-        let mut keyring = Keyring::default();
-        keyring.add_owned(public_key.clone());
-        keyring.add_ref(&public_key2);
+    let mut keyring = Keyring::default();
+    keyring.add_owned(private_key);
 
-        let ctext_signed = dc_pgp_pk_encrypt(original_text, &keyring, Some(&private_key)).unwrap();
-        assert!(!ctext_signed.is_empty());
-        assert!(ctext_signed.starts_with("-----BEGIN PGP MESSAGE-----"));
+    let mut public_keyring = Keyring::default();
+    public_keyring.add_ref(&public_key);
 
-        let ctext_unsigned = dc_pgp_pk_encrypt(original_text, &keyring, None).unwrap();
-        assert!(!ctext_unsigned.is_empty());
-        assert!(ctext_unsigned.starts_with("-----BEGIN PGP MESSAGE-----"));
+    let mut public_keyring2 = Keyring::default();
+    public_keyring2.add_owned(public_key2.clone());
 
-        let mut keyring = Keyring::default();
-        keyring.add_owned(private_key);
+    let mut valid_signatures: HashSet<String> = Default::default();
 
-        let mut public_keyring = Keyring::default();
-        public_keyring.add_ref(&public_key);
+    let plain = dc_pgp_pk_decrypt(
+        ctext_signed.as_bytes(),
+        &keyring,
+        &public_keyring,
+        Some(&mut valid_signatures),
+    )
+    .unwrap();
 
-        let mut public_keyring2 = Keyring::default();
-        public_keyring2.add_owned(public_key2.clone());
+    assert_eq!(plain, original_text,);
+    assert_eq!(valid_signatures.len(), 1);
 
-        let mut valid_signatures: HashSet<String> = Default::default();
+    valid_signatures.clear();
 
-        let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_bytes(),
-            &keyring,
-            &public_keyring,
-            Some(&mut valid_signatures),
-        )
-        .unwrap();
+    let empty_keyring = Keyring::default();
+    let plain = dc_pgp_pk_decrypt(
+        ctext_signed.as_bytes(),
+        &keyring,
+        &empty_keyring,
+        Some(&mut valid_signatures),
+    )
+    .unwrap();
+    assert_eq!(plain, original_text);
+    assert_eq!(valid_signatures.len(), 0);
 
-        assert_eq!(plain, original_text,);
-        assert_eq!(valid_signatures.len(), 1);
+    valid_signatures.clear();
 
-        valid_signatures.clear();
+    let plain = dc_pgp_pk_decrypt(
+        ctext_signed.as_bytes(),
+        &keyring,
+        &public_keyring2,
+        Some(&mut valid_signatures),
+    )
+    .unwrap();
+    assert_eq!(plain, original_text);
+    assert_eq!(valid_signatures.len(), 0);
 
-        let empty_keyring = Keyring::default();
-        let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_bytes(),
-            &keyring,
-            &empty_keyring,
-            Some(&mut valid_signatures),
-        )
-        .unwrap();
-        assert_eq!(plain, original_text);
-        assert_eq!(valid_signatures.len(), 0);
+    valid_signatures.clear();
 
-        valid_signatures.clear();
+    public_keyring2.add_ref(&public_key);
 
-        let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_bytes(),
-            &keyring,
-            &public_keyring2,
-            Some(&mut valid_signatures),
-        )
-        .unwrap();
-        assert_eq!(plain, original_text);
-        assert_eq!(valid_signatures.len(), 0);
+    let plain = dc_pgp_pk_decrypt(
+        ctext_signed.as_bytes(),
+        &keyring,
+        &public_keyring2,
+        Some(&mut valid_signatures),
+    )
+    .unwrap();
+    assert_eq!(plain, original_text);
+    assert_eq!(valid_signatures.len(), 1);
 
-        valid_signatures.clear();
+    valid_signatures.clear();
 
-        public_keyring2.add_ref(&public_key);
+    let plain = dc_pgp_pk_decrypt(
+        ctext_unsigned.as_bytes(),
+        &keyring,
+        &public_keyring,
+        Some(&mut valid_signatures),
+    )
+    .unwrap();
 
-        let plain = dc_pgp_pk_decrypt(
-            ctext_signed.as_bytes(),
-            &keyring,
-            &public_keyring2,
-            Some(&mut valid_signatures),
-        )
-        .unwrap();
-        assert_eq!(plain, original_text);
-        assert_eq!(valid_signatures.len(), 1);
+    assert_eq!(plain, original_text);
 
-        valid_signatures.clear();
+    valid_signatures.clear();
 
-        let plain = dc_pgp_pk_decrypt(
-            ctext_unsigned.as_bytes(),
-            &keyring,
-            &public_keyring,
-            Some(&mut valid_signatures),
-        )
-        .unwrap();
+    let mut keyring = Keyring::default();
+    keyring.add_ref(&private_key2);
+    let mut public_keyring = Keyring::default();
+    public_keyring.add_ref(&public_key);
 
-        assert_eq!(plain, original_text);
+    let plain =
+        dc_pgp_pk_decrypt(ctext_signed.as_bytes(), &keyring, &public_keyring, None).unwrap();
 
-        valid_signatures.clear();
-
-        let mut keyring = Keyring::default();
-        keyring.add_ref(&private_key2);
-        let mut public_keyring = Keyring::default();
-        public_keyring.add_ref(&public_key);
-
-        let plain =
-            dc_pgp_pk_decrypt(ctext_signed.as_bytes(), &keyring, &public_keyring, None).unwrap();
-
-        assert_eq!(plain, original_text);
-    }
+    assert_eq!(plain, original_text);
 }
 
 unsafe extern "C" fn cb(

@@ -477,7 +477,7 @@ pub fn dc_msg_load_from_db<'a>(context: &'a Context, id: u32) -> Result<Message<
                     if let Ok(t) = String::from_utf8(buf.to_vec()) {
                         text = t;
                     } else {
-                        warn!(context, 0, "dc_msg_load_from_db: could not get text column as non-lossy utf8 id {}", id);
+                        warn!(context, "dc_msg_load_from_db: could not get text column as non-lossy utf8 id {}", id);
                         text = String::from_utf8_lossy(buf).into_owned();
                     }
                 } else {
@@ -579,7 +579,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
     );
 
     if msgs.is_err() {
-        warn!(context, 0, "markseen_msgs failed: {:?}", msgs);
+        warn!(context, "markseen_msgs failed: {:?}", msgs);
         return false;
     }
     let mut send_event = false;
@@ -589,7 +589,7 @@ pub fn dc_markseen_msgs(context: &Context, msg_ids: *const u32, msg_cnt: usize) 
         if curr_blocked == Blocked::Not {
             if curr_state == MessageState::InFresh || curr_state == MessageState::InNoticed {
                 dc_update_msg_state(context, id, MessageState::InSeen);
-                info!(context, 0, "Seen message #{}.", id);
+                info!(context, "Seen message #{}.", id);
 
                 job_add(
                     context,
@@ -1074,7 +1074,7 @@ pub fn dc_set_msg_failed(context: &Context, msg_id: u32, error: Option<impl AsRe
         }
         if let Some(error) = error {
             msg.param.set(Param::Error, error.as_ref());
-            error!(context, 0, "{}", error.as_ref());
+            error!(context, "{}", error.as_ref());
         }
 
         if sql::execute(
@@ -1203,7 +1203,7 @@ pub fn dc_get_real_msg_cnt(context: &Context) -> libc::c_int {
     ) {
         Ok(res) => res,
         Err(err) => {
-            error!(context, 0, "dc_get_real_msg_cnt() failed. {}", err);
+            error!(context, "dc_get_real_msg_cnt() failed. {}", err);
             0
         }
     }
@@ -1219,7 +1219,7 @@ pub fn dc_get_deaddrop_msg_cnt(context: &Context) -> size_t {
     ) {
         Ok(res) => res as size_t,
         Err(err) => {
-            error!(context, 0, "dc_get_deaddrop_msg_cnt() failed. {}", err);
+            error!(context, "dc_get_deaddrop_msg_cnt() failed. {}", err);
             0
         }
     }
@@ -1234,7 +1234,7 @@ pub fn dc_rfc724_mid_cnt(context: &Context, rfc724_mid: *const libc::c_char) -> 
     ) {
         Ok(res) => res,
         Err(err) => {
-            error!(context, 0, "dc_get_rfc724_mid_cnt() failed. {}", err);
+            error!(context, "dc_get_rfc724_mid_cnt() failed. {}", err);
             0
         }
     }
@@ -1288,7 +1288,7 @@ pub fn dc_update_server_uid(
     ) {
         Ok(_) => {}
         Err(err) => {
-            warn!(context, 0, "msg: failed to update server_uid: {}", err);
+            warn!(context, "msg: failed to update server_uid: {}", err);
         }
     }
 }
