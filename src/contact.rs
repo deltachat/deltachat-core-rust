@@ -31,8 +31,7 @@ const DC_ORIGIN_MIN_CONTACT_LIST: i32 = 0x100;
 /// For this purpose, internally, two names are tracked -
 /// authorized-name and given-name.
 /// By default, these names are equal, but functions working with contact names
-pub struct Contact<'a> {
-    context: &'a Context,
+pub struct Contact {
     /// The contact ID.
     ///
     /// Special message IDs:
@@ -139,11 +138,10 @@ pub enum VerifiedStatus {
     BidirectVerified = 2,
 }
 
-impl<'a> Contact<'a> {
-    pub fn load_from_db(context: &'a Context, contact_id: u32) -> Result<Self> {
+impl Contact {
+    pub fn load_from_db(context: &Context, contact_id: u32) -> Result<Self> {
         if contact_id == DC_CONTACT_ID_SELF {
             let contact = Contact {
-                context,
                 id: contact_id,
                 name: context.stock_str(StockMessage::SelfMsg).into(),
                 authname: "".into(),
@@ -162,7 +160,6 @@ impl<'a> Contact<'a> {
             params![contact_id as i32],
             |row| {
                 let contact = Self {
-                    context,
                     id: contact_id,
                     name: row.get::<_, String>(0)?,
                     authname: row.get::<_, String>(4)?,
@@ -181,7 +178,7 @@ impl<'a> Contact<'a> {
     }
 
     /// Check if a contact is blocked.
-    pub fn is_blocked_load(context: &'a Context, id: u32) -> bool {
+    pub fn is_blocked_load(context: &Context, id: u32) -> bool {
         Self::load_from_db(context, id)
             .map(|contact| contact.blocked)
             .unwrap_or_default()
@@ -766,9 +763,9 @@ impl<'a> Contact<'a> {
     /// Get the contact's profile image.
     /// This is the image set by each remote user on their own
     /// using dc_set_config(context, "selfavatar", image).
-    pub fn get_profile_image(&self) -> Option<PathBuf> {
+    pub fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
         if self.id == DC_CONTACT_ID_SELF {
-            if let Some(p) = self.context.get_config(Config::Selfavatar) {
+            if let Some(p) = context.get_config(Config::Selfavatar) {
                 return Some(PathBuf::from(p));
             }
         }
@@ -789,14 +786,18 @@ impl<'a> Contact<'a> {
     ///
     /// The UI may draw a checkbox or something like that beside verified contacts.
     ///
-    pub fn is_verified(&self) -> VerifiedStatus {
-        self.is_verified_ex(None)
+    pub fn is_verified(&self, context: &Context) -> VerifiedStatus {
+        self.is_verified_ex(context, None)
     }
 
     /// Same as `Contact::is_verified` but allows speeding up things
     /// by adding the peerstate belonging to the contact.
     /// If you do not have the peerstate available, it is loaded automatically.
-    pub fn is_verified_ex(&self, peerstate: Option<&Peerstate<'a>>) -> VerifiedStatus {
+    pub fn is_verified_ex(
+        &self,
+        context: &Context,
+        peerstate: Option<&Peerstate>,
+    ) -> VerifiedStatus {
         // We're always sort of secured-verified as we could verify the key on this device any time with the key
         // on this device
         if self.id == DC_CONTACT_ID_SELF {
@@ -809,7 +810,7 @@ impl<'a> Contact<'a> {
             }
         }
 
-        let peerstate = Peerstate::from_addr(self.context, &self.context.sql, &self.addr);
+        let peerstate = Peerstate::from_addr(context, &context.sql, &self.addr);
         if let Some(ps) = peerstate {
             if ps.verified_key().is_some() {
                 return VerifiedStatus::BidirectVerified;

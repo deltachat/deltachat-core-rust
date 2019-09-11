@@ -301,7 +301,7 @@ unsafe fn log_contactlist(context: &Context, contacts: &Vec<u32>) {
         if let Ok(contact) = Contact::get_by_id(context, contact_id) {
             let name = contact.get_name();
             let addr = contact.get_addr();
-            let verified_state = contact.is_verified();
+            let verified_state = contact.is_verified(context);
             let verified_str = if VerifiedStatus::Unverified != verified_state {
                 if verified_state == VerifiedStatus::BidirectVerified {
                     " √√"

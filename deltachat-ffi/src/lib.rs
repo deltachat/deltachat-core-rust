@@ -1217,19 +1217,18 @@ pub unsafe extern "C" fn dc_delete_contact(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_contact<'a>(
+pub unsafe extern "C" fn dc_get_contact(
     context: *mut dc_context_t,
     contact_id: u32,
-) -> *mut dc_contact_t<'a> {
+) -> *mut dc_contact_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_contact()");
         return ptr::null_mut();
     }
-
     let context = &*context;
 
     Contact::get_by_id(context, contact_id)
-        .map(|contact| Box::into_raw(Box::new(contact)))
+        .map(|contact| Box::into_raw(Box::new(ContactWrapper { context, contact })))
         .unwrap_or_else(|_| std::ptr::null_mut())
 }
 
@@ -2299,8 +2298,20 @@ pub unsafe extern "C" fn dc_msg_latefiling_mediasize(
 
 // dc_contact_t
 
+/// FFI struct for [dc_contact_t]
+///
+/// This is the structure behind [dc_contact_t] which is the opaque
+/// structure representing a contact in the FFI API.  It exists
+/// because the FFI API has a refernce from the message to the
+/// context, but the Rust API does not, so the FFI layer needs to glue
+/// these together.
+pub struct ContactWrapper {
+    context: *const dc_context_t,
+    contact: contact::Contact,
+}
+
 #[no_mangle]
-pub type dc_contact_t<'a> = contact::Contact<'a>;
+pub type dc_contact_t = ContactWrapper;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_contact_unref(contact: *mut dc_contact_t) {
@@ -2308,7 +2319,6 @@ pub unsafe extern "C" fn dc_contact_unref(contact: *mut dc_contact_t) {
         eprintln!("ignoring careless call to dc_contact_unref()");
         return;
     }
-
     Box::from_raw(contact);
 }
 
@@ -2318,10 +2328,8 @@ pub unsafe extern "C" fn dc_contact_get_id(contact: *mut dc_contact_t) -> u32 {
         eprintln!("ignoring careless call to dc_contact_get_id()");
         return 0;
     }
-
-    let contact = &*contact;
-
-    contact.get_id()
+    let ffi_contact = &*contact;
+    ffi_contact.contact.get_id()
 }
 
 #[no_mangle]
@@ -2330,10 +2338,8 @@ pub unsafe extern "C" fn dc_contact_get_addr(contact: *mut dc_contact_t) -> *mut
         eprintln!("ignoring careless call to dc_contact_get_addr()");
         return dc_strdup(ptr::null());
     }
-
-    let contact = &*contact;
-
-    contact.get_addr().strdup()
+    let ffi_contact = &*contact;
+    ffi_contact.contact.get_addr().strdup()
 }
 
 #[no_mangle]
@@ -2342,10 +2348,8 @@ pub unsafe extern "C" fn dc_contact_get_name(contact: *mut dc_contact_t) -> *mut
         eprintln!("ignoring careless call to dc_contact_get_name()");
         return dc_strdup(ptr::null());
     }
-
-    let contact = &*contact;
-
-    contact.get_name().strdup()
+    let ffi_contact = &*contact;
+    ffi_contact.contact.get_name().strdup()
 }
 
 #[no_mangle]
@@ -2356,10 +2360,8 @@ pub unsafe extern "C" fn dc_contact_get_display_name(
         eprintln!("ignoring careless call to dc_contact_get_display_name()");
         return dc_strdup(ptr::null());
     }
-
-    let contact = &*contact;
-
-    contact.get_display_name().strdup()
+    let ffi_contact = &*contact;
+    ffi_contact.contact.get_display_name().strdup()
 }
 
 #[no_mangle]
@@ -2370,10 +2372,8 @@ pub unsafe extern "C" fn dc_contact_get_name_n_addr(
         eprintln!("ignoring careless call to dc_contact_get_name_n_addr()");
         return dc_strdup(ptr::null());
     }
-
-    let contact = &*contact;
-
-    contact.get_name_n_addr().strdup()
+    let ffi_contact = &*contact;
+    ffi_contact.contact.get_name_n_addr().strdup()
 }
 
 #[no_mangle]
@@ -2384,10 +2384,8 @@ pub unsafe extern "C" fn dc_contact_get_first_name(
         eprintln!("ignoring careless call to dc_contact_get_first_name()");
         return dc_strdup(ptr::null());
     }
-
-    let contact = &*contact;
-
-    contact.get_first_name().strdup()
+    let ffi_contact = &*contact;
+    ffi_contact.contact.get_first_name().strdup()
 }
 
 #[no_mangle]
@@ -2398,11 +2396,10 @@ pub unsafe extern "C" fn dc_contact_get_profile_image(
         eprintln!("ignoring careless call to dc_contact_get_profile_image()");
         return ptr::null_mut(); // NULL explicitly defined as "no profile image"
     }
-
-    let contact = &*contact;
-
-    contact
-        .get_profile_image()
+    let ffi_contact = &*contact;
+    ffi_contact
+        .contact
+        .get_profile_image(&*ffi_contact.context)
         .map(|p| p.to_str().unwrap().to_string().strdup())
         .unwrap_or_else(|| std::ptr::null_mut())
 }
@@ -2413,10 +2410,8 @@ pub unsafe extern "C" fn dc_contact_get_color(contact: *mut dc_contact_t) -> u32
         eprintln!("ignoring careless call to dc_contact_get_color()");
         return 0;
     }
-
-    let contact = &*contact;
-
-    contact.get_color()
+    let ffi_contact = &*contact;
+    ffi_contact.contact.get_color()
 }
 
 #[no_mangle]
@@ -2425,10 +2420,8 @@ pub unsafe extern "C" fn dc_contact_is_blocked(contact: *mut dc_contact_t) -> li
         eprintln!("ignoring careless call to dc_contact_is_blocked()");
         return 0;
     }
-
-    let contact = &*contact;
-
-    contact.is_blocked() as libc::c_int
+    let ffi_contact = &*contact;
+    ffi_contact.contact.is_blocked() as libc::c_int
 }
 
 #[no_mangle]
@@ -2437,10 +2430,8 @@ pub unsafe extern "C" fn dc_contact_is_verified(contact: *mut dc_contact_t) -> l
         eprintln!("ignoring careless call to dc_contact_is_verified()");
         return 0;
     }
-
-    let contact = &*contact;
-
-    contact.is_verified() as libc::c_int
+    let ffi_contact = &*contact;
+    ffi_contact.contact.is_verified(&*ffi_contact.context) as libc::c_int
 }
 
 // dc_lot_t

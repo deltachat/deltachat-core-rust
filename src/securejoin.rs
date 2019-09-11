@@ -617,7 +617,7 @@ pub fn handle_securejoin_handshake(
             ====  Step 8 in "Out-of-band verified groups" protocol  ====
             ============================================================ */
             if let Ok(contact) = Contact::get_by_id(context, contact_id) {
-                if contact.is_verified() == VerifiedStatus::Unverified {
+                if contact.is_verified(context) == VerifiedStatus::Unverified {
                     warn!(context, "vg-member-added-received invalid.",);
                     return ret;
                 }
