@@ -575,7 +575,7 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
                 .map_err(Into::into)
         },
     ) {
-        context
+        let msgs = context
             .sql
             .prepare(
                 "SELECT id \
@@ -586,34 +586,42 @@ pub fn job_do_DC_JOB_MAYBE_SEND_LOCATIONS(context: &Context, _job: &Job) {
                  AND independent=0 \
                  ORDER BY timestamp;",
                 |mut stmt_locations, _| {
-                    for (chat_id, locations_send_begin, locations_last_sent) in rows {
-                        if !stmt_locations
-                            .exists(params![1, locations_send_begin, locations_last_sent,])
-                            .unwrap_or_default()
-                        {
-                            // if there is no new location, there's nothing to send.
-                            // however, maybe we want to bypass this test eg. 15 minutes
-                            continue;
-                        }
-                        // pending locations are attached automatically to every message,
-                        // so also to this empty text message.
-                        // DC_CMD_LOCATION is only needed to create a nicer subject.
-                        //
-                        // for optimisation and to avoid flooding the sending queue,
-                        // we could sending these messages only if we're really online.
-                        // the easiest way to determine this, is to check for an empty message queue.
-                        // (might not be 100%, however, as positions are sent combined later
-                        // and dc_set_location() is typically called periodically, this is ok)
-                        let mut msg = dc_msg_new(context, Viewtype::Text);
-                        msg.hidden = true;
-                        msg.param.set_int(Param::Cmd, 9);
-                        // TODO: handle cleanup on error
-                        chat::send_msg(context, chat_id as u32, &mut msg).unwrap();
-                    }
-                    Ok(())
+                    let msgs = rows
+                        .into_iter()
+                        .filter_map(|(chat_id, locations_send_begin, locations_last_sent)| {
+                            if !stmt_locations
+                                .exists(params![1, locations_send_begin, locations_last_sent,])
+                                .unwrap_or_default()
+                            {
+                                // if there is no new location, there's nothing to send.
+                                // however, maybe we want to bypass this test eg. 15 minutes
+                                None
+                            } else {
+                                // pending locations are attached automatically to every message,
+                                // so also to this empty text message.
+                                // DC_CMD_LOCATION is only needed to create a nicer subject.
+                                //
+                                // for optimisation and to avoid flooding the sending queue,
+                                // we could sending these messages only if we're really online.
+                                // the easiest way to determine this, is to check for an empty message queue.
+                                // (might not be 100%, however, as positions are sent combined later
+                                // and dc_set_location() is typically called periodically, this is ok)
+                                let mut msg = dc_msg_new(context, Viewtype::Text);
+                                msg.hidden = true;
+                                msg.param.set_int(Param::Cmd, 9);
+                                Some((chat_id, msg))
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    Ok(msgs)
                 },
             )
-            .unwrap(); // TODO: Better error handling
+            .unwrap_or_default(); // TODO: Better error handling
+
+        for (chat_id, mut msg) in msgs.into_iter() {
+            // TODO: better error handling
+            chat::send_msg(context, chat_id as u32, &mut msg).unwrap();
+        }
     }
     if 0 != continue_streaming {
         schedule_MAYBE_SEND_LOCATIONS(context, 0x1);
