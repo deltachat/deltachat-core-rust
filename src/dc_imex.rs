@@ -274,7 +274,9 @@ pub unsafe fn dc_continue_key_transfer(
     let mut filebytes: size_t = 0i32 as size_t;
     let mut armored_key: *mut libc::c_char = ptr::null_mut();
     let mut norm_sc: *mut libc::c_char = ptr::null_mut();
-    if !(msg_id <= 9i32 as libc::c_uint || setup_code.is_null()) {
+    if msg_id <= 9i32 as libc::c_uint || setup_code.is_null() {
+        return false;
+    }
         let msg = dc_get_msg(context, msg_id);
         if msg.is_err()
             || !dc_msg_is_setupmessage(msg.as_ref().unwrap())
@@ -311,7 +313,7 @@ pub unsafe fn dc_continue_key_transfer(
                 }
             }
         }
-    }
+
     free(armored_key as *mut libc::c_void);
     free(filecontent as *mut libc::c_void);
     free(filename as *mut libc::c_void);
