@@ -265,16 +265,16 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> l
     if latitude == 0.0 && longitude == 0.0 {
         return 1;
     }
+    let mut continue_streaming = false;
 
-    context.sql.query_map(
+    if let Ok(chats) = context.sql.query_map(
         "SELECT id FROM chats WHERE locations_send_until>?;",
-        params![time()], |row| row.get::<_, i32>(0),
-        |chats| {
-            let mut continue_streaming = false;
-
-            for chat in chats {
-                let chat_id = chat?;
-                context.sql.execute(
+        params![time()],
+        |row| row.get::<_, i32>(0),
+        |chats| chats.collect::<Result<Vec<_>, _>>().map_err(Into::into),
+    ) {
+        for chat_id in chats {
+            if let Err(err) = context.sql.execute(
                     "INSERT INTO locations  \
                      (latitude, longitude, accuracy, timestamp, chat_id, from_id) VALUES (?,?,?,?,?,?);",
                     params![
@@ -285,16 +285,19 @@ pub fn set(context: &Context, latitude: f64, longitude: f64, accuracy: f64) -> l
                         chat_id,
                         1,
                     ]
-                )?;
+            ) {
+                warn!(context, "failed to store location {:?}", err);
+            } else {
                 continue_streaming = true;
             }
-            if continue_streaming {
-                context.call_cb(Event::LOCATION_CHANGED, 1, 0);
-            };
-            schedule_MAYBE_SEND_LOCATIONS(context, 0);
-            Ok(continue_streaming as libc::c_int)
         }
-    ).unwrap_or_default()
+        if continue_streaming {
+            context.call_cb(Event::LOCATION_CHANGED, 1, 0);
+        };
+        schedule_MAYBE_SEND_LOCATIONS(context, 0);
+    }
+
+    continue_streaming as libc::c_int
 }
 
 pub fn get_range(
