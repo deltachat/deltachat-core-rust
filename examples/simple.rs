@@ -101,7 +101,7 @@ fn main() {
         let chats = Chatlist::try_load(&ctx, 0, None, None).unwrap();
 
         for i in 0..chats.len() {
-            let summary = chats.get_summary(0, None);
+            let summary = chats.get_summary(&ctx, 0, None);
             let text1 = summary.get_text1();
             let text2 = summary.get_text2();
             println!("chat: {} - {:?} - {:?}", i, text1, text2,);

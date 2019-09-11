@@ -405,19 +405,17 @@ pub unsafe extern "C" fn dc_maybe_network(context: *mut dc_context_t) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn dc_get_chatlist<'a>(
+pub unsafe extern "C" fn dc_get_chatlist(
     context: *mut dc_context_t,
     flags: libc::c_int,
     query_str: *mut libc::c_char,
     query_id: u32,
-) -> *mut dc_chatlist_t<'a> {
+) -> *mut dc_chatlist_t {
     if context.is_null() {
         eprintln!("ignoring careless call to dc_get_chatlist()");
         return ptr::null_mut();
     }
-
     let context = &*context;
-
     let qs = if query_str.is_null() {
         None
     } else {
@@ -425,7 +423,10 @@ pub unsafe extern "C" fn dc_get_chatlist<'a>(
     };
     let qi = if query_id == 0 { None } else { Some(query_id) };
     match chatlist::Chatlist::try_load(context, flags as usize, qs, qi) {
-        Ok(list) => Box::into_raw(Box::new(list)),
+        Ok(list) => {
+            let ffi_list = ChatlistWrapper { context, list };
+            Box::into_raw(Box::new(ffi_list))
+        }
         Err(_) => std::ptr::null_mut(),
     }
 }
@@ -1633,8 +1634,20 @@ pub unsafe fn dc_array_is_independent(
 
 // dc_chatlist_t
 
+/// FFI struct for [dc_chatlist_t]
+///
+/// This is the structure behind [dc_chatlist_t] which is the opaque
+/// structure representing a chatlist in the FFI API.  It exists
+/// because the FFI API has a refernce from the message to the
+/// context, but the Rust API does not, so the FFI layer needs to glue
+/// these together.
+pub struct ChatlistWrapper {
+    context: *const dc_context_t,
+    list: chatlist::Chatlist,
+}
+
 #[no_mangle]
-pub type dc_chatlist_t<'a> = chatlist::Chatlist<'a>;
+pub type dc_chatlist_t = ChatlistWrapper;
 
 #[no_mangle]
 pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist_t) {
@@ -1642,7 +1655,6 @@ pub unsafe extern "C" fn dc_chatlist_unref(chatlist: *mut dc_chatlist_t) {
         eprintln!("ignoring careless call to dc_chatlist_unref()");
         return;
     }
-
     Box::from_raw(chatlist);
 }
 
@@ -1652,9 +1664,8 @@ pub unsafe extern "C" fn dc_chatlist_get_cnt(chatlist: *mut dc_chatlist_t) -> li
         eprintln!("ignoring careless call to dc_chatlist_get_cnt()");
         return 0;
     }
-
-    let list = &*chatlist;
-    list.len() as libc::size_t
+    let ffi_list = &*chatlist;
+    ffi_list.list.len() as libc::size_t
 }
 
 #[no_mangle]
@@ -1666,9 +1677,8 @@ pub unsafe extern "C" fn dc_chatlist_get_chat_id(
         eprintln!("ignoring careless call to dc_chatlist_get_chat_id()");
         return 0;
     }
-
-    let list = &*chatlist;
-    list.get_chat_id(index as usize)
+    let ffi_list = &*chatlist;
+    ffi_list.list.get_chat_id(index as usize)
 }
 
 #[no_mangle]
@@ -1680,9 +1690,8 @@ pub unsafe extern "C" fn dc_chatlist_get_msg_id(
         eprintln!("ignoring careless call to dc_chatlist_get_msg_id()");
         return 0;
     }
-
-    let list = &*chatlist;
-    list.get_msg_id(index as usize)
+    let ffi_list = &*chatlist;
+    ffi_list.list.get_msg_id(index as usize)
 }
 
 #[no_mangle]
@@ -1701,8 +1710,10 @@ pub unsafe extern "C" fn dc_chatlist_get_summary(
         let ffi_chat = &*chat;
         Some(&ffi_chat.chat)
     };
-    let list = &*chatlist;
-    let lot = list.get_summary(index as usize, maybe_chat);
+    let ffi_list = &*chatlist;
+    let lot = ffi_list
+        .list
+        .get_summary(&*ffi_list.context, index as usize, maybe_chat);
     Box::into_raw(Box::new(lot))
 }
 
@@ -1714,10 +1725,8 @@ pub unsafe extern "C" fn dc_chatlist_get_context(
         eprintln!("ignoring careless call to dc_chatlist_get_context()");
         return ptr::null_mut();
     }
-
-    let list = &*chatlist;
-
-    list.get_context() as *const _
+    let ffi_list = &*chatlist;
+    ffi_list.context
 }
 
 // dc_chat_t
