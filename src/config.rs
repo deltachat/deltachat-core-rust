@@ -129,6 +129,23 @@ impl Context {
             _ => self.sql.set_config(self, key, value),
         }
     }
+
+    pub fn set_ui_config(&self, key: &str, value: Option<&str>) -> Result<(), &str> {
+        if !key.starts_with("ui.") {
+            return Err("Ui config key has to be prefixed with 'ui.'")
+        }
+
+        if self.sql.set_config(self, key, value).is_err() {
+            return Err("Sql error")
+        }
+        Ok(())
+    }
+    pub fn get_ui_config(&self, key: &str) -> Option<String> {
+        if key.starts_with("ui.") {
+            return self.sql.get_config(self, key);
+        }
+        None
+    }
 }
 
 /// Returns all available configuration keys concated together.
