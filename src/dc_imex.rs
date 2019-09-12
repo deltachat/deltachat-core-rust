@@ -520,7 +520,7 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
                 if ok_to_continue {
                     match what {
                         1 => {
-                            if 0 != export_self_keys(context, param1.as_ptr()) {
+                            if export_self_keys(context, param1.as_ptr()) {
                                 info!(context, "Import/export completed.",);
                                 success = 1
                             }
@@ -1004,8 +1004,7 @@ unsafe fn import_self_keys(context: &Context, dir_name: *const libc::c_char) -> 
     imported_cnt
 }
 
-// TODO should return bool /rtn
-unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> libc::c_int {
+unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool {
     let mut export_errors = 0;
 
     context
@@ -1047,11 +1046,7 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> libc:
         )
         .unwrap();
 
-    if export_errors == 0 {
-        1
-    } else {
-        0
-    }
+    export_errors == 0
 }
 
 /*******************************************************************************
