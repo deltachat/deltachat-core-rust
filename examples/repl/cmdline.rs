@@ -229,7 +229,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{} [{}]",
         prefix.as_ref(),
         dc_msg_get_id(msg) as libc::c_int,
-        if 0 != dc_msg_get_showpadlock(msg) {
+        if dc_msg_get_showpadlock(msg) {
             "🔒"
         } else {
             ""

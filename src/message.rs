@@ -699,13 +699,8 @@ pub fn dc_msg_get_duration(msg: &Message) -> libc::c_int {
     msg.param.get_int(Param::Duration).unwrap_or_default()
 }
 
-// TODO should return bool /rtn
-pub fn dc_msg_get_showpadlock(msg: &Message) -> libc::c_int {
-    if msg.param.get_int(Param::GuranteeE2ee).unwrap_or_default() != 0 {
-        return 1;
-    }
-
-    0
+pub fn dc_msg_get_showpadlock(msg: &Message) -> bool {
+    msg.param.get_int(Param::GuranteeE2ee).unwrap_or_default() != 0
 }
 
 pub fn dc_msg_get_summary(context: &Context, msg: &mut Message, chat: Option<&Chat>) -> Lot {

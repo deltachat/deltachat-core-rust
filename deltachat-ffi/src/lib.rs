@@ -2085,7 +2085,7 @@ pub unsafe extern "C" fn dc_msg_get_showpadlock(msg: *mut dc_msg_t) -> libc::c_i
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_get_showpadlock(&ffi_msg.message)
+    message::dc_msg_get_showpadlock(&ffi_msg.message) as libc::c_int
 }
 
 #[no_mangle]
