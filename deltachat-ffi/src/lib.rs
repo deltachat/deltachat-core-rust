@@ -848,7 +848,7 @@ pub unsafe extern "C" fn dc_add_contact_to_chat(
 
     let context = &*context;
 
-    chat::add_contact_to_chat(context, chat_id, contact_id)
+    chat::add_contact_to_chat(context, chat_id, contact_id) as libc::c_int
 }
 
 #[no_mangle]

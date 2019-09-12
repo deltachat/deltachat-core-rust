@@ -1297,24 +1297,23 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u
     .is_ok()
 }
 
-pub unsafe fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> libc::c_int {
+pub unsafe fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
     add_contact_to_chat_ex(context, chat_id, contact_id, 0)
 }
 
-// TODO should return bool /rtn
 #[allow(non_snake_case)]
 pub fn add_contact_to_chat_ex(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
     flags: libc::c_int,
-) -> libc::c_int {
+) -> bool {
     let mut OK_TO_CONTINUE = true;
-    let mut success: libc::c_int = 0;
+    let mut success = false;
     let contact = Contact::get_by_id(context, contact_id);
 
     if contact.is_err() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
-        return 0;
+        return false;
     }
     let mut msg = dc_msg_new_untyped();
 
@@ -1351,7 +1350,7 @@ pub fn add_contact_to_chat_ex(
 
                     if 0 != is_contact_in_chat(context, chat_id, contact_id) {
                         if 0 == flags & 0x1 {
-                            success = 1;
+                            success = true;
                             OK_TO_CONTINUE = false;
                         }
                     } else {
@@ -1391,7 +1390,7 @@ pub fn add_contact_to_chat_ex(
                             );
                         }
                         context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0 as uintptr_t);
-                        success = 1;
+                        success = true;
                     }
                 }
             }

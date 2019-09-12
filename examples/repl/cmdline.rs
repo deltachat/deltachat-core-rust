@@ -705,7 +705,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
             let contact_id_0: libc::c_int = arg1.parse()?;
-            if 0 != chat::add_contact_to_chat(
+            if chat::add_contact_to_chat(
                 context,
                 sel_chat.as_ref().unwrap().get_id(),
                 contact_id_0 as uint32_t,
