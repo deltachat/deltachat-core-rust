@@ -248,11 +248,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         } else {
             "[FRESH]"
         },
-        if 0 != dc_msg_is_info(msg) {
-            "[INFO]"
-        } else {
-            ""
-        },
+        if dc_msg_is_info(msg) { "[INFO]" } else { "" },
         statestr,
         &temp2,
     );

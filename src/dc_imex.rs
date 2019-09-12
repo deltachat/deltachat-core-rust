@@ -168,7 +168,7 @@ pub unsafe fn dc_initiate_key_transfer(context: &Context) -> *mut libc::c_char {
                                     }
                                     std::thread::sleep(std::time::Duration::from_secs(1));
                                     if let Ok(msg) = dc_get_msg(context, msg_id) {
-                                        if 0 != dc_msg_is_sent(&msg) {
+                                        if dc_msg_is_sent(&msg) {
                                             info!(context, "... setup message sent.",);
                                             break;
                                         }

@@ -868,7 +868,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: u32, mut msg: Option<&mut Me
         } else if msgtype_has_file(msg.type_0) {
             if let Some(path_filename) = msg.param.get(Param::File) {
                 let mut path_filename = path_filename.to_string();
-                if 0 != dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
+                if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
                     OK_TO_CONTINUE = false;
                 } else if !dc_make_rel_and_copy(context, &mut path_filename) {
                     OK_TO_CONTINUE = false;

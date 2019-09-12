@@ -2152,7 +2152,7 @@ pub unsafe extern "C" fn dc_msg_is_sent(msg: *mut dc_msg_t) -> libc::c_int {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_sent(&ffi_msg.message)
+    message::dc_msg_is_sent(&ffi_msg.message).into()
 }
 
 #[no_mangle]
@@ -2172,7 +2172,7 @@ pub unsafe extern "C" fn dc_msg_is_forwarded(msg: *mut dc_msg_t) -> libc::c_int 
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_forwarded(&ffi_msg.message)
+    message::dc_msg_is_forwarded(&ffi_msg.message).into()
 }
 
 #[no_mangle]
@@ -2182,7 +2182,7 @@ pub unsafe extern "C" fn dc_msg_is_info(msg: *mut dc_msg_t) -> libc::c_int {
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_info(&ffi_msg.message)
+    message::dc_msg_is_info(&ffi_msg.message).into()
 }
 
 #[no_mangle]
@@ -2192,7 +2192,7 @@ pub unsafe extern "C" fn dc_msg_is_increation(msg: *mut dc_msg_t) -> libc::c_int
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_increation(&ffi_msg.message)
+    message::dc_msg_is_increation(&ffi_msg.message).into()
 }
 
 #[no_mangle]
@@ -2202,7 +2202,7 @@ pub unsafe extern "C" fn dc_msg_is_setupmessage(msg: *mut dc_msg_t) -> libc::c_i
         return 0;
     }
     let ffi_msg = &*msg;
-    message::dc_msg_is_setupmessage(&ffi_msg.message) as libc::c_int
+    message::dc_msg_is_setupmessage(&ffi_msg.message).into()
 }
 
 #[no_mangle]
