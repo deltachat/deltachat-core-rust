@@ -1271,7 +1271,7 @@ pub unsafe fn create_group_chat(
     let chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid);
 
     if chat_id != 0 {
-        if 0 != add_to_chat_contacts_table(context, chat_id, 1) {
+        if add_to_chat_contacts_table(context, chat_id, 1) {
             let mut draft_msg = dc_msg_new(Viewtype::Text);
             dc_msg_set_text(&mut draft_msg, draft_txt.as_ptr());
             set_draft_raw(context, chat_id, Some(&mut draft_msg));
@@ -1285,8 +1285,7 @@ pub unsafe fn create_group_chat(
 
 /* you MUST NOT modify this or the following strings */
 // Context functions to work with chats
-// TODO should return bool /rtn
-pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u32) -> libc::c_int {
+pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u32) -> bool {
     // add a contact to a chat; the function does not check the type or if any of the record exist or are already
     // added to the chat!
     sql::execute(
@@ -1295,7 +1294,7 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u
         "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
         params![chat_id as i32, contact_id as i32],
     )
-    .is_ok() as libc::c_int
+    .is_ok()
 }
 
 pub unsafe fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> libc::c_int {
@@ -1367,7 +1366,7 @@ pub fn add_contact_to_chat_ex(
                             }
                         }
                         if OK_TO_CONTINUE {
-                            if 0 == add_to_chat_contacts_table(context, chat_id, contact_id) {
+                            if !add_to_chat_contacts_table(context, chat_id, contact_id) {
                                 OK_TO_CONTINUE = false;
                             }
                         }
