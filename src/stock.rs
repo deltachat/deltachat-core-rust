@@ -140,12 +140,14 @@ impl Context {
 
     /// Return stock string, replacing placeholders with provided string.
     ///
-    /// This replaces both the *first* `%1$s` **and** `%1$d`
+    /// This replaces both the *first* `%1$s`, `%1$d` and `%1$@`
     /// placeholders with the provided string.
+    /// (the `%1$@` variant is used on iOS, the other are used on Android and Desktop)
     pub fn stock_string_repl_str(&self, id: StockMessage, insert: impl AsRef<str>) -> String {
         self.stock_str(id)
             .replacen("%1$s", insert.as_ref(), 1)
             .replacen("%1$d", insert.as_ref(), 1)
+            .replacen("%1$@", insert.as_ref(), 1)
     }
 
     /// Return stock string, replacing placeholders with provided int.
@@ -158,9 +160,10 @@ impl Context {
 
     /// Return stock string, replacing 2 placeholders with provided string.
     ///
-    /// This replaces both the *first* `%1$s` **and** `%1$d`
+    /// This replaces both the *first* `%1$s`, `%1$d` and `%1$@`
     /// placeholders with the string in `insert` and does the same for
-    /// `%2$s` and `%2$d` for `insert2`.
+    /// `%2$s`, `%2$d` and `%2$@` for `insert2`.
+    /// (the `%1$@` variant is used on iOS, the other are used on Android and Desktop)
     fn stock_string_repl_str2(
         &self,
         id: StockMessage,
@@ -170,8 +173,10 @@ impl Context {
         self.stock_str(id)
             .replacen("%1$s", insert.as_ref(), 1)
             .replacen("%1$d", insert.as_ref(), 1)
+            .replacen("%1$@", insert.as_ref(), 1)
             .replacen("%2$s", insert2.as_ref(), 1)
             .replacen("%2$d", insert2.as_ref(), 1)
+            .replacen("%2$@", insert2.as_ref(), 1)
     }
 
     /// Return some kind of stock message
