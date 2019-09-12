@@ -7,7 +7,6 @@ use mmime::mailimf_types::*;
 
 use crate::constants::*;
 use crate::contact::*;
-use crate::dc_tools::as_str;
 use crate::key::*;
 
 /// Possible values for encryption preference
@@ -64,11 +63,8 @@ impl Aheader {
         }
     }
 
-    pub fn from_imffields(
-        wanted_from: *const libc::c_char,
-        header: *const mailimf_fields,
-    ) -> Option<Self> {
-        if wanted_from.is_null() || header.is_null() {
+    pub fn from_imffields(wanted_from: &str, header: *const mailimf_fields) -> Option<Self> {
+        if header.is_null() {
             return None;
         }
 
@@ -94,7 +90,7 @@ impl Aheader {
 
                     match Self::from_str(value) {
                         Ok(test) => {
-                            if addr_cmp(&test.addr, as_str(wanted_from)) {
+                            if addr_cmp(&test.addr, wanted_from) {
                                 if fine_header.is_none() {
                                     fine_header = Some(test);
                                 } else {

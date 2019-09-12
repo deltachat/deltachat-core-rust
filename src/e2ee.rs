@@ -408,7 +408,8 @@ impl E2eeHelper {
                 }
             }
             let mut peerstate = None;
-            let autocryptheader = Aheader::from_imffields(from, imffields);
+            let autocryptheader =
+                as_opt_str(from).and_then(|from| Aheader::from_imffields(from, imffields));
             if message_time > 0 && !from.is_null() {
                 peerstate = Peerstate::from_addr(context, &context.sql, as_str(from));
 
