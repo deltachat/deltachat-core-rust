@@ -532,13 +532,13 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
                             }
                         }
                         11 => {
-                            if 0 != export_backup(context, param1.as_ptr()) {
+                            if export_backup(context, param1.as_ptr()) {
                                 info!(context, "Import/export completed.",);
                                 success = 1
                             }
                         }
                         12 => {
-                            if 0 != import_backup(context, param1.as_ptr()) {
+                            if import_backup(context, param1.as_ptr()) {
                                 info!(context, "Import/export completed.",);
                                 success = 1
                             }
@@ -561,9 +561,8 @@ pub unsafe fn dc_job_do_DC_JOB_IMEX_IMAP(context: &Context, job: &Job) {
  * Import backup
  ******************************************************************************/
 
-// TODO should return bool /rtn
 #[allow(non_snake_case)]
-unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> libc::c_int {
+unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char) -> bool {
     info!(
         context,
         "Import \"{}\" to \"{}\".",
@@ -576,7 +575,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
 
     if dc_is_configured(context) {
         error!(context, "Cannot import backups to accounts in use.");
-        return 0;
+        return false;
     }
     &context.sql.close(&context);
     dc_delete_file(context, context.get_dbfile().unwrap());
@@ -585,7 +584,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
             context,
             "Cannot import backups: Cannot delete the old file.",
         );
-        return 0;
+        return false;
     }
 
     if !dc_copy_file(
@@ -593,7 +592,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         as_path(backup_to_import),
         context.get_dbfile().unwrap(),
     ) {
-        return 0;
+        return false;
     }
     /* error already logged */
     /* re-open copied database file */
@@ -601,7 +600,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         .sql
         .open(&context, &context.get_dbfile().unwrap(), 0)
     {
-        return 0;
+        return false;
     }
 
     let total_files_cnt = context
@@ -680,7 +679,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
         sql::try_execute(context, &context.sql, "VACUUM;").ok();
         Ok(())
     })
-    .is_ok() as libc::c_int
+    .is_ok()
 }
 
 /*******************************************************************************
@@ -688,11 +687,10 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
  ******************************************************************************/
 /* the FILE_PROGRESS macro calls the callback with the permille of files processed.
 The macro avoids weird values of 0% or 100% while still working. */
-// TODO should return bool /rtn
 #[allow(non_snake_case)]
-unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_int {
+unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> bool {
     let mut ok_to_continue: bool;
-    let mut success: libc::c_int = 0;
+    let mut success = false;
 
     let mut delete_dest_file: libc::c_int = 0;
     // get a fine backup file name (the name includes the date so that multiple backup instances are possible)
@@ -858,7 +856,7 @@ unsafe fn export_backup(context: &Context, dir: *const libc::c_char) -> libc::c_
                                 dest_pathNfilename as uintptr_t,
                                 0,
                             );
-                            success = 1;
+                            success = true;
                         }
                     }
                 } else {
