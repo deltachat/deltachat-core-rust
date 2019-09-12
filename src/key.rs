@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::ffi::{CStr, CString};
 use std::io::Cursor;
+use std::path::Path;
 
 use libc;
 use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
@@ -216,17 +217,13 @@ impl Key {
             .expect("failed to serialize key")
     }
 
-    pub fn write_asc_to_file(&self, file: *const libc::c_char, context: &Context) -> bool {
-        if file.is_null() {
-            return false;
-        }
-
+    pub fn write_asc_to_file(&self, file: impl AsRef<Path>, context: &Context) -> bool {
         let file_content = self.to_asc(None).into_bytes();
 
-        if dc_write_file_safe(context, as_path(file), &file_content) {
+        if dc_write_file_safe(context, &file, &file_content) {
             return true;
         } else {
-            error!(context, "Cannot write key to {}", as_str(file));
+            error!(context, "Cannot write key to {}", file.as_ref().display());
             return false;
         }
     }

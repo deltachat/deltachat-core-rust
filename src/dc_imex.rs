@@ -1093,7 +1093,7 @@ unsafe fn export_key_to_asc_file(
     }
     info!(context, "Exporting key {}", as_str(file_name),);
     dc_delete_file(context, as_path(file_name));
-    if !key.write_asc_to_file(file_name, context) {
+    if !key.write_asc_to_file(as_path(file_name), context) {
         error!(context, "Cannot write key to {}", as_str(file_name),);
     } else {
         context.call_cb(
