@@ -87,7 +87,7 @@ impl E2eeHelper {
                 EncryptPreference::NoPreference
             };
 
-            let addr = context.sql.get_config(context, "configured_addr");
+            let addr = context.get_config(Config::ConfiguredAddr);
 
             if let Some(addr) = addr {
                 let pubkey_ret = load_or_generate_self_public_key(context, &addr).map_err(|err| {
@@ -429,7 +429,7 @@ impl E2eeHelper {
                 }
             }
             /* load private key for decryption */
-            let self_addr = context.sql.get_config(context, "configured_addr");
+            let self_addr = context.get_config(Config::ConfiguredAddr);
             if let Some(self_addr) = self_addr {
                 if private_keyring.load_self_private_for_decrypting(
                     context,

@@ -4,6 +4,7 @@ use std::ptr;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat};
+use crate::config::*;
 use crate::configure::*;
 use crate::constants::*;
 use crate::contact::*;
@@ -82,7 +83,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Optio
     ensure_secret_key_exists(context).ok();
     let invitenumber = token::lookup_or_new(context, token::Namespace::InviteNumber, group_chat_id);
     let auth = token::lookup_or_new(context, token::Namespace::Auth, group_chat_id);
-    let self_addr = match context.sql.get_config(context, "configured_addr") {
+    let self_addr = match context.get_config(Config::ConfiguredAddr) {
         Some(addr) => addr,
         None => {
             error!(context, "Not configured, cannot generate QR code.",);
@@ -139,7 +140,7 @@ pub fn dc_get_securejoin_qr(context: &Context, group_chat_id: uint32_t) -> Optio
 }
 
 fn get_self_fingerprint(context: &Context) -> Option<String> {
-    if let Some(self_addr) = context.sql.get_config(context, "configured_addr") {
+    if let Some(self_addr) = context.get_config(Config::ConfiguredAddr) {
         if let Some(key) = Key::from_self_public(context, self_addr, &context.sql) {
             return Some(key.fingerprint());
         }

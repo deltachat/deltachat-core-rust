@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::path::{Path, PathBuf};
 
 use crate::chatlist::*;
+use crate::config::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
@@ -267,7 +268,7 @@ impl Chat {
             return Ok(0);
         }
 
-        if let Some(from) = context.sql.get_config(context, "configured_addr") {
+        if let Some(from) = context.get_config(Config::ConfiguredAddr) {
             let new_rfc724_mid = {
                 let grpid = match self.typ {
                     Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),

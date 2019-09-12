@@ -362,7 +362,7 @@ fn set_self_key(
         error!(context, "File does not contain a private key.",);
     }
 
-    let self_addr = context.sql.get_config(context, "configured_addr");
+    let self_addr = context.get_config(Config::ConfiguredAddr);
 
     if self_addr.is_none() {
         error!(context, "Missing self addr");
