@@ -223,25 +223,14 @@ impl Key {
             return false;
         }
 
-        let file_content = self.to_asc(None);
-        let file_content_c = CString::new(file_content).unwrap();
+        let file_content = self.to_asc(None).into_bytes();
 
-        let success = if 0
-            == unsafe {
-                dc_write_file(
-                    context,
-                    file,
-                    file_content_c.as_ptr() as *const libc::c_void,
-                    file_content_c.as_bytes().len(),
-                )
-            } {
-            error!(context, "Cannot write key to {}", to_string(file));
-            false
+        if dc_write_file_safe(context, as_path(file), &file_content) {
+            return true;
         } else {
-            true
-        };
-
-        success
+            error!(context, "Cannot write key to {}", as_str(file));
+            return false;
+        }
     }
 
     pub fn fingerprint(&self) -> String {
