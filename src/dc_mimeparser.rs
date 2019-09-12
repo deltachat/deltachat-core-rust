@@ -1033,14 +1033,12 @@ unsafe fn dc_mimeparser_add_single_part_if_known(
             || (*mime_data).dt_data.dt_text.dt_length <= 0)
         {
             /* regard `Content-Transfer-Encoding:` */
-            if !(0
-                == mailmime_transfer_decode(
-                    mime,
-                    &mut decoded_data,
-                    &mut decoded_data_bytes,
-                    &mut transfer_decoding_buffer,
-                ))
-            {
+            if mailmime_transfer_decode(
+                mime,
+                &mut decoded_data,
+                &mut decoded_data_bytes,
+                &mut transfer_decoding_buffer,
+            ) {
                 /* no always error - but no data */
                 match mime_type {
                     60 | 70 => {
@@ -1352,13 +1350,12 @@ unsafe fn do_add_single_part(parser: &mut dc_mimeparser_t, mut part: dc_mimepart
     parser.parts.push(part);
 }
 
-// TODO should return bool /rtn
 pub unsafe fn mailmime_transfer_decode(
     mime: *mut mailmime,
     ret_decoded_data: *mut *const libc::c_char,
     ret_decoded_data_bytes: *mut size_t,
     ret_to_mmap_string_unref: *mut *mut libc::c_char,
-) -> libc::c_int {
+) -> bool {
     let mut mime_transfer_encoding: libc::c_int = MAILMIME_MECHANISM_BINARY as libc::c_int;
     let mime_data: *mut mailmime_data;
     /* must not be free()'d */
@@ -1374,7 +1371,7 @@ pub unsafe fn mailmime_transfer_decode(
         || *ret_decoded_data_bytes != 0
         || !(*ret_to_mmap_string_unref).is_null()
     {
-        return 0i32;
+        return false;
     }
     mime_data = (*mime).mm_data.mm_single;
     if !(*mime).mm_mime_fields.is_null() {
@@ -1408,7 +1405,7 @@ pub unsafe fn mailmime_transfer_decode(
         decoded_data = (*mime_data).dt_data.dt_text.dt_data;
         decoded_data_bytes = (*mime_data).dt_data.dt_text.dt_length;
         if decoded_data.is_null() || decoded_data_bytes <= 0 {
-            return 0i32;
+            return false;
         }
     } else {
         let r: libc::c_int;
@@ -1425,7 +1422,7 @@ pub unsafe fn mailmime_transfer_decode(
             || transfer_decoding_buffer.is_null()
             || decoded_data_bytes <= 0
         {
-            return 0i32;
+            return false;
         }
         decoded_data = transfer_decoding_buffer
     }
@@ -1433,7 +1430,7 @@ pub unsafe fn mailmime_transfer_decode(
     *ret_decoded_data_bytes = decoded_data_bytes;
     *ret_to_mmap_string_unref = transfer_decoding_buffer;
 
-    1
+    true
 }
 
 pub unsafe fn dc_mimeparser_is_mailinglist_message(mimeparser: &dc_mimeparser_t) -> bool {
