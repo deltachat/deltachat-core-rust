@@ -792,7 +792,7 @@ pub fn dc_get_filemeta(buf: &[u8]) -> Result<(u32, u32), Error> {
 ///
 /// If `path` starts with "$BLOBDIR", replaces it with the blobdir path.
 /// Otherwise, returns path as is.
-pub fn dc_get_abs_path_safe<P: AsRef<std::path::Path>>(
+pub fn dc_get_abs_path<P: AsRef<std::path::Path>>(
     context: &Context,
     path: P,
 ) -> std::path::PathBuf {
@@ -808,33 +808,12 @@ pub fn dc_get_abs_path_safe<P: AsRef<std::path::Path>>(
     }
 }
 
-pub unsafe fn dc_get_abs_path(
-    context: &Context,
-    path_filename: impl AsRef<str>,
-) -> *mut libc::c_char {
-    let starts = path_filename.as_ref().starts_with("$BLOBDIR");
-
-    if starts && !context.has_blobdir() {
-        return ptr::null_mut();
-    }
-
-    let mut path_filename_abs = path_filename.as_ref().strdup();
-    if starts && context.has_blobdir() {
-        dc_str_replace(
-            &mut path_filename_abs,
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            context.get_blobdir(),
-        );
-    }
-    path_filename_abs
-}
-
 pub fn dc_file_exist(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
-    dc_get_abs_path_safe(context, &path).exists()
+    dc_get_abs_path(context, &path).exists()
 }
 
 pub fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) -> uint64_t {
-    let path_abs = dc_get_abs_path_safe(context, &path);
+    let path_abs = dc_get_abs_path(context, &path);
     match fs::metadata(&path_abs) {
         Ok(meta) => meta.len() as uint64_t,
         Err(_err) => 0,
@@ -842,7 +821,7 @@ pub fn dc_get_filebytes(context: &Context, path: impl AsRef<std::path::Path>) ->
 }
 
 pub fn dc_delete_file(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
-    let path_abs = dc_get_abs_path_safe(context, &path);
+    let path_abs = dc_get_abs_path(context, &path);
     if !path_abs.is_file() {
         warn!(
             context,
@@ -866,8 +845,8 @@ pub fn dc_copy_file(
     src: impl AsRef<std::path::Path>,
     dest: impl AsRef<std::path::Path>,
 ) -> bool {
-    let src_abs = dc_get_abs_path_safe(context, &src);
-    let dest_abs = dc_get_abs_path_safe(context, &dest);
+    let src_abs = dc_get_abs_path(context, &src);
+    let dest_abs = dc_get_abs_path(context, &dest);
     match fs::copy(&src_abs, &dest_abs) {
         Ok(_) => true,
         Err(_) => {
@@ -883,7 +862,7 @@ pub fn dc_copy_file(
 }
 
 pub fn dc_create_folder(context: &Context, path: impl AsRef<std::path::Path>) -> bool {
-    let path_abs = dc_get_abs_path_safe(context, &path);
+    let path_abs = dc_get_abs_path(context, &path);
     if !path_abs.exists() {
         match fs::create_dir_all(path_abs) {
             Ok(_) => true,
@@ -918,7 +897,7 @@ pub fn dc_write_file_safe<P: AsRef<std::path::Path>>(
     path: P,
     buf: &[u8],
 ) -> bool {
-    let path_abs = dc_get_abs_path_safe(context, &path);
+    let path_abs = dc_get_abs_path(context, &path);
     if let Err(_err) = fs::write(&path_abs, buf) {
         warn!(
             context,
@@ -953,7 +932,7 @@ pub unsafe fn dc_read_file(
 }
 
 pub fn dc_read_file_safe<P: AsRef<std::path::Path>>(context: &Context, path: P) -> Option<Vec<u8>> {
-    let path_abs = dc_get_abs_path_safe(context, &path);
+    let path_abs = dc_get_abs_path(context, &path);
     match fs::read(&path_abs) {
         Ok(bytes) => Some(bytes),
         Err(_err) => {

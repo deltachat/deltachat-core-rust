@@ -376,7 +376,7 @@ pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
 pub unsafe fn dc_msg_get_file(context: &Context, msg: &Message) -> Option<PathBuf> {
     msg.param
         .get(Param::File)
-        .map(|f| dc_get_abs_path_safe(context, f))
+        .map(|f| dc_get_abs_path(context, f))
 }
 
 /**

@@ -183,7 +183,7 @@ impl Chat {
     pub fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Some(dc_get_abs_path_safe(context, image_rel));
+                return Some(dc_get_abs_path(context, image_rel));
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id);
