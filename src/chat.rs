@@ -59,15 +59,13 @@ impl Chat {
 
         match res {
             Err(err @ crate::error::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Err(err),
-            Err(err) => match err {
-                _ => {
-                    error!(
-                        context,
-                        "chat: failed to load from db {}: {:?}", chat_id, err
-                    );
-                    Err(err)
-                }
-            },
+            Err(err) => {
+                error!(
+                    context,
+                    "chat: failed to load from db {}: {:?}", chat_id, err
+                );
+                Err(err)
+            }
             Ok(mut chat) => {
                 match chat.id {
                     DC_CHAT_ID_DEADDROP => {
