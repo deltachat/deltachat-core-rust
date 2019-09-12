@@ -29,7 +29,7 @@ use crate::x::*;
 // param1 is a directory where the keys are searched in and read from
 // param1 is a directory where the backup is written to
 // param1 is the file with the backup to import
-pub unsafe fn dc_imex(
+pub fn dc_imex(
     context: &Context,
     what: libc::c_int,
     param1: *const libc::c_char,
