@@ -39,7 +39,6 @@ pub fn lookup(context: &Context, namespace: Namespace, foreign_id: u32) -> Optio
         context,
         "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
         params![namespace, foreign_id as i32],
-        0,
     )
 }
 

@@ -155,19 +155,13 @@ impl Sql {
             .unwrap_or_default()
     }
 
-    pub fn query_row_col<P, T>(
-        &self,
-        context: &Context,
-        query: &str,
-        params: P,
-        column: usize,
-    ) -> Option<T>
+    pub fn query_row_col<P, T>(&self, context: &Context, query: &str, params: P) -> Option<T>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
         T: rusqlite::types::FromSql,
     {
-        match self.query_row(query, params, |row| row.get::<_, T>(column)) {
+        match self.query_row(query, params, |row| row.get::<_, T>(0)) {
             Ok(res) => Some(res),
             Err(Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => None,
             Err(Error::Sql(rusqlite::Error::InvalidColumnType(
@@ -242,7 +236,6 @@ impl Sql {
             context,
             "SELECT value FROM config WHERE keyname=?;",
             params![key.as_ref()],
-            0,
         )
     }
 

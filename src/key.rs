@@ -146,7 +146,6 @@ impl Key {
             context,
             "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
             &[addr],
-            0,
         )
         .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Public))
     }
@@ -160,7 +159,6 @@ impl Key {
             context,
             "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
             &[self_addr.as_ref()],
-            0,
         )
         .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Private))
     }

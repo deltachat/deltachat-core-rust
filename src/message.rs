@@ -177,7 +177,6 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         context,
         "SELECT txt_raw FROM msgs WHERE id=?;",
         params![msg_id as i32],
-        0,
     );
 
     if rawtxt.is_none() {
@@ -495,7 +494,6 @@ pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: u32) -> *mut libc::
         context,
         "SELECT mime_headers FROM msgs WHERE id=?;",
         params![msg_id as i32],
-        0,
     );
 
     if let Some(headers) = headers {
@@ -1012,7 +1010,6 @@ pub fn dc_msg_exists(context: &Context, msg_id: u32) -> bool {
         context,
         "SELECT chat_id FROM msgs WHERE id=?;",
         params![msg_id],
-        0,
     );
 
     if let Some(chat_id) = chat_id {
@@ -1135,7 +1132,6 @@ pub unsafe fn dc_mdn_from_ext(
                         context,
                         "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
                         params![*ret_msg_id as i32],
-                        0,
                     )
                     .unwrap_or_default();
                 /*

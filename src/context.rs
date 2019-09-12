@@ -353,14 +353,12 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         context,
         "SELECT COUNT(*) FROM keypairs;",
         rusqlite::NO_PARAMS,
-        0,
     );
 
     let pub_key_cnt: Option<isize> = context.sql.query_row_col(
         context,
         "SELECT COUNT(*) FROM acpeerstates;",
         rusqlite::NO_PARAMS,
-        0,
     );
 
     let fingerprint_str = if let Some(key) = Key::from_self_public(context, &l2.addr, &context.sql)

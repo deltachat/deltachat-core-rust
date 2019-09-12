@@ -995,7 +995,6 @@ unsafe fn calc_timestamps(
             context,
             "SELECT MAX(timestamp) FROM msgs WHERE chat_id=? and from_id!=? AND timestamp>=?",
             params![chat_id as i32, from_id as i32, *sort_timestamp],
-            0,
         );
         if let Some(last_msg_time) = last_msg_time {
             if last_msg_time > 0 {

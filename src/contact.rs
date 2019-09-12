@@ -272,7 +272,6 @@ impl Contact {
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
                 DC_ORIGIN_MIN_CONTACT_LIST,
             ],
-            0
         ).unwrap_or_default()
     }
 
@@ -542,7 +541,6 @@ impl Contact {
                 context,
                 "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
                 params![DC_CONTACT_ID_LAST_SPECIAL as i32],
-                0,
             )
             .unwrap_or_default() as usize
     }
@@ -649,7 +647,6 @@ impl Contact {
                 context,
                 "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
                 params![contact_id as i32],
-                0,
             )
             .unwrap_or_default();
 
@@ -660,7 +657,6 @@ impl Contact {
                     context,
                     "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
                     params![contact_id as i32, contact_id as i32],
-                    0,
                 )
                 .unwrap_or_default()
         } else {
@@ -848,7 +844,6 @@ impl Contact {
                 context,
                 "SELECT COUNT(*) FROM contacts WHERE id>?;",
                 params![DC_CONTACT_ID_LAST_SPECIAL as i32],
-                0,
             )
             .unwrap_or_default() as usize
     }

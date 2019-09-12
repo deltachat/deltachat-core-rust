@@ -186,7 +186,6 @@ impl Job {
                                     context,
                                     "SELECT chat_id FROM msgs WHERE id=?",
                                     params![self.foreign_id as i32],
-                                    0,
                                 )
                                 .unwrap_or_default();
                             context.call_cb(
@@ -603,7 +602,6 @@ fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
             context,
             "SELECT MIN(desired_timestamp) FROM jobs WHERE thread=?;",
             params![thread],
-            0,
         )
         .unwrap_or_default();
 

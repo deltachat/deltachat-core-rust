@@ -145,7 +145,6 @@ impl Chat {
                      LEFT JOIN contacts c ON c.id=cc.contact_id  \
                      WHERE cc.chat_id=?;",
                     params![self.id as i32],
-                    0,
                 )
                 .unwrap_or_else(|| "Err".into());
         }
@@ -282,7 +281,6 @@ impl Chat {
                     context,
                     "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
                     params![self.id as i32],
-                    0,
                 ) {
                     to_id = id;
                 } else {
@@ -729,7 +727,6 @@ fn last_msg_in_chat_encrypted(context: &Context, sql: &Sql, chat_id: u32) -> boo
          FROM msgs  WHERE timestamp=(SELECT MAX(timestamp) FROM msgs WHERE chat_id=?)  \
          ORDER BY id DESC;",
         params![chat_id as i32],
-        0,
     );
 
     if let Some(ref packed) = packed {
@@ -915,7 +912,6 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
             context,
             "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
             params![chat_id as i32, MessageState::OutDraft],
-            0,
         )
         .unwrap_or_default() as u32
 }
@@ -1010,7 +1006,6 @@ pub fn get_msg_cnt(context: &Context, chat_id: u32) -> usize {
             context,
             "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
             params![chat_id as i32],
-            0,
         )
         .unwrap_or_default() as usize
 }
@@ -1025,7 +1020,6 @@ pub fn get_fresh_msg_cnt(context: &Context, chat_id: u32) -> usize {
              AND hidden=0    \
              AND chat_id=?;",
             params![chat_id as i32],
-            0,
         )
         .unwrap_or_default() as usize
 }
@@ -1794,7 +1788,6 @@ pub fn get_chat_contact_cnt(context: &Context, chat_id: u32) -> libc::c_int {
             context,
             "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
             params![chat_id as i32],
-            0,
         )
         .unwrap_or_default()
 }
@@ -1808,7 +1801,6 @@ pub fn get_chat_cnt(context: &Context) -> usize {
                 context,
                 "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
                 params![],
-                0,
             )
             .unwrap_or_default() as usize
     } else {

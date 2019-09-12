@@ -758,7 +758,6 @@ pub fn handle_degrade_event(context: &Context, peerstate: &Peerstate) {
                 context,
                 "SELECT id FROM contacts WHERE addr=?;",
                 params![&peerstate.addr],
-                0,
             )
             .unwrap_or_default();
         if contact_id > 0 {
