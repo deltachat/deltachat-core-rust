@@ -506,12 +506,12 @@ pub fn dc_search_msgs(
         return Vec::new();
     }
 
-    let real_query = to_string(query).trim().to_string();
+    let real_query = as_str(query).trim();
     if real_query.is_empty() {
         return Vec::new();
     }
-    let strLikeInText = format!("%{}%", &real_query);
-    let strLikeBeg = format!("{}%", &real_query);
+    let strLikeInText = format!("%{}%", real_query);
+    let strLikeBeg = format!("{}%", real_query);
 
     let query = if 0 != chat_id {
         "SELECT m.id, m.timestamp FROM msgs m LEFT JOIN contacts ct ON m.from_id=ct.id WHERE m.chat_id=?  \
