@@ -33,7 +33,7 @@ impl<'a> Keyring<'a> {
         self_addr: impl AsRef<str>,
         sql: &Sql,
     ) -> bool {
-        sql.query_row_col(
+        sql.query_get_value(
             context,
             "SELECT private_key FROM keypairs ORDER BY addr=? DESC, is_default DESC;",
             &[self_addr.as_ref()],

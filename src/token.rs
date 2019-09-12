@@ -35,7 +35,7 @@ pub fn save(context: &Context, namespace: Namespace, foreign_id: u32) -> String 
 }
 
 pub fn lookup(context: &Context, namespace: Namespace, foreign_id: u32) -> Option<String> {
-    context.sql.query_row_col::<_, String>(
+    context.sql.query_get_value::<_, String>(
         context,
         "SELECT token FROM tokens WHERE namespc=? AND foreign_id=?;",
         params![namespace, foreign_id as i32],

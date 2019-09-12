@@ -349,13 +349,13 @@ pub unsafe fn dc_get_info(context: &Context) -> *mut libc::c_char {
         .get_config_int(context, "mdns_enabled")
         .unwrap_or_else(|| 1);
 
-    let prv_key_cnt: Option<isize> = context.sql.query_row_col(
+    let prv_key_cnt: Option<isize> = context.sql.query_get_value(
         context,
         "SELECT COUNT(*) FROM keypairs;",
         rusqlite::NO_PARAMS,
     );
 
-    let pub_key_cnt: Option<isize> = context.sql.query_row_col(
+    let pub_key_cnt: Option<isize> = context.sql.query_get_value(
         context,
         "SELECT COUNT(*) FROM acpeerstates;",
         rusqlite::NO_PARAMS,

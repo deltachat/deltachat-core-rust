@@ -155,7 +155,7 @@ impl Sql {
             .unwrap_or_default()
     }
 
-    pub fn query_row_col<P, T>(&self, context: &Context, query: &str, params: P) -> Option<T>
+    pub fn query_get_value<P, T>(&self, context: &Context, query: &str, params: P) -> Option<T>
     where
         P: IntoIterator,
         P::Item: rusqlite::ToSql,
@@ -232,7 +232,7 @@ impl Sql {
         if !self.is_open() || key.as_ref().is_empty() {
             return None;
         }
-        self.query_row_col(
+        self.query_get_value(
             context,
             "SELECT value FROM config WHERE keyname=?;",
             params![key.as_ref()],

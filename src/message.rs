@@ -173,7 +173,7 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     let msg = msg.unwrap();
 
-    let rawtxt: Option<String> = context.sql.query_row_col(
+    let rawtxt: Option<String> = context.sql.query_get_value(
         context,
         "SELECT txt_raw FROM msgs WHERE id=?;",
         params![msg_id as i32],
@@ -490,7 +490,7 @@ pub fn dc_msg_load_from_db(context: &Context, id: u32) -> Result<Message, Error>
 }
 
 pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: u32) -> *mut libc::c_char {
-    let headers: Option<String> = context.sql.query_row_col(
+    let headers: Option<String> = context.sql.query_get_value(
         context,
         "SELECT mime_headers FROM msgs WHERE id=?;",
         params![msg_id as i32],
@@ -1006,7 +1006,7 @@ pub fn dc_msg_exists(context: &Context, msg_id: u32) -> bool {
         return false;
     }
 
-    let chat_id: Option<u32> = context.sql.query_row_col(
+    let chat_id: Option<u32> = context.sql.query_get_value(
         context,
         "SELECT chat_id FROM msgs WHERE id=?;",
         params![msg_id],
@@ -1128,7 +1128,7 @@ pub unsafe fn dc_mdn_from_ext(
                 /* send event about new state */
                 let ist_cnt: i32 = context
                     .sql
-                    .query_row_col(
+                    .query_get_value(
                         context,
                         "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
                         params![*ret_msg_id as i32],

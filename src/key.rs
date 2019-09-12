@@ -143,7 +143,7 @@ impl Key {
     ) -> Option<Self> {
         let addr = self_addr.as_ref();
 
-        sql.query_row_col(
+        sql.query_get_value(
             context,
             "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
             &[addr],
@@ -156,7 +156,7 @@ impl Key {
         self_addr: impl AsRef<str>,
         sql: &Sql,
     ) -> Option<Self> {
-        sql.query_row_col(
+        sql.query_get_value(
             context,
             "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
             &[self_addr.as_ref()],

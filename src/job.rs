@@ -182,7 +182,7 @@ impl Job {
                             );
                             let chat_id: i32 = context
                                 .sql
-                                .query_row_col(
+                                .query_get_value(
                                     context,
                                     "SELECT chat_id FROM msgs WHERE id=?",
                                     params![self.foreign_id as i32],
@@ -598,7 +598,7 @@ pub fn perform_smtp_idle(context: &Context) {
 fn get_next_wakeup_time(context: &Context, thread: Thread) -> Duration {
     let t: i64 = context
         .sql
-        .query_row_col(
+        .query_get_value(
             context,
             "SELECT MIN(desired_timestamp) FROM jobs WHERE thread=?;",
             params![thread],

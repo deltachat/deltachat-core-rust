@@ -754,7 +754,7 @@ pub fn handle_degrade_event(context: &Context, peerstate: &Peerstate) {
     if Some(DegradeEvent::FingerprintChanged) == peerstate.degrade_event {
         let contact_id: i32 = context
             .sql
-            .query_row_col(
+            .query_get_value(
                 context,
                 "SELECT id FROM contacts WHERE addr=?;",
                 params![&peerstate.addr],

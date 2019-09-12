@@ -606,7 +606,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
 
     let total_files_cnt = context
         .sql
-        .query_row_col::<_, isize>(context, "SELECT COUNT(*) FROM backup_blobs;", params![])
+        .query_get_value::<_, isize>(context, "SELECT COUNT(*) FROM backup_blobs;", params![])
         .unwrap_or_default() as usize;
     info!(
         context,
