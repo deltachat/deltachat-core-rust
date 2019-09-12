@@ -1026,14 +1026,14 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool 
                 for key_pair in keys {
                     let (id, public_key, private_key, is_default) = key_pair?;
                     if let Some(key) = public_key {
-                        if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
+                        if export_key_to_asc_file(context, dir, id, &key, is_default) {
                             export_errors += 1;
                         }
                     } else {
                         export_errors += 1;
                     }
                     if let Some(key) = private_key {
-                        if 0 == export_key_to_asc_file(context, dir, id, &key, is_default) {
+                        if export_key_to_asc_file(context, dir, id, &key, is_default) {
                             export_errors += 1;
                         }
                     } else {
@@ -1052,15 +1052,14 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool 
 /*******************************************************************************
  * Classic key export
  ******************************************************************************/
-// TODO should return bool /rtn
 unsafe fn export_key_to_asc_file(
     context: &Context,
     dir: *const libc::c_char,
     id: libc::c_int,
     key: &Key,
     is_default: libc::c_int,
-) -> libc::c_int {
-    let mut success: libc::c_int = 0i32;
+) -> bool {
+    let mut success = false;
     let file_name;
     if 0 != is_default {
         file_name = dc_mprintf(
@@ -1094,7 +1093,7 @@ unsafe fn export_key_to_asc_file(
             file_name as uintptr_t,
             0i32 as uintptr_t,
         );
-        success = 1i32
+        success = true;
     }
     free(file_name as *mut libc::c_void);
 
