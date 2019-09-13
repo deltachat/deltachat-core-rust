@@ -552,7 +552,7 @@ pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) 
         return ptr::null_mut(); // NULL explicitly defined as "no draft"
     }
     let context = &*context;
-   
+
     if let Some(message) = chat::get_draft(context, chat_id) {
         let ffi_msg = MessageWrapper { context, message };
         return Box::into_raw(Box::new(ffi_msg));
