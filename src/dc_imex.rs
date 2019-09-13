@@ -1110,7 +1110,7 @@ mod tests {
 
     #[test]
     fn test_render_setup_file() {
-        let t = test_context(Some(logging_cb));
+        let t = test_context(Some(Box::new(logging_cb)));
 
         configure_alice_keypair(&t.ctx);
         let msg = dc_render_setup_file(&t.ctx, "hello").unwrap();
@@ -1128,14 +1128,9 @@ mod tests {
         assert!(msg.contains("-----END PGP MESSAGE-----\n"));
     }
 
-    unsafe extern "C" fn ac_setup_msg_cb(
-        ctx: &Context,
-        evt: Event,
-        d1: uintptr_t,
-        d2: uintptr_t,
-    ) -> uintptr_t {
+    fn ac_setup_msg_cb(ctx: &Context, evt: Event, d1: uintptr_t, d2: uintptr_t) -> uintptr_t {
         if evt == Event::GET_STRING && d1 == StockMessage::AcSetupMsgBody.to_usize().unwrap() {
-            "hello\r\nthere".strdup() as usize
+            unsafe { "hello\r\nthere".strdup() as usize }
         } else {
             logging_cb(ctx, evt, d1, d2)
         }
@@ -1143,7 +1138,7 @@ mod tests {
 
     #[test]
     fn test_render_setup_file_newline_replace() {
-        let t = test_context(Some(ac_setup_msg_cb));
+        let t = test_context(Some(Box::new(ac_setup_msg_cb)));
         configure_alice_keypair(&t.ctx);
         let msg = dc_render_setup_file(&t.ctx, "pw").unwrap();
         println!("{}", &msg);

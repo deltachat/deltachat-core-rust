@@ -1,20 +1,8 @@
 #![allow(non_camel_case_types)]
-use crate::constants::Event;
 use crate::context::Context;
 
 pub use mmime::clist::*;
 pub use rusqlite::ffi::*;
-
-/// Callback function that should be given to dc_context_new().
-///
-/// @memberof Context
-/// @param context The context object as returned by dc_context_new().
-/// @param event one of the @ref DC_EVENT constants
-/// @param data1 depends on the event parameter
-/// @param data2 depends on the event parameter
-/// @return return 0 unless stated otherwise in the event parameter documentation
-pub type dc_callback_t =
-    unsafe extern "C" fn(_: &Context, _: Event, _: uintptr_t, _: uintptr_t) -> uintptr_t;
 
 pub type dc_receive_imf_t = unsafe fn(
     _: &Context,

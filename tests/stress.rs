@@ -30,103 +30,101 @@ static mut S_EM_SETUPFILE: *const libc::c_char =
         as *const u8 as *const libc::c_char;
 
 unsafe fn stress_functions(context: &Context) {
-    if 0 != dc_is_open(context) {
-        if dc_file_exist(context, "$BLOBDIR/foobar")
-            || dc_file_exist(context, "$BLOBDIR/dada")
-            || dc_file_exist(context, "$BLOBDIR/foobar.dadada")
-            || dc_file_exist(context, "$BLOBDIR/foobar-folder")
-        {
-            dc_delete_file(context, "$BLOBDIR/foobar");
-            dc_delete_file(context, "$BLOBDIR/dada");
-            dc_delete_file(context, "$BLOBDIR/foobar.dadada");
-            dc_delete_file(context, "$BLOBDIR/foobar-folder");
-        }
-        dc_write_file(
-            context,
-            b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
-            b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
-            7i32 as size_t,
-        );
-        assert!(dc_file_exist(context, "$BLOBDIR/foobar",));
-        assert!(!dc_file_exist(context, "$BLOBDIR/foobarx"));
-        assert_eq!(
-            dc_get_filebytes(context, "$BLOBDIR/foobar",),
-            7i32 as libc::c_ulonglong
-        );
-
-        let abs_path: *mut libc::c_char = dc_mprintf(
-            b"%s/%s\x00" as *const u8 as *const libc::c_char,
-            context.get_blobdir(),
-            b"foobar\x00" as *const u8 as *const libc::c_char,
-        );
-        assert!(dc_is_blobdir_path(context, as_str(abs_path)));
-        assert!(dc_is_blobdir_path(context, "$BLOBDIR/fofo",));
-        assert!(!dc_is_blobdir_path(context, "/BLOBDIR/fofo",));
-        assert!(dc_file_exist(context, as_path(abs_path)));
-        free(abs_path as *mut libc::c_void);
-        assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
-        assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
-
-        let mut buf: *mut libc::c_void = ptr::null_mut();
-        let mut buf_bytes: size_t = 0;
-
-        assert_eq!(
-            dc_read_file(
-                context,
-                b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
-                &mut buf,
-                &mut buf_bytes,
-            ),
-            1
-        );
-        assert_eq!(buf_bytes, 7);
-        assert_eq!(
-            std::str::from_utf8(std::slice::from_raw_parts(buf as *const u8, buf_bytes)).unwrap(),
-            "content"
-        );
-
-        free(buf as *mut _);
-        assert!(dc_delete_file(context, "$BLOBDIR/foobar"));
-        assert!(dc_delete_file(context, "$BLOBDIR/dada"));
-        assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
-        assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
-        assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
-        let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
-            context,
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
-        );
-        assert!(!fn0.is_null());
-        assert_eq!(
-            strcmp(
-                fn0,
-                b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
-            ),
-            0
-        );
-        dc_write_file(
-            context,
-            fn0,
-            b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
-            7i32 as size_t,
-        );
-        let fn1: *mut libc::c_char = dc_get_fine_pathNfilename(
-            context,
-            b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
-        );
-        assert!(!fn1.is_null());
-        assert_eq!(
-            strcmp(
-                fn1,
-                b"$BLOBDIR/foobar-1.dadada\x00" as *const u8 as *const libc::c_char,
-            ),
-            0
-        );
-        assert!(dc_delete_file(context, as_path(fn0)));
-        free(fn0 as *mut libc::c_void);
-        free(fn1 as *mut libc::c_void);
+    if dc_file_exist(context, "$BLOBDIR/foobar")
+        || dc_file_exist(context, "$BLOBDIR/dada")
+        || dc_file_exist(context, "$BLOBDIR/foobar.dadada")
+        || dc_file_exist(context, "$BLOBDIR/foobar-folder")
+    {
+        dc_delete_file(context, "$BLOBDIR/foobar");
+        dc_delete_file(context, "$BLOBDIR/dada");
+        dc_delete_file(context, "$BLOBDIR/foobar.dadada");
+        dc_delete_file(context, "$BLOBDIR/foobar-folder");
     }
+    dc_write_file(
+        context,
+        b"$BLOBDIR/foobar\x00" as *const u8 as *const libc::c_char,
+        b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
+        7i32 as size_t,
+    );
+    assert!(dc_file_exist(context, "$BLOBDIR/foobar",));
+    assert!(!dc_file_exist(context, "$BLOBDIR/foobarx"));
+    assert_eq!(
+        dc_get_filebytes(context, "$BLOBDIR/foobar",),
+        7i32 as libc::c_ulonglong
+    );
+
+    let abs_path: *mut libc::c_char = dc_mprintf(
+        b"%s/%s\x00" as *const u8 as *const libc::c_char,
+        context.get_blobdir(),
+        b"foobar\x00" as *const u8 as *const libc::c_char,
+    );
+    assert!(dc_is_blobdir_path(context, as_str(abs_path)));
+    assert!(dc_is_blobdir_path(context, "$BLOBDIR/fofo",));
+    assert!(!dc_is_blobdir_path(context, "/BLOBDIR/fofo",));
+    assert!(dc_file_exist(context, as_path(abs_path)));
+    free(abs_path as *mut libc::c_void);
+    assert!(dc_copy_file(context, "$BLOBDIR/foobar", "$BLOBDIR/dada",));
+    assert_eq!(dc_get_filebytes(context, "$BLOBDIR/dada",), 7);
+
+    let mut buf: *mut libc::c_void = ptr::null_mut();
+    let mut buf_bytes: size_t = 0;
+
+    assert_eq!(
+        dc_read_file(
+            context,
+            b"$BLOBDIR/dada\x00" as *const u8 as *const libc::c_char,
+            &mut buf,
+            &mut buf_bytes,
+        ),
+        1
+    );
+    assert_eq!(buf_bytes, 7);
+    assert_eq!(
+        std::str::from_utf8(std::slice::from_raw_parts(buf as *const u8, buf_bytes)).unwrap(),
+        "content"
+    );
+
+    free(buf as *mut _);
+    assert!(dc_delete_file(context, "$BLOBDIR/foobar"));
+    assert!(dc_delete_file(context, "$BLOBDIR/dada"));
+    assert!(dc_create_folder(context, "$BLOBDIR/foobar-folder"));
+    assert!(dc_file_exist(context, "$BLOBDIR/foobar-folder",));
+    assert!(!dc_delete_file(context, "$BLOBDIR/foobar-folder"));
+    let fn0: *mut libc::c_char = dc_get_fine_pathNfilename(
+        context,
+        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
+        b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
+    );
+    assert!(!fn0.is_null());
+    assert_eq!(
+        strcmp(
+            fn0,
+            b"$BLOBDIR/foobar.dadada\x00" as *const u8 as *const libc::c_char,
+        ),
+        0
+    );
+    dc_write_file(
+        context,
+        fn0,
+        b"content\x00" as *const u8 as *const libc::c_char as *const libc::c_void,
+        7i32 as size_t,
+    );
+    let fn1: *mut libc::c_char = dc_get_fine_pathNfilename(
+        context,
+        b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
+        b"foobar.dadada\x00" as *const u8 as *const libc::c_char,
+    );
+    assert!(!fn1.is_null());
+    assert_eq!(
+        strcmp(
+            fn1,
+            b"$BLOBDIR/foobar-1.dadada\x00" as *const u8 as *const libc::c_char,
+        ),
+        0
+    );
+    assert!(dc_delete_file(context, as_path(fn0)));
+    free(fn0 as *mut libc::c_void);
+    free(fn1 as *mut libc::c_void);
 
     let res = context.get_config(config::Config::SysConfigKeys).unwrap();
 
@@ -567,12 +565,7 @@ fn test_encryption_decryption() {
     assert_eq!(plain, original_text);
 }
 
-unsafe extern "C" fn cb(
-    _context: &Context,
-    _event: Event,
-    _data1: uintptr_t,
-    _data2: uintptr_t,
-) -> uintptr_t {
+fn cb(_context: &Context, _event: Event, _data1: uintptr_t, _data2: uintptr_t) -> uintptr_t {
     0
 }
 
@@ -582,21 +575,16 @@ struct TestContext {
     dir: TempDir,
 }
 
-unsafe fn create_test_context() -> TestContext {
-    let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), None);
+fn create_test_context() -> TestContext {
     let dir = tempdir().unwrap();
     let dbfile = dir.path().join("db.sqlite");
-    assert!(
-        dc_open(&mut ctx, dbfile.to_str().unwrap(), None),
-        "Failed to open {}",
-        dbfile.display()
-    );
+    let ctx = Context::new(Box::new(cb), "FakeOs".into(), dbfile).unwrap();
     TestContext { ctx: ctx, dir: dir }
 }
 
 #[test]
 fn test_dc_get_oauth2_url() {
-    let ctx = unsafe { create_test_context() };
+    let ctx = create_test_context();
     let addr = "dignifiedquire@gmail.com";
     let redirect_uri = "chat.delta:/com.b44t.messenger";
     let res = dc_get_oauth2_url(&ctx.ctx, addr, redirect_uri);
@@ -606,7 +594,7 @@ fn test_dc_get_oauth2_url() {
 
 #[test]
 fn test_dc_get_oauth2_addr() {
-    let ctx = unsafe { create_test_context() };
+    let ctx = create_test_context();
     let addr = "dignifiedquire@gmail.com";
     let code = "fail";
     let res = dc_get_oauth2_addr(&ctx.ctx, addr, code);
@@ -616,7 +604,7 @@ fn test_dc_get_oauth2_addr() {
 
 #[test]
 fn test_dc_get_oauth2_token() {
-    let ctx = unsafe { create_test_context() };
+    let ctx = create_test_context();
     let addr = "dignifiedquire@gmail.com";
     let code = "fail";
     let res = dc_get_oauth2_access_token(&ctx.ctx, addr, code, 0);
@@ -634,50 +622,33 @@ fn test_stress_tests() {
 
 #[test]
 fn test_get_contacts() {
-    unsafe {
-        let context = create_test_context();
-        let contacts = Contact::get_all(&context.ctx, 0, Some("some2")).unwrap();
-        assert_eq!(contacts.len(), 0);
+    let context = create_test_context();
+    let contacts = Contact::get_all(&context.ctx, 0, Some("some2")).unwrap();
+    assert_eq!(contacts.len(), 0);
 
-        let id = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
-        assert_ne!(id, 0);
+    let id = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
+    assert_ne!(id, 0);
 
-        let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).unwrap();
-        assert_eq!(contacts.len(), 1);
+    let contacts = Contact::get_all(&context.ctx, 0, Some("bob")).unwrap();
+    assert_eq!(contacts.len(), 1);
 
-        let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
-        assert_eq!(contacts.len(), 0);
-    }
+    let contacts = Contact::get_all(&context.ctx, 0, Some("alice")).unwrap();
+    assert_eq!(contacts.len(), 0);
 }
 
 #[test]
 fn test_chat() {
-    unsafe {
-        let context = create_test_context();
-        let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
-        assert_ne!(contact1, 0);
+    let context = create_test_context();
+    let contact1 = Contact::create(&context.ctx, "bob", "bob@mail.de").unwrap();
+    assert_ne!(contact1, 0);
 
-        let chat_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
-        assert!(chat_id > 9, "chat_id too small {}", chat_id);
-        let chat = Chat::load_from_db(&context.ctx, chat_id).unwrap();
+    let chat_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
+    assert!(chat_id > 9, "chat_id too small {}", chat_id);
+    let chat = Chat::load_from_db(&context.ctx, chat_id).unwrap();
 
-        let chat2_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
-        assert_eq!(chat2_id, chat_id);
-        let chat2 = Chat::load_from_db(&context.ctx, chat2_id).unwrap();
+    let chat2_id = chat::create_by_contact_id(&context.ctx, contact1).unwrap();
+    assert_eq!(chat2_id, chat_id);
+    let chat2 = Chat::load_from_db(&context.ctx, chat2_id).unwrap();
 
-        assert_eq!(chat2.name, chat.name);
-    }
-}
-
-#[test]
-fn test_wrong_db() {
-    unsafe {
-        let mut ctx = dc_context_new(Some(cb), std::ptr::null_mut(), None);
-        let dir = tempdir().unwrap();
-        let dbfile = dir.path().join("db.sqlite");
-        std::fs::write(&dbfile, b"123").unwrap();
-
-        let res = dc_open(&mut ctx, dbfile.to_str().unwrap(), None);
-        assert!(!res);
-    }
+    assert_eq!(chat2.name, chat.name);
 }
