@@ -269,54 +269,48 @@ pub unsafe fn dc_continue_key_transfer(
     setup_code: *const libc::c_char,
 ) -> bool {
     let mut success = false;
-    let mut filename: *mut libc::c_char = ptr::null_mut();
-    let mut filecontent: *mut libc::c_char = ptr::null_mut();
-    let mut filebytes: size_t = 0i32 as size_t;
     let mut armored_key: *mut libc::c_char = ptr::null_mut();
-    let mut norm_sc: *mut libc::c_char = ptr::null_mut();
+    let norm_sc;
     if msg_id <= 9i32 as libc::c_uint || setup_code.is_null() {
         return false;
     }
+
     let msg = dc_get_msg(context, msg_id);
-    if msg.is_err()
-        || !dc_msg_is_setupmessage(msg.as_ref().unwrap())
-        || {
-            filename = dc_msg_get_file(context, msg.as_ref().unwrap());
-            filename.is_null()
-        }
-        || *filename.offset(0isize) as libc::c_int == 0i32
-    {
-        error!(context, "Message is no Autocrypt Setup Message.",);
-    } else if 0
-        == dc_read_file(
-            context,
-            filename,
-            &mut filecontent as *mut *mut libc::c_char as *mut *mut libc::c_void,
-            &mut filebytes,
-        )
-        || filecontent.is_null()
-        || filebytes <= 0
-    {
-        error!(context, "Cannot read Autocrypt Setup Message file.",);
-    } else {
-        norm_sc = dc_normalize_setup_code(context, setup_code);
-        if norm_sc.is_null() {
-            warn!(context, "Cannot normalize Setup Code.",);
-        } else {
-            armored_key = dc_decrypt_setup_file(context, norm_sc, filecontent);
-            if armored_key.is_null() {
-                warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
-            } else if set_self_key(context, armored_key, 1) {
-                /*set default*/
-                /* error already logged */
-                success = true
+    if msg.is_err() {
+        error!(context, "Message is no Autocrypt Setup Message.");
+        return false;
+    }
+    let msg = msg.unwrap();
+    if !dc_msg_is_setupmessage(&msg) {
+        error!(context, "Message is no Autocrypt Setup Message.");
+        return false;
+    }
+
+    if let Some(filename) = dc_msg_get_file(context, &msg) {
+        if let Some(buf) = dc_read_file_safe(context, filename) {
+            norm_sc = dc_normalize_setup_code(context, setup_code);
+            if norm_sc.is_null() {
+                warn!(context, "Cannot normalize Setup Code.",);
+            } else {
+                armored_key = dc_decrypt_setup_file(context, norm_sc, buf.as_ptr().cast());
+                if armored_key.is_null() {
+                    warn!(context, "Cannot decrypt Autocrypt Setup Message.",);
+                } else if set_self_key(context, armored_key, 1) {
+                    /*set default*/
+                    /* error already logged */
+                    success = true
+                }
             }
+        } else {
+            error!(context, "Cannot read Autocrypt Setup Message file.",);
+            return false;
         }
+    } else {
+        error!(context, "Message is no Autocrypt Setup Message.");
+        return false;
     }
 
     free(armored_key as *mut libc::c_void);
-    free(filecontent as *mut libc::c_void);
-    free(filename as *mut libc::c_void);
     free(norm_sc as *mut libc::c_void);
 
     success
@@ -368,7 +362,7 @@ fn set_self_key(
         error!(context, "File does not contain a private key.",);
     }
 
-    let self_addr = context.sql.get_config(context, "configured_addr");
+    let self_addr = context.get_config(Config::ConfiguredAddr);
 
     if self_addr.is_none() {
         error!(context, "Missing self addr");
@@ -612,7 +606,7 @@ unsafe fn import_backup(context: &Context, backup_to_import: *const libc::c_char
 
     let total_files_cnt = context
         .sql
-        .query_row_col::<_, isize>(context, "SELECT COUNT(*) FROM backup_blobs;", params![], 0)
+        .query_get_value::<_, isize>(context, "SELECT COUNT(*) FROM backup_blobs;", params![])
         .unwrap_or_default() as usize;
     info!(
         context,
@@ -1099,7 +1093,7 @@ unsafe fn export_key_to_asc_file(
     }
     info!(context, "Exporting key {}", as_str(file_name),);
     dc_delete_file(context, as_path(file_name));
-    if !key.write_asc_to_file(file_name, context) {
+    if !key.write_asc_to_file(as_path(file_name), context) {
         error!(context, "Cannot write key to {}", as_str(file_name),);
     } else {
         context.call_cb(

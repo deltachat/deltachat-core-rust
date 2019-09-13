@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::ffi::{CStr, CString};
 use std::io::Cursor;
+use std::path::Path;
 
 use libc;
 use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
@@ -142,11 +143,10 @@ impl Key {
     ) -> Option<Self> {
         let addr = self_addr.as_ref();
 
-        sql.query_row_col(
+        sql.query_get_value(
             context,
             "SELECT public_key FROM keypairs WHERE addr=? AND is_default=1;",
             &[addr],
-            0,
         )
         .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Public))
     }
@@ -156,11 +156,10 @@ impl Key {
         self_addr: impl AsRef<str>,
         sql: &Sql,
     ) -> Option<Self> {
-        sql.query_row_col(
+        sql.query_get_value(
             context,
             "SELECT private_key FROM keypairs WHERE addr=? AND is_default=1;",
             &[self_addr.as_ref()],
-            0,
         )
         .and_then(|blob: Vec<u8>| Self::from_slice(&blob, KeyType::Private))
     }
@@ -218,30 +217,15 @@ impl Key {
             .expect("failed to serialize key")
     }
 
-    pub fn write_asc_to_file(&self, file: *const libc::c_char, context: &Context) -> bool {
-        if file.is_null() {
+    pub fn write_asc_to_file(&self, file: impl AsRef<Path>, context: &Context) -> bool {
+        let file_content = self.to_asc(None).into_bytes();
+
+        if dc_write_file_safe(context, &file, &file_content) {
+            return true;
+        } else {
+            error!(context, "Cannot write key to {}", file.as_ref().display());
             return false;
         }
-
-        let file_content = self.to_asc(None);
-        let file_content_c = CString::new(file_content).unwrap();
-
-        let success = if 0
-            == unsafe {
-                dc_write_file(
-                    context,
-                    file,
-                    file_content_c.as_ptr() as *const libc::c_void,
-                    file_content_c.as_bytes().len(),
-                )
-            } {
-            error!(context, "Cannot write key to {}", to_string(file));
-            false
-        } else {
-            true
-        };
-
-        success
     }
 
     pub fn fingerprint(&self) -> String {

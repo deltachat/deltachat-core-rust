@@ -301,11 +301,10 @@ impl Chatlist {
 pub fn dc_get_archived_cnt(context: &Context) -> u32 {
     context
         .sql
-        .query_row_col(
+        .query_get_value(
             context,
             "SELECT COUNT(*) FROM chats WHERE blocked=0 AND archived=1;",
             params![],
-            0,
         )
         .unwrap_or_default()
 }
@@ -315,7 +314,7 @@ fn get_last_deaddrop_fresh_msg(context: &Context) -> u32 {
     // only few fresh messages.
     context
         .sql
-        .query_row_col(
+        .query_get_value(
             context,
             "SELECT m.id  FROM msgs m  LEFT JOIN chats c ON c.id=m.chat_id  \
              WHERE m.state=10   \
@@ -323,7 +322,6 @@ fn get_last_deaddrop_fresh_msg(context: &Context) -> u32 {
              AND c.blocked=2 \
              ORDER BY m.timestamp DESC, m.id DESC;",
             params![],
-            0,
         )
         .unwrap_or_default()
 }

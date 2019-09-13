@@ -73,7 +73,7 @@ impl Context {
         let value = match key {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_config(self, key);
-                rel_path.map(|p| dc_get_abs_path_safe(self, &p).to_str().unwrap().to_string())
+                rel_path.map(|p| dc_get_abs_path(self, &p).to_str().unwrap().to_string())
             }
             Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", 24 * 1024 * 1024 / 4 * 3)),

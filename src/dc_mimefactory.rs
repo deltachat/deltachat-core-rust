@@ -1289,7 +1289,10 @@ unsafe fn build_body_file(
                 ) as *mut libc::c_void,
             );
             mime_sub = mailmime_new_empty(content, mime_fields);
-            mailmime_set_body_file(mime_sub, dc_get_abs_path(context, path_filename));
+            let abs_path = dc_get_abs_path(context, path_filename)
+                .to_c_string()
+                .unwrap();
+            mailmime_set_body_file(mime_sub, dc_strdup(abs_path.as_ptr()));
             if !ret_file_name_as_sent.is_null() {
                 *ret_file_name_as_sent = dc_strdup(filename_to_send)
             }

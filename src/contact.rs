@@ -264,7 +264,7 @@ impl Contact {
             return 1;
         }
 
-        context.sql.query_row_col(
+        context.sql.query_get_value(
             context,
             "SELECT id FROM contacts WHERE addr=?1 COLLATE NOCASE AND id>?2 AND origin>=?3 AND blocked=0;",
             params![
@@ -272,7 +272,6 @@ impl Contact {
                 DC_CONTACT_ID_LAST_SPECIAL as i32,
                 DC_ORIGIN_MIN_CONTACT_LIST,
             ],
-            0
         ).unwrap_or_default()
     }
 
@@ -538,11 +537,10 @@ impl Contact {
     pub fn get_blocked_cnt(context: &Context) -> usize {
         context
             .sql
-            .query_row_col::<_, isize>(
+            .query_get_value::<_, isize>(
                 context,
                 "SELECT COUNT(*) FROM contacts WHERE id>? AND blocked!=0",
                 params![DC_CONTACT_ID_LAST_SPECIAL as i32],
-                0,
             )
             .unwrap_or_default() as usize
     }
@@ -645,22 +643,20 @@ impl Contact {
 
         let count_contacts: i32 = context
             .sql
-            .query_row_col(
+            .query_get_value(
                 context,
                 "SELECT COUNT(*) FROM chats_contacts WHERE contact_id=?;",
                 params![contact_id as i32],
-                0,
             )
             .unwrap_or_default();
 
         let count_msgs: i32 = if count_contacts > 0 {
             context
                 .sql
-                .query_row_col(
+                .query_get_value(
                     context,
                     "SELECT COUNT(*) FROM msgs WHERE from_id=? OR to_id=?;",
                     params![contact_id as i32, contact_id as i32],
-                    0,
                 )
                 .unwrap_or_default()
         } else {
@@ -844,11 +840,10 @@ impl Contact {
 
         context
             .sql
-            .query_row_col::<_, isize>(
+            .query_get_value::<_, isize>(
                 context,
                 "SELECT COUNT(*) FROM contacts WHERE id>?;",
                 params![DC_CONTACT_ID_LAST_SPECIAL as i32],
-                0,
             )
             .unwrap_or_default() as usize
     }

@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::path::{Path, PathBuf};
 
 use crate::chatlist::*;
+use crate::config::*;
 use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
@@ -59,15 +60,13 @@ impl Chat {
 
         match res {
             Err(err @ crate::error::Error::Sql(rusqlite::Error::QueryReturnedNoRows)) => Err(err),
-            Err(err) => match err {
-                _ => {
-                    error!(
-                        context,
-                        "chat: failed to load from db {}: {:?}", chat_id, err
-                    );
-                    Err(err)
-                }
-            },
+            Err(err) => {
+                error!(
+                    context,
+                    "chat: failed to load from db {}: {:?}", chat_id, err
+                );
+                Err(err)
+            }
             Ok(mut chat) => {
                 match chat.id {
                     DC_CHAT_ID_DEADDROP => {
@@ -140,13 +139,12 @@ impl Chat {
         if self.typ == Chattype::Single {
             return context
                 .sql
-                .query_row_col(
+                .query_get_value(
                     context,
                     "SELECT c.addr FROM chats_contacts cc  \
                      LEFT JOIN contacts c ON c.id=cc.contact_id  \
                      WHERE cc.chat_id=?;",
                     params![self.id as i32],
-                    0,
                 )
                 .unwrap_or_else(|| "Err".into());
         }
@@ -183,7 +181,7 @@ impl Chat {
     pub fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
         if let Some(image_rel) = self.param.get(Param::ProfileImage) {
             if !image_rel.is_empty() {
-                return Some(dc_get_abs_path_safe(context, image_rel));
+                return Some(dc_get_abs_path(context, image_rel));
             }
         } else if self.typ == Chattype::Single {
             let contacts = get_chat_contacts(context, self.id);
@@ -269,7 +267,7 @@ impl Chat {
             return Ok(0);
         }
 
-        if let Some(from) = context.sql.get_config(context, "configured_addr") {
+        if let Some(from) = context.get_config(Config::ConfiguredAddr) {
             let new_rfc724_mid = {
                 let grpid = match self.typ {
                     Chattype::Group | Chattype::VerifiedGroup => Some(self.grpid.as_str()),
@@ -279,11 +277,10 @@ impl Chat {
             };
 
             if self.typ == Chattype::Single {
-                if let Some(id) = context.sql.query_row_col(
+                if let Some(id) = context.sql.query_get_value(
                     context,
                     "SELECT contact_id FROM chats_contacts WHERE chat_id=?;",
                     params![self.id as i32],
-                    0,
                 ) {
                     to_id = id;
                 } else {
@@ -724,13 +721,12 @@ fn prepare_msg_common(context: &Context, chat_id: u32, msg: &mut Message) -> Res
 }
 
 fn last_msg_in_chat_encrypted(context: &Context, sql: &Sql, chat_id: u32) -> bool {
-    let packed: Option<String> = sql.query_row_col(
+    let packed: Option<String> = sql.query_get_value(
         context,
         "SELECT param  \
          FROM msgs  WHERE timestamp=(SELECT MAX(timestamp) FROM msgs WHERE chat_id=?)  \
          ORDER BY id DESC;",
         params![chat_id as i32],
-        0,
     );
 
     if let Some(ref packed) = packed {
@@ -912,11 +908,10 @@ unsafe fn set_draft_raw(context: &Context, chat_id: u32, mut msg: Option<&mut Me
 fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
     context
         .sql
-        .query_row_col::<_, i32>(
+        .query_get_value::<_, i32>(
             context,
             "SELECT id FROM msgs WHERE chat_id=? AND state=?;",
             params![chat_id as i32, MessageState::OutDraft],
-            0,
         )
         .unwrap_or_default() as u32
 }
@@ -1007,11 +1002,10 @@ pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before:
 pub fn get_msg_cnt(context: &Context, chat_id: u32) -> usize {
     context
         .sql
-        .query_row_col::<_, i32>(
+        .query_get_value::<_, i32>(
             context,
             "SELECT COUNT(*) FROM msgs WHERE chat_id=?;",
             params![chat_id as i32],
-            0,
         )
         .unwrap_or_default() as usize
 }
@@ -1019,14 +1013,13 @@ pub fn get_msg_cnt(context: &Context, chat_id: u32) -> usize {
 pub fn get_fresh_msg_cnt(context: &Context, chat_id: u32) -> usize {
     context
         .sql
-        .query_row_col::<_, i32>(
+        .query_get_value::<_, i32>(
             context,
             "SELECT COUNT(*) FROM msgs  \
              WHERE state=10   \
              AND hidden=0    \
              AND chat_id=?;",
             params![chat_id as i32],
-            0,
         )
         .unwrap_or_default() as usize
 }
@@ -1791,11 +1784,10 @@ pub unsafe fn forward_msgs(
 pub fn get_chat_contact_cnt(context: &Context, chat_id: u32) -> libc::c_int {
     context
         .sql
-        .query_row_col(
+        .query_get_value(
             context,
             "SELECT COUNT(*) FROM chats_contacts WHERE chat_id=?;",
             params![chat_id as i32],
-            0,
         )
         .unwrap_or_default()
 }
@@ -1805,11 +1797,10 @@ pub fn get_chat_cnt(context: &Context) -> usize {
         /* no database, no chats - this is no error (needed eg. for information) */
         context
             .sql
-            .query_row_col::<_, isize>(
+            .query_get_value::<_, isize>(
                 context,
                 "SELECT COUNT(*) FROM chats WHERE id>9 AND blocked=0;",
                 params![],
-                0,
             )
             .unwrap_or_default() as usize
     } else {

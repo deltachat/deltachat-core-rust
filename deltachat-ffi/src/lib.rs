@@ -17,7 +17,7 @@ use std::ptr;
 use std::str::FromStr;
 
 use deltachat::contact::Contact;
-use deltachat::dc_tools::{as_str, dc_strdup, StrExt};
+use deltachat::dc_tools::{as_str, dc_strdup, OsStrExt, StrExt};
 use deltachat::*;
 
 // as C lacks a good and portable error handling,
@@ -2013,6 +2013,9 @@ pub unsafe extern "C" fn dc_msg_get_file(msg: *mut dc_msg_t) -> *mut libc::c_cha
     }
     let ffi_msg = &*msg;
     message::dc_msg_get_file(&*ffi_msg.context, &ffi_msg.message)
+        .and_then(|p| p.to_c_string().ok())
+        .map(|cs| dc_strdup(cs.as_ptr()))
+        .unwrap_or_else(|| dc_strdup(ptr::null()))
 }
 
 #[no_mangle]

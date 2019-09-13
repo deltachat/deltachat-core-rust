@@ -1,5 +1,5 @@
 use std::ffi::CString;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::ptr;
 
 use deltachat_derive::{FromSql, ToSql};
@@ -173,11 +173,10 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
 
     let msg = msg.unwrap();
 
-    let rawtxt: Option<String> = context.sql.query_row_col(
+    let rawtxt: Option<String> = context.sql.query_get_value(
         context,
         "SELECT txt_raw FROM msgs WHERE id=?;",
         params![msg_id as i32],
-        0,
     );
 
     if rawtxt.is_none() {
@@ -269,15 +268,10 @@ pub unsafe fn dc_get_msg_info(context: &Context, msg_id: u32) -> *mut libc::c_ch
         _ => {}
     }
 
-    let p = dc_msg_get_file(context, &msg);
-    if !p.is_null() && 0 != *p.offset(0isize) as libc::c_int {
-        ret += &format!(
-            "\nFile: {}, {}, bytes\n",
-            as_str(p),
-            dc_get_filebytes(context, as_path(p)) as libc::c_int,
-        );
+    if let Some(path) = dc_msg_get_file(context, &msg) {
+        let bytes = dc_get_filebytes(context, &path);
+        ret += &format!("\nFile: {}, {}, bytes\n", path.display(), bytes);
     }
-    free(p as *mut libc::c_void);
 
     if msg.type_0 != Viewtype::Text {
         ret += "Type: ";
@@ -378,17 +372,10 @@ pub fn dc_msg_guess_msgtype_from_suffix(path: &Path) -> Option<(Viewtype, &str)>
     KNOWN.get(extension).map(|x| *x)
 }
 
-pub unsafe fn dc_msg_get_file(context: &Context, msg: &Message) -> *mut libc::c_char {
-    let mut file_abs = ptr::null_mut();
-
-    if let Some(file_rel) = msg.param.get(Param::File) {
-        file_abs = dc_get_abs_path(context, file_rel);
-    }
-    if !file_abs.is_null() {
-        file_abs
-    } else {
-        dc_strdup(0 as *const libc::c_char)
-    }
+pub unsafe fn dc_msg_get_file(context: &Context, msg: &Message) -> Option<PathBuf> {
+    msg.param
+        .get(Param::File)
+        .map(|f| dc_get_abs_path(context, f))
 }
 
 /**
@@ -503,11 +490,10 @@ pub fn dc_msg_load_from_db(context: &Context, id: u32) -> Result<Message, Error>
 }
 
 pub unsafe fn dc_get_mime_headers(context: &Context, msg_id: u32) -> *mut libc::c_char {
-    let headers: Option<String> = context.sql.query_row_col(
+    let headers: Option<String> = context.sql.query_get_value(
         context,
         "SELECT mime_headers FROM msgs WHERE id=?;",
         params![msg_id as i32],
-        0,
     );
 
     if let Some(headers) = headers {
@@ -896,29 +882,16 @@ pub fn dc_msg_is_setupmessage(msg: &Message) -> bool {
 }
 
 pub unsafe fn dc_msg_get_setupcodebegin(context: &Context, msg: &Message) -> *mut libc::c_char {
-    let mut filename: *mut libc::c_char = ptr::null_mut();
-    let mut buf: *mut libc::c_char = ptr::null_mut();
-    let mut buf_bytes: size_t = 0i32 as size_t;
     // just a pointer inside buf, MUST NOT be free()'d
     let mut buf_headerline: *const libc::c_char = ptr::null();
     // just a pointer inside buf, MUST NOT be free()'d
     let mut buf_setupcodebegin: *const libc::c_char = ptr::null();
     let mut ret: *mut libc::c_char = ptr::null_mut();
     if dc_msg_is_setupmessage(msg) {
-        filename = dc_msg_get_file(context, msg);
-        if !(filename.is_null() || *filename.offset(0isize) as libc::c_int == 0i32) {
-            if !(0
-                == dc_read_file(
-                    context,
-                    filename,
-                    &mut buf as *mut *mut libc::c_char as *mut *mut libc::c_void,
-                    &mut buf_bytes,
-                )
-                || buf.is_null()
-                || buf_bytes <= 0)
-            {
+        if let Some(filename) = dc_msg_get_file(context, msg) {
+            if let Some(mut buf) = dc_read_file_safe(context, filename) {
                 if dc_split_armored_data(
-                    buf,
+                    buf.as_mut_ptr().cast(),
                     &mut buf_headerline,
                     &mut buf_setupcodebegin,
                     ptr::null_mut(),
@@ -934,8 +907,6 @@ pub unsafe fn dc_msg_get_setupcodebegin(context: &Context, msg: &Message) -> *mu
             }
         }
     }
-    free(filename as *mut libc::c_void);
-    free(buf as *mut libc::c_void);
     if !ret.is_null() {
         ret
     } else {
@@ -1035,11 +1006,10 @@ pub fn dc_msg_exists(context: &Context, msg_id: u32) -> bool {
         return false;
     }
 
-    let chat_id: Option<u32> = context.sql.query_row_col(
+    let chat_id: Option<u32> = context.sql.query_get_value(
         context,
         "SELECT chat_id FROM msgs WHERE id=?;",
         params![msg_id],
-        0,
     );
 
     if let Some(chat_id) = chat_id {
@@ -1158,11 +1128,10 @@ pub unsafe fn dc_mdn_from_ext(
                 /* send event about new state */
                 let ist_cnt: i32 = context
                     .sql
-                    .query_row_col(
+                    .query_get_value(
                         context,
                         "SELECT COUNT(*) FROM msgs_mdns WHERE msg_id=?;",
                         params![*ret_msg_id as i32],
-                        0,
                     )
                     .unwrap_or_default();
                 /*
