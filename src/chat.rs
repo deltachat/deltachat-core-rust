@@ -921,12 +921,19 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
         .unwrap_or_default() as u32
 }
 
-pub unsafe fn get_draft(context: &Context, chat_id: u32) -> Result<Message, Error> {
-    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
-    let draft_msg_id = get_draft_msg_id(context, chat_id);
-    ensure!(draft_msg_id != 0, "Invalid draft message ID");
+pub unsafe fn get_draft(context: &Context, chat_id: u32) -> Option<Message> {
+    println!("chat_id {}", chat_id);
+    if chat_id < DC_CHAT_ID_LAST_SPECIAL {
+        warn!(context, "Invalid chat ID");
+        return None;
+    }
 
-    dc_msg_load_from_db(context, draft_msg_id)
+    let draft_msg_id = get_draft_msg_id(context, chat_id);
+    if draft_msg_id == 0 {
+        return None;
+    }
+
+    Some(dc_msg_load_from_db(context, draft_msg_id).unwrap())
 }
 
 pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before: u32) -> Vec<u32> {

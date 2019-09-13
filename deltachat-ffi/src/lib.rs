@@ -552,15 +552,13 @@ pub unsafe extern "C" fn dc_get_draft(context: *mut dc_context_t, chat_id: u32) 
         return ptr::null_mut(); // NULL explicitly defined as "no draft"
     }
     let context = &*context;
-    let message = match chat::get_draft(context, chat_id) {
-        Ok(msg) => msg,
-        Err(e) => {
-            error!(context, "Failed to get draft for chat #{}: {}", chat_id, e);
-            return ptr::null_mut();
-        }
+   
+    if let Some(message) = chat::get_draft(context, chat_id) {
+        let ffi_msg = MessageWrapper { context, message };
+        return Box::into_raw(Box::new(ffi_msg));
     };
-    let ffi_msg = MessageWrapper { context, message };
-    Box::into_raw(Box::new(ffi_msg))
+
+    ptr::null_mut()
 }
 
 #[no_mangle]
