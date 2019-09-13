@@ -52,6 +52,19 @@ pub unsafe fn dc_strdup(s: *const libc::c_char) -> *mut libc::c_char {
     ret
 }
 
+/// Return freshly allocated copy of String, or freshly allocated copy
+/// of empty string if argument is None. In both cases, return value
+/// must be freed.
+///
+/// Rationale: the most oblivious refactor of `*mut libc::c_char` fields
+/// in structures is replace them with `Option<String>`. In such cases,
+/// this function does same thing, as `dc_strdup` did to original pointer.
+pub unsafe fn opt_strdup(arg: &Option<String>) -> *mut libc::c_char {
+    arg.as_ref()
+        .map(|s| s.strdup())
+        .unwrap_or_else(|| dc_strdup(ptr::null()))
+}
+
 /// Duplicates a string, returns null if given string is null
 ///
 /// # Examples

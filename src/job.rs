@@ -1,4 +1,4 @@
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::ptr;
 use std::time::Duration;
 
@@ -647,7 +647,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
 
     /* load message data */
     let mimefactory = dc_mimefactory_load_msg(context, msg_id);
-    if mimefactory.is_err() || mimefactory.as_ref().unwrap().from_addr.is_null() {
+    if mimefactory.is_err() || mimefactory.as_ref().unwrap().from_addr.is_none() {
         warn!(
             context,
             "Cannot load data to send, maybe the message is deleted in between.",
@@ -703,7 +703,8 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
             );
         } else {
             /* unrecoverable */
-            if !clist_search_string_nocase(mimefactory.recipients_addr, mimefactory.from_addr) {
+            let from_addr_c = CString::yolo(mimefactory.from_addr.as_ref().unwrap().as_str());
+            if !clist_search_string_nocase(mimefactory.recipients_addr, from_addr_c.as_ptr()) {
                 clist_insert_after(
                     mimefactory.recipients_names,
                     (*mimefactory.recipients_names).last,
@@ -712,7 +713,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                 clist_insert_after(
                     mimefactory.recipients_addr,
                     (*mimefactory.recipients_addr).last,
-                    dc_strdup(mimefactory.from_addr) as *mut libc::c_void,
+                    opt_strdup(&mimefactory.from_addr) as _,
                 );
             }
             if 0 != mimefactory.out_gossiped {
