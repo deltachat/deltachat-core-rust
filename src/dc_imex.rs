@@ -1026,38 +1026,23 @@ unsafe fn export_key_to_asc_file(
     is_default: libc::c_int,
 ) -> bool {
     let mut success = false;
-    let file_name;
-    if 0 != is_default {
-        file_name = dc_mprintf(
-            b"%s/%s-key-default.asc\x00" as *const u8 as *const libc::c_char,
-            dir,
-            if key.is_public() {
-                b"public\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"private\x00" as *const u8 as *const libc::c_char
-            },
-        )
+    let file_name = {
+        let kind = if key.is_public() { "public" } else { "private" };
+        let dir = as_str(dir);
+        if 0 != is_default {
+            format!("{}/{}-key-default.asc", dir, kind)
+        } else {
+            format!("{}/{}-key-{}.asc", dir, kind, id)
+        }
+    };
+    info!(context, "Exporting key {}", &file_name);
+    dc_delete_file(context, &file_name);
+    if !key.write_asc_to_file(&file_name, context) {
+        error!(context, "Cannot write key to {}", &file_name);
     } else {
-        file_name = dc_mprintf(
-            b"%s/%s-key-%i.asc\x00" as *const u8 as *const libc::c_char,
-            dir,
-            if key.is_public() {
-                b"public\x00" as *const u8 as *const libc::c_char
-            } else {
-                b"private\x00" as *const u8 as *const libc::c_char
-            },
-            id,
-        )
-    }
-    info!(context, "Exporting key {}", as_str(file_name),);
-    dc_delete_file(context, as_path(file_name));
-    if !key.write_asc_to_file(as_path(file_name), context) {
-        error!(context, "Cannot write key to {}", as_str(file_name),);
-    } else {
-        context.call_cb(Event::ImexFileWritten(as_path(file_name).to_path_buf()));
+        context.call_cb(Event::ImexFileWritten(Path::new(&file_name).to_path_buf()));
         success = true;
     }
-    free(file_name as *mut libc::c_void);
 
     success
 }
