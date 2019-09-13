@@ -17,11 +17,19 @@ def test_callback_None2int():
     clear_context_callback(ctx)
 
 
-def test_dc_close_events():
-    ctx = capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL, ffi.NULL)
+def test_dc_close_events(tmpdir):
+    ctx = ffi.gc(
+        capi.lib.dc_context_new(capi.lib.py_dc_callback, ffi.NULL, ffi.NULL),
+        lib.dc_context_unref,
+    )
     evlog = EventLogger(ctx)
     evlog.set_timeout(5)
-    set_context_callback(ctx, lambda ctx, evt_name, data1, data2: evlog(evt_name, data1, data2))
+    set_context_callback(
+        ctx,
+        lambda ctx, evt_name, data1, data2: evlog(evt_name, data1, data2)
+    )
+    p = tmpdir.join("hello.db")
+    lib.dc_open(ctx, p.strpath.encode("ascii"), ffi.NULL)
     capi.lib.dc_close(ctx)
 
     def find(info_string):

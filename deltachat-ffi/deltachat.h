@@ -393,8 +393,9 @@ int             dc_set_config                (dc_context_t* context, const char*
  * @memberof dc_context_t
  * @param context The context object as created by dc_context_new(). For querying system values, this can be NULL.
  * @param key The key to query.
- * @return Returns current value of "key", if "key" is unset, the default value is returned.
- *     The returned value must be free()'d, NULL is never returned.
+ * @return Returns current value of "key", if "key" is unset, the default
+ *     value is returned.  The returned value must be free()'d, NULL is never
+ *     returned.  If there is an error an empty string will be returned.
  */
 char*           dc_get_config                (dc_context_t* context, const char* key);
 

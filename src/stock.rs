@@ -237,7 +237,6 @@ mod tests {
     use super::*;
     use crate::test_utils::*;
 
-
     use crate::constants::DC_CONTACT_ID_SELF;
     use crate::types::uintptr_t;
 
