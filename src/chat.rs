@@ -921,18 +921,13 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
         .unwrap_or_default() as u32
 }
 
-pub unsafe fn get_draft(context: &Context, chat_id: u32) -> Option<Message> {
-    if chat_id < DC_CHAT_ID_LAST_SPECIAL {
-        warn!(context, "Invalid chat ID");
-        return None;
-    }
-
+pub fn get_draft(context: &Context, chat_id: u32) -> Result<Option<Message>, Error> {
+    ensure!(chat_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat ID");
     let draft_msg_id = get_draft_msg_id(context, chat_id);
     if draft_msg_id == 0 {
-        return None;
+        return Ok(None);
     }
-
-    Some(dc_msg_load_from_db(context, draft_msg_id).unwrap())
+    Ok(Some(dc_msg_load_from_db(context, draft_msg_id)?))
 }
 
 pub fn get_chat_msgs(context: &Context, chat_id: u32, flags: u32, marker1before: u32) -> Vec<u32> {
@@ -1878,4 +1873,50 @@ pub fn add_device_msg(context: &Context, chat_id: u32, text: impl AsRef<str>) {
         chat_id as uintptr_t,
         msg_id as uintptr_t,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::test_utils::*;
+
+    #[test]
+    fn test_get_draft_no_draft() {
+        let t = dummy_context();
+        let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+        let draft = get_draft(&t.ctx, chat_id).unwrap();
+        assert!(draft.is_none());
+    }
+
+    #[test]
+    fn test_get_draft_special_chat_id() {
+        let t = dummy_context();
+        let draft = get_draft(&t.ctx, DC_CHAT_ID_LAST_SPECIAL);
+        assert!(draft.is_err());
+    }
+
+    #[test]
+    fn test_get_draft_no_chat() {
+        // This is a weird case, maybe this should be an error but we
+        // do not get this info from the database currently.
+        let t = dummy_context();
+        let draft = get_draft(&t.ctx, 42).unwrap();
+        assert!(draft.is_none());
+    }
+
+    #[test]
+    fn test_get_draft() {
+        unsafe {
+            let t = dummy_context();
+            let chat_id = create_by_contact_id(&t.ctx, DC_CONTACT_ID_SELF).unwrap();
+            let mut msg = dc_msg_new(Viewtype::Text);
+            dc_msg_set_text(&mut msg, b"hello\x00" as *const u8 as *const libc::c_char);
+            set_draft(&t.ctx, chat_id, Some(&mut msg));
+            let draft = get_draft(&t.ctx, chat_id).unwrap().unwrap();
+            let msg_text = dc_msg_get_text(&msg);
+            let draft_text = dc_msg_get_text(&draft);
+            assert_eq!(as_str(msg_text), as_str(draft_text));
+        }
+    }
 }

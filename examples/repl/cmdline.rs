@@ -663,7 +663,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                 },
             );
             log_msglist(context, &msglist)?;
-            if let Ok(draft) = chat::get_draft(context, sel_chat.get_id()) {
+            if let Some(draft) = chat::get_draft(context, sel_chat.get_id())? {
                 log_msg(context, "Draft", &draft);
             }
 
