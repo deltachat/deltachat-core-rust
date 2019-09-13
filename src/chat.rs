@@ -922,7 +922,6 @@ fn get_draft_msg_id(context: &Context, chat_id: u32) -> u32 {
 }
 
 pub unsafe fn get_draft(context: &Context, chat_id: u32) -> Option<Message> {
-    println!("chat_id {}", chat_id);
     if chat_id < DC_CHAT_ID_LAST_SPECIAL {
         warn!(context, "Invalid chat ID");
         return None;
