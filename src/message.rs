@@ -151,7 +151,7 @@ pub struct Message {
     pub timestamp_rcvd: i64,
     pub text: Option<String>,
     pub rfc724_mid: *mut libc::c_char,
-    pub in_reply_to: *mut libc::c_char,
+    pub in_reply_to: Option<String>,
     pub server_folder: Option<String>,
     pub server_uid: u32,
     // TODO: enum
@@ -322,7 +322,7 @@ pub fn dc_msg_new(viewtype: Viewtype) -> Message {
         timestamp_rcvd: 0,
         text: None,
         rfc724_mid: std::ptr::null_mut(),
-        in_reply_to: std::ptr::null_mut(),
+        in_reply_to: None,
         server_folder: None,
         server_uid: 0,
         is_dc_message: 0,
@@ -337,7 +337,6 @@ impl Drop for Message {
     fn drop(&mut self) {
         unsafe {
             free(self.rfc724_mid.cast());
-            free(self.in_reply_to.cast());
         }
     }
 }
@@ -439,10 +438,7 @@ pub fn dc_msg_load_from_db(context: &Context, id: u32) -> Result<Message, Error>
                 let mut msg = dc_msg_new_untyped();
                 msg.id = row.get::<_, i32>(0)? as u32;
                 msg.rfc724_mid = row.get::<_, String>(1)?.strdup();
-                msg.in_reply_to = match row.get::<_, Option<String>>(2)? {
-                    Some(s) => s.strdup(),
-                    None => std::ptr::null_mut(),
-                };
+                msg.in_reply_to = row.get::<_, Option<String>>(2)?;
                 msg.server_folder = row.get::<_, Option<String>>(3)?;
                 msg.server_uid = row.get(4)?;
                 msg.move_state = row.get(5)?;
