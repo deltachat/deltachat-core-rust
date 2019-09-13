@@ -689,13 +689,10 @@ unsafe fn add_parts(
                         part.bytes,
                         *hidden,
                         if 0 != save_mime_headers {
-                            let body_string = std::str::from_utf8(std::slice::from_raw_parts(
+                            Some(std::slice::from_raw_parts(
                                 imf_raw_not_terminated as *const u8,
                                 imf_raw_bytes,
                             ))
-                            .unwrap();
-
-                            Some(body_string)
                         } else {
                             None
                         },
