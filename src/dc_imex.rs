@@ -961,22 +961,23 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool 
                 let public_key = Key::from_slice(&public_key_blob, KeyType::Public);
                 let private_key_blob: Vec<u8> = row.get(2)?;
                 let private_key = Key::from_slice(&private_key_blob, KeyType::Private);
-                let is_default = row.get(3)?;
+                let is_default: i32 = row.get(3)?;
 
                 Ok((id, public_key, private_key, is_default))
             },
             |keys| {
                 for key_pair in keys {
                     let (id, public_key, private_key, is_default) = key_pair?;
+                    let id = Some(id).filter(|_| is_default != 0);
                     if let Some(key) = public_key {
-                        if export_key_to_asc_file(context, dir, id, &key, is_default) {
+                        if export_key_to_asc_file(context, dir, id, &key) {
                             export_errors += 1;
                         }
                     } else {
                         export_errors += 1;
                     }
                     if let Some(key) = private_key {
-                        if export_key_to_asc_file(context, dir, id, &key, is_default) {
+                        if export_key_to_asc_file(context, dir, id, &key) {
                             export_errors += 1;
                         }
                     } else {
@@ -998,34 +999,26 @@ unsafe fn export_self_keys(context: &Context, dir: *const libc::c_char) -> bool 
 unsafe fn export_key_to_asc_file(
     context: &Context,
     dir: *const libc::c_char,
-    id: libc::c_int,
+    id: Option<i64>,
     key: &Key,
-    is_default: libc::c_int,
 ) -> bool {
     let mut success = false;
-    let dir = as_path(dir);
-
-    let file_name = if 0 != is_default {
-        let name = format!(
-            "{}-key-default.asc",
-            if key.is_public() { "public" } else { "private" },
-        );
-        dir.join(name)
-    } else {
-        let name = format!(
-            "{}-key-{}.asc",
-            if key.is_public() { "public" } else { "private" },
-            id
-        );
-        dir.join(name)
+    let file_name = {
+        let kind = if key.is_public() { "public" } else { "private" };
+        let dir = as_str(dir);
+        if let Some(id) = id {
+            format!("{}/{}-key-{}.asc", dir, kind, id)
+        } else {
+            format!("{}/{}-key-default.asc", dir, kind)
+        }
     };
-    info!(context, "Exporting key {}", file_name.display());
+    info!(context, "Exporting key {}", &file_name);
     dc_delete_file(context, &file_name);
 
     if !key.write_asc_to_file(&file_name, context) {
-        error!(context, "Cannot write key to {}", file_name.display());
+        error!(context, "Cannot write key to {}", file_name);
     } else {
-        context.call_cb(Event::ImexFileWritten(file_name.clone()));
+        context.call_cb(Event::ImexFileWritten(file_name.into()));
         success = true;
     }
 
