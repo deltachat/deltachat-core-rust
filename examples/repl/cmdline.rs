@@ -447,14 +447,6 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
                  ============================================="
             ),
         },
-        "open" => {
-            ensure!(!arg1.is_empty(), "Argument <file> missing");
-            dc_close(context);
-            ensure!(dc_open(context, arg1, None), "Open failed");
-        }
-        "close" => {
-            dc_close(context);
-        }
         "initiate-key-transfer" => {
             let setup_code = dc_initiate_key_transfer(context);
             if !setup_code.is_null() {
