@@ -375,28 +375,35 @@ pub unsafe fn dc_str_to_clist(
     str: *const libc::c_char,
     delimiter: *const libc::c_char,
 ) -> *mut clist {
-    let list: *mut clist = clist_new();
-    assert!(!list.is_null());
-
-    if !str.is_null() && !delimiter.is_null() && strlen(delimiter) >= 1 {
-        let mut p1: *const libc::c_char = str;
-        loop {
-            let p2: *const libc::c_char = strstr(p1, delimiter);
-            if p2.is_null() {
-                clist_insert_after(list, (*list).last, strdup(p1) as *mut libc::c_void);
-                break;
-            } else {
-                clist_insert_after(
-                    list,
-                    (*list).last,
-                    strndup(p1, p2.wrapping_offset_from(p1) as libc::c_ulong) as *mut libc::c_void,
-                );
-                p1 = p2.add(strlen(delimiter))
-            }
-        }
+    if str.is_null() {
+        // TODO: Is this special case actually used outside of test suite?
+        let list = clist_new();
+        assert!(!list.is_null());
+        return list;
     }
 
-    list
+    dc_str_to_clist_safe(as_str(str), as_str(delimiter))
+}
+
+pub fn dc_str_to_clist_safe(s: &str, delim: &str) -> *mut clist {
+    unsafe {
+        let list = clist_new();
+        assert!(!list.is_null());
+
+        if delim.is_empty() {
+            // FIXME: Is this special case ever used? Rust implementation
+            // behaves differently on empty delimiter:
+            //
+            // "foo".split("") => ["", "f", "o", "o", ""]
+            return list;
+        }
+
+        for token in s.split(delim) {
+            clist_insert_after(list, (*list).last, token.strdup().cast());
+        }
+
+        list
+    }
 }
 
 /* the colors must fulfill some criterions as:
