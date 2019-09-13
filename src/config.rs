@@ -132,11 +132,11 @@ impl Context {
 
     pub fn set_ui_config(&self, key: &str, value: Option<&str>) -> Result<(), &str> {
         if !key.starts_with("ui.") {
-            return Err("Ui config key has to be prefixed with 'ui.'")
+            return Err("Ui config key has to be prefixed with 'ui.'");
         }
 
         if self.sql.set_config(self, key, value).is_err() {
-            return Err("Sql error")
+            return Err("Sql error");
         }
         Ok(())
     }
