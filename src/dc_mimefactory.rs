@@ -27,6 +27,13 @@ use crate::param::*;
 use crate::stock::StockMessage;
 use crate::x::*;
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum Loaded {
+    Nothing,
+    Message,
+    MDN, // TODO: invent more descriptive name
+}
+
 #[derive(Clone)]
 pub struct MimeFactory<'a> {
     pub from_addr: *mut libc::c_char,
@@ -36,7 +43,7 @@ pub struct MimeFactory<'a> {
     pub recipients_addr: *mut clist,
     pub timestamp: i64,
     pub rfc724_mid: String,
-    pub loaded: dc_mimefactory_loaded_t,
+    pub loaded: Loaded,
     pub msg: Message,
     pub chat: Option<Chat>,
     pub increation: bool,
@@ -75,12 +82,6 @@ impl<'a> Drop for MimeFactory<'a> {
     }
 }
 
-#[allow(non_camel_case_types)]
-type dc_mimefactory_loaded_t = libc::c_uint;
-const DC_MF_MDN_LOADED: dc_mimefactory_loaded_t = 2;
-pub const DC_MF_MSG_LOADED: dc_mimefactory_loaded_t = 1;
-pub const DC_MF_NOTHING_LOADED: dc_mimefactory_loaded_t = 0;
-
 pub unsafe fn dc_mimefactory_load_msg(
     context: &Context,
     msg_id: u32,
@@ -97,7 +98,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         recipients_addr: clist_new(),
         timestamp: 0,
         rfc724_mid: String::default(),
-        loaded: DC_MF_NOTHING_LOADED,
+        loaded: Loaded::Nothing,
         msg,
         chat: Some(chat),
         increation: false,
@@ -228,7 +229,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         }
     }
 
-    factory.loaded = DC_MF_MSG_LOADED;
+    factory.loaded = Loaded::Message;
     factory.timestamp = factory.msg.timestamp_sort;
     factory.rfc724_mid = factory.msg.rfc724_mid.clone();
     factory.increation = dc_msg_is_increation(&factory.msg);
@@ -287,7 +288,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         recipients_addr: clist_new(),
         timestamp: 0,
         rfc724_mid: String::default(),
-        loaded: DC_MF_NOTHING_LOADED,
+        loaded: Loaded::Nothing,
         msg,
         chat: None,
         increation: false,
@@ -329,7 +330,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     load_from(&mut factory);
     factory.timestamp = dc_create_smeared_timestamp(factory.context);
     factory.rfc724_mid = dc_create_outgoing_rfc724_mid(None, as_str(factory.from_addr));
-    factory.loaded = DC_MF_MDN_LOADED;
+    factory.loaded = Loaded::MDN;
 
     Ok(factory)
 }
@@ -353,9 +354,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
     let mut grpimage = None;
     let mut e2ee_helper = E2eeHelper::default();
 
-    if factory.loaded as libc::c_uint == DC_MF_NOTHING_LOADED as libc::c_int as libc::c_uint
-        || !factory.out.is_null()
-    {
+    if factory.loaded == Loaded::Nothing || !factory.out.is_null() {
         /*call empty() before*/
         set_error(
             factory,
@@ -485,7 +484,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
         }
         message = mailmime_new_message_data(0 as *mut mailmime);
         mailmime_set_imf_fields(message, imf_fields);
-        if factory.loaded as libc::c_uint == DC_MF_MSG_LOADED as libc::c_int as libc::c_uint {
+        if factory.loaded == Loaded::Message {
             /* Render a normal message
              *********************************************************************/
             let chat = factory.chat.as_ref().unwrap();
@@ -908,8 +907,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                     }
                 }
             }
-        } else if factory.loaded as libc::c_uint == DC_MF_MDN_LOADED as libc::c_int as libc::c_uint
-        {
+        } else if factory.loaded == Loaded::MDN {
             let multipart: *mut mailmime =
                 mailmime_multiple_new(b"multipart/report\x00" as *const u8 as *const libc::c_char);
             let content: *mut mailmime_content = (*multipart).mm_content_type;
@@ -970,8 +968,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
         }
 
         if ok_to_continue {
-            let subject_str = if factory.loaded as libc::c_uint == DC_MF_MDN_LOADED as libc::c_uint
-            {
+            let subject_str = if factory.loaded == Loaded::MDN {
                 let e = factory.context.stock_str(StockMessage::ReadRcpt);
                 format!("Chat: {}", e)
             } else {

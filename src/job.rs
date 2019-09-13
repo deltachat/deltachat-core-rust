@@ -1033,9 +1033,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
         job_add(
             context,
             action,
-            (if mimefactory.loaded as libc::c_uint
-                == DC_MF_MSG_LOADED as libc::c_int as libc::c_uint
-            {
+            (if mimefactory.loaded == Loaded::Message {
                 mimefactory.msg.id
             } else {
                 0
