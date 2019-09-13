@@ -280,8 +280,8 @@ pub unsafe fn dc_close(context: &Context) {
     *blobdir = ptr::null_mut();
 }
 
-pub unsafe fn dc_is_open(context: &Context) -> libc::c_int {
-    context.sql.is_open() as libc::c_int
+pub fn dc_is_open(context: &Context) -> bool {
+    context.sql.is_open()
 }
 
 pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
@@ -290,7 +290,7 @@ pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
 
 pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) -> bool {
     let mut success = false;
-    if 0 != dc_is_open(context) {
+    if dc_is_open(context) {
         return false;
     }
 

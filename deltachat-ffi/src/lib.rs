@@ -122,7 +122,7 @@ pub unsafe extern "C" fn dc_is_open(context: *mut dc_context_t) -> libc::c_int {
     }
 
     let context = &mut *context;
-    context::dc_is_open(context)
+    context::dc_is_open(context).into()
 }
 
 #[no_mangle]

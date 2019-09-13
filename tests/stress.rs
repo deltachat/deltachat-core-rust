@@ -30,7 +30,7 @@ static mut S_EM_SETUPFILE: *const libc::c_char =
         as *const u8 as *const libc::c_char;
 
 unsafe fn stress_functions(context: &Context) {
-    if 0 != dc_is_open(context) {
+    if dc_is_open(context) {
         if dc_file_exist(context, "$BLOBDIR/foobar")
             || dc_file_exist(context, "$BLOBDIR/dada")
             || dc_file_exist(context, "$BLOBDIR/foobar.dadada")
