@@ -54,6 +54,10 @@ pub struct RunningState {
 }
 
 impl Context {
+    pub fn is_open(&self) -> bool {
+        self.sql.is_open()
+    }
+
     pub fn has_dbfile(&self) -> bool {
         self.get_dbfile().is_some()
     }
@@ -280,17 +284,13 @@ pub unsafe fn dc_close(context: &Context) {
     *blobdir = ptr::null_mut();
 }
 
-pub fn dc_is_open(context: &Context) -> bool {
-    context.sql.is_open()
-}
-
 pub unsafe fn dc_get_userdata(context: &mut Context) -> *mut libc::c_void {
     context.userdata as *mut _
 }
 
 pub unsafe fn dc_open(context: &Context, dbfile: &str, blobdir: Option<&str>) -> bool {
     let mut success = false;
-    if dc_is_open(context) {
+    if context.is_open() {
         return false;
     }
 
