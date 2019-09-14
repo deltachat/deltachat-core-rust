@@ -52,7 +52,7 @@ pub struct MimeFactory<'a> {
     pub req_mdn: libc::c_int,
     pub out: *mut MMAPString,
     pub out_encrypted: bool,
-    pub out_gossiped: libc::c_int,
+    pub out_gossiped: bool,
     pub out_last_added_location_id: u32,
     pub error: *mut libc::c_char,
     pub context: &'a Context,
@@ -106,7 +106,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         req_mdn: 0,
         out: ptr::null_mut(),
         out_encrypted: false,
-        out_gossiped: 0,
+        out_gossiped: false,
         out_last_added_location_id: 0,
         error: ptr::null_mut(),
         context,
@@ -289,7 +289,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         req_mdn: 0,
         out: ptr::null_mut(),
         out_encrypted: false,
-        out_gossiped: 0,
+        out_gossiped: false,
         out_last_added_location_id: 0,
         error: ptr::null_mut(),
         context,
@@ -1007,9 +1007,9 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                 );
             }
             if e2ee_helper.encryption_successfull {
-                factory.out_encrypted = false;
+                factory.out_encrypted = true;
                 if 0 != do_gossip {
-                    factory.out_gossiped = 1
+                    factory.out_gossiped = true;
                 }
             }
             factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);

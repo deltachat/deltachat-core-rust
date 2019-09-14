@@ -716,7 +716,7 @@ pub unsafe fn job_send_msg(context: &Context, msg_id: u32) -> libc::c_int {
                     opt_strdup(&mimefactory.from_addr) as _,
                 );
             }
-            if 0 != mimefactory.out_gossiped {
+            if mimefactory.out_gossiped {
                 chat::set_gossiped_timestamp(context, mimefactory.msg.chat_id, time());
             }
             if 0 != mimefactory.out_last_added_location_id {
