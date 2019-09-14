@@ -50,7 +50,7 @@ pub struct MimeFactory<'a> {
     pub increation: bool,
     pub in_reply_to: *mut libc::c_char,
     pub references: *mut libc::c_char,
-    pub req_mdn: libc::c_int,
+    pub req_mdn: bool,
     pub out: *mut MMAPString,
     pub out_encrypted: bool,
     pub out_gossiped: bool,
@@ -77,7 +77,7 @@ impl<'a> MimeFactory<'a> {
             increation: false,
             in_reply_to: ptr::null_mut(),
             references: ptr::null_mut(),
-            req_mdn: 0,
+            req_mdn: false,
             out: ptr::null_mut(),
             out_encrypted: false,
             out_gossiped: false,
@@ -209,7 +209,7 @@ pub unsafe fn dc_mimefactory_load_msg(
                 .get_config_int(context, "mdns_enabled")
                 .unwrap_or_else(|| 1)
         {
-            factory.req_mdn = 1;
+            factory.req_mdn = true;
         }
     }
     let row = context.sql.query_row(
@@ -433,7 +433,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
                 strdup(b"1.0\x00" as *const u8 as *const libc::c_char),
             ),
         );
-        if 0 != factory.req_mdn {
+        if factory.req_mdn {
             mailimf_fields_add(
                 imf_fields,
                 mailimf_field_new_custom(
