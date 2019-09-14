@@ -335,7 +335,7 @@ fn fingerprint_equals_sender(
 /* library private: secure-join */
 pub fn handle_securejoin_handshake(
     context: &Context,
-    mimeparser: &dc_mimeparser_t,
+    mimeparser: &MimeParser,
     contact_id: u32,
 ) -> libc::c_int {
     let own_fingerprint: String;
@@ -651,21 +651,21 @@ fn secure_connection_established(context: &Context, contact_chat_id: u32) {
     emit_event!(context, Event::ChatModified(contact_chat_id));
 }
 
-fn lookup_field(mimeparser: &dc_mimeparser_t, key: &str) -> Option<String> {
-    let field: *mut mailimf_field = dc_mimeparser_lookup_field(mimeparser, key);
-    unsafe {
+fn lookup_field(mime_parser: &MimeParser, key: &str) -> Option<String> {
+    if let Some(field) = mime_parser.lookup_field(key) {
         let mut value: *const libc::c_char = ptr::null();
-        if field.is_null()
-            || (*field).fld_type != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
-            || (*field).fld_data.fld_optional_field.is_null()
+        if unsafe { (*field).fld_type } != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
+            || unsafe { (*field).fld_data.fld_optional_field.is_null() }
             || {
-                value = (*(*field).fld_data.fld_optional_field).fld_value;
+                value = unsafe { (*(*field).fld_data.fld_optional_field).fld_value };
                 value.is_null()
             }
         {
             return None;
         }
-        Some(as_str(value).to_string())
+        Some(to_string(value))
+    } else {
+        None
     }
 }
 
@@ -706,10 +706,7 @@ fn mark_peer_as_verified(context: &Context, fingerprint: impl AsRef<str>) -> Res
  * Tools: Misc.
  ******************************************************************************/
 
-fn encrypted_and_signed(
-    mimeparser: &dc_mimeparser_t,
-    expected_fingerprint: impl AsRef<str>,
-) -> bool {
+fn encrypted_and_signed(mimeparser: &MimeParser, expected_fingerprint: impl AsRef<str>) -> bool {
     if !mimeparser.e2ee_helper.encrypted {
         warn!(mimeparser.context, "Message not encrypted.",);
         false

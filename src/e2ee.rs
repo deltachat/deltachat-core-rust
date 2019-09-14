@@ -386,16 +386,17 @@ impl E2eeHelper {
         /*just a pointer into mailmime structure, must not be freed*/
         let imffields: *mut mailimf_fields = mailmime_find_mailimf_fields(in_out_message);
         let mut message_time = 0;
-        let mut from: *mut libc::c_char = ptr::null_mut();
+        let mut from = None;
         let mut private_keyring = Keyring::default();
         let mut public_keyring_for_validate = Keyring::default();
         let mut gossip_headers: *mut mailimf_fields = ptr::null_mut();
         if !(in_out_message.is_null() || imffields.is_null()) {
-            let mut field: *mut mailimf_field =
-                mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
+            let mut field = mailimf_find_field(imffields, MAILIMF_FIELD_FROM as libc::c_int);
+
             if !field.is_null() && !(*field).fld_data.fld_from.is_null() {
                 from = mailimf_find_first_addr((*(*field).fld_data.fld_from).frm_mb_list)
             }
+
             field = mailimf_find_field(imffields, MAILIMF_FIELD_ORIG_DATE as libc::c_int);
             if !field.is_null() && !(*field).fld_data.fld_orig_date.is_null() {
                 let orig_date: *mut mailimf_orig_date = (*field).fld_data.fld_orig_date;
@@ -407,25 +408,28 @@ impl E2eeHelper {
                 }
             }
             let mut peerstate = None;
-            let autocryptheader =
-                as_opt_str(from).and_then(|from| Aheader::from_imffields(from, imffields));
-            if message_time > 0 && !from.is_null() {
-                peerstate = Peerstate::from_addr(context, &context.sql, as_str(from));
+            let autocryptheader = from
+                .as_ref()
+                .and_then(|from| Aheader::from_imffields(from, imffields));
+            if message_time > 0 {
+                if let Some(ref from) = from {
+                    peerstate = Peerstate::from_addr(context, &context.sql, from);
 
-                if let Some(ref mut peerstate) = peerstate {
-                    if let Some(ref header) = autocryptheader {
-                        peerstate.apply_header(&header, message_time);
-                        peerstate.save_to_db(&context.sql, false);
-                    } else if message_time > peerstate.last_seen_autocrypt
-                        && !contains_report(in_out_message)
-                    {
-                        peerstate.degrade_encryption(message_time);
-                        peerstate.save_to_db(&context.sql, false);
+                    if let Some(ref mut peerstate) = peerstate {
+                        if let Some(ref header) = autocryptheader {
+                            peerstate.apply_header(&header, message_time);
+                            peerstate.save_to_db(&context.sql, false);
+                        } else if message_time > peerstate.last_seen_autocrypt
+                            && !contains_report(in_out_message)
+                        {
+                            peerstate.degrade_encryption(message_time);
+                            peerstate.save_to_db(&context.sql, false);
+                        }
+                    } else if let Some(ref header) = autocryptheader {
+                        let p = Peerstate::from_header(context, header, message_time);
+                        assert!(p.save_to_db(&context.sql, true));
+                        peerstate = Some(p);
                     }
-                } else if let Some(ref header) = autocryptheader {
-                    let p = Peerstate::from_header(context, header, message_time);
-                    assert!(p.save_to_db(&context.sql, true));
-                    peerstate = Some(p);
                 }
             }
             /* load private key for decryption */
@@ -437,7 +441,8 @@ impl E2eeHelper {
                     &context.sql,
                 ) {
                     if peerstate.as_ref().map(|p| p.last_seen).unwrap_or_else(|| 0) == 0 {
-                        peerstate = Peerstate::from_addr(&context, &context.sql, as_str(from));
+                        peerstate =
+                            Peerstate::from_addr(&context, &context.sql, &from.unwrap_or_default());
                     }
                     if let Some(ref peerstate) = peerstate {
                         if peerstate.degrade_event.is_some() {
@@ -486,8 +491,6 @@ impl E2eeHelper {
         if !gossip_headers.is_null() {
             mailimf_fields_free(gossip_headers);
         }
-
-        free(from as *mut libc::c_void);
     }
 }
 
