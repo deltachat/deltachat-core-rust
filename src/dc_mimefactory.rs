@@ -58,6 +58,33 @@ pub struct MimeFactory<'a> {
     pub context: &'a Context,
 }
 
+impl<'a> MimeFactory<'a> {
+    fn new(context: &'a Context, msg: Message) -> Self {
+        MimeFactory {
+            from_addr: None,
+            from_displayname: None,
+            selfstatus: None,
+            recipients_names: unsafe { clist_new() },
+            recipients_addr: unsafe { clist_new() },
+            timestamp: 0,
+            rfc724_mid: ptr::null_mut(),
+            loaded: Loaded::Nothing,
+            msg,
+            chat: None,
+            increation: false,
+            in_reply_to: ptr::null_mut(),
+            references: ptr::null_mut(),
+            req_mdn: 0,
+            out: ptr::null_mut(),
+            out_encrypted: false,
+            out_gossiped: false,
+            out_last_added_location_id: 0,
+            error: ptr::null_mut(),
+            context,
+        }
+    }
+}
+
 impl<'a> Drop for MimeFactory<'a> {
     fn drop(&mut self) {
         unsafe {
@@ -89,28 +116,8 @@ pub unsafe fn dc_mimefactory_load_msg(
 
     let msg = dc_msg_load_from_db(context, msg_id)?;
     let chat = Chat::load_from_db(context, msg.chat_id)?;
-    let mut factory = MimeFactory {
-        from_addr: None,
-        from_displayname: None,
-        selfstatus: None,
-        recipients_names: clist_new(),
-        recipients_addr: clist_new(),
-        timestamp: 0,
-        rfc724_mid: ptr::null_mut(),
-        loaded: Loaded::Nothing,
-        msg,
-        chat: Some(chat),
-        increation: false,
-        in_reply_to: ptr::null_mut(),
-        references: ptr::null_mut(),
-        req_mdn: 0,
-        out: ptr::null_mut(),
-        out_encrypted: false,
-        out_gossiped: false,
-        out_last_added_location_id: 0,
-        error: ptr::null_mut(),
-        context,
-    };
+    let mut factory = MimeFactory::new(context, msg);
+    factory.chat = Some(chat);
 
     load_from(&mut factory);
 
@@ -272,28 +279,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
 
     let msg = dc_msg_load_from_db(context, msg_id)?;
 
-    let mut factory = MimeFactory {
-        from_addr: None,
-        from_displayname: None,
-        selfstatus: None,
-        recipients_names: clist_new(),
-        recipients_addr: clist_new(),
-        timestamp: 0,
-        rfc724_mid: ptr::null_mut(),
-        loaded: Loaded::Nothing,
-        msg,
-        chat: None,
-        increation: false,
-        in_reply_to: ptr::null_mut(),
-        references: ptr::null_mut(),
-        req_mdn: 0,
-        out: ptr::null_mut(),
-        out_encrypted: false,
-        out_gossiped: false,
-        out_last_added_location_id: 0,
-        error: ptr::null_mut(),
-        context,
-    };
+    let mut factory = MimeFactory::new(context, msg);
 
     let contact = Contact::load_from_db(factory.context, factory.msg.from_id)?;
 
