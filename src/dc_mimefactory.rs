@@ -120,10 +120,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     let msg = dc_msg_load_from_db(context, msg_id)?;
     let chat = Chat::load_from_db(context, msg.chat_id)?;
     let mut factory = MimeFactory::new(context, msg);
-    factory.chat = Some(chat);
-
-    // just set the chat above
-    let chat = factory.chat.as_ref().unwrap();
+    let chat = factory.chat.get_or_insert(chat);
 
     if chat.is_self_talk() {
         clist_insert_after(
