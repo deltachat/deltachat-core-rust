@@ -140,7 +140,7 @@ pub const DC_LP_AUTH_OAUTH2: usize = 0x2;
 
 /// Force NORMAL authorization, this is the default.
 /// If this flag is set, automatic configuration is skipped.
-const DC_LP_AUTH_NORMAL: usize = 0x4;
+pub const DC_LP_AUTH_NORMAL: usize = 0x4;
 
 /// Connect to IMAP via STARTTLS.
 /// If this flag is set, automatic configuration is skipped.
@@ -148,7 +148,7 @@ pub const DC_LP_IMAP_SOCKET_STARTTLS: usize = 0x100;
 
 /// Connect to IMAP via SSL.
 /// If this flag is set, automatic configuration is skipped.
-const DC_LP_IMAP_SOCKET_SSL: usize = 0x200;
+pub const DC_LP_IMAP_SOCKET_SSL: usize = 0x200;
 
 /// Connect to IMAP unencrypted, this should not be used.
 /// If this flag is set, automatic configuration is skipped.
@@ -160,19 +160,19 @@ pub const DC_LP_SMTP_SOCKET_STARTTLS: usize = 0x10000;
 
 /// Connect to SMTP via SSL.
 /// If this flag is set, automatic configuration is skipped.
-const DC_LP_SMTP_SOCKET_SSL: usize = 0x20000;
+pub const DC_LP_SMTP_SOCKET_SSL: usize = 0x20000;
 
 /// Connect to SMTP unencrypted, this should not be used.
 /// If this flag is set, automatic configuration is skipped.
 pub const DC_LP_SMTP_SOCKET_PLAIN: usize = 0x40000;
 
 /// if none of these flags are set, the default is chosen
-const DC_LP_AUTH_FLAGS: usize = (DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL);
+pub const DC_LP_AUTH_FLAGS: usize = (DC_LP_AUTH_OAUTH2 | DC_LP_AUTH_NORMAL);
 /// if none of these flags are set, the default is chosen
-const DC_LP_IMAP_SOCKET_FLAGS: usize =
+pub const DC_LP_IMAP_SOCKET_FLAGS: usize =
     (DC_LP_IMAP_SOCKET_STARTTLS | DC_LP_IMAP_SOCKET_SSL | DC_LP_IMAP_SOCKET_PLAIN);
 /// if none of these flags are set, the default is chosen
-const DC_LP_SMTP_SOCKET_FLAGS: usize =
+pub const DC_LP_SMTP_SOCKET_FLAGS: usize =
     (DC_LP_SMTP_SOCKET_STARTTLS | DC_LP_SMTP_SOCKET_SSL | DC_LP_SMTP_SOCKET_PLAIN);
 
 // QR code scanning (view from Bob, the joiner)
