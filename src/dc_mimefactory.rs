@@ -38,7 +38,7 @@ pub enum Loaded {
 pub struct dc_mimefactory_t<'a> {
     pub from_addr: Option<String>,
     from_displayname: Option<String>,
-    pub selfstatus: *mut libc::c_char,
+    selfstatus: Option<String>,
     pub recipients_names: *mut clist,
     pub recipients_addr: *mut clist,
     pub timestamp: i64,
@@ -61,7 +61,6 @@ pub struct dc_mimefactory_t<'a> {
 impl<'a> Drop for dc_mimefactory_t<'a> {
     fn drop(&mut self) {
         unsafe {
-            free(self.selfstatus as *mut libc::c_void);
             free(self.rfc724_mid as *mut libc::c_void);
             if !self.recipients_names.is_null() {
                 clist_free_content(self.recipients_names);
@@ -93,7 +92,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     let mut factory = dc_mimefactory_t {
         from_addr: None,
         from_displayname: None,
-        selfstatus: ptr::null_mut(),
+        selfstatus: None,
         recipients_names: clist_new(),
         recipients_addr: clist_new(),
         timestamp: 0,
@@ -245,13 +244,14 @@ unsafe fn load_from(factory: &mut dc_mimefactory_t) {
     factory.from_addr = context.sql.get_config(context, "configured_addr");
     factory.from_displayname = context.sql.get_config(context, "displayname");
 
-    factory.selfstatus = context
-        .sql
-        .get_config(context, "selfstatus")
-        .unwrap_or_default()
-        .strdup();
-    if factory.selfstatus.is_null() {
-        factory.selfstatus = factory.context.stock_str(StockMessage::StatusLine).strdup();
+    factory.selfstatus = context.sql.get_config(context, "selfstatus");
+    if factory.selfstatus.is_none() {
+        factory.selfstatus = Some(
+            factory
+                .context
+                .stock_str(StockMessage::StatusLine)
+                .to_string(),
+        );
     };
 }
 
@@ -275,7 +275,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     let mut factory = dc_mimefactory_t {
         from_addr: None,
         from_displayname: None,
-        selfstatus: ptr::null_mut(),
+        selfstatus: None,
         recipients_names: clist_new(),
         recipients_addr: clist_new(),
         timestamp: 0,
@@ -770,13 +770,11 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                 }
             }
             afwd_email = factory.msg.param.exists(Param::Forwarded) as libc::c_int;
-            let mut fwdhint = ptr::null_mut();
-            if 0 != afwd_email {
-                fwdhint = dc_strdup(
-                    b"---------- Forwarded message ----------\r\nFrom: Delta Chat\r\n\r\n\x00"
-                        as *const u8 as *const libc::c_char,
-                )
-            }
+            let fwdhint = if 0 != afwd_email {
+                "---------- Forwarded message ----------\r\nFrom: Delta Chat\r\n\r\n\x00"
+            } else {
+                ""
+            };
 
             let final_text = {
                 if !placeholdertext.is_null() {
@@ -787,40 +785,21 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefact
                     "".into()
                 }
             };
-            let final_text = CString::yolo(final_text);
+            let (separator, footer) = if let Some(ref status) = factory.selfstatus {
+                let separator = if final_text.is_empty() {
+                    "-- \r\n"
+                } else {
+                    "\r\n\r\n-- \r\n"
+                };
+                (separator, status.as_str())
+            } else {
+                ("", "")
+            };
 
-            let footer: *mut libc::c_char = factory.selfstatus;
-            message_text = dc_mprintf(
-                b"%s%s%s%s%s\x00" as *const u8 as *const libc::c_char,
-                if !fwdhint.is_null() {
-                    fwdhint
-                } else {
-                    b"\x00" as *const u8 as *const libc::c_char
-                },
-                final_text.as_ptr(),
-                if final_text != CString::yolo("")
-                    && !footer.is_null()
-                    && 0 != *footer.offset(0isize) as libc::c_int
-                {
-                    b"\r\n\r\n\x00" as *const u8 as *const libc::c_char
-                } else {
-                    b"\x00" as *const u8 as *const libc::c_char
-                },
-                if !footer.is_null() && 0 != *footer.offset(0isize) as libc::c_int {
-                    b"-- \r\n\x00" as *const u8 as *const libc::c_char
-                } else {
-                    b"\x00" as *const u8 as *const libc::c_char
-                },
-                if !footer.is_null() && 0 != *footer.offset(0isize) as libc::c_int {
-                    footer
-                } else {
-                    b"\x00" as *const u8 as *const libc::c_char
-                },
-            );
+            let message_text = format!("{}{}{}{}", fwdhint, final_text, separator, footer).strdup();
             let text_part: *mut mailmime = build_body_text(message_text);
             mailmime_smart_add_part(message, text_part);
             parts += 1;
-            free(fwdhint as *mut libc::c_void);
             free(placeholdertext as *mut libc::c_void);
 
             /* add attachment part */
