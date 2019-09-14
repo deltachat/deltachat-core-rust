@@ -43,7 +43,7 @@ pub struct MimeFactory<'a> {
     pub recipients_names: *mut clist,
     pub recipients_addr: *mut clist,
     pub timestamp: i64,
-    pub rfc724_mid: *mut libc::c_char,
+    pub rfc724_mid: String,
     pub loaded: Loaded,
     pub msg: Message,
     pub chat: Option<Chat>,
@@ -70,7 +70,7 @@ impl<'a> MimeFactory<'a> {
             recipients_names: unsafe { clist_new() },
             recipients_addr: unsafe { clist_new() },
             timestamp: 0,
-            rfc724_mid: ptr::null_mut(),
+            rfc724_mid: "".into(),
             loaded: Loaded::Nothing,
             msg,
             chat: None,
@@ -102,7 +102,6 @@ pub unsafe fn slice_to_clist(items: &[String]) -> *mut clist {
 impl<'a> Drop for MimeFactory<'a> {
     fn drop(&mut self) {
         unsafe {
-            free(self.rfc724_mid as *mut libc::c_void);
             if !self.recipients_names.is_null() {
                 clist_free_content(self.recipients_names);
                 clist_free(self.recipients_names);
@@ -247,7 +246,7 @@ pub unsafe fn dc_mimefactory_load_msg(
 
     factory.loaded = Loaded::Message;
     factory.timestamp = factory.msg.timestamp_sort;
-    factory.rfc724_mid = dc_strdup(factory.msg.rfc724_mid);
+    factory.rfc724_mid = to_string(factory.msg.rfc724_mid);
     factory.increation = dc_msg_is_increation(&factory.msg);
 
     Ok(factory)
@@ -298,7 +297,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     );
     factory.timestamp = dc_create_smeared_timestamp(factory.context);
     let from_addr = &factory.from_addr.as_ref().unwrap();
-    factory.rfc724_mid = dc_create_outgoing_rfc724_mid_safe(None, from_addr).strdup();
+    factory.rfc724_mid = dc_create_outgoing_rfc724_mid_safe(None, from_addr);
     factory.loaded = Loaded::MDN;
 
     Ok(factory)
@@ -408,7 +407,7 @@ pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory
             to,
             ptr::null_mut(),
             ptr::null_mut(),
-            dc_strdup(factory.rfc724_mid),
+            factory.rfc724_mid.strdup(),
             in_reply_to_list,
             references_list,
             ptr::null_mut(),

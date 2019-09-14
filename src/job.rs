@@ -1004,17 +1004,17 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
     let mut recipients: *mut libc::c_char = ptr::null_mut();
     let mut param = Params::new();
     pathNfilename = unsafe {
+        let rfc724_mid_c = CString::yolo(mimefactory.rfc724_mid.as_str());
         dc_get_fine_pathNfilename(
             context,
             b"$BLOBDIR\x00" as *const u8 as *const libc::c_char,
-            mimefactory.rfc724_mid,
+            rfc724_mid_c.as_ptr().cast(),
         )
     };
     if pathNfilename.is_null() {
         error!(
             context,
-            "Could not find free file name for message with ID <{}>.",
-            to_string(mimefactory.rfc724_mid),
+            "Could not find free file name for message with ID <{}>.", mimefactory.rfc724_mid,
         );
     } else if 0
         == unsafe {
@@ -1029,7 +1029,7 @@ fn add_smtp_job(context: &Context, action: Action, mimefactory: &MimeFactory) ->
         error!(
             context,
             "Could not write message <{}> to \"{}\".",
-            to_string(mimefactory.rfc724_mid),
+            mimefactory.rfc724_mid,
             as_str(pathNfilename),
         );
     } else {
