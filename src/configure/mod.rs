@@ -1,7 +1,6 @@
 use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 
-use crate::constants::Event;
-use crate::constants::DC_CREATE_MVBOX;
+use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::e2ee;
@@ -283,13 +282,14 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                             }
                         }
                         if param.send_port == 0 {
-                            param.send_port = if 0 != param.server_flags & 0x10000 {
-                                587
-                            } else if 0 != param.server_flags & 0x40000 {
-                                25
-                            } else {
-                                465
-                            }
+                            param.send_port =
+                                if 0 != param.server_flags & DC_LP_SMTP_SOCKET_STARTTLS as i32 {
+                                    587
+                                } else if 0 != param.server_flags & DC_LP_SMTP_SOCKET_PLAIN as i32 {
+                                    25
+                                } else {
+                                    465
+                                }
                         }
                         if param.send_user.is_empty() && !param.mail_user.is_empty() {
                             param.send_user = param.mail_user.clone();
@@ -297,24 +297,30 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                         if param.send_pw.is_empty() && !param.mail_pw.is_empty() {
                             param.send_pw = param.mail_pw.clone()
                         }
-                        if !dc_exactly_one_bit_set(param.server_flags & (0x2 | 0x4)) {
-                            param.server_flags &= !(0x2 | 0x4);
-                            param.server_flags |= 0x4
-                        }
-                        if !dc_exactly_one_bit_set(param.server_flags & (0x100 | 0x200 | 0x400)) {
-                            param.server_flags &= !(0x100 | 0x200 | 0x400);
-                            param.server_flags |= if param.send_port == 143 { 0x100 } else { 0x200 }
+                        if !dc_exactly_one_bit_set(param.server_flags & DC_LP_AUTH_FLAGS as i32) {
+                            param.server_flags &= !(DC_LP_AUTH_FLAGS as i32);
+                            param.server_flags |= DC_LP_AUTH_NORMAL as i32
                         }
                         if !dc_exactly_one_bit_set(
-                            param.server_flags & (0x10000 | 0x20000 | 0x40000),
+                            param.server_flags & DC_LP_IMAP_SOCKET_FLAGS as i32,
                         ) {
-                            param.server_flags &= !(0x10000 | 0x20000 | 0x40000);
-                            param.server_flags |= if param.send_port == 587 {
-                                0x10000
-                            } else if param.send_port == 25 {
-                                0x40000
+                            param.server_flags &= !(DC_LP_IMAP_SOCKET_FLAGS as i32);
+                            param.server_flags |= if param.send_port == 143 {
+                                DC_LP_IMAP_SOCKET_STARTTLS as i32
                             } else {
-                                0x20000
+                                DC_LP_IMAP_SOCKET_SSL as i32
+                            }
+                        }
+                        if !dc_exactly_one_bit_set(
+                            param.server_flags & (DC_LP_SMTP_SOCKET_FLAGS as i32),
+                        ) {
+                            param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
+                            param.server_flags |= if param.send_port == 587 {
+                                DC_LP_SMTP_SOCKET_STARTTLS as i32
+                            } else if param.send_port == 25 {
+                                DC_LP_SMTP_SOCKET_PLAIN as i32
+                            } else {
+                                DC_LP_SMTP_SOCKET_SSL as i32
                             }
                         }
                         /* do we have a complete configuration? */
@@ -428,8 +434,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                 success = false;
                             } else {
                                 progress!(context, 850);
-                                param.server_flags &= !(0x10000 | 0x20000 | 0x40000);
-                                param.server_flags |= 0x10000;
+                                param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
+                                param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
                                 param.send_port = 587;
                                 info!(context, "Trying: {}", &param);
 
@@ -444,8 +450,8 @@ pub unsafe fn dc_job_do_DC_JOB_CONFIGURE_IMAP(context: &Context, _job: &Job) {
                                         success = false;
                                     } else {
                                         progress!(context, 860);
-                                        param.server_flags &= !(0x10000 | 0x20000 | 0x40000);
-                                        param.server_flags |= 0x10000;
+                                        param.server_flags &= !(DC_LP_SMTP_SOCKET_FLAGS as i32);
+                                        param.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32;
                                         param.send_port = 25;
                                         info!(context, "Trying: {}", &param);
 
