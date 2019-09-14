@@ -229,7 +229,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         "{}#{}{}{}: {} (Contact#{}): {} {}{}{}{} [{}]",
         prefix.as_ref(),
         dc_msg_get_id(msg) as libc::c_int,
-        if 0 != dc_msg_get_showpadlock(msg) {
+        if dc_msg_get_showpadlock(msg) {
             "🔒"
         } else {
             ""
@@ -248,11 +248,7 @@ unsafe fn log_msg(context: &Context, prefix: impl AsRef<str>, msg: &Message) {
         } else {
             "[FRESH]"
         },
-        if 0 != dc_msg_is_info(msg) {
-            "[INFO]"
-        } else {
-            ""
-        },
+        if dc_msg_is_info(msg) { "[INFO]" } else { "" },
         statestr,
         &temp2,
     );
@@ -705,7 +701,7 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
             ensure!(!arg1.is_empty(), "Argument <contact-id> missing.");
 
             let contact_id_0: libc::c_int = arg1.parse()?;
-            if 0 != chat::add_contact_to_chat(
+            if chat::add_contact_to_chat(
                 context,
                 sel_chat.as_ref().unwrap().get_id(),
                 contact_id_0 as uint32_t,

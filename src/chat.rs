@@ -868,7 +868,7 @@ unsafe fn set_draft_raw(context: &Context, chat_id: u32, mut msg: Option<&mut Me
         } else if msgtype_has_file(msg.type_0) {
             if let Some(path_filename) = msg.param.get(Param::File) {
                 let mut path_filename = path_filename.to_string();
-                if 0 != dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
+                if dc_msg_is_increation(msg) && !dc_is_blobdir_path(context, &path_filename) {
                     OK_TO_CONTINUE = false;
                 } else if !dc_make_rel_and_copy(context, &mut path_filename) {
                     OK_TO_CONTINUE = false;
@@ -1271,7 +1271,7 @@ pub unsafe fn create_group_chat(
     let chat_id = sql::get_rowid(context, &context.sql, "chats", "grpid", grpid);
 
     if chat_id != 0 {
-        if 0 != add_to_chat_contacts_table(context, chat_id, 1) {
+        if add_to_chat_contacts_table(context, chat_id, 1) {
             let mut draft_msg = dc_msg_new(Viewtype::Text);
             dc_msg_set_text(&mut draft_msg, draft_txt.as_ptr());
             set_draft_raw(context, chat_id, Some(&mut draft_msg));
@@ -1285,8 +1285,7 @@ pub unsafe fn create_group_chat(
 
 /* you MUST NOT modify this or the following strings */
 // Context functions to work with chats
-// TODO should return bool /rtn
-pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u32) -> libc::c_int {
+pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u32) -> bool {
     // add a contact to a chat; the function does not check the type or if any of the record exist or are already
     // added to the chat!
     sql::execute(
@@ -1295,27 +1294,26 @@ pub fn add_to_chat_contacts_table(context: &Context, chat_id: u32, contact_id: u
         "INSERT INTO chats_contacts (chat_id, contact_id) VALUES(?, ?)",
         params![chat_id as i32, contact_id as i32],
     )
-    .is_ok() as libc::c_int
+    .is_ok()
 }
 
-pub unsafe fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> libc::c_int {
+pub unsafe fn add_contact_to_chat(context: &Context, chat_id: u32, contact_id: u32) -> bool {
     add_contact_to_chat_ex(context, chat_id, contact_id, 0)
 }
 
-// TODO should return bool /rtn
 #[allow(non_snake_case)]
 pub fn add_contact_to_chat_ex(
     context: &Context,
     chat_id: u32,
     contact_id: u32,
     flags: libc::c_int,
-) -> libc::c_int {
+) -> bool {
     let mut OK_TO_CONTINUE = true;
-    let mut success: libc::c_int = 0;
+    let mut success = false;
     let contact = Contact::get_by_id(context, contact_id);
 
     if contact.is_err() || chat_id <= DC_CHAT_ID_LAST_SPECIAL {
-        return 0;
+        return false;
     }
     let mut msg = dc_msg_new_untyped();
 
@@ -1352,7 +1350,7 @@ pub fn add_contact_to_chat_ex(
 
                     if 0 != is_contact_in_chat(context, chat_id, contact_id) {
                         if 0 == flags & 0x1 {
-                            success = 1;
+                            success = true;
                             OK_TO_CONTINUE = false;
                         }
                     } else {
@@ -1367,7 +1365,7 @@ pub fn add_contact_to_chat_ex(
                             }
                         }
                         if OK_TO_CONTINUE {
-                            if 0 == add_to_chat_contacts_table(context, chat_id, contact_id) {
+                            if !add_to_chat_contacts_table(context, chat_id, contact_id) {
                                 OK_TO_CONTINUE = false;
                             }
                         }
@@ -1392,7 +1390,7 @@ pub fn add_contact_to_chat_ex(
                             );
                         }
                         context.call_cb(Event::MSGS_CHANGED, chat_id as uintptr_t, 0 as uintptr_t);
-                        success = 1;
+                        success = true;
                     }
                 }
             }

@@ -39,7 +39,7 @@ pub struct dc_mimefactory_t<'a> {
     pub loaded: dc_mimefactory_loaded_t,
     pub msg: Message,
     pub chat: Option<Chat>,
-    pub increation: libc::c_int,
+    pub increation: bool,
     pub in_reply_to: *mut libc::c_char,
     pub references: *mut libc::c_char,
     pub req_mdn: libc::c_int,
@@ -102,7 +102,7 @@ pub unsafe fn dc_mimefactory_load_msg(
         loaded: DC_MF_NOTHING_LOADED,
         msg,
         chat: Some(chat),
-        increation: 0,
+        increation: false,
         in_reply_to: ptr::null_mut(),
         references: ptr::null_mut(),
         req_mdn: 0,
@@ -290,7 +290,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
         loaded: DC_MF_NOTHING_LOADED,
         msg,
         chat: None,
-        increation: 0,
+        increation: false,
         in_reply_to: ptr::null_mut(),
         references: ptr::null_mut(),
         req_mdn: 0,
@@ -334,11 +334,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     Ok(factory)
 }
 
-// TODO should return bool /rtn
-pub unsafe fn dc_mimefactory_render(
-    context: &Context,
-    factory: &mut dc_mimefactory_t,
-) -> libc::c_int {
+pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefactory_t) -> bool {
     let subject: *mut mailimf_subject;
     let mut ok_to_continue = true;
     let imf_fields: *mut mailimf_fields;
@@ -348,7 +344,7 @@ pub unsafe fn dc_mimefactory_render(
     let mut subject_str: *mut libc::c_char = ptr::null_mut();
     let mut afwd_email: libc::c_int = 0;
     let mut col: libc::c_int = 0;
-    let mut success: libc::c_int = 0;
+    let mut success = false;
     let mut parts: libc::c_int = 0;
     let mut e2ee_guaranteed: libc::c_int = 0;
     let mut min_verified: libc::c_int = 0;
@@ -1046,7 +1042,7 @@ pub unsafe fn dc_mimefactory_render(
             }
             factory.out = mmap_string_new(b"\x00" as *const u8 as *const libc::c_char);
             mailmime_write_mem(factory.out, &mut col, message);
-            success = 1;
+            success = true;
         }
     }
 

@@ -831,7 +831,7 @@ unsafe fn handle_reports(
                     let mut report_body_bytes = 0;
                     let mut to_mmap_string_unref = std::ptr::null_mut();
 
-                    if 0 != mailmime_transfer_decode(
+                    if mailmime_transfer_decode(
                         report_data,
                         &mut report_body,
                         &mut report_body_bytes,

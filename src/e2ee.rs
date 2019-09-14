@@ -1093,15 +1093,12 @@ Sent with my Delta Chat Messenger: https://delta.chat";
             let mut decoded_data_bytes = 0;
             let mut transfer_decoding_buffer: *mut libc::c_char = ptr::null_mut();
 
-            assert_eq!(
-                mailmime_transfer_decode(
-                    msg1,
-                    &mut decoded_data,
-                    &mut decoded_data_bytes,
-                    &mut transfer_decoding_buffer,
-                ),
-                1
-            );
+            assert!(mailmime_transfer_decode(
+                msg1,
+                &mut decoded_data,
+                &mut decoded_data_bytes,
+                &mut transfer_decoding_buffer,
+            ));
             println!(
                 "{:?}",
                 String::from_utf8_lossy(std::slice::from_raw_parts(

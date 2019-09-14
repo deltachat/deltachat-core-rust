@@ -87,7 +87,7 @@ impl Lot {
             self.text1 = Some(context.stock_str(StockMessage::Draft).to_owned().into());
             self.text1_meaning = Meaning::Text1Draft;
         } else if msg.from_id == DC_CONTACT_ID_SELF {
-            if 0 != dc_msg_is_info(msg) || chat.is_self_talk() {
+            if dc_msg_is_info(msg) || chat.is_self_talk() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
             } else {
@@ -95,7 +95,7 @@ impl Lot {
                 self.text1_meaning = Meaning::Text1Self;
             }
         } else if chat.typ == Chattype::Group || chat.typ == Chattype::VerifiedGroup {
-            if 0 != dc_msg_is_info(msg) || contact.is_none() {
+            if dc_msg_is_info(msg) || contact.is_none() {
                 self.text1 = None;
                 self.text1_meaning = Meaning::None;
             } else {
@@ -699,13 +699,8 @@ pub fn dc_msg_get_duration(msg: &Message) -> libc::c_int {
     msg.param.get_int(Param::Duration).unwrap_or_default()
 }
 
-// TODO should return bool /rtn
-pub fn dc_msg_get_showpadlock(msg: &Message) -> libc::c_int {
-    if msg.param.get_int(Param::GuranteeE2ee).unwrap_or_default() != 0 {
-        return 1;
-    }
-
-    0
+pub fn dc_msg_get_showpadlock(msg: &Message) -> bool {
+    msg.param.get_int(Param::GuranteeE2ee).unwrap_or_default() != 0
 }
 
 pub fn dc_msg_get_summary(context: &Context, msg: &mut Message, chat: Option<&Chat>) -> Lot {
@@ -825,48 +820,27 @@ pub unsafe fn dc_msg_has_deviating_timestamp(msg: &Message) -> libc::c_int {
     (sort_timestamp / 86400 != send_timestamp / 86400) as libc::c_int
 }
 
-// TODO should return bool /rtn
-pub fn dc_msg_is_sent(msg: &Message) -> libc::c_int {
-    if msg.state as i32 >= MessageState::OutDelivered as i32 {
-        1
-    } else {
-        0
-    }
+pub fn dc_msg_is_sent(msg: &Message) -> bool {
+    msg.state as i32 >= MessageState::OutDelivered as i32
 }
 
 pub fn dc_msg_is_starred(msg: &Message) -> bool {
     msg.starred
 }
 
-// TODO should return bool /rtn
-pub fn dc_msg_is_forwarded(msg: &Message) -> libc::c_int {
-    if 0 != msg.param.get_int(Param::Forwarded).unwrap_or_default() {
-        1
-    } else {
-        0
-    }
+pub fn dc_msg_is_forwarded(msg: &Message) -> bool {
+    0 != msg.param.get_int(Param::Forwarded).unwrap_or_default()
 }
 
-// TODO should return bool /rtn
-pub fn dc_msg_is_info(msg: &Message) -> libc::c_int {
+pub fn dc_msg_is_info(msg: &Message) -> bool {
     let cmd = msg.param.get_int(Param::Cmd).unwrap_or_default();
-    if msg.from_id == 2i32 as libc::c_uint
+    msg.from_id == 2i32 as libc::c_uint
         || msg.to_id == 2i32 as libc::c_uint
         || 0 != cmd && cmd != 6i32
-    {
-        return 1;
-    }
-
-    0
 }
 
-// TODO should return bool /rtn
-pub fn dc_msg_is_increation(msg: &Message) -> libc::c_int {
-    if chat::msgtype_has_file(msg.type_0) && msg.state == MessageState::OutPreparing {
-        1
-    } else {
-        0
-    }
+pub fn dc_msg_is_increation(msg: &Message) -> bool {
+    chat::msgtype_has_file(msg.type_0) && msg.state == MessageState::OutPreparing
 }
 
 pub fn dc_msg_is_setupmessage(msg: &Message) -> bool {
