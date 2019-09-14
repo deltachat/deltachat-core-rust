@@ -389,7 +389,7 @@ unsafe fn add_parts(
     // incoming non-chat messages may be discarded;
     // maybe this can be optimized later, by checking the state before the message body is downloaded
     let mut allow_creation = 1;
-    if mime_parser.is_system_message != DC_CMD_AUTOCRYPT_SETUP_MESSAGE && msgrmsg == 0 {
+    if mime_parser.is_system_message != SystemMessage::AutocryptSetupMessage && msgrmsg == 0 {
         let show_emails = context
             .sql
             .get_config_int(context, "show_emails")
@@ -673,9 +673,9 @@ unsafe fn add_parts(
                             msg_raw.as_ptr(),
                         )
                     }
-                    if 0 != mime_parser.is_system_message {
+                    if mime_parser.is_system_message != SystemMessage::Unknown {
                         part.param
-                            .set_int(Param::Cmd, mime_parser.is_system_message);
+                            .set_int(Param::Cmd, mime_parser.is_system_message as i32);
                     }
 
                     stmt.execute(params![
@@ -1080,7 +1080,7 @@ unsafe fn create_or_lookup_group(
         };
     };
 
-    if mime_parser.is_system_message == DC_CMD_LOCATION_STREAMING_ENABLED {
+    if mime_parser.is_system_message == SystemMessage::LocationStreamingEnabled {
         better_msg =
             context.stock_system_msg(StockMessage::MsgLocationEnabled, "", "", from_id as u32)
     }
@@ -1154,7 +1154,7 @@ unsafe fn create_or_lookup_group(
     }
     if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Member-Removed") {
         X_MrRemoveFromGrp = (*optional_field).fld_value;
-        mime_parser.is_system_message = DC_CMD_MEMBER_REMOVED_FROM_GROUP;
+        mime_parser.is_system_message = SystemMessage::MemberRemovedFromGroup;
         let left_group = (Contact::lookup_id_by_addr(context, as_str(X_MrRemoveFromGrp))
             == from_id as u32) as libc::c_int;
         better_msg = context.stock_system_msg(
@@ -1170,7 +1170,7 @@ unsafe fn create_or_lookup_group(
     } else {
         if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Member-Added") {
             X_MrAddToGrp = (*optional_field).fld_value;
-            mime_parser.is_system_message = DC_CMD_MEMBER_ADDED_TO_GROUP;
+            mime_parser.is_system_message = SystemMessage::MemberAddedToGroup;
             if let Some(optional_field) = mime_parser.lookup_optional_field("Chat-Group-Image") {
                 // fld_value is a pointer somewhere into mime_parser, must not be freed
                 X_MrGrpImageChanged = as_str((*optional_field).fld_value).to_string();
@@ -1186,7 +1186,7 @@ unsafe fn create_or_lookup_group(
                 mime_parser.lookup_optional_field("Chat-Group-Name-Changed")
             {
                 X_MrGrpNameChanged = 1;
-                mime_parser.is_system_message = DC_CMD_GROUPNAME_CHANGED;
+                mime_parser.is_system_message = SystemMessage::GroupNameChanged;
                 better_msg = context.stock_system_msg(
                     StockMessage::MsgGrpName,
                     as_str((*optional_field).fld_value),
@@ -1198,7 +1198,7 @@ unsafe fn create_or_lookup_group(
                 {
                     // fld_value is a pointer somewhere into mime_parser, must not be freed
                     X_MrGrpImageChanged = as_str((*optional_field).fld_value).to_string();
-                    mime_parser.is_system_message = DC_CMD_GROUPIMAGE_CHANGED;
+                    mime_parser.is_system_message = SystemMessage::GroupImageChanged;
                     better_msg = context.stock_system_msg(
                         if X_MrGrpImageChanged == "0" {
                             StockMessage::MsgGrpImgDeleted

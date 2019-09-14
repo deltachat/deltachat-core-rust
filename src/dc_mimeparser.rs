@@ -3,6 +3,7 @@ use std::ffi::{CStr, CString};
 use std::ptr;
 
 use charset::Charset;
+use deltachat_derive::{FromSql, ToSql};
 use mmime::clist::*;
 use mmime::mailimf::*;
 use mmime::mailimf_types::*;
@@ -39,9 +40,29 @@ pub struct MimeParser<'a> {
     pub e2ee_helper: E2eeHelper,
     pub is_forwarded: bool,
     pub reports: Vec<*mut mailmime>,
-    pub is_system_message: libc::c_int,
+    pub is_system_message: SystemMessage,
     pub location_kml: Option<location::Kml>,
     pub message_kml: Option<location::Kml>,
+}
+
+#[derive(Debug, Display, Clone, Copy, PartialEq, Eq, FromPrimitive, ToPrimitive, ToSql, FromSql)]
+#[repr(i32)]
+pub enum SystemMessage {
+    Unknown = 0,
+    GroupNameChanged = 2,
+    GroupImageChanged = 3,
+    MemberAddedToGroup = 4,
+    MemberRemovedFromGroup = 5,
+    AutocryptSetupMessage = 6,
+    SecurejoinMessage = 7,
+    LocationStreamingEnabled = 8,
+    LocationOnly = 9,
+}
+
+impl Default for SystemMessage {
+    fn default() -> Self {
+        SystemMessage::Unknown
+    }
 }
 
 impl<'a> MimeParser<'a> {
@@ -59,7 +80,7 @@ impl<'a> MimeParser<'a> {
             is_forwarded: false,
             context,
             reports: Vec::new(),
-            is_system_message: 0,
+            is_system_message: SystemMessage::Unknown,
             location_kml: None,
             message_kml: None,
         }
@@ -97,7 +118,7 @@ impl<'a> MimeParser<'a> {
                     .any(|p| p.mimetype == DC_MIMETYPE_AC_SETUP_FILE);
 
                 if has_setup_file {
-                    self.is_system_message = 6i32;
+                    self.is_system_message = SystemMessage::AutocryptSetupMessage;
 
                     // TODO: replace the following code with this
                     // once drain_filter stabilizes.
@@ -127,7 +148,7 @@ impl<'a> MimeParser<'a> {
                             b"location-streaming-enabled\x00" as *const u8 as *const libc::c_char,
                         ) == 0i32
                         {
-                            self.is_system_message = 8i32;
+                            self.is_system_message = SystemMessage::LocationStreamingEnabled;
                         }
                     }
                 }

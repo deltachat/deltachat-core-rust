@@ -314,12 +314,3 @@ pub enum KeyType {
     Public = 0,
     Private = 1,
 }
-
-pub const DC_CMD_GROUPNAME_CHANGED: libc::c_int = 2;
-pub const DC_CMD_GROUPIMAGE_CHANGED: libc::c_int = 3;
-pub const DC_CMD_MEMBER_ADDED_TO_GROUP: libc::c_int = 4;
-pub const DC_CMD_MEMBER_REMOVED_FROM_GROUP: libc::c_int = 5;
-pub const DC_CMD_AUTOCRYPT_SETUP_MESSAGE: libc::c_int = 6;
-pub const DC_CMD_SECUREJOIN_MESSAGE: libc::c_int = 7;
-pub const DC_CMD_LOCATION_STREAMING_ENABLED: libc::c_int = 8;
-pub const DC_CMD_LOCATION_ONLY: libc::c_int = 9;
