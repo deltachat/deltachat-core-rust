@@ -1,6 +1,4 @@
-use mmime::mailimf_types::*;
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
-use std::ptr;
 
 use crate::aheader::EncryptPreference;
 use crate::chat::{self, Chat};
@@ -10,7 +8,6 @@ use crate::constants::*;
 use crate::contact::*;
 use crate::context::Context;
 use crate::dc_mimeparser::*;
-use crate::dc_tools::*;
 use crate::e2ee::*;
 use crate::error::Error;
 use crate::events::Event;
@@ -343,7 +340,7 @@ pub fn handle_securejoin_handshake(
     if contact_id <= DC_CONTACT_ID_LAST_SPECIAL {
         return 0;
     }
-    let step = match lookup_field(mimeparser, "Secure-Join") {
+    let step = match mimeparser.lookup_optional_field("Secure-Join") {
         Some(s) => s,
         None => {
             return 0;
@@ -372,7 +369,7 @@ pub fn handle_securejoin_handshake(
             // it just ensures, we have Bobs key now. If we do _not_ have the key because eg. MitM has removed it,
             // send_message() will fail with the error "End-to-end-encryption unavailable unexpectedly.", so, there is no additional check needed here.
             // verify that the `Secure-Join-Invitenumber:`-header matches invitenumber written to the QR code
-            let invitenumber = match lookup_field(mimeparser, "Secure-Join-Invitenumber") {
+            let invitenumber = match mimeparser.lookup_optional_field("Secure-Join-Invitenumber") {
                 Some(n) => n,
                 None => {
                     warn!(context, "Secure-join denied (invitenumber missing).",);
@@ -459,7 +456,7 @@ pub fn handle_securejoin_handshake(
             ====  Step 6 in "Out-of-band verified groups" protocol  ====
             ============================================================ */
             // verify that Secure-Join-Fingerprint:-header matches the fingerprint of Bob
-            let fingerprint = match lookup_field(mimeparser, "Secure-Join-Fingerprint") {
+            let fingerprint = match mimeparser.lookup_optional_field("Secure-Join-Fingerprint") {
                 Some(fp) => fp,
                 None => {
                     could_not_establish_secure_connection(
@@ -488,7 +485,7 @@ pub fn handle_securejoin_handshake(
             }
             info!(context, "Fingerprint verified.",);
             // verify that the `Secure-Join-Auth:`-header matches the secret written to the QR code
-            let auth_0 = match lookup_field(mimeparser, "Secure-Join-Auth") {
+            let auth_0 = match mimeparser.lookup_optional_field("Secure-Join-Auth") {
                 Some(auth) => auth,
                 None => {
                     could_not_establish_secure_connection(
@@ -517,7 +514,9 @@ pub fn handle_securejoin_handshake(
             emit_event!(context, Event::ContactsChanged(Some(contact_id)));
             inviter_progress!(context, contact_id, 600);
             if join_vg {
-                let field_grpid = lookup_field(mimeparser, "Secure-Join-Group").unwrap_or_default();
+                let field_grpid = mimeparser
+                    .lookup_optional_field("Secure-Join-Group")
+                    .unwrap_or_default();
                 let (group_chat_id, _, _) = chat::get_chat_id_by_grpid(context, &field_grpid);
                 if group_chat_id == 0 {
                     error!(context, "Chat {} not found.", &field_grpid);
@@ -586,8 +585,9 @@ pub fn handle_securejoin_handshake(
             }
             Contact::scaleup_origin_by_id(context, contact_id, Origin::SecurejoinJoined);
             emit_event!(context, Event::ContactsChanged(None));
-            let cg_member_added =
-                lookup_field(mimeparser, "Chat-Group-Member-Added").unwrap_or_default();
+            let cg_member_added = mimeparser
+                .lookup_optional_field("Chat-Group-Member-Added")
+                .unwrap_or_default();
             if join_vg && !addr_equals_self(context, cg_member_added) {
                 info!(context, "Message belongs to a different handshake (scaled up contact anyway to allow creation of group).");
                 return ret;
@@ -649,24 +649,6 @@ fn secure_connection_established(context: &Context, contact_chat_id: u32) {
     let msg = context.stock_string_repl_str(StockMessage::ContactVerified, addr);
     chat::add_device_msg(context, contact_chat_id, msg);
     emit_event!(context, Event::ChatModified(contact_chat_id));
-}
-
-fn lookup_field(mime_parser: &MimeParser, key: &str) -> Option<String> {
-    if let Some(field) = mime_parser.lookup_field(key) {
-        let mut value: *const libc::c_char = ptr::null();
-        if unsafe { (*field).fld_type } != MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int
-            || unsafe { (*field).fld_data.fld_optional_field.is_null() }
-            || {
-                value = unsafe { (*(*field).fld_data.fld_optional_field).fld_value };
-                value.is_null()
-            }
-        {
-            return None;
-        }
-        Some(to_string(value))
-    } else {
-        None
-    }
 }
 
 fn could_not_establish_secure_connection(context: &Context, contact_chat_id: u32, details: &str) {

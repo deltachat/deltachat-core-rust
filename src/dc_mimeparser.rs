@@ -142,14 +142,8 @@ impl<'a> MimeParser<'a> {
                 }
             } else {
                 if let Some(optional_field) = self.lookup_optional_field("Chat-Content") {
-                    if !(*optional_field).fld_value.is_null() {
-                        if strcmp(
-                            (*optional_field).fld_value,
-                            b"location-streaming-enabled\x00" as *const u8 as *const libc::c_char,
-                        ) == 0i32
-                        {
-                            self.is_system_message = SystemMessage::LocationStreamingEnabled;
-                        }
+                    if optional_field == "location-streaming-enabled" {
+                        self.is_system_message = SystemMessage::LocationStreamingEnabled;
                     }
                 }
             }
@@ -248,8 +242,8 @@ impl<'a> MimeParser<'a> {
                     || part.typ == Viewtype::Video
                 {
                     if let Some(field_0) = self.lookup_optional_field("Chat-Duration") {
-                        let duration_ms: libc::c_int = dc_atoi_null_is_0((*field_0).fld_value);
-                        if duration_ms > 0i32 && duration_ms < 24i32 * 60i32 * 60i32 * 1000i32 {
+                        let duration_ms = field_0.parse().unwrap_or_default();
+                        if duration_ms > 0 && duration_ms < 24 * 60 * 60 * 1000 {
                             let part_mut = &mut self.parts[0];
                             part_mut.param.set_int(Param::Duration, duration_ms);
                         }
@@ -263,9 +257,11 @@ impl<'a> MimeParser<'a> {
                     if self.get_last_nonmeta().is_some() {
                         let mut mb_list: *mut mailimf_mailbox_list = ptr::null_mut();
                         let mut index_0 = 0;
+                        let dn_field_c = CString::new(dn_field).unwrap();
+
                         if mailimf_mailbox_list_parse(
-                            (*dn_field).fld_value,
-                            strlen((*dn_field).fld_value),
+                            dn_field_c.as_ptr(),
+                            strlen(dn_field_c.as_ptr()),
                             &mut index_0,
                             &mut mb_list,
                         ) == MAILIMF_NO_ERROR as libc::c_int
@@ -329,19 +325,31 @@ impl<'a> MimeParser<'a> {
         }
     }
 
-    pub fn lookup_optional_field(&self, field_name: &str) -> Option<*mut mailimf_optional_field> {
+    pub fn lookup_optional_field(&self, field_name: &str) -> Option<String> {
         if let Some(field) = self.lookup_field(field_name) {
             if unsafe { (*field).fld_type } == MAILIMF_FIELD_OPTIONAL_FIELD as libc::c_int {
                 let val = unsafe { (*field).fld_data.fld_optional_field };
                 if val.is_null() {
                     return None;
                 } else {
-                    return Some(val);
+                    return Some(unsafe { to_string_lossy((*val).fld_value) });
                 }
             }
         }
 
         None
+    }
+
+    pub fn lookup_field_typ(&self, name: &str, typ: u32) -> Option<*const mailimf_field> {
+        if let Some(field) = self.lookup_field(name) {
+            if unsafe { (*field).fld_type } == typ as libc::c_int {
+                Some(field)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     }
 
     unsafe fn parse_mime_recursive(&mut self, mime: *mut mailmime) -> libc::c_int {
@@ -938,21 +946,13 @@ impl<'a> MimeParser<'a> {
         self.parts.push(part);
     }
 
-    pub unsafe fn is_mailinglist_message(&self) -> bool {
+    pub fn is_mailinglist_message(&self) -> bool {
         if self.lookup_field("List-Id").is_some() {
             return true;
         }
 
         if let Some(precedence) = self.lookup_optional_field("Precedence") {
-            if strcasecmp(
-                (*precedence).fld_value,
-                b"list\x00" as *const u8 as *const libc::c_char,
-            ) == 0i32
-                || strcasecmp(
-                    (*precedence).fld_value,
-                    b"bulk\x00" as *const u8 as *const libc::c_char,
-                ) == 0i32
-            {
+            if precedence == "list" || precedence == "bulk" {
                 return true;
             }
         }
@@ -1647,16 +1647,13 @@ mod tests {
             assert_eq!(mimeparser.subject, Some("inner-subject".into()));
 
             let of = mimeparser.lookup_optional_field("X-Special-A").unwrap();
-            assert_eq!(
-                &to_string((*of).fld_value as *const libc::c_char),
-                "special-a",
-            );
+            assert_eq!(&of, "special-a");
 
             let of = mimeparser.lookup_optional_field("Foo").unwrap();
-            assert_eq!(&to_string((*of).fld_value as *const libc::c_char), "Bar",);
+            assert_eq!(&of, "Bar");
 
             let of = mimeparser.lookup_optional_field("Chat-Version").unwrap();
-            assert_eq!(&to_string((*of).fld_value as *const libc::c_char), "1.0",);
+            assert_eq!(&of, "1.0");
             assert_eq!(mimeparser.parts.len(), 1);
         }
     }
