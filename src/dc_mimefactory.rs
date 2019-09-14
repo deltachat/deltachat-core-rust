@@ -35,7 +35,7 @@ pub enum Loaded {
 
 #[derive(Clone)]
 #[allow(non_camel_case_types)]
-pub struct dc_mimefactory_t<'a> {
+pub struct MimeFactory<'a> {
     pub from_addr: Option<String>,
     from_displayname: Option<String>,
     selfstatus: Option<String>,
@@ -58,7 +58,7 @@ pub struct dc_mimefactory_t<'a> {
     pub context: &'a Context,
 }
 
-impl<'a> Drop for dc_mimefactory_t<'a> {
+impl<'a> Drop for MimeFactory<'a> {
     fn drop(&mut self) {
         unsafe {
             free(self.rfc724_mid as *mut libc::c_void);
@@ -84,12 +84,12 @@ impl<'a> Drop for dc_mimefactory_t<'a> {
 pub unsafe fn dc_mimefactory_load_msg(
     context: &Context,
     msg_id: u32,
-) -> Result<dc_mimefactory_t, Error> {
+) -> Result<MimeFactory, Error> {
     ensure!(msg_id > DC_CHAT_ID_LAST_SPECIAL, "Invalid chat id");
 
     let msg = dc_msg_load_from_db(context, msg_id)?;
     let chat = Chat::load_from_db(context, msg.chat_id)?;
-    let mut factory = dc_mimefactory_t {
+    let mut factory = MimeFactory {
         from_addr: None,
         from_displayname: None,
         selfstatus: None,
@@ -239,7 +239,7 @@ pub unsafe fn dc_mimefactory_load_msg(
     Ok(factory)
 }
 
-unsafe fn load_from(factory: &mut dc_mimefactory_t) {
+unsafe fn load_from(factory: &mut MimeFactory) {
     let context = factory.context;
     factory.from_addr = context.sql.get_config(context, "configured_addr");
     factory.from_displayname = context.sql.get_config(context, "displayname");
@@ -258,7 +258,7 @@ unsafe fn load_from(factory: &mut dc_mimefactory_t) {
 pub unsafe fn dc_mimefactory_load_mdn<'a>(
     context: &'a Context,
     msg_id: u32,
-) -> Result<dc_mimefactory_t, Error> {
+) -> Result<MimeFactory, Error> {
     if 0 == context
         .sql
         .get_config_int(context, "mdns_enabled")
@@ -272,7 +272,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
 
     let msg = dc_msg_load_from_db(context, msg_id)?;
 
-    let mut factory = dc_mimefactory_t {
+    let mut factory = MimeFactory {
         from_addr: None,
         from_displayname: None,
         selfstatus: None,
@@ -328,7 +328,7 @@ pub unsafe fn dc_mimefactory_load_mdn<'a>(
     Ok(factory)
 }
 
-pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut dc_mimefactory_t) -> bool {
+pub unsafe fn dc_mimefactory_render(context: &Context, factory: &mut MimeFactory) -> bool {
     let subject: *mut mailimf_subject;
     let mut ok_to_continue = true;
     let imf_fields: *mut mailimf_fields;
@@ -1074,7 +1074,7 @@ unsafe fn get_subject(
     ret
 }
 
-unsafe fn set_error(factory: *mut dc_mimefactory_t, text: *const libc::c_char) {
+unsafe fn set_error(factory: *mut MimeFactory, text: *const libc::c_char) {
     if factory.is_null() {
         return;
     }
