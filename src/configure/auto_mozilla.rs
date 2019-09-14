@@ -1,6 +1,7 @@
 use quick_xml;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText};
 
+use crate::constants::*;
 use crate::context::Context;
 use crate::dc_tools::*;
 use crate::login_param::LoginParam;
@@ -120,13 +121,13 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
             13 => {
                 let val_lower = val.to_lowercase();
                 if val_lower == "ssl" {
-                    moz_ac.out.server_flags |= 0x200
+                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_SSL as i32
                 }
                 if val_lower == "starttls" {
-                    moz_ac.out.server_flags |= 0x100
+                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_STARTTLS as i32
                 }
                 if val_lower == "plain" {
-                    moz_ac.out.server_flags |= 0x400
+                    moz_ac.out.server_flags |= DC_LP_IMAP_SOCKET_PLAIN as i32
                 }
             }
             _ => {}
@@ -139,13 +140,13 @@ fn moz_autoconfigure_text_cb<B: std::io::BufRead>(
             13 => {
                 let val_lower = val.to_lowercase();
                 if val_lower == "ssl" {
-                    moz_ac.out.server_flags |= 0x20000
+                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_SSL as i32
                 }
                 if val_lower == "starttls" {
-                    moz_ac.out.server_flags |= 0x10000
+                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_STARTTLS as i32
                 }
                 if val_lower == "plain" {
-                    moz_ac.out.server_flags |= 0x40000
+                    moz_ac.out.server_flags |= DC_LP_SMTP_SOCKET_PLAIN as i32
                 }
             }
             _ => {}
