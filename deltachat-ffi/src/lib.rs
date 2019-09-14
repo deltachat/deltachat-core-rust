@@ -151,13 +151,7 @@ pub unsafe extern "C" fn dc_set_config(
     let context = &*context;
     let key = dc_tools::as_str(key);
     let value = as_opt_str(value);
-    if key.starts_with(".ui") {
-        return context.set_ui_config(key, value).is_ok() as libc::c_int;
-    }
-    match config::Config::from_str(key) {
-        Ok(key) => context.set_config(key, value).is_ok() as libc::c_int,
-        Err(_) => 0,
-    }
+    context.set_config_from_str(key, value).is_ok() as libc::c_int
 }
 
 #[no_mangle]
@@ -173,14 +167,7 @@ pub unsafe extern "C" fn dc_get_config(
     let context = &*context;
 
     let key = dc_tools::as_str(key);
-    if key.starts_with(".ui") {
-        return context.get_ui_config(key).unwrap_or_default().strdup();
-    }
-    let key = config::Config::from_str(key).expect("invalid key");
-
-    // TODO: Translating None to NULL would be more sensible than translating None
-    // to "", as it is now.
-    context.get_config(key).unwrap_or_default().strdup()
+    context.get_config_from_str(key).unwrap_or_default().strdup()
 }
 
 #[no_mangle]

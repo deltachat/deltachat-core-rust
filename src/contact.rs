@@ -146,7 +146,7 @@ impl Contact {
                 name: context.stock_str(StockMessage::SelfMsg).into(),
                 authname: "".into(),
                 addr: context
-                    .get_config(Config::ConfiguredAddr)
+                    .get_config(&Config::ConfiguredAddr)
                     .unwrap_or_default(),
                 blocked: false,
                 origin: Origin::Unknown,
@@ -257,7 +257,7 @@ impl Contact {
 
         let addr_normalized = addr_normalize(addr.as_ref());
         let addr_self = context
-            .get_config(Config::ConfiguredAddr)
+            .get_config(&Config::ConfiguredAddr)
             .unwrap_or_default();
 
         if addr_normalized == addr_self {
@@ -295,7 +295,7 @@ impl Contact {
 
         let addr = addr_normalize(addr.as_ref());
         let addr_self = context
-            .get_config(Config::ConfiguredAddr)
+            .get_config(&Config::ConfiguredAddr)
             .unwrap_or_default();
 
         if addr == addr_self {
@@ -456,7 +456,7 @@ impl Contact {
         query: Option<impl AsRef<str>>,
     ) -> Result<Vec<u32>> {
         let self_addr = context
-            .get_config(Config::ConfiguredAddr)
+            .get_config(&Config::ConfiguredAddr)
             .unwrap_or_default();
 
         let mut add_self = false;
@@ -499,7 +499,7 @@ impl Contact {
                 },
             )?;
 
-            let self_name = context.get_config(Config::Displayname).unwrap_or_default();
+            let self_name = context.get_config(&Config::Displayname).unwrap_or_default();
             let self_name2 = context.stock_str(StockMessage::SelfMsg);
 
             if let Some(query) = query {
@@ -765,7 +765,7 @@ impl Contact {
     /// using dc_set_config(context, "selfavatar", image).
     pub fn get_profile_image(&self, context: &Context) -> Option<PathBuf> {
         if self.id == DC_CONTACT_ID_SELF {
-            if let Some(p) = context.get_config(Config::Selfavatar) {
+            if let Some(p) = context.get_config(&Config::Selfavatar) {
                 return Some(PathBuf::from(p));
             }
         }
@@ -1026,7 +1026,7 @@ pub fn addr_cmp(addr1: impl AsRef<str>, addr2: impl AsRef<str>) -> bool {
 pub fn addr_equals_self(context: &Context, addr: impl AsRef<str>) -> bool {
     if !addr.as_ref().is_empty() {
         let normalized_addr = addr_normalize(addr.as_ref());
-        if let Some(self_addr) = context.get_config(Config::ConfiguredAddr) {
+        if let Some(self_addr) = context.get_config(&Config::ConfiguredAddr) {
             return normalized_addr == self_addr;
         }
     }

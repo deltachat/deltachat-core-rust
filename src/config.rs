@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{AsRefStr, Display, EnumIter, EnumProperty, EnumString};
 
@@ -8,9 +10,11 @@ use crate::error::Error;
 use crate::job::*;
 use crate::stock::StockMessage;
 
+pub const CONFIG_UI_PREFIX: &str = "ui.";
+
 /// The available configuration keys.
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Display, EnumString, AsRefStr, EnumIter, EnumProperty,
+    Debug, Clone, PartialEq, Eq, Display, EnumString, AsRefStr, EnumIter, EnumProperty,
 )]
 #[strum(serialize_all = "snake_case")]
 pub enum Config {
@@ -65,11 +69,17 @@ pub enum Config {
     SysMsgsizeMaxRecommended,
     #[strum(serialize = "sys.config_keys")]
     SysConfigKeys,
+    Ui(String)
 }
 
 impl Context {
+
+    pub fn get_config_from_str(&self, key: &str) -> Option<String> {
+        self.get_config(&config_from_str(key))
+    }
+
     /// Get a configuration key. Returns `None` if no value is set, and no default value found.
-    pub fn get_config(&self, key: Config) -> Option<String> {
+    pub fn get_config(&self, key: &Config) -> Option<String> {
         let value = match key {
             Config::Selfavatar => {
                 let rel_path = self.sql.get_config(self, key);
@@ -78,6 +88,7 @@ impl Context {
             Config::SysVersion => Some((&*DC_VERSION_STR).clone()),
             Config::SysMsgsizeMaxRecommended => Some(format!("{}", 24 * 1024 * 1024 / 4 * 3)),
             Config::SysConfigKeys => Some(get_config_keys_string()),
+            Config::Ui(key) => self.sql.get_config(self, format!("{}{}", CONFIG_UI_PREFIX, key)),
             _ => self.sql.get_config(self, key),
         };
 
@@ -90,6 +101,13 @@ impl Context {
             Config::Selfstatus => Some(self.stock_str(StockMessage::StatusLine).into_owned()),
             _ => key.get_str("default").map(|s| s.to_string()),
         }
+    }
+
+    pub fn set_config_from_str(&self, key: &str, value: Option<&str>) -> Result<(), &str> {
+        if self.sql.set_config(self, config_from_str(key), value).is_err() {
+            return Err("Sql error");
+        }
+        Ok(())
     }
 
     /// Set the given config key.
@@ -125,26 +143,13 @@ impl Context {
                 };
 
                 self.sql.set_config(self, key, val)
-            }
+            },
+            Config::Ui(key) => {
+                let key = format!("{}{}", CONFIG_UI_PREFIX, key);
+                self.sql.set_config(self, key, value)
+            },
             _ => self.sql.set_config(self, key, value),
         }
-    }
-
-    pub fn set_ui_config(&self, key: &str, value: Option<&str>) -> Result<(), &str> {
-        if !key.starts_with("ui.") {
-            return Err("Ui config key has to be prefixed with 'ui.'");
-        }
-
-        if self.sql.set_config(self, key, value).is_err() {
-            return Err("Sql error");
-        }
-        Ok(())
-    }
-    pub fn get_ui_config(&self, key: &str) -> Option<String> {
-        if key.starts_with("ui.") {
-            return self.sql.get_config(self, key);
-        }
-        None
     }
 }
 
@@ -159,12 +164,23 @@ fn get_config_keys_string() -> String {
     format!(" {} ", keys)
 }
 
+fn config_from_str(key: &str) -> Result<Config, &str> {
+    if key.starts_with(CONFIG_UI_PREFIX) {
+        Config::Ui(key[CONFIG_UI_PREFIX.len()-1..].to_string())
+    } else {
+        if let Ok(config) = Config::from_str(key) {
+            config
+        } else {
+            Err("invalid key")
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use std::str::FromStr;
     use std::string::ToString;
+    use crate::test_utils::*;
 
     #[test]
     fn test_to_string() {
@@ -181,5 +197,21 @@ mod tests {
     #[test]
     fn test_default_prop() {
         assert_eq!(Config::ImapFolder.get_str("default"), Some("INBOX"));
+    }
+
+    #[test]
+    fn test_config_from_str() {
+        assert_eq!(config_from_str("addr"), Config::Addr);
+        assert_eq!(config_from_str("addrxyz"), None);
+    }
+
+    #[test]
+    fn test_get_config_from_str() {
+        let t = dummy_context();
+        assert_eq!(t.ctx.set_config_from_str("addr", Some("foo@bar.bar")), Ok(()));
+        assert_eq!(t.ctx.get_config_from_str("addr").unwrap(), "foo@bar.bar");
+
+        assert_eq!(t.ctx.set_config_from_str("ui.desktop.some_string", Some("foobar")), Ok(()));
+        assert_eq!(t.ctx.get_config_from_str("ui.desktop.some_string").unwrap(), "foobar");
     }
 }

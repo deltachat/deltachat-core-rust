@@ -550,9 +550,8 @@ pub unsafe fn dc_cmdline(context: &Context, line: &str) -> Result<(), failure::E
         }
         "get" => {
             ensure!(!arg1.is_empty(), "Argument <key> missing.");
-            let key = config::Config::from_str(&arg1)?;
-            let val = context.get_config(key);
-            println!("{}={:?}", key, val);
+            let val = context.get_config_from_str(&arg1);
+            println!("{}={:?}", &arg1.to_string(), val);
         }
         "info" => {
             println!("{}", to_string(dc_get_info(context)));

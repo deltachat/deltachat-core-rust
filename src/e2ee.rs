@@ -1025,7 +1025,7 @@ unsafe fn contains_report(mime: *mut mailmime) -> bool {
 /// [Config::ConfiguredAddr] is configured, this address is returned.
 pub fn ensure_secret_key_exists(context: &Context) -> Result<String> {
     let self_addr = context
-        .get_config(Config::ConfiguredAddr)
+        .get_config(&Config::ConfiguredAddr)
         .ok_or(format_err!(concat!(
             "Failed to get self address, ",
             "cannot ensure secret key if not configured."

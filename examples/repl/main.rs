@@ -495,7 +495,7 @@ unsafe fn handle_cmd(line: &str, ctx: Arc<RwLock<Context>>) -> Result<ExitResult
             configure(&ctx.read().unwrap());
         }
         "oauth2" => {
-            if let Some(addr) = ctx.read().unwrap().get_config(config::Config::Addr) {
+            if let Some(addr) = ctx.read().unwrap().get_config(&config::Config::Addr) {
                 let oauth2_url = dc_get_oauth2_url(
                     &ctx.read().unwrap(),
                     &addr,
